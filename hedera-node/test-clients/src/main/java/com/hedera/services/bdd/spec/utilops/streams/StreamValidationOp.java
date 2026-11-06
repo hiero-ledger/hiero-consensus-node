@@ -547,8 +547,8 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
      */
     private static BlockPaths collectBlockPaths(@NonNull final Path activeDir) {
         final var activePaths = new ArrayList<Path>();
-        try {
-            activePaths.addAll(BlockStreamAccess.orderedBlockPathsFrom(activeDir, true));
+        try (final var stream = Files.walk(activeDir)) {
+            stream.filter(p -> BlockStreamAccess.isBlockFile(p, true)).forEach(activePaths::add);
         } catch (Exception ignore) {
             // Empty or unreadable active dir falls through; archive (if any) is still consulted.
         }
@@ -556,11 +556,14 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         if (!Files.isDirectory(archiveDir)) {
             return new BlockPaths(activePaths, List.of());
         }
-        final long minActiveBlockNumber =
-                activePaths.isEmpty() ? Long.MAX_VALUE : BlockStreamAccess.extractBlockNumber(activePaths.getFirst());
+        final long minActiveBlockNumber = activePaths.stream()
+                .mapToLong(BlockStreamAccess::extractBlockNumber)
+                .filter(n -> n >= 0)
+                .min()
+                .orElse(Long.MAX_VALUE);
         final var archivedPaths = new ArrayList<Path>();
-        try {
-            BlockStreamAccess.orderedBlockPathsFrom(archiveDir, true).stream()
+        try (final var stream = Files.walk(archiveDir)) {
+            stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
                     .filter(p -> BlockStreamAccess.extractBlockNumber(p) < minActiveBlockNumber)
                     .forEach(archivedPaths::add);
         } catch (Exception ignore) {
@@ -669,18 +672,17 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             if (!Files.exists(parentPath)) {
                 continue;
             }
-            try {
-                for (final var path : BlockStreamAccess.orderedBlockPathsFrom(parentPath, true)) {
-                    if (!BlockFileUtils.isPendingBlockFile(path)) {
-                        continue;
-                    }
-                    try {
-                        pendingBlocks.add(BlockStreamAccess.blockFrom(path));
-                        log.info("Read pending block from {}", path);
-                    } catch (Exception e) {
-                        log.warn("Failed to read pending block from {}", path, e);
-                    }
-                }
+            try (final var stream = Files.walk(parentPath)) {
+                stream.filter(BlockFileUtils::isPendingBlockFile)
+                        .filter(p -> BlockStreamAccess.isBlockFile(p, false))
+                        .forEach(p -> {
+                            try {
+                                pendingBlocks.add(BlockStreamAccess.blockFrom(p));
+                                log.info("Read pending block from {}", p);
+                            } catch (Exception e) {
+                                log.warn("Failed to read pending block from {}", p, e);
+                            }
+                        });
             } catch (IOException e) {
                 log.warn("Failed to scan for pending blocks in {}", parentPath, e);
             }

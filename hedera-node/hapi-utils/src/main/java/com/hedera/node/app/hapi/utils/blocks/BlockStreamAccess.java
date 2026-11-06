@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.SIDECAR_ONLY_TOKEN;
 import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Comparator.comparing;
-import static java.util.function.BinaryOperator.maxBy;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -23,16 +22,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -42,10 +38,6 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Central utility for accessing blocks.
- *
- * <p>For duplicate block numbers, readers prefer a marked complete block, then a pending block with the newest
- * proof, then an unmarked complete block when markers are ignored. Equal-priority artifacts are ordered by
- * their marker, proof, or block modification time and then their path.
  */
 public enum BlockStreamAccess {
     BLOCK_STREAM_ACCESS;
@@ -104,7 +96,7 @@ public enum BlockStreamAccess {
     private static Stream<Block> readBlocks(
             @NonNull final Path path, final boolean checkForMarkerFiles, final boolean ignoreBlockReadErrors) {
         try {
-            final var blockPaths = orderedBlockPathsFrom(path, checkForMarkerFiles);
+            final var blockPaths = orderedBlocksFrom(path, checkForMarkerFiles);
             if (ignoreBlockReadErrors) {
                 return blockPaths.stream().map(BlockStreamAccess::tryBlockFrom).flatMap(Optional::stream);
             }
@@ -230,50 +222,14 @@ public enum BlockStreamAccess {
                         .filter(change -> change.stateId() == stateId));
     }
 
-    /**
-     * Selects one block file per numeric block number and returns their paths in ascending block-number order.
-     *
-     * <p>Marked complete blocks take precedence over pending blocks. Pending blocks require a regular
-     * {@code .pnd.json} proof file even when markers are ignored; among pending snapshots, the newest proof
-     * takes precedence. When markers are ignored, unmarked complete blocks are eligible after pending blocks.
-     * Equal-priority candidates use the newest marker, proof, or block modification time, then the lexically
-     * greatest path as a deterministic tie-breaker. Incomplete and unsupported artifacts are excluded.
-     *
-     * @param path the directory tree to scan
-     * @param checkForMarkerFiles whether complete blocks require a regular same-stem {@code .mf} marker
-     * @return the selected block paths, ordered by numeric block number
-     * @throws IOException if the directory cannot be scanned or candidate metadata cannot be read
-     */
-    public static List<Path> orderedBlockPathsFrom(@NonNull final Path path, final boolean checkForMarkerFiles)
+    private static List<Path> orderedBlocksFrom(@NonNull final Path path, boolean checkForMarkerFiles)
             throws IOException {
         try (final var stream = Files.walk(path)) {
-            final var preference = comparing(BlockCandidate::priority)
-                    .thenComparing(BlockCandidate::modifiedTime)
-                    .thenComparing(candidate -> candidate.path().toString());
-            final Map<Long, BlockCandidate> blocksByNumber = new TreeMap<>();
-            for (final var blockPath :
-                    stream.filter(p -> isBlockFile(p, checkForMarkerFiles)).toList()) {
-                try {
-                    final var candidate = blockCandidate(blockPath);
-                    blocksByNumber.merge(extractBlockNumber(blockPath), candidate, maxBy(preference));
-                } catch (NoSuchFileException ignore) {
-                    // Finalizing a block may remove its pending proof during a live directory scan.
-                }
-            }
-            return blocksByNumber.values().stream().map(BlockCandidate::path).toList();
+            return stream.filter(p -> isBlockFile(p, checkForMarkerFiles))
+                    .sorted(comparing(BlockStreamAccess::extractBlockNumber))
+                    .toList();
         }
     }
-
-    private static BlockCandidate blockCandidate(final Path path) throws IOException {
-        if (BlockFileUtils.isPendingBlockFile(path)) {
-            return new BlockCandidate(path, 1, Files.getLastModifiedTime(BlockFileUtils.pendingProofPathFor(path)));
-        }
-        final var marker = BlockFileUtils.markerPathFor(path);
-        final boolean marked = Files.isRegularFile(marker);
-        return new BlockCandidate(path, marked ? 2 : 0, Files.getLastModifiedTime(marked ? marker : path));
-    }
-
-    private record BlockCandidate(Path path, int priority, FileTime modifiedTime) {}
 
     /**
      * Checks if the given path is a block file.

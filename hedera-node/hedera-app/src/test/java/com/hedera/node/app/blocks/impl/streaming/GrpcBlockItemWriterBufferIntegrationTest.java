@@ -98,7 +98,7 @@ class GrpcBlockItemWriterBufferIntegrationTest {
 
         writer.flushIncompleteBlock();
 
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        final var baseName = BlockFileUtils.blockNumberToFileName(blockNumber);
         final var dir = tempDir.resolve("block-0.0.3");
         // The open block is persisted as a .open.zstd triage artifact only: no complete block, no pending
         // block/sidecar.

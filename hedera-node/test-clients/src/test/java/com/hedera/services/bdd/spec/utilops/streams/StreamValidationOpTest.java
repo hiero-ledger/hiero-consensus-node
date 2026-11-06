@@ -4,7 +4,6 @@ package com.hedera.services.bdd.spec.utilops.streams;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.findCompleteBlockIn;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
@@ -23,9 +22,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -117,129 +114,16 @@ class StreamValidationOpTest {
 
     @Test
     void scansNewPendingFormatAndRequiresProofMetadata(@TempDir final Path dir) throws Exception {
-        final var spec = mock(HapiSpec.class);
-        final var node = mock(HederaNode.class);
-        when(spec.getNetworkNodes()).thenReturn(List.of(node));
-        when(node.getExternalPath(BLOCK_STREAMS_PARENT_DIR)).thenReturn(dir);
         final var pending = dir.resolve("0000000000000000042.pnd.zstd");
         try (final var out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(pending))) {
             out.write(Block.PROTOBUF.toBytes(blockWithProof()).toByteArray());
         }
-        final var read = StreamValidationOp.class.getDeclaredMethod("readPendingBlocksFromDisk", HapiSpec.class);
-        read.setAccessible(true);
-        assertEquals(List.of(), read.invoke(null, spec));
+        assertEquals(List.of(), readPendingBlocks(dir));
         Files.writeString(dir.resolve("0000000000000000042.pnd.json"), "{}");
-        assertEquals(List.of(blockWithProof()), read.invoke(null, spec));
+        assertEquals(List.of(blockWithProof()), readPendingBlocks(dir));
     }
 
-    @Test
-    void choosesPendingSnapshotByProofMetadataTimeAcrossNamingWidths(@TempDir final Path dir) throws Exception {
-        for (final var newerZstd : new boolean[] {true, false}) {
-            final var snapshotDir = Files.createDirectory(dir.resolve(Boolean.toString(newerZstd)));
-            final var legacy = writePendingSnapshot(
-                    snapshotDir,
-                    "000000000000000000000000000000000042.pnd.gz",
-                    blockWithoutProof(),
-                    newerZstd ? 1_000L : 2_000L);
-            final var current = writePendingSnapshot(
-                    snapshotDir, "0000000000000000042.pnd.zstd", blockWithProof(), newerZstd ? 2_000L : 1_000L);
-            // The block payload's timestamp must not override its paired proof metadata's timestamp.
-            Files.setLastModifiedTime(legacy, FileTime.fromMillis(newerZstd ? 4_000L : 3_000L));
-            Files.setLastModifiedTime(current, FileTime.fromMillis(newerZstd ? 3_000L : 4_000L));
-            assertEquals(
-                    List.of(newerZstd ? blockWithProof() : blockWithoutProof()), readPendingSnapshots(snapshotDir));
-        }
-    }
-
-    @Test
-    void breaksPendingSnapshotTimeTiesByPath(@TempDir final Path dir) throws Exception {
-        // Create the lexicographically greatest path first so traversal order cannot define the winner.
-        writePendingSnapshot(dir, "0000000000000000042.pnd.zstd", blockWithProof(), 1_000L);
-        writePendingSnapshot(dir, "000000000000000000000000000000000042.pnd.gz", blockWithoutProof(), 1_000L);
-        assertEquals(List.of(blockWithProof()), readPendingSnapshots(dir));
-    }
-
-    @Test
-    void diskReadPrefersSameNodeMarkedCompleteInEitherCreationOrder(@TempDir final Path dir) throws Exception {
-        for (final var pendingFirst : new boolean[] {true, false}) {
-            final var streams = Files.createDirectories(dir.resolve(Boolean.toString(pendingFirst)));
-            final var blockDir = Files.createDirectory(streams.resolve("block-11.12.3"));
-            final var completeName = "0000000000000000042.blk.zstd";
-            if (!pendingFirst) {
-                writeBlockFile(blockDir, completeName, blockWithProof());
-            }
-            writePendingSnapshot(blockDir, "000000000000000000000000000000000042.pnd.gz", blockWithoutProof(), 2_000L);
-            if (pendingFirst) {
-                writeBlockFile(blockDir, completeName, blockWithProof());
-            }
-
-            assertEquals(List.of(blockWithProof()), readDiskBlocks(streams).active());
-            assertEquals(List.of(), readPendingSnapshots(streams));
-        }
-    }
-
-    @Test
-    void diskReadChoosesPendingSnapshotByNewestProofMetadata(@TempDir final Path dir) throws Exception {
-        for (final var newerZstd : new boolean[] {true, false}) {
-            final var streams = Files.createDirectory(dir.resolve(Boolean.toString(newerZstd)));
-            final var legacy = writePendingSnapshot(
-                    streams,
-                    "000000000000000000000000000000000042.pnd.gz",
-                    blockWithoutProof(),
-                    newerZstd ? 1_000L : 2_000L);
-            final var current = writePendingSnapshot(
-                    streams, "0000000000000000042.pnd.zstd", blockWithProof(), newerZstd ? 2_000L : 1_000L);
-            Files.setLastModifiedTime(legacy, FileTime.fromMillis(newerZstd ? 4_000L : 3_000L));
-            Files.setLastModifiedTime(current, FileTime.fromMillis(newerZstd ? 3_000L : 4_000L));
-
-            assertEquals(
-                    List.of(newerZstd ? blockWithProof() : blockWithoutProof()),
-                    readDiskBlocks(streams).active());
-        }
-    }
-
-    @Test
-    void diskReadSelectsArchiveIndependentlyAndKeepsOnlyBlocksBelowActiveRange(@TempDir final Path dir)
-            throws Exception {
-        final var streams = Files.createDirectory(dir.resolve("blockStreams"));
-        final var archive = Files.createDirectory(dir.resolve("blockStreams-preview-archive"));
-        writeBlockFile(streams, "0000000000000000042.blk.zstd", blockWithProof());
-        writePendingSnapshot(archive, "000000000000000000000000000000000041.pnd.gz", blockWithoutProof(41L), 2_000L);
-        writeBlockFile(archive, "0000000000000000041.blk.zstd", blockWithProof(41L));
-        writeBlockFile(archive, BLOCK_NUMBER, blockWithoutProof());
-        writeBlockFile(archive, 43L, blockWithProof(43L));
-
-        final var blocks = readDiskBlocks(streams);
-        assertEquals(List.of(blockWithProof()), blocks.active());
-        assertEquals(List.of(blockWithProof(41L)), blocks.archived());
-    }
-
-    private static StreamValidationOp.DiskBlocks readDiskBlocks(final Path dir) throws Exception {
-        final var spec = mock(HapiSpec.class);
-        final var node = mock(HederaNode.class);
-        when(spec.getNetworkNodes()).thenReturn(List.of(node));
-        when(node.getExternalPath(BLOCK_STREAMS_PARENT_DIR)).thenReturn(dir);
-        final var read = StreamValidationOp.class.getDeclaredMethod("readBlocksFromDisk", HapiSpec.class);
-        read.setAccessible(true);
-        final var blocks = (Optional<?>) read.invoke(null, spec);
-        return assertInstanceOf(StreamValidationOp.DiskBlocks.class, blocks.orElseThrow());
-    }
-
-    private static Path writePendingSnapshot(
-            final Path dir, final String name, final Block block, final long proofModifiedMillis) throws IOException {
-        final var path = dir.resolve(name);
-        try (final var out = name.endsWith(".zstd")
-                ? BlockFileUtils.newZstdOutputStream(Files.newOutputStream(path))
-                : new GZIPOutputStream(Files.newOutputStream(path))) {
-            out.write(Block.PROTOBUF.toBytes(block).toByteArray());
-        }
-        final var proofPath = BlockFileUtils.pendingProofPathFor(path);
-        Files.writeString(proofPath, "{}");
-        Files.setLastModifiedTime(proofPath, FileTime.fromMillis(proofModifiedMillis));
-        return path;
-    }
-
-    private static List<?> readPendingSnapshots(final Path dir) throws Exception {
+    private static List<?> readPendingBlocks(final Path dir) throws Exception {
         final var spec = mock(HapiSpec.class);
         final var node = mock(HederaNode.class);
         when(spec.getNetworkNodes()).thenReturn(List.of(node));
@@ -250,15 +134,11 @@ class StreamValidationOpTest {
     }
 
     private static Block blockWithProof() {
-        return blockWithProof(BLOCK_NUMBER);
-    }
-
-    private static Block blockWithProof(final long blockNumber) {
         return Block.newBuilder()
                 .items(List.of(
                         BlockItem.newBuilder()
                                 .blockHeader(BlockHeader.newBuilder()
-                                        .number(blockNumber)
+                                        .number(BLOCK_NUMBER)
                                         .build())
                                 .build(),
                         BlockItem.newBuilder()
@@ -268,22 +148,18 @@ class StreamValidationOpTest {
                                 .build(),
                         BlockItem.newBuilder()
                                 .blockProof(BlockProof.newBuilder()
-                                        .block(blockNumber)
+                                        .block(BLOCK_NUMBER)
                                         .build())
                                 .build()))
                 .build();
     }
 
     private static Block blockWithoutProof() {
-        return blockWithoutProof(BLOCK_NUMBER);
-    }
-
-    private static Block blockWithoutProof(final long blockNumber) {
         return Block.newBuilder()
                 .items(List.of(
                         BlockItem.newBuilder()
                                 .blockHeader(BlockHeader.newBuilder()
-                                        .number(blockNumber)
+                                        .number(BLOCK_NUMBER)
                                         .build())
                                 .build(),
                         BlockItem.newBuilder()
@@ -295,18 +171,12 @@ class StreamValidationOpTest {
     }
 
     private static void writeBlockFile(final Path dir, final long blockNumber, final Block block) throws IOException {
-        writeBlockFile(dir, blockNumber + ".blk.gz", block);
-    }
-
-    private static void writeBlockFile(final Path dir, final String name, final Block block) throws IOException {
-        final var blockPath = dir.resolve(name);
+        final var blockPath = dir.resolve(blockNumber + ".blk.gz");
         final byte[] bytes = Block.PROTOBUF.toBytes(block).toByteArray();
-        try (final var out = name.endsWith(".zstd")
-                ? BlockFileUtils.newZstdOutputStream(Files.newOutputStream(blockPath))
-                : new GZIPOutputStream(Files.newOutputStream(blockPath))) {
+        try (final var out = new GZIPOutputStream(Files.newOutputStream(blockPath))) {
             out.write(bytes);
         }
         // Marker file is required for BlockStreamAccess.isBlockFile(p, true) to return true.
-        Files.createFile(BlockFileUtils.markerPathFor(blockPath));
+        Files.createFile(dir.resolve(blockNumber + ".mf"));
     }
 }

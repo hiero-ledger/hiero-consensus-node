@@ -4,6 +4,7 @@ package com.hedera.node.app.hapi.utils.blocks;
 import com.github.luben.zstd.ZstdInputStreamNoFinalizer;
 import com.github.luben.zstd.ZstdOutputStreamNoFinalizer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -167,6 +168,10 @@ public final class BlockFileUtils {
         try {
             final var name = path.getFileName().toString();
             if (name.endsWith(".zstd")) {
+                // zstd-jni reads an empty file as empty data; gzip rejects it, and so do we.
+                if (Files.size(path) == 0) {
+                    throw new EOFException("Empty Zstandard file " + path);
+                }
                 return new ZstdInputStreamNoFinalizer(input);
             }
             if (name.endsWith(".gz")) {
@@ -194,7 +199,7 @@ public final class BlockFileUtils {
     public static OutputStream newZstdOutputStream(@NonNull final OutputStream output) throws IOException {
         OutputStream ownedOutput = output;
         try {
-            final var compressed = new ZstdOutputStreamNoFinalizer(output, 3);
+            final var compressed = new ParentClosingZstdOutputStream(output);
             ownedOutput = compressed;
             return compressed.setChecksum(true);
         } catch (IOException | RuntimeException | Error e) {
@@ -204,6 +209,29 @@ public final class BlockFileUtils {
                 e.addSuppressed(closeFailure);
             }
             throw e;
+        }
+    }
+
+    // shortcut: no finalizer, so a stream that is never closed leaks its native context (a finalizer could write
+    // frame bytes into a reused file at GC time); close abandoned writers on reconnect if this leak matters.
+    private static final class ParentClosingZstdOutputStream extends ZstdOutputStreamNoFinalizer {
+        private ParentClosingZstdOutputStream(final OutputStream output) throws IOException {
+            super(output, 3);
+        }
+
+        // zstd-jni skips closing the parent when writing the frame end fails, which leaks the file.
+        @Override
+        public synchronized void close() throws IOException {
+            try {
+                super.close();
+            } catch (IOException | RuntimeException | Error e) {
+                try {
+                    out.close();
+                } catch (IOException | RuntimeException | Error closeFailure) {
+                    e.addSuppressed(closeFailure);
+                }
+                throw e;
+            }
         }
     }
 

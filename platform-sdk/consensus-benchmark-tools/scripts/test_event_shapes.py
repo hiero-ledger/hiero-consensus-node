@@ -27,6 +27,9 @@ class BlockFileInputTest(unittest.TestCase):
             self.assertEqual([Path(path).name for path in event_shapes.input_files([directory])],
                              [names[1], names[2], names[0]])
 
+    def test_explicit_file_with_non_numeric_name_is_kept(self):
+        self.assertEqual(event_shapes.input_files(["sample.blk.gz", "2.blk"]), ["sample.blk.gz", "2.blk"])
+
     def test_plain_and_gzip_decode_block_header(self):
         with tempfile.TemporaryDirectory() as directory:
             for suffix in [".blk", ".blk.gz"]:

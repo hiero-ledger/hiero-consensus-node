@@ -8,8 +8,9 @@ table of each quantity, counted by this script from a week of mainnet block stre
 docs/proposals/consensus-benchmarks/benchmark-inputs.md, section "Production Data".
 
 Input: the block files of one node, each a plain, gzip, or Zstandard-compressed Block. Zstandard input requires the
-zstd command on PATH. Every node writes every event, so one node's files hold them all. Mainnet's files are in a requester-pays bucket, one folder per node. The names are block numbers; a listing shows
-when each block was uploaded, which finds the blocks of a period:
+zstd command on PATH. Every node writes every event, so one node's files hold them all. Mainnet's files are in a
+requester-pays bucket, one folder per node. The names are block numbers; a listing shows when each block was uploaded,
+which finds the blocks of a period:
 
     gcloud storage ls -l --billing-project=<project> \\
         'gs://hedera-mainnet-streams/block-preview/mainnet/0/0/000000000000000000000000000108*'
@@ -247,8 +248,13 @@ def input_files(paths):
             files += [os.path.join(path, f) for f in os.listdir(path) if f.endswith((".blk", ".blk.gz", ".blk.zstd"))]
         else:
             files.append(path)
-    # Legacy and current files use different padding widths.
-    return sorted(files, key=lambda path: int(os.path.basename(path).split(".", 1)[0]))
+    return sorted(files, key=block_order)
+
+
+def block_order(path):
+    """Sorts by block number, since legacy and current names use different padding widths."""
+    stem = os.path.basename(path).split(".", 1)[0]
+    return (int(stem) if stem.isdigit() else -1, path)
 
 
 def count(files, jobs):

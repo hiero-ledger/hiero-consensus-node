@@ -13,7 +13,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.Test;
@@ -118,10 +117,11 @@ class BlockStreamAccessTest {
     }
 
     @Test
-    void tolerantReaderSkipsTruncatedZstandardBlock() throws IOException {
+    void tolerantReaderSkipsTruncatedAndEmptyZstandardBlocks() throws IOException {
         Files.write(tempDir.resolve("0000000000000000041.blk.zstd"), zstandardFrame(SAMPLE_BLOCK));
         final var frame = zstandardFrame(SAMPLE_BLOCK);
         Files.write(tempDir.resolve("0000000000000000042.blk.zstd"), java.util.Arrays.copyOf(frame, frame.length - 1));
+        Files.write(tempDir.resolve("0000000000000000043.blk.zstd"), new byte[0]);
 
         assertThrows(
                 RuntimeException.class, () -> BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(tempDir));
@@ -153,87 +153,6 @@ class BlockStreamAccessTest {
 
         assertThrows(RuntimeException.class, () -> BlockStreamAccess.blockFrom(path));
         assertEquals(List.of(), BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkersAndReadErrors(tempDir));
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void retainedPendingDuplicateDoesNotReplaceMarkedCompleteBlock(final boolean checkMarkers) throws IOException {
-        final var completed = Block.newBuilder()
-                .items(SAMPLE_BLOCK.items().getFirst(), BlockItem.DEFAULT)
-                .build();
-        final var before = blockWithNumber(41);
-        final var after = blockWithNumber(43);
-        Files.write(
-                tempDir.resolve("0000000000000000041.blk"),
-                Block.PROTOBUF.toBytes(before).toByteArray());
-        Files.createFile(tempDir.resolve("0000000000000000041.mf"));
-        final var retained = tempDir.resolve("000000000000000000000000000000000042.pnd");
-        Files.write(retained, Block.PROTOBUF.toBytes(SAMPLE_BLOCK).toByteArray());
-        final var retainedProof = Files.createFile(tempDir.resolve("000000000000000000000000000000000042.pnd.json"));
-        Files.setLastModifiedTime(retainedProof, FileTime.fromMillis(9_000));
-        Files.write(tempDir.resolve("0000000000000000042.blk.zstd"), zstandardFrame(completed));
-        final var marker = Files.createFile(tempDir.resolve("0000000000000000042.mf"));
-        Files.setLastModifiedTime(marker, FileTime.fromMillis(1_000));
-        Files.write(
-                tempDir.resolve("0000000000000000043.blk"),
-                Block.PROTOBUF.toBytes(after).toByteArray());
-        Files.createFile(tempDir.resolve("0000000000000000043.mf"));
-        final var unmarked = blockWithNumber(44);
-        Files.write(
-                tempDir.resolve("0000000000000000044.blk"),
-                Block.PROTOBUF.toBytes(unmarked).toByteArray());
-
-        assertEquals(
-                checkMarkers ? List.of(before, completed, after) : List.of(before, completed, after, unmarked),
-                BlockStreamAccess.readBlocks(tempDir, checkMarkers).toList());
-        assertTrue(Files.isRegularFile(retained));
-        assertTrue(Files.isRegularFile(retainedProof));
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void duplicatePendingSnapshotsUseNewestProofAheadOfUnmarkedComplete(final boolean checkMarkers) throws IOException {
-        final var newest = Block.newBuilder()
-                .items(SAMPLE_BLOCK.items().getFirst(), BlockItem.DEFAULT)
-                .build();
-        final var oldPending = Files.write(
-                tempDir.resolve("000000000000000000000000000000000042.pnd"),
-                Block.PROTOBUF.toBytes(SAMPLE_BLOCK).toByteArray());
-        final var oldProof = Files.createFile(tempDir.resolve("000000000000000000000000000000000042.pnd.json"));
-        Files.setLastModifiedTime(oldProof, FileTime.fromMillis(2_000));
-        Files.setLastModifiedTime(oldPending, FileTime.fromMillis(8_000));
-        final var newPending = Files.write(tempDir.resolve("0000000000000000042.pnd.zstd"), zstandardFrame(newest));
-        final var newProof = Files.createFile(tempDir.resolve("0000000000000000042.pnd.json"));
-        Files.setLastModifiedTime(newProof, FileTime.fromMillis(3_000));
-        Files.setLastModifiedTime(newPending, FileTime.fromMillis(1_000));
-        final var unmarked = Files.write(
-                tempDir.resolve("42.blk"), Block.PROTOBUF.toBytes(SAMPLE_BLOCK).toByteArray());
-        Files.setLastModifiedTime(unmarked, FileTime.fromMillis(9_000));
-
-        assertEquals(
-                List.of(newest),
-                BlockStreamAccess.readBlocks(tempDir, checkMarkers).toList());
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    void duplicatePendingSnapshotsWithEqualProofTimesUseDeterministicPathOrder(final boolean checkMarkers)
-            throws IOException {
-        final var preferred = Block.newBuilder()
-                .items(SAMPLE_BLOCK.items().getFirst(), BlockItem.DEFAULT)
-                .build();
-        Files.write(
-                tempDir.resolve("000000000000000000000000000000000042.pnd"),
-                Block.PROTOBUF.toBytes(SAMPLE_BLOCK).toByteArray());
-        final var oldProof = Files.createFile(tempDir.resolve("000000000000000000000000000000000042.pnd.json"));
-        Files.write(tempDir.resolve("0000000000000000042.pnd.zstd"), zstandardFrame(preferred));
-        final var newProof = Files.createFile(tempDir.resolve("0000000000000000042.pnd.json"));
-        Files.setLastModifiedTime(oldProof, FileTime.fromMillis(2_000));
-        Files.setLastModifiedTime(newProof, FileTime.fromMillis(2_000));
-
-        assertEquals(
-                List.of(preferred),
-                BlockStreamAccess.readBlocks(tempDir, checkMarkers).toList());
     }
 
     @Test

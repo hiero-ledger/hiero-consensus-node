@@ -12,9 +12,12 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.io.TempDir;
 
 class StreamFileAlterationListenerTest {
+    // The listener retries a failed block for minutes and never gives up on an empty marker.
+    @Timeout(30)
     @Test
     void exposesBlocksFromZstdAndLegacyMarkerSiblings(@TempDir final Path dir) throws Exception {
         final var block = Block.newBuilder()

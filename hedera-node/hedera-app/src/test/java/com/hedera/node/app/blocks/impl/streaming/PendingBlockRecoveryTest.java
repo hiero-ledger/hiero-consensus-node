@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -24,7 +23,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -100,6 +98,15 @@ class PendingBlockRecoveryTest {
                 .containsExactly(3L);
     }
 
+    @Test
+    void ignoresProofsAtOrAfterRestartPoint() throws IOException {
+        writePending(1, 19, ".pnd.zstd", 1);
+        writePending(3, 19, ".pnd.zstd", 1);
+        assertThat(load(2))
+                .extracting(FileBlockItemWriter.OnDiskPendingBlock::number)
+                .containsExactly(1L);
+    }
+
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void duplicateTimestampSelectionIsDeterministic(final boolean currentWrittenFirst) throws IOException {
@@ -157,107 +164,21 @@ class PendingBlockRecoveryTest {
         assertThat(load(2)).isEmpty();
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void completedBlockIsNotRecoveredAgainFromRetainedLegacyPair(final boolean accountRenamed) throws IOException {
+    @Test
+    void cleanupAlsoDeletesLegacyCopyOfTheSameBlock() throws IOException {
         final var legacy = writePending(1, 36, ".pnd.gz", 1);
-        var current = writePending(1, 19, ".pnd.zstd", 2);
-        final long account = accountRenamed ? 4 : 3;
-        if (accountRenamed) {
-            final var accountDir = Files.createDirectory(tempDir.resolve("block-0.0.4"));
-            final var moved = accountDir.resolve(current.getFileName());
-            Files.move(BlockFileUtils.pendingProofPathFor(current), BlockFileUtils.pendingProofPathFor(moved));
-            Files.move(current, moved);
-            current = moved;
-        }
+        final var current = writePending(1, 19, ".pnd.zstd", 2);
         final var recovered = load(2).getFirst();
         assertThat(recovered.contentsPath()).isEqualTo(current);
-        final var completed = completeBlock(1, account);
+
         FileBlockItemWriter.cleanUpPendingBlock(recovered.contentsPath());
-        final var originalBytes = Files.readAllBytes(completed);
 
+        assertThat(legacy).doesNotExist();
+        assertThat(BlockFileUtils.pendingProofPathFor(legacy)).doesNotExist();
         assertThat(load(2)).isEmpty();
-        assertThat(legacy).isRegularFile();
-        assertThat(BlockFileUtils.pendingProofPathFor(legacy)).isRegularFile();
-        assertThat(Files.readAllBytes(completed)).isEqualTo(originalBytes);
-        assertThat(BlockFileUtils.markerPathFor(completed)).isRegularFile();
-    }
-
-    @Test
-    void recoveryStopsAtCompletedBoundaryInsteadOfReopeningStaleOlderSnapshots() throws IOException {
-        writePending(3, 19, ".pnd.zstd", 1);
-        writePending(2, 36, ".pnd.gz", 1);
-        writePending(1, 36, ".pnd.gz", 1);
-        completeBlock(2, 3);
-
-        assertThat(load(4))
-                .extracting(FileBlockItemWriter.OnDiskPendingBlock::number)
-                .containsExactly(3L);
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void completionBoundaryRequiresBothPayloadAndMarker(final boolean markerOnly) throws IOException {
-        final var legacy = writePending(1, 36, ".pnd.gz", 1);
-        if (markerOnly) {
-            Files.createFile(legacy.resolveSibling("0000000000000000001.mf"));
-        } else {
-            Files.copy(legacy, legacy.resolveSibling("0000000000000000001.blk.gz"));
-        }
-        assertThat(load(2))
-                .extracting(FileBlockItemWriter.OnDiskPendingBlock::contentsPath)
-                .containsExactly(legacy);
-    }
-
-    @Test
-    void intentionalRewriteInvalidatesOldCompletionMarkerBeforeTruncating() throws IOException {
-        final var completed = completeBlock(1, 3);
-        final var marker = BlockFileUtils.markerPathFor(completed);
-        final var rewriting = newWriter();
-        rewriting.openBlock(1);
-        try {
-            assertThat(Files.size(completed)).isZero();
-            assertThat(marker).doesNotExist();
-        } finally {
-            rewriting.flushIncompleteBlock();
-        }
-    }
-
-    @Test
-    void failedMarkerInvalidationLeavesCompletedPayloadIntact() throws IOException {
-        final var completed = completeBlock(1, 3);
-        final var originalBytes = Files.readAllBytes(completed);
-        final var marker = BlockFileUtils.markerPathFor(completed);
-        Files.delete(marker);
-        Files.createDirectory(marker);
-        Files.writeString(marker.resolve("cannot-delete"), "block marker deletion");
-        final var rewriting = newWriter();
-        try {
-            assertThatThrownBy(() -> rewriting.openBlock(1)).isInstanceOf(UncheckedIOException.class);
-            assertThat(Files.readAllBytes(completed)).isEqualTo(originalBytes);
-        } finally {
-            rewriting.flushIncompleteBlock();
-        }
-    }
-
-    private Path completeBlock(final long number, final long account) {
-        final var writer = newWriter(account);
-        writer.openBlock(number);
-        final var header = item(number);
-        writer.writePbjItemAndBytes(header, BlockItem.PROTOBUF.toBytes(header));
-        final var proof = BlockItem.newBuilder()
-                .blockProof(BlockProof.newBuilder().block(number).build())
-                .build();
-        writer.writePbjItemAndBytes(proof, BlockItem.PROTOBUF.toBytes(proof));
-        writer.closeCompleteBlock();
-        return tempDir.resolve("block-0.0." + account).resolve(BlockFileUtils.blockFileName(number));
     }
 
     private FileBlockItemWriter newWriter() {
-        return newWriter(3);
-    }
-
-    private FileBlockItemWriter newWriter(final long account) {
         final var configProvider = mock(ConfigProvider.class);
         final var configuration = mock(VersionedConfiguration.class);
         final var blockConfig = mock(BlockStreamConfig.class);
@@ -268,7 +189,7 @@ class PendingBlockRecoveryTest {
         when(blockConfig.blockFileBufferOuterSizeKb()).thenReturn(512);
         final var selfId = mock(SelfNodeAccountIdManager.class);
         when(selfId.getSelfNodeAccountId())
-                .thenReturn(AccountID.newBuilder().accountNum(account).build());
+                .thenReturn(AccountID.newBuilder().accountNum(3).build());
         return new FileBlockItemWriter(configProvider, selfId, FileSystems.getDefault());
     }
 

@@ -29,6 +29,7 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -37,9 +38,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
@@ -185,8 +186,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * with pending block proofs. The contents are read from the corresponding {@code .pnd.zstd},
      * legacy {@code .pnd.gz}, or plain {@code .pnd} file. Duplicate block numbers use the sidecar with the newest
      * modification time before continuity is checked. Invalid selected metadata or contents stop recovery; older
-     * duplicates are not used as a fallback. Marked completed blocks end the recoverable suffix; their retained
-     * pending snapshots must not reopen and overwrite the completed payload.
+     * duplicates are not used as a fallback. Proofs at or after {@code followingBlockNumber} are ignored.
      * @param blockDirPath the directory containing subdirectories to load pending blocks from
      * @param followingBlockNumber the block number the pending blocks should be immediately preceding
      * @param maxReadDepth the max allowed depth of nested protobuf messages
@@ -201,37 +201,29 @@ public class FileBlockItemWriter implements BlockItemWriter {
         requireNonNull(blockDirPath);
         final List<OnDiskPendingBlock> pendingBlocks = new LinkedList<>();
         final var proofJsons = new TreeMap<Long, PendingProofFile>();
-        final var completedBlockNumbers = new HashSet<Long>();
-        try (final var paths = Files.walk(blockDirPath, 2)) {
-            final var files = paths.filter(Files::isRegularFile).toList();
-            for (final var file : files) {
-                if (BlockFileUtils.isCompleteBlockFile(file)
-                        && Files.isRegularFile(BlockFileUtils.markerPathFor(file))) {
-                    final long number = BlockStreamAccess.extractBlockNumber(file);
-                    if (number >= 0) {
-                        completedBlockNumbers.add(number);
+        final File[] blockDirs = blockDirPath.toFile().listFiles(File::isDirectory);
+        if (blockDirs == null) {
+            logger.warn("No subdirectories found in {}", blockDirPath);
+            return pendingBlocks;
+        }
+        try {
+            for (final var blockDir : blockDirs) {
+                for (final var proofJson :
+                        requireNonNull(blockDir.listFiles((dir, name) -> name.endsWith(".pnd.json")))) {
+                    final var name = proofJson.getName();
+                    final long number;
+                    try {
+                        number = Long.parseLong(name.substring(0, name.length() - ".pnd.json".length()));
+                    } catch (NumberFormatException e) {
+                        logger.warn("Ignoring pending proof with invalid block number: {}", proofJson);
+                        continue;
                     }
+                    final var path = proofJson.toPath();
+                    proofJsons.merge(
+                            number,
+                            new PendingProofFile(path, Files.getLastModifiedTime(path)),
+                            maxBy(PROOF_JSON_RECENCY_COMPARATOR));
                 }
-            }
-            for (final var proofJson : files) {
-                final var name = proofJson.getFileName().toString();
-                if (!name.endsWith(".pnd.json")) {
-                    continue;
-                }
-                final long number;
-                try {
-                    number = Long.parseLong(name.substring(0, name.length() - ".pnd.json".length()));
-                } catch (NumberFormatException e) {
-                    logger.warn("Ignoring pending proof with invalid block number: {}", proofJson);
-                    continue;
-                }
-                if (number < 0 || completedBlockNumbers.contains(number)) {
-                    continue;
-                }
-                proofJsons.merge(
-                        number,
-                        new PendingProofFile(proofJson, Files.getLastModifiedTime(proofJson)),
-                        maxBy(PROOF_JSON_RECENCY_COMPARATOR));
             }
         } catch (IOException e) {
             logger.warn("Unable to scan pending blocks in {}", blockDirPath, e);
@@ -240,7 +232,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
         logger.info("Evaluating {} distinct pending blocks on disk", proofJsons.size());
         long nextContiguousBlock = followingBlockNumber - 1;
-        for (final var entry : proofJsons.descendingMap().entrySet()) {
+        // Blocks at or after the restart point are replayed from events, so only older proofs can resume.
+        for (final var entry :
+                proofJsons.headMap(followingBlockNumber, false).descendingMap().entrySet()) {
             final long nextNumber = entry.getKey();
             if (nextNumber != nextContiguousBlock) {
                 logger.info("No more contiguous blocks (#{} != #{})", nextNumber, nextContiguousBlock);
@@ -305,6 +299,21 @@ public class FileBlockItemWriter implements BlockItemWriter {
         if (!contentsPath.toFile().delete()) {
             logger.warn("Failed to delete pending block contents at {}", contentsPath);
         }
+        final long number = BlockStreamAccess.extractBlockNumber(contentsPath);
+        if (number < 0) {
+            return;
+        }
+        // An upgrade can leave a copy of this block under the legacy 36-digit name; delete it so it is never resumed.
+        for (final var stem :
+                List.of(BlockFileUtils.blockNumberToFileName(number), String.format(Locale.ROOT, "%036d", number))) {
+            for (final var suffix : List.of(".pnd.json", ".pnd.zstd", ".pnd.gz", ".pnd")) {
+                try {
+                    Files.deleteIfExists(contentsPath.resolveSibling(stem + suffix));
+                } catch (IOException e) {
+                    logger.warn("Failed to delete pending block file {}{}", stem, suffix, e);
+                }
+            }
+        }
     }
 
     @Override
@@ -320,9 +329,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 Files.createDirectories(nodeScopedBlockDir);
             }
 
-            // An intentional rewrite must never expose partial bytes through an earlier completion marker.
-            // Remove the marker first so a failure leaves the completed payload intact.
-            Files.deleteIfExists(nodeScopedBlockDir.resolve(BlockFileUtils.markerFileName(blockNumber)));
             // Buffer raw items before compression, and compressed bytes before writing to disk.
             out = Files.newOutputStream(blockFilePath);
             out = new BufferedOutputStream(out, blockFileBufferInnerSizeBytes);
@@ -474,15 +480,5 @@ public class FileBlockItemWriter implements BlockItemWriter {
         } finally {
             state = State.CLOSED;
         }
-    }
-
-    /**
-     * Converts a nonnegative block number to a 19-digit, zero-padded file name stem.
-     * @param value the block number
-     * @return the padded block number
-     */
-    @NonNull
-    public static String longToFileName(final long value) {
-        return BlockFileUtils.blockNumberToFileName(value);
     }
 }

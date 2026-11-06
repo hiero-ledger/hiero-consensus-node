@@ -9,10 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -133,13 +135,13 @@ class BlockFileUtilsTest {
     }
 
     @Test
-    void rejectsCorruptChecksumAndTruncatedZstandardFrames() throws IOException {
+    void rejectsEmptyCorruptChecksumAndTruncatedZstandardFrames() throws IOException {
         final var frame = compress(new byte[] {1, 2, 3, 4, 5});
         final var corruptChecksum = frame.clone();
         corruptChecksum[corruptChecksum.length - 1] ^= 1;
         final var truncated = Arrays.copyOf(frame, frame.length - 1);
 
-        for (final var invalidFrame : new byte[][] {corruptChecksum, truncated, new byte[] {1, 2, 3, 4}}) {
+        for (final var invalidFrame : new byte[][] {new byte[0], corruptChecksum, truncated, new byte[] {1, 2, 3, 4}}) {
             final var path = Files.write(tempDir.resolve("42.blk.zstd"), invalidFrame);
             assertThrows(IOException.class, () -> {
                 try (final var input = BlockFileUtils.openInputStream(path)) {
@@ -147,6 +149,29 @@ class BlockFileUtilsTest {
                 }
             });
         }
+    }
+
+    @Test
+    void closesParentWhenFrameEndWriteFails() {
+        final var parentClosed = new AtomicBoolean();
+        final var failingParent = new OutputStream() {
+            @Override
+            public void write(final int b) throws IOException {
+                throw new IOException("No space left on device");
+            }
+
+            @Override
+            public void close() {
+                parentClosed.set(true);
+            }
+        };
+
+        assertThrows(IOException.class, () -> {
+            try (final var compressed = BlockFileUtils.newZstdOutputStream(failingParent)) {
+                compressed.write(new byte[] {1, 2, 3});
+            }
+        });
+        assertTrue(parentClosed.get());
     }
 
     private static byte[] compress(final byte[] payload) throws IOException {

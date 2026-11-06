@@ -23,7 +23,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 class BlockFormatPcesCompatibilityTest {
     @Test
-    void bothFormatsProduceIdenticalPcesDespiteRetainedPendingCopy(@TempDir final Path dir) throws IOException {
+    void bothFormatsProduceIdenticalPces(@TempDir final Path dir) throws IOException {
         final var current = Files.createDirectory(dir.resolve("zstd"));
         final var legacy = Files.createDirectory(dir.resolve("gzip"));
         for (long number = 0; number < 3; number++) {
@@ -53,16 +53,11 @@ class BlockFormatPcesCompatibilityTest {
                 out.write(bytes);
             }
             Files.createFile(BlockFileUtils.markerPathFor(currentPath));
-            final var legacyStem = String.format(Locale.ROOT, "%036d", number);
-            final var legacyPath = legacy.resolve(legacyStem + ".blk.gz");
+            final var legacyPath = legacy.resolve(String.format(Locale.ROOT, "%036d.blk.gz", number));
             try (final var out = new GZIPOutputStream(Files.newOutputStream(legacyPath))) {
                 out.write(bytes);
             }
             Files.createFile(BlockFileUtils.markerPathFor(legacyPath));
-            if (number == 0) {
-                Files.copy(legacyPath, current.resolve(legacyStem + ".pnd.gz"));
-                Files.writeString(current.resolve(legacyStem + ".pnd.json"), "{}");
-            }
         }
         final var currentOutput = dir.resolve("current-pces");
         final var legacyOutput = dir.resolve("legacy-pces");

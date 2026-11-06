@@ -162,7 +162,7 @@ class GrpcBlockItemWriterTest {
                 .blockTimestamp(Timestamp.DEFAULT)
                 .build());
 
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        final var baseName = BlockFileUtils.blockNumberToFileName(blockNumber);
         final var nodeDir = tempDir.resolve("block-0.0.3");
         assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.zstd"))).isTrue();
         assertThat(Files.exists(nodeDir.resolve(baseName + ".pnd.json"))).isTrue();
@@ -201,7 +201,7 @@ class GrpcBlockItemWriterTest {
         grpcBlockItemWriter.openBlock(blockNumber);
         grpcBlockItemWriter.flushIncompleteBlock();
 
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        final var baseName = BlockFileUtils.blockNumberToFileName(blockNumber);
         final var nodeDir = tempDir.resolve("block-0.0.3");
         // The open block's items are persisted as a .open.zstd triage artifact, with no pending-proof sidecar...
         assertThat(Files.exists(nodeDir.resolve(baseName + ".open.zstd"))).isTrue();
@@ -229,7 +229,7 @@ class GrpcBlockItemWriterTest {
         writer.openBlock(blockNumber);
         writer.flushIncompleteBlock();
 
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        final var baseName = BlockFileUtils.blockNumberToFileName(blockNumber);
         assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.zstd")))
                 .isFalse();
     }
@@ -243,7 +243,7 @@ class GrpcBlockItemWriterTest {
         writer.openBlock(blockNumber);
         writer.flushIncompleteBlock();
 
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        final var baseName = BlockFileUtils.blockNumberToFileName(blockNumber);
         assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.zstd")))
                 .isFalse();
     }
@@ -258,7 +258,7 @@ class GrpcBlockItemWriterTest {
         // Best-effort contract: the exception is caught, not propagated.
         writer.flushIncompleteBlock();
 
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        final var baseName = BlockFileUtils.blockNumberToFileName(blockNumber);
         assertThat(Files.exists(tempDir.resolve("block-0.0.1").resolve(baseName + ".open.zstd")))
                 .isFalse();
     }

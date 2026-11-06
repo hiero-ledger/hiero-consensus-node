@@ -176,8 +176,8 @@ class FileBlockItemWriterTest {
         assertThat(Files.size(expectedMarkerFile)).isZero();
 
         // Decompress the file
-        try (final var gzis = BlockFileUtils.openInputStream(expectedBlockFile)) {
-            final byte[] fileContents = gzis.readAllBytes();
+        try (final var in = BlockFileUtils.openInputStream(expectedBlockFile)) {
+            final byte[] fileContents = in.readAllBytes();
 
             // Verify that the contents of the file match the Bytes object
             // Note: This assertion assumes that the file contains only the Bytes object and nothing else.
@@ -225,8 +225,8 @@ class FileBlockItemWriterTest {
         assertThat(Files.size(expectedMarkerFile)).isZero();
 
         // Decompress the file
-        try (final var gzis = BlockFileUtils.openInputStream(expectedBlockFile)) {
-            final byte[] fileContents = gzis.readAllBytes();
+        try (final var in = BlockFileUtils.openInputStream(expectedBlockFile)) {
+            final byte[] fileContents = in.readAllBytes();
 
             // Verify that the contents of the file match the Bytes object
             // Note: This assertion assumes that the file contains only the Bytes object and nothing else.
@@ -393,9 +393,7 @@ class FileBlockItemWriterTest {
         subject.flushIncompleteBlock();
 
         final var dir = tempDir.resolve("block-0.0.3");
-        // The partial .blk.zstd is renamed to .open.zstd; deliberately no completion marker and no pending-proof
-        // sidecar,
-        // so it is never treated as complete nor picked up by pending-block recovery.
+        // The partial .blk.zstd becomes .open.zstd with no marker and no proof sidecar, so recovery never picks it up.
         assertFalse(new File(dir.resolve(BLK_ZSTD).toString()).exists(), "Complete block file should be renamed away");
         assertFalse(new File(dir.resolve(MF).toString()).exists(), "No completion marker for an incomplete block");
         assertFalse(new File(dir.resolve(PENDING_PROOF_JSON).toString()).exists(), "No pending-proof sidecar");
