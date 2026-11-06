@@ -172,17 +172,26 @@ class ClprStateProofManagerTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"512,false,1,2", "2048,false,1,3", "320,true,0,1", "160,true,0,0"})
+    @CsvSource({
+        "512,512,false,true,1,2",
+        "2048,512,false,true,1,3",
+        "512,160,false,true,0,2",
+        "512,160,false,false,1,2",
+        "320,512,true,true,0,1",
+        "160,512,true,true,0,0"
+    })
     void fitsProofWithinPeerLimitWithOptionalManifest(
             final long maxSyncBytes,
+            final int manifestLeafBytes,
             final boolean allowPureAck,
+            final boolean includeManifest,
             final int expectedMessageCount,
             final int expectedPathCount)
             throws Exception {
         final var channelId = Bytes.wrap(new byte[32]);
         final var channelLeaf = Bytes.wrap(new byte[64]);
         final var messageLeaf = Bytes.wrap(new byte[128]);
-        final var manifestLeaf = Bytes.wrap(new byte[512]);
+        final var manifestLeaf = Bytes.wrap(new byte[manifestLeafBytes]);
         final var signature = Bytes.wrap(new byte[] {1});
         final var messageKey = new ClprMessageKey(channelId, 1L);
         givenSnapshotState();
@@ -195,16 +204,18 @@ class ClprStateProofManagerTest {
                 .willReturn(1L);
         given(binaryState.getKvPath(MESSAGE_QUEUE_STATE_ID, ClprMessageKey.PROTOBUF.toBytes(messageKey)))
                 .willReturn(2L);
-        given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(3L);
         given(binaryState.getMerkleProof(1L)).willReturn(new MerkleProof(channelLeaf, List.of(), List.of()));
         given(binaryState.getMerkleProof(2L)).willReturn(new MerkleProof(messageLeaf, List.of(), List.of()));
-        given(binaryState.getMerkleProof(3L)).willReturn(new MerkleProof(manifestLeaf, List.of(), List.of()));
+        if (includeManifest) {
+            given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(3L);
+            given(binaryState.getMerkleProof(3L)).willReturn(new MerkleProof(manifestLeaf, List.of(), List.of()));
+        }
         final var throttles = ClprThrottles.newBuilder()
                 .maxMessagesPerBundle(1)
                 .maxSyncBytes(maxSyncBytes)
                 .build();
 
-        final var bundle = subject.buildBundleProof(channelId, 1L, throttles, allowPureAck, true);
+        final var bundle = subject.buildBundleProof(channelId, 1L, throttles, allowPureAck, includeManifest);
 
         if (expectedPathCount == 0) {
             assertThat(bundle).isNull();
@@ -216,13 +227,28 @@ class ClprStateProofManagerTest {
         final var proof = StateProof.PROTOBUF.parse(bundle.payload().toReadableSequentialData());
         assertThat(proof.paths()).hasSize(expectedPathCount);
         assertThat(proof.paths().getFirst().stateItemLeaf()).isEqualTo(channelLeaf);
-        assertThat(proof.paths().getLast().stateItemLeaf())
-                .isEqualTo(expectedMessageCount == 0 ? channelLeaf : messageLeaf);
+        if (expectedMessageCount > 0) {
+            assertThat(proof.paths().getLast().stateItemLeaf()).isEqualTo(messageLeaf);
+        }
+        if (expectedPathCount > 1 + expectedMessageCount) {
+            assertThat(proof.paths().get(1).stateItemLeaf()).isEqualTo(manifestLeaf);
+        }
         final var envelope = ClprSyncPayload.newBuilder()
                 .channelId(channelId)
                 .bundlePayload(bundle.payload())
                 .build();
         assertThat((long) envelope.protobufSize()).isLessThanOrEqualTo(maxSyncBytes);
+    }
+
+    @Test
+    void rejectsPeerSyncLimitThatCannotFitEnvelopeBeforeBuildingProof() {
+        given(snapshotProvider.latestSnapshot()).willReturn(Optional.of(snapshot));
+        given(snapshot.state()).willReturn(provenState);
+        final var throttles =
+                ClprThrottles.newBuilder().maxSyncBytes(Long.MIN_VALUE).build();
+
+        assertThat(subject.buildBundleProof(Bytes.wrap(new byte[32]), 1L, throttles, true, true))
+                .isNull();
     }
 
     /** Stubs the snapshot and BinaryState so buildSingletonProof produces a real StateProof. */

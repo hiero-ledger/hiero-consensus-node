@@ -282,8 +282,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             return;
         }
 
-        final var newMessages = validated.newMessages();
-        final var computedHash = validated.receivedRunningHash();
         final var expectedFirstId = channel.receivedMessageId() + 1;
         final var peerReceivedMessageId = metadata.receivedMessageId();
         final var oldAckedMessageId = channel.ackedMessageId();
@@ -304,20 +302,22 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 channelId,
                 oldAckedMessageId,
                 peerReceivedMessageId,
-                newMessages.size());
+                validated.newMessages().size());
         final ReplyValidation replyValidation;
         try {
-            replyValidation = bundleValidator.validateReplies(channel, validated, messageQueueStore);
-            if (replyValidation instanceof ReplyValidation.AckedThrough ack) {
-                bundleValidator.validateReplyCapacity(channel, validated, ack, throttles);
-            }
+            replyValidation =
+                    bundleValidator.validateReplies(channel, validated, messageQueueStore, throttles.maxQueueDepth());
         } catch (final PreCheckException e) {
             // Ineffective acknowledgement progress, local corruption and queue backpressure incur no node penalty.
             throw new HandleException(e.responseCode());
         }
         final long newAckedMessageId;
+        final int acceptedMessageCount;
         switch (replyValidation) {
-            case ReplyValidation.AckedThrough(final long lastAckedMessageId) -> newAckedMessageId = lastAckedMessageId;
+            case ReplyValidation.AckedThrough(final long lastAckedMessageId, final int count) -> {
+                newAckedMessageId = lastAckedMessageId;
+                acceptedMessageCount = count;
+            }
             case ReplyValidation.OrderingViolated(final long expectedMessageId, final long repliedMessageId) -> {
                 // A protocol violation by the submitting node, handled by pausing the channel and penalizing it
                 log.info(
@@ -335,6 +335,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 }
                 return;
             }
+        }
+        final boolean hasDeferredMessages =
+                acceptedMessageCount < validated.newMessages().size();
+        final var newMessages = validated.newMessages().subList(0, acceptedMessageCount);
+        final var computedHash = hasDeferredMessages
+                ? receivedHashAfterPrefix(channel.receivedRunningHash(), newMessages)
+                : validated.receivedRunningHash();
+        if (hasDeferredMessages) {
+            log.debug(
+                    "[ClprSubmitBundle] queue backpressure conn={} acceptedMessages={} deferredMessages={}",
+                    channelId,
+                    acceptedMessageCount,
+                    validated.newMessages().size() - acceptedMessageCount);
         }
         if (newAckedMessageId < peerReceivedMessageId) {
             log.debug(
@@ -417,7 +430,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         var peerConfigTimestamp = channel.peerConfigTimestamp();
         var peerThrottles = channel.peerThrottles();
         // A later control message can lower the budget used to build proofs for these replies.
-        final long finalReplyPayloadLimit = maxReplyPayloadBytesAfterBundle(throttles, peerThrottles, newMessages);
+        var finalReplyPayloadLimit = maxReplyPayloadBytesAfterBundle(throttles, peerThrottles, newMessages);
+        if (hasDeferredMessages) {
+            finalReplyPayloadLimit = Math.min(
+                    finalReplyPayloadLimit,
+                    maxReplyPayloadBytesAfterBundle(throttles, peerThrottles, validated.newMessages()));
+        }
         var receivedMessageId = channel.receivedMessageId();
         boolean bundleDecodeFailure = false;
         // Iterate the new tail only — replayed slots were dispatched in a prior bundle, so we
@@ -644,6 +662,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                             finalReplyPayloadLimit, maxReplyPayloadBytes(throttles, peerThrottles));
                                     final var decoded = decodeApplicationResponse(rawEvmResult, replyPayloadLimit);
                                     if (decoded == null) {
+                                        log.debug(
+                                                "[ClprSubmitBundle] oversized application response conn={} "
+                                                        + "receivedMsgId={} target={} encodedResponseBytes={} "
+                                                        + "maxReplyPayloadBytes={}",
+                                                channelId,
+                                                receivedMessageId,
+                                                appContractId,
+                                                rawEvmResult.length(),
+                                                replyPayloadLimit);
                                         replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                                     } else {
                                         responseData = decoded;
@@ -747,13 +774,30 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // One-way slots are removed only when acknowledged in Pass 2.
                     messageQueueStore.remove(channelId, replyTargetId);
 
+                    // A peer can have already queued this reply under an older advertised limit. Keep the
+                    // attested payload in the running hash and ACK, but bound what the application receives.
+                    final long replyPayloadLimit = throttles.maxMessagePayloadBytes();
+                    final var attestedReplyData = reply.messageReplyData();
+                    final boolean oversized = replyPayloadLimit > 0 && attestedReplyData.length() > replyPayloadLimit;
+                    final var replyStatus = oversized ? ClprMessageReplyStatus.APPLICATION_ERROR : reply.status();
+                    final var replyData = oversized ? Bytes.EMPTY : attestedReplyData;
+                    if (oversized) {
+                        log.debug(
+                                "[ClprSubmitBundle] oversized incoming reply conn={} receivedMsgId={} "
+                                        + "replyTargetId={} replyDataBytes={} maxReplyPayloadBytes={}",
+                                channelId,
+                                receivedMessageId,
+                                replyTargetId,
+                                attestedReplyData.length(),
+                                replyPayloadLimit);
+                    }
+
                     // Deliver response to the originating application (best-effort). The response might even be
                     // CONNECTOR_NOT_FOUND or some other error, or that the remote side is CLOSED. Whatever it is,
                     // we must inform the originating application so it can do proper bookkeeping.
                     final var senderAddress = origDataMsg.sender();
                     if (senderAddress.length() > 0) {
-                        final var callData = encodeOnClprResponse(
-                                channelId, replyTargetId, reply.status(), reply.messageReplyData());
+                        final var callData = encodeOnClprResponse(channelId, replyTargetId, replyStatus, replyData);
                         // Use EntityIdFactory so shard/realm match this network
                         final var senderContractId = entityIdFactory.newContractIdWithEvmAddress(senderAddress);
                         final var syntheticBody = TransactionBody.newBuilder()
@@ -771,8 +815,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         + "status={} replyDataLen={} callDataLen={} gas={} callData={}",
                                 senderAddress,
                                 replyTargetId,
-                                reply.status(),
-                                reply.messageReplyData().length(),
+                                replyStatus,
+                                replyData.length(),
                                 callData.length,
                                 throttles.maxGasPerMessage(),
                                 shortHex(Bytes.wrap(callData)));
@@ -804,13 +848,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 "[ClprSubmitBundle] skipping onClprResponse dispatch — originating msg has no sender "
                                         + "(replyTargetId={} status={})",
                                 replyTargetId,
-                                reply.status());
+                                replyStatus);
                     }
 
                     // Source-side slashing on failure responses. That is, if we sent a message to the remote ledger
                     // and it replied indicating the connector on our side was at fault, then we will punish the
                     // connector on our side accordingly.
-                    final var replyStatus = reply.status();
                     final var sourceConnectorKey = new ClprConnectorKey(channelId, origDataMsg.connectorId());
                     var sourceConnector = connectorStore.getConnector(sourceConnectorKey);
                     if (sourceConnector != null) {
@@ -979,7 +1022,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // Response Messages generated during CLOSING are still unacknowledged.
         if (currentStatus == ClprChannelStatus.DRAINED
                 && (peerStatus == ClprChannelStatus.DRAINED || peerStatus == ClprChannelStatus.CLOSED)
-                && outboundDrained) {
+                && outboundDrained
+                && !hasDeferredMessages) {
             currentStatus = ClprChannelStatus.CLOSED;
         }
 
@@ -1023,6 +1067,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             log.debug("[ClprSubmitBundle] notifying lifecycle channel closed conn={}", channelId);
             channelLifecycle.onChannelClosed(channelId);
         }
+    }
+
+    @NonNull
+    private static Bytes receivedHashAfterPrefix(
+            @NonNull final Bytes priorHash, @NonNull final List<ClprMessagePayload> messages) {
+        if (messages.isEmpty()) {
+            return priorHash;
+        }
+        var hash = priorHash.length() == 0 ? ZERO_HASH : priorHash;
+        for (final var message : messages) {
+            hash = ClprHashUtils.computeRunningHash(hash, message);
+        }
+        return hash;
     }
 
     /**
