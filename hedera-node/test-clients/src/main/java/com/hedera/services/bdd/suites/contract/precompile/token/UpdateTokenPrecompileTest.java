@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecKey.Type.SECP_256K1;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FEE_SCHEDULE_KEY;
@@ -12,9 +13,25 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.spec.dsl.utils.DslUtils.contractIdKeyFor;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUppercase;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWithFunctionAbi;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -29,9 +46,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NAME_TOO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -43,6 +62,8 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecKey;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -57,9 +78,19 @@ import org.junit.jupiter.api.Tag;
 public class UpdateTokenPrecompileTest {
     private static final long GAS_NEEDED = 1_000_000L;
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
+    private static final String HTS_ADDRESS = "0x0000000000000000000000000000000000000167";
+    private static final String KEYLESS_TOKEN = "keylessToken";
+    private static final String KEYLESS_TREASURY = "keylessTreasury";
+    private static final String KEYLESS_ETH_SENDER_KEY = "keylessEthSenderKey";
+    private static final String KEYLESS_NEW_ADMIN_KEY = "keylessNewAdminKey";
+    private static final String KEYLESS_UPDATE_TXN = "keylessUpdateTxn";
 
     @Contract(contract = "UpdateTokenInfoContract", creationGas = 4_000_000L)
     static SpecContract updateTokenContract;
+
+    // Forwards an arbitrary TokenKey[] to updateTokenKeys at 0x167, reverting unless the precompile returns SUCCESS
+    @Contract(contract = "UpdateTokenKeysContract", creationGas = 1_000_000L)
+    static SpecContract updateKeysCaller;
 
     @FungibleToken(
             name = "immutableToken",
@@ -97,25 +128,169 @@ public class UpdateTokenPrecompileTest {
     }
 
     @HapiTest
-    @DisplayName("cannot update the keys of a token that has no keys at all")
-    public Stream<DynamicTest> cannotUpdateKeysOfKeylessToken() {
-        // The annotation DSL cannot declare an empty key set, so build the token directly (keys unset = no keys)
-        final var keylessToken = new SpecFungibleToken("keylessToken");
+    @DisplayName("cannot update the keys of a token that has no keys at all, calling HTS directly")
+    public Stream<DynamicTest> cannotUpdateKeysOfKeylessTokenViaDirectEthereumCall() {
         return hapiTest(
-                updateTokenContract
-                        .call("tokenUpdateKeys", keylessToken, ed25519Key, secp256k1Key, updateTokenContract)
-                        .gas(GAS_NEEDED)
-                        .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_IS_IMMUTABLE)),
-                // The rejected call must not have set any key
-                keylessToken
-                        .getInfo()
-                        .andAssert(info -> info.hasEmptyAdminKey()
-                                .hasEmptyKycKey()
-                                .hasEmptyFreezeKey()
-                                .hasEmptyWipeKey()
-                                .hasEmptySupplyKey()
-                                .hasEmptyFeeScheduleKey()
-                                .hasEmptyPauseKey()));
+                newKeyNamed(KEYLESS_ETH_SENDER_KEY).shape(SECP_256K1_SHAPE),
+                newKeyNamed(KEYLESS_NEW_ADMIN_KEY),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, KEYLESS_ETH_SENDER_KEY, ONE_HUNDRED_HBARS)),
+                cryptoCreate(KEYLESS_TREASURY),
+                // Created with no keys of any kind (so it is immutable)
+                tokenCreate(KEYLESS_TOKEN).treasury(KEYLESS_TREASURY),
+                withOpContext((spec, _) -> {
+                    final var token =
+                            asHeadlongAddress(asAddress(spec.registry().getTokenID(KEYLESS_TOKEN)));
+                    final var newAdminKey = spec.registry()
+                            .getKey(KEYLESS_NEW_ADMIN_KEY)
+                            .getEd25519()
+                            .toByteArray();
+                    final var adminKeyEntry = Tuple.of(
+                            BigInteger.ONE, Tuple.of(false, ZERO_ADDRESS, newAdminKey, new byte[0], ZERO_ADDRESS));
+                    allRunFor(
+                            spec,
+                            // Straight to the HTS system contract at 0x167, with no intermediary contract
+                            ethereumCallWithFunctionAbi(
+                                            false,
+                                            HTS_ADDRESS,
+                                            getABIFor(FUNCTION, "updateTokenKeys", "IHederaTokenService"),
+                                            token,
+                                            new Tuple[] {adminKeyEntry})
+                                    .signingWith(KEYLESS_ETH_SENDER_KEY)
+                                    .payingWith(GENESIS)
+                                    .gasLimit(GAS_NEEDED)
+                                    .via(KEYLESS_UPDATE_TXN),
+                            getTxnRecord(KEYLESS_UPDATE_TXN)
+                                    .andAllChildRecords()
+                                    .hasChildRecords(recordWith().status(TOKEN_IS_IMMUTABLE)));
+                }),
+                // The rejected update must not have set any key
+                getTokenInfo(KEYLESS_TOKEN)
+                        .hasEmptyAdminKey()
+                        .hasEmptyKycKey()
+                        .hasEmptyFreezeKey()
+                        .hasEmptyWipeKey()
+                        .hasEmptySupplyKey()
+                        .hasEmptyFeeScheduleKey()
+                        .hasEmptyPauseKey());
+    }
+
+    @HapiTest
+    @DisplayName("updateTokenKeys with duplicate keyTypes from an authorized contract applies them in order")
+    public Stream<DynamicTest> duplicateKeyTypesFromAuthorizedContractApplyInOrder(
+            @FungibleToken final SpecFungibleToken token) {
+        final var supplyKeyType = BigInteger.valueOf(0x10);
+        return hapiTest(
+                newKeyNamed("dupContractFirstSupply"),
+                newKeyNamed("dupContractSecondSupply"),
+                token.authorizeContracts(updateKeysCaller),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateKeysCaller
+                                .call("updateTokenKeys", token, new Tuple[] {
+                                    keyEntry(supplyKeyType, ed25519Of(spec, "dupContractFirstSupply")),
+                                    keyEntry(supplyKeyType, ed25519Of(spec, "dupContractSecondSupply"))
+                                })
+                                .gas(GAS_NEEDED))),
+                // No conflict error: the last entry for the slot wins
+                token.getInfo().andAssert(info -> info.searchKeysGlobally().hasSupplyKey("dupContractSecondSupply")));
+    }
+
+    @HapiTest
+    @DisplayName("updateTokenKeys ignores an undefined bit next to a defined one for an authorized contract")
+    public Stream<DynamicTest> strayUndefinedBitNextToAdminBitIsAppliedAsAdminKey(
+            @FungibleToken final SpecFungibleToken token) {
+        return hapiTest(
+                token.authorizeContracts(updateKeysCaller),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateKeysCaller
+                                .call(
+                                        "updateTokenKeys",
+                                        token,
+                                        // 0x101 = admin (0x01) plus the undefined 0x100; the new admin key is the
+                                        // calling contract itself, so no extra signature is needed
+                                        new Tuple[] {
+                                            Tuple.of(
+                                                    BigInteger.valueOf(0x101),
+                                                    Tuple.of(
+                                                            false,
+                                                            updateKeysCaller.addressOn(spec.targetNetworkOrThrow()),
+                                                            new byte[0],
+                                                            new byte[0],
+                                                            ZERO_ADDRESS))
+                                        })
+                                .gas(GAS_NEEDED))),
+                updateKeysCaller.doWith(
+                        contract -> token.getInfo().andAssert(info -> info.hasAdminKey(contractIdKeyFor(contract)))));
+    }
+
+    @HapiTest
+    @DisplayName(
+            "updateTokenKeys with an empty key list from an authorized contract reports success and changes nothing")
+    public Stream<DynamicTest> emptyKeyListFromAuthorizedContractChangesNothing(
+            @FungibleToken final SpecFungibleToken token) {
+        return authorizedContractUpdateKeepsSupplyKey(token, _ -> new Tuple[0]);
+    }
+
+    @HapiTest
+    @DisplayName("updateTokenKeys with keyType zero from an authorized contract reports success and changes nothing")
+    public Stream<DynamicTest> zeroKeyTypeFromAuthorizedContractChangesNothing(
+            @FungibleToken final SpecFungibleToken token) {
+        return authorizedContractUpdateKeepsSupplyKey(
+                token, newKeys -> new Tuple[] {keyEntry(BigInteger.ZERO, newKeys[0])});
+    }
+
+    @HapiTest
+    @DisplayName(
+            "updateTokenKeys with an undefined bit from an authorized contract reports success and changes nothing")
+    public Stream<DynamicTest> undefinedBitFromAuthorizedContractChangesNothing(
+            @FungibleToken final SpecFungibleToken token) {
+        return authorizedContractUpdateKeepsSupplyKey(
+                token, newKeys -> new Tuple[] {keyEntry(BigInteger.valueOf(0x100), newKeys[0])});
+    }
+
+    @HapiTest
+    @DisplayName("updateTokenKeys from a contract that holds none of the keys is unauthorized")
+    public Stream<DynamicTest> validEntryFromUnauthorizedContractIsRejected(
+            @FungibleToken final SpecFungibleToken token) {
+        return hapiTest(
+                newKeyNamed("unauthorizedNewSupply"),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateKeysCaller
+                                .call("updateTokenKeys", token, new Tuple[] {
+                                    keyEntry(BigInteger.valueOf(0x10), ed25519Of(spec, "unauthorizedNewSupply"))
+                                })
+                                .gas(GAS_NEEDED)
+                                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE)))),
+                token.getInfo().andAssert(info -> info.hasSupplyKey(token.name())));
+    }
+
+    /**
+     * The contract holds the token's admin key, so authorization is not in play: the call succeeds (the contract
+     * reverts on any status but SUCCESS) and the supply key must be untouched.
+     */
+    private Stream<DynamicTest> authorizedContractUpdateKeepsSupplyKey(
+            @NonNull final SpecFungibleToken token, @NonNull final Function<byte[][], Tuple[]> entries) {
+        return hapiTest(
+                newKeyNamed(token.name() + "NewKey"),
+                token.authorizeContracts(updateKeysCaller),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateKeysCaller
+                                .call("updateTokenKeys", token, entries.apply(new byte[][] {
+                                    ed25519Of(spec, token.name() + "NewKey")
+                                }))
+                                .gas(GAS_NEEDED))),
+                token.getInfo().andAssert(info -> info.hasSupplyKey(token.name())));
+    }
+
+    private static byte[] ed25519Of(@NonNull final HapiSpec spec, @NonNull final String keyName) {
+        return spec.registry().getKey(keyName).getEd25519().toByteArray();
+    }
+
+    private static Tuple keyEntry(@NonNull final BigInteger keyType, @NonNull final byte[] ed25519) {
+        return Tuple.of(keyType, Tuple.of(false, ZERO_ADDRESS, ed25519, new byte[0], ZERO_ADDRESS));
     }
 
     @HapiTest
