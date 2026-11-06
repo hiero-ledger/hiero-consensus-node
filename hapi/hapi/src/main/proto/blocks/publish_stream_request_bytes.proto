@@ -75,6 +75,19 @@ message EndStreamBytes {
 }
 
 /**
+ * Wire-identical mirror of `org.hiero.block.api.PublishStreamRequest.AcknowledgeOnly`.
+ * <p>
+ * Mirrored like `EndStreamBytes` because PBJ test generation cannot reference
+ * a message nested in another proto file.
+ */
+message AcknowledgeOnlyBytes {
+  /**
+   * The block number the Publisher asks the Block-Node to acknowledge.
+   */
+  uint64 block_number = 1;
+}
+
+/**
  * A request to publish a stream of blocks using serialized block items.
  *
  * This mirrors `org.hiero.block.api.PublishStreamRequest` field-for-field on the wire. The
@@ -103,6 +116,6 @@ message PublishStreamRequestBytes {
     /**
      * A lightweight request asking the Block-Node to acknowledge a block it already holds.
      */
-    org.hiero.block.api.PublishStreamRequest.AcknowledgeOnly acknowledge_only = 4;
+    AcknowledgeOnlyBytes acknowledge_only = 4;
   }
 }

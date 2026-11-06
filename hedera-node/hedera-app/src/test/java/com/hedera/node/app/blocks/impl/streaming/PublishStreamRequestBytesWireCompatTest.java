@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.block.internal.AcknowledgeOnlyBytes;
 import com.hedera.hapi.block.internal.BlockItemSetBytes;
 import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
@@ -109,11 +110,13 @@ class PublishStreamRequestBytesWireCompatTest {
 
     @Test
     void acknowledgeOnlyRequestSerializesIdenticallyAndRoundTrips() throws ParseException {
-        final var ack = AcknowledgeOnly.newBuilder().blockNumber(42L).build();
-        final PublishStreamRequest normal =
-                PublishStreamRequest.newBuilder().acknowledgeOnly(ack).build();
-        final PublishStreamRequestBytes bytesReq =
-                PublishStreamRequestBytes.newBuilder().acknowledgeOnly(ack).build();
+        final PublishStreamRequest normal = PublishStreamRequest.newBuilder()
+                .acknowledgeOnly(AcknowledgeOnly.newBuilder().blockNumber(42L).build())
+                .build();
+        final PublishStreamRequestBytes bytesReq = PublishStreamRequestBytes.newBuilder()
+                .acknowledgeOnly(
+                        AcknowledgeOnlyBytes.newBuilder().blockNumber(42L).build())
+                .build();
 
         final Bytes bytesWire = PublishStreamRequestBytes.PROTOBUF.toBytes(bytesReq);
         assertThat(bytesWire).isEqualTo(PublishStreamRequest.PROTOBUF.toBytes(normal));
