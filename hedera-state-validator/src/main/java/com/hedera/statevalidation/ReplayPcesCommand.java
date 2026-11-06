@@ -47,11 +47,20 @@ public class ReplayPcesCommand implements Callable<Integer> {
     public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
 
     private long targetRound = DEFAULT_TARGET_ROUND;
+    private String stateDirOption;
     private Path pcesDir;
     private Path outDir = Path.of("./replay-out");
     private long selfIdValue = 0;
     private String consensusEventStreamName = "0.0.3";
     private boolean forceMockSignatures = true;
+
+    @Option(
+            names = {"-s", "--state-dir"},
+            description = "Directory containing the saved state snapshot to load (local path or gs:// URI). "
+                    + "Alternative to passing the state directory as the operator's positional argument.")
+    private void setStateDir(final String stateDir) {
+        this.stateDirOption = stateDir;
+    }
 
     @Option(
             names = {"-p", "--pces-dir"},
@@ -102,6 +111,9 @@ public class ReplayPcesCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        if (stateDirOption != null) {
+            parent.setStateDirFromSubcommand(stateDirOption);
+        }
         parent.resolveAndGetStateDir();
         final Path stateDir = parent.getStateDir().toPath();
         // --- Replay-only flags, set before the platform configuration is built so the config picks them up ---
