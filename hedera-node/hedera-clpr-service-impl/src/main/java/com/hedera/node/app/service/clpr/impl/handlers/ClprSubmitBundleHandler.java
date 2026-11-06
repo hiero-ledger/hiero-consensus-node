@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
@@ -302,6 +303,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             replyValidation = bundleValidator.validateReplies(channel, validated, messageQueueStore);
         } catch (final PreCheckException e) {
             // Ineffective acknowledgement progress and local corruption do not incur a node penalty.
+            if (e.responseCode() == CLPR_INTERNAL_STATE_CORRUPTION) {
+                // Consensus reads consistent state, so unlike before gossip, a missing slot here is real
+                log.error(
+                        "[ClprSubmitBundle] step8 outbound queue is missing a slot the peer has received conn={} "
+                                + "ackedMsgId={} peerReceivedMsgId={}",
+                        channelId,
+                        oldAckedMessageId,
+                        peerReceivedMessageId);
+            }
             throw new HandleException(e.responseCode());
         }
         final long newAckedMessageId;

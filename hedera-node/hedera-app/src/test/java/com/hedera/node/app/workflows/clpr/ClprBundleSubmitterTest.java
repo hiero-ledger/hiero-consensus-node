@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.clpr;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -175,6 +176,24 @@ class ClprBundleSubmitterTest {
                 .bundlePayload(BUNDLE_PAYLOAD)
                 .build();
         doThrow(new PreCheckException(CLPR_NO_PROGRESS)).when(prevalidator).validate(payload, versionedConfig);
+
+        assertThat(subject.submitBundle(payload)).isTrue();
+
+        verify(gossip, never()).submit(any());
+        verifyNoInteractions(selfNodeInfo, instantSource);
+        verify(appContext, never()).selfNodeInfoSupplier();
+        verify(appContext, never()).instantSource();
+    }
+
+    @Test
+    void dropsBundleWithUnverifiableRepliesWithoutReportingPeerFailure() throws PreCheckException {
+        final var payload = ClprSyncPayload.newBuilder()
+                .channelId(CHANNEL_ID)
+                .bundlePayload(BUNDLE_PAYLOAD)
+                .build();
+        doThrow(new PreCheckException(CLPR_INTERNAL_STATE_CORRUPTION))
+                .when(prevalidator)
+                .validate(payload, versionedConfig);
 
         assertThat(subject.submitBundle(payload)).isTrue();
 
