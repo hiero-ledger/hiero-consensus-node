@@ -117,6 +117,98 @@ class PrivilegesVerifierTest {
         subject = new Wrapper(configProvider);
     }
 
+    @ParameterizedTest
+    @MethodSource("foreignShardOrRealmPayers")
+    void privilegedAccountNumberOnForeignShardOrRealmIsNotPrivileged(final long shard, final long realm)
+            throws InvalidProtocolBufferException {
+        final var freeze = treasuryTxn().setFreeze(FreezeTransactionBody.getDefaultInstance());
+        final var fileUpdate = treasuryTxn()
+                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(112)));
+        for (final long num : new long[] {TREASURY, SYSTEM_ADMIN, FREEZE_ADMIN}) {
+            assertEquals(
+                    SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessorWithPayer(freeze, account(num))));
+            assertEquals(
+                    SystemOpAuthorization.UNAUTHORIZED,
+                    subject.authForTestCase(accessorWithPayer(freeze, account(shard, realm, num))));
+        }
+        for (final long num : new long[] {TREASURY, SYSTEM_ADMIN, EXCHANGE_RATES_ADMIN}) {
+            assertEquals(
+                    SystemOpAuthorization.AUTHORIZED,
+                    subject.authForTestCase(accessorWithPayer(fileUpdate, account(num))));
+            assertEquals(
+                    SystemOpAuthorization.UNAUTHORIZED,
+                    subject.authForTestCase(accessorWithPayer(fileUpdate, account(shard, realm, num))));
+        }
+    }
+
+    static Stream<Arguments> foreignShardOrRealmPayers() {
+        return Stream.of(Arguments.of(1L, 0L), Arguments.of(0L, 1L), Arguments.of(1L, 1L));
+    }
+
+    @Test
+    void treasuryOnForeignShardCannotUpdateSystemAccounts() throws InvalidProtocolBufferException {
+        final var body = treasuryTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(SYSTEM_ADMIN)));
+        assertEquals(
+                SystemOpAuthorization.UNNECESSARY,
+                subject.authForTestCase(accessorWithPayer(body, account(1, 0, TREASURY))));
+    }
+
+    @ParameterizedTest
+    @MethodSource("foreignShardOrRealmPayers")
+    void systemAccountNumberOnForeignShardOrRealmIsNotASystemTarget(final long shard, final long realm)
+            throws InvalidProtocolBufferException {
+        final var foreignTreasuryTarget = civilianTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(shard, realm, TREASURY)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignTreasuryTarget)));
+        final var adminOnForeignTreasury = sysAdminTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(shard, realm, TREASURY)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(adminOnForeignTreasury)));
+        final var localTreasuryTarget = sysAdminTxn()
+                .setCryptoUpdateAccount(
+                        CryptoUpdateTransactionBody.newBuilder().setAccountIDToUpdate(account(TREASURY)));
+        assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(localTreasuryTarget)));
+    }
+
+    @ParameterizedTest
+    @MethodSource("foreignShardOrRealmPayers")
+    void foreignFileAndContractTargetsAreNotLocalSystemEntities(final long shard, final long realm)
+            throws InvalidProtocolBufferException {
+        final var foreignFileUpdate = exchangeRatesAdminTxn()
+                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(shard, realm, 112)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignFileUpdate)));
+        final var localFileUpdate = exchangeRatesAdminTxn()
+                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(112)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(localFileUpdate)));
+
+        final var foreignAppend = exchangeRatesAdminTxn()
+                .setFileAppend(FileAppendTransactionBody.newBuilder().setFileID(file(shard, realm, 112)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignAppend)));
+
+        final var foreignDelete = treasuryTxn()
+                .setFileDelete(FileDeleteTransactionBody.newBuilder().setFileID(file(shard, realm, 100)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignDelete)));
+
+        final var foreignCryptoDelete = treasuryTxn()
+                .setCryptoDelete(
+                        CryptoDeleteTransactionBody.newBuilder().setDeleteAccountID(account(shard, realm, 100)));
+        assertEquals(SystemOpAuthorization.UNNECESSARY, subject.authForTestCase(accessor(foreignCryptoDelete)));
+
+        final var foreignSystemDelete = treasuryTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(shard, realm, 123)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(foreignSystemDelete)));
+        final var localSystemDelete = treasuryTxn()
+                .setSystemDelete(SystemDeleteTransactionBody.newBuilder().setContractID(contract(123)));
+        assertEquals(SystemOpAuthorization.IMPERMISSIBLE, subject.authForTestCase(accessor(localSystemDelete)));
+
+        final var foreignUndelete = treasuryTxn()
+                .setSystemUndelete(SystemUndeleteTransactionBody.newBuilder().setFileID(file(shard, realm, 123)));
+        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(foreignUndelete)));
+    }
+
     @SuppressWarnings("DataFlowIssue")
     @Test
     void testConstructorWithIllegalParameters() {
@@ -765,12 +857,36 @@ class PrivilegesVerifierTest {
         return ContractID.newBuilder().setContractNum(num).build();
     }
 
+    private ContractID contract(long shard, long realm, long num) {
+        return ContractID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setContractNum(num)
+                .build();
+    }
+
     private FileID file(long num) {
         return FileID.newBuilder().setFileNum(num).build();
     }
 
+    private FileID file(long shard, long realm, long num) {
+        return FileID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setFileNum(num)
+                .build();
+    }
+
     private AccountID account(long num) {
         return AccountID.newBuilder().setAccountNum(num).build();
+    }
+
+    private AccountID account(long shard, long realm, long num) {
+        return AccountID.newBuilder()
+                .setShardNum(shard)
+                .setRealmNum(realm)
+                .setAccountNum(num)
+                .build();
     }
 
     private AccountID longZeroAccountId(long num) {
