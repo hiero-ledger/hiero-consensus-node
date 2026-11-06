@@ -2,10 +2,10 @@
 package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.function.Function.identity;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
@@ -20,15 +20,10 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
  */
 public class ConsensusRoundPool {
 
-    /**
-     * Maps round number to the distinct rounds with that number. The inner map maps a round to its canonical instance,
-     * the first equal round that a node delivered.
-     */
-    private final ConcurrentHashMap<Long, Map<ConsensusRound, ConsensusRound>> roundCache = new ConcurrentHashMap<>();
+    /** The pool of consensus rounds, keyed by round number. */
+    private final Map<Long, Set<ConsensusRound>> roundCache = new ConcurrentHashMap<>();
 
-    /**
-     * Lifecycle flag to prevent operations after pool is destroyed.
-     */
+    /** Lifecycle flag to prevent operations after pool is destroyed. */
     private volatile boolean destroyed = false;
 
     /**
@@ -47,9 +42,11 @@ public class ConsensusRoundPool {
             return round;
         }
 
-        return roundCache
-                .computeIfAbsent(round.getRoundNum(), _ -> new ConcurrentHashMap<>())
-                .computeIfAbsent(round, identity());
+        final Set<ConsensusRound> rounds =
+                roundCache.computeIfAbsent(round.getRoundNum(), _ -> ConcurrentHashMap.newKeySet());
+        return rounds.add(round)
+                ? round
+                : rounds.stream().filter(round::equals).findFirst().orElseThrow();
     }
 
     /**
@@ -57,6 +54,7 @@ public class ConsensusRoundPool {
      */
     public void destroy() {
         destroyed = true;
+        roundCache.clear();
         roundCache.clear();
     }
 }
