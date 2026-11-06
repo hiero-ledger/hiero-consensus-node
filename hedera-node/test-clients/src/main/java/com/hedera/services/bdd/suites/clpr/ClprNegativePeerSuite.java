@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
@@ -255,6 +256,7 @@ public class ClprNegativePeerSuite {
                         crypto.connectorId(),
                         new byte[20],
                         data.getBytes(StandardCharsets.UTF_8))
+                .sending(ONE_HBAR)
                 .gas(2_000_000L)
                 .payingWith("caller");
     }

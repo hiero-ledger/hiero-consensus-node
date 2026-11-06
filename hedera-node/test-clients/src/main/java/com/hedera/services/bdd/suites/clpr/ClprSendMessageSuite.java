@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
@@ -97,6 +98,7 @@ public class ClprSendMessageSuite {
                                 crypto.connectorId(),
                                 new byte[] {10, 20, 30},
                                 new byte[] {1, 2, 3, 4, 5})
+                        .sending(ONE_HBAR)
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")
                         .via("sendMsgTxn"),
@@ -117,6 +119,7 @@ public class ClprSendMessageSuite {
                                 new byte[32],
                                 new byte[] {10, 20, 30},
                                 new byte[] {1, 2, 3})
+                        .sending(ONE_HBAR)
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
@@ -131,6 +134,7 @@ public class ClprSendMessageSuite {
                 uploadInitCode(CLPR_CONTRACT),
                 contractCreate(CLPR_CONTRACT),
                 cryptoCreate("caller").balance(ONE_HUNDRED_HBARS),
+                // No value: a disabled CLPR address is a plain system account, which halts any call carrying value
                 contractCall(CLPR_CONTRACT, SEND_MESSAGE, new byte[32], new byte[32], new byte[0], new byte[0])
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")
@@ -169,6 +173,7 @@ public class ClprSendMessageSuite {
                                 new byte[32],
                                 new byte[] {10, 20, 30},
                                 new byte[] {1, 2, 3})
+                        .sending(ONE_HBAR)
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED));

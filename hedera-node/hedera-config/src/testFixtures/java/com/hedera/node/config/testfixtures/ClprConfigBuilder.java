@@ -32,6 +32,8 @@ public final class ClprConfigBuilder {
     private int circuitBreakerCooldownSeconds = 120;
     private boolean syncPeerExclusionEnabled = false;
     private int connectorQueueQuotaPct = 50;
+    private long sendMessageFeeTinycents = 1_000_000_000L;
+    private int sendMessageIncludedBytes = 1024;
     private long verifierGasLimit = 300_000L;
     private boolean verifyProofsAtSender = true;
     private String peerEndpointsFile = "data/clpr/peer-endpoints.json";
@@ -233,6 +235,8 @@ public final class ClprConfigBuilder {
                 circuitBreakerCooldownSeconds,
                 syncPeerExclusionEnabled,
                 connectorQueueQuotaPct,
+                sendMessageFeeTinycents,
+                sendMessageIncludedBytes,
                 verifierGasLimit,
                 nodeSubmitBundleMaxFee,
                 verifyProofsAtSender,

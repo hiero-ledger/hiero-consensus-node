@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
@@ -86,6 +87,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "hello-one-way".getBytes(StandardCharsets.UTF_8))
+                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
@@ -150,6 +152,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                 }),
                                                 // SourceApplication.sendMessages(uint256) — note the plural.
                                                 contractCall(SOURCE_APP, "sendMessages", BigInteger.ONE)
+                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
@@ -174,15 +177,14 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                             spec,
                                                             QueryVerbs.contractCallLocalWithFunctionAbi(
                                                                             SOURCE_APP, abi, BigInteger.ONE)
-                                                                    .exposingTypedResultsTo(
-                                                                            results -> {
-                                                                                final var actual = (byte[]) results[0];
-                                                                                assertArrayEquals(
-                                                                                        expectedResponse,
-                                                                                        actual,
-                                                                                        "SourceApplication.responses[1] not populated — onClprResponse callback was never delivered. "
-                                                                                                + "Check ON_CLPR_RESPONSE_SELECTOR in ClprSubmitBundleHandler.");
-                                                                            }));
+                                                                    .exposingTypedResultsTo(results -> {
+                                                                        final var actual = (byte[]) results[0];
+                                                                        assertArrayEquals(
+                                                                                expectedResponse,
+                                                                                actual,
+                                                                                "SourceApplication.responses[1] not populated — onClprResponse callback was never delivered. "
+                                                                                        + "Check ON_CLPR_RESPONSE_SELECTOR in ClprSubmitBundleHandler.");
+                                                                    }));
                                                 }))
                                         .findFirst()
                                         .orElseThrow())));
@@ -208,6 +210,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                             crypto.connectorId,
                             new byte[20],
                             ("msg-" + i).getBytes(StandardCharsets.UTF_8))
+                    .sending(ONE_HBAR)
                     .gas(GAS)
                     .payingWith("callerA"));
         }
@@ -260,6 +263,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                         crypto.connectorId,
                                                         new byte[20],
                                                         "post-close".getBytes(StandardCharsets.UTF_8))
+                                                .sending(ONE_HBAR)
                                                 .gas(GAS)
                                                 .payingWith("callerA")
                                                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
@@ -295,6 +299,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "hello-close".getBytes(StandardCharsets.UTF_8))
+                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
@@ -352,6 +357,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                             crypto.connectorId,
                             new byte[20],
                             ("a-" + i).getBytes(StandardCharsets.UTF_8))
+                    .sending(ONE_HBAR)
                     .gas(GAS)
                     .payingWith("callerA"));
         }
@@ -368,6 +374,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                             crypto.connectorId,
                             new byte[20],
                             ("b-" + i).getBytes(StandardCharsets.UTF_8))
+                    .sending(ONE_HBAR)
                     .gas(GAS)
                     .payingWith("callerB"));
         }
@@ -464,6 +471,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                             crypto.connectorId,
                             new byte[20],
                             ("multi-" + i).getBytes(StandardCharsets.UTF_8))
+                    .sending(ONE_HBAR)
                     .gas(GAS)
                     .payingWith("callerA"));
         }
@@ -519,6 +527,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "pre-close".getBytes(StandardCharsets.UTF_8))
+                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
@@ -580,6 +589,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 SOURCE_APP,
                                                                 "sendMessages",
                                                                 BigInteger.valueOf(totalMessages))
+                                                        .sending(ONE_HBAR * totalMessages)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
@@ -639,6 +649,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 SOURCE_APP,
                                                                 "sendMessages",
                                                                 BigInteger.valueOf(messageCount))
+                                                        .sending(ONE_HBAR * messageCount)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
@@ -688,6 +699,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                 SOURCE_APP,
                                                                 "sendMessages",
                                                                 BigInteger.valueOf(messageCount))
+                                                        .sending(ONE_HBAR * messageCount)
                                                         .gas(GAS)
                                                         .payingWith("callerA"),
                                                 clprCloseChannel()
@@ -754,6 +766,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                             spec.registry().getContractId(SOURCE_APP);
                                                 }),
                                                 contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(burstSize))
+                                                        .sending(ONE_HBAR * burstSize)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
@@ -789,6 +802,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                                             SOURCE_APP,
                                                                             "sendMessages",
                                                                             BigInteger.valueOf(burstSize))
+                                                                    .sending(ONE_HBAR * burstSize)
                                                                     .gas(GAS)
                                                                     .payingWith("callerA2"));
                                                 }))
@@ -842,6 +856,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                             crypto.connectorId,
                             new byte[20],
                             (payloadPrefix + i).getBytes(StandardCharsets.UTF_8))
+                    .sending(ONE_HBAR)
                     .gas(GAS)
                     .payingWith(caller));
         }

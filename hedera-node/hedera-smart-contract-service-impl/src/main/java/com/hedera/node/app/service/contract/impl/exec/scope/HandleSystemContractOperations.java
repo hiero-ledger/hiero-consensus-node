@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import javax.inject.Inject;
 import org.apache.tuweni.bytes.Bytes;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Provides the "extended" scope a Hedera system contract needs to perform its operations.
@@ -160,6 +161,12 @@ public class HandleSystemContractOperations implements SystemContractOperations 
     @NonNull
     public ExchangeRate currentExchangeRate() {
         return context.exchangeRateInfo().activeRate(context.consensusNow());
+    }
+
+    @Override
+    @NonNull
+    public FeeSchedule simpleFeesSchedule() {
+        return context.simpleFeesSchedule();
     }
 
     @Override

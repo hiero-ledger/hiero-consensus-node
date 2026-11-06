@@ -6,9 +6,11 @@ import static com.hedera.hapi.streams.CallOperationType.OP_CREATE;
 import static com.hedera.hapi.streams.CallOperationType.OP_STATICCALL;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.*;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage.SendMessageTranslator.SEND_MESSAGE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.*;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
@@ -150,6 +152,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
+    private static final Address CLPR_SYSTEM_CONTRACT_ADDRESS = Address.fromHexString(CLPR_EVM_ADDRESS);
+
     private final Map<Address, HederaSystemContract> systemContracts;
     private final ContractMetrics contractMetrics;
 
@@ -205,7 +209,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         // This must be done first as the system contract address range overlaps with system
         // accounts. Note that unlike EVM precompiles, we do allow sending value "to" Hedera
         // system contracts because they sometimes require fees greater than be reasonably
-        // paid using gas; for example, when creating a new token. But the system contract
+        // paid using gas; for example, when creating a new token or sending a CLPR message. But the system contract
         // only diverts this value to the network's fee collection accounts, instead of
         // actually receiving it.
 
@@ -250,8 +254,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                     doTransferValueOrHalt(context, tracer);
                 }
             }
-        } else if (context.transfersValue && !isTokenCreation(context.frame)) {
-            // System Contract calls that transfer value aren't allowed, unless they're token creation.
+        } else if (context.transfersValue && !isTokenCreation(context.frame) && !isClprSendMessage(context)) {
+            // System Contract calls that transfer value aren't allowed, unless they're token creation or CLPR sends.
             doHalt(context, INVALID_CONTRACT_ID, tracer);
         } else {
             doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
@@ -466,6 +470,13 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      * @param frame the message frame to check
      * @return true if the input data matches any of the known create selectors, false otherwise
      */
+    private static boolean isClprSendMessage(@NonNull final CustomMessageCallContext context) {
+        final var input = context.frame.getInputData();
+        return CLPR_SYSTEM_CONTRACT_ADDRESS.equals(context.executableCodeAddress)
+                && input.size() >= 4
+                && Arrays.equals(SEND_MESSAGE.selector(), input.slice(0, 4).toArray());
+    }
+
     private boolean isTokenCreation(MessageFrame frame) {
         if (frame.getInputData().size() < 4) {
             return false;
