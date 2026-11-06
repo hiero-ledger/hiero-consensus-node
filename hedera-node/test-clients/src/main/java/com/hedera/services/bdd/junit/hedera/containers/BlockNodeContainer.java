@@ -30,7 +30,8 @@ import org.testcontainers.utility.DockerImageName;
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final String BLOCK_NODE_VERSION = "0.45.0-tssupdate";
+    private static final String BLOCK_NODE_VERSION_PROPERTY = "hapi.spec.blocknode.version";
+    private static final String BLOCK_NODE_VERSION = requiredBlockNodeVersion();
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
@@ -46,6 +47,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             // JVM sizes thread pools and heap for the whole host rather than the CPUs this job has.
             + " -XX:ActiveProcessorCount=" + Runtime.getRuntime().availableProcessors();
     private static final Object PLUGINS_LOCK = new Object();
+    // These jars depend on the version, so a new block-node-version in .citr-env may need new ones
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
             "facility-messaging",
             "health",
@@ -153,6 +155,19 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 java.util.logging.ConsoleHandler.level=ALL
                 java.util.logging.ConsoleHandler.formatter=org.hiero.block.node.app.logging.CleanColorfulFormatter
                 """.formatted(BLOCK_PIPELINE_LOG_LEVEL);
+    }
+
+    /**
+     * The version CITR deploys, which the test-clients build reads from {@code block-node-version} in
+     * {@code .github/workflows/support/citr/.citr-env}; deliberately no default, so it can't drift from that.
+     */
+    private static String requiredBlockNodeVersion() {
+        final String version = System.getProperty(BLOCK_NODE_VERSION_PROPERTY, "");
+        if (version.isBlank()) {
+            throw new IllegalStateException("No block node version; run through Gradle, which sets "
+                    + BLOCK_NODE_VERSION_PROPERTY + " from .github/workflows/support/citr/.citr-env");
+        }
+        return version;
     }
 
     private static String pluginsDirInContainer() {

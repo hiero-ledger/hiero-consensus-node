@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
@@ -161,7 +162,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 network.start();
                 if (blockNodeNetwork != null) {
                     try {
-                        // Its containers started alongside the consensus nodes
+                        // Its containers may still be starting alongside the consensus nodes
                         blockNodeNetwork.awaitStarted();
                     } catch (final RuntimeException e) {
                         // Leave no consensus nodes running, as when a block node failed before they started
@@ -386,7 +387,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
      * gRPC, whether a per-task override or the production default sets it. Never for a {@code FILE} writer, a
      * {@code RECORDS}-only stream, or {@code -Dhapi.spec.blocknode.mode=NONE}.
      *
-     * @return the block node network, whose real containers are still starting; or null if there is none
+     * @return the block node network, whose real containers may still be starting; or null if there is none
      */
     private static @Nullable BlockNodeNetwork maybeStartBlockNodeStreaming(HederaNetwork network) {
         if (!(network instanceof SubProcessNetwork subProcessNetwork)) {
@@ -428,12 +429,28 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         }
         blockNodeNetwork.startInBackground();
         SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
+        if (!persistsBlockBuffer(prCheckOverrides)) {
+            // Nodes back off 15 s from a block node not yet up, and a restart in that window loses the
+            // blocks they hold in memory only; so without buffer persistence the block node starts first
+            blockNodeNetwork.awaitStarted();
+        }
         subProcessNetwork.setBlockNodeMode(blockNodeMode);
         subProcessNetwork.getPostInitWorkingDirActions().add(blockNodeNetwork::configureBlockNodeConnectionInformation);
         subProcessNetwork
                 .getPostInitWorkingDirActions()
                 .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
         return blockNodeNetwork;
+    }
+
+    // Persistence saves a node's unacknowledged blocks across a restart
+    private static boolean persistsBlockBuffer(@NonNull final Map<String, String> prCheckOverrides) {
+        return Optional.ofNullable(prCheckOverrides.get("blockStream.buffer.isBufferPersistenceEnabled"))
+                .map(Boolean::parseBoolean)
+                .orElseGet(() -> ConfigurationBuilder.create()
+                        .withConfigDataType(BlockBufferConfig.class)
+                        .build()
+                        .getConfigData(BlockBufferConfig.class)
+                        .isBufferPersistenceEnabled());
     }
 
     public static String buildRsaBootstrapJson(final Map<NodeId, KeysAndCerts> nodeKeys) {
