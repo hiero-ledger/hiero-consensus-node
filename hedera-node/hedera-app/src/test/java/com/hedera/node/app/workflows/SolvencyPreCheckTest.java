@@ -442,6 +442,52 @@ class SolvencyPreCheckTest extends AppTestBase {
     }
 
     @Nested
+    @DisplayName("Tests related to the additional cost estimate")
+    final class CheckSolvencyTestsWithOverflowingContractCosts {
+
+        @Test
+        void testContractCallAmountThatDoesNotFitWithTheGasCostIsRejected() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            // gas=10, amount=Long.MAX_VALUE-1 → the estimate saturates instead of wrapping to a negative number
+            final var builder = TransactionBody.newBuilder()
+                    .contractCall(
+                            ContractCallTransactionBody.newBuilder().gas(10L).amount(Long.MAX_VALUE - 1));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CALL, builder);
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE));
+        }
+
+        @Test
+        void testContractCreateBalanceThatDoesNotFitWithTheGasCostIsRejected() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            final var builder = TransactionBody.newBuilder()
+                    .contractCreateInstance(
+                            ContractCreateTransactionBody.newBuilder().gas(10L).initialBalance(Long.MAX_VALUE - 1));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CREATE, builder);
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE));
+        }
+    }
+
+    @Nested
     @DisplayName("Tests related to checkSolvency()")
     final class CheckSolvencyTestsWithEthereumTransaction {
         @Test

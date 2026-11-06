@@ -373,6 +373,26 @@ class CustomGasChargingTest {
     }
 
     @Test
+    void rejectsIfSenderGasCostPlusValueDoesNotFitInALong() {
+        givenWellKnownIntrinsicGasCost();
+        final var transaction = wellKnownHapiCall(
+                RELAYER_ID, Long.MAX_VALUE - 1, GAS_LIMIT, NETWORK_GAS_PRICE / 2, Long.MAX_VALUE, null, null);
+        given(sender.hederaId()).willReturn(SENDER_ID);
+        given(relayer.hederaId()).willReturn(RELAYER_ID);
+        // The sender can cover neither the value nor a sum that would wrap to a negative number
+        given(sender.getBalance()).willReturn(Wei.of(Long.MAX_VALUE - 1));
+        given(relayer.getBalance()).willReturn(Wei.of(Long.MAX_VALUE));
+        assertFailsWith(
+                INSUFFICIENT_PAYER_BALANCE,
+                () -> subject.chargeForGas(
+                        sender,
+                        relayer,
+                        wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
+                        worldUpdater,
+                        transaction));
+    }
+
+    @Test
     void rejectsIfRelayerCannotCoverRemainingGasCost() {
         givenWellKnownIntrinsicGasCost();
         final var transaction =

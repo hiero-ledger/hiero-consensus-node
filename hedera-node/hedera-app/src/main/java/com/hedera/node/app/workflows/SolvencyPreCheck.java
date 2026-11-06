@@ -180,7 +180,7 @@ public class SolvencyPreCheck {
             throw new InsufficientBalanceException(INVALID_TRANSACTION_BODY, totalFee);
         }
 
-        if (availableBalance < totalFee + additionalCosts) {
+        if (availableBalance < saturatedSum(totalFee, additionalCosts)) {
             // FUTURE: This should be checked earlier
             expiryValidation.checkAccountExpiry(account);
             throw new InsufficientNonFeeDebitsException(INSUFFICIENT_PAYER_BALANCE, totalFee);
@@ -207,12 +207,15 @@ public class SolvencyPreCheck {
             }
             case CONTRACT_CREATE -> {
                 final var contractCreate = txBody.contractCreateInstanceOrThrow();
-                yield contractCreate.initialBalance()
-                        + contractCreate.gas() * estimatedGasPriceInTinybars(consensusTime);
+                yield saturatedSum(
+                        contractCreate.initialBalance(),
+                        saturatedProduct(contractCreate.gas(), estimatedGasPriceInTinybars(consensusTime)));
             }
             case CONTRACT_CALL -> {
                 final var contractCall = txBody.contractCallOrThrow();
-                yield contractCall.amount() + contractCall.gas() * estimatedGasPriceInTinybars(consensusTime);
+                yield saturatedSum(
+                        contractCall.amount(),
+                        saturatedProduct(contractCall.gas(), estimatedGasPriceInTinybars(consensusTime)));
             }
             case ETHEREUM_TRANSACTION -> {
                 final var ethTxn = txBody.ethereumTransactionOrThrow();
@@ -220,6 +223,29 @@ public class SolvencyPreCheck {
             }
             default -> 0L;
         };
+    }
+
+    /**
+     * Returns the sum of the given amounts, saturating at {@link Long#MAX_VALUE} so that an amount too large to
+     * represent is treated as unaffordable instead of wrapping to a negative number.
+     */
+    private static long saturatedSum(final long a, final long b) {
+        try {
+            return Math.addExact(a, b);
+        } catch (ArithmeticException ignore) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    /**
+     * Returns the product of the given amounts, saturating at {@link Long#MAX_VALUE}.
+     */
+    private static long saturatedProduct(final long a, final long b) {
+        try {
+            return Math.multiplyExact(a, b);
+        } catch (ArithmeticException ignore) {
+            return Long.MAX_VALUE;
+        }
     }
 
     private long estimatedGasPriceInTinybars(@NonNull final Instant consensusTime) {

@@ -135,8 +135,22 @@ public record HederaEvmTransaction(
     }
 
     public long upfrontCostGiven(final long gasPrice) {
-        final var gasCost = gasCostGiven(gasPrice);
-        return gasCost == Long.MAX_VALUE ? Long.MAX_VALUE : gasCost + value;
+        return costWithValue(gasCostGiven(gasPrice));
+    }
+
+    /**
+     * Returns the given cost plus the value sent with this transaction, saturating at {@link Long#MAX_VALUE} so
+     * that a sum too large to represent is treated as unaffordable instead of wrapping to a negative number.
+     *
+     * @param cost the cost to add the value to
+     * @return the sum, or {@link Long#MAX_VALUE} if it does not fit in a long
+     */
+    public long costWithValue(final long cost) {
+        try {
+            return Math.addExact(cost, value);
+        } catch (ArithmeticException ignore) {
+            return Long.MAX_VALUE;
+        }
     }
 
     public long unusedGas(final long gasUsed) {
