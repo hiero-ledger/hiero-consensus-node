@@ -64,35 +64,50 @@ run one after the other.
 
 ### Idea
 
-Add `VirtualDataSourceBuilder.copy(VirtualDataSource source, String label, boolean compactionEnabled, boolean
-offlineUse)`. Its default implementation is today's `snapshot()` + `build()`, so other data source implementations
-keep working. `MerkleDbDataSourceBuilder` overrides it. With the pipeline and compaction paused, as for a snapshot
-today:
+Add `VirtualDataSourceBuilder.prepareCopy(String label, VirtualDataSource source, boolean compactionEnabled, boolean
+offlineUse)`. It returns a `PreparedDataSourceCopy`, which is completed with `complete()` and always closed. The copy
+is made in two steps, so the source is held unmodified only while its state is captured. The default implementation
+is today's `snapshot()` + `build()`: the snapshot is prepared, and the copy is built from it when completed, so other
+data source implementations keep working. `MerkleDbDataSourceBuilder` overrides it.
 
-1. Flush the hash chunk cache, as `snapshot()` does.
-2. Hard-link the completed data files of the three stores into the copy's directory, once.
-3. Copy the three `LongListSegment` indexes in memory: allocate a new chunk for each non-null source chunk, and
-   `MemorySegment.copy()` into it. Chunks are independent, so the copy runs in parallel. The parallel long list
-   writes in [#26557](https://github.com/hiero-ledger/hiero-consensus-node/pull/26557) already split a list into
-   balanced, contiguous chunk ranges, one per writer task. The copy can use the same split, executor and thread
-   count setting.
-4. Build the new `MerkleDbDataSource` from these pieces, instead of loading files. Create its readers with the
-   source readers' `DataFileMetadata`, through the existing `DataFileReader(config, path, metadata)` constructor, so
-   no file headers are read.
+With the pipeline and compaction paused, `MerkleDbDataSource.snapshotWithCopiedIndexes(dir)` makes a regular
+snapshot straight into the copy's directory, with one difference: the three indexes aren't written to files.
+Instead, each `LongListSegment` index is copied in memory: a new chunk is allocated for each non-null source chunk,
+and `MemorySegment.copy()` fills it. The index copies run as snapshot executor tasks, next to the file links of the
+three stores and the metadata, the way `snapshot()` runs them today.
 
-If the source uses disk-based indexes (`merkleDb.useDiskIndices = true`), the override falls back to the default.
+After the pause, `complete()` creates the copy with the existing load path, from that directory, with one new
+constructor parameter: the copied indexes, used instead of index files. `HalfDiskHashMap` gets the same optional
+parameter for its bucket index. Loading opens a reader for every data file in the three stores and reads its header,
+as the rebuild does today. That's why it runs after the pause. The number of files depends on the state size and the
+compaction settings: about 43K in the 1B-account test, and fewer if compaction merges files more aggressively. If
+reading the headers turns out to matter, passing the known file metadata into the load path is a small follow-up.
 
-### What the copy must carry over
+So the copy is a snapshot whose indexes are handed over in memory instead of written to disk, and the
+directory is hard-linked once instead of twice.
 
-- **Data source:** `validLeafPathRange`, `initialCapacity`, `hashChunkHeight` and the loaded hash digest type.
-  The leaf record cache, the compaction coordinator and the garbage scanners start fresh, as after a rebuild today.
-- **Each `DataFileCollection`:** `validKeyRange`, the completed files, and `nextFileIndex` set to the highest file
-  index + 1, as the rebuild sets it today. Data locations encode file indexes, not paths, so the copied indexes stay
-  valid for the linked files.
-- **Readers:** `DataFileMetadata` is immutable, so the copy can reuse it. The readers themselves can't be shared,
-  because the source closes them when it compacts or closes.
-- **HalfDiskHashMap:** the bucket index and `numOfBuckets`. That's what `HalfDiskHashMap.snapshot()` writes. It
-  resizes only during a flush, which the pause excludes.
+The parallel long list writes in [#26557](https://github.com/hiero-ledger/hiero-consensus-node/pull/26557) aren't
+used. They were dropped: writes to one index file are serialized by the kernel's per-file write lock, at about
+1.4–1.5 GB/s per file, so splitting a list across writer threads didn't pay off. An in-memory copy has no such lock.
+If copying the leaf index alone turns out to be slow, splitting it into chunk ranges is a follow-up.
+
+`merkleDb.dataSourceCopyMode` selects how a data source is copied:
+- `IN_MEMORY` (default): the in-memory copy above.
+- `SNAPSHOT`: today's snapshot + rebuild, as a rollback switch. It uses as much memory as `IN_MEMORY`.
+- `DISK_INDEXES`: copies with compaction disabled, like the teacher's, are restored from a snapshot with disk-based
+  indexes. They need no off-heap memory for indexes, but read their indexes from disk. Copies with compaction enabled
+  become live data sources, so they are made as with `IN_MEMORY`.
+
+If the source uses disk-based indexes (`merkleDb.useDiskIndices = true`), or the copy is requested for offline use,
+as `createSnapshot()` does, the copy is made through a snapshot.
+
+### What the copy carries over
+
+The snapshot carries everything today's rebuild loads, except the indexes: the data source metadata (leaf path range,
+initial capacity, hash chunk height), each `DataFileCollection`'s metadata and completed files, and the
+`HalfDiskHashMap` metadata (number of buckets). Data locations encode file indexes, not paths, so the copied indexes
+stay valid for the linked files. As after a rebuild today, the leaf record cache, the compaction coordinator and the
+garbage scanners start fresh, and the loaded hash digest type is the default.
 
 ### Why the copy is as consistent as `snapshot()`
 
@@ -104,8 +119,8 @@ The copy reads the same in-memory state that `snapshot()` writes to disk, under 
 while `pauseCompactionAndRun()` holds the coordinator's monitor.
 - `getAllCompletedFiles()` excludes files that are still being written.
 
-Like a snapshot, `copy()` must run inside the pipeline pause and set `snapshotInProgress`, so it can't overlap a
-snapshot of the same data source.
+Since the copy is a snapshot, it runs inside the pipeline pause and sets `snapshotInProgress`, so it can't overlap
+another snapshot of the same data source.
 
 ### `createSnapshot()`
 
@@ -114,8 +129,8 @@ snapshot of the same data source.
 resources as possible". An in-memory copy there would add 34.4 GiB of off-heap memory on the learner, when it already
 holds the reconnect data source and, from the next cycle, its copy. Three options:
 - **Option A, memory-neutral:** inside the pause, write the source's index chunks straight into the copy's
-`LongListDisk` temp files. That's the parallel `writeToFile()` from #26557, aimed at a different file. It's one
-37 GB write instead of three passes, but the pause stays about as long as a snapshot.
+`LongListDisk` temp files. It's one 37 GB write instead of three passes, but the pause stays about as long as a
+snapshot: the write runs into the same per-file limit, about 18 s for the leaf index.
 - **Option B, short pause:** inside the pause, make the in-memory copy (a few seconds). Outside it, write the copy to
 `LongListDisk` and free it. This holds 34.4 GiB of extra off-heap memory for about 30 s, against the `offlineUse`
 intent. On the learner, that raises non-reclaimable memory from about 186 GiB to about 220 GiB, out of a 256 GiB
@@ -133,9 +148,8 @@ pauses for a snapshot, needs no extra off-heap memory and makes two passes over 
 | Learner (`detachAsDataSourceCopy`) | 52–93 s                        | roughly 10–20 s                                           |
 | State write (`createSnapshot`)     | about 140 s, 28 s of it paused | about 80 s: about 30 s paused (A, C) or a few seconds (B) |
 
-# 26557 on its own speeds up snapshots about 3 times, which shrinks the snapshot half of each copy. The rebuild half
-
-remains, so step 1 still removes most of the copy time.
+A snapshot is bound by writing the 26.1 GB leaf index to a single file, at about 1.4–1.5 GB/s, about 18 s. Faster
+snapshots would shrink only the snapshot half of each copy. Step 1 removes both halves.
 
 Peak off-heap memory doesn't change for `detach()` and `detachAsDataSourceCopy()`: today's rebuild already allocates
 a second set of in-memory indexes.

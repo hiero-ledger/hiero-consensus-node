@@ -48,4 +48,32 @@ public interface VirtualDataSourceBuilder {
      */
     @NonNull
     Path snapshot(@Nullable Path destination, @NonNull VirtualDataSource dataSource);
+
+    /**
+     * Prepares a copy of the given data source. The returned copy is completed with
+     * {@link PreparedDataSourceCopy#complete()}, and must always be closed.
+     *
+     * <p>This method must be called while the data source isn't modified, like
+     * {@link #snapshot(Path, VirtualDataSource)}. {@link PreparedDataSourceCopy#complete()} may be
+     * called after the data source is modified again.
+     *
+     * <p>The default implementation takes a snapshot of the data source. The copy is restored from
+     * the snapshot with {@link #build(String, Path, boolean, boolean)}, when completed.
+     *
+     * @param label             The label of the copy
+     * @param dataSource        The data source to copy
+     * @param compactionEnabled Indicates whether background compaction should be enabled in the copy
+     * @param offlineUse        Indicates that the copy should use as little resources as possible, see
+     *                          {@link #build(String, Path, boolean, boolean)}
+     * @return the prepared copy
+     */
+    @NonNull
+    default PreparedDataSourceCopy prepareCopy(
+            final String label,
+            @NonNull final VirtualDataSource dataSource,
+            final boolean compactionEnabled,
+            final boolean offlineUse) {
+        final Path snapshotPath = snapshot(null, dataSource);
+        return new SnapshotDataSourceCopy(this, label, snapshotPath, compactionEnabled, offlineUse);
+    }
 }

@@ -155,7 +155,41 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final String legacyStoreName,
             final boolean preferDiskBasedIndex)
             throws IOException {
+        this(
+                config,
+                flushPool,
+                fileSystemManager,
+                initialCapacity,
+                storeDir,
+                storeName,
+                legacyStoreName,
+                preferDiskBasedIndex,
+                null);
+    }
+
+    /**
+     * Construct a new HalfDiskHashMap. Same as {@link #HalfDiskHashMap(MerkleDbConfig, ForkJoinPool,
+     * FileSystemManager, long, Path, String, String, boolean)}, but if a bucket index is provided, it's
+     * used instead of the bucket index file. The store dir must then exist, typically a snapshot made with
+     * {@link #snapshotWithoutIndex(Path)}. If this constructor succeeds, this map owns the bucket index.
+     *
+     * @param bucketIndex the bucket index to use, or {@code null} to load or rebuild the index
+     */
+    public HalfDiskHashMap(
+            final @NonNull MerkleDbConfig config,
+            final @NonNull ForkJoinPool flushPool,
+            final @NonNull FileSystemManager fileSystemManager,
+            final long initialCapacity,
+            final @NonNull Path storeDir,
+            final String storeName,
+            final String legacyStoreName,
+            final boolean preferDiskBasedIndex,
+            final @Nullable LongList bucketIndex)
+            throws IOException {
         requireNonNull(config);
+        if ((bucketIndex != null) && !Files.exists(storeDir)) {
+            throw new IllegalArgumentException("A bucket index is provided, but the store dir doesn't exist");
+        }
         this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.
@@ -205,7 +239,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             }
             // load or rebuild index
             final boolean forceIndexRebuilding = config.indexRebuildingEnforced();
-            if (Files.exists(indexFile) && !forceIndexRebuilding) {
+            if (bucketIndex != null) {
+                bucketIndexToBucketLocation = bucketIndex;
+                loadedDataCallback = null;
+            } else if (Files.exists(indexFile) && !forceIndexRebuilding) {
                 bucketIndexToBucketLocation = preferDiskBasedIndex
                         ? new LongListDisk(indexFile, bucketIndexCapacity, config, fileSystemManager)
                         : new LongListSegment(indexFile, bucketIndexCapacity, config);
@@ -377,6 +414,16 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         Files.createDirectories(snapshotDirectory);
         // write index to file
         bucketIndexToBucketLocation.writeToFile(snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX));
+        snapshotWithoutIndex(snapshotDirectory);
+    }
+
+    /**
+     * Same as {@link #snapshot(Path)}, but the bucket index isn't written. To load such a snapshot,
+     * the bucket index must be provided to the constructor.
+     */
+    public void snapshotWithoutIndex(final Path snapshotDirectory) throws IOException {
+        // create snapshot directory if needed
+        Files.createDirectories(snapshotDirectory);
         // snapshot files
         fileCollection.snapshot(snapshotDirectory);
         // write metadata

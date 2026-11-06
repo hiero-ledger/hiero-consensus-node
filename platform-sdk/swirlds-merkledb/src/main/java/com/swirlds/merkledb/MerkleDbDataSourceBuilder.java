@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.hardLinkTree;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.DataSourceCopyMode;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
+import com.swirlds.merkledb.internal.MerkleDbDataSource.CopiedIndexes;
+import com.swirlds.virtualmap.datasource.PreparedDataSourceCopy;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,7 +19,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.file.FileUtils;
 
 /**
  * Virtual data source builder that manages MerkleDb data sources.
@@ -30,6 +38,8 @@ import org.hiero.base.file.FileSystemManager;
  * and {@link VirtualDataSourceBuilder#build(String, Path, boolean, boolean)} methods.
  */
 public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
+
+    private static final Logger logger = LogManager.getLogger(MerkleDbDataSourceBuilder.class);
 
     /** Prefix of every temp data source storage dir created by this builder. */
     public static final String FOLDER_PREFIX = "merkledb-";
@@ -213,16 +223,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             final boolean compactionEnabled,
             final boolean offlineUse) {
         try {
-            Path dataSourceDir = null;
-            if (defaultDbFolderName != null) {
-                final Path defaultDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
-                if (!Files.exists(defaultDir)) {
-                    dataSourceDir = defaultDir;
-                }
-            }
-            if (dataSourceDir == null) {
-                dataSourceDir = newTempDataSourceDir(label);
-            }
+            final Path dataSourceDir = newRestoredDataSourceDir(label);
             final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
             if (Files.isDirectory(snapshotDataSourceDir)) {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
@@ -233,6 +234,170 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                     "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
+        }
+    }
+
+    /**
+     * Returns a new storage dir for a data source, which is restored from a snapshot or copied from
+     * another data source. The default DB folder is used, if configured and doesn't exist yet.
+     * Otherwise, a new temp folder is used.
+     */
+    private Path newRestoredDataSourceDir(final String label) {
+        if (defaultDbFolderName != null) {
+            final Path defaultDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
+            if (!Files.exists(defaultDir)) {
+                return defaultDir;
+            }
+        }
+        return newTempDataSourceDir(label);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>How the copy is made depends on {@link MerkleDbConfig#dataSourceCopyMode()}, see
+     * {@link DataSourceCopyMode}. An in-memory copy is a snapshot made directly in the copy's storage
+     * dir, but its indexes are copied in memory instead of written to disk, see
+     * {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}. The copy is created from the snapshot
+     * and the copied indexes, when it's completed. Other copies are restored from a regular snapshot,
+     * as in the default implementation.
+     */
+    @NonNull
+    @Override
+    public PreparedDataSourceCopy prepareCopy(
+            final String label,
+            @NonNull final VirtualDataSource dataSource,
+            final boolean compactionEnabled,
+            final boolean offlineUse) {
+        if (!(dataSource instanceof MerkleDbDataSource merkleDbDataSource)) {
+            throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
+        }
+        if (offlineUse) {
+            // createSnapshot(): use as little memory as possible
+            return snapshotCopy(label, dataSource, compactionEnabled, true);
+        }
+        switch (configuration.dataSourceCopyMode()) {
+            case SNAPSHOT -> {
+                return snapshotCopy(label, dataSource, compactionEnabled, false);
+            }
+            case DISK_INDEXES -> {
+                if (!compactionEnabled) {
+                    // A read-only copy, like the teacher's: save memory with disk-based indices
+                    return snapshotCopy(label, dataSource, compactionEnabled, true);
+                }
+                // A live copy needs in-memory indices, so it's copied as with IN_MEMORY
+            }
+            case IN_MEMORY -> {}
+        }
+        if (merkleDbDataSource.isPreferDiskBasedIndices()) {
+            // Disk-based indices can't be copied in memory
+            return snapshotCopy(label, dataSource, compactionEnabled, false);
+        }
+        return copyInMemory(label, merkleDbDataSource, compactionEnabled);
+    }
+
+    /**
+     * Prepares a copy restored from a regular snapshot, as in the default implementation.
+     */
+    private PreparedDataSourceCopy snapshotCopy(
+            final String label,
+            final VirtualDataSource dataSource,
+            final boolean compactionEnabled,
+            final boolean diskBasedIndices) {
+        return VirtualDataSourceBuilder.super.prepareCopy(label, dataSource, compactionEnabled, diskBasedIndices);
+    }
+
+    /**
+     * Prepares a copy with indexes copied in memory, see {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}.
+     */
+    private PreparedDataSourceCopy copyInMemory(
+            final String label, final MerkleDbDataSource merkleDbDataSource, final boolean compactionEnabled) {
+        final Path copyDir = newRestoredDataSourceDir(label);
+        try {
+            final AtomicReference<CopiedIndexes> indexes = new AtomicReference<>();
+            merkleDbDataSource.pauseCompactionAndRun(
+                    () -> indexes.set(merkleDbDataSource.snapshotWithCopiedIndexes(copyDir)));
+            return new InMemoryDataSourceCopy(label, copyDir, indexes.get(), compactionEnabled);
+        } catch (final IOException e) {
+            deleteDirectory(copyDir, e);
+            throw new UncheckedIOException(e);
+        } catch (final RuntimeException | Error e) {
+            deleteDirectory(copyDir, e);
+            throw e;
+        }
+    }
+
+    /**
+     * A data source copy prepared with {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}.
+     */
+    private final class InMemoryDataSourceCopy implements PreparedDataSourceCopy {
+
+        private final String label;
+        private final Path dir;
+        private final CopiedIndexes indexes;
+        private final boolean compactionEnabled;
+        private boolean completed = false;
+
+        private InMemoryDataSourceCopy(
+                final String label,
+                @NonNull final Path dir,
+                @NonNull final CopiedIndexes indexes,
+                final boolean compactionEnabled) {
+            this.label = label;
+            this.dir = requireNonNull(dir);
+            this.indexes = requireNonNull(indexes);
+            this.compactionEnabled = compactionEnabled;
+        }
+
+        /**
+         * {@inheritDoc}
+         *
+         * <p>Creates a data source from the snapshot and the copied indexes.
+         */
+        @NonNull
+        @Override
+        public VirtualDataSource complete() {
+            if (completed) {
+                throw new IllegalStateException("The copy is already completed");
+            }
+            try {
+                final MerkleDbDataSource dataSource = new MerkleDbDataSource(
+                        dir, configuration, fileSystemManager, label, compactionEnabled, indexes);
+                completed = true;
+                return dataSource;
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        /**
+         * {@inheritDoc}
+         *
+         * <p>If the copy hasn't been completed, releases the copied indexes and deletes the snapshot.
+         * Otherwise, does nothing: the indexes and the storage dir belong to the completed copy.
+         */
+        @Override
+        public void close() {
+            if (!completed) {
+                indexes.close();
+                deleteDirectory(dir, null);
+            }
+        }
+    }
+
+    /**
+     * Deletes a directory. Failures are added to the given error as suppressed, or logged, if there is
+     * no error. The directory is in the temp directory, which is cleaned up on node restart.
+     */
+    private static void deleteDirectory(@NonNull final Path dir, @Nullable final Throwable cause) {
+        try {
+            FileUtils.deleteDirectory(dir);
+        } catch (final IOException e) {
+            if (cause != null) {
+                cause.addSuppressed(e);
+            } else {
+                logger.error(EXCEPTION.getMarker(), "Unable to delete data source copy directory {}", dir, e);
+            }
         }
     }
 }
