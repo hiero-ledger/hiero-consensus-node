@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.freeze;
 
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.services.bdd.junit.TestTags.PRE_CUTOVER;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WRAPPED_RECORD_HASHES_FILE;
@@ -70,6 +71,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 @Tag(RESTART)
+@Tag(PRE_CUTOVER)
 @HapiTestLifecycle
 @Order(Integer.MAX_VALUE - 2)
 class JumpstartFileSuite implements LifecycleTest {

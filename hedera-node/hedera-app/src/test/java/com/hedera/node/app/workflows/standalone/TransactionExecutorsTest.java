@@ -316,7 +316,9 @@ public class TransactionExecutorsTest {
                 "clpr.enabled",
                 "true",
                 "clpr.sendMessageFeeTinycents",
-                "0");
+                "0",
+                "blockStream.streamMode",
+                "BOTH");
         final var state = genesisState(overrides);
         final var executor = TRANSACTION_EXECUTORS.newExecutor(
                 TransactionExecutors.Properties.newBuilder()
