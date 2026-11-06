@@ -42,6 +42,7 @@ import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.metrics.core.MetricRegistry;
 
 /**
  * Builds a {@link SwirldsPlatform} instance.
@@ -64,6 +65,9 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
     /** The metrics system for monitoring and reporting platform performance. */
     protected final Metrics metrics;
+
+    /** The registry of the new metrics framework. */
+    protected final MetricRegistry metricRegistry;
 
     /** The time source for the platform, used for timestamping events and transactions. */
     protected final Time time;
@@ -124,6 +128,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
      *
      * @param configuration              The configuration settings for the platform.
      * @param metrics                    The metrics system for monitoring and reporting platform performance.
+     * @param metricRegistry             The registry of the new metrics framework.
      * @param time                       The time source for the platform, used for timestamping events and
      *                                   transactions.
      * @param rosterInputs               The roster inputs provided by the application to use at startup.
@@ -148,6 +153,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     public PlatformBuilder(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
+            @NonNull final MetricRegistry metricRegistry,
             @NonNull final Time time,
             @NonNull final ConsensusLayerRosterInputs rosterInputs,
             @NonNull final KeysAndCerts keysAndCerts,
@@ -168,6 +174,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
+        this.metricRegistry = requireNonNull(metricRegistry);
         this.time = requireNonNull(time);
         this.rosterInputs = requireNonNull(rosterInputs);
         this.selfId = requireNonNull(selfId);
@@ -294,6 +301,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         return new ConsensusLayerInputs(
                 configuration,
                 metrics,
+                metricRegistry,
                 time,
                 rosterInputs,
                 keysAndCerts,

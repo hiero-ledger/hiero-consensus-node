@@ -26,8 +26,8 @@ public class OpenMetricsHttpServerConfigTest {
                 .isEqualTo("localhost");
 
         assertThat(endpointConfig.port())
-                .as("Open Metrics HTTP server default port must be 8888.")
-                .isEqualTo(8888);
+                .as("Open Metrics HTTP server default port must be 9997.")
+                .isEqualTo(9997);
 
         assertThat(endpointConfig.path())
                 .as("Open Metrics HTTP server default path must be '/metrics'.")
@@ -73,7 +73,7 @@ public class OpenMetricsHttpServerConfigTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1024, 1025, 8080, 8888, 9999, 65534, 65535})
+    @ValueSource(ints = {1024, 1025, 8080, 8888, 9997, 9999, 65534, 65535})
     void testAllowedPorts(int port) {
         OpenMetricsHttpServerConfig endpointConfig = configBuilder()
                 .withValue("metrics.exporter.openmetrics.http.port", String.valueOf(port))

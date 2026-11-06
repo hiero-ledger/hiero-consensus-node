@@ -4,6 +4,7 @@ package org.hiero.sloth.fixtures.remote;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_JAVA;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.ENV_SLOTH_WORKDIR;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.METRICS_EXPORT_PATH;
 import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -466,6 +467,7 @@ public class RemoteNode extends AbstractNode implements Node, TimeTickReceiver {
         downloadFile("output/docker-main.log");
         downloadFile("data/stats/MainNetStats" + selfId.id() + ".csv");
         downloadFile("data/stats/metrics.txt");
+        downloadFile(METRICS_EXPORT_PATH);
     }
 
     private void downloadFile(@NonNull final String relativePath) {

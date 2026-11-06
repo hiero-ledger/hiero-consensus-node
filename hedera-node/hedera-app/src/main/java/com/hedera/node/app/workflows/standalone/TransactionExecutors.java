@@ -278,7 +278,6 @@ public enum TransactionExecutors {
                 UNAVAILABLE_GOSSIP,
                 bootstrapConfigProvider::getConfiguration,
                 () -> defaultNodeInfo,
-                () -> NO_OP_METRICS,
                 new AppScheduleThrottleFactory(
                         configProvider::getConfiguration,
                         () -> state,

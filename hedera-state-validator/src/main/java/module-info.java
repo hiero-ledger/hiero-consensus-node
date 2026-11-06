@@ -50,6 +50,7 @@ module com.hedera.state.validator {
     requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
     requires org.hiero.consensus.wiring.framework;
+    requires org.hiero.metrics;
     requires com.github.spotbugs.annotations;
     requires info.picocli;
     requires org.apache.logging.log4j;

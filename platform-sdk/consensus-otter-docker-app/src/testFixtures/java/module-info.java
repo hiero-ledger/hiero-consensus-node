@@ -26,6 +26,7 @@ module org.hiero.consensus.otter.docker.app {
     requires org.hiero.consensus.utility.test.fixtures;
     requires org.hiero.consensus.utility;
     requires org.hiero.consensus.wiring.framework;
+    requires org.hiero.metrics;
     requires io.grpc;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
