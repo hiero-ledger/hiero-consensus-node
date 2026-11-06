@@ -108,14 +108,17 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         createdContractIds = contractChangeSummary.newContractIds();
 
         if (contractsConfig.enforceCreationThrottle()) {
-            // Throttle each creation once, in the first commit that includes it
-            final var creationsToThrottle = storageAccountingScope.creationsToThrottle(createdContractIds);
-            if (creationsToThrottle.isPresent()) {
-                final var creations = creationsToThrottle.get();
+            // Each execution throttles the surviving creations of its own frames; the creations of a nested
+            // execution were throttled at its commit, and leave this summary if rolled back with their capacity
+            final var ownCreatedNumbers = getCreatedContractNumbers();
+            final int ownCreations = (int) createdContractIds.stream()
+                    .filter(id -> ownCreatedNumbers.contains(id.contractNumOrThrow()))
+                    .count();
+            // Like a top-level execution, the owner still checks without creations, unless only nested ones remain
+            if (ownCreations > 0 || (storageAccountingScope.isOwner() && createdContractIds.isEmpty())) {
                 final var creationCapacityIsAvailable =
-                        !context.throttleAdviser().shouldThrottleNOfUnscaled(creations.size(), CRYPTO_CREATE);
+                        !context.throttleAdviser().shouldThrottleNOfUnscaled(ownCreations, CRYPTO_CREATE);
                 validateResource(creationCapacityIsAvailable, CONSENSUS_GAS_EXHAUSTED);
-                storageAccountingScope.creationsThrottled(creations);
             }
         }
 

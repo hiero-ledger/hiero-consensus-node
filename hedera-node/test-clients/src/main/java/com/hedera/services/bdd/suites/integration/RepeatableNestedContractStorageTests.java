@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
@@ -20,6 +21,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCustomCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
@@ -27,9 +29,11 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -51,16 +55,23 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
+import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
+import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -74,6 +85,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.contract.HapiContractCall;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoUpdate;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.swirlds.state.spi.ReadableKVState;
@@ -117,6 +129,13 @@ public class RepeatableNestedContractStorageTests {
     // Writes its own storage around a call, so its storage is written by both outer and nested executions
     private static final String WRITER = "StorageAroundCall";
     private static final Write NO_WRITE = new Write(0, 0);
+    private static final String CREATIONS_PAYER = "creationsPayer";
+    // Makes a call and returns its result, so a call that reverts does not revert the caller
+    private static final String MAKE_CALLS = "MakeCalls";
+    private static final Function MAKE_CALL_WITHOUT_AMOUNT = new Function("makeCallWithoutAmount(address,bytes)");
+    private static final long HOOK_WITH_STORAGE_ID = 7L;
+    private static final Bytes HOOK_SLOT_KEY = Bytes.wrap(new byte[] {1});
+    private static final Bytes HOOK_SLOT_VALUE = Bytes.wrap(new byte[] {7});
 
     @Contract(contract = "HRC755Contract", creationGas = 1_000_000, isImmutable = true)
     static SpecContract SIGNING_CONTRACT;
@@ -616,6 +635,52 @@ public class RepeatableNestedContractStorageTests {
                 getScheduleInfo("creating").isExecuted());
     }
 
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            overrides = {"contracts.enforceCreationThrottle"},
+            throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
+    final Stream<DynamicTest> creationAfterRolledBackNestedCreationIsThrottled() {
+        final var rolledBackId = new AtomicReference<ScheduleID>();
+        final var firstId = new AtomicReference<ScheduleID>();
+        final var secondId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                uploadInitCode(MAKE_CALLS),
+                contractCreate(MAKE_CALLS).gas(400_000L),
+                cryptoCreate(CREATIONS_PAYER).balance(ONE_HUNDRED_HBARS).keyShape(KeyShape.CONTRACT.signedWith(WRITER)),
+                scheduledWriterCreation("rolledBack", rolledBackId),
+                scheduledWriterCreation("first", firstId),
+                scheduledWriterCreation("second", secondId),
+                overriding("contracts.enforceCreationThrottle", "true"),
+                // A call that reverts authorizes the first creation; the rolled-back creation gives back its
+                // capacity, and the creation that reuses its number is throttled, so the last one is denied
+                sourcingContextual(spec -> {
+                    final var writer = mirrorAddrWith(spec.registry().getContractId(WRITER));
+                    return writerCall("setCallSet", new Object[] {
+                                BigInteger.ZERO,
+                                BigInteger.ZERO,
+                                mirrorAddrWith(spec.registry().getContractId(MAKE_CALLS)),
+                                new byte[][] {
+                                    authorizingThroughMakeCalls(writer, rolledBackId.get(), true),
+                                    authorizingThroughMakeCalls(writer, firstId.get(), false),
+                                    authorizingThroughMakeCalls(writer, secondId.get(), false)
+                                },
+                                BigInteger.ZERO,
+                                BigInteger.ZERO,
+                                false
+                            })
+                            .gas(5_000_000L)
+                            .hasKnownStatus(SUCCESS);
+                }),
+                getScheduleInfo("rolledBack").isNotExecuted(),
+                scheduledStatusIs("first", SUCCESS),
+                scheduledStatusIs("second", CONTRACT_REVERT_EXECUTED),
+                getTxnRecord("secondCreation")
+                        .scheduled()
+                        .hasPriority(recordWith()
+                                .contractCreateResult(resultWith().error(revertReason(CONSENSUS_GAS_EXHAUSTED)))));
+    }
+
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> executionNestedInHookExecutionUpdatesStorageCounts() {
         final var slotsBefore = new AtomicLong();
@@ -673,6 +738,40 @@ public class RepeatableNestedContractStorageTests {
                 scheduledStatusIs("ethereum", SUCCESS),
                 slotCountChangedBy(slotsBefore, 3),
                 storageValuesAre(WRITER, 1, 2, 3));
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> hookCreationScheduledByOuterExecutionUpdatesHookStorageCounts() {
+        final var scheduleId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                cryptoCreate("hookedByOuter").balance(ONE_HUNDRED_HBARS).keyShape(KeyShape.CONTRACT.signedWith(WRITER)),
+                scheduledForWriter("addHookByOuter", hookCreationWithOneSlot("hookedByOuter"), scheduleId),
+                writerAuthorizing("outer", List.of(scheduleId), NO_WRITE, NO_WRITE, false, SUCCESS),
+                scheduledStatusIs("addHookByOuter", SUCCESS),
+                hookStorageSlotsAre("hookedByOuter", List.of(HOOK_SLOT_KEY)));
+    }
+
+    @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> hookCreationScheduledByNestedExecutionUpdatesHookStorageCounts() {
+        final var innerId = new AtomicReference<ScheduleID>();
+        final var middleId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                cryptoCreate("hookedByNested")
+                        .balance(ONE_HUNDRED_HBARS)
+                        .keyShape(KeyShape.CONTRACT.signedWith(WRITER)),
+                scheduledForWriter("addHookByNested", hookCreationWithOneSlot("hookedByNested"), innerId),
+                // The middle scheduled call authorizes the hook creation
+                sourcing(() -> scheduledForWriter(
+                        "middle",
+                        writerCall("setCallSet", authorizingArgs(List.of(innerId.get()), NO_WRITE, NO_WRITE, false))
+                                .gas(2_000_000L),
+                        middleId)),
+                writerAuthorizing("outer", List.of(middleId), NO_WRITE, NO_WRITE, false, SUCCESS),
+                scheduledStatusIs("middle", SUCCESS),
+                scheduledStatusIs("addHookByNested", SUCCESS),
+                hookStorageSlotsAre("hookedByNested", List.of(HOOK_SLOT_KEY)));
     }
 
     /**
@@ -776,6 +875,86 @@ public class RepeatableNestedContractStorageTests {
 
     private static SpecOperation writerCreated() {
         return blockingOrder(uploadInitCode(WRITER), contractCreate(WRITER).gas(500_000L));
+    }
+
+    /**
+     * Schedules a creation of {@link #WRITER} with {@link #CREATIONS_PAYER}, keyed to {@link #WRITER}.
+     */
+    private static SpecOperation scheduledWriterCreation(
+            @NonNull final String schedule, @NonNull final AtomicReference<ScheduleID> scheduleId) {
+        return scheduleCreate(
+                        schedule,
+                        contractCreate(WRITER)
+                                .omitAdminKey()
+                                .entityMemo(schedule)
+                                .gas(1_000_000L))
+                .designatingPayer(CREATIONS_PAYER)
+                .exposingCreatedIdTo(scheduleId::set)
+                .via(schedule + "Creation");
+    }
+
+    /**
+     * Encodes a {@link #MAKE_CALLS} call that has {@link #WRITER} authorize the given schedule, optionally reverting
+     * afterwards.
+     */
+    private static byte[] authorizingThroughMakeCalls(
+            @NonNull final Address writer, @NonNull final ScheduleID scheduleId, final boolean revertAfter) {
+        final var authorizing = SET_CALL_SET
+                .encodeCallWithArgs(authorizingArgs(List.of(scheduleId), NO_WRITE, NO_WRITE, revertAfter))
+                .array();
+        return MAKE_CALL_WITHOUT_AMOUNT.encodeCallWithArgs(writer, authorizing).array();
+    }
+
+    /**
+     * Updates the given account to add a hook with one storage slot.
+     */
+    private static HapiCryptoUpdate hookCreationWithOneSlot(@NonNull final String account) {
+        return cryptoUpdate(account).withHook(spec -> {
+            final var details = accountAllowanceHook(HOOK_WITH_STORAGE_ID, SET_AND_PASS_HOOK.name())
+                    .apply(spec);
+            return details.copyBuilder()
+                    .evmHook(details.evmHookOrThrow()
+                            .copyBuilder()
+                            .storageUpdates(List.of(EvmHookStorageUpdate.newBuilder()
+                                    .storageSlot(EvmHookStorageSlot.newBuilder()
+                                            .key(HOOK_SLOT_KEY)
+                                            .value(HOOK_SLOT_VALUE)
+                                            .build())
+                                    .build()))
+                            .build())
+                    .build();
+        });
+    }
+
+    /**
+     * Asserts the hook of the given account has exactly the given storage slots, in its counts and its list.
+     */
+    private static SpecOperation hookStorageSlotsAre(@NonNull final String owner, @NonNull final List<Bytes> keys) {
+        return blockingOrder(
+                viewAccount(owner, account -> assertEquals(keys.size(), account.numberEvmHookStorageSlots())),
+                doingContextual(spec -> {
+                    final var store = new ReadableEvmHookStoreImpl(
+                            spec.embeddedStateOrThrow().getReadableStates(ContractService.NAME));
+                    final var hookId = HookId.newBuilder()
+                            .entityId(HookEntityId.newBuilder()
+                                    .accountId(toPbj(spec.registry().getAccountID(owner)))
+                                    .build())
+                            .hookId(HOOK_WITH_STORAGE_ID)
+                            .build();
+                    final var hookState = store.getEvmHook(hookId);
+                    assertNotNull(hookState);
+                    assertEquals(keys.size(), hookState.numStorageSlots());
+                    final List<Bytes> listed = new ArrayList<>();
+                    var key = hookState.firstContractStorageKey();
+                    // Bounded, so that a cycle fails the assertion instead of looping
+                    while (key.length() > 0 && listed.size() <= keys.size()) {
+                        listed.add(key);
+                        final var value = store.getSlotValue(new EvmHookSlotKey(hookId, key));
+                        assertNotNull(value);
+                        key = value.nextKey();
+                    }
+                    assertEquals(keys, listed);
+                }));
     }
 
     private static HapiContractCall writerCall(@NonNull final String function, final long... args) {
