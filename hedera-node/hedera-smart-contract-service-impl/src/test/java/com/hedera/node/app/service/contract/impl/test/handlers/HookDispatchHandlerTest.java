@@ -25,7 +25,10 @@ import com.hedera.node.app.service.contract.impl.handlers.HookDispatchHandler;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
+import com.hedera.node.app.spi.key.KeyVerifier;
+import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -74,6 +77,12 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ContractServiceComponent contractServiceComponent;
 
+    @Mock
+    private KeyVerifier keyVerifier;
+
+    @Mock
+    private SignatureVerification signatureVerification;
+
     private final Configuration config = HederaTestConfigBuilder.create()
             .withValue("hooks.hooksEnabled", true)
             .getOrCreateConfig();
@@ -84,10 +93,15 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     void setUp() {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableEvmHookStore.class)).willReturn(evmHookStore);
+        lenient().when(storeFactory.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
         lenient().when(handleContext.attributeValidator()).thenReturn(attributeValidator);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.savepointStack()).willReturn(savepointStack);
         given(savepointStack.getBaseBuilder(HookDispatchStreamBuilder.class)).willReturn(recordBuilder);
+        lenient().when(handleContext.keyVerifier()).thenReturn(keyVerifier);
+        lenient().when(keyVerifier.verificationFor(any())).thenReturn(signatureVerification);
+        lenient().when(signatureVerification.passed()).thenReturn(true);
+        lenient().when(payerAccount.hasKey()).thenReturn(true);
         lenient()
                 .when(gasCalculator.transactionGasRequirements(0, 0, false, null, null))
                 .thenReturn(TestHelpers.gasChargesFromIntrinsicGas(
@@ -113,6 +127,15 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
     }
 
     @Test
+    void creationFailsWithoutOwnerAuthorization() {
+        given(handleContext.body()).willReturn(hookDispatchWithCreation());
+        given(signatureVerification.passed()).willReturn(false);
+
+        final var response = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_SIGNATURE, response.getStatus());
+    }
+
+    @Test
     void deletionWorks() {
         given(handleContext.body()).willReturn(hookDispatchWithDeletion());
         given(handleContext.savepointStack()).willReturn(savepointStack);
@@ -122,7 +145,11 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         assertDoesNotThrow(() -> subject.handle(handleContext));
 
         verify(recordBuilder).nextHookId(2L);
-        verify(evmHookStore).remove(HookId.newBuilder().hookId(1L).build());
+        verify(evmHookStore)
+                .remove(HookId.newBuilder()
+                        .entityId(HookEntityId.newBuilder().accountId(payer).build())
+                        .hookId(1L)
+                        .build());
     }
 
     @Test
@@ -178,7 +205,10 @@ class HookDispatchHandlerTest extends ContractHandlerTestBase {
         return TransactionBody.newBuilder()
                 .transactionID(transactionID)
                 .hookDispatch(HookDispatchTransactionBody.newBuilder()
-                        .hookIdToDelete(HookId.newBuilder().hookId(1L).build())
+                        .hookIdToDelete(HookId.newBuilder()
+                                .entityId(HookEntityId.newBuilder().accountId(payer).build())
+                                .hookId(1L)
+                                .build())
                         .build())
                 .build();
     }

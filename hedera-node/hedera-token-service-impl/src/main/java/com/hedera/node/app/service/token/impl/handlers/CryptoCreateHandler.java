@@ -264,22 +264,27 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
             accountStore.put(modifiedPayer);
         }
 
-        // Dispatch hook creation to contract service if there are any hooks to be created
-        int updatedSlots = 0;
-        if (!op.hookCreationDetails().isEmpty()) {
-            final var ownerId =
-                    entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-            final var hookEntityId =
-                    HookEntityId.newBuilder().accountId(ownerId).build();
-            updatedSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, hookEntityId);
-        }
-
-        // Build the new account to be persisted based on the transaction body and save the newly created account
-        // number in the record builder
-        final var accountCreated = buildAccount(op, context, updatedSlots);
+        // Persist the account first so HookDispatchHandler can verify ownership on child CREATION
+        // dispatches (its preHandle/handle require the target entity to exist and authorize).
+        final var accountCreated = buildAccount(op, context, 0);
         // As an extra guardrail, ensure it's impossible to programmatically create a system file account
         validateFalse(isSystemFile(accountCreated.accountIdOrThrow().accountNumOrThrow()), FAIL_INVALID);
         accountStore.putAndIncrementCount(accountCreated);
+
+        // Dispatch hook creation to contract service if there are any hooks to be created
+        int updatedSlots = 0;
+        if (!op.hookCreationDetails().isEmpty()) {
+            final var hookEntityId = HookEntityId.newBuilder()
+                    .accountId(accountCreated.accountIdOrThrow())
+                    .build();
+            updatedSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, hookEntityId);
+            if (updatedSlots != 0) {
+                accountStore.put(accountCreated
+                        .copyBuilder()
+                        .numberEvmHookStorageSlots(updatedSlots)
+                        .build());
+            }
+        }
 
         final var createdAccountID = accountCreated.accountIdOrThrow();
         final var recordBuilder = context.savepointStack().getBaseBuilder(CryptoCreateStreamBuilder.class);
