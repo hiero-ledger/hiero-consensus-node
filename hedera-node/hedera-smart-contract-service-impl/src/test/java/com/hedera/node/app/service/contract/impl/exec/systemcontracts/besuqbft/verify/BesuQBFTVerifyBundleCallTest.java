@@ -21,6 +21,7 @@ import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.commo
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import java.util.List;
+import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
@@ -121,9 +122,9 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
                 new byte[0],
                 new byte[0]);
 
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
-                        .willReturn(verified))) {
+        try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any())).willReturn(verified))) {
             final var call = new BesuQBFTVerifyBundleCall(
                     mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp());
             final var result = call.execute(frame);
@@ -188,10 +189,27 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
         assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
     }
 
+    @Test
+    void revertsForDeeplyNestedRlpBundle() {
+        byte[] payload = Rlp.encodeList(List.of());
+        for (int i = 0; i < 128; i++) {
+            payload = Rlp.encodeList(List.of(payload));
+        }
+
+        final var result = new BesuQBFTVerifyBundleCall(
+                        mockEnhancement(), gasCalculator, payload, buildTrustAnchorRlp())
+                .execute(frame);
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        assertThat(new BigInteger(1, result.fullResult().output().toArray()).intValueExact())
+                .isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED.protoOrdinal());
+    }
+
     private Call.PricedResult executeWith(final BesuQbftVerifier.VerifiedBundle verified) {
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
-                        .willReturn(verified))) {
+        try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any())).willReturn(verified))) {
             return new BesuQBFTVerifyBundleCall(
                             mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp())
                     .execute(frame);

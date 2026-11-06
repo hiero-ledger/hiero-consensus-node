@@ -15,6 +15,9 @@ import java.util.Objects;
  * item accessors.</p>
  */
 public final class Rlp {
+    // CLPR proof formats use shallow RLP nesting. The root item has depth zero.
+    private static final int MAX_NESTING_DEPTH = 64;
+
     private Rlp() {}
 
     public static byte[] encodeUint(long value) {
@@ -66,12 +69,13 @@ public final class Rlp {
     }
 
     public static Item decodeOne(byte[] encoded) {
-        DecodeResult result = decode(Objects.requireNonNull(encoded, "encoded"), 0);
+        Objects.requireNonNull(encoded, "encoded");
+        DecodeResult result = decode(encoded, 0, encoded.length, 0);
         if (result.nextOffset() != encoded.length) {
             final int consumed = result.nextOffset();
             final int trailing = encoded.length - consumed;
             final int dumpStart = Math.max(0, consumed - 8);
-            final int dumpEnd = Math.min(encoded.length, consumed + 32);
+            final int dumpEnd = consumed + Math.min(trailing, 32);
             final StringBuilder window = new StringBuilder();
             for (int i = dumpStart; i < dumpEnd; i++) {
                 if (i == consumed) window.append('|');
@@ -114,8 +118,11 @@ public final class Rlp {
         return out;
     }
 
-    private static DecodeResult decode(byte[] input, int offset) {
-        if (offset >= input.length) throw new IllegalArgumentException("RLP offset out of bounds");
+    private static DecodeResult decode(byte[] input, int offset, int limit, int depth) {
+        if (depth > MAX_NESTING_DEPTH) {
+            throw new IllegalArgumentException("RLP nesting exceeds maximum depth " + MAX_NESTING_DEPTH);
+        }
+        if (offset >= limit) throw new IllegalArgumentException("RLP offset out of bounds");
         int prefix = input[offset] & 0xff;
         if (prefix < 0x80) {
             byte[] raw = new byte[] {input[offset]};
@@ -124,7 +131,7 @@ public final class Rlp {
         if (prefix <= 0xb7) {
             int len = prefix - 0x80;
             int start = offset + 1;
-            checkRange(input, start, len, "RLP short string");
+            checkRange(start, len, limit, "RLP short string");
             return new DecodeResult(
                     new Item(
                             false,
@@ -135,9 +142,9 @@ public final class Rlp {
         }
         if (prefix <= 0xbf) {
             int lenOfLen = prefix - 0xb7;
-            int len = readRlpLength(input, offset + 1, lenOfLen);
+            int len = readRlpLength(input, offset + 1, lenOfLen, limit);
             int start = offset + 1 + lenOfLen;
-            checkRange(input, start, len, "RLP long string");
+            checkRange(start, len, limit, "RLP long string");
             return new DecodeResult(
                     new Item(
                             false,
@@ -148,40 +155,40 @@ public final class Rlp {
         }
         if (prefix <= 0xf7) {
             int len = prefix - 0xc0;
-            return decodeList(input, offset, offset + 1, len);
+            return decodeList(input, offset, offset + 1, len, limit, depth);
         }
         int lenOfLen = prefix - 0xf7;
-        int len = readRlpLength(input, offset + 1, lenOfLen);
+        int len = readRlpLength(input, offset + 1, lenOfLen, limit);
         int start = offset + 1 + lenOfLen;
-        return decodeList(input, offset, start, len);
+        return decodeList(input, offset, start, len, limit, depth);
     }
 
-    private static DecodeResult decodeList(byte[] input, int rawStart, int payloadStart, int payloadLen) {
-        checkRange(input, payloadStart, payloadLen, "RLP list");
+    private static DecodeResult decodeList(
+            byte[] input, int rawStart, int payloadStart, int payloadLen, int limit, int depth) {
+        checkRange(payloadStart, payloadLen, limit, "RLP list");
         int end = payloadStart + payloadLen;
         List<Item> children = new ArrayList<>();
         int p = payloadStart;
         while (p < end) {
-            DecodeResult child = decode(input, p);
+            DecodeResult child = decode(input, p, end, depth + 1);
             children.add(child.item());
             p = child.nextOffset();
         }
-        if (p != end) throw new IllegalArgumentException("RLP list length mismatch");
-        return new DecodeResult(
-                new Item(true, Arrays.copyOfRange(input, rawStart, end), null, List.copyOf(children)), end);
+        return new DecodeResult(new Item(true, Arrays.copyOfRange(input, rawStart, end), null, children), end);
     }
 
-    private static int readRlpLength(byte[] input, int offset, int lenOfLen) {
+    private static int readRlpLength(byte[] input, int offset, int lenOfLen, int limit) {
         if (lenOfLen <= 0 || lenOfLen > 4) throw new IllegalArgumentException("unsupported RLP length-of-length");
-        checkRange(input, offset, lenOfLen, "RLP length");
+        checkRange(offset, lenOfLen, limit, "RLP length");
         if (input[offset] == 0) throw new IllegalArgumentException("non-canonical RLP length");
-        int len = 0;
+        long len = 0;
         for (int i = 0; i < lenOfLen; i++) len = (len << 8) | (input[offset + i] & 0xff);
-        return len;
+        if (len > Integer.MAX_VALUE) throw new IllegalArgumentException("RLP length exceeds integer range");
+        return (int) len;
     }
 
-    private static void checkRange(byte[] data, int offset, int len, String name) {
-        if (len < 0 || offset < 0 || offset > data.length || data.length - offset < len) {
+    private static void checkRange(int offset, int len, int limit, String name) {
+        if (len < 0 || offset < 0 || offset > limit || limit - offset < len) {
             throw new IllegalArgumentException("unexpected end while reading " + name);
         }
     }
