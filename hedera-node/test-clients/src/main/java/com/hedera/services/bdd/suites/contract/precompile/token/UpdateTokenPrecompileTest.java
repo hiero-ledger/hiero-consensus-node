@@ -78,6 +78,8 @@ import org.junit.jupiter.api.Tag;
 public class UpdateTokenPrecompileTest {
     private static final long GAS_NEEDED = 1_000_000L;
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
+    // Name under which AuthorizeContractOperation registers the key it gives the contract for the shared token
+    private static final String SHARED_TOKEN_MANAGED_KEY = "sharedAuthorizedToken_UpdateTokenKeysContractManagedKey";
     private static final String HTS_ADDRESS = "0x0000000000000000000000000000000000000167";
     private static final String KEYLESS_TOKEN = "keylessToken";
     private static final String KEYLESS_TREASURY = "keylessTreasury";
@@ -90,18 +92,27 @@ public class UpdateTokenPrecompileTest {
 
     // Forwards an arbitrary TokenKey[] to updateTokenKeys at 0x167, reverting unless the precompile returns SUCCESS
     @Contract(contract = "UpdateTokenKeysContract", creationGas = 1_000_000L)
-    static SpecContract updateKeysCaller;
+    static SpecContract updateTokenKeysContract;
 
     @FungibleToken(
             name = "immutableToken",
             keys = {FEE_SCHEDULE_KEY, SUPPLY_KEY, WIPE_KEY, PAUSE_KEY, FREEZE_KEY, KYC_KEY})
     static SpecFungibleToken immutableToken;
 
+    // Admin key handed to updateKeysCaller once in beforeAll; only used by tests that never change its keys
+    @FungibleToken(name = "sharedAuthorizedToken")
+    static SpecFungibleToken sharedAuthorizedToken;
+
     @Key
     static SpecKey ed25519Key;
 
     @Key(type = SECP_256K1)
     static SpecKey secp256k1Key;
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.doAdhoc(sharedAuthorizedToken.authorizeContracts(updateTokenKeysContract));
+    }
 
     @HapiTest
     @DisplayName("cannot update a missing token")
@@ -182,10 +193,10 @@ public class UpdateTokenPrecompileTest {
         return hapiTest(
                 newKeyNamed("dupContractFirstSupply"),
                 newKeyNamed("dupContractSecondSupply"),
-                token.authorizeContracts(updateKeysCaller),
+                token.authorizeContracts(updateTokenKeysContract),
                 withOpContext((spec, _) -> allRunFor(
                         spec,
-                        updateKeysCaller
+                        updateTokenKeysContract
                                 .call("updateTokenKeys", token, new Tuple[] {
                                     keyEntry(supplyKeyType, ed25519Of(spec, "dupContractFirstSupply")),
                                     keyEntry(supplyKeyType, ed25519Of(spec, "dupContractSecondSupply"))
@@ -200,10 +211,10 @@ public class UpdateTokenPrecompileTest {
     public Stream<DynamicTest> strayUndefinedBitNextToAdminBitIsAppliedAsAdminKey(
             @FungibleToken final SpecFungibleToken token) {
         return hapiTest(
-                token.authorizeContracts(updateKeysCaller),
+                token.authorizeContracts(updateTokenKeysContract),
                 withOpContext((spec, _) -> allRunFor(
                         spec,
-                        updateKeysCaller
+                        updateTokenKeysContract
                                 .call(
                                         "updateTokenKeys",
                                         token,
@@ -214,39 +225,37 @@ public class UpdateTokenPrecompileTest {
                                                     BigInteger.valueOf(0x101),
                                                     Tuple.of(
                                                             false,
-                                                            updateKeysCaller.addressOn(spec.targetNetworkOrThrow()),
+                                                            updateTokenKeysContract.addressOn(
+                                                                    spec.targetNetworkOrThrow()),
                                                             new byte[0],
                                                             new byte[0],
                                                             ZERO_ADDRESS))
                                         })
                                 .gas(GAS_NEEDED))),
-                updateKeysCaller.doWith(
+                updateTokenKeysContract.doWith(
                         contract -> token.getInfo().andAssert(info -> info.hasAdminKey(contractIdKeyFor(contract)))));
     }
 
     @HapiTest
     @DisplayName(
             "updateTokenKeys with an empty key list from an authorized contract reports success and changes nothing")
-    public Stream<DynamicTest> emptyKeyListFromAuthorizedContractChangesNothing(
-            @FungibleToken final SpecFungibleToken token) {
-        return authorizedContractUpdateKeepsSupplyKey(token, _ -> new Tuple[0]);
+    public Stream<DynamicTest> emptyKeyListFromAuthorizedContractChangesNothing() {
+        return authorizedContractUpdateKeepsAllKeys("emptyKeyList", _ -> new Tuple[0]);
     }
 
     @HapiTest
     @DisplayName("updateTokenKeys with keyType zero from an authorized contract reports success and changes nothing")
-    public Stream<DynamicTest> zeroKeyTypeFromAuthorizedContractChangesNothing(
-            @FungibleToken final SpecFungibleToken token) {
-        return authorizedContractUpdateKeepsSupplyKey(
-                token, newKeys -> new Tuple[] {keyEntry(BigInteger.ZERO, newKeys[0])});
+    public Stream<DynamicTest> zeroKeyTypeFromAuthorizedContractChangesNothing() {
+        return authorizedContractUpdateKeepsAllKeys(
+                "zeroKeyType", newKeys -> new Tuple[] {keyEntry(BigInteger.ZERO, newKeys[0])});
     }
 
     @HapiTest
     @DisplayName(
             "updateTokenKeys with an undefined bit from an authorized contract reports success and changes nothing")
-    public Stream<DynamicTest> undefinedBitFromAuthorizedContractChangesNothing(
-            @FungibleToken final SpecFungibleToken token) {
-        return authorizedContractUpdateKeepsSupplyKey(
-                token, newKeys -> new Tuple[] {keyEntry(BigInteger.valueOf(0x100), newKeys[0])});
+    public Stream<DynamicTest> undefinedBitFromAuthorizedContractChangesNothing() {
+        return authorizedContractUpdateKeepsAllKeys(
+                "undefinedBit", newKeys -> new Tuple[] {keyEntry(BigInteger.valueOf(0x100), newKeys[0])});
     }
 
     @HapiTest
@@ -257,7 +266,7 @@ public class UpdateTokenPrecompileTest {
                 newKeyNamed("unauthorizedNewSupply"),
                 withOpContext((spec, _) -> allRunFor(
                         spec,
-                        updateKeysCaller
+                        updateTokenKeysContract
                                 .call("updateTokenKeys", token, new Tuple[] {
                                     keyEntry(BigInteger.valueOf(0x10), ed25519Of(spec, "unauthorizedNewSupply"))
                                 })
@@ -268,21 +277,35 @@ public class UpdateTokenPrecompileTest {
 
     /**
      * The contract holds the token's admin key, so authorization is not in play: the call succeeds (the contract
-     * reverts on any status but SUCCESS) and the supply key must be untouched.
+     * reverts on any status but SUCCESS) and none of the token's keys may change.
      */
-    private Stream<DynamicTest> authorizedContractUpdateKeepsSupplyKey(
-            @NonNull final SpecFungibleToken token, @NonNull final Function<byte[][], Tuple[]> entries) {
+    private Stream<DynamicTest> authorizedContractUpdateKeepsAllKeys(
+            @NonNull final String tag, @NonNull final Function<byte[][], Tuple[]> entries) {
+        final var newKey = tag + "NewKey";
         return hapiTest(
-                newKeyNamed(token.name() + "NewKey"),
-                token.authorizeContracts(updateKeysCaller),
+                newKeyNamed(newKey),
                 withOpContext((spec, _) -> allRunFor(
                         spec,
-                        updateKeysCaller
-                                .call("updateTokenKeys", token, entries.apply(new byte[][] {
-                                    ed25519Of(spec, token.name() + "NewKey")
+                        updateTokenKeysContract
+                                .call("updateTokenKeys", sharedAuthorizedToken, entries.apply(new byte[][] {
+                                    ed25519Of(spec, newKey)
                                 }))
                                 .gas(GAS_NEEDED))),
-                token.getInfo().andAssert(info -> info.hasSupplyKey(token.name())));
+                // Role keys are looked up by token name: the supply key is the original one, the rest were never set
+                sharedAuthorizedToken
+                        .getInfo()
+                        .andAssert(info -> info.hasSupplyKey(sharedAuthorizedToken.name())
+                                .hasEmptyKycKey()
+                                .hasEmptyFreezeKey()
+                                .hasEmptyWipeKey()
+                                .hasEmptyFeeScheduleKey()
+                                .hasEmptyPauseKey()
+                                .hasEmptyMetadataKey()),
+                // searchKeysGlobally() applies to the whole query, so the admin key needs its own query: it is
+                // still the key authorizeContracts() gave the contract (registered under this name)
+                sharedAuthorizedToken
+                        .getInfo()
+                        .andAssert(info -> info.searchKeysGlobally().hasAdminKey(SHARED_TOKEN_MANAGED_KEY)));
     }
 
     private static byte[] ed25519Of(@NonNull final HapiSpec spec, @NonNull final String keyName) {
