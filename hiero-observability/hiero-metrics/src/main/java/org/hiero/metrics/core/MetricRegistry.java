@@ -318,52 +318,68 @@ public final class MetricRegistry implements Closeable {
         @NonNull
         public MetricRegistry build() {
             final List<Metric.Builder<?, ?>> providerBuilders = loadProviderBuilders();
-
-            MetricsExporter exporter = this.metricsExporter;
-            boolean exporterCreated = false;
-            if (configuration != null) {
-                Boolean exporterDiscoveryDisabled =
-                        configuration.getValue(PROPERTY_EXPORT_DISCOVERY_DISABLED, Boolean.class, false);
-                if (exporterDiscoveryDisabled != null && exporterDiscoveryDisabled) {
-                    logger.log(
-                            INFO,
-                            "Exporter discovery is disabled by configuration property: {0}",
-                            PROPERTY_EXPORT_DISCOVERY_DISABLED);
-                } else {
-                    List<MetricsExporterFactory> factories = MetricUtils.load(MetricsExporterFactory.class);
-                    if (factories.size() > 1) {
-                        logger.log(
-                                WARNING,
-                                "Multiple metrics exporter factories found: {0}. "
-                                        + "Expected at most one. Ignoring discovered exporter factories.",
-                                factories);
-                    } else if (factories.size() == 1) {
-                        MetricsExporterFactory factory = factories.getFirst();
-                        MetricsExporter created =
-                                factory.createExporter(Collections.unmodifiableList(globalLabels), configuration);
-
-                        if (created != null) {
-                            exporter = created;
-                            exporterCreated = true;
-                        } else {
-                            logger.log(INFO, "Exporter factory did not create an exporter: {0}", factory.getClass());
-                        }
-                    }
-                }
-            }
+            final MetricsExporter discoveredExporter = discoverExporter();
+            final MetricsExporter exporter = discoveredExporter != null ? discoveredExporter : metricsExporter;
 
             try {
                 return new MetricRegistry(globalLabels, exporter, providerBuilders);
             } catch (RuntimeException | Error e) {
-                if (exporterCreated) {
+                // only the exporter created here is closed, one set via setMetricsExporter stays with the caller
+                if (discoveredExporter != null) {
                     try {
-                        exporter.close();
+                        discoveredExporter.close();
                     } catch (IOException | RuntimeException closeException) {
                         e.addSuppressed(closeException);
                     }
                 }
                 throw e;
             }
+        }
+
+        /**
+         * Creates an exporter from the single discovered {@link MetricsExporterFactory}, if exporter discovery is
+         * enabled via {@link #discoverMetricsExporter(Configuration)} and not disabled by configuration property
+         * {@value #PROPERTY_EXPORT_DISCOVERY_DISABLED}.
+         *
+         * @return the created exporter, or {@code null} if discovery is not enabled, no or multiple factories are
+         * found, or the factory did not create an exporter
+         */
+        @Nullable
+        private MetricsExporter discoverExporter() {
+            if (configuration == null) {
+                return null;
+            }
+
+            Boolean exporterDiscoveryDisabled =
+                    configuration.getValue(PROPERTY_EXPORT_DISCOVERY_DISABLED, Boolean.class, false);
+            if (exporterDiscoveryDisabled != null && exporterDiscoveryDisabled) {
+                logger.log(
+                        INFO,
+                        "Exporter discovery is disabled by configuration property: {0}",
+                        PROPERTY_EXPORT_DISCOVERY_DISABLED);
+                return null;
+            }
+
+            List<MetricsExporterFactory> factories = MetricUtils.load(MetricsExporterFactory.class);
+            if (factories.size() > 1) {
+                logger.log(
+                        WARNING,
+                        "Multiple metrics exporter factories found: {0}. "
+                                + "Expected at most one. Ignoring discovered exporter factories.",
+                        factories);
+                return null;
+            }
+            if (factories.isEmpty()) {
+                return null;
+            }
+
+            MetricsExporterFactory factory = factories.getFirst();
+            MetricsExporter exporter =
+                    factory.createExporter(Collections.unmodifiableList(globalLabels), configuration);
+            if (exporter == null) {
+                logger.log(INFO, "Exporter factory did not create an exporter: {0}", factory.getClass());
+            }
+            return exporter;
         }
 
         private List<Metric.Builder<?, ?>> loadProviderBuilders() {
