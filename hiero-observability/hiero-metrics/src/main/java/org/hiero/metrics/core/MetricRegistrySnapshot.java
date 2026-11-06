@@ -22,7 +22,7 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
      * Creates an empty registry snapshot.
      */
     public MetricRegistrySnapshot() {
-        snapshots = new CopyOnWriteArrayList<>();
+        this(List.of());
     }
 
     /**

@@ -88,17 +88,6 @@ public final class MetricRegistry implements Closeable {
         }
     }
 
-    private <M extends Metric> M buildMetric(Metric.Builder<?, M> builder) {
-        builder.addStaticLabels(globalLabels.toArray(Label[]::new));
-        if (exporter == null) {
-            builder.doNotSnapshot();
-        }
-
-        final M metric = builder.build();
-        logger.log(DEBUG, "Registered metric. name={0}", metric.name());
-        return metric;
-    }
-
     /**
      * @return {@code true} if this registry has an associated {@link MetricsExporter}, {@code false} otherwise
      */
@@ -211,7 +200,18 @@ public final class MetricRegistry implements Closeable {
         }
     }
 
-    private void throwIfDuplicateMetricName(MetricKey<?> key, Metric existing) {
+    private <M extends Metric> M buildMetric(Metric.Builder<?, M> builder) {
+        builder.addStaticLabels(globalLabels.toArray(Label[]::new));
+        if (exporter == null) {
+            builder.doNotSnapshot();
+        }
+
+        final M metric = builder.build();
+        logger.log(DEBUG, "Registered metric. name={0}", metric.name());
+        return metric;
+    }
+
+    private void throwIfDuplicateMetricName(MetricKey<?> key, @Nullable Metric existing) {
         if (existing != null) {
             throw new IllegalArgumentException(
                     "Duplicate metric name: " + key + ". Existing metric: " + existing.name());
@@ -354,7 +354,7 @@ public final class MetricRegistry implements Closeable {
 
             try {
                 return new MetricRegistry(globalLabels, exporter, providerBuilders);
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | Error e) {
                 if (exporterCreated) {
                     try {
                         exporter.close();
@@ -380,7 +380,7 @@ public final class MetricRegistry implements Closeable {
             final List<Metric.Builder<?, ?>> builders = new ArrayList<>();
             for (MetricsRegistrationProvider provider : providers) {
                 Objects.requireNonNull(provider, "metrics registration provider must not be null");
-                logger.log(INFO, "Registering metrics from provider: {0}", provider.getClass());
+                logger.log(INFO, "Loading metrics from provider: {0}", provider.getClass());
 
                 Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister();
                 Objects.requireNonNull(metricsToRegister, "metrics collection must not be null");

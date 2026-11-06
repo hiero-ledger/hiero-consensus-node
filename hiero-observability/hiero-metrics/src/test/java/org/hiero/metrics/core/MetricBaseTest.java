@@ -30,6 +30,10 @@ public abstract class MetricBaseTest<M extends Metric, B extends Metric.Builder<
         metric.reset();
     }
 
+    protected MetricSnapshot snapshotOf(M metric) {
+        return metric.snapshot();
+    }
+
     /**
      * Tests for the Metric.Builder class.
      */

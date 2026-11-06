@@ -3,8 +3,6 @@ package org.hiero.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -12,20 +10,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 import org.hiero.metrics.core.Label;
 import org.hiero.metrics.core.MeasurementSnapshot;
 import org.hiero.metrics.core.MetricBaseTest;
 import org.hiero.metrics.core.MetricKey;
-import org.hiero.metrics.core.MetricRegistry;
-import org.hiero.metrics.core.MetricRegistrySnapshot;
-import org.hiero.metrics.core.MetricSnapshot;
 import org.hiero.metrics.core.MetricSnapshotVerifier;
 import org.hiero.metrics.core.MetricType;
-import org.hiero.metrics.core.MetricsExporter;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, ObservableGauge.Builder> {
 
@@ -40,19 +32,12 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
     }
 
     @Test
-    @SuppressWarnings("unchecked")
     void testIterationStartedBeforeObserveSeesFixedList() {
-        MetricsExporter exporter = mock(MetricsExporter.class);
-        MetricRegistry registry =
-                MetricRegistry.builder().setMetricsExporter(exporter).build();
-        ObservableGauge gauge = registry.register(emptyMetricBuilder().addDynamicLabelNames("label"));
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
         gauge.observe(() -> 1L, "label", "a");
 
-        ArgumentCaptor<Supplier<MetricRegistrySnapshot>> captor = ArgumentCaptor.forClass(Supplier.class);
-        verify(exporter).setSnapshotSupplier(captor.capture());
-        MetricSnapshot metricSnapshot = captor.getValue().get().iterator().next();
-
-        Iterator<MeasurementSnapshot> export = metricSnapshot.iterator();
+        Iterator<MeasurementSnapshot> export = snapshotOf(gauge).iterator();
         gauge.observe(() -> 2L, "label", "b");
 
         List<String> seen = new ArrayList<>();
