@@ -71,6 +71,14 @@ class BesuQbftVerifierTest {
         return BesuQbftVerifier.encodeValidatorSet(Arrays.asList(addrs));
     }
 
+    private static byte[] deeplyNestedRlp() {
+        byte[] item = Rlp.encodeList(List.of());
+        for (int i = 0; i < 128; i++) {
+            item = Rlp.encodeList(List.of(item));
+        }
+        return item;
+    }
+
     @Nested
     class ParseStructural {
         @Test
@@ -126,6 +134,34 @@ class BesuQbftVerifierTest {
             assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("ledgerConfiguration is missing");
+        }
+
+        @Test
+        void deeplyNestedHeader_throwsProofException() {
+            final byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
+                    .genesisBlockHeader(header(deeplyNestedRlp()))
+                    .currentBlockHeader(header(buildGenesisHeader(VALIDATOR_ADDR)))
+                    .ledgerConfiguration(ledgerConfig(SERVICE_ADDR))
+                    .build());
+
+            assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("block header RLP decoding failed")
+                    .hasMessageContaining("RLP nesting");
+        }
+
+        @Test
+        void deeplyNestedExtraData_throwsProofException() {
+            final byte[] payload = serialize(ClprQbftLedgerConfigurationPayload.newBuilder()
+                    .genesisBlockHeader(header(buildRlpHeader(new byte[32], deeplyNestedRlp(), 15)))
+                    .currentBlockHeader(header(buildGenesisHeader(VALIDATOR_ADDR)))
+                    .ledgerConfiguration(ledgerConfig(SERVICE_ADDR))
+                    .build());
+
+            assertThatThrownBy(() -> SUBJECT.verifyConfigPayload(payload))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("extraData is not valid RLP")
+                    .hasMessageContaining("RLP nesting");
         }
 
         @Test
@@ -752,6 +788,17 @@ class BesuQbftVerifierTest {
 
         private static final BesuQbftVerifier BUNDLE_SUBJECT =
                 new BesuQbftVerifier(new BesuQbftVerifier.Config(SERVICE_ADDR, null, 30_000L));
+
+        @Test
+        void deeplyNestedBundle_throwsProofException() {
+            final byte[] payload = deeplyNestedRlp();
+            final byte[] trustAnchor = validatorSet(VALIDATOR_ADDR);
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, trustAnchor))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("payload is not a valid RLP item")
+                    .hasMessageContaining("RLP nesting");
+        }
 
         @Test
         void auditRelayContentCanChangeWithoutChangingSignedProof() {
