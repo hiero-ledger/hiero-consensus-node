@@ -122,6 +122,14 @@ val blockNodeVersion: Provider<String> =
                 },
         )
         .map { it.trim().removePrefix("v") }
+        .map { version ->
+            if (!Regex("""\d+\.\d+\.\d+(-[A-Za-z0-9.]+)?""").matches(version)) {
+                throw GradleException(
+                    "Block node version '$version' isn't like v0.45.1 or v0.46.0-rc2",
+                )
+            }
+            version
+        }
 
 tasks.withType<Test>().configureEach {
     systemProperty("hapi.spec.blocknode.version", blockNodeVersion.get())

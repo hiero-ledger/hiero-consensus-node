@@ -968,7 +968,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
      * can't ask which blocks it holds.
      */
     @Nullable
-    private static BlockNodeNetwork checkableBlockNodeNetwork() {
+    public static BlockNodeNetwork checkableBlockNodeNetwork() {
         final var network = BlockNodeReader.activeNetwork();
         if (network == null
                 || network.isEmpty()
