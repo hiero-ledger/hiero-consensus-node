@@ -94,7 +94,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         // content, and an empty-content bundle without a proven manifest falls through to the existing
         // missing-metadata failure path below.
         if (verified.bundleContentBytes().length == 0 && verified.newEndpointManifest() != null) {
-            return manifestOnlySuccess(verified.newEndpointManifest());
+            return manifestOnlySuccess(verified);
         }
 
         final ClprBundleContent content = parseBundleContent(verified);
@@ -171,7 +171,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         try {
             verified = verifier.verifyBundle(bundlePayload, trustAnchor, channelContext);
         } catch (final ProofException e) {
-            log.debug("[EthereumVerifier] verifyBundle: proof rejected", e);
+            log.info("[EthereumVerifier] verifyBundle: proof rejected: {}", e.getMessage());
             return null;
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyBundle: unexpected error", e);
@@ -267,10 +267,10 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         if (content.newTrustAnchorId().length() != 0
                 && !content.newTrustAnchorId().equals(provenAnchorId)) {
             log.warn(
-                    "[EthereumVerifier] verifyBundle: content new_trust_anchor_id differs from proven successor:"
-                            + " claimed={} bytes, proven={} bytes",
-                    content.newTrustAnchorId().length(),
-                    nextAnchorId.length);
+                    "[EthereumVerifier] verifyBundle: content new_trust_anchor_id differs from proven successor;"
+                            + " using the proven one: claimed=0x{}, proven=0x{}",
+                    content.newTrustAnchorId().toHex(),
+                    provenAnchorId.toHex());
         }
         return content.copyBuilder()
                 .newTrustAnchor(provenAnchor)
@@ -295,13 +295,16 @@ public class EthereumVerifyBundleCall extends AbstractCall {
                 .toArray(byte[][]::new);
         final byte[] newTrustAnchor = outContent.newTrustAnchor().toByteArray();
         final byte[] newTrustAnchorId = outContent.newTrustAnchorId().toByteArray();
+        final ClprEndpointManifest manifest = outContent.newEndpointManifestOrElse(ClprEndpointManifest.DEFAULT);
         log.info(
-                "[EthereumVerifier] verifyBundle EXIT: SUCCESS beaconBlockRoot={} messages={}",
+                "[EthereumVerifier] verifyBundle EXIT: SUCCESS beaconBlockRoot={} messages={} manifestVersion={}"
+                        + " manifestEndpoints={}",
                 Bytes.wrap(verified.beaconBlockRoot32()),
-                messageBytes.length);
+                messageBytes.length,
+                manifest.version(),
+                manifest.endpoints().size());
         // §4.2 Step 1b: append the extracted manifest as the 5th member (DEFAULT → version 0 = absent).
-        final Tuple manifestTuple =
-                manifestStructTuple(outContent.newEndpointManifestOrElse(ClprEndpointManifest.DEFAULT));
+        final Tuple manifestTuple = manifestStructTuple(manifest);
         return gasOnly(
                 successResult(
                         VERIFY_BUNDLE_RETURN.encode(
@@ -319,7 +322,14 @@ public class EthereumVerifyBundleCall extends AbstractCall {
      * {@code ClprSubmitBundleHandler} takes its state-update-only path (applying the already-proven manifest).
      */
     @NonNull
-    private PricedResult manifestOnlySuccess(@NonNull final ClprEndpointManifest manifest) {
+    private PricedResult manifestOnlySuccess(@NonNull final VerifiedBundle verified) {
+        final ClprEndpointManifest manifest = requireNonNull(verified.newEndpointManifest());
+        log.info(
+                "[EthereumVerifier] verifyBundle EXIT: SUCCESS manifest-only recovery bundle beaconBlockRoot={}"
+                        + " manifestVersion={} manifestEndpoints={}",
+                Bytes.wrap(verified.beaconBlockRoot32()),
+                manifest.version(),
+                manifest.endpoints().size());
         final Tuple absentMetadata = absentMetadataTuple();
         return gasOnly(
                 successResult(
