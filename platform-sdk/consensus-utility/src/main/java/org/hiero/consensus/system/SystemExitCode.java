@@ -34,6 +34,10 @@ public enum SystemExitCode {
      */
     UPGRADE_FROM_NON_FREEZE_STATE(206),
     /**
+     * Another node process already holds the lock on the saved state directory this node was configured to use.
+     */
+    NODE_ALREADY_RUNNING(207),
+    /**
      * An exit was called but no code was supplied
      */
     NO_EXIT_CODE(254),
