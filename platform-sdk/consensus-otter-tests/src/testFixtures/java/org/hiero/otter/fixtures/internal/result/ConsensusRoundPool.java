@@ -2,31 +2,29 @@
 package org.hiero.otter.fixtures.internal.result;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.function.Function.identity;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A thread-safe pool that deduplicates identical ConsensusRound objects across nodes.
  *
- * <p>This class maintains instances of ConsensusRounds indexed by round number.
- * When multiple nodes produce identical rounds, only one instance is maintained in memory.
+ * <p>Two rounds are identical if they have the same round number and are equal. When multiple nodes produce identical
+ * rounds, only one instance is maintained in memory. If nodes produce different rounds with the same round number, the
+ * pool keeps each of them, so that assertions can detect the mismatch.
  *
  * <p>The pool is to be shared across all nodes in a network.
  */
 public class ConsensusRoundPool {
 
     /**
-     * Maps round number to ConsensusRound instance.
+     * Maps round number to the distinct rounds with that number. The inner map maps a round to its canonical instance,
+     * the first equal round that a node delivered.
      */
-    private final ConcurrentHashMap<Long, Map<ConsensusRound, Set<NodeId>>> roundCache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Map<ConsensusRound, ConsensusRound>> roundCache = new ConcurrentHashMap<>();
 
     /**
      * Lifecycle flag to prevent operations after pool is destroyed.
@@ -34,61 +32,24 @@ public class ConsensusRoundPool {
     private volatile boolean destroyed = false;
 
     /**
-     * Inserts a consensus round in the pool. If an equivalent round already exists for this
-     * round number, returns the existing instance. Otherwise, stores and returns
-     * the provided round.
-     *
-     * <p>If a round with the same number but different content already exists, this indicates
-     * a consensus failure. The method stores the round on a different cache to be able to retrieve the reported value later and
-     * (not the existing one) to allow future assertions to detect the mismatch.
+     * Inserts a consensus round in the pool. If an identical round already exists, returns the existing instance.
+     * Otherwise, stores and returns the provided round.
      *
      * @param round the round to intern
-     * @param nodeId the node contributing this round
      * @return the canonical instance (either existing or newly stored)
      */
     @NonNull
-    public ConsensusRound update(@NonNull final ConsensusRound round, @NonNull final NodeId nodeId) {
+    public ConsensusRound update(@NonNull final ConsensusRound round) {
         requireNonNull(round, "round must not be null");
-        requireNonNull(nodeId, "nodeId must not be null");
 
         if (destroyed) {
             // Pool is destroyed, don't update
             return round;
         }
 
-        final long roundNum = round.getRoundNum();
-
-        final Map<ConsensusRound, Set<NodeId>> consensusRoundSetMap =
-                roundCache.compute(roundNum, (key, existingMap) -> {
-                    if (existingMap == null) {
-                        // First time seeing this round number - create new newMap
-                        final Map<ConsensusRound, Set<NodeId>> newMap = new ConcurrentHashMap<>();
-                        final Set<NodeId> value = new HashSet<>();
-                        value.add(nodeId);
-                        newMap.put(round, value);
-                        return newMap;
-                    } else {
-                        // Round number exists - update existing map
-                        existingMap.computeIfAbsent(round, k -> new HashSet<>()).add(nodeId);
-                        return existingMap;
-                    }
-                });
-
-        // Return the canonical instance
-        return findRoundForNode(consensusRoundSetMap, nodeId);
-    }
-
-    /**
-     * Gets a round by its round number and reporting nodeId.
-     *
-     * @param roundNumber the round number
-     * @param nodeId the nodeId querying for the result
-     * @return the round, or null if not present in the pool
-     */
-    @Nullable
-    public ConsensusRound getRound(final long roundNumber, @NonNull final NodeId nodeId) {
-        final Map<ConsensusRound, Set<NodeId>> consensusRoundSetMap = roundCache.get(roundNumber);
-        return consensusRoundSetMap == null ? null : findRoundForNode(consensusRoundSetMap, nodeId);
+        return roundCache
+                .computeIfAbsent(round.getRoundNum(), _ -> new ConcurrentHashMap<>())
+                .computeIfAbsent(round, identity());
     }
 
     /**
@@ -97,19 +58,5 @@ public class ConsensusRoundPool {
     public void destroy() {
         destroyed = true;
         roundCache.clear();
-    }
-
-    /**
-     * Returns the ConsensusRound instance in the map corresponding to the NodeId.
-     *
-     * @return the ConsensusRound instance in the map corresponding to the NodeId.
-     */
-    private static ConsensusRound findRoundForNode(
-            @NonNull final Map<ConsensusRound, Set<NodeId>> consensusRoundPerNodesMap, @NonNull final NodeId nodeId) {
-        return consensusRoundPerNodesMap.entrySet().stream()
-                .filter(e -> e.getValue().contains(nodeId))
-                .map(Entry::getKey)
-                .findFirst()
-                .orElse(null);
     }
 }

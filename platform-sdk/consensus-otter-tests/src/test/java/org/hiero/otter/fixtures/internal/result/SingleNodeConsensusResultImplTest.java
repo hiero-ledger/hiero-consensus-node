@@ -75,6 +75,25 @@ class SingleNodeConsensusResultImplTest {
     }
 
     @Test
+    void differentRoundsWithTheSameNumberAreAllReturned() {
+        final NodeResultsCollector collector = new NodeResultsCollector(NODE_ID, new ConsensusRoundPool(), true);
+        final ConsensusRound round1 = round(1L, 1);
+        // Mocks are only equal to themselves, so these are two different rounds with the same number
+        final ConsensusRound round2 = round(2L, 1);
+        final ConsensusRound differentRound2 = round(2L, 1);
+        final ConsensusRound round3 = round(3L, 1);
+
+        collector.addConsensusRound(round1);
+        collector.addConsensusRound(round2);
+        collector.addConsensusRound(round3);
+        collector.addConsensusRound(differentRound2);
+        final List<ConsensusRound> rounds = collector.newConsensusResult().consensusRounds();
+
+        assertThat(rounds).containsExactlyInAnyOrder(round1, round2, differentRound2, round3);
+        assertThat(rounds).extracting(ConsensusRound::getRoundNum).containsExactly(1L, 2L, 2L, 3L);
+    }
+
+    @Test
     void ratiosCountFromTheLastClear() {
         final NodeResultsCollector collector = new NodeResultsCollector(NODE_ID, new ConsensusRoundPool(), true);
         final SingleNodeConsensusResult clearedResult = collector.newConsensusResult();
