@@ -11,6 +11,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * ledger configuration file by {@link ClprLedgerConfigurationFile} (whose synthetic dispatches skip pureChecks).
  */
 public final class ClprThrottlesValidator {
+    /** Conservative wire framing reserve above the serialized StateProof. */
+    static final long CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES = 114L;
+
+    // The original 64 KiB reserve included 114 bytes for framing. Keep the proof allowance fixed
+    // so a change to the wire framing reserve is reflected in the total.
+    private static final long MIN_STATE_PROOF_OVERHEAD_BYTES = 65_422L;
+
     /**
      * Conservative floor on the headroom max_sync_bytes must reserve above max_message_payload_bytes
      * for the proof envelope (channel leaf + one message leaf + sibling chain to block root +
@@ -21,7 +28,8 @@ public final class ClprThrottlesValidator {
      * the spec's rule of thumb {@code max_message_payload_bytes * max_messages_per_bundle +
      * worst_case_proof_overhead}.
      */
-    public static final long MIN_PROOF_OVERHEAD_BYTES = 65_536L;
+    public static final long MIN_PROOF_OVERHEAD_BYTES =
+            MIN_STATE_PROOF_OVERHEAD_BYTES + CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
 
     private ClprThrottlesValidator() {}
 

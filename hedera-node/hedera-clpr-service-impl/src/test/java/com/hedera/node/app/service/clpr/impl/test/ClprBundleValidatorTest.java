@@ -235,14 +235,15 @@ class ClprBundleValidatorTest {
     }
 
     @Test
-    void dataPayloadLimitDoesNotApplyToReplyData() throws PreCheckException {
-        final var reply = ClprMessagePayload.newBuilder()
-                .messageReply(ClprMessageReply.newBuilder().messageReplyData(Bytes.wrap(new byte[4])))
-                .build();
+    void keepsOversizedReplyInAttestedRunningHash() throws PreCheckException {
+        final var reply = replyPayload(1, 4);
+        final var content = bundle(CHANNEL, List.of(reply));
 
-        assertThat(subject.validate(CHANNEL, bundle(CHANNEL, List.of(reply)), LEDGER_CONFIG)
-                        .newMessages())
-                .containsExactly(reply);
+        final var validated = subject.validate(CHANNEL, content, LEDGER_CONFIG);
+
+        assertThat(validated.newMessages()).containsExactly(reply);
+        assertThat(validated.receivedRunningHash())
+                .isEqualTo(content.metadataOrThrow().sentRunningHash());
     }
 
     @Test
@@ -408,7 +409,37 @@ class ClprBundleValidatorTest {
                 3L, replyPayload(10),
                 4L, dataPayload(1)));
 
-        assertThat(subject.validateReplies(channel, validated, queue)).isEqualTo(new ReplyValidation.AckedThrough(4));
+        assertThat(subject.validateReplies(channel, validated, queue, 1000))
+                .isEqualTo(new ReplyValidation.AckedThrough(
+                        4, validated.newMessages().size()));
+    }
+
+    @Test
+    void acceptsDataAtCapacityWhenALaterReplyInThePrefixFreesSpace() throws PreCheckException {
+        final var channel = CHANNEL.copyBuilder().nextMessageId(3).build();
+        final var messages = List.of(dataPayload(1), replyPayload(1));
+        final var validated = subject.validate(channel, withPeerAck(bundle(channel, messages), 1), LEDGER_CONFIG);
+        final var queue = queue(Map.of(1L, dataPayload(1), 2L, dataPayload(1)));
+
+        assertThat(subject.validateReplies(channel, validated, queue, 1))
+                .isEqualTo(new ReplyValidation.AckedThrough(1, 2));
+    }
+
+    @Test
+    void deferredReplyDoesNotAcknowledgeOutboundData() throws PreCheckException {
+        final var channel = CHANNEL.copyBuilder().nextMessageId(5).build();
+        final var messages = List.of(dataPayload(1), dataPayload(1), dataPayload(1), replyPayload(2));
+        final var validated = subject.validate(channel, withPeerAck(bundle(channel, messages), 2), LEDGER_CONFIG);
+        final var queue = queue(Map.of(
+                1L, configPayload(timestamp(11, 0)),
+                2L, dataPayload(1),
+                3L, dataPayload(1),
+                4L, dataPayload(1)));
+
+        // The one-way acknowledgement makes room for the first DATA. The later reply is deferred,
+        // so its target is still outstanding.
+        assertThat(subject.validateReplies(channel, validated, queue, 2))
+                .isEqualTo(new ReplyValidation.AckedThrough(1, 1));
     }
 
     @Test
@@ -418,7 +449,7 @@ class ClprBundleValidatorTest {
                 channel, withPeerAck(bundle(channel, List.of(replyPayload(2), replyPayload(1))), 2), LEDGER_CONFIG);
         final var queue = queue(Map.of(1L, dataPayload(1), 2L, dataPayload(1)));
 
-        assertThat(subject.validateReplies(channel, validated, queue))
+        assertThat(subject.validateReplies(channel, validated, queue, 1000))
                 .isEqualTo(new ReplyValidation.OrderingViolated(1, 2));
     }
 
@@ -429,7 +460,9 @@ class ClprBundleValidatorTest {
                 channel, withPeerAck(bundle(channel, List.of(replyPayload(2), dataPayload(1))), 3), LEDGER_CONFIG);
         final var queue = queue(Map.of(1L, configPayload(timestamp(11, 0)), 2L, dataPayload(1), 3L, dataPayload(1)));
 
-        assertThat(subject.validateReplies(channel, validated, queue)).isEqualTo(new ReplyValidation.AckedThrough(2));
+        assertThat(subject.validateReplies(channel, validated, queue, 1000))
+                .isEqualTo(new ReplyValidation.AckedThrough(
+                        2, validated.newMessages().size()));
     }
 
     @Test
@@ -437,7 +470,7 @@ class ClprBundleValidatorTest {
         final var channel = CHANNEL.copyBuilder().nextMessageId(2).build();
         final var validated = subject.validate(channel, withPeerAck(bundle(channel, List.of()), 1), LEDGER_CONFIG);
 
-        assertThatThrownBy(() -> subject.validateReplies(channel, validated, queue(Map.of(1L, dataPayload(1)))))
+        assertThatThrownBy(() -> subject.validateReplies(channel, validated, queue(Map.of(1L, dataPayload(1))), 1000))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(CLPR_NO_PROGRESS));
     }
@@ -448,7 +481,9 @@ class ClprBundleValidatorTest {
         final var validated = subject.validate(channel, withPeerAck(bundle(channel, List.of()), 2), LEDGER_CONFIG);
         final var queue = queue(Map.of(1L, configPayload(timestamp(11, 0)), 2L, replyPayload(10)));
 
-        assertThat(subject.validateReplies(channel, validated, queue)).isEqualTo(new ReplyValidation.AckedThrough(2));
+        assertThat(subject.validateReplies(channel, validated, queue, 1000))
+                .isEqualTo(new ReplyValidation.AckedThrough(
+                        2, validated.newMessages().size()));
     }
 
     @Test
@@ -458,7 +493,9 @@ class ClprBundleValidatorTest {
                 subject.validate(channel, bundle(channel, List.of(replyPayload(1), replyPayload(2))), LEDGER_CONFIG);
         final var queue = queue(Map.of(1L, configPayload(timestamp(11, 0)), 2L, replyPayload(10)));
 
-        assertThat(subject.validateReplies(channel, validated, queue)).isEqualTo(new ReplyValidation.AckedThrough(0));
+        assertThat(subject.validateReplies(channel, validated, queue, 1000))
+                .isEqualTo(new ReplyValidation.AckedThrough(
+                        0, validated.newMessages().size()));
     }
 
     @Test
@@ -466,7 +503,7 @@ class ClprBundleValidatorTest {
         final var channel = CHANNEL.copyBuilder().nextMessageId(2).build();
         final var validated = subject.validate(channel, bundle(channel, List.of(replyPayload(1))), LEDGER_CONFIG);
 
-        assertThat(subject.validateReplies(channel, validated, queue(Map.of(1L, dataPayload(1)))))
+        assertThat(subject.validateReplies(channel, validated, queue(Map.of(1L, dataPayload(1))), 1000))
                 .isEqualTo(new ReplyValidation.OrderingViolated(1, 1));
     }
 
@@ -479,7 +516,7 @@ class ClprBundleValidatorTest {
         final var validated =
                 subject.validate(channel, bundle(channel, List.of(replyPayload(replyTarget))), LEDGER_CONFIG);
 
-        assertThat(subject.validateReplies(channel, validated, queue(Map.of())))
+        assertThat(subject.validateReplies(channel, validated, queue(Map.of()), 1000))
                 .isEqualTo(new ReplyValidation.OrderingViolated(2, replyTarget));
     }
 
@@ -488,14 +525,15 @@ class ClprBundleValidatorTest {
         final var channel = CHANNEL.copyBuilder().nextMessageId(2).build();
         final var validated = subject.validate(channel, withPeerAck(bundle(channel, List.of()), 1), LEDGER_CONFIG);
 
-        assertThatThrownBy(() -> subject.validateReplies(channel, validated, queue(Map.of())))
+        assertThatThrownBy(() -> subject.validateReplies(channel, validated, queue(Map.of()), 1000))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(CLPR_INTERNAL_STATE_CORRUPTION));
     }
 
     @Test
-    void replyValidationSkipsAlreadyProcessedReplayPrefix() throws PreCheckException {
-        final var replay = replyPayload(1);
+    void replyValidationSkipsAlreadyProcessedReplayPrefixEvenWhenItsPayloadExceedsTheCurrentLimit()
+            throws PreCheckException {
+        final var replay = replyPayload(1, 4);
         final var channel = CHANNEL.copyBuilder()
                 .receivedMessageId(1)
                 .receivedRunningHash(ClprHashUtils.computeRunningHash(ZERO_HASH, replay))
@@ -509,8 +547,9 @@ class ClprBundleValidatorTest {
                 .build();
         final var validated = subject.validate(channel, content, LEDGER_CONFIG);
 
-        assertThat(subject.validateReplies(channel, validated, queue(Map.of(2L, dataPayload(1)))))
-                .isEqualTo(new ReplyValidation.AckedThrough(2));
+        assertThat(subject.validateReplies(channel, validated, queue(Map.of(2L, dataPayload(1))), 1000))
+                .isEqualTo(new ReplyValidation.AckedThrough(
+                        2, validated.newMessages().size()));
     }
 
     @Test
@@ -518,8 +557,9 @@ class ClprBundleValidatorTest {
         final var channel = CHANNEL.copyBuilder().ackedMessageId(1).build();
         final var validated = subject.validate(channel, anchorBundle(true, true), LEDGER_CONFIG);
 
-        assertThat(subject.validateReplies(channel, validated, queue(Map.of())))
-                .isEqualTo(new ReplyValidation.AckedThrough(1));
+        assertThat(subject.validateReplies(channel, validated, queue(Map.of()), 1000))
+                .isEqualTo(new ReplyValidation.AckedThrough(
+                        1, validated.newMessages().size()));
     }
 
     private static ReadableMessageQueueStore queue(final Map<Long, ClprMessagePayload> messages) {
@@ -540,8 +580,14 @@ class ClprBundleValidatorTest {
     }
 
     private static ClprMessagePayload replyPayload(final long messageId) {
+        return replyPayload(messageId, 0);
+    }
+
+    private static ClprMessagePayload replyPayload(final long messageId, final int payloadBytes) {
         return ClprMessagePayload.newBuilder()
-                .messageReply(ClprMessageReply.newBuilder().messageId(messageId))
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(messageId)
+                        .messageReplyData(Bytes.wrap(new byte[payloadBytes])))
                 .build();
     }
 

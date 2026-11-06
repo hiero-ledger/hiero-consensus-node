@@ -146,9 +146,9 @@ message ClprChannel {
 
     /**
      * Throttle limits advertised by the peer in its last ClprLedgerConfiguration.
-     * Used to validate outbound message payload sizes against the peer's capacity
-     * rather than the local ledger's own limits. Absent until the first ConfigUpdate
-     * is received from the peer; falls back to local throttles when null.
+     * Used to validate outbound payload sizes against the peer's capacity. Replies
+     * also obey the local ledger's payload limit. Falls back to local throttles
+     * for payload sizing when null.
      */
     ClprThrottles peer_throttles = 15;
 
@@ -195,4 +195,11 @@ message ClprChannel {
      * 0 = uninitialized (PENDING); >= 1 after completeChannel.
      */
     uint64 endpoint_manifest_version = 20;
+
+    /**
+     * Next outbound message ID to discard after administrative force-close.
+     * Zero until force-close starts. Cleanup is complete when this cursor
+     * reaches next_message_id (or 1 if no IDs were ever assigned).
+     */
+    uint64 queue_purge_cursor = 21;
 }

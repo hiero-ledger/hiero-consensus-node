@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -191,9 +192,12 @@ class ClprServiceApiImplTest {
     }
 
     @Test
-    @DisplayName("should reject when queue is full")
+    @DisplayName("should reject when the local queue is full even if the peer has more capacity")
     void rejectsWhenQueueFull() {
-        final var channel = createChannelWithQueue(ClprChannelStatus.ACTIVE, 10, 0);
+        final var channel = createChannelWithQueue(ClprChannelStatus.ACTIVE, 10, 0)
+                .copyBuilder()
+                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(100).build())
+                .build();
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
         given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
@@ -204,6 +208,24 @@ class ClprServiceApiImplTest {
         assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_QUEUE_FULL));
+    }
+
+    @Test
+    @DisplayName("should reject when the peer has less capacity for replies than the local queue has for sends")
+    void rejectsWhenPeerReplyCapacityIsFull() {
+        final var channel = createChannelWithQueue(ClprChannelStatus.ACTIVE, 16, 5)
+                .copyBuilder()
+                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(10).build())
+                .build();
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(createConnector());
+
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_QUEUE_FULL));
+        verifyNoInteractions(messageQueueStore, channelWriteStore);
     }
 
     @Test
@@ -421,19 +443,22 @@ class ClprServiceApiImplTest {
     }
 
     @Test
-    @DisplayName("stale config: should allow when queueDepth = maxQueueDepth-2 — room for both control and data")
+    @DisplayName("should allow a stale config update and DATA to reach the peer's reply capacity")
     void allowsWhenQueueHasRoomForStaleConfigUpdate() {
-        // queueDepth(8) + reservedSlots(1) = 9 < maxQueueDepth(10) → ALLOW; control at 8, data at 9
+        // Eight outstanding slots leave room for both control at 9 and DATA at 10.
         final var staleTimestamp = Timestamp.newBuilder().seconds(500).nanos(0).build();
-        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 8, 0, staleTimestamp);
+        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 9, 0, staleTimestamp)
+                .copyBuilder()
+                .peerThrottles(ClprThrottles.newBuilder().maxQueueDepth(10).build())
+                .build();
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
-        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100));
         given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
                 .willReturn(connector);
 
         final var result = subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA);
-        assertThat(result).isEqualTo(9L);
+        assertThat(result).isEqualTo(10L);
     }
 
     @Test

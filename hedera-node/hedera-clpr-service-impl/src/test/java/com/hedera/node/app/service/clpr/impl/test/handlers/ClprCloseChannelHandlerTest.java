@@ -6,6 +6,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,10 +23,20 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.clpr.ClprCloseChannelTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
+import com.hedera.hapi.node.state.clpr.ClprConnector;
+import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
+import com.hedera.hapi.node.state.clpr.ClprControlMessage;
+import com.hedera.hapi.node.state.clpr.ClprMessage;
+import com.hedera.hapi.node.state.clpr.ClprMessageKey;
+import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
+import com.hedera.hapi.node.state.clpr.ClprMessageReply;
+import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
+import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCloseChannelHandler;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -73,6 +85,8 @@ class ClprCloseChannelHandlerTest {
     private ClprCloseChannelHandler subject;
     private WritableChannelStore channelStore;
     private WritablePendingCommitmentStore commitmentStore;
+    private WritableConnectorStore connectorStore;
+    private WritableMessageQueueStore queueStore;
     private MapWritableKVState<ProtoBytes, ClprChannel> writableChannels;
 
     @BeforeEach
@@ -94,6 +108,22 @@ class ClprCloseChannelHandlerTest {
                 .when(writableStates.<ProtoBytes, ProtoBytes>get(PENDING_COMMITMENTS_STATE_ID))
                 .thenReturn(writableCommitments);
         commitmentStore = new WritablePendingCommitmentStore(writableStates);
+
+        final var writableConnectors = MapWritableKVState.<ClprConnectorKey, ClprConnector>builder(
+                        CONNECTORS_STATE_ID, "ClprService:CONNECTORS")
+                .build();
+        lenient()
+                .when(writableStates.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID))
+                .thenReturn(writableConnectors);
+        connectorStore = new WritableConnectorStore(writableStates);
+
+        final var writableQueue = MapWritableKVState.<ClprMessageKey, ClprMessageValue>builder(
+                        MESSAGE_QUEUE_STATE_ID, "ClprService:MESSAGE_QUEUE")
+                .build();
+        lenient()
+                .when(writableStates.<ClprMessageKey, ClprMessageValue>get(MESSAGE_QUEUE_STATE_ID))
+                .thenReturn(writableQueue);
+        queueStore = new WritableMessageQueueStore(writableStates);
     }
 
     // ========== pureChecks tests ==========
@@ -116,6 +146,20 @@ class ClprCloseChannelHandlerTest {
     void passesWithValidChannelId() throws PreCheckException {
         given(pureChecksContext.body()).willReturn(validTxn());
         subject.pureChecks(pureChecksContext);
+    }
+
+    @Test
+    void rejectsForceCloseWithAnOwnershipCommitment() {
+        final var op = ClprCloseChannelTransactionBody.newBuilder()
+                .channelId(CHANNEL_ID)
+                .ownershipCommitment(COMMITMENT)
+                .forceClose(true)
+                .build();
+        given(pureChecksContext.body()).willReturn(txnWith(op));
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSACTION_BODY));
     }
 
     // ========== handle tests ==========
@@ -338,7 +382,115 @@ class ClprCloseChannelHandlerTest {
                 .has(responseCode(CLPR_CHANNEL_NOT_FOUND));
     }
 
+    @Test
+    void forceClosePurgesPendingSlotsInBoundedBatches() {
+        final var connectorId = COMMITMENT;
+        final var connectorKey = new ClprConnectorKey(CHANNEL_ID, connectorId);
+        connectorStore.put(ClprConnector.newBuilder()
+                .channelId(CHANNEL_ID)
+                .connectorId(connectorId)
+                .inFlightMessageCount(2)
+                .build());
+        final var initial = ClprChannel.newBuilder()
+                .channelId(CHANNEL_ID)
+                .status(ClprChannelStatus.CLOSING)
+                .ownershipCommitment(COMMITMENT)
+                .nextMessageId(20L)
+                .ackedMessageId(1L)
+                .sentRunningHash(COMMITMENT)
+                .build();
+        channelStore.put(initial);
+        commitmentStore.put(COMMITMENT);
+        final var data = ClprMessagePayload.newBuilder()
+                .message(ClprMessage.newBuilder().connectorId(connectorId))
+                .build();
+        final var control = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.DEFAULT)
+                .build();
+        final var largeReply = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(1L)
+                        .messageReplyData(Bytes.wrap(new byte[2 * 1024 * 1024])))
+                .build();
+        // Include a sparse range and another channel with the same sequence number.
+        queueStore.put(CHANNEL_ID, 2L, queueValue(largeReply));
+        queueStore.put(CHANNEL_ID, 3L, queueValue(control));
+        queueStore.put(CHANNEL_ID, 17L, queueValue(data));
+        queueStore.put(CHANNEL_ID, 18L, queueValue(data));
+        final var anotherChannel = COMMITMENT;
+        queueStore.put(anotherChannel, 2L, queueValue(largeReply));
+        setupForceCloseContext();
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID))
+                .isEqualTo(initial.copyBuilder()
+                        .status(ClprChannelStatus.CLOSED)
+                        .queuePurgeCursor(18L)
+                        .build());
+        assertThat(queueStore.getMessage(CHANNEL_ID, 2L)).isNull();
+        assertThat(queueStore.getMessage(CHANNEL_ID, 3L)).isNull();
+        assertThat(queueStore.getMessage(CHANNEL_ID, 17L)).isNull();
+        assertThat(queueStore.getMessage(CHANNEL_ID, 18L)).isNotNull();
+        assertThat(connectorStore.getConnector(connectorKey).inFlightMessageCount())
+                .isEqualTo(1L);
+
+        subject.handle(handleContext);
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).queuePurgeCursor()).isEqualTo(20L);
+        assertThat(queueStore.getMessage(CHANNEL_ID, 18L)).isNull();
+        assertThat(connectorStore.getConnector(connectorKey).inFlightMessageCount())
+                .isZero();
+        assertThat(queueStore.getMessage(anotherChannel, 2L)).isEqualTo(queueValue(largeReply));
+        assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
+        then(channelLifecycle).should().onChannelClosed(CHANNEL_ID);
+    }
+
+    @Test
+    void forceCloseRecoversQueueForAnAlreadyClosedChannel() {
+        putChannelWithMessageIds(ClprChannelStatus.CLOSED, 2L, 0L);
+        final var reply = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder().messageId(1L))
+                .build();
+        queueStore.put(CHANNEL_ID, 1L, queueValue(reply));
+        setupForceCloseContext();
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.CLOSED);
+        assertThat(queueStore.getMessage(CHANNEL_ID, 1L)).isNull();
+        then(channelLifecycle).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void forceCloseRejectsPendingChannel() {
+        putChannel(ClprChannelStatus.PENDING);
+        setupForceCloseContext();
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_INVALID_CHANNEL_STATUS));
+        assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PENDING);
+        then(channelLifecycle).shouldHaveNoInteractions();
+    }
+
     // ========== Helper methods ==========
+
+    private void setupForceCloseContext() {
+        setupHandleContext(txnWith(ClprCloseChannelTransactionBody.newBuilder()
+                .channelId(CHANNEL_ID)
+                .forceClose(true)
+                .build()));
+        lenient()
+                .when(storeFactory.writableStore(WritableMessageQueueStore.class))
+                .thenReturn(queueStore);
+        lenient().when(storeFactory.writableStore(WritableConnectorStore.class)).thenReturn(connectorStore);
+    }
+
+    private static ClprMessageValue queueValue(final ClprMessagePayload payload) {
+        return ClprMessageValue.newBuilder().payload(payload).build();
+    }
 
     private void putChannel(final ClprChannelStatus status) {
         final var channel = ClprChannel.newBuilder()

@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATIO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -15,14 +16,13 @@ import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
-import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Iterator;
+import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -116,7 +116,7 @@ public class ClprBundleValidator {
      *       draining; or advances the endpoint manifest. A claimed acknowledgement is only matched against the
      *       outbound queue later, by {@link #validateReplies}, because the peer may legitimately defer a reply.</li>
      *   <li><b>Size limits</b> (spec §3.5.4): at most {@link ClprThrottles#maxMessagesPerBundle()} messages, and, when
-     *       {@link ClprThrottles#maxMessagePayloadBytes()} is positive, no data message larger than that.</li>
+     *       {@link ClprThrottles#maxMessagePayloadBytes()} is positive, no data payload larger than that.</li>
      *   <li><b>Replay defense</b>: the bundle covers the peer's outbound ids that end at
      *       {@code metadata.next_message_id - 1}. Its first id must be at least 1 and at most
      *       {@code channel.received_message_id + 1}, so it skips nothing we have not received, and its last id must be
@@ -126,7 +126,8 @@ public class ClprBundleValidator {
      *   <li><b>Running hash</b> (spec §4.2 Step 4, §4.4): folding only the new messages into
      *       {@link ClprChannel#receivedRunningHash()} must give the peer's attested {@code sent_running_hash}. The
      *       replayed prefix is already folded into the stored hash. An empty stored hash is only valid before the
-     *       first message has been received, and then starts from 32 zero bytes.</li>
+     *       first message has been received, and then starts from 32 zero bytes. Replies are hashed as attested,
+     *       even if their data exceeds the current application callback limit.</li>
      *   <li><b>Acknowledgement bounds</b>: the peer's {@code received_message_id} must not be below
      *       {@link ClprChannel#ackedMessageId()}, and, unless equal to it, must be below
      *       {@link ClprChannel#nextMessageId()}, the next id this ledger would assign.</li>
@@ -174,12 +175,12 @@ public class ClprBundleValidator {
         // handler against the outbound queue because replies may legitimately be deferred.
         final boolean hasTrustAnchorAdvancement =
                 newTrustAnchor.length() > 0 && !content.newTrustAnchorId().equals(channel.trustAnchorId());
-        final boolean hasProgressOtherThanAck = !messages.isEmpty()
-                || hasTrustAnchorAdvancement
+        final boolean hasStateProgress = hasTrustAnchorAdvancement
                 || isStateTransitionProgress(metadata.status(), channel.status())
                 || shouldUpdateManifest;
         validateTruePreCheck(
-                hasProgressOtherThanAck || metadata.receivedMessageId() > channel.ackedMessageId(), CLPR_NO_PROGRESS);
+                !messages.isEmpty() || hasStateProgress || metadata.receivedMessageId() > channel.ackedMessageId(),
+                CLPR_NO_PROGRESS);
 
         final var throttles = ledgerConfig.throttlesOrThrow();
         validateTruePreCheck(messages.size() <= throttles.maxMessagesPerBundle(), CLPR_BUNDLE_VERIFICATION_FAILED);
@@ -223,7 +224,7 @@ public class ClprBundleValidator {
                 CLPR_BUNDLE_VERIFICATION_FAILED);
 
         validateControlMessages(newMessages, ledgerConfig, channel.peerConfigTimestamp());
-        return new ValidatedBundle(content, newMessages, computedHash, hasProgressOtherThanAck, shouldUpdateManifest);
+        return new ValidatedBundle(content, newMessages, computedHash, hasStateProgress, shouldUpdateManifest);
     }
 
     /**
@@ -246,20 +247,26 @@ public class ClprBundleValidator {
      * submitting endpoint while still committing that outcome, and sync admission drops the bundle instead of
      * submitting a fee-bearing transaction.
      *
+     * <p>After validating the entire bundle's reply ordering, select the longest prefix whose replies
+     * fit in the outbound queue. Only replies in that prefix can advance the DATA acknowledgement.
+     * One-way acknowledgements and independently proved state updates can advance even at capacity.
+     *
      * @param channel the channel before this bundle is applied
      * @param bundle the result of {@link #validate} for the same channel and bundle
      * @param messageQueueStore this ledger's outbound message queue
-     * @return the highest outbound message id the bundle acknowledges, or the first ordering violation
+     * @param maxQueueDepth this ledger's ordinary outbound queue budget, also reserved once for replies
+     * @return the accepted prefix and its acknowledgement, or the first ordering violation
      * @throws PreCheckException with {@code CLPR_INTERNAL_STATE_CORRUPTION} if an outbound slot the peer has received
      *     is missing from the queue, or with {@code CLPR_NO_PROGRESS} if the bundle's only progress was a claimed
-     *     acknowledgement that its replies cannot advance; consensus handling does not penalize the endpoint for
-     *     either
+     *     acknowledgement that its replies cannot advance, or with {@code CLPR_QUEUE_FULL} if backpressure
+     *     prevents any progress; consensus handling does not penalize the endpoint for these failures
      */
     @NonNull
     public ReplyValidation validateReplies(
             @NonNull final ClprChannel channel,
             @NonNull final ValidatedBundle bundle,
-            @NonNull final ReadableMessageQueueStore messageQueueStore)
+            @NonNull final ReadableMessageQueueStore messageQueueStore,
+            final int maxQueueDepth)
             throws PreCheckException {
         requireNonNull(channel);
         requireNonNull(bundle);
@@ -267,11 +274,13 @@ public class ClprBundleValidator {
         final var metadata = bundle.content().metadata();
         final long oldAckedMessageId = channel.ackedMessageId();
         if (metadata == null) {
-            return new ReplyValidation.AckedThrough(oldAckedMessageId);
+            return new ReplyValidation.AckedThrough(oldAckedMessageId, 0);
         }
 
         final var channelId = channel.channelId();
-        final var remainingMessages = bundle.newMessages().iterator();
+        final var messages = bundle.newMessages();
+        final var checkpoints = new ArrayList<AckCheckpoint>();
+        int replyIndex = 0;
         final long peerReceivedMessageId = metadata.receivedMessageId();
         long newAckedMessageId = peerReceivedMessageId;
         for (long id = oldAckedMessageId + 1; id <= peerReceivedMessageId; id++) {
@@ -282,14 +291,20 @@ public class ClprBundleValidator {
             if (payload != null && (payload.hasControl() || payload.hasMessageReply())) {
                 continue;
             }
-            final var reply = nextReply(remainingMessages);
-            if (reply == null) {
+            while (replyIndex < messages.size() && !messages.get(replyIndex).hasMessageReply()) {
+                replyIndex++;
+            }
+            if (replyIndex == messages.size()) {
                 newAckedMessageId = id - 1;
                 break;
             }
-            if (reply.messageId() != id) {
-                return new ReplyValidation.OrderingViolated(id, reply.messageId());
+            final long repliedTo =
+                    messages.get(replyIndex).messageReplyOrThrow().messageId();
+            if (repliedTo != id) {
+                return new ReplyValidation.OrderingViolated(id, repliedTo);
             }
+            // Without this reply, the prefix can acknowledge all slots up to the preceding one.
+            checkpoints.add(new AckCheckpoint(replyIndex++, id - 1));
         }
 
         // Preserve the handler's precedence: reject ineffective ack-only progress before
@@ -297,8 +312,8 @@ public class ClprBundleValidator {
         validateTruePreCheck(
                 bundle.hasProgressOtherThanAck() || newAckedMessageId > oldAckedMessageId, CLPR_NO_PROGRESS);
 
-        while (remainingMessages.hasNext()) {
-            final var payload = remainingMessages.next();
+        for (; replyIndex < messages.size(); replyIndex++) {
+            final var payload = messages.get(replyIndex);
             if (!payload.hasMessageReply()) {
                 continue;
             }
@@ -313,38 +328,66 @@ public class ClprBundleValidator {
             }
             return new ReplyValidation.OrderingViolated(newAckedMessageId + 1, replyTargetId);
         }
-        return new ReplyValidation.AckedThrough(newAckedMessageId);
+        return selectPrefix(channel, bundle, newAckedMessageId, checkpoints, maxQueueDepth);
     }
 
-    /**
-     * Advances {@code messages} past the next reply and returns it, skipping messages of other kinds.
-     *
-     * @param messages the bundle's remaining new messages
-     * @return the next reply, or {@code null} once no reply is left
-     */
-    @Nullable
-    private static ClprMessageReply nextReply(@NonNull final Iterator<ClprMessagePayload> messages) {
-        while (messages.hasNext()) {
-            final var payload = messages.next();
-            if (payload.hasMessageReply()) {
-                return payload.messageReplyOrThrow();
+    private record AckCheckpoint(int replyIndex, long ackWithoutReply) {}
+
+    private static ReplyValidation.AckedThrough selectPrefix(
+            @NonNull final ClprChannel channel,
+            @NonNull final ValidatedBundle bundle,
+            final long fullAck,
+            @NonNull final List<AckCheckpoint> checkpoints,
+            final long maxQueueDepth)
+            throws PreCheckException {
+        final var messages = bundle.newMessages();
+        int checkpointIndex = 0;
+        int repliesNeeded = 0;
+        int acceptedCount = 0;
+        long acceptedAck = channel.ackedMessageId();
+        for (int count = 0; ; count++) {
+            if (checkpointIndex < checkpoints.size()
+                    && count > checkpoints.get(checkpointIndex).replyIndex()) {
+                checkpointIndex++;
+            }
+            final long prefixAck = checkpointIndex < checkpoints.size()
+                    ? checkpoints.get(checkpointIndex).ackWithoutReply()
+                    : fullAck;
+            final long remainingDepth = channel.nextMessageId() - prefixAck - 1;
+            // A later reply can free space, so keep scanning even when an earlier prefix did not fit.
+            // Nested sends and a config update can fill the ordinary budget during dispatch.
+            if (repliesNeeded == 0 || Math.max(maxQueueDepth, remainingDepth) + repliesNeeded <= 2 * maxQueueDepth) {
+                acceptedCount = count;
+                acceptedAck = prefixAck;
+            }
+            if (count == messages.size()) {
+                break;
+            }
+            if (messages.get(count).hasMessage()) {
+                repliesNeeded++;
             }
         }
-        return null;
+        validateTruePreCheck(
+                messages.isEmpty()
+                        || acceptedCount > 0
+                        || acceptedAck > channel.ackedMessageId()
+                        || bundle.hasStateProgress(),
+                CLPR_QUEUE_FULL);
+        return new ReplyValidation.AckedThrough(acceptedAck, acceptedCount);
     }
 
     /**
-     * Outcome of {@link #validateReplies}: either the bundle acknowledges our outbound messages through some id, or
-     * one of its replies breaks the ordering, in which case it acknowledges nothing.
+     * Outcome of {@link #validateReplies}: the accepted message prefix and acknowledgement, or a reply ordering
+     * violation.
      */
     public sealed interface ReplyValidation {
         /**
-         * The replies are in order.
+         * The replies are in order and the selected prefix fits the reply capacity.
          *
-         * @param lastAckedMessageId the highest outbound message id the bundle acknowledges; it stops just before the
-         *     first data message the bundle carries no reply for
+         * @param lastAckedMessageId the highest outbound message id the accepted prefix acknowledges
+         * @param acceptedMessageCount the number of new messages to process from the start of the new tail
          */
-        record AckedThrough(long lastAckedMessageId) implements ReplyValidation {}
+        record AckedThrough(long lastAckedMessageId, int acceptedMessageCount) implements ReplyValidation {}
 
         /**
          * A reply does not name the outbound message it had to acknowledge (spec §4.5).
@@ -457,8 +500,8 @@ public class ClprBundleValidator {
      *     metadata
      * @param receivedRunningHash the running hash after folding {@code newMessages} into the channel's received running
      *     hash; for a bundle without queue metadata, the channel's unchanged received running hash
-     * @param hasProgressOtherThanAck whether the bundle meets a progress criterion other than a claimed
-     *     acknowledgement; if it does not, {@link #validateReplies} requires its replies to advance the acknowledgement
+     * @param hasStateProgress whether the bundle carries an anchor, manifest, or status update that can
+     *     make progress without processing queued messages or acknowledgements
      * @param shouldUpdateManifest whether the bundle's endpoint manifest advances the channel's cached version and
      *     should be stored
      */
@@ -466,6 +509,10 @@ public class ClprBundleValidator {
             @NonNull ClprBundleContent content,
             @NonNull List<ClprMessagePayload> newMessages,
             @NonNull Bytes receivedRunningHash,
-            boolean hasProgressOtherThanAck,
-            boolean shouldUpdateManifest) {}
+            boolean hasStateProgress,
+            boolean shouldUpdateManifest) {
+        public boolean hasProgressOtherThanAck() {
+            return !content.messages().isEmpty() || hasStateProgress;
+        }
+    }
 }
