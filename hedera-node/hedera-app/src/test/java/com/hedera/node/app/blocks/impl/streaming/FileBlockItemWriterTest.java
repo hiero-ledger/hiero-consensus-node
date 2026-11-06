@@ -19,6 +19,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
@@ -37,7 +38,6 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,11 +52,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class FileBlockItemWriterTest {
 
-    private static final String MF = "000000000000000000000000000000000001.mf";
-    private static final String BLK_GZ = "000000000000000000000000000000000001.blk.gz";
-    private static final String PENDING_BLK_GZ = "000000000000000000000000000000000001.pnd.gz";
-    private static final String PENDING_PROOF_JSON = "000000000000000000000000000000000001.pnd.json";
-    private static final String OPEN_GZ = "000000000000000000000000000000000001.open.gz";
+    private static final String MF = "0000000000000000001.mf";
+    private static final String BLK_ZSTD = "0000000000000000001.blk.zstd";
+    private static final String PENDING_BLK_ZSTD = "0000000000000000001.pnd.zstd";
+    private static final String PENDING_PROOF_JSON = "0000000000000000001.pnd.json";
+    private static final String OPEN_ZSTD = "0000000000000000001.open.zstd";
 
     @TempDir
     Path tempDir;
@@ -84,7 +84,6 @@ class FileBlockItemWriterTest {
         lenient().when(selfNodeAccountIdManager.getSelfNodeAccountId()).thenReturn(selfNodeInfo.accountId());
         lenient().when(blockStreamConfig.blockFileBufferOuterSizeKb()).thenReturn(4096);
         lenient().when(blockStreamConfig.blockFileBufferInnerSizeKb()).thenReturn(1024);
-        lenient().when(blockStreamConfig.blockFileBufferGzipSizeKb()).thenReturn(256);
     }
 
     @Test
@@ -103,7 +102,7 @@ class FileBlockItemWriterTest {
         assertThat(Files.exists(expectedDirectory)).isTrue();
 
         // Assertion to check if the block file is created
-        final Path expectedBlockFile = expectedDirectory.resolve(BLK_GZ);
+        final Path expectedBlockFile = expectedDirectory.resolve(BLK_ZSTD);
         assertThat(Files.exists(expectedBlockFile)).isTrue();
 
         // Marker file should not exist yet since block is not closed
@@ -166,7 +165,7 @@ class FileBlockItemWriterTest {
         fileBlockItemWriter.closeCompleteBlock();
 
         final Path expectedDirectory = tempDir.resolve("block-0.0.3");
-        final Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
+        final Path expectedBlockFile = expectedDirectory.resolve("0000000000000000001.blk.zstd");
         final Path expectedMarkerFile = expectedDirectory.resolve(MF);
 
         // Verify both block file and marker file exist
@@ -176,9 +175,9 @@ class FileBlockItemWriterTest {
         // Verify marker file is empty
         assertThat(Files.size(expectedMarkerFile)).isZero();
 
-        // Ungzip the file
-        try (final GZIPInputStream gzis = new GZIPInputStream(Files.newInputStream(expectedBlockFile))) {
-            final byte[] fileContents = gzis.readAllBytes();
+        // Decompress the file
+        try (final var in = BlockFileUtils.openInputStream(expectedBlockFile)) {
+            final byte[] fileContents = in.readAllBytes();
 
             // Verify that the contents of the file match the Bytes object
             // Note: This assertion assumes that the file contains only the Bytes object and nothing else.
@@ -215,7 +214,7 @@ class FileBlockItemWriterTest {
         fileBlockItemWriter.closeCompleteBlock();
 
         final Path expectedDirectory = tempDir.resolve("block-0.0.3");
-        final Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
+        final Path expectedBlockFile = expectedDirectory.resolve("0000000000000000001.blk.zstd");
         final Path expectedMarkerFile = expectedDirectory.resolve(MF);
 
         // Verify both block file and marker file exist
@@ -225,9 +224,9 @@ class FileBlockItemWriterTest {
         // Verify marker file is empty
         assertThat(Files.size(expectedMarkerFile)).isZero();
 
-        // Ungzip the file
-        try (final GZIPInputStream gzis = new GZIPInputStream(Files.newInputStream(expectedBlockFile))) {
-            final byte[] fileContents = gzis.readAllBytes();
+        // Decompress the file
+        try (final var in = BlockFileUtils.openInputStream(expectedBlockFile)) {
+            final byte[] fileContents = in.readAllBytes();
 
             // Verify that the contents of the file match the Bytes object
             // Note: This assertion assumes that the file contains only the Bytes object and nothing else.
@@ -269,7 +268,7 @@ class FileBlockItemWriterTest {
         fileBlockItemWriter.closeCompleteBlock();
 
         final Path expectedDirectory = tempDir.resolve("block-0.0.3");
-        final Path expectedBlockFile = expectedDirectory.resolve("000000000000000000000000000000000001.blk.gz");
+        final Path expectedBlockFile = expectedDirectory.resolve("0000000000000000001.blk.zstd");
         final Path expectedMarkerFile = expectedDirectory.resolve(MF);
 
         // Verify both block file and marker file exist
@@ -333,7 +332,7 @@ class FileBlockItemWriterTest {
         subject.openBlock(1);
 
         final var emptyFile =
-                new File(tempDir.resolve("block-0.0.3").resolve(BLK_GZ).toString());
+                new File(tempDir.resolve("block-0.0.3").resolve(BLK_ZSTD).toString());
         assertTrue(emptyFile.exists(), "Open block should create an empty file");
         assertEquals(0, emptyFile.length(), "Empty file should have zero length");
 
@@ -362,11 +361,11 @@ class FileBlockItemWriterTest {
                 .build();
         subject.flushPendingBlock(pendingProof);
 
-        assertFalse(new File(tempDir.resolve("block-0.0.3").resolve(BLK_GZ).toString()).exists());
+        assertFalse(new File(tempDir.resolve("block-0.0.3").resolve(BLK_ZSTD).toString()).exists());
         assertFalse(new File(tempDir.resolve("block-0.0.3").resolve(MF).toString()).exists());
 
-        final var pendingBlock =
-                new File(tempDir.resolve("block-0.0.3").resolve(PENDING_BLK_GZ).toString());
+        final var pendingBlock = new File(
+                tempDir.resolve("block-0.0.3").resolve(PENDING_BLK_ZSTD).toString());
         assertTrue(pendingBlock.exists(), "Pending block should exist after flush");
         final var proofContext = new File(
                 tempDir.resolve("block-0.0.3").resolve(PENDING_PROOF_JSON).toString());
@@ -394,12 +393,12 @@ class FileBlockItemWriterTest {
         subject.flushIncompleteBlock();
 
         final var dir = tempDir.resolve("block-0.0.3");
-        // The partial .blk.gz is renamed to .open.gz; deliberately no completion marker and no pending-proof sidecar,
-        // so it is never treated as complete nor picked up by pending-block recovery.
-        assertFalse(new File(dir.resolve(BLK_GZ).toString()).exists(), "Complete block file should be renamed away");
+        // The partial .blk.zstd becomes .open.zstd with no marker and no proof sidecar, so recovery never picks it up.
+        assertFalse(new File(dir.resolve(BLK_ZSTD).toString()).exists(), "Complete block file should be renamed away");
         assertFalse(new File(dir.resolve(MF).toString()).exists(), "No completion marker for an incomplete block");
         assertFalse(new File(dir.resolve(PENDING_PROOF_JSON).toString()).exists(), "No pending-proof sidecar");
-        assertTrue(new File(dir.resolve(OPEN_GZ).toString()).exists(), "Incomplete (.open.gz) artifact should exist");
+        assertTrue(
+                new File(dir.resolve(OPEN_ZSTD).toString()).exists(), "Incomplete (.open.zstd) artifact should exist");
 
         // Calling again in a non-OPEN state is a no-op (best-effort, never throws)
         assertDoesNotThrow(subject::flushIncompleteBlock);
@@ -419,8 +418,8 @@ class FileBlockItemWriterTest {
                         .build())
                 .toByteArray());
 
-        // Pre-create the .open.gz target so the rename fails; the flush must swallow it (best-effort, never throws).
-        Files.writeString(tempDir.resolve("block-0.0.3").resolve(OPEN_GZ), "blocker");
+        // Pre-create the .open.zstd target so the rename fails; the flush must swallow it (best-effort, never throws).
+        Files.writeString(tempDir.resolve("block-0.0.3").resolve(OPEN_ZSTD), "blocker");
         assertDoesNotThrow(subject::flushIncompleteBlock);
     }
 
@@ -474,8 +473,15 @@ class FileBlockItemWriterTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"false, c03e01", "true, c03e01", "false, 0a03c03e01", "true, 0a03c03e01"})
-    void loadContiguousPendingBlocksRejectsUnknownFields(final boolean compressed, final String blockHex)
+    @CsvSource({
+        "plain, c03e01",
+        "gzip, c03e01",
+        "zstd, c03e01",
+        "plain, 0a03c03e01",
+        "gzip, 0a03c03e01",
+        "zstd, 0a03c03e01"
+    })
+    void loadContiguousPendingBlocksRejectsUnknownFields(final String compression, final String blockHex)
             throws IOException {
         final var dir = Files.createDirectory(tempDir.resolve("block-0.0.3"));
         final var pendingProof = PendingProof.newBuilder()
@@ -490,12 +496,20 @@ class FileBlockItemWriterTest {
         Files.writeString(dir.resolve(PENDING_PROOF_JSON), PendingProof.JSON.toJSON(pendingProof));
         // Field 1000, varint 1, at either Block level or inside its first BlockItem (field 1).
         final var bytes = Bytes.fromHex(blockHex).toByteArray();
-        if (compressed) {
-            try (final var out = new GZIPOutputStream(Files.newOutputStream(dir.resolve(PENDING_BLK_GZ)))) {
-                out.write(bytes);
+        final var plainName = PENDING_BLK_ZSTD.replace(".zstd", "");
+        switch (compression) {
+            case "gzip" -> {
+                try (final var out = new GZIPOutputStream(Files.newOutputStream(dir.resolve(plainName + ".gz")))) {
+                    out.write(bytes);
+                }
             }
-        } else {
-            Files.write(dir.resolve(PENDING_BLK_GZ.replace(".gz", "")), bytes);
+            case "zstd" -> {
+                try (final var out =
+                        BlockFileUtils.newZstdOutputStream(Files.newOutputStream(dir.resolve(PENDING_BLK_ZSTD)))) {
+                    out.write(bytes);
+                }
+            }
+            default -> Files.write(dir.resolve(plainName), bytes);
         }
 
         assertThat(FileBlockItemWriter.loadContiguousPendingBlocks(

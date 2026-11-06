@@ -123,7 +123,8 @@ public final class BlocksToPcesWorkflow {
      * Reads block files from {@code blockStreamDirectory}, reconstructs events in parallel, and
      * writes them to PCES files under {@code pcesOutputDir} in block order.
      *
-     * @param blockStreamDirectory directory containing the {@code .blk.gz} files (must be contiguous)
+     * @param blockStreamDirectory directory containing {@code .blk.zstd} or legacy {@code .blk.gz}/{@code .blk} files
+     *                             (must be contiguous)
      * @param pcesOutputDir directory where the PCES database tree is created (must be empty/new)
      * @param originRound the starting round of the state snapshot the PCES files will be replayed
      *     against; stamped as the PCES stream origin

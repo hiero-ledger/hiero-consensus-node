@@ -26,10 +26,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class FileAndGrpcBlockItemWriterTest {
 
-    private static final String BLK_GZ = "000000000000000000000000000000000001.blk.gz";
-    private static final String MF = "000000000000000000000000000000000001.mf";
-    private static final String PENDING_PROOF_JSON = "000000000000000000000000000000000001.pnd.json";
-    private static final String OPEN_GZ = "000000000000000000000000000000000001.open.gz";
+    private static final String BLK_ZSTD = "0000000000000000001.blk.zstd";
+    private static final String MF = "0000000000000000001.mf";
+    private static final String PENDING_PROOF_JSON = "0000000000000000001.pnd.json";
+    private static final String OPEN_ZSTD = "0000000000000000001.open.zstd";
 
     @TempDir
     Path tempDir;
@@ -56,7 +56,6 @@ class FileAndGrpcBlockItemWriterTest {
         when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
         lenient().when(blockStreamConfig.blockFileBufferOuterSizeKb()).thenReturn(4096);
         lenient().when(blockStreamConfig.blockFileBufferInnerSizeKb()).thenReturn(1024);
-        lenient().when(blockStreamConfig.blockFileBufferGzipSizeKb()).thenReturn(256);
         // Do not forward the normal stream to gRPC, so only the file half is exercised for open/write
         lenient().when(blockStreamConfig.streamToBlockNodes()).thenReturn(false);
         when(selfNodeAccountIdManager.getSelfNodeAccountId())
@@ -80,11 +79,12 @@ class FileAndGrpcBlockItemWriterTest {
 
         subject.flushIncompleteBlock();
 
-        // The file half persists the open block as a .open.gz triage artifact, with no .blk.gz, no completion marker,
+        // The file half persists the open block as a .open.zstd triage artifact, with no .blk.zstd, no completion
+        // marker,
         // and no pending-proof sidecar.
         final var dir = tempDir.resolve("block-0.0.3");
-        assertThat(Files.exists(dir.resolve(OPEN_GZ))).isTrue();
-        assertThat(Files.exists(dir.resolve(BLK_GZ))).isFalse();
+        assertThat(Files.exists(dir.resolve(OPEN_ZSTD))).isTrue();
+        assertThat(Files.exists(dir.resolve(BLK_ZSTD))).isFalse();
         assertThat(Files.exists(dir.resolve(MF))).isFalse();
         assertThat(Files.exists(dir.resolve(PENDING_PROOF_JSON))).isFalse();
     }

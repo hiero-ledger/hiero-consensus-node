@@ -9,6 +9,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
@@ -22,7 +23,6 @@ import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,7 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * (the in-memory buffer used in {@code writerMode=GRPC}, the production default). The mock-based
  * {@code GrpcBlockItemWriterTest} stubs {@code getBlockState(...)}; this test instead drives the real buffer lifecycle
  * ({@code openBlock} + {@code addItem} via the writer) and verifies the open, unproven block is persisted to disk as a
- * recoverable-by-analysis {@code .open.gz} artifact — closing the residual gap that only a real-buffer run can cover.
+ * recoverable-by-analysis {@code .open.zstd} artifact — closing the residual gap that only a real-buffer run can cover.
  */
 @ExtendWith(MockitoExtension.class)
 class GrpcBlockItemWriterBufferIntegrationTest {
@@ -98,12 +98,13 @@ class GrpcBlockItemWriterBufferIntegrationTest {
 
         writer.flushIncompleteBlock();
 
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
+        final var baseName = BlockFileUtils.blockNumberToFileName(blockNumber);
         final var dir = tempDir.resolve("block-0.0.3");
-        // The open block is persisted as a .open.gz triage artifact only: no complete block, no pending block/sidecar.
-        assertThat(Files.exists(dir.resolve(baseName + ".open.gz"))).isTrue();
-        assertThat(Files.exists(dir.resolve(baseName + ".blk.gz"))).isFalse();
-        assertThat(Files.exists(dir.resolve(baseName + ".pnd.gz"))).isFalse();
+        // The open block is persisted as a .open.zstd triage artifact only: no complete block, no pending
+        // block/sidecar.
+        assertThat(Files.exists(dir.resolve(baseName + ".open.zstd"))).isTrue();
+        assertThat(Files.exists(dir.resolve(baseName + ".blk.zstd"))).isFalse();
+        assertThat(Files.exists(dir.resolve(baseName + ".pnd.zstd"))).isFalse();
         assertThat(Files.exists(dir.resolve(baseName + ".pnd.json"))).isFalse();
 
         // The block is still OPEN in the real buffer (the writer must not close it, which would make it eligible for
@@ -114,7 +115,7 @@ class GrpcBlockItemWriterBufferIntegrationTest {
 
         // The artifact round-trips back to a Block for analysis (BlockBytes is wire-identical to Block).
         final byte[] contents;
-        try (final var in = new GZIPInputStream(Files.newInputStream(dir.resolve(baseName + ".open.gz")))) {
+        try (final var in = BlockFileUtils.openInputStream(dir.resolve(baseName + ".open.zstd"))) {
             contents = in.readAllBytes();
         }
         final var parsed = Block.PROTOBUF.parse(Bytes.wrap(contents));

@@ -2,7 +2,7 @@
 package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -46,7 +46,7 @@ public interface BlockItemWriter {
 
     /**
      * Flushes the current OPEN, unproven block to local disk for triage after a catastrophic failure (e.g. an ISS),
-     * as an {@code .open.gz} artifact: the gzipped block items, parseable as a {@link
+     * as an {@code .open.zstd} artifact: the Zstandard-compressed block items, parseable as a {@link
      * com.hedera.hapi.block.stream.Block} for analysis. Unlike {@link #flushPendingBlock(PendingProof)}, this is
      * deliberately NOT a recoverable pending block — it has no {@code .pnd.json} proof sidecar (so pending-block
      * recovery never picks it up) and no completion marker (so it is never mistaken for a finished/proven block).
@@ -62,7 +62,6 @@ public interface BlockItemWriter {
     void flushIncompleteBlock();
 
     default Path pendingProofPath(@NonNull final Path blockDir, final long blockNumber) {
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        return blockDir.resolve(baseName + ".pnd.json");
+        return blockDir.resolve(BlockFileUtils.pendingProofFileName(blockNumber));
     }
 }

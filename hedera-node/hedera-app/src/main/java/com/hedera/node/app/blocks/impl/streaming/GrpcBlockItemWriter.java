@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.internal.BlockBytes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -18,7 +19,6 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -31,8 +31,6 @@ import org.apache.logging.log4j.Logger;
  */
 public class GrpcBlockItemWriter implements BlockItemWriter {
     private static final Logger logger = LogManager.getLogger(GrpcBlockItemWriter.class);
-    private static final String COMPLETE_PENDING_EXTENSION = ".pnd.gz";
-    private static final String INCOMPLETE_EXTENSION = ".open.gz";
     private final BlockBufferService blockBufferService;
     private final ConfigProvider configProvider;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
@@ -138,8 +136,8 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         }
         try {
             Files.createDirectories(nodeScopedBlockDir);
-            final var contentsPath = pendingContentsPath(nodeScopedBlockDir, blockNumber);
-            try (final var out = new GZIPOutputStream(Files.newOutputStream(contentsPath))) {
+            final var contentsPath = nodeScopedBlockDir.resolve(BlockFileUtils.pendingFileName(blockNumber));
+            try (final var out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(contentsPath))) {
                 // BlockBytes is wire-identical to Block, so this file parses back as a Block on recovery.
                 out.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
             }
@@ -151,15 +149,10 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    private Path pendingContentsPath(@NonNull final Path blockDir, final long blockNumber) {
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        return blockDir.resolve(baseName + COMPLETE_PENDING_EXTENSION);
-    }
-
     @Override
     public void flushIncompleteBlock() {
-        // Persist the open, unproven block's buffered items as a ".open.gz" triage artifact (gzipped BlockBytes,
-        // wire-identical to a Block so it parses back for analysis). We write NO ".pnd.json" proof sidecar, so it is
+        // Persist the open, unproven block's buffered items as a ".open.zstd" triage artifact. The compressed
+        // BlockBytes are wire-identical to a Block for analysis. We write NO ".pnd.json" proof sidecar, so it is
         // never picked up by pending-block recovery nor mistaken for a finished block. We also deliberately do NOT
         // close the block in the buffer service: a closed block would become eligible for the buffer's own
         // persistence/recovery path, which would re-introduce the same hazard. Best-effort: never throws.
@@ -181,18 +174,13 @@ public class GrpcBlockItemWriter implements BlockItemWriter {
                 return;
             }
             Files.createDirectories(nodeScopedBlockDir);
-            final var contentsPath = incompleteContentsPath(nodeScopedBlockDir, blockNumber);
-            try (final var out = new GZIPOutputStream(Files.newOutputStream(contentsPath))) {
+            final var contentsPath = nodeScopedBlockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber));
+            try (final var out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(contentsPath))) {
                 out.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
             }
             logger.info("Flushed incomplete block #{} for triage to {}", blockNumber, contentsPath);
         } catch (final Exception e) {
             logger.error("Error flushing incomplete block #{}", blockNumber, e);
         }
-    }
-
-    private Path incompleteContentsPath(@NonNull final Path blockDir, final long blockNumber) {
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        return blockDir.resolve(baseName + INCOMPLETE_EXTENSION);
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.streams;
 
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_PARENT_DIR;
 import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.blockNodeCopyProblems;
 import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.findCompleteBlockIn;
 import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.joinRethrowingCause;
@@ -9,6 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -17,7 +20,11 @@ import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.spec.HapiSpec;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -104,6 +111,37 @@ class StreamValidationOpTest {
         // The early-return on extractBlockNumber == -1 fires before any I/O, so the peer dir
         // is never actually walked — passing a @TempDir keeps the test self-contained.
         assertNull(findCompleteBlockIn(List.of(tmp), Path.of("not-a-block-file")));
+    }
+
+    @Test
+    void diagnosticDumpUsesNewCompressedFormatAndMarker(@TempDir final Path dir) throws Exception {
+        final var write = StreamValidationOp.class.getDeclaredMethod("writeBlockFileToDisk", Path.class, Block.class);
+        write.setAccessible(true);
+        write.invoke(null, dir, blockWithProof());
+        final var blockPath = dir.resolve("0000000000000000042.blk.zstd");
+        assertEquals(blockWithProof(), BlockStreamAccess.blockFrom(blockPath));
+        assertEquals(0L, Files.size(dir.resolve("0000000000000000042.mf")));
+    }
+
+    @Test
+    void scansNewPendingFormatAndRequiresProofMetadata(@TempDir final Path dir) throws Exception {
+        final var pending = dir.resolve("0000000000000000042.pnd.zstd");
+        try (final var out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(pending))) {
+            out.write(Block.PROTOBUF.toBytes(blockWithProof()).toByteArray());
+        }
+        assertEquals(List.of(), readPendingBlocks(dir));
+        Files.writeString(dir.resolve("0000000000000000042.pnd.json"), "{}");
+        assertEquals(List.of(blockWithProof()), readPendingBlocks(dir));
+    }
+
+    private static List<?> readPendingBlocks(final Path dir) throws Exception {
+        final var spec = mock(HapiSpec.class);
+        final var node = mock(HederaNode.class);
+        when(spec.getNetworkNodes()).thenReturn(List.of(node));
+        when(node.getExternalPath(BLOCK_STREAMS_PARENT_DIR)).thenReturn(dir);
+        final var read = StreamValidationOp.class.getDeclaredMethod("readPendingBlocksFromDisk", HapiSpec.class);
+        read.setAccessible(true);
+        return (List<?>) read.invoke(null, spec);
     }
 
     private static Block blockWithProof() {

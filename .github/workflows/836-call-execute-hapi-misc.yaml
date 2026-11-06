@@ -168,6 +168,7 @@ jobs:
           name: "HAPI Test (Misc)${{ inputs.name-suffix }} Failure Artifacts"
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.blk.zstd
             hedera-node/test-clients/build/**/*.rcd.gz
             hedera-node/test-clients/build/**/*.pb
             hedera-node/test-clients/build/**/*.pces
@@ -175,6 +176,7 @@ jobs:
             hedera-node/test-clients/build/*-test/**/*.log
             hedera-node/test-clients/output/**
             hedera-node/yahcli/build/**/*.blk.gz
+            hedera-node/yahcli/build/**/*.blk.zstd
             hedera-node/yahcli/build/**/*.rcd.gz
             hedera-node/yahcli/build/**/*.pb
             hedera-node/yahcli/build/**/*.pces

@@ -6,6 +6,8 @@ plugins {
 
 mainModuleInfo { runtimeOnly("org.junit.jupiter.engine") }
 
+testModuleInfo { requires("org.junit.jupiter.api") }
+
 application.mainClass = "com.hedera.statevalidation.StateOperatorCommand"
 
 tasks.fatModuleJar {

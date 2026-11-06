@@ -344,7 +344,7 @@ if should_run_step 3; then
 
     resolve_block_output_dir
 
-    if [[ -z "$(find "${BLOCK_OUTPUT_DIR}" -name '*.blk.gz' -newer "${JAR}" 2>/dev/null | head -1)" ]]; then
+    if [[ -z "$(find "${BLOCK_OUTPUT_DIR}" \( -name '*.blk.gz' -o -name '*.blk.zstd' -o -name '*.blk' \) -newer "${JAR}" 2>/dev/null | head -1)" ]]; then
         info "  Warning: no new block files detected in ${BLOCK_OUTPUT_DIR}. Check replay-pces logs."
     fi
 
@@ -363,13 +363,13 @@ if should_run_step 4; then
     # from the blocks an earlier step 3 left under ${REPLAY_OUT}/blockstream.
     [[ -n "${BLOCK_OUTPUT_DIR:-}" ]] || resolve_block_output_dir
 
-    # Remove any zero-sized blk.gz files that can break apply-blocks. This is a
+    # Remove any zero-sized block files that can break apply-blocks. This is a
     # cosmetic pre-clean, so tolerate a hiccup (with `pipefail`, a non-zero find —
     # e.g. `-delete` misbehaving on a drvfs/WSL mount under /mnt/c — would otherwise
     # promote to a fatal error and abort the whole run) rather than failing here.
-    deleted=$(find "${BLOCK_OUTPUT_DIR}" -type f -name "*.blk.gz" -size 0 -print -delete 2>/dev/null | wc -l) || deleted=0
+    deleted=$(find "${BLOCK_OUTPUT_DIR}" -type f \( -name "*.blk.gz" -o -name "*.blk.zstd" -o -name "*.blk" \) -size 0 -print -delete 2>/dev/null | wc -l) || deleted=0
     if [[ "${deleted}" -gt 0 ]]; then
-        info "Removed ${deleted} zero-sized blk.gz file(s)"
+        info "Removed ${deleted} zero-sized block file(s)"
     fi
 
     mkdir -p "${RESULTING_STATE}"

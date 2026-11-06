@@ -678,7 +678,7 @@ java -jar ./validator-<version>.jar blocks-to-pces \
 
 ### Options
 
-- `--block-stream-dir` (or `-d`) — Directory containing `.blk.gz` block stream files (required).
+- `--block-stream-dir` (or `-d`) — Directory containing `.blk.zstd` or legacy `.blk.gz`/`.blk` block stream files (required).
   Accepts a local path or a GCS URI (`gs://...`). When a GCS URI is provided, `--target-round`
   is required and the blocks are downloaded to a local cache directory before conversion.
 - `--origin-round` (or `-or`) — The round of the state snapshot these PCES files will be
