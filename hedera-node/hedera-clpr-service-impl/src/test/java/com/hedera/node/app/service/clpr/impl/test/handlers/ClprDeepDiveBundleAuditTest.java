@@ -815,6 +815,7 @@ class ClprDeepDiveBundleAuditTest {
             putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
             final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
             setupHandleContext(bundle, true);
+            putConnector();
 
             subject.handle(handleContext);
 
@@ -1188,6 +1189,7 @@ class ClprDeepDiveBundleAuditTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         subject.handle(handleContext);
 
@@ -1202,6 +1204,7 @@ class ClprDeepDiveBundleAuditTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         // Make dispatch throw — callback is best-effort
         given(handleContext.dispatch(any(DispatchOptions.class)))
@@ -2023,7 +2026,8 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
         assertThat(conn.slashCount()).isEqualTo(0);
 
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
     }
 
     @Test
@@ -2043,7 +2047,8 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(conn).isNotNull();
         assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
 
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
     }
 
     @Test

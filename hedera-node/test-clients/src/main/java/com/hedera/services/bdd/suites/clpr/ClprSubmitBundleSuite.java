@@ -4,6 +4,11 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
@@ -14,8 +19,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedge
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
@@ -26,10 +35,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_N
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_INVALID_CHANNEL_STATUS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.*;
+import java.math.BigInteger;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
@@ -55,6 +67,86 @@ public class ClprSubmitBundleSuite {
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
     private static final String CLPR_CONTRACT = "ClprSystemContract";
     private static final byte[] ZERO_HASH = new byte[32];
+
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"clpr.messageExecutionCost", "clpr.endpointMarginPercent"})
+    final Stream<DynamicTest> responseDeliveryChargesConnectorAndReimbursesSubmitter() {
+        final var crypto = new ClprChannelCrypto();
+        final var sourceApp = "SourceApplication";
+        final long executionCost = 2_000_000L;
+        final long charge = executionCost + executionCost * 25 / 100;
+        final var replies = List.of(
+                ClprMessagePayload.newBuilder()
+                        .setMessageReply(
+                                ClprMessageReply.newBuilder().setMessageId(1).setStatus(ClprMessageReplyStatus.SUCCESS))
+                        .build(),
+                ClprMessagePayload.newBuilder()
+                        .setMessageReply(ClprMessageReply.newBuilder()
+                                .setMessageId(2)
+                                .setStatus(ClprMessageReplyStatus.APPLICATION_ERROR))
+                        .build());
+        return hapiTest(
+                overriding("clpr.messageExecutionCost", Long.toString(executionCost)),
+                overriding("clpr.endpointMarginPercent", "25"),
+                clprUpdateLedgerConfiguration()
+                        .configuration(defaultLedgerConfig())
+                        .payingWith(GENESIS),
+                uploadInitCode(VERIFIER_CONTRACT, CONNECTOR_CONTRACT, sourceApp),
+                contractCreate(VERIFIER_CONTRACT),
+                contractCreate(CONNECTOR_CONTRACT),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_CONTRACT, ONE_HUNDRED_HBARS)),
+                clprRegisterChannel().ownershipCommitment(crypto.commitment()).payingWith(GENESIS),
+                clprCompleteChannel()
+                        .channelId(crypto.channelId())
+                        .publicKey(crypto.publicKey())
+                        .signature(crypto.signature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .verifierContract(VERIFIER_CONTRACT)
+                        .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
+                        .payingWith(GENESIS),
+                clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+                clprCompleteConnector()
+                        .connectorId(crypto.connectorId())
+                        .publicKey(crypto.publicKey())
+                        .signature(crypto.connectorSignature())
+                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .salt(crypto.connectorSalt())
+                        .channelId(crypto.channelId())
+                        .connectorContract(CONNECTOR_CONTRACT)
+                        .adminKeyName(GENESIS)
+                        .lockedStake(100_000_000L)
+                        .payingWith(GENESIS),
+                contractCreate(sourceApp, crypto.channelId(), crypto.connectorId(), new byte[20]),
+                contractCall(sourceApp, "sendMessages", BigInteger.TWO)
+                        .gas(2_000_000L)
+                        .payingWith(GENESIS),
+                getAccountBalance(CONNECTOR_CONTRACT).hasTinyBars(ONE_HUNDRED_HBARS),
+                clprSubmitBundle()
+                        .channelId(crypto.channelId())
+                        .bundlePayload(toBundleProofBytes(ClprChannelStatus.ACTIVE, 0, 2, ZERO_HASH, replies))
+                        .endpointNodeId(0L)
+                        .payingWith(GENESIS)
+                        .via("chargedResponses"),
+                // The exact balance delta also detects accidental additional EVM gas charges.
+                getAccountBalance(CONNECTOR_CONTRACT).hasTinyBars(ONE_HUNDRED_HBARS - 2 * charge),
+                contractCallLocal(sourceApp, "responseCount")
+                        .has(resultWith()
+                                .resultViaFunctionName(
+                                        "responseCount", sourceApp, isLiteralResult(new Object[] {BigInteger.TWO}))),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        getTxnRecord("chargedResponses")
+                                .hasHbarAmount(CONNECTOR_CONTRACT, -2 * charge)
+                                .exposingTo(record -> {
+                                    final var payer = spec.registry().getAccountID(GENESIS);
+                                    final long payerDelta = record.getTransferList().getAccountAmountsList().stream()
+                                            .filter(aa -> aa.getAccountID().equals(payer))
+                                            .mapToLong(AccountAmount::getAmount)
+                                            .sum();
+                                    assertThat(payerDelta).isEqualTo(2 * charge - record.getTransactionFee());
+                                }))));
+    }
 
     @LeakyHapiTest(
             requirement = PROPERTY_OVERRIDES,

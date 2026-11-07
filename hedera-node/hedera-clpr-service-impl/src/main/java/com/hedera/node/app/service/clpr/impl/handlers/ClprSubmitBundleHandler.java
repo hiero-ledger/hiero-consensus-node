@@ -467,10 +467,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         outbound.enqueueReply(
                                 receivedMessageId, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND, Bytes.EMPTY);
                     } else {
-                        // Compute worst-case charge: execution cost + endpoint margin
-                        final var executionCost = clprConfig.messageExecutionCost();
-                        final var margin = executionCost * clprConfig.endpointMarginPercent() / 100;
-                        final var worstCaseCharge = executionCost + margin;
+                        final var worstCaseCharge = messageExecutionCharge(clprConfig);
 
                         // Validate the connector has sufficient balance before dispatching.
                         // Use getContractById to handle both contractNum and evmAddress forms.
@@ -725,11 +722,29 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         continue;
                     }
 
-                    // Deliver response to the originating application (best-effort). The response might even be
-                    // CONNECTOR_NOT_FOUND or some other error, or that the remote side is CLOSED. Whatever it is,
-                    // we must inform the originating application so it can do proper bookkeeping.
+                    // Response delivery uses the same prepaid execution charge as data delivery (§4.2).
+                    // Debit before yielding to application code, even for error responses. A callback failure
+                    // does not refund the charge. Without a funded connector, skip the callback but still
+                    // consume the terminal reply and release its in-flight slot; never reply to a reply.
+                    final var sourceConnectorKey = new ClprConnectorKey(channelId, origDataMsg.connectorId());
+                    var sourceConnector = connectorStore.getConnector(sourceConnectorKey);
                     final var senderAddress = origDataMsg.sender();
-                    if (senderAddress.length() > 0) {
+                    boolean responseUnderfunded = false;
+                    boolean responsePrepaid = false;
+                    if (senderAddress.length() > 0 && sourceConnector != null) {
+                        final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
+                        final var connectorAccount =
+                                accountStore.getContractById(sourceConnector.connectorContractOrThrow());
+                        final var charge = messageExecutionCharge(clprConfig);
+                        responseUnderfunded = connectorAccount == null || connectorAccount.tinybarBalance() < charge;
+                        if (!responseUnderfunded) {
+                            storeFactory
+                                    .serviceApi(TokenServiceApi.class)
+                                    .transferFromTo(connectorAccount.accountIdOrThrow(), context.payer(), charge);
+                            responsePrepaid = true;
+                        }
+                    }
+                    if (responsePrepaid) {
                         final var callData = encodeOnClprResponse(
                                 channelId, replyTargetId, reply.status(), reply.messageReplyData());
                         // Use EntityIdFactory so shard/realm match this network
@@ -779,18 +794,20 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         // (e.g. PingPong's bounce) are observed automatically on the next enqueue.
                     } else {
                         log.debug(
-                                "[ClprSubmitBundle] skipping onClprResponse dispatch — originating msg has no sender "
-                                        + "(replyTargetId={} status={})",
+                                "[ClprSubmitBundle] skipping onClprResponse dispatch replyTargetId={} "
+                                        + "status={} hasSender={} connectorPresent={} underfunded={}",
                                 replyTargetId,
-                                reply.status());
+                                reply.status(),
+                                senderAddress.length() > 0,
+                                sourceConnector != null,
+                                responseUnderfunded);
                     }
 
-                    // Source-side slashing on failure responses. That is, if we sent a message to the remote ledger
-                    // and it replied indicating the connector on our side was at fault, then we will punish the
-                    // connector on our side accordingly.
+                    // Reload after the callback to preserve any nested sends' in-flight increments.
+                    // Slash once if either the remote connector failed or the local connector could not
+                    // fund response delivery. Slashing is separate from the execution charge above.
                     final var replyStatus = reply.status();
-                    final var sourceConnectorKey = new ClprConnectorKey(channelId, origDataMsg.connectorId());
-                    var sourceConnector = connectorStore.getConnector(sourceConnectorKey);
+                    sourceConnector = connectorStore.getConnector(sourceConnectorKey);
                     if (sourceConnector != null) {
                         // Decrement in-flight counter — this reply is a terminal event for the DATA message.
                         final long current = sourceConnector.inFlightMessageCount();
@@ -809,7 +826,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     current - 1);
                         }
 
-                        if (replyStatus == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
+                        if (responseUnderfunded
+                                || replyStatus == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
                                 || replyStatus == ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED) {
                             final var slashResult =
                                     ClprSlashingUtils.applySlash(sourceConnector, clprConfig, connectorStore);
@@ -1124,6 +1142,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             return hex;
         }
         return hex.substring(0, 64) + "...";
+    }
+
+    /**
+     * The prepaid tinybar charge for either application callback. Hiero currently prices message
+     * execution at a configured flat cost plus a network-wide endpoint margin, independently of gas
+     * consumed. Response delivery uses this same model; actual-gas pricing and per-connector margins
+     * from the cross-platform specification would require a separate change to both delivery paths.
+     */
+    private static long messageExecutionCharge(@NonNull final ClprConfig config) {
+        final var executionCost = config.messageExecutionCost();
+        return executionCost + executionCost * config.endpointMarginPercent() / 100;
     }
 
     /**
