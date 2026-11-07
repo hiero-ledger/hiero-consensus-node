@@ -9,6 +9,7 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresh
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.ReplayPcesCommand;
 import com.swirlds.base.time.Time;
@@ -250,7 +251,11 @@ public final class ReplayPcesWorkflow {
             // written from the signing callback, which flushPrimaryPipeline() does NOT wait for. Before we write
             // the state and destroy the platform, wait until every complete block file has its .mf marker and no
             // pending-proof (.pnd.json) files remain, so the block-stream output is valid for comparison.
-            awaitBlockFinalization(outDir.resolve("blockStreams"), BLOCK_FINALIZE_TIMEOUT);
+            // Use the directory the block writer actually writes to (it may be overridden with -D), not an assumed one:
+            // a missing directory reads as "nothing pending" and would silently skip this wait.
+            final Path blockStreamsDir = Path.of(
+                    platformConfig.getConfigData(BlockStreamConfig.class).blockFileDir());
+            awaitBlockFinalization(blockStreamsDir, BLOCK_FINALIZE_TIMEOUT);
 
             // --- Write the exact final replayed state, synchronously, to the output directory ---
             final long resultRound = writeFinalState(
