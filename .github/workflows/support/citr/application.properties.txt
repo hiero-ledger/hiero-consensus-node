@@ -12,13 +12,11 @@ blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/da
 
 staking.periodMins=360
 
-tss.forceMockSignatures=false
-
-blockStream.maxBlockSizeBytes=314572800
-
-tss.hintsEnabled=false
-tss.historyEnabled=false
-tss.forceMockSignatures=false
-blockStream.streamWrappedRecordBlocks=true
-
+#For migration
 blockStream.enableCutover=true
+
+tss.forceMockSignatures=true
+blockStream.maxBlockSizeBytes=314572800
+tss.hintsEnabled=true
+tss.historyEnabled=true
+blockStream.streamWrappedRecordBlocks=true
