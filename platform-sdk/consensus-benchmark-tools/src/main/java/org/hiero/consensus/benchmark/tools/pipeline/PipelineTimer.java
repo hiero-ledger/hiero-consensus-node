@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
@@ -102,9 +103,35 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *       thread, busy-waiting until then. The latency counts from the due time, so an entry point that holds the timer
  *       up counts. After the last input, it runs the drain, for example the pipeline's {@code flush()}.</li>
  *   <li>After the drain, still in {@code replay()}: the latency of every counted value that arrived goes into the pass's
- *       histogram, which the timer adds to {@link LatencyProfiler#recorder()}. Values that never arrived are skipped;
- *       {@link #arrivals()} returns how many did, for the benchmark's exact check.</li>
+ *       histogram. Values that never arrived are skipped; {@link #arrivals()} returns how many did, for the benchmark's
+ *       exact check.</li>
+ *   <li>If the pipeline did not keep up, {@code replay()} throws (see below). Otherwise it adds the pass to
+ *       {@link LatencyProfiler#recorder()}.</li>
  * </ol>
+ *
+ * <h2>Saturation</h2>
+ *
+ * <p>A pipeline that gets its inputs faster than it can process them falls behind: every input waits longer than the
+ * one before, so the latencies depend on the length of the pass and say nothing about the pipeline. If the inputs come
+ * a fraction ε faster than the pipeline's capacity, the latency grows by ε seconds per second of the pass. The timer
+ * compares the median latency of the inputs due in the last quarter of the pass with that of the first quarter, and
+ * divides the difference by the time between the quarters' centers. If that growth exceeds
+ * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} throws: lower the speedup. A pass with fewer than
+ * {@value #MIN_LATENCIES_PER_QUARTER} latencies in either quarter is not judged. Below their capacity, the pipelines
+ * measured so far, the event intake and the self-check {@code PipelineTimerBenchmark}, stayed below 0.13%, also in
+ * passes with short bursts; above it, the self-check's growth matched its overload.
+ *
+ * <p>A pipeline that drops inputs it cannot process in time, such as the intake, which drops events that turn ancient
+ * while they wait, shows saturation as missing arrivals rather than as growing latencies. The benchmark's exact check of
+ * {@link #arrivals()} catches it.
+ *
+ * <h2>Allocation and garbage collection</h2>
+ *
+ * <p>A pipeline allocates on its own threads, so the timer counts the bytes all threads of the JVM allocate during the
+ * pass ({@code com.sun.management.ThreadMXBean#getTotalThreadAllocatedBytes}). {@code LatencyProfiler} reports them per
+ * counted value as {@code alloc.norm}. Unlike a pass of {@link LatencyRecorder#startMeasurement()}, a pass with a
+ * garbage collection is not discarded: collections stop every pipeline thread, as in production, so they count as
+ * latency.
  *
  * <h2>Threads</h2>
  *
@@ -123,10 +150,13 @@ public final class PipelineTimer<I extends TimedInput> {
     private static final ThreadMXBean THREAD_MX_BEAN = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
     /**
-     * TEMPORARY (experiment of #27832, removed before the pull request): the sampler runs at most once per this
-     * period, while the timer waits or between two inputs that are due already.
+     * The largest growth of the latency, in seconds per second of the pass, of a pipeline that keeps up (see the class
+     * description).
      */
-    private static final long SAMPLER_PERIOD_NANOS = 1_000_000;
+    static final double MAX_LATENCY_GROWTH = 0.01;
+
+    /** The fewest latencies in each of the two quarters for the saturation check to judge a pass. */
+    static final int MIN_LATENCIES_PER_QUARTER = 100;
 
     /** The replayed inputs, in their order. */
     private final List<TimedInput> inputs;
@@ -155,9 +185,8 @@ public final class PipelineTimer<I extends TimedInput> {
     /** The latencies of the latest pass. */
     private final LatencyHistogram pass = LatencyRecorder.newHistogram();
 
-    /** TEMPORARY (experiment of #27832): runs once per {@link #SAMPLER_PERIOD_NANOS} during a pass, or {@code null}. */
-    @Nullable
-    private final Runnable sampler;
+    /** The latency of each replayed input in the latest pass, or -1 for one that does not count or did not arrive. */
+    private final long[] passLatencies;
 
     /** The recorder of the current iteration, or {@code null} before the first {@link #prepare()}. */
     @Nullable
@@ -169,12 +198,6 @@ public final class PipelineTimer<I extends TimedInput> {
     /** The counted values that arrived in the latest pass, or -1 before the first pass. */
     private int arrivals = -1;
 
-    /** TEMPORARY (experiment of #27832): the latency of each input in the latest pass, -1 if none counted. */
-    private final long[] passLatencies;
-
-    /** TEMPORARY (experiment of #27832): the bytes all threads allocated in the latest pass. */
-    private long passAllocatedBytes;
-
     @SuppressWarnings("unchecked")
     private PipelineTimer(
             @NonNull final List<TimedInput> inputs,
@@ -183,8 +206,7 @@ public final class PipelineTimer<I extends TimedInput> {
             @NonNull final long[] dueNanos,
             @NonNull final boolean[] counted,
             @NonNull final Runnable drain,
-            @NonNull final Output output,
-            @Nullable final Runnable sampler) {
+            @NonNull final Output output) {
         this.inputs = List.copyOf(inputs);
         this.valueFunctions = valueFunctions.toArray(new Function[0]);
         this.entries = entries.toArray(new Entry[0]);
@@ -192,7 +214,6 @@ public final class PipelineTimer<I extends TimedInput> {
         this.counted = counted;
         this.drain = drain;
         this.output = output;
-        this.sampler = sampler;
         this.passValues = new Object[dueNanos.length];
         this.passLatencies = new long[dueNanos.length];
         output.configure(counted);
@@ -242,8 +263,9 @@ public final class PipelineTimer<I extends TimedInput> {
      * Replays the inputs prepared by {@link #prepare()} into the pipeline at their due times, runs the drain, and adds
      * the latencies of the counted values to the profiler's recorder.
      *
-     * @throws IllegalStateException if {@link #prepare()} did not run since the latest pass, or if the output saw a
-     * value that did not enter in this pass, or a counted value twice
+     * @throws IllegalStateException if {@link #prepare()} did not run since the latest pass, if the output saw a value
+     * that did not enter in this pass, or a counted value twice, or if the pipeline did not keep up (see the class
+     * description); the pass is not recorded then
      */
     public void replay() {
         if (!prepared) {
@@ -253,22 +275,11 @@ public final class PipelineTimer<I extends TimedInput> {
         final long allocatedBefore = THREAD_MX_BEAN.getTotalThreadAllocatedBytes();
         output.replaying = true;
         final long start = System.nanoTime();
-        long lastSample = start - SAMPLER_PERIOD_NANOS;
         try {
             for (int i = 0; i < passValues.length; i++) {
                 final long due = start + dueNanos[i];
-                long now = System.nanoTime();
-                while (true) {
-                    if (sampler != null && now - lastSample >= SAMPLER_PERIOD_NANOS) {
-                        sampler.run();
-                        lastSample = now;
-                        now = System.nanoTime();
-                    }
-                    if (due - now <= 0) {
-                        break;
-                    }
+                while (due - System.nanoTime() > 0) {
                     Thread.onSpinWait();
-                    now = System.nanoTime();
                 }
                 entries[i].enter(passValues[i]);
             }
@@ -276,7 +287,7 @@ public final class PipelineTimer<I extends TimedInput> {
         } finally {
             output.replaying = false;
         }
-        passAllocatedBytes = THREAD_MX_BEAN.getTotalThreadAllocatedBytes() - allocatedBefore;
+        final long allocatedBytes = THREAD_MX_BEAN.getTotalThreadAllocatedBytes() - allocatedBefore;
         // the pass's copies can be collected before the next pass
         output.positions.clear();
         Arrays.fill(passValues, null);
@@ -296,7 +307,58 @@ public final class PipelineTimer<I extends TimedInput> {
             }
         }
         arrivals = arrived;
-        requireNonNull(recorder).recordPass(pass, passAllocatedBytes);
+
+        final double growth = latencyGrowth(dueNanos, passLatencies);
+        if (growth > MAX_LATENCY_GROWTH) {
+            throw new IllegalStateException(String.format(
+                    Locale.ROOT,
+                    "The pipeline did not keep up: its latency grew by %.2f%% of the elapsed time, more than the %.0f%%"
+                            + " of a pipeline that keeps up; lower the speedup",
+                    growth * 100,
+                    MAX_LATENCY_GROWTH * 100));
+        }
+        requireNonNull(recorder).recordPass(pass, allocatedBytes);
+    }
+
+    /**
+     * Computes how fast the latency grew during a pass: the median latency of the inputs due in the last quarter of the
+     * pass minus that of the first quarter, divided by the time between the quarters' centers.
+     *
+     * @param dueNanos the time each input was due, from the start of the pass, in ascending order
+     * @param latencies the latency of each input, or a negative value for one without a latency
+     * @return the growth in seconds per second, or {@link Double#NaN} if the pass has no length or a quarter has fewer
+     * than {@link #MIN_LATENCIES_PER_QUARTER} latencies
+     */
+    static double latencyGrowth(@NonNull final long[] dueNanos, @NonNull final long[] latencies) {
+        if (dueNanos.length == 0) {
+            return Double.NaN;
+        }
+        final long span = dueNanos[dueNanos.length - 1] - dueNanos[0];
+        if (span <= 0) {
+            return Double.NaN;
+        }
+        final long firstQuarterEnd = dueNanos[0] + span / 4;
+        final long lastQuarterStart = dueNanos[dueNanos.length - 1] - span / 4;
+        final long[] first = new long[latencies.length];
+        final long[] last = new long[latencies.length];
+        int firstCount = 0;
+        int lastCount = 0;
+        for (int i = 0; i < latencies.length; i++) {
+            if (latencies[i] >= 0) {
+                if (dueNanos[i] < firstQuarterEnd) {
+                    first[firstCount++] = latencies[i];
+                } else if (dueNanos[i] >= lastQuarterStart) {
+                    last[lastCount++] = latencies[i];
+                }
+            }
+        }
+        if (firstCount < MIN_LATENCIES_PER_QUARTER || lastCount < MIN_LATENCIES_PER_QUARTER) {
+            return Double.NaN;
+        }
+        Arrays.sort(first, 0, firstCount);
+        Arrays.sort(last, 0, lastCount);
+        // the quarters' centers are 3/4 of the span apart
+        return (last[lastCount / 2] - first[firstCount / 2]) / (0.75 * span);
     }
 
     /**
@@ -310,49 +372,6 @@ public final class PipelineTimer<I extends TimedInput> {
             throw new IllegalStateException("No pass has run");
         }
         return arrivals;
-    }
-
-    /**
-     * TEMPORARY (experiment of #27832, removed before the pull request): the latency of each replayed input in the
-     * latest pass, in input order, or -1 for an input that does not count or did not arrive.
-     *
-     * @return the latencies in ns
-     */
-    @NonNull
-    public long[] experimentPassLatencies() {
-        return passLatencies.clone();
-    }
-
-    /**
-     * TEMPORARY (experiment of #27832, removed before the pull request): the time each replayed input is due, from
-     * the start of a pass.
-     *
-     * @return the due times in ns
-     */
-    @NonNull
-    public long[] experimentDueNanos() {
-        return dueNanos.clone();
-    }
-
-    /**
-     * TEMPORARY (experiment of #27832, removed before the pull request): the bytes all threads allocated during the
-     * latest pass.
-     *
-     * @return the allocated bytes
-     */
-    public long experimentPassAllocatedBytes() {
-        return passAllocatedBytes;
-    }
-
-    /**
-     * TEMPORARY (experiment of #27832, removed before the pull request): whether the value of each replayed input
-     * counts at the output.
-     *
-     * @return one flag per replayed input, in input order
-     */
-    @NonNull
-    public boolean[] experimentCounted() {
-        return counted.clone();
     }
 
     /** Hands a value to the pipeline. */
@@ -448,9 +467,6 @@ public final class PipelineTimer<I extends TimedInput> {
 
         @Nullable
         private Runnable drain;
-
-        @Nullable
-        private Runnable sampler;
 
         private boolean built;
 
@@ -629,20 +645,6 @@ public final class PipelineTimer<I extends TimedInput> {
         }
 
         /**
-         * TEMPORARY (experiment of #27832, removed before the pull request): runs once per ms during a pass, on the
-         * timer's thread, while it waits or between two inputs that are due already. A run delays the next input by
-         * its own duration.
-         *
-         * @param sampler runs once per ms during a pass
-         * @return this builder
-         */
-        @NonNull
-        public Builder<I> experimentSampler(@NonNull final Runnable sampler) {
-            this.sampler = requireNonNull(sampler);
-            return this;
-        }
-
-        /**
          * Ends the configuration: keeps the inputs that have an entry point and a non-null value, and computes their due
          * times and whether their values count.
          *
@@ -698,7 +700,7 @@ public final class PipelineTimer<I extends TimedInput> {
                 counted[i] = keptCounted.get(i);
             }
             built = true;
-            return new PipelineTimer<>(kept, keptValues, keptEntries, dueNanos, counted, drain, output, sampler);
+            return new PipelineTimer<>(kept, keptValues, keptEntries, dueNanos, counted, drain, output);
         }
 
         @NonNull

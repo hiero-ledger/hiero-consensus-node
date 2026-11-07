@@ -87,14 +87,39 @@ Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `s
 
 ### A pipeline
 
-For code that passes items between threads, record the time of each item on entry and on exit, and add the difference
-to a
-[`LatencyHistogram`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyHistogram.java),
-one per thread.
+For code that hands its inputs on between threads, such as the event intake, use
+[`PipelineTimer`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/pipeline/PipelineTimer.java).
+It replays timed inputs, such as the steps of a node that Falcon recorded, at their recorded times, and records each
+input's latency from the time it was due until it reaches the pipeline's output. Its Javadoc shows the pattern: build
+the timer before the wiring model starts, call `prepare()` and `System.gc()` before every pass, and `replay()` in the
+benchmark method.
 
-- **Submit the items at a fixed rate, whether or not earlier items are done.** A benchmark that submits N items and
-  waits for them stops submitting while the code is slow, which hides the time items wait in queues (an error known as
-  coordinated omission).
+- **Hand on every input at its due time, whether or not earlier inputs are done.** A benchmark that hands on N inputs
+  and waits for them stops handing on while the code is slow, which hides the time inputs wait in queues (an error known
+  as coordinated omission). The timer counts the latency from the due time, so an entry point that holds it up counts.
+- **Inputs are replayed fresh in every pass.** A
+  [`TimedInput`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/pipeline/TimedInput.java)
+  returns an untouched copy for every pass (`pristine()`). Falcon's recorded steps
+  ([`Step`](../../../consensus-otter-tests/src/testFixtures/java/org/hiero/otter/fixtures/falcon/recording/Step.java))
+  hold their events in the state they have at that point in production; `Item` is a ready-made input for a benchmark
+  without a recording.
+- **One output per timer.** The output recognizes a value by its identity, so the pipeline must hand on the object it
+  got. A benchmark that needs a second output uses a second benchmark method: the percentiles of the parts of a
+  pipeline do not add up to those of the whole.
+- **Drain the pipeline** after the last input, for example with the components' `flush()` in the order the data flows.
+- **Check the arrivals after every invocation** against their exact expected value (`arrivals()`), and fail the
+  benchmark when a pipeline thread throws, with an
+  [`UncaughtExceptionCollector`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/pipeline/UncaughtExceptionCollector.java)
+  as the wiring model's uncaught exception handler.
+- **A pipeline that does not keep up fails the pass.** Its latency grows with the length of the pass and says nothing
+  about the pipeline. If the latency grows by more than 1% of the elapsed time, `replay()` throws.
+  - Choose the speedup with a one-time sweep (`-p speedup=…`), clearly below the one at which the pipeline starts to
+    fall behind or to lose inputs. Close to that point, short bursts appear in a few passes.
+  - A pipeline that drops inputs it cannot process in time shows saturation as missing arrivals instead: the intake
+    drops events that turn ancient while they wait. The exact check of the arrivals catches it.
+- **A garbage collection counts as latency.** Unlike a pass of single calls, a pipeline pass with a collection is not
+  discarded: a collection stops the pipeline's threads, as in production. `alloc.norm` is the bytes that all threads
+  allocate during the pass, per counted value.
 
 ### Reporting
 
@@ -139,6 +164,7 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
     calls.
   - The price is the time of the `System.gc()` and the setup of every pass, which calibration includes.
   - Frequent discards mean the heap is too small ([calibration.md](calibration.md#heap)).
+  - A pipeline benchmark discards no pass: its collections count as latency ([above](#a-pipeline)).
 
 ## JVM arguments
 
@@ -182,6 +208,12 @@ A profiled run proves that the benchmark measures the code under test.
    is right to measure them. In the example, the metric timing in
    [`ConsensusImpl#timedStronglySeeP`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java#timedStronglySeeP)
    is such a cost.
+
+**A pipeline benchmark runs on several threads,** which `profile-regions.sh` only counts as other threads. Record it
+with JMH's `-prof jfr` instead, and split the recording by component with
+[`jfr-components.sh`](../../../consensus-benchmark-tools/scripts/jfr-components.sh). Two of its buckets show the timer:
+"timer: waiting", its thread waiting for the next input's due time, which is expected, and "timer: output", the timer
+noting the arrivals on the pipeline's threads, which takes well under a percent.
 
 If `alloc.norm` takes a few distinct values that differ between forks, the JIT compiler compiled the code differently
 in different forks; [calibration.md](calibration.md#fork-modes) explains how to find out why.

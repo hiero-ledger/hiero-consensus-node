@@ -3,7 +3,6 @@ package org.hiero.consensus.benchmark.tools.pipeline;
 
 import com.swirlds.base.time.Time;
 import java.time.Duration;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -25,7 +24,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.IterationParams;
 
 /**
  * Checks the {@link PipelineTimer} on pipelines whose behavior is known. It checks the tool and is not a tracked
@@ -35,9 +33,11 @@ import org.openjdk.jmh.infra.IterationParams;
  *   <li>{@code direct}: the entry point hands each item to the output at once, on the timer's thread. The pipeline
  *       allocates nothing, so {@code alloc.norm} is what the timer itself allocates per item, and the latencies are the
  *       timer's own overhead.</li>
- *   <li>{@code stages}: two sequential schedulers of the wiring framework, each spinning {@value #STAGE_NANOS} ns per
- *       item, which caps the pipeline at 5,000 items/s. The items come at {@code load} times that capacity. Every
- *       latency is at least the sum of both times: {@code latency.min} is at least {@code 2 × STAGE_NANOS}.</li>
+ *   <li>{@code keepsUp}: two sequential schedulers of the wiring framework, each spinning {@value #STAGE_NANOS} ns per
+ *       item, which caps the pipeline at 5,000 items/s, get the items at half that rate. Every latency is at least the
+ *       sum of both times: {@code latency.min} is at least {@code 2 × STAGE_NANOS}.</li>
+ *   <li>{@code saturated}: the same pipeline gets the items at 1.1 times its capacity, so its latency grows by about 10%
+ *       of the elapsed time. Every pass must fail the timer's saturation check; the pass is then not recorded.</li>
  * </ul>
  *
  * <p>Profile it with {@code -prof jfr} and {@code jfr-components.sh}: the timer's busy-waiting shows as "timer:
@@ -53,29 +53,23 @@ import org.openjdk.jmh.infra.IterationParams;
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class PipelineTimerBenchmark {
 
-    /** The time each stage of the {@code stages} pipeline spins per item. */
+    /** The time each stage of the two-stage pipelines spins per item. */
     private static final long STAGE_NANOS = 200_000;
 
-    /** The capacity of the {@code stages} pipeline, in items per second. */
+    /** The capacity of the two-stage pipelines, in items per second. */
     private static final double STAGES_CAPACITY = 1e9 / STAGE_NANOS;
 
-    /** The items of a pass of the {@code stages} pipeline: 2 s at its capacity. */
-    private static final int STAGES_ITEMS = 10_000;
+    /** The length of a pass, in seconds of due times. */
+    private static final double PASS_SECONDS = 2;
 
-    /** The items of a pass of the {@code direct} pipeline, at 100,000 items/s. */
-    private static final int DIRECT_ITEMS = 50_000;
+    /** The rate of the {@code direct} pipeline's items, per second. */
+    private static final double DIRECT_RATE = 100_000;
 
     /** The unprocessed tasks a stage may hold before the health monitor counts it as unhealthy. */
     private static final long STAGE_CAPACITY = 500;
 
-    // TEMPORARY (experiment of #27832): only the stages, at loads around their capacity
-    @Param({"stages"})
+    @Param({"direct", "keepsUp", "saturated"})
     public String pipeline;
-
-    /** The rate of the {@code stages} pipeline's items, as a fraction of its capacity. */
-    // TEMPORARY (experiment of #27832): the loads around the capacity
-    @Param({"0.9", "0.95", "1.05", "1.1"})
-    public double load;
 
     private WiringModel model;
     private UncaughtExceptionCollector exceptions;
@@ -85,8 +79,8 @@ public class PipelineTimerBenchmark {
     /** The output of the direct pipeline. */
     private Consumer<Object> output;
 
-    /** TEMPORARY (experiment of #27832). */
-    private ExperimentProbe probe;
+    /** Whether the latest pass failed the saturation check. */
+    private boolean saturated;
 
     @Setup(Level.Trial)
     public void setUpTrial() {
@@ -95,60 +89,25 @@ public class PipelineTimerBenchmark {
                 .withHealthMonitorPeriod(Duration.ofMillis(1))
                 .withUncaughtExceptionHandler(exceptions)
                 .build();
-        final List<TaskScheduler<?>> schedulers;
-        switch (pipeline) {
+        timer = switch (pipeline) {
             case "direct" -> {
-                items = DIRECT_ITEMS;
-                schedulers = List.of();
-                timer = PipelineTimer.builder(Item.evenlySpaced(items, 100_000))
+                items = (int) (PASS_SECONDS * DIRECT_RATE);
+                yield PipelineTimer.builder(Item.evenlySpaced(items, DIRECT_RATE))
                         .input(Item.class, item -> item, item -> output.accept(item))
                         .output((Consumer<Object> consumer) -> output = consumer)
                         .drain(() -> {})
-                        .experimentSampler(() -> probe.sample())
                         .build();
             }
-            case "stages" -> {
-                items = STAGES_ITEMS;
-                final TaskScheduler<Item> first = stage("first");
-                final TaskScheduler<Item> second = stage("second");
-                schedulers = List.of(first, second);
-                final BindableInputWire<Item, Item> firstInput = first.buildInputWire("items");
-                final BindableInputWire<Item, Item> secondInput = second.buildInputWire("items");
-                firstInput.bind(PipelineTimerBenchmark::spin);
-                secondInput.bind(PipelineTimerBenchmark::spin);
-                first.getOutputWire().solderTo(secondInput);
-                timer = PipelineTimer.builder(Item.evenlySpaced(items, load * STAGES_CAPACITY))
-                        .input(Item.class, item -> item, firstInput)
-                        .output(second.getOutputWire())
-                        .drain(() -> {
-                            first.flush();
-                            second.flush();
-                        })
-                        .experimentSampler(() -> probe.sample())
-                        .build();
-            }
+            case "keepsUp" -> stages(0.5);
+            case "saturated" -> stages(1.1);
             default -> throw new IllegalArgumentException("Unknown pipeline " + pipeline);
-        }
-        probe = new ExperimentProbe(
-                "intake=selfcheck-" + pipeline + " speedup=" + load + " windows=-", timer, items, schedulers, model);
+        };
         model.start();
     }
 
     @TearDown(Level.Trial)
     public void tearDownTrial() {
         model.stop();
-    }
-
-    /** TEMPORARY (experiment of #27832). */
-    @Setup(Level.Iteration)
-    public void startIteration(final IterationParams params) {
-        probe.startIteration(params.getType().name());
-    }
-
-    /** TEMPORARY (experiment of #27832). */
-    @TearDown(Level.Iteration)
-    public void endIteration() {
-        probe.endIteration();
     }
 
     @Setup(Level.Invocation)
@@ -159,9 +118,15 @@ public class PipelineTimerBenchmark {
 
     @Benchmark
     public void replay() {
-        probe.beforePass();
-        timer.replay();
-        probe.afterPass();
+        saturated = false;
+        try {
+            timer.replay();
+        } catch (final IllegalStateException e) {
+            if (!e.getMessage().startsWith("The pipeline did not keep up")) {
+                throw e;
+            }
+            saturated = true;
+        }
     }
 
     @TearDown(Level.Invocation)
@@ -170,6 +135,32 @@ public class PipelineTimerBenchmark {
         if (timer.arrivals() != items) {
             throw new IllegalStateException("Expected " + items + " arrivals, but got " + timer.arrivals());
         }
+        final boolean expectSaturated = pipeline.equals("saturated");
+        if (saturated != expectSaturated) {
+            throw new IllegalStateException(
+                    "Expected a pass that " + (expectSaturated ? "fails" : "passes") + " the saturation check");
+        }
+    }
+
+    /** Builds the timer of two sequential stages that get the items at the given fraction of their capacity. */
+    private PipelineTimer<Item> stages(final double load) {
+        final TaskScheduler<Item> first = stage("first");
+        final TaskScheduler<Item> second = stage("second");
+        final BindableInputWire<Item, Item> firstInput = first.buildInputWire("items");
+        final BindableInputWire<Item, Item> secondInput = second.buildInputWire("items");
+        firstInput.bind(PipelineTimerBenchmark::spin);
+        secondInput.bind(PipelineTimerBenchmark::spin);
+        first.getOutputWire().solderTo(secondInput);
+        final double rate = load * STAGES_CAPACITY;
+        items = (int) (PASS_SECONDS * rate);
+        return PipelineTimer.builder(Item.evenlySpaced(items, rate))
+                .input(Item.class, item -> item, firstInput)
+                .output(second.getOutputWire())
+                .drain(() -> {
+                    first.flush();
+                    second.flush();
+                })
+                .build();
     }
 
     /** Builds a sequential stage that can be flushed. */
