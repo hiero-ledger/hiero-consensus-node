@@ -116,11 +116,11 @@ public abstract class IntakeReplayBenchmark {
     /** Room for the queue samples of a pass of up to about 17 minutes, at one per ms. */
     private static final int MAX_QUEUE_SAMPLES = 1 << 20;
 
-    @Param({"50", "100", "200", "400", "800"})
+    @Param({"500", "600", "700"})
     public double speedup;
 
     /** Whether the recorded event windows are replayed; {@code false} only for diagnosis. */
-    @Param({"true", "false"})
+    @Param({"true"})
     public boolean windows;
 
     private ForkJoinPool pool;
