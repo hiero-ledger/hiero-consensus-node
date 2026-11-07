@@ -8,22 +8,17 @@ import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import java.lang.management.GarbageCollectorMXBean;
-import java.lang.management.ManagementFactory;
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.ServiceLoader;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.SigningSchema;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyHistogram;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
+import org.hiero.consensus.benchmark.tools.pipeline.ExperimentProbe;
 import org.hiero.consensus.benchmark.tools.pipeline.PipelineTimer;
 import org.hiero.consensus.benchmark.tools.pipeline.UncaughtExceptionCollector;
 import org.hiero.consensus.event.DefaultIntakeEventCounter;
@@ -37,10 +32,8 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.wiring.framework.WiringConfig;
-import org.hiero.consensus.wiring.framework.model.TraceableWiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
-import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
 import org.hiero.consensus.wiring.framework.wires.SolderType;
 import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
@@ -70,10 +63,8 @@ import org.openjdk.jmh.infra.IterationParams;
 
 /**
  * TEMPORARY: the experiment of #27832, never merged. Replays a Falcon recording through the default or the concurrent
- * intake with the {@link PipelineTimer}, and prints, for every pass, what the experiment compares: garbage
- * collections, allocation over all threads, and three measures of saturation (the latency trend, the queue trend, and
- * the health monitor). Each pass prints a line starting with {@code PASS}, each iteration one starting with
- * {@code ITER}, and the trial its recording's rate profile in lines starting with {@code TRIAL}.
+ * intake with the {@link PipelineTimer}, and prints, for every pass, what the experiment compares
+ * ({@link ExperimentProbe}). The trial prints its recording's rate profile in lines starting with {@code TRIAL}.
  */
 @State(Scope.Thread)
 @Fork(
@@ -87,23 +78,36 @@ public abstract class IntakeReplayBenchmark {
 
     /** The default intake; select it with the pattern {@code IntakeReplayBenchmark.Default}. */
     public static class Default extends IntakeReplayBenchmark {
+
+        /** The last speedup of the sweeps at which this intake kept every event. */
+        @Param({"500"})
+        public double speedup;
+
         public Default() {
             super("DefaultEventIntakeModule");
+        }
+
+        @Override
+        protected double speedup() {
+            return speedup;
         }
     }
 
     /** The concurrent intake; select it with the pattern {@code IntakeReplayBenchmark.Concurrent}. */
     public static class Concurrent extends IntakeReplayBenchmark {
+
+        /** The last speedup of the sweeps at which this intake kept every event. */
+        @Param({"600"})
+        public double speedup;
+
         public Concurrent() {
             super("ConcurrentEventIntakeModule");
         }
-    }
 
-    /** The simple class name of the intake module. */
-    private final String intake;
-
-    protected IntakeReplayBenchmark(final String intake) {
-        this.intake = intake;
+        @Override
+        protected double speedup() {
+            return speedup;
+        }
     }
 
     private static final long SEED = 0xBE7C_4A11L;
@@ -113,15 +117,12 @@ public abstract class IntakeReplayBenchmark {
     /** The node's transaction limits, as {@code EventFieldValidatorBenchmark} uses them. */
     private static final TransactionLimits TRANSACTION_LIMITS = new TransactionLimits(6_144, 33_554_432);
 
-    /** Room for the queue samples of a pass of up to about 17 minutes, at one per ms. */
-    private static final int MAX_QUEUE_SAMPLES = 1 << 20;
-
-    @Param({"500", "600", "700"})
-    public double speedup;
-
     /** Whether the recorded event windows are replayed; {@code false} only for diagnosis. */
     @Param({"true"})
     public boolean windows;
+
+    /** The simple class name of the intake module. */
+    private final String intake;
 
     private ForkJoinPool pool;
     private DefaultMetricsProvider metricsProvider;
@@ -129,31 +130,19 @@ public abstract class IntakeReplayBenchmark {
     private EventIntakeModule intakeModule;
     private UncaughtExceptionCollector exceptions;
     private PipelineTimer<Step> timer;
-    private List<TaskScheduler<?>> schedulers;
-    private int expectedArrivals;
-    private long[] dueNanos;
-    private boolean[] counted;
+    private ExperimentProbe probe;
     private InputWire<Object> clearInput;
     private InputWire<EventWindow> initialEventWindowInput;
 
-    private final long[] sampleNanos = new long[MAX_QUEUE_SAMPLES];
-    private final long[] sampleQueued = new long[MAX_QUEUE_SAMPLES];
-    private int samples;
-    private long passStart;
+    protected IntakeReplayBenchmark(final String intake) {
+        this.intake = intake;
+    }
 
-    /** The longest unhealthy duration the health monitor reported during the pass, in ns. */
-    private volatile long maxUnhealthyNanos;
-
-    private String iterationType;
-    private int iteration;
-    private int pass;
-    private int passes;
-    private int gcPasses;
-    private final LatencyHistogram iterationAll = LatencyRecorder.newHistogram();
-    private final LatencyHistogram iterationWithoutGc = LatencyRecorder.newHistogram();
+    /** Returns the speedup of this intake's parameter set. */
+    protected abstract double speedup();
 
     @Setup(Level.Trial)
-    public void setUpTrial() throws ReflectiveOperationException {
+    public void setUpTrial() {
         final long recordingStart = System.nanoTime();
         final Recording recording = FalconRecorder.record(RecordingSpec.builder(NUM_NODES, SEED, EVENTS)
                 .signingSchema(SigningSchema.RSA)
@@ -161,6 +150,7 @@ public abstract class IntakeReplayBenchmark {
         final NodeRecording node = recording.nodes().getFirst();
         final RosterWrapper roster = recording.roster();
         printRecording(node, (System.nanoTime() - recordingStart) / 1_000_000);
+        int expectedArrivals = 0;
         for (final Step step : node.steps()) {
             if (step instanceof final Released released
                     && !released.event().getCreatorId().equals(node.nodeId())) {
@@ -223,56 +213,19 @@ public abstract class IntakeReplayBenchmark {
                         intakeModule.consensusRoundInputWire(),
                         SolderType.INJECT)
                 .output(intakeModule.validatedEventsOutputWire(), step -> step instanceof Received)
-                .speedup(speedup)
+                .speedup(speedup())
                 .drain(intakeModule::flush)
-                .experimentSampler(this::sampleQueues)
+                .experimentSampler(() -> probe.sample())
                 .build();
-        dueNanos = timer.experimentDueNanos();
-        // the replayed inputs in the timer's order, and which of them count
-        final List<Boolean> replayed = new ArrayList<>();
-        for (final Step step : node.steps()) {
-            if (step instanceof Received
-                    || (windows && step instanceof NewEventWindow)
-                    || (step instanceof CreationAttempt a && a.created() != null)) {
-                replayed.add(step instanceof Received);
-            }
-        }
-        if (replayed.size() != dueNanos.length) {
-            throw new IllegalStateException(
-                    "The timer replays " + dueNanos.length + " inputs, but " + replayed.size() + " were expected");
-        }
-        counted = new boolean[replayed.size()];
-        for (int i = 0; i < counted.length; i++) {
-            counted[i] = replayed.get(i);
-        }
-
-        model.getHealthMonitorWire().solderForMonitoring(duration -> {
-            final long nanos = duration.toNanos();
-            if (nanos > maxUnhealthyNanos) {
-                maxUnhealthyNanos = nanos;
-            }
-        });
-
-        final Field field = TraceableWiringModel.class.getDeclaredField("schedulers");
-        field.setAccessible(true);
-        @SuppressWarnings("unchecked")
-        final List<TaskScheduler<?>> all = (List<TaskScheduler<?>>) field.get(model);
-        schedulers = List.copyOf(all);
-        for (final TaskScheduler<?> scheduler : schedulers) {
-            System.out.printf(
-                    "TRIAL scheduler %s type=%s capacity=%d%n",
-                    scheduler.getName(), scheduler.getType(), scheduler.getCapacity());
-        }
-        System.out.printf(
-                "TRIAL intake=%s speedup=%s windows=%s parallelism=%d replayed=%d expectedArrivals=%d"
-                        + " passSeconds=%.2f%n",
-                intake,
-                fmt(speedup),
-                windows,
-                parallelism,
-                dueNanos.length,
+        probe = new ExperimentProbe(
+                "intake=" + intake + " speedup=" + fmt(speedup()) + " windows=" + windows,
+                timer,
                 expectedArrivals,
-                dueNanos[dueNanos.length - 1] / 1e9);
+                ExperimentProbe.schedulersOf(model),
+                model);
+        System.out.printf(
+                "TRIAL intake=%s speedup=%s windows=%s parallelism=%d replayed=%d expectedArrivals=%d%n",
+                intake, fmt(speedup()), windows, parallelism, timer.experimentDueNanos().length, expectedArrivals);
 
         model.start();
         metricsProvider.start();
@@ -287,30 +240,12 @@ public abstract class IntakeReplayBenchmark {
 
     @Setup(Level.Iteration)
     public void startIteration(final IterationParams params) {
-        iterationType = params.getType().name();
-        iteration++;
-        pass = 0;
-        passes = 0;
-        gcPasses = 0;
-        iterationAll.reset();
-        iterationWithoutGc.reset();
+        probe.startIteration(params.getType().name());
     }
 
     @TearDown(Level.Iteration)
     public void endIteration() {
-        System.out.printf(
-                "ITER intake=%s speedup=%s windows=%s pid=%d iteration=%d type=%s passes=%d gcPasses=%d all=[%s]"
-                        + " withoutGc=[%s]%n",
-                intake,
-                fmt(speedup),
-                windows,
-                ProcessHandle.current().pid(),
-                iteration,
-                iterationType,
-                passes,
-                gcPasses,
-                summary(iterationAll),
-                summary(iterationWithoutGc));
+        probe.endIteration();
     }
 
     @Setup(Level.Invocation)
@@ -321,177 +256,19 @@ public abstract class IntakeReplayBenchmark {
         initialEventWindowInput.inject(EventWindow.getGenesisEventWindow());
         intakeModule.flush();
         timer.prepare();
-        samples = 0;
-        maxUnhealthyNanos = 0;
         System.gc();
     }
 
     @Benchmark
     public void replay() {
-        final long[] gcBefore = gcCounts();
-        passStart = System.nanoTime();
+        probe.beforePass();
         timer.replay();
-        final long passNanos = System.nanoTime() - passStart;
-        final long[] gcAfter = gcCounts();
-        report(passNanos, gcAfter[0] - gcBefore[0], gcAfter[1] - gcBefore[1], gcAfter[2] - gcBefore[2]);
+        probe.afterPass();
     }
 
     @TearDown(Level.Invocation)
     public void verifyInvocation() {
         exceptions.throwIfAny();
-    }
-
-    /** Samples the queued tasks of all schedulers; the timer runs it once per ms during a pass. */
-    private void sampleQueues() {
-        final long now = System.nanoTime();
-        if (samples == MAX_QUEUE_SAMPLES) {
-            return;
-        }
-        long queued = 0;
-        for (final TaskScheduler<?> scheduler : schedulers) {
-            queued += Math.max(0, scheduler.getUnprocessedTaskCount());
-        }
-        sampleNanos[samples] = now - passStart;
-        sampleQueued[samples] = queued;
-        samples++;
-    }
-
-    /** Prints the pass's line and adds its latencies to the iteration's histograms. */
-    private void report(final long passNanos, final long gcPauses, final long gcPauseMillis, final long gcConcurrent) {
-        final long[] latencies = timer.experimentPassLatencies();
-        final LatencyHistogram passHistogram = LatencyRecorder.newHistogram();
-        final long span = dueNanos[dueNanos.length - 1];
-        final List<Long> first = new ArrayList<>();
-        final List<Long> last = new ArrayList<>();
-        // the counted inputs that did not arrive: how many, and the due times of the first and the last
-        int missing = 0;
-        long firstMissingDue = -1;
-        long lastMissingDue = -1;
-        for (int i = 0; i < latencies.length; i++) {
-            if (latencies[i] < 0 && counted[i]) {
-                missing++;
-                if (firstMissingDue < 0) {
-                    firstMissingDue = dueNanos[i];
-                }
-                lastMissingDue = dueNanos[i];
-            }
-            if (latencies[i] >= 0) {
-                passHistogram.record(latencies[i]);
-                if (dueNanos[i] < span / 4) {
-                    first.add(latencies[i]);
-                } else if (dueNanos[i] >= span - span / 4) {
-                    last.add(latencies[i]);
-                }
-            }
-        }
-        // the quarters' centers are 3/4 of the span apart
-        final double quarterDistanceSeconds = 0.75 * span / 1e9;
-        final double firstMedian = median(first);
-        final double lastMedian = median(last);
-
-        double queueFirst = 0;
-        double queueLast = 0;
-        int queueFirstCount = 0;
-        int queueLastCount = 0;
-        long queueMax = 0;
-        for (int i = 0; i < samples; i++) {
-            queueMax = Math.max(queueMax, sampleQueued[i]);
-            if (sampleNanos[i] < span / 4) {
-                queueFirst += sampleQueued[i];
-                queueFirstCount++;
-            } else if (sampleNanos[i] >= span - span / 4) {
-                queueLast += sampleQueued[i];
-                queueLastCount++;
-            }
-        }
-        queueFirst = queueFirstCount == 0 ? Double.NaN : queueFirst / queueFirstCount;
-        queueLast = queueLastCount == 0 ? Double.NaN : queueLast / queueLastCount;
-
-        pass++;
-        passes++;
-        iterationAll.add(passHistogram);
-        if (gcPauses == 0) {
-            iterationWithoutGc.add(passHistogram);
-        } else {
-            gcPasses++;
-        }
-        System.out.printf(
-                "PASS intake=%s speedup=%s windows=%s pid=%d iteration=%d type=%s pass=%d passMs=%.1f inputs=%d"
-                        + " arrivals=%d"
-                        + " expected=%d gcPauses=%d gcPauseMs=%d gcConcurrent=%d allocBytes=%d allocPerInput=%.1f"
-                        + " %s latFirstMedianUs=%.1f latLastMedianUs=%.1f latTrendUsPerS=%.2f"
-                        + " queueFirst=%.1f queueLast=%.1f queueMax=%d queueTrendPerS=%.2f queueSamples=%d"
-                        + " maxUnhealthyMs=%.3f missing=%d missingDueMs=%.1f..%.1f%n",
-                intake,
-                fmt(speedup),
-                windows,
-                ProcessHandle.current().pid(),
-                iteration,
-                iterationType,
-                pass,
-                passNanos / 1e6,
-                latencies.length,
-                timer.arrivals(),
-                expectedArrivals,
-                gcPauses,
-                gcPauseMillis,
-                gcConcurrent,
-                timer.experimentPassAllocatedBytes(),
-                (double) timer.experimentPassAllocatedBytes() / latencies.length,
-                summary(passHistogram),
-                firstMedian / 1e3,
-                lastMedian / 1e3,
-                (lastMedian - firstMedian) / 1e3 / quarterDistanceSeconds,
-                queueFirst,
-                queueLast,
-                queueMax,
-                (queueLast - queueFirst) / quarterDistanceSeconds,
-                samples,
-                maxUnhealthyNanos / 1e6,
-                missing,
-                firstMissingDue / 1e6,
-                lastMissingDue / 1e6);
-    }
-
-    /** Returns the pause collections, their total time in ms, and the concurrent cycles, of all collectors. */
-    private static long[] gcCounts() {
-        long pauses = 0;
-        long pauseMillis = 0;
-        long concurrent = 0;
-        for (final GarbageCollectorMXBean bean : ManagementFactory.getGarbageCollectorMXBeans()) {
-            if (bean.getName().contains("Concurrent")) {
-                concurrent += Math.max(0, bean.getCollectionCount());
-            } else {
-                pauses += Math.max(0, bean.getCollectionCount());
-                pauseMillis += Math.max(0, bean.getCollectionTime());
-            }
-        }
-        return new long[] {pauses, pauseMillis, concurrent};
-    }
-
-    private static String summary(final LatencyHistogram histogram) {
-        if (histogram.totalCount() == 0) {
-            return "n=0";
-        }
-        return String.format(
-                Locale.ROOT,
-                "n=%d meanUs=%.1f p50Us=%.1f p90Us=%.1f p99Us=%.1f p999Us=%.1f maxUs=%.1f",
-                histogram.totalCount(),
-                histogram.mean() / 1e3,
-                histogram.valueAtPercentile(50) / 1e3,
-                histogram.valueAtPercentile(90) / 1e3,
-                histogram.valueAtPercentile(99) / 1e3,
-                histogram.valueAtPercentile(99.9) / 1e3,
-                histogram.max() / 1e3);
-    }
-
-    private static double median(final List<Long> values) {
-        if (values.isEmpty()) {
-            return Double.NaN;
-        }
-        final long[] sorted = values.stream().mapToLong(Long::longValue).toArray();
-        Arrays.sort(sorted);
-        return sorted[sorted.length / 2];
     }
 
     private static String fmt(final double value) {

@@ -344,6 +344,17 @@ public final class PipelineTimer<I extends TimedInput> {
         return passAllocatedBytes;
     }
 
+    /**
+     * TEMPORARY (experiment of #27832, removed before the pull request): whether the value of each replayed input
+     * counts at the output.
+     *
+     * @return one flag per replayed input, in input order
+     */
+    @NonNull
+    public boolean[] experimentCounted() {
+        return counted.clone();
+    }
+
     /** Hands a value to the pipeline. */
     @FunctionalInterface
     private interface Entry {
