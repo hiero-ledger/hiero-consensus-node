@@ -4,7 +4,10 @@ package org.hiero.otter.fixtures.falcon.recording;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.constant;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
+import static org.hiero.consensus.model.event.NonDeterministicGeneration.GENERATION_UNDEFINED;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
@@ -26,12 +29,14 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
+import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -70,6 +75,79 @@ class FalconRecorderTest {
     }
 
     @Test
+    @DisplayName("Every event has the state it has at that point in production")
+    void eventsHaveProductionState() {
+        final NodeRecording node = FalconRecorder.record(
+                        RecordingSpec.builder(4, RANDOM_SEED, 1_000).build())
+                .nodes()
+                .getFirst();
+
+        final Set<GossipEvent> received = new HashSet<>();
+        int created = 0;
+        int createdWithTransactions = 0;
+        int released = 0;
+        for (final Step step : node.steps()) {
+            switch (step) {
+                case Received r -> {
+                    final PlatformEvent event = r.event();
+                    assertThat(event.getHash()).as("Hash of a received event").isNull();
+                    assertThat(event.getOrigin()).isEqualTo(EventOrigin.GOSSIP);
+                    assertThat(event.getSenderId()).isEqualTo(r.sender());
+                    assertThat(event.getLastStageTime()).isEqualTo(event.getTimeReceived());
+                    assertThat(event.getTransactionReceivedTimes()).isEmpty();
+                    assertThat(event.getNGen()).isEqualTo(GENERATION_UNDEFINED);
+                    assertThat(event.getSequenceNumber()).isEqualTo(SEQUENCE_NUMBER_UNDEFINED);
+                    assertThat(received.add(event.getGossipEvent()))
+                            .as("First copy of a received event")
+                            .isTrue();
+                }
+                case CreationAttempt a when a.created() != null -> {
+                    final PlatformEvent event = a.created();
+                    assertThat(event.getHash()).as("Hash of a created event").isNotNull();
+                    assertThat(contentHash(event)).as("Hash of the copy's content").isEqualTo(event.getHash());
+                    assertThat(event.getOrigin()).isEqualTo(EventOrigin.RUNTIME);
+                    assertThat(event.getSenderId()).isNull();
+                    // the simulated time stands still while the creator takes the transactions and builds the event,
+                    // and Falcon's transactions reach the pool at that time, none with priority
+                    assertThat(event.getLastStageTime()).isEqualTo(a.time());
+                    assertThat(event.getTransactionReceivedTimes())
+                            .hasSize(event.getGossipEvent().transactions().size())
+                            .allSatisfy(time -> assertThat(time).isEqualTo(a.time()));
+                    assertThat(event.getNGen()).isEqualTo(GENERATION_UNDEFINED);
+                    assertThat(event.getSequenceNumber()).isEqualTo(SEQUENCE_NUMBER_UNDEFINED);
+                    created++;
+                    if (!event.getGossipEvent().transactions().isEmpty()) {
+                        createdWithTransactions++;
+                    }
+                }
+                case Released r -> {
+                    final PlatformEvent event = r.event();
+                    final boolean own = event.getCreatorId().equals(node.nodeId());
+                    assertThat(event.getHash()).as("Hash of a released event").isNotNull();
+                    assertThat(event.getOrigin()).isEqualTo(own ? EventOrigin.RUNTIME : EventOrigin.GOSSIP);
+                    assertThat(event.getSenderId() == null).isEqualTo(own);
+                    assertThat(event.getLastStageTime()).isEqualTo(r.time());
+                    assertThat(event.getTransactionReceivedTimes())
+                            .hasSize(own ? event.getGossipEvent().transactions().size() : 0);
+                    assertThat(event.getNGen()).isNotEqualTo(GENERATION_UNDEFINED);
+                    assertThat(event.getSequenceNumber()).isNotEqualTo(SEQUENCE_NUMBER_UNDEFINED);
+                    if (own) {
+                        assertThat(contentHash(event))
+                                .as("Hash of the copy's content")
+                                .isEqualTo(event.getHash());
+                    }
+                    released++;
+                }
+                case CreationAttempt _, NewEventWindow _, PlatformStatusChange _ -> {}
+            }
+        }
+        assertThat(received).isNotEmpty();
+        assertThat(created).isPositive();
+        assertThat(createdWithTransactions).isPositive();
+        assertThat(released).isPositive();
+    }
+
+    @Test
     @DisplayName("No wiring hop adds a tick")
     void noWiringHopAddsATick() {
         final NodeRecording node = FalconRecorder.record(
@@ -87,10 +165,11 @@ class FalconRecorderTest {
             switch (step) {
                 case Received r -> {
                     final PlatformEvent event = r.event();
-                    if (!released.contains(event.getHash())) {
-                        receivedTimes.put(event.getHash(), r.time());
+                    final Hash hash = hashOf(event);
+                    if (!released.contains(hash)) {
+                        receivedTimes.put(hash, r.time());
                         if (missesParent(event, released, window)) {
-                            waitingEvents.add(event.getHash());
+                            waitingEvents.add(hash);
                         }
                     }
                 }
@@ -154,9 +233,9 @@ class FalconRecorderTest {
             final PublicKey publicKey = requireNonNull(recording.roster().rosterEntry(event.getCreatorId()))
                     .gossipCaCertificate()
                     .getPublicKey();
-            final Bytes hash = requireNonNull(event.getHash()).getBytes();
-            assertThat(CryptoUtils.verifySignature(hash, event.getSignature(), publicKey))
-                    .as("Signature of event %s", event.getHash())
+            final Hash hash = requireNonNull(hashOf(event));
+            assertThat(CryptoUtils.verifySignature(hash.getBytes(), event.getSignature(), publicKey))
+                    .as("Signature of event %s", hash)
                     .isTrue();
         }
     }
@@ -281,8 +360,24 @@ class FalconRecorderTest {
                 .toList();
     }
 
+    /**
+     * Returns the hash of an event. A received event is not hashed; its hash is computed on a copy.
+     */
     @Nullable
     private static Hash hashOf(@Nullable final PlatformEvent event) {
-        return event == null ? null : event.getHash();
+        if (event == null || event.getHash() != null) {
+            return event == null ? null : event.getHash();
+        }
+        return contentHash(event);
+    }
+
+    /**
+     * Computes the hash of an event's gossiped content on a copy, whether or not the event is hashed.
+     */
+    @NonNull
+    private static Hash contentHash(@NonNull final PlatformEvent event) {
+        return new PbjStreamHasher()
+                .hashEvent(new PlatformEvent(event.getGossipEvent(), EventOrigin.GOSSIP))
+                .getHash();
     }
 }
