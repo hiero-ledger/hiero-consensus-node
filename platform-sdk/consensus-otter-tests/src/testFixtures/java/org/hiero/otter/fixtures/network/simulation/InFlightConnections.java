@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * What the simulated network has transmitted but not yet delivered, held in a separate queue for every directed
@@ -92,6 +93,18 @@ abstract class InFlightConnections<T extends InTransit> {
      */
     public void add(final int senderRank, final int receiverRank, @NonNull final T item) {
         connectionsByReceiver[receiverRank][senderRank].add(item);
+    }
+
+    /**
+     * Removes everything in flight on a connection and hands it out, in no particular order.
+     *
+     * @param senderRank   the rank of the node at the sending end of the connection
+     * @param receiverRank the rank of the node at the receiving end of the connection
+     * @return what was in flight on the connection
+     */
+    @NonNull
+    public List<T> drain(final int senderRank, final int receiverRank) {
+        return connectionsByReceiver[receiverRank][senderRank].drain();
     }
 
     /**

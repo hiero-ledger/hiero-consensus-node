@@ -234,7 +234,7 @@ public class SimulatedGossip implements Gossip, EventReceiver {
      * Resets this node's gossip point so that it will receive all necessary events after a restart.
      */
     public void onRestart() {
-        gossipNetwork.resetCursor(selfId);
+        gossipNetwork.nodeRestarted(selfId);
         // The restarted event creator has no lag recorded; stale peer windows must not be replayed against it.
         lastPeerWindows.clear();
     }
