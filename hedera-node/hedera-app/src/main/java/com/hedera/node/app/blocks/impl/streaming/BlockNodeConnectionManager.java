@@ -105,6 +105,10 @@ public class BlockNodeConnectionManager {
      */
     private final AtomicInteger globalActiveStreamingConnectionCount = new AtomicInteger();
     /**
+     * Counter for tracking the total number of active block node observing connections across all block nodes.
+     */
+    private final AtomicInteger globalActiveObservingConnectionCount = new AtomicInteger();
+    /**
      * The most recent configuration used. This configuration is used to compare against newer configs to know if a
      * configuration change has occurred.
      */
@@ -605,7 +609,7 @@ public class BlockNodeConnectionManager {
      *
      * @param connection the connection that has been activated
      */
-    public void notifyConnectionActive(@NonNull final BlockNodeStreamingConnection connection) {
+    public void notifyConnectionActive(@NonNull final BlockNodePublisherConnection connection) {
         final BlockNodeConfiguration config = connection.configuration();
         final BlockNode node = nodes.get(config.streamingEndpoint());
 
@@ -669,7 +673,8 @@ public class BlockNodeConnectionManager {
      */
     private void updateConnectionIfNeeded() {
         // record the latest number of active connections
-        blockStreamMetrics.recordActiveConnectionCount(globalActiveStreamingConnectionCount.get());
+        blockStreamMetrics.recordActiveStreamingConnectionCount(globalActiveStreamingConnectionCount.get());
+        blockStreamMetrics.recordActiveObservingConnectionCount(globalActiveObservingConnectionCount.get());
 
         final Instant now = Instant.now();
         final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
@@ -820,6 +825,7 @@ public class BlockNodeConnectionManager {
                                     configProvider,
                                     newNodeConfig,
                                     globalActiveStreamingConnectionCount,
+                                    globalActiveObservingConnectionCount,
                                     new BlockNodeStats()));
                     changesDetected = true;
                 } else if (!existingNode.configuration().equals(newNodeConfig)) {
