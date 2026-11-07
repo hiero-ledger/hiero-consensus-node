@@ -11,6 +11,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauth
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isvalidalias.IsValidAliasTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.setunlimitedautoassociations.SetUnlimitedAutoAssociationsTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.staking.StakingTranslator;
 import dagger.Module;
 import dagger.Provides;
 import dagger.multibindings.IntoSet;
@@ -102,6 +103,14 @@ public interface HasTranslatorsModule {
     @Named("HasTranslators")
     static CallTranslator<HasCallAttempt> provideSetUnlimitedAutoAssociationsTranslator(
             @NonNull final SetUnlimitedAutoAssociationsTranslator translator) {
+        return translator;
+    }
+
+    @Provides
+    @Singleton
+    @IntoSet
+    @Named("HasTranslators")
+    static CallTranslator<HasCallAttempt> provideStakingTranslator(@NonNull final StakingTranslator translator) {
         return translator;
     }
 }

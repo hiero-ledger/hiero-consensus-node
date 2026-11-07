@@ -120,8 +120,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             final boolean hasCodeDelegation = CodeDelegationHelper.hasCodeDelegation(code);
 
             final var isEoa = code.isEmpty() || hasCodeDelegation;
-            final var isEligibleForHasRedirect =
-                    HasSystemContract.isPayloadEligibleForHasProxyRedirect(frame.getInputData());
+            final var isEligibleForHasRedirect = HasSystemContract.isPayloadEligibleForHasProxyRedirect(
+                    frame.getInputData(), () -> contractsConfigOf(frame).systemContractAccountServiceStakingEnabled());
 
             if (isEoa && isEligibleForHasRedirect) {
                 // HAS proxy calls have priority, even if code delegation is set

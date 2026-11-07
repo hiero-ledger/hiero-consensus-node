@@ -17,9 +17,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
+import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_ACCOUNT_ID;
+import static com.hedera.node.app.service.token.api.AccountSummariesApi.SENTINEL_NODE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ACCOUNT_SERVICE_STAKING_UPDATE;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -42,6 +45,7 @@ import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -58,6 +62,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
@@ -69,6 +74,7 @@ import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -128,6 +134,9 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         updateWritableAccountStore(Map.of(updateAccountId.accountNum(), updateAccount, accountNum, account));
         updateReadableAccountStore(Map.of(updateAccountId.accountNum(), updateAccount, accountNum, account));
         lenient().when(handleContext.savepointStack()).thenReturn(stack);
+        // A real HandleContext always has metadata (EMPTY_METADATA at minimum); tests that exercise the
+        // HIP-1522 staking dispatch override this.
+        lenient().when(handleContext.dispatchMetadata()).thenReturn(DispatchMetadata.EMPTY_METADATA);
         lenient().when(stack.getBaseBuilder(CryptoUpdateStreamBuilder.class)).thenReturn(streamBuilder);
         lenient()
                 .when(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong()))
@@ -996,6 +1005,194 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
             this.delegationAddress = delegationAddress;
             return this;
         }
+    }
+
+    // --- HIP-1522: staking-only CryptoUpdate dispatched by the Hedera Account Service ---------------------
+
+    private static final long CONTRACT_NUM = 54321L;
+
+    /**
+     * Puts a contract account (smart_contract = true) in the stores and returns its id, so a dispatched
+     * staking update can name it.
+     */
+    private AccountID givenContractAccount() {
+        final var contractId = idFactory.newAccountId(CONTRACT_NUM);
+        final var contractAccount = givenValidAccount(CONTRACT_NUM)
+                .copyBuilder()
+                .smartContract(true)
+                .key(otherKey)
+                .build();
+        updateWritableAccountStore(Map.of(
+                CONTRACT_NUM, contractAccount, updateAccountId.accountNum(), updateAccount, accountNum, account));
+        updateReadableAccountStore(Map.of(
+                CONTRACT_NUM, contractAccount, updateAccountId.accountNum(), updateAccount, accountNum, account));
+        return contractId;
+    }
+
+    private void givenStakingDispatch(final TransactionBody txn, final boolean marked) {
+        givenTxnWith(txn);
+        given(handleContext.dispatchMetadata())
+                .willReturn(
+                        marked
+                                ? new DispatchMetadata(ACCOUNT_SERVICE_STAKING_UPDATE, Boolean.TRUE)
+                                : DispatchMetadata.EMPTY_METADATA);
+    }
+
+    @Test
+    void accountServiceStakingUpdateMayNameAContractAccount() {
+        given(networkInfo.nodeInfo(anyLong())).willReturn(mock(NodeInfo.class));
+        final var contractId = givenContractAccount();
+        final var txn = new CryptoUpdateBuilder()
+                .withTarget(contractId)
+                .withStakedNodeId(0L)
+                .withDeclineReward(true)
+                .build();
+        givenStakingDispatch(txn, true);
+        given(handleContext.networkInfo()).willReturn(networkInfo);
+
+        subject.handle(handleContext);
+
+        assertEquals(0L, writableStore.get(contractId).stakedNodeId());
+        assertTrue(writableStore.get(contractId).declineReward());
+    }
+
+    @Test
+    void accountServiceStakingUpdateMayClearAContractAccountStakingTarget() {
+        final var contractId = givenContractAccount();
+        // -1 is the staked_node_id sentinel that unstake() uses
+        final var txn = new CryptoUpdateBuilder()
+                .withTarget(contractId)
+                .withStakedNodeId(SENTINEL_NODE_ID)
+                .build();
+        givenStakingDispatch(txn, true);
+
+        subject.handle(handleContext);
+
+        assertEquals(SENTINEL_NODE_ID, writableStore.get(contractId).stakedNodeId());
+    }
+
+    @Test
+    void stakingOnlyUpdateOfAContractAccountStillFailsWithoutTheDispatchMarker() {
+        final var contractId = givenContractAccount();
+        final var txn = new CryptoUpdateBuilder()
+                .withTarget(contractId)
+                .withDeclineReward(true)
+                .build();
+        givenStakingDispatch(txn, false);
+
+        // Pins the HIP's Backwards Compatibility claim: a top-level HAPI CryptoUpdate naming a contract
+        // account carries no dispatch metadata, so it still fails exactly as before.
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ACCOUNT_ID));
+    }
+
+    @Test
+    void markedUpdateOfAContractAccountCarryingANonStakingFieldIsRejected() {
+        final var contractId = givenContractAccount();
+        // maxAutomaticTokenAssociations is not a staking field, so the marker must not admit it
+        final var txn = new CryptoUpdateBuilder()
+                .withTarget(contractId)
+                .withDeclineReward(true)
+                .withMaxAutoAssociations(10)
+                .build();
+        givenStakingDispatch(txn, true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ACCOUNT_ID));
+    }
+
+    @Test
+    void markedStakingUpdateOfAContractAccountStillValidatesTheStakingId() {
+        given(networkInfo.nodeInfo(anyLong())).willReturn(null);
+        final var contractId = givenContractAccount();
+        final var txn = new CryptoUpdateBuilder()
+                .withTarget(contractId)
+                .withStakedNodeId(99L)
+                .build();
+        givenStakingDispatch(txn, true);
+        given(handleContext.networkInfo()).willReturn(networkInfo);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_STAKING_ID));
+    }
+
+    @Test
+    void markerIsIgnoredForNonContractAccounts() {
+        final var txn = new CryptoUpdateBuilder().withDeclineReward(true).build();
+        givenStakingDispatch(txn, true);
+
+        subject.handle(handleContext);
+
+        assertTrue(writableStore.get(updateAccountId).declineReward());
+    }
+
+    @Test
+    void isStakingOnlyAcceptsStakingFieldsAndTheTarget() {
+        final var target = idFactory.newAccountId(CONTRACT_NUM);
+        final Supplier<CryptoUpdateTransactionBody.Builder> base =
+                () -> CryptoUpdateTransactionBody.newBuilder().accountIDToUpdate(target);
+
+        assertTrue(CryptoUpdateHandler.isStakingOnly(base.get().build()));
+        assertTrue(
+                CryptoUpdateHandler.isStakingOnly(base.get().declineReward(true).build()));
+        assertTrue(CryptoUpdateHandler.isStakingOnly(base.get().stakedNodeId(3L).build()));
+        assertTrue(CryptoUpdateHandler.isStakingOnly(
+                base.get().stakedNodeId(SENTINEL_NODE_ID).build()));
+        assertTrue(
+                CryptoUpdateHandler.isStakingOnly(base.get().stakedAccountId(id).build()));
+        assertTrue(CryptoUpdateHandler.isStakingOnly(
+                base.get().stakedAccountId(SENTINEL_ACCOUNT_ID).build()));
+        assertTrue(CryptoUpdateHandler.isStakingOnly(
+                base.get().stakedNodeId(3L).declineReward(false).build()));
+    }
+
+    @Test
+    void isStakingOnlyRejectsEveryNonStakingField() {
+        final var target = idFactory.newAccountId(CONTRACT_NUM);
+        // Always keep a staking field set, so only the extra field can be what makes each case fail
+        final Supplier<CryptoUpdateTransactionBody.Builder> staking = () -> CryptoUpdateTransactionBody.newBuilder()
+                .accountIDToUpdate(target)
+                .stakedNodeId(3L);
+
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().key(defaultkey()).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().proxyAccountID(id).build()));
+        // no hasProxyFraction() accessor exists -- a hand-written check would miss this one
+        assertFalse(
+                CryptoUpdateHandler.isStakingOnly(staking.get().proxyFraction(5).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().sendRecordThreshold(1L).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().sendRecordThresholdWrapper(1L).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().receiveRecordThreshold(1L).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().receiveRecordThresholdWrapper(1L).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().autoRenewPeriod(Duration.newBuilder().seconds(1L)).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().expirationTime(Timestamp.newBuilder().seconds(1L)).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().receiverSigRequired(true).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().receiverSigRequiredWrapper(true).build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(staking.get().memo("nope").build()));
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().maxAutomaticTokenAssociations(1).build()));
+        // no hasHookIdsToDelete() accessor exists
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().hookIdsToDelete(1L).build()));
+        // no hasHookCreationDetails() accessor exists
+        assertFalse(CryptoUpdateHandler.isStakingOnly(
+                staking.get().hookCreationDetails(HookCreationDetails.DEFAULT).build()));
+        // no hasDelegationAddress() accessor exists
+        assertFalse(CryptoUpdateHandler.isStakingOnly(staking.get()
+                .delegationAddress(Bytes.fromHex("0000000000000000000000000000000000000123"))
+                .build()));
     }
 
     private void updateReadableAccountStore(Map<Long, Account> accountsToAdd) {
