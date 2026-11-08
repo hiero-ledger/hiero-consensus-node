@@ -362,6 +362,21 @@ class SeiCometBftProofVerifierTest {
     @Nested
     class BundleVerification {
         @Test
+        void contextualProofRejectsAnotherChannelsGenuineStorageKeys() {
+            final var chain = bundleChain(VALIDATORS, VALIDATORS);
+            final byte[] payload = bundlePayload(chain, null);
+            // The same signed state proof is valid under its trusted validator set and service.
+            assertThat(SeiCometBftProofVerifier.verifyBundle(payload, anchorBytes())
+                            .queueMetadata())
+                    .isNotNull();
+            final byte[] context = new byte[52];
+            System.arraycopy(SERVICE, 0, context, 32, 20);
+            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchorBytes(), context))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("storage slot");
+        }
+
+        @Test
         void happyPathProvesQueueMetadataAndContent() {
             final var chain = bundleChain(VALIDATORS, VALIDATORS);
             final var verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload(chain, null), anchorBytes());

@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.BesuQbftVerifier;
+import com.hedera.node.app.service.clpr.impl.verifier.EvmChannelContext;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
@@ -59,7 +60,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * </ul>
  *
  * <p>Decoding and Merkle-proof verification are delegated to
- * {@link BesuQbftVerifier#verifyBundle(byte[], byte[])}; the verifier returns the verbatim
+ * {@link BesuQbftVerifier#verifyBundle(byte[], byte[], byte[])}; the verifier returns the verbatim
  * {@code ClprBundleContent} bytes from the proof's final RLP item, which this call converts
  * into the metadata, messages and trust-anchor return tuple. The proven manifest is appended as the
  * fifth tuple member.
@@ -79,15 +80,18 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
     private final byte[] bundlePayload;
     private final byte[] trustAnchor;
+    private final byte[] channelContext;
 
     public BesuQBFTVerifyBundleCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor) {
+            @NonNull final byte[] trustAnchor,
+            @NonNull final byte[] channelContext) {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
+        this.channelContext = requireNonNull(channelContext);
     }
 
     @Override
@@ -134,7 +138,8 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
         final BesuQbftVerifier.VerifiedBundle verified;
         try {
-            verified = verifier.verifyBundle(bundlePayload, trustedValidatorSetEncoded);
+            final byte[] channelId = EvmChannelContext.channelId(channelContext, trustedClprServiceAddress20);
+            verified = verifier.verifyBundle(bundlePayload, trustedValidatorSetEncoded, channelId);
         } catch (final ProofException e) {
             log.warn("verifyBundle (QBFT): proof rejected for trustAnchor {}: {}", trustAnchorBytes, e.getMessage());
             return fail();

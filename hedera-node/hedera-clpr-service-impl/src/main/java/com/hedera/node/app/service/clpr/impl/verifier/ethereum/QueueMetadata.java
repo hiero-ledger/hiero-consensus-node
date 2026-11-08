@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.verifier.ethereum;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.checkedCopy;
 
+import com.hedera.node.app.service.clpr.impl.verifier.EvmChannelContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -84,8 +85,19 @@ public record QueueMetadata(
     static QueueMetadata decode(@NonNull final byte[][] slotKeys, @NonNull final byte[][] provenSlotValues) {
         Objects.requireNonNull(slotKeys, "slotKeys");
         Objects.requireNonNull(provenSlotValues, "provenSlotValues");
-        final byte[][] ordered = reorderChannelSlots(slotKeys, provenSlotValues);
+        return decodeOrdered(reorderChannelSlots(slotKeys, provenSlotValues));
+    }
 
+    @NonNull
+    static QueueMetadata decodeForChannel(
+            @NonNull final byte[][] slotKeys,
+            @NonNull final byte[][] provenSlotValues,
+            @NonNull final byte[] channelId) {
+        return decodeOrdered(EvmChannelContext.orderQueueSlots(slotKeys, provenSlotValues, channelId));
+    }
+
+    @NonNull
+    private static QueueMetadata decodeOrdered(@NonNull final byte[][] ordered) {
         // Slot +1: verifier(20) | status(1) | nextMessageId(8) — first declared field at LSB.
         // Byte layout (MSB→LSB): 3B padding | 8B nextMessageId | 1B status | 20B verifier.
         final byte[] statusSlot = checkedCopy(ordered[SP_INDEX_CONN_STATUS_NEXTMSGID], 32, "connStatusNextMsgIdSlot");

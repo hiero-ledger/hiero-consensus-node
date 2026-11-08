@@ -246,10 +246,20 @@ A real proof may have many `path` entries; for example, 29 entries means 29 IAVL
 hashing steps from the storage leaf up to the EVM store root, not 29 separate proofs.
 
 For `verifyConfig`, exactly one storage proof is expected: the CLPR service-address
-configuration slot. For `verifyBundle`, exactly five storage proofs are expected in the
-same queue-metadata order used by the QBFT verifier: last-message running hash, packed
-channel status/next-message slot, packed received-message slot, sent running hash,
-and received running hash.
+configuration slot. For `verifyBundle`, the five Channel slots are required: packed
+status/next-message ID, packed received-message ID, sent running hash, received running
+hash, and endpoint-manifest version. Message-bearing bundles also prove the last-message
+running hash.
+
+All three built-in EVM bundle verifiers receive the local Channel record's
+`channelContext = channelId32 || peerServiceAddress20`. The service address must match
+the trusted anchor's service address, whose account or Sei store key is authenticated by
+the state proof. Queue slot keys must equal `keccak256(channelId32 || uint256(15))`
+plus the exact field offsets `{1,2,4,5,16}`. The optional last-message hash key must equal
+`keccak256(uint256(nextMessageId - 1) || keccak256(channelId32 || uint256(1))) + 1`,
+using the proven next-message ID. Proof order is irrelevant; duplicate, missing, and
+unrelated keys are rejected. A valid state proof for another channel cannot satisfy
+these checks, even if its counters and running hashes have the same values.
 
 ### Compact Commit
 

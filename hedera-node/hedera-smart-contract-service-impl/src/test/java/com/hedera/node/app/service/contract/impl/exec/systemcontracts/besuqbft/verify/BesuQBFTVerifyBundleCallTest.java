@@ -38,6 +38,12 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
         CODE_HASH[0] = 0x33;
     }
 
+    private static byte[] channelContext() {
+        final byte[] context = new byte[52];
+        System.arraycopy(SERVICE_ADDR, 0, context, 32, 20);
+        return context;
+    }
+
     private static byte[] buildTrustAnchorRlp() {
         byte[] encodedValidatorSet = BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR));
         return Rlp.encodeList(List.of(
@@ -121,11 +127,11 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
                 new byte[0],
                 new byte[0]);
 
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
-                        .willReturn(verified))) {
+        try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willReturn(verified))) {
             final var call = new BesuQBFTVerifyBundleCall(
-                    mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp());
+                    mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp(), channelContext());
             final var result = call.execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
@@ -189,11 +195,15 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     private Call.PricedResult executeWith(final BesuQbftVerifier.VerifiedBundle verified) {
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
-                        .willReturn(verified))) {
+        try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willReturn(verified))) {
             return new BesuQBFTVerifyBundleCall(
-                            mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp())
+                            mockEnhancement(),
+                            gasCalculator,
+                            new byte[] {1, 2, 3},
+                            buildTrustAnchorRlp(),
+                            channelContext())
                     .execute(frame);
         }
     }

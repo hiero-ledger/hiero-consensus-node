@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.ethereum.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mockConstruction;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -69,7 +70,11 @@ class EthereumVerifyBundleTranslatorTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject.callFrom(attempt)).isInstanceOf(EthereumVerifyBundleCall.class);
+        try (final var calls = mockConstruction(
+                EthereumVerifyBundleCall.class,
+                (mock, context) -> assertThat(context.arguments().get(4)).isEqualTo(channelContext))) {
+            assertThat(subject.callFrom(attempt)).isSameAs(calls.constructed().getFirst());
+        }
     }
 
     @Test

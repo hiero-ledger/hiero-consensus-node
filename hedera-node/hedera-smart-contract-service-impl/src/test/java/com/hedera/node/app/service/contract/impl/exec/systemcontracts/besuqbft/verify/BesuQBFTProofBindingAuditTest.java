@@ -63,11 +63,11 @@ class BesuQBFTProofBindingAuditTest extends CallTestBase {
                 new byte[0],
                 new byte[0],
                 new byte[0]);
-        try (final var ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, context) -> given(mock.verifyBundle(any(), any()))
-                        .willReturn(proven))) {
+        try (final var ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, context) -> given(mock.verifyBundle(any(), any(), any())).willReturn(proven))) {
             final var subject = new BesuQBFTVerifyBundleCall(
-                    mockEnhancement(), gasCalculator, new byte[] {1}, fullAnchor((byte) 0x11));
+                    mockEnhancement(), gasCalculator, new byte[] {1}, fullAnchor((byte) 0x11), new byte[52]);
             final var result = subject.execute(frame);
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             return ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(

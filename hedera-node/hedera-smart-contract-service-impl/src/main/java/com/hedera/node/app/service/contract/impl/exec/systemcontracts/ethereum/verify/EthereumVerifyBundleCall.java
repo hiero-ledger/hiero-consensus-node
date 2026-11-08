@@ -38,7 +38,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * <p>The {@code bundlePayload} is the RLP-encoded sync-committee bundle payload; the
  * {@code trustAnchor} is the verifier's self-contained anchor
  * ({@code [syncCommittee, genesisValidatorsRoot, forkVersion, serviceAddress]}), passed  to
- * {@link EthereumSyncCommitteeProofVerifier#verifyBundle(byte[], byte[])}. The verifier reads the service contract
+ * {@link EthereumSyncCommitteeProofVerifier#verifyBundle(byte[], byte[], byte[])}. The verifier reads the service contract
  * address from the anchor itself, so proof verification needs no external configuration.
  * <p>
  * The Ethereum verifier proves the queue metadata via execution-layer storage proofs and computes any trust-anchor
@@ -56,15 +56,18 @@ public class EthereumVerifyBundleCall extends AbstractCall {
 
     private final byte[] bundlePayload;
     private final byte[] trustAnchor;
+    private final byte[] channelContext;
 
     public EthereumVerifyBundleCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor) {
+            @NonNull final byte[] trustAnchor,
+            @NonNull final byte[] channelContext) {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
+        this.channelContext = requireNonNull(channelContext);
     }
 
     @Override
@@ -147,7 +150,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
         final var verifier = new EthereumSyncCommitteeProofVerifier(FakeBlsSignatureVerifier.INSTANCE);
         final VerifiedBundle verified;
         try {
-            verified = verifier.verifyBundle(bundlePayload, trustAnchor);
+            verified = verifier.verifyBundle(bundlePayload, trustAnchor, channelContext);
         } catch (final ProofException e) {
             log.debug("[EthereumVerifier] verifyBundle: proof rejected", e);
             return null;

@@ -103,6 +103,34 @@ class EthereumSyncCommitteeProofVerifierTest {
         return new BeaconHeader(slot, proposerIndex, parentRoot, stateRoot, bodyRoot).hashTreeRoot();
     }
 
+    @Test
+    void contextualProofRejectsAnotherChannelsGenuineStorageKeys() {
+        final byte[] context = new byte[52];
+        System.arraycopy(SERVICE_ADDR, 0, context, 32, 20);
+        final byte[] preimage = new byte[64];
+        preimage[63] = 15;
+        final BigInteger base = new BigInteger(1, MiscCryptoUtils.keccak256DigestOf(preimage));
+        final var builder = validPayloadBuilder();
+        builder.storageEntries = new ArrayList<>();
+        for (final int offset : new int[] {1, 2, 4, 5, 16}) {
+            byte[] raw = base.add(BigInteger.valueOf(offset)).toByteArray();
+            byte[] key = new byte[32];
+            System.arraycopy(
+                    raw, Math.max(0, raw.length - 32), key, Math.max(0, 32 - raw.length), Math.min(raw.length, 32));
+            builder.storageEntries.add(storageEntry(key, List.of()));
+        }
+        final byte[] payload = builder.build();
+        assertThat(verifier(new FakeBls())
+                        .verifyBundle(payload, TRUST_ANCHOR, context)
+                        .queueMetadata()
+                        .nextMessageId())
+                .isZero();
+        context[0] = 1;
+        assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR, context))
+                .isInstanceOf(ProofException.class)
+                .hasMessageContaining("storage slot");
+    }
+
     @Nested
     @DisplayName("verifyBundle(...)")
     class VerifyBundle {

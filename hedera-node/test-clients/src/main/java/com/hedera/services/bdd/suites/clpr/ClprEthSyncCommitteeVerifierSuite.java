@@ -83,7 +83,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 setupChannelWithEthereumVerifier(crypto, EthSyncCommitteeProofs.configPayload()),
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.bundlePayload(content))
+                        .bundlePayload(EthSyncCommitteeProofs.bundlePayload(crypto.channelId(), content))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
                 // The proven bundle delivered message #1, so receivedMessageId advances 0 -> 1.
@@ -130,7 +130,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 setupChannelWithEthereumVerifier(crypto, EthSyncCommitteeProofs.configPayload()),
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.tamperedBundlePayload(content))
+                        .bundlePayload(EthSyncCommitteeProofs.tamperedBundlePayload(crypto.channelId(), content))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED)));
@@ -162,7 +162,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 // Step 1: rotation bundle — delivers message #1 and proves nextCommittee.
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.rotationBundlePayload(rotationContent))
+                        .bundlePayload(
+                                EthSyncCommitteeProofs.rotationBundlePayload(crypto.channelId(), rotationContent))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
                 withOpContext((spec, opLog) -> {
@@ -173,7 +174,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 // Step 2: post-rotation bundle — delivers message #2 using the updated trust anchor.
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.postRotationBundlePayload(postRotationContent))
+                        .bundlePayload(EthSyncCommitteeProofs.postRotationBundlePayload(
+                                crypto.channelId(), postRotationContent))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
                 withOpContext((spec, opLog) -> {
@@ -255,7 +257,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 }),
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.bundlePayloadWithManifest(content, advanceManifest))
+                        .bundlePayload(EthSyncCommitteeProofs.bundlePayloadWithManifest(
+                                crypto.channelId(), content, advanceManifest))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
                 withOpContext((spec, opLog) -> {

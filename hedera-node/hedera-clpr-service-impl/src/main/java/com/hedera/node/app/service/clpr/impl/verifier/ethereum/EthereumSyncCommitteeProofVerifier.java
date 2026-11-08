@@ -8,6 +8,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.BlsSignatureVerifier;
+import com.hedera.node.app.service.clpr.impl.verifier.EvmChannelContext;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.Ssz.SszMerkleBranch;
@@ -96,6 +97,23 @@ public final class EthereumSyncCommitteeProofVerifier {
      */
     @NonNull
     public VerifiedBundle verifyBundle(@NonNull final byte[] bundlePayload, @NonNull final byte[] trustAnchor) {
+        return verifyBundleInternal(bundlePayload, trustAnchor, null);
+    }
+
+    /** Verifies a bundle bound to the local Channel record's channel ID and peer service address. */
+    @NonNull
+    public VerifiedBundle verifyBundle(
+            @NonNull final byte[] bundlePayload,
+            @NonNull final byte[] trustAnchor,
+            @NonNull final byte[] channelContext) {
+        return verifyBundleInternal(bundlePayload, trustAnchor, Objects.requireNonNull(channelContext));
+    }
+
+    @NonNull
+    private VerifiedBundle verifyBundleInternal(
+            @NonNull final byte[] bundlePayload,
+            @NonNull final byte[] trustAnchor,
+            @Nullable final byte[] channelContext) {
         Objects.requireNonNull(bundlePayload, "bundlePayload");
         Objects.requireNonNull(trustAnchor, "trustAnchor");
         log.debug(
@@ -105,6 +123,9 @@ public final class EthereumSyncCommitteeProofVerifier {
 
         // --- 1. Decode the payload ----
         final TrustAnchor currentAnchor = PayloadDecoder.decodeTrustAnchor(trustAnchor);
+        final byte[] channelId = channelContext == null
+                ? null
+                : EvmChannelContext.channelId(channelContext, currentAnchor.serviceAddress20());
         final BundlePayload bundle = PayloadDecoder.decodeBundle(bundlePayload);
         final BeaconHeader header = bundle.attestedHeader();
         final byte[] beaconBlockRoot32 = header.hashTreeRoot();
@@ -160,7 +181,9 @@ public final class EthereumSyncCommitteeProofVerifier {
                         .map(Rlp::decodeTrieStorageValueAsBytes32)
                         .orElseGet(() -> new byte[32]);
             }
-            queueMetadata = QueueMetadata.decode(slotKeys, provenSlotValues);
+            queueMetadata = channelId == null
+                    ? QueueMetadata.decode(slotKeys, provenSlotValues)
+                    : QueueMetadata.decodeForChannel(slotKeys, provenSlotValues, channelId);
         }
 
         // --- 4. Endpoint-manifest advance (spec §4.9), if the bundle carries one -------------

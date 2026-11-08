@@ -19,6 +19,7 @@ import com.hedera.hapi.node.state.clpr.SeiTrustAnchor;
 import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.EvmChannelContext;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -212,6 +213,23 @@ public final class SeiCometBftProofVerifier {
      */
     @NonNull
     public static VerifiedBundle verifyBundle(@NonNull final byte[] bundlePayload, @NonNull final byte[] trustAnchor) {
+        return verifyBundleInternal(bundlePayload, trustAnchor, null);
+    }
+
+    /** Verifies a bundle bound to the local Channel record's channel ID and peer service address. */
+    @NonNull
+    public static VerifiedBundle verifyBundle(
+            @NonNull final byte[] bundlePayload,
+            @NonNull final byte[] trustAnchor,
+            @NonNull final byte[] channelContext) {
+        return verifyBundleInternal(bundlePayload, trustAnchor, requireNonNull(channelContext));
+    }
+
+    @NonNull
+    private static VerifiedBundle verifyBundleInternal(
+            @NonNull final byte[] bundlePayload,
+            @NonNull final byte[] trustAnchor,
+            @Nullable final byte[] channelContext) {
         requireNonNull(bundlePayload, "bundlePayload");
         requireNonNull(trustAnchor, "trustAnchor");
         log.debug(
@@ -231,6 +249,8 @@ public final class SeiCometBftProofVerifier {
             throw ProofException.sei(
                     "trustAnchor.service_address must be " + ADDRESS_LENGTH + " bytes, got " + serviceAddress20.length);
         }
+        final byte[] channelId =
+                channelContext == null ? null : EvmChannelContext.channelId(channelContext, serviceAddress20);
         final String chainId = anchor.chainId();
         if (chainId.isEmpty()) {
             throw ProofException.sei("trustAnchor.chain_id is empty");
@@ -321,7 +341,7 @@ public final class SeiCometBftProofVerifier {
         QueueMetadata queueMetadata = null;
         byte[] newEndpointManifestBytes = new byte[0];
         if (stateProof != null) {
-            final ProvenState proven = verifyStateProof(stateProof, currentSet, serviceAddress20);
+            final ProvenState proven = verifyStateProof(stateProof, currentSet, serviceAddress20, channelId);
             final SeiHeader contentHeader = proven.header();
             if (!chainId.equals(contentHeader.chainId())) {
                 throw ProofException.sei("header chain_id '" + contentHeader.chainId()
@@ -543,6 +563,15 @@ public final class SeiCometBftProofVerifier {
             @NonNull final SeiStateProof stateProof,
             @NonNull final SeiValidatorSet trustedSet,
             @NonNull final byte[] serviceAddress20) {
+        return verifyStateProof(stateProof, trustedSet, serviceAddress20, null);
+    }
+
+    @NonNull
+    private static ProvenState verifyStateProof(
+            @NonNull final SeiStateProof stateProof,
+            @NonNull final SeiValidatorSet trustedSet,
+            @NonNull final byte[] serviceAddress20,
+            @Nullable final byte[] channelId) {
         final SeiSignedHeader signedHeader = required(stateProof.signedHeader(), "signed_header");
         final ProvenHeader provenHeader = verifySignedHeader(signedHeader, trustedSet);
         final SeiHeader header = provenHeader.header();
@@ -633,7 +662,15 @@ public final class SeiCometBftProofVerifier {
                     HEX.formatHex(slotValue),
                     entry.iavlProof().length());
         }
-        final byte[][] slotValues = orderQueueSlotValuesByProofKey(entries, slotValuesInProofOrder);
+        final byte[][] slotValues;
+        if (channelId != null && !entries.isEmpty()) {
+            final byte[][] slotKeys = entries.stream()
+                    .map(entry -> Arrays.copyOfRange(entry.key().toByteArray(), 21, 53))
+                    .toArray(byte[][]::new);
+            slotValues = EvmChannelContext.orderQueueSlots(slotKeys, slotValuesInProofOrder, channelId);
+        } else {
+            slotValues = orderQueueSlotValuesByProofKey(entries, slotValuesInProofOrder);
+        }
         log.debug(
                 "SeiCometBftProofVerifier.verifyStateProof EXIT: SUCCESS blockHash=0x{}, provenSlots={}",
                 HEX.formatHex(headerHash32),

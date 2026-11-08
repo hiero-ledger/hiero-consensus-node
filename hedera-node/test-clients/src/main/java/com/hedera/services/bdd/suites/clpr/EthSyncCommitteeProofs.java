@@ -182,10 +182,7 @@ final class EthSyncCommitteeProofs {
      * none of ours) and {@code sentRunningHash = SHA-256(ZERO || SHA-256(serialized(payload)))}, matching
      * what the submit handler recomputes when it folds the delivered message.
      *
-     * <p>{@code receivedMessageId} is intentionally left at 0 so that its storage slot stays zero: the
-     * {@link StorageTrie} builder only supports up to 2 non-zero slots, and slots 0 (packed status) and 2
-     * (sentRunningHash) are already non-zero here. A non-zero {@code receivedMessageId} would push slot 1
-     * non-zero too and exceed that limit.
+     * <p>{@code receivedMessageId} is zero because this fresh channel has acknowledged no outbound messages.
      */
     static ClprBundleContent singleMessageBundleContent(final ClprMessagePayload payload) {
         final byte[] sentRunningHash = sha256(ZERO_32, sha256(serializePayload(payload)));
@@ -203,8 +200,8 @@ final class EthSyncCommitteeProofs {
     }
 
     /** A valid bundle payload whose proven storage slots encode exactly {@code content}'s metadata. */
-    static byte[] bundlePayload(final ClprBundleContent content) {
-        return bundlePayload(content, false);
+    static byte[] bundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        return bundlePayload(channelId, content, false);
     }
 
     /**
@@ -212,18 +209,20 @@ final class EthSyncCommitteeProofs {
      * fails to verify against the proven execution state root and the verifier rejects the bundle with
      * {@code CLPR_BUNDLE_VERIFICATION_FAILED}.
      */
-    static byte[] tamperedBundlePayload(final ClprBundleContent content) {
-        return bundlePayload(content, true);
+    static byte[] tamperedBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        return bundlePayload(channelId, content, true);
     }
 
-    private static byte[] bundlePayload(final ClprBundleContent content, final boolean tamperAccountProof) {
+    private static byte[] bundlePayload(
+            final byte[] channelId, final ClprBundleContent content, final boolean tamperAccountProof) {
         final var metadata = content.getMetadata();
 
         // 1) Proven storage-slot values, in QueueMetadata slot order (see QueueMetadata.decode).
         final byte[][] slotValues = computeSlotValues(metadata);
+        final byte[][] slotKeys = queueSlotKeys(channelId, metadata.getNextMessageId());
 
         // 2) Storage trie over the non-zero slots; zero slots resolve "absent" against the same root.
-        final StorageTrie storageTrie = StorageTrie.of(slotValues);
+        final StorageTrie storageTrie = StorageTrie.of(slotKeys, slotValues);
 
         // 3) Account proof: single leaf for SERVICE_ADDRESS committing the storage root. The execution
         //    state root commits the clean leaf; when tampering, the leaf served in the proof is
@@ -256,8 +255,8 @@ final class EthSyncCommitteeProofs {
 
         // 6) Storage proof entries — every entry carries the full node set; only matching keys resolve.
         final List<Object> storageEntries = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            storageEntries.add(List.of(slotKey(i), storageTrie.nodes));
+        for (int i = 0; i < slotKeys.length; i++) {
+            storageEntries.add(List.of(slotKeys[i], storageTrie.nodes));
         }
 
         return RLPEncoder.list(List.of(
@@ -275,8 +274,7 @@ final class EthSyncCommitteeProofs {
     /**
      * Builds the {@link ClprBundleContent} for a second bundle that delivers two inbound messages. The peer
      * reports {@code nextMessageId = 3} (messages #1 and #2 sent) and a running hash chained over both
-     * payloads. {@code receivedMessageId} is left at 0 so slot 1 stays zero and the {@link StorageTrie}
-     * 2-slot limit is not exceeded.
+     * payloads. {@code receivedMessageId} stays at zero because the peer has acknowledged no outbound messages.
      */
     static ClprBundleContent twoMessageBundleContent(
             final ClprMessagePayload payload1, final ClprMessagePayload payload2) {
@@ -303,8 +301,9 @@ final class EthSyncCommitteeProofs {
      * {@value #NEXT_SYNC_COMMITTEE_LEAF_INDEX}. The verifier will produce a successor trust anchor
      * for {@link #NEXT_PUBKEYS} if the branch verifies.
      */
-    static byte[] rotationBundlePayload(final ClprBundleContent content) {
-        final StorageTrie storageTrie = StorageTrie.of(computeSlotValues(content.getMetadata()));
+    static byte[] rotationBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        final byte[][] slotKeys = queueSlotKeys(channelId, content.getMetadata().getNextMessageId());
+        final StorageTrie storageTrie = StorageTrie.of(slotKeys, computeSlotValues(content.getMetadata()));
         final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
         final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
 
@@ -327,8 +326,8 @@ final class EthSyncCommitteeProofs {
         final Object syncAggregate = List.of(bits, signature);
 
         final List<Object> storageEntries = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            storageEntries.add(List.of(slotKey(i), storageTrie.nodes));
+        for (int i = 0; i < slotKeys.length; i++) {
+            storageEntries.add(List.of(slotKeys[i], storageTrie.nodes));
         }
 
         return RLPEncoder.list(List.of(
@@ -350,8 +349,9 @@ final class EthSyncCommitteeProofs {
      * {@link #NEXT_PUBKEYS} (the new committee) so the shape is correct for when real BLS
      * verification replaces the current placeholder.
      */
-    static byte[] postRotationBundlePayload(final ClprBundleContent content) {
-        final StorageTrie storageTrie = StorageTrie.of(computeSlotValues(content.getMetadata()));
+    static byte[] postRotationBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        final byte[][] slotKeys = queueSlotKeys(channelId, content.getMetadata().getNextMessageId());
+        final StorageTrie storageTrie = StorageTrie.of(slotKeys, computeSlotValues(content.getMetadata()));
         final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
         final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
 
@@ -370,8 +370,8 @@ final class EthSyncCommitteeProofs {
         final Object syncAggregate = List.of(bits, signature);
 
         final List<Object> storageEntries = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            storageEntries.add(List.of(slotKey(i), storageTrie.nodes));
+        for (int i = 0; i < slotKeys.length; i++) {
+            storageEntries.add(List.of(slotKeys[i], storageTrie.nodes));
         }
 
         return RLPEncoder.list(List.of(
@@ -393,10 +393,12 @@ final class EthSyncCommitteeProofs {
      * commits to both. Item 9 is the manifest preimage; item 10 is the slot-18 {@code [key, proofNodes[]]} entry.
      * No committee rotation is carried.
      */
-    static byte[] bundlePayloadWithManifest(final ClprBundleContent content, final byte[] manifestBytes) {
+    static byte[] bundlePayloadWithManifest(
+            final byte[] channelId, final ClprBundleContent content, final byte[] manifestBytes) {
         final byte[] manifestCommitment = MiscCryptoUtils.keccak256DigestOf(manifestBytes);
+        final byte[][] slotKeys = queueSlotKeys(channelId, content.getMetadata().getNextMessageId());
         final StorageTrie storageTrie =
-                StorageTrie.ofWithManifest(computeSlotValues(content.getMetadata()), manifestCommitment);
+                StorageTrie.ofWithManifest(slotKeys, computeSlotValues(content.getMetadata()), manifestCommitment);
         final byte[] accountLeaf = accountLeaf(SERVICE_ADDRESS, storageTrie.root);
         final byte[] executionStateRoot = MiscCryptoUtils.keccak256DigestOf(accountLeaf);
 
@@ -414,11 +416,11 @@ final class EthSyncCommitteeProofs {
         final byte[] signature = BlsSigner.PLACEHOLDER.sign(signingRoot, COMMITTEE_SIZE);
         final Object syncAggregate = List.of(bits, signature);
 
-        // Queue-metadata storage entries (item 7): exactly QueueMetadata.EXPECTED_SLOTS (5), each serving the full
-        // node set; the extra slot-18 leaf in the trie is simply unused when resolving these keys.
+        // Five Channel fields plus the last-message running hash, each serving the full node set.
+        // The extra slot-18 leaf in the trie is unused when resolving these queue keys.
         final List<Object> storageEntries = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
-            storageEntries.add(List.of(slotKey(i), storageTrie.nodes));
+        for (int i = 0; i < slotKeys.length; i++) {
+            storageEntries.add(List.of(slotKeys[i], storageTrie.nodes));
         }
         // Manifest commitment-slot storage proof (item 10): a single [key, proofNodes[]] entry for slot 18.
         final Object manifestStorageEntry = List.of(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX), storageTrie.nodes);
@@ -440,13 +442,15 @@ final class EthSyncCommitteeProofs {
     // ── Storage-slot packing (mirrors QueueMetadata.decode's byte layout) ──
 
     private static byte[][] computeSlotValues(final ClprQueueMetadata metadata) {
-        final byte[][] slotValues = new byte[5][];
+        final byte[][] slotValues = new byte[6][];
         slotValues[0] = packedStatusSlot(
                 metadata.getNextMessageId(), metadata.getStatus().getNumber());
         slotValues[1] = packedReceivedMessageIdSlot(metadata.getReceivedMessageId());
         slotValues[2] = leftPad32(metadata.getSentRunningHash().toByteArray());
         slotValues[3] = leftPad32(metadata.getReceivedRunningHash().toByteArray());
-        slotValues[4] = ZERO_32; // lastMessageRunningHash — not reconciled, left zero.
+        slotValues[4] = new byte[32];
+        putUint64BigEndian(slotValues[4], 24, metadata.getEndpointManifestVersion());
+        slotValues[5] = leftPad32(metadata.getSentRunningHash().toByteArray());
         return slotValues;
     }
 
@@ -473,7 +477,42 @@ final class EthSyncCommitteeProofs {
         }
     }
 
-    /** EVM storage slot key for QueueMetadata position {@code i}; chosen so ascending order = field order. */
+    /** Canonical SC-189 Channel fields and the last message's running hash for a message-bearing proof. */
+    private static byte[][] queueSlotKeys(final byte[] channelId, final long nextMessageId) {
+        if (channelId.length != 32 || nextMessageId < 2) {
+            throw new IllegalArgumentException(
+                    "Message proofs require a bytes32 channel ID and positive last message ID");
+        }
+        final byte[] channelBase = mappingSlot(channelId, slotKey(15));
+        final int[] offsets = {1, 2, 4, 5, 16};
+        final byte[][] keys = new byte[6][];
+        for (int i = 0; i < offsets.length; i++) {
+            keys[i] = addSlotOffset(channelBase, offsets[i]);
+        }
+        final byte[] queueBase = mappingSlot(channelId, slotKey(1));
+        keys[5] = addSlotOffset(mappingSlot(leftPad32(minimalBE(nextMessageId - 1)), queueBase), 1);
+        return keys;
+    }
+
+    private static byte[] mappingSlot(final byte[] key, final byte[] base) {
+        final byte[] preimage = new byte[64];
+        System.arraycopy(key, 0, preimage, 0, 32);
+        System.arraycopy(base, 0, preimage, 32, 32);
+        return MiscCryptoUtils.keccak256DigestOf(preimage);
+    }
+
+    private static byte[] addSlotOffset(final byte[] base, final int offset) {
+        final byte[] result = base.clone();
+        int carry = offset;
+        for (int i = result.length - 1; i >= 0 && carry != 0; i--) {
+            final int sum = (result[i] & 0xff) + carry;
+            result[i] = (byte) sum;
+            carry = sum >>> 8;
+        }
+        return result;
+    }
+
+    /** Fixed 32-byte encoding of a top-level EVM storage slot. */
     static byte[] slotKey(final int i) {
         final byte[] key = new byte[32];
         key[31] = (byte) i;
@@ -501,10 +540,10 @@ final class EthSyncCommitteeProofs {
         }
 
         /** Trie over the non-zero queue-metadata slots only. */
-        static StorageTrie of(final byte[][] slotValues) {
+        static StorageTrie of(final byte[][] slotKeys, final byte[][] slotValues) {
             final List<int[]> keyHashes = new ArrayList<>();
             final List<byte[]> values = new ArrayList<>();
-            collectNonZeroSlots(slotValues, keyHashes, values);
+            collectNonZeroSlots(slotKeys, slotValues, keyHashes, values);
             return build(keyHashes, values);
         }
 
@@ -513,20 +552,24 @@ final class EthSyncCommitteeProofs {
          * ({@link #MANIFEST_COMMITMENT_SLOT_INDEX}). {@code manifestCommitment} is {@code keccak256} of the manifest
          * preimage and is stored under the same root as the queue-metadata slots.
          */
-        static StorageTrie ofWithManifest(final byte[][] slotValues, final byte[] manifestCommitment) {
+        static StorageTrie ofWithManifest(
+                final byte[][] slotKeys, final byte[][] slotValues, final byte[] manifestCommitment) {
             final List<int[]> keyHashes = new ArrayList<>();
             final List<byte[]> values = new ArrayList<>();
-            collectNonZeroSlots(slotValues, keyHashes, values);
+            collectNonZeroSlots(slotKeys, slotValues, keyHashes, values);
             keyHashes.add(nibbles(MiscCryptoUtils.keccak256DigestOf(slotKey(MANIFEST_COMMITMENT_SLOT_INDEX))));
             values.add(manifestCommitment);
             return build(keyHashes, values);
         }
 
         private static void collectNonZeroSlots(
-                final byte[][] slotValues, final List<int[]> keyHashes, final List<byte[]> values) {
+                final byte[][] slotKeys,
+                final byte[][] slotValues,
+                final List<int[]> keyHashes,
+                final List<byte[]> values) {
             for (int i = 0; i < slotValues.length; i++) {
                 if (!isZero(slotValues[i])) {
-                    keyHashes.add(nibbles(MiscCryptoUtils.keccak256DigestOf(slotKey(i))));
+                    keyHashes.add(nibbles(MiscCryptoUtils.keccak256DigestOf(slotKeys[i])));
                     values.add(slotValues[i]);
                 }
             }

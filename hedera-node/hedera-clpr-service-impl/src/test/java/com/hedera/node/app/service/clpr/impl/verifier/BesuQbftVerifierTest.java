@@ -1128,9 +1128,11 @@ class BesuQbftVerifierTest {
             vRunningHash[0] = (byte) 0xCC;
             byte[][] keys = {
                 plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
-                plusOffset(base, 5), plusOffset(base, 16), MiscCryptoUtils.keccak256DigestOf(connId)
+                plusOffset(base, 5), plusOffset(base, 16), messageRunningHashSlot(connId, 1)
             };
-            byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], vRunningHash};
+            byte[] vStatus = new byte[32];
+            ByteBuffer.wrap(vStatus, 3, 8).putLong(2L);
+            byte[][] vals = {vStatus, new byte[32], new byte[32], new byte[32], new byte[32], vRunningHash};
             byte[] bundle = buildBundleWithSlots(keys, vals);
 
             var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), connId);
@@ -2099,6 +2101,16 @@ class BesuQbftVerifierTest {
     // ── Exact connId-based Channel-slot matching helpers ──────────────────
 
     /** The SC-189 `_channels[connId]` struct base slot: MiscCryptoUtils.keccak256DigestOf(connId(32) || uint256(15)). */
+    private static byte[] messageRunningHashSlot(byte[] connId32, long messageId) {
+        byte[] outer = new byte[64];
+        System.arraycopy(connId32, 0, outer, 0, 32);
+        outer[63] = 1;
+        byte[] inner = new byte[64];
+        ByteBuffer.wrap(inner, 24, 8).putLong(messageId);
+        System.arraycopy(MiscCryptoUtils.keccak256DigestOf(outer), 0, inner, 32, 32);
+        return plusOffset(MiscCryptoUtils.keccak256DigestOf(inner), 1);
+    }
+
     private static byte[] connSlotBase(byte[] connId32) {
         byte[] pre = new byte[64];
         System.arraycopy(connId32, 0, pre, 0, 32);
@@ -2152,8 +2164,7 @@ class BesuQbftVerifierTest {
                     plusOffset(base, 16)));
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]};
             if (withMessage) {
-                keys.add(MiscCryptoUtils.keccak256DigestOf(
-                        connId)); // a far outlier, standing in for the message running-hash slot
+                keys.add(messageRunningHashSlot(connId, 1));
                 vals = new byte[][] {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]
                 };
             }

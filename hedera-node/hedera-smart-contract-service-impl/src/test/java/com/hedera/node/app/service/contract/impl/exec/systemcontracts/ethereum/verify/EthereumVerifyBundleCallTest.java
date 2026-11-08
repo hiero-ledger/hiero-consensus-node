@@ -38,7 +38,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     private static final byte[] SENT_HASH = filled(32, 0x02);
     private static final byte[] RECEIVED_HASH = filled(32, 0x03);
     private static final byte[] LAST_HASH = filled(32, 0x04);
-    private static final byte[] CHANNEL_CONTEXT = {0x0A, 0x0B};
+    private static final byte[] CHANNEL_CONTEXT = new byte[52];
     private static final byte[] SERVICE_ADDR = filled(20, 0x55);
     private static final long PROVEN_MANIFEST_VERSION = 5L;
 
@@ -258,7 +258,8 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     private EthereumVerifyBundleCall subject() {
-        return new EthereumVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
+        return new EthereumVerifyBundleCall(
+                mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
     }
 
     @Test
@@ -308,14 +309,14 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifier(final VerifiedBundle verified) {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
-                (mock, ctx) -> given(mock.verifyBundle(any(), any())).willReturn(verified));
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willReturn(verified));
     }
 
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifierThrowing(
             final RuntimeException toThrow) {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
-                (mock, ctx) -> given(mock.verifyBundle(any(), any())).willThrow(toThrow));
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willThrow(toThrow));
     }
 
     private static VerifiedBundle verified(

@@ -34,7 +34,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *
  * <p>The {@code bundlePayload} is a proto-encoded {@code ClprSeiBundlePayload}; the
  * {@code trustAnchor} is the proto-encoded {@code SeiTrustAnchor} stored on the Channel.
- * Verification is delegated to {@link SeiCometBftProofVerifier#verifyBundle(byte[], byte[])}.
+ * Verification is delegated to {@link SeiCometBftProofVerifier#verifyBundle(byte[], byte[], byte[])}.
  *
  * <p>The Sei verifier enforces two service-level invariants before returning, because a Sei bundle's
  * trust anchor is <i>computed</i> from proven validator-set rotation rather than echoed from the
@@ -51,15 +51,18 @@ public class SeiVerifyBundleCall extends AbstractCall {
 
     private final byte[] bundlePayload;
     private final byte[] trustAnchor;
+    private final byte[] channelContext;
 
     public SeiVerifyBundleCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor) {
+            @NonNull final byte[] trustAnchor,
+            @NonNull final byte[] channelContext) {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
+        this.channelContext = requireNonNull(channelContext);
     }
 
     @Override
@@ -76,7 +79,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
 
         final SeiCometBftProofVerifier.VerifiedBundle verified;
         try {
-            verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload, trustAnchor);
+            verified = SeiCometBftProofVerifier.verifyBundle(bundlePayload, trustAnchor, channelContext);
         } catch (final ProofException e) {
             log.debug("verifyBundle (Sei): proof rejected: {}", e.getMessage());
             return fail();

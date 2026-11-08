@@ -2,12 +2,16 @@
 package com.hedera.services.bdd.suites.clpr;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
+import com.hederahashgraph.api.proto.java.ClprBundleContent;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
@@ -41,15 +45,8 @@ class EthSyncCommitteeProofsTest {
 
     @Test
     void bundlePayloadStorageProofsRoundTripToTheEmbeddedMetadata() {
-        final var payload = ClprMessagePayload.newBuilder()
-                .setMessage(ClprMessage.newBuilder()
-                        .setConnectorId(ByteString.copyFrom(new byte[32]))
-                        .setTargetApplication(ByteString.copyFrom(new byte[20]))
-                        .setSender(ByteString.copyFrom(new byte[20]))
-                        .setMessageData(ByteString.copyFromUtf8("hello")))
-                .build();
-        final var content = EthSyncCommitteeProofs.singleMessageBundleContent(payload);
-        final RLPList bundle = topList(EthSyncCommitteeProofs.bundlePayload(content));
+        final var content = messageContent();
+        final RLPList bundle = topList(EthSyncCommitteeProofs.bundlePayload(new byte[32], content));
         final List<RLPItem> items = bundle.elements();
         assertThat(items).hasSize(9);
 
@@ -69,10 +66,10 @@ class EthSyncCommitteeProofsTest {
         final byte[] storageRoot = topList(accountValue).elements().get(2).data();
 
         // Re-prove every storage slot against that storage root.
-        final byte[][] slotValues = new byte[5][];
+        final byte[][] slotValues = new byte[6][];
         final List<RLPItem> entries = items.get(7).asRLPList().elements();
-        assertThat(entries).hasSize(5);
-        for (int i = 0; i < 5; i++) {
+        assertThat(entries).hasSize(6);
+        for (int i = 0; i < 6; i++) {
             final List<RLPItem> entry = entries.get(i).asRLPList().elements();
             final byte[] key = entry.get(0).data();
             final List<byte[]> nodes = rawList(entry.get(1));
@@ -87,6 +84,66 @@ class EthSyncCommitteeProofsTest {
         assertThat(readUint64(slotValues[1], 16)).isEqualTo(meta.getReceivedMessageId());
         assertThat(slotValues[2]).isEqualTo(meta.getSentRunningHash().toByteArray());
         assertThat(slotValues[3]).isEqualTo(meta.getReceivedRunningHash().toByteArray());
+        assertThat(readUint64(slotValues[4], 24)).isEqualTo(meta.getEndpointManifestVersion());
+        assertThat(slotValues[5]).isEqualTo(meta.getSentRunningHash().toByteArray());
+    }
+
+    @Test
+    void generatedProofVerifiesOnlyForItsRequestedChannel() {
+        final var content = messageContent();
+        final byte[] channelId = new byte[32];
+        channelId[0] = 0x42;
+        final byte[] context = channelContext(channelId);
+        // The fixture uses a placeholder BLS signer; storage proof verification remains real.
+        final var verifier = new EthereumSyncCommitteeProofVerifier((keys, message, signature) -> true);
+        final byte[] anchor = verifier.verifyConfigPayload(EthSyncCommitteeProofs.configPayload())
+                .ledgerConfiguration()
+                .initialTrustAnchor()
+                .toByteArray();
+        final byte[] bundle = EthSyncCommitteeProofs.bundlePayload(channelId, content);
+
+        final var verified = verifier.verifyBundle(bundle, anchor, context);
+
+        assertThat(verified.queueMetadata().nextMessageId())
+                .isEqualTo(content.getMetadata().getNextMessageId());
+        assertThat(verified.queueMetadata().lastMessageRunningHash())
+                .isEqualTo(content.getMetadata().getSentRunningHash().toByteArray());
+        final byte[] otherContext = context.clone();
+        otherContext[0] ^= 1;
+        assertThatThrownBy(() -> verifier.verifyBundle(bundle, anchor, otherContext))
+                .isInstanceOf(ProofException.class);
+    }
+
+    @Test
+    void tamperedAccountProofStillFailsWithCanonicalChannelKeys() {
+        final byte[] channelId = new byte[32];
+        final var verifier = new EthereumSyncCommitteeProofVerifier((keys, message, signature) -> true);
+        final byte[] anchor = verifier.verifyConfigPayload(EthSyncCommitteeProofs.configPayload())
+                .ledgerConfiguration()
+                .initialTrustAnchor()
+                .toByteArray();
+        final byte[] bundle = EthSyncCommitteeProofs.tamperedBundlePayload(channelId, messageContent());
+
+        assertThatThrownBy(() -> verifier.verifyBundle(bundle, anchor, channelContext(channelId)))
+                .isInstanceOf(ProofException.class);
+    }
+
+    private static byte[] channelContext(final byte[] channelId) {
+        final byte[] context = new byte[52];
+        System.arraycopy(channelId, 0, context, 0, channelId.length);
+        System.arraycopy(EthSyncCommitteeProofs.SERVICE_ADDRESS, 0, context, 32, 20);
+        return context;
+    }
+
+    private static ClprBundleContent messageContent() {
+        final var payload = ClprMessagePayload.newBuilder()
+                .setMessage(ClprMessage.newBuilder()
+                        .setConnectorId(ByteString.copyFrom(new byte[32]))
+                        .setTargetApplication(ByteString.copyFrom(new byte[20]))
+                        .setSender(ByteString.copyFrom(new byte[20]))
+                        .setMessageData(ByteString.copyFromUtf8("hello")))
+                .build();
+        return EthSyncCommitteeProofs.singleMessageBundleContent(payload);
     }
 
     // ── Minimal independent MPT reader ──
