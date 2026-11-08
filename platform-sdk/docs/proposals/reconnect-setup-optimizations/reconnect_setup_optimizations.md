@@ -73,8 +73,9 @@ data source implementations keep working. `MerkleDbDataSourceBuilder` overrides 
 With the pipeline and compaction paused, `MerkleDbDataSource.snapshotWithCopiedIndexes(dir)` makes a regular
 snapshot straight into the copy's directory, with one difference: the three indexes aren't written to files.
 Instead, each `LongListSegment` index is copied in memory: a new chunk is allocated for each non-null source chunk,
-and `MemorySegment.copy()` fills it. The index copies run as snapshot executor tasks, next to the file links of the
-three stores and the metadata, the way `snapshot()` runs them today.
+and `MemorySegment.copy()` fills it. The chunks are copied in parallel on the data source's flush pool, which is idle
+while the pipeline is paused. The index copies run as snapshot executor tasks, next to the file links of the three
+stores and the metadata, the way `snapshot()` runs them today.
 
 After the pause, `complete()` creates the copy with the existing load path, from that directory, with one new
 constructor parameter: the copied indexes, used instead of index files. `HalfDiskHashMap` gets the same optional
@@ -89,7 +90,8 @@ directory is hard-linked once instead of twice.
 The parallel long list writes in [#26557](https://github.com/hiero-ledger/hiero-consensus-node/pull/26557) aren't
 used. They were dropped: writes to one index file are serialized by the kernel's per-file write lock, at about
 1.4–1.5 GB/s per file, so splitting a list across writer threads didn't pay off. An in-memory copy has no such lock.
-If copying the leaf index alone turns out to be slow, splitting it into chunk ranges is a follow-up.
+Copying the 26 GB leaf index on one thread took about 18 s, as long as writing it to a file, so the chunks are
+copied in parallel (see "Measured effect" below).
 
 `merkleDb.dataSourceCopyMode` selects how a data source is copied:
 
@@ -157,6 +159,24 @@ snapshots would shrink only the snapshot half of each copy. Step 1 removes both 
 
 Peak off-heap memory doesn't change for `detach()` and `detachAsDataSourceCopy()`: today's rebuild already allocates
 a second set of in-memory indexes.
+
+### Measured effect
+
+These are learner reconnects on the 1B-account performance network, with the learner 21–23K rounds behind. Times are
+measured from the start of the reconnect.
+
+|                Copy                |  `main`  | Step 1, one thread per index | Step 1, parallel chunk copy |
+|------------------------------------|----------|------------------------------|-----------------------------|
+| Teacher (`detach`)                 | 75.6 s   | 19.6 s, 18.4 s of it paused  | 7.9 s                       |
+| Learner (`detachAsDataSourceCopy`) | 59.1 s   | 23.2 s                       | 11.4 s and 7.7 s            |
+
+With one thread per index, "snapshot with copied indexes" took about 18 s on both nodes. Copying the leaf index took
+most of that time. With the parallel copy, the teacher's whole copy, including its pause, took less than 8 s.
+
+The copy waits for the lifecycle thread to finish its current work before the pipeline is paused. If a periodic
+snapshot is in progress, the wait can be about as long as that snapshot. That's the most likely reason why, in one
+reconnect, the teacher took 19.8 s while the learner's copy took 7.7 s. The copy log lines now show this wait
+separately from the pause.
 
 ### Alternative: map the indexes
 

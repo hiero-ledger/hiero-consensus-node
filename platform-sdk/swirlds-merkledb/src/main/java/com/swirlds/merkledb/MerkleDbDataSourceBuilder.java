@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 
@@ -291,24 +292,32 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     private PreparedDataSourceCopy copyInMemory(
             final String label, final MerkleDbDataSource merkleDbDataSource, final boolean compactionEnabled) {
         final Path copyDir = newRestoredDataSourceDir(label);
+        // The indexes are kept outside the action, so they can be released, if resuming compaction fails
+        // after they are copied. Copied indexes aren't freed by GC, they must be closed explicitly
+        final AtomicReference<CopiedIndexes> indexes = new AtomicReference<>();
         try {
-            final CopiedIndexes indexes = merkleDbDataSource.pauseCompactionAndCall(
-                    () -> merkleDbDataSource.snapshotWithCopiedIndexes(copyDir));
+            merkleDbDataSource.pauseCompactionAndRun(
+                    () -> indexes.set(merkleDbDataSource.snapshotWithCopiedIndexes(copyDir)));
             return new InMemoryDataSourceCopy(
-                    label, copyDir, indexes, configuration, fileSystemManager, compactionEnabled);
+                    label, copyDir, indexes.get(), configuration, fileSystemManager, compactionEnabled);
         } catch (final IOException e) {
-            deleteDirectory(copyDir, e);
+            discardCopy(indexes.get(), copyDir, e);
             throw new UncheckedIOException(e);
         } catch (final RuntimeException | Error e) {
-            deleteDirectory(copyDir, e);
+            discardCopy(indexes.get(), copyDir, e);
             throw e;
         }
     }
 
     /**
-     * Deletes a directory after a failure. Deletion failures are added to the failure as suppressed.
+     * Releases the copied indexes, if any, and deletes the copy's directory after a failure. Deletion
+     * failures are added to the failure as suppressed.
      */
-    private static void deleteDirectory(@NonNull final Path dir, @NonNull final Throwable cause) {
+    private static void discardCopy(
+            @Nullable final CopiedIndexes indexes, @NonNull final Path dir, @NonNull final Throwable cause) {
+        if (indexes != null) {
+            indexes.close();
+        }
         try {
             FileUtils.deleteDirectory(dir);
         } catch (final IOException e) {

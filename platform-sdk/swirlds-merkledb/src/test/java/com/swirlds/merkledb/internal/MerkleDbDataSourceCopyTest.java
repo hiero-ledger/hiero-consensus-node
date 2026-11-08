@@ -8,8 +8,11 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertNoDatab
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -26,10 +29,13 @@ import com.swirlds.virtualmap.datasource.PreparedDataSourceCopy;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.io.IORunnable;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +44,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 
 /**
  * Tests for copying a MerkleDb data source in memory, see {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}
@@ -157,6 +164,48 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
             prepared.close();
             assertAllDatabasesClosedExcept(1);
             for (final LongList index : indexList) {
+                assertEquals(0, index.size(), "The copied index should be closed");
+                assertEquals(0, offHeapConsumption(index), "The copied index memory should be released");
+            }
+            // The source's indexes aren't affected
+            checkData(TestType.long_fixed, source, 1);
+        } finally {
+            source.close();
+        }
+        // The copy's storage dir is checked in checkNoDataSourcesLeft()
+    }
+
+    @Test
+    @DisplayName("Copied indexes are released, if resuming compaction fails after they are copied")
+    void copiedIndexesAreReleasedIfResumingCompactionFails() throws IOException {
+        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, false);
+        try {
+            final MerkleDbDataSource spy = Mockito.spy(source);
+            final AtomicReference<CopiedIndexes> copied = new AtomicReference<>();
+            doAnswer(invocation -> {
+                        final CopiedIndexes indexes = (CopiedIndexes) invocation.callRealMethod();
+                        copied.set(indexes);
+                        return indexes;
+                    })
+                    .when(spy)
+                    .snapshotWithCopiedIndexes(any());
+            // Runs the action, then fails as resuming compaction would, e.g. if a new compaction file
+            // can't be created
+            doAnswer(invocation -> {
+                        invocation.<IORunnable>getArgument(0).run();
+                        throw new IOException("Test: resuming compaction failed");
+                    })
+                    .when(spy)
+                    .pauseCompactionAndRun(any());
+
+            final MerkleDbDataSourceBuilder builder = builder(DEFAULT_CONFIGURATION);
+            final UncheckedIOException e =
+                    assertThrows(UncheckedIOException.class, () -> builder.prepareCopy(LABEL, spy, false, false));
+            assertEquals("Test: resuming compaction failed", e.getCause().getMessage());
+
+            final CopiedIndexes indexes = copied.get();
+            assertNotNull(indexes, "The indexes should have been copied");
+            for (final LongList index : List.of(indexes.hashChunkIndex(), indexes.leafIndex(), indexes.bucketIndex())) {
                 assertEquals(0, index.size(), "The copied index should be closed");
                 assertEquals(0, offHeapConsumption(index), "The copied index memory should be released");
             }

@@ -47,9 +47,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -70,7 +72,6 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.IORunnable;
-import org.hiero.base.io.IOSupplier;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
 
@@ -211,6 +212,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /** Flag for if a snapshot is in progress */
     private final AtomicBoolean snapshotInProgress = new AtomicBoolean(false);
+
+    /**
+     * Durations of the tasks of the snapshot in progress, in completion order. They are logged once
+     * the snapshot is finished. Snapshots never overlap, see {@link #snapshotInProgress}.
+     */
+    private final Queue<String> snapshotTaskTimes = new ConcurrentLinkedQueue<>();
 
     /** The range of valid leaf paths for data currently stored by this data source. */
     private volatile KeyRange validLeafPathRange = INVALID_KEY_RANGE;
@@ -649,16 +656,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     /**
-     * Same as {@link #pauseCompactionAndRun(IORunnable)}, but returns the result of the action.
-     *
-     * @param action action to run while compaction is paused
-     * @return the result of the action
-     */
-    public <T> T pauseCompactionAndCall(@NonNull final IOSupplier<T> action) throws IOException {
-        return compactionCoordinator.pauseCompactionAndCall(action);
-    }
-
-    /**
      * Save a batch of data to data store.
      * <p>
      * If you call this method where not all data is provided to cover the change in
@@ -1055,6 +1052,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
         final String type = copyIndexes ? "snapshot with copied indexes" : "snapshot";
         logger.info(MERKLE_DB.getMarker(), "[{}] Starting {} to {}", tableName, type, snapshotDirectory);
+        snapshotTaskTimes.clear();
         try {
             // start timing snapshot
             final long START = System.currentTimeMillis();
@@ -1116,10 +1114,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             }
             logger.info(
                     MERKLE_DB.getMarker(),
-                    "[{}] {} all finished in {} seconds",
+                    "[{}] {} all finished in {} seconds, tasks in completion order: {}",
                     tableName,
                     copyIndexes ? "Snapshot with copied indexes" : "Snapshot",
-                    (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+                    (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS,
+                    String.join(", ", snapshotTaskTimes));
             return copyIndexes ? new CopiedIndexes(indexCopies[0], indexCopies[1], indexCopies[2]) : null;
         } finally {
             snapshotInProgress.set(false);
@@ -1306,12 +1305,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     final long START = System.currentTimeMillis();
                     try {
                         runnable.run();
-                        logger.trace(
-                                MERKLE_DB.getMarker(),
-                                "[{}] Snapshot {} complete in {} seconds",
-                                tableName,
-                                taskName,
-                                (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+                        // Logged with the snapshot's summary line, so the timings take no extra log lines
+                        snapshotTaskTimes.add(taskName + " " + (System.currentTimeMillis() - START) + " ms");
                     } catch (final IOException e) {
                         logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, e);
                         throw new UncheckedIOException(e);

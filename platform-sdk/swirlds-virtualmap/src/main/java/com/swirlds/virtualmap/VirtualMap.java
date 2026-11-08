@@ -1217,8 +1217,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final VirtualDataSource dataSourceCopy = preparedCopy.complete();
             logger.info(
                     VIRTUAL_MERKLE_STATS.getMarker(),
-                    "Detached data source copy of {}: pipeline paused for {} ms, copy completed in {} ms",
+                    "Detached data source copy of {}: waited {} ms for the pipeline, pipeline paused for {} ms,"
+                            + " copy completed in {} ms",
                     getLabel(),
+                    snapshot.waitMillis(),
                     snapshot.pauseMillis(),
                     System.currentTimeMillis() - completeStart);
             try {
@@ -1258,9 +1260,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 flush(snapshot.cache(), dataSourceCopy);
                 logger.info(
                         VIRTUAL_MERKLE_STATS.getMarker(),
-                        "Created data source copy of {}: pipeline paused for {} ms, copy completed in {} ms,"
-                                + " cache flushed in {} ms",
+                        "Created data source copy of {}: waited {} ms for the pipeline, pipeline paused for {} ms,"
+                                + " copy completed in {} ms, cache flushed in {} ms",
                         getLabel(),
+                        snapshot.waitMillis(),
                         snapshot.pauseMillis(),
                         flushStart - completeStart,
                         System.currentTimeMillis() - flushStart);
@@ -1285,10 +1288,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @param cache the cache snapshot
      * @param dataSourceCopy the prepared data source copy. It must be closed, once the copy is
      *                       completed or abandoned
+     * @param waitMillis how long it took to pause the virtual pipeline. The pipeline is paused once the
+     *                   lifecycle thread finishes its current work, for example a flush with a snapshot
      * @param pauseMillis how long the virtual pipeline was paused to prepare the copy
      */
     private record DataSourceCopyAndCacheSnapshot(
-            @NonNull VirtualNodeCache cache, @NonNull PreparedDataSourceCopy dataSourceCopy, long pauseMillis) {}
+            @NonNull VirtualNodeCache cache,
+            @NonNull PreparedDataSourceCopy dataSourceCopy,
+            long waitMillis,
+            long pauseMillis) {}
 
     /**
      * Takes a snapshot of this map's cache and prepares a copy of its data source. The virtual
@@ -1301,6 +1309,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     private DataSourceCopyAndCacheSnapshot prepareDataSourceCopyAndSnapshotCache(
             final boolean compactionEnabled, final boolean offlineUse) {
+        final long waitStart = System.currentTimeMillis();
         return pipeline.pausePipelineAndExecute("detach", () -> {
             final long start = System.currentTimeMillis();
             // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
@@ -1309,7 +1318,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final PreparedDataSourceCopy dataSourceCopy =
                     dataSourceBuilder.prepareCopy(getLabel(), dataSource, compactionEnabled, offlineUse);
             return new DataSourceCopyAndCacheSnapshot(
-                    cacheSnapshot, dataSourceCopy, System.currentTimeMillis() - start);
+                    cacheSnapshot, dataSourceCopy, start - waitStart, System.currentTimeMillis() - start);
         });
     }
 
