@@ -2,10 +2,15 @@
 package com.swirlds.merkledb.collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -125,6 +130,60 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
             source.close();
             for (int i = 0; i < 1_000; i++) {
                 assertEquals(i == 5 ? 42 : i + 1, copy.get(i), "Value mismatch at index " + i);
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("A parallel copy has the same contents and valid range as the source")
+    void parallelCopyHasSameContents() {
+        final int longsPerChunk = 100;
+        final ForkJoinPool pool = new ForkJoinPool(4);
+        try (final LongListSegment source = new LongListSegment(longsPerChunk, 100_000, 10)) {
+            source.updateValidRange(0, 49_999);
+            for (int i = 0; i < 50_000; i++) {
+                source.put(i, i + 1);
+            }
+            // Drop a few chunks on the left, so the copy starts with null chunks
+            source.updateValidRange(1_234, 49_999);
+
+            try (final LongListSegment copy = new LongListSegment(source, pool)) {
+                assertEquals(source.size(), copy.size());
+                assertEquals(source.getMinValidIndex(), copy.getMinValidIndex());
+                assertEquals(source.getMaxValidIndex(), copy.getMaxValidIndex());
+                assertEquals(source.getOffHeapConsumption(), copy.getOffHeapConsumption());
+                for (int i = 0; i < 50_000; i++) {
+                    assertEquals(source.get(i), copy.get(i), "Value mismatch at index " + i);
+                }
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("A failed parallel copy rethrows the failure and leaves the source intact")
+    void failedParallelCopyRethrows() {
+        final int longsPerChunk = 100;
+        try (final LongListSegment source = new LongListSegment(longsPerChunk, 10_000, 10)) {
+            source.updateValidRange(0, 2_999);
+            for (int i = 0; i < 3_000; i++) {
+                source.put(i, i + 1);
+            }
+            // Runs the first 10 chunk copies, then fails to accept more tasks
+            final AtomicInteger submitted = new AtomicInteger();
+            final Executor executor = task -> {
+                if (submitted.incrementAndGet() > 10) {
+                    throw new RejectedExecutionException("Test");
+                }
+                task.run();
+            };
+            final RejectedExecutionException e =
+                    assertThrows(RejectedExecutionException.class, () -> new LongListSegment(source, executor));
+            assertEquals("Test", e.getMessage());
+            // The source is intact
+            for (int i = 0; i < 3_000; i++) {
+                assertEquals(i + 1, source.get(i), "Value mismatch at index " + i);
             }
         }
     }
