@@ -63,6 +63,10 @@ class ClprGenesisFeeScheduleTest {
         Price withExtras(final Map<Extra, Integer> includedExtras) {
             return new Price(baseFee, includedExtras, nodeNetworkExempt);
         }
+
+        Price exemptFromNodeAndNetworkFees() {
+            return new Price(baseFee, includedExtras, true);
+        }
     }
 
     /** The proposal's price for every CLPR transaction and query. */
@@ -74,9 +78,13 @@ class ClprGenesisFeeScheduleTest {
             Map.entry(CLPR_REGISTER_CONNECTOR, Price.of(10 * USD)),
             Map.entry(CLPR_COMPLETE_CONNECTOR, Price.of(25 * USD)),
             Map.entry(CLPR_DEREGISTER_CONNECTOR, Price.of(ONE_CENT)),
+            // The proposal prices a bundle at $0.01 + bundle bytes + verifier gas in total, so its bytes are not
+            // charged again by the node and network fees
             Map.entry(
                     CLPR_SUBMIT_BUNDLE,
-                    Price.of(ONE_CENT).withExtras(Map.of(Extra.PROCESSING_BYTES, 0, Extra.GAS, 0))),
+                    Price.of(ONE_CENT)
+                            .withExtras(Map.of(Extra.PROCESSING_BYTES, 0, Extra.GAS, 0))
+                            .exemptFromNodeAndNetworkFees()),
             // Admin-only: a privileged payer's fees are waived
             Map.entry(CLPR_CLOSE_CHANNEL, Price.of(0)),
             Map.entry(CLPR_EVICT_PEER_ENDPOINT, Price.of(0)),

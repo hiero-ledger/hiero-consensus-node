@@ -45,7 +45,7 @@ import org.junit.jupiter.api.Tag;
  *       full $100 base fee.</li>
  *   <li>{@code submitBundle} and {@code registerConnector} — failure paths against an unknown channel. Pre-check
  *       passes and the handler throws {@code CLPR_CHANNEL_NOT_FOUND}, so the payer is charged the configured
- *       base fee and extras.</li>
+ *       base fee and extras. A bundle is exempt from node and network fees, so it pays only its service fee.</li>
  *   <li>{@code updateLedgerConfiguration} and {@code closeChannel} — a non-admin payer fails authorization at
  *       consensus. The admin-only transactions have a $0 service fee, so a non-admin pays only the node and
  *       network fees.</li>
@@ -107,10 +107,8 @@ public class ClprBaseFeeSuite {
                         .payingWith(PAYER)
                         .via(txn)
                         .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
-                validateChargedUsdFromRecordWithTxnSize(
-                        txn,
-                        txnSize -> expectedClprTotalUsd(serviceFeeUsd, PAYER_SIGNATURES, txnSize),
-                        ALLOWED_PERCENT_DIFF));
+                // nodeNetworkFeeExempt: the service fee is the whole charge, independent of transaction size
+                validateChargedUsdFromRecordWithTxnSize(txn, txnSize -> serviceFeeUsd, ALLOWED_PERCENT_DIFF));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)

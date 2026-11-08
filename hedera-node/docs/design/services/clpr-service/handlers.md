@@ -127,8 +127,8 @@ side-effects.
      bookkeep replies (`ClprMessageReply`).
 - State writes: channel's `received_running_hash`, `last_received_message_id`; per-data-
   message replies stored back into the queue (replies on the source-side queue).
-- Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.slashConnector(...)`
-  and credits the submitting endpoint per `ClprConfig.endpointMarginPercent`. See
+- Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.applySlash(...)`
+  and credits the submitting endpoint the full penalty via `reimburseEndpoint`. See
   [`config-and-slashing.md`](config-and-slashing.md).
 - On running-hash or ordering mismatch: channel moves to `PAUSED` (spec §4.5).
 

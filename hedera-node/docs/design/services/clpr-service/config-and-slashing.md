@@ -36,16 +36,24 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 ### Stake / slashing economics (consumed by `ClprSlashingUtils`)
 
-|            Key            |            Default            | Network? |                                  Purpose                                   |
-|---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
-| `minLockedStake`          | `3 000 000 000 000` tinybars  | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
-| `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.  |
-| `slashBasePenalty`        | `10 000 000 000` tinybars     | yes      | Base slash on first offence.                                               |
-| `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
-| `slashBanThreshold`       | `5`                           | yes      | Cumulative offences after which a connector is banned.                     |
-| `endpointPenaltyTinybars` | `5 000 000`                   | yes      | Penalty paid by source connector to the submitting endpoint per spec §4.6. |
-| `messageExecutionCost`    | `1 000 000`                   | yes      | Notional cost component used in fee/refund maths.                          |
-| `endpointMarginPercent`   | `10`                          | yes      | Endpoint margin (% of recovered cost) per spec §3.3.3.                     |
+|                 Key                  |            Default            | Network? |                                    Purpose                                    |
+|--------------------------------------|-------------------------------|----------|-------------------------------------------------------------------------------|
+| `minLockedStake`                     | `3 000 000 000 000` tinybars  | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.      |
+| `stakingAccount`                     | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.     |
+| `slashBasePenalty`                   | `10 000 000 000` tinybars     | yes      | Base slash on first offence; each penalty is paid to the submitting endpoint. |
+| `slashMultiplier`                    | `2`                           | yes      | Geometric escalation factor per repeat offence.                               |
+| `slashBanThreshold`                  | `5`                           | yes      | Cumulative offences after which a connector is banned.                        |
+| `endpointMisbehaviorPenaltyTinybars` | `1 000 000 000` tinybars      | yes      | Charged to the submitting node when its bundle fails verification.            |
+| `messageExecutionCost`               | `1 000 000`                   | yes      | Notional cost component used in fee/refund maths.                             |
+| `endpointMarginPercent`              | `10`                          | yes      | Endpoint margin (% of recovered cost) per spec §3.3.3.                        |
+
+### Fees (consumed by `SendMessageCall` and `ClprBundleSubmitter`)
+
+|            Key             |          Default           | Network? |                                               Purpose                                                |
+|----------------------------|----------------------------|----------|------------------------------------------------------------------------------------------------------|
+| `sendMessageFeeTinycents`  | `1 000 000 000` tinycents  | yes      | Price of a `sendMessage` call ($0.10), including its gas; the rest is collected from attached value. |
+| `sendMessageIncludedBytes` | `1 024`                    | yes      | Message data bytes covered by that price; each further byte is charged the `STATE_BYTES` rate.       |
+| `nodeSubmitBundleMaxFee`   | `100 000 000 000` tinybars | yes      | Maximum fee a node pays to submit an inbound bundle (1,000 ℏ).                                       |
 
 ### Sync orchestration (CLPR-4.3, used by `ClprChannelManager` / `ClprEndpointClient`)
 
@@ -165,6 +173,11 @@ bundle payload. Both are charged the `GAS` extra for their verifier call at a fi
 `ClprGetLedgerConfiguration` and `ClprGetEndpointManifest` queries are paid, priced by `ClprQueryFeeCalculator`
 (exposed by `FacilityInitModule.provideClprQueryFeeCalculators`) at their base fee plus the same `GAS` extra.
 
+`ClprSubmitBundle` is also exempt from node and network fees (`nodeNetworkFeeExempt`), like the node-submitted
+`ClprEndpointPublication`. Its total fee is then the fee proposal's $0.01 + `PROCESSING_BYTES` × bundle bytes + verifier
+`GAS`. Without the exemption, the node fee's own `PROCESSING_BYTES` extra and the 9× network fee would charge the
+bundle's bytes another 10 times over, so a 4 MiB bundle would cost about $46 instead of about $4.25.
+
 CLPR transactions use the standard fee-charging path, including its existing treatment of failures. There is no
 separate failure price in the schedule; handler failures retain the configured base fee and extras. The admin-only
 transactions have a $0 service fee, while a privileged payer's fees are waived entirely.
@@ -175,25 +188,22 @@ $3,000 stake, $10 first slash (doubling, ban on the 5th), and a $1 endpoint misb
 
 ## Slashing: `ClprSlashingUtils`
 
-Pure function `slashConnector(connector, offences, config) → SlashResult`.
-
-Inputs from `ClprConfig`: `slashBasePenalty`, `slashMultiplier`, `slashBanThreshold`,
-`endpointPenaltyTinybars`, `endpointMarginPercent`.
-
-Algorithm (matches spec §4.6):
+`applySlash(connector, config, connectorStore) → SlashResult(updatedConnector, penaltyAmount, banned)` uses
+`slashBasePenalty`, `slashMultiplier` and `slashBanThreshold` from `ClprConfig` (matches spec §4.6):
 
 ```
-penalty = slashBasePenalty × (slashMultiplier ^ offences)
-banned  = (offences + 1) ≥ slashBanThreshold
-endpoint_payout = min(endpointPenaltyTinybars,
-                       penalty × endpointMarginPercent / 100)
-new_locked_stake = max(0, connector.locked_stake − penalty)
+new_slash_count = connector.slash_count + 1
+if new_slash_count ≥ slashBanThreshold:
+    penalty = connector.locked_stake      // ban: all remaining stake is forfeited
+    remove the connector from state
+else:
+    penalty = min(slashBasePenalty × slashMultiplier ^ connector.slash_count, connector.locked_stake)
+    connector.locked_stake -= penalty
 ```
 
-Returned `SlashResult(updatedConnector, penaltyAmount, banned)` is consumed by
-`ClprSubmitBundleHandler`, which also credits the submitting endpoint with
-`endpoint_payout`. If `banned`, the connector record stays in state but
-`deregisterConnector` is blocked while banned (per `ClprDeregisterConnectorHandler`).
+`ClprSubmitBundleHandler` then calls `reimburseEndpoint`, which transfers the whole `penalty` from `stakingAccount` to
+the submitting endpoint, capped at the staking account's balance so that hbar is conserved. As in the fee proposal,
+the submitter keeps the full penalty; routing it elsewhere (a protocol treasury, a per-bundle cap) is undecided.
 
 ### Which `ClprMessageReplyStatus` triggers a slash?
 

@@ -462,13 +462,11 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     }
 
     /**
-     * Checks if the given message frame is a token creation scenario.
+     * Checks if the given call is a CLPR {@code sendMessage}, which may carry value to pay the part of its fee
+     * that its gas does not cover.
      *
-     * <p>This method inspects the first four bytes of the input data of the message frame
-     * to determine if it matches any of the known selectors for creating fungible or non-fungible tokens.
-     *
-     * @param frame the message frame to check
-     * @return true if the input data matches any of the known create selectors, false otherwise
+     * @param context the message call context to check
+     * @return true if the call targets the CLPR system contract with the {@code sendMessage} selector
      */
     private static boolean isClprSendMessage(@NonNull final CustomMessageCallContext context) {
         final var input = context.frame.getInputData();
@@ -477,6 +475,15 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                 && Arrays.equals(SEND_MESSAGE.selector(), input.slice(0, 4).toArray());
     }
 
+    /**
+     * Checks if the given message frame is a token creation scenario.
+     *
+     * <p>This method inspects the first four bytes of the input data of the message frame
+     * to determine if it matches any of the known selectors for creating fungible or non-fungible tokens.
+     *
+     * @param frame the message frame to check
+     * @return true if the input data matches any of the known create selectors, false otherwise
+     */
     private boolean isTokenCreation(MessageFrame frame) {
         if (frame.getInputData().size() < 4) {
             return false;

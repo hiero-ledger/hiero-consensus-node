@@ -19,7 +19,6 @@ public final class ClprConfigBuilder {
     private long slashBasePenalty = 10_000_000L;
     private int slashMultiplier = 2;
     private int slashBanThreshold = 5;
-    private long endpointPayoutCapTinybars = 5_000_000L;
     private long endpointMisbehaviorPenaltyTinybars = 5_000_000L;
     private long messageExecutionCost = 1_000_000L;
     private int endpointMarginPercent = 10;
@@ -93,11 +92,6 @@ public final class ClprConfigBuilder {
 
     public ClprConfigBuilder slashBanThreshold(final int slashBanThreshold) {
         this.slashBanThreshold = slashBanThreshold;
-        return this;
-    }
-
-    public ClprConfigBuilder endpointPayoutCapTinybars(final long endpointPayoutCapTinybars) {
-        this.endpointPayoutCapTinybars = endpointPayoutCapTinybars;
         return this;
     }
 
@@ -222,7 +216,6 @@ public final class ClprConfigBuilder {
                 slashBasePenalty,
                 slashMultiplier,
                 slashBanThreshold,
-                endpointPayoutCapTinybars,
                 endpointMisbehaviorPenaltyTinybars,
                 messageExecutionCost,
                 endpointMarginPercent,

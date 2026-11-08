@@ -28,8 +28,8 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "clprLedgerConfiguration.json")
         String upgradeLedgerConfigurationFile,
 
-        // --- Connector bonds and penalties, in tinybars; defaults size the CLPR fee proposal's USD figures at $0.10/ℏ
-        // ---
+        // --- Connector bonds and penalties (tinybars) ---
+        // Defaults size the CLPR fee proposal's USD figures at $0.10/ℏ.
         // Minimum locked stake of a Connector ($3,000)
         @ConfigProperty(defaultValue = "3000000000000") @NetworkProperty
         long minLockedStake,
@@ -37,15 +37,13 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "803") @NetworkProperty
         long stakingAccount,
 
-        // First slash of a Connector ($10), multiplied by slashMultiplier for each later one until slashBanThreshold
+        // First slash of a Connector ($10), multiplied by slashMultiplier for each later one until slashBanThreshold.
+        // The submitting endpoint receives each penalty in full, up to the staking account's balance.
         @ConfigProperty(defaultValue = "10000000000") @NetworkProperty
         long slashBasePenalty,
 
         @ConfigProperty(defaultValue = "2") @NetworkProperty int slashMultiplier,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int slashBanThreshold,
-
-        @ConfigProperty(defaultValue = "5000000") @NetworkProperty
-        long endpointPayoutCapTinybars,
 
         // Charged to an endpoint whose bundle fails verification ($1)
         @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
@@ -87,9 +85,10 @@ public record ClprConfig(
         long verifierGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
-        // Maximum fee the node will pay when submitting an inbound bundle for consensus. A bundle pays for its bytes
-        // and verifier gas, so a large one can cost over $1.
-        @ConfigProperty(defaultValue = "10000000000") @NetworkProperty
+        // Maximum fee the node will pay when submitting an inbound bundle for consensus. A bundle is exempt from node
+        // and network fees and pays $0.01 + PROCESSING_BYTES per bundle byte + verifier gas, so a bundle at the
+        // default 4 MiB max_sync_bytes costs about $4.25. The 1,000 ℏ default covers that down to about $0.005/ℏ.
+        @ConfigProperty(defaultValue = "100000000000") @NetworkProperty
         long nodeSubmitBundleMaxFee,
 
         // --- Sender-side state-proof verification (bring-up sanity check) ---
