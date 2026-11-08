@@ -79,6 +79,39 @@ side.
 Implementations: `VerifyBundleCall`, `VerifyConfigCall`, and `ClprProofExtraction` under
 `hedera-node/hedera-smart-contract-service-impl/.../systemcontracts/clpr/verify/`.
 
+## Besu QBFT trust-anchor progression
+
+For channels using the built-in QBFT verifier (`0x16f`), a trust-anchor identifier is
+an unsigned big-endian epoch number. Before applying a bundle, both consensus handling
+and local prevalidation compare the bundle's epoch headers with the channel's stored
+identifier. Every header must be a positive epoch-boundary block, strictly newer than
+the stored epoch and the previous header. The returned identifier must equal the final
+proven epoch. The current state-proof block must also be at or after the final trusted
+epoch boundary, including bundles that do not rotate the anchor. Checking only the final
+identifier is insufficient: an old validator set
+must never be installed temporarily to authenticate a later header within the bundle.
+
+QBFT anchors emitted by configuration verification and rotation have the envelope
+`RLP([encodedValidatorSet, serviceAddress20, codeHash32, epochId])`. Keeping the epoch
+inside verifier-owned anchor state allows a deployed verifier contract that forwards
+opaque anchors to the native QBFT verifier to enforce the same rule. The EVM
+`verifyBundle(bytes,bytes,bytes)` signature is unchanged.
+
+For legacy three-field anchors, calls to the built-in verifier receive a transient fourth
+field from the channel's separately stored `trust_anchor_id`. The next successful
+rotation persists the four-field envelope. A deployed wrapper forwarding a legacy
+three-field anchor may continue ordinary bundles, but rotation fails closed because its
+trusted epoch is unavailable to the native verifier. Such wrappers need an epoch-aware
+migration before rotating; wrappers that parse exactly three fields also need updating
+to accept the fourth field.
+
+The current built-in wire protocol uses 30,000 blocks per epoch. The configuration
+payload does not carry a per-channel epoch length; supporting other lengths requires a
+protocol extension. Epoch headers are separated by entire epochs, so their parent
+hashes cannot be linked directly without also supplying the intervening headers.
+Other verifier types retain opaque identifier semantics, including Sei's hash-and-height
+identifier.
+
 ## Sei / CometBFT source proofs
 
 Hiero exposes a native Sei verifier system contract at `0x170`. It is the CometBFT /

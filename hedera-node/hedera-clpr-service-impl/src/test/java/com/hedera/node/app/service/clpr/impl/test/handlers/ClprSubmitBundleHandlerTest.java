@@ -67,6 +67,7 @@ import com.hedera.node.app.service.clpr.impl.handlers.ClprSubmitBundleHandler;
 import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
+import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -87,6 +88,7 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -2729,11 +2731,61 @@ class ClprSubmitBundleHandlerTest {
         }
 
         @Test
+        @DisplayName("QBFT trust anchor advances across bundles and rejects a historical replay")
+        void qbftAnchorCannotRollBackAcrossBundles() {
+            putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+            channelStore.put(channelStore
+                    .getChannel(CHANNEL_ID)
+                    .copyBuilder()
+                    .verifierContract(ContractID.newBuilder().contractNum(0x16fL))
+                    .trustAnchor(Bytes.wrap(new byte[] {5}))
+                    .trustAnchorId(Bytes.wrap(new byte[] {5}))
+                    .build());
+            final var successor = ClprBundleContent.newBuilder()
+                    .newTrustAnchor(Bytes.wrap(new byte[] {6}))
+                    .newTrustAnchorId(Bytes.wrap(new byte[] {6}))
+                    .build();
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(successor);
+            setupHandleContext(submitBundleTxn(CHANNEL_ID, epochPayload(6), ENDPOINT_NODE_ID), true);
+
+            subject.handle(handleContext);
+            final var advanced = channelStore.getChannel(CHANNEL_ID);
+            assertThat(advanced.trustAnchorId()).isEqualTo(Bytes.wrap(new byte[] {6}));
+
+            final var historical = successor
+                    .copyBuilder()
+                    .newTrustAnchor(Bytes.wrap(new byte[] {5}))
+                    .newTrustAnchorId(Bytes.wrap(new byte[] {5}))
+                    .build();
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(historical);
+            setupHandleContext(submitBundleTxn(CHANNEL_ID, epochPayload(5), ENDPOINT_NODE_ID), true);
+
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+            assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(advanced);
+            verify(channelLifecycle, never()).recordPeerObservedManifestVersion(any(), anyLong());
+        }
+
+        private static Bytes epochPayload(final long epoch) {
+            final var header = new ArrayList<byte[]>();
+            for (int i = 0; i < 15; i++) {
+                header.add(i == 8 ? Rlp.encodeUint(epoch * 30_000L) : Rlp.encodeBytes(new byte[0]));
+            }
+            return Bytes.wrap(Rlp.encodeList(List.of(
+                    Rlp.encodeList(List.of()),
+                    Rlp.encodeList(List.of(Rlp.encodeList(header))),
+                    Rlp.encodeList(List.of()),
+                    Rlp.encodeList(List.of()),
+                    Rlp.encodeBytes(new byte[0]))));
+        }
+
+        @Test
         @DisplayName("verifyBundle() reverts — bundle rejected, channel state unchanged")
         void verifyBundleRevertsRejectsBundle() {
             putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
             putConnector();
-            given(mockVerifier.verifyBundle(any(), any(), any(), any()))
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any()))
                     .willThrow(new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED));
 
             setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload())), true);
@@ -2758,7 +2810,7 @@ class ClprSubmitBundleHandlerTest {
                     .build();
             putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
             setupHandleContext(validSingleDataBundle(), true);
-            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(trustOnlyContent);
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(trustOnlyContent);
 
             subject.handle(handleContext);
 
@@ -2783,7 +2835,7 @@ class ClprSubmitBundleHandlerTest {
                     .build();
             putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 1L);
             setupHandleContextWithFlags(validSingleDataBundle(), true);
-            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(manifestOnlyContent);
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(manifestOnlyContent);
 
             subject.handle(handleContext);
 
@@ -2808,7 +2860,7 @@ class ClprSubmitBundleHandlerTest {
                     .build();
             putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
             setupHandleContextWithFlags(validSingleDataBundle(), true);
-            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(manifestOnlyContent);
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(manifestOnlyContent);
 
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
@@ -2820,7 +2872,7 @@ class ClprSubmitBundleHandlerTest {
         void metadataFreeResultWithoutAnchorIsRejected() {
             putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
             setupHandleContext(validSingleDataBundle(), true);
-            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(ClprBundleContent.DEFAULT);
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(ClprBundleContent.DEFAULT);
 
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
@@ -2836,7 +2888,7 @@ class ClprSubmitBundleHandlerTest {
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
-            verify(mockVerifier, never()).verifyBundle(any(), any(), any(), any());
+            verify(mockVerifier, never()).verifyBundle(any(), any(), any(), any(), any());
         }
     }
 

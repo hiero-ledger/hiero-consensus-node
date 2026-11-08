@@ -18,10 +18,12 @@ import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
+import com.hedera.node.app.service.clpr.impl.verifier.BesuQbftVerifier;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigInteger;
 import java.util.Iterator;
 import java.util.List;
 import javax.inject.Inject;
@@ -103,6 +105,47 @@ public class ClprBundleValidator {
     }
 
     /**
+     * Checks trust-anchor presence and, for the built-in QBFT verifier, binds every rotation
+     * header to the channel's stored epoch before any update or node-local observation is applied.
+     * Other verifiers retain their opaque trust-anchor identifier semantics.
+     *
+     * @param channel the channel snapshot used to verify the bundle
+     * @param content the verifier's attested content
+     * @param bundlePayload the verified wire payload
+     * @throws PreCheckException if an anchor invariant or the QBFT epoch progression fails
+     */
+    public void validateTrustAnchor(
+            @NonNull final ClprChannel channel,
+            @NonNull final ClprBundleContent content,
+            @NonNull final Bytes bundlePayload)
+            throws PreCheckException {
+        validateTrustAnchor(content);
+        if (isBuiltInQbftVerifier(channel)) {
+            try {
+                BesuQbftVerifier.validateEpochProgress(
+                        bundlePayload.toByteArray(),
+                        channel.trustAnchorId().toByteArray(),
+                        content.newTrustAnchorId().toByteArray(),
+                        BesuQbftVerifier.DEFAULT_EPOCH_LENGTH);
+            } catch (final RuntimeException e) {
+                throw new PreCheckException(CLPR_BUNDLE_VERIFICATION_FAILED);
+            }
+        }
+    }
+
+    private static boolean isBuiltInQbftVerifier(@NonNull final ClprChannel channel) {
+        final var verifier = channel.verifierContract();
+        if (verifier == null) {
+            return false;
+        }
+        // Match both supported ContractID forms for system contract 0x16f (367).
+        if (verifier.hasContractNum()) {
+            return verifier.contractNumOrElse(0L) == 0x16fL;
+        }
+        return verifier.evmAddressOrElse(Bytes.EMPTY).equals(Bytes.fromHex("000000000000000000000000000000000000016f"));
+    }
+
+    /**
      * Checks the verifier's attested bundle content against the pre-bundle channel and this ledger's configuration.
      *
      * <p>The trust-anchor invariant of {@link #validateTrustAnchor} is checked first. A bundle without queue metadata
@@ -158,6 +201,16 @@ public class ClprBundleValidator {
         final var metadata = content.metadata();
         final var messages = content.messages();
         final var newTrustAnchor = content.newTrustAnchor();
+        if (newTrustAnchor.length() > 0 && isBuiltInQbftVerifier(channel)) {
+            // Recheck against the supplied snapshot, including when local prevalidation re-reads
+            // the channel after proof verification. Identifiers for other proof systems are opaque.
+            final var currentEpoch = channel.trustAnchorId().length() == 0
+                    ? BigInteger.ZERO
+                    : new BigInteger(1, channel.trustAnchorId().toByteArray());
+            validateTruePreCheck(
+                    new BigInteger(1, content.newTrustAnchorId().toByteArray()).compareTo(currentEpoch) > 0,
+                    CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
         final var newManifest = content.newEndpointManifest();
         // Compare against the original channel, before installing either state update.
         final boolean shouldUpdateManifest =

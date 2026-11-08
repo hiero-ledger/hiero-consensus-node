@@ -11,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
@@ -30,8 +31,11 @@ import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -100,6 +104,88 @@ class ClprBundleValidatorTest {
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
         assertRejected(CHANNEL, content, CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"4, 4", "5, 5", "4, 6", "5, 6"})
+    void rejectsQbftHistoricalEpochEvenWhenFinalEpochAdvances(final long firstEpoch, final long finalEpoch) {
+        final var channel = CHANNEL.copyBuilder()
+                .verifierContract(ContractID.newBuilder().contractNum(0x16fL))
+                .trustAnchorId(Bytes.wrap(new byte[] {5}))
+                .build();
+        final var content = anchorBundle(true, true)
+                .copyBuilder()
+                .newTrustAnchorId(Bytes.wrap(BigInteger.valueOf(finalEpoch).toByteArray()))
+                .build();
+
+        assertThatThrownBy(() -> subject.validateTrustAnchor(channel, content, qbftEpochs(firstEpoch, finalEpoch)))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false", "true"})
+    void acceptsQbftForwardEpochsForBothContractIdForms(final boolean useEvmAddress) {
+        final var contract = useEvmAddress
+                ? ContractID.newBuilder().evmAddress(Bytes.fromHex("000000000000000000000000000000000000016f"))
+                : ContractID.newBuilder().contractNum(0x16fL);
+        final var channel = CHANNEL.copyBuilder()
+                .verifierContract(contract)
+                .trustAnchorId(Bytes.wrap(new byte[] {(byte) 0x80}))
+                .build();
+        final var content = anchorBundle(true, true)
+                .copyBuilder()
+                .newTrustAnchorId(Bytes.wrap(new byte[] {0, (byte) 0x82}))
+                .build();
+
+        assertThatCode(() -> subject.validateTrustAnchor(channel, content, qbftEpochs(129, 130)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsQbftReturnedEpochThatDoesNotMatchProof() {
+        final var channel = CHANNEL.copyBuilder()
+                .verifierContract(ContractID.newBuilder().contractNum(0x16fL))
+                .build();
+        final var content = anchorBundle(true, true)
+                .copyBuilder()
+                .newTrustAnchorId(Bytes.wrap(new byte[] {9}))
+                .build();
+
+        assertThatThrownBy(() -> subject.validateTrustAnchor(channel, content, qbftEpochs(3, 4)))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+    }
+
+    @Test
+    void preservesOpaqueAnchorIdsForOtherVerifiers() {
+        final var channel = CHANNEL.copyBuilder()
+                .verifierContract(ContractID.newBuilder().contractNum(0x170L))
+                .build();
+        final var content = anchorBundle(true, true)
+                .copyBuilder()
+                .newTrustAnchorId(Bytes.wrap(new byte[] {1}))
+                .build();
+
+        assertThatCode(() -> subject.validateTrustAnchor(channel, content, Bytes.EMPTY))
+                .doesNotThrowAnyException();
+    }
+
+    private static Bytes qbftEpochs(final long... epochs) {
+        final var headers = new ArrayList<byte[]>();
+        for (final long epoch : epochs) {
+            final var fields = new ArrayList<byte[]>();
+            for (int i = 0; i < 15; i++) {
+                fields.add(i == 8 ? Rlp.encodeUint(epoch * 30_000L) : Rlp.encodeBytes(new byte[0]));
+            }
+            headers.add(Rlp.encodeList(fields));
+        }
+        return Bytes.wrap(Rlp.encodeList(List.of(
+                Rlp.encodeList(List.of()),
+                Rlp.encodeList(headers),
+                Rlp.encodeList(List.of()),
+                Rlp.encodeList(List.of()),
+                Rlp.encodeBytes(new byte[0]))));
     }
 
     @Test

@@ -40,12 +40,14 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * (5-element top-level list: {@code [blockHeader, evmAccount, accountProof[],
  * storageProof[{key,value,proof[]}], bundleContent]}).
  *
- * <p>The {@code trustAnchor} is an RLP list of exactly three byte-string items:
+ * <p>The {@code trustAnchor} is an RLP list of four byte-string items. Legacy three-field
+ * anchors may authenticate nonrotating bundles only:
  * <pre>
  *   RLP([
  *     encodedValidatorSet,             // RLP([addr1, ..., addrN]) embedded as bytes
  *     trustedClprServiceAddress,       // 20 bytes
- *     trustedClprServiceCodeHash       // 32 bytes
+ *     trustedClprServiceCodeHash,      // 32 bytes
+ *     trustedEpochId                  // unsigned big-endian epoch number
  *   ])
  * </pre>
  * <ul>
@@ -67,8 +69,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class BesuQBFTVerifyBundleCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(BesuQBFTVerifyBundleCall.class);
     private static final long GAS_REQUIREMENT = 100_000L;
-    private static final long EPOCH_LENGTH =
-            30_000L; // matches relay config default; configure per-channel in a follow-up
+    private static final long EPOCH_LENGTH = BesuQbftVerifier.DEFAULT_EPOCH_LENGTH;
 
     private static final int ADDRESS_LENGTH = 20;
     private static final int CODE_HASH_LENGTH = 32;
@@ -111,8 +112,18 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
         final byte[] trustedValidatorSetEncoded;
         final byte[] trustedClprServiceAddress20;
         final byte[] trustedClprServiceCodeHash32;
+        final byte[] currentTrustAnchorId;
         try {
-            final byte[][] items = decodeRlpListOfByteStrings(trustAnchor, TRUST_ANCHOR_ITEM_COUNT);
+            final var envelope = Rlp.decodeOne(trustAnchor);
+            final int itemCount = envelope.isList() ? envelope.children().size() : -1;
+            if (itemCount != TRUST_ANCHOR_ITEM_COUNT && itemCount != TRUST_ANCHOR_ITEM_COUNT + 1) {
+                throw new IllegalArgumentException("QBFT trust anchor must have three or four fields");
+            }
+            final byte[][] items = decodeRlpListOfByteStrings(trustAnchor, itemCount);
+            currentTrustAnchorId = itemCount == TRUST_ANCHOR_ITEM_COUNT + 1 ? items[3] : null;
+            if (currentTrustAnchorId != null && currentTrustAnchorId.length == 0) {
+                throw new IllegalArgumentException("QBFT anchor epoch must not be empty");
+            }
             trustedValidatorSetEncoded = items[TA_VALIDATOR_SET_INDEX];
             trustedClprServiceAddress20 =
                     requireFixedLength(items[TA_SERVICE_ADDRESS_INDEX], ADDRESS_LENGTH, "trustedClprServiceAddress");
@@ -134,7 +145,8 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
         final BesuQbftVerifier.VerifiedBundle verified;
         try {
-            verified = verifier.verifyBundle(bundlePayload, trustedValidatorSetEncoded);
+            verified =
+                    verifier.verifyBundle(bundlePayload, trustedValidatorSetEncoded, new byte[0], currentTrustAnchorId);
         } catch (final ProofException e) {
             log.warn("verifyBundle (QBFT): proof rejected for trustAnchor {}: {}", trustAnchorBytes, e.getMessage());
             return fail();
@@ -174,7 +186,10 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             // QBFT epoch rotation replaces only the validator address; the service contract address
             // and code hash are stable across epochs and carry forward from the current trust anchor.
             final byte[] newFullTrustAnchor = encodeFullTrustAnchor(
-                    verified.newTrustAnchor(), trustedClprServiceAddress20, trustedClprServiceCodeHash32);
+                    verified.newTrustAnchor(),
+                    trustedClprServiceAddress20,
+                    trustedClprServiceCodeHash32,
+                    verified.newTrustAnchorId());
             finalBundleContentBytes =
                     augmentWithNewTrustAnchor(parsedContent, newFullTrustAnchor, verified.newTrustAnchorId());
             log.info(
@@ -366,19 +381,23 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
     /**
      * Re-encodes a full QBFT trust anchor as
-     * {@code RLP([encodedValidatorSet, serviceAddr20, codeHash32])}.
+     * {@code RLP([encodedValidatorSet, serviceAddr20, codeHash32, epochId])}.
      *
      * <p>The first item is the canonically-sorted, RLP-encoded validator set produced by
-     * {@link BesuQbftVerifier#encodeValidatorSet}; the last two are fixed-length
-     * byte strings. All three are embedded as opaque byte strings in the outer RLP list.
+     * {@link BesuQbftVerifier#encodeValidatorSet}; the address and code hash are fixed-length
+     * byte strings, and the epoch is unsigned big-endian. All four are byte strings in the outer list.
      */
     @NonNull
     private static byte[] encodeFullTrustAnchor(
             @NonNull final byte[] encodedValidatorSet,
             @NonNull final byte[] serviceAddr20,
-            @NonNull final byte[] codeHash32) {
+            @NonNull final byte[] codeHash32,
+            @NonNull final byte[] epochId) {
         return Rlp.encodeList(List.of(
-                Rlp.encodeBytes(encodedValidatorSet), Rlp.encodeBytes(serviceAddr20), Rlp.encodeBytes(codeHash32)));
+                Rlp.encodeBytes(encodedValidatorSet),
+                Rlp.encodeBytes(serviceAddr20),
+                Rlp.encodeBytes(codeHash32),
+                Rlp.encodeBytes(epochId)));
     }
 
     /**

@@ -5,8 +5,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATIO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
@@ -94,6 +97,58 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
+    void epochBearingAnchorForwardsTrustedEpochAndPersistsSuccessorEpoch() {
+        final byte[] epoch = {5};
+        final byte[] successorEpoch = {6};
+        final byte[] validators = BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR));
+        final byte[] anchor = Rlp.encodeList(List.of(
+                Rlp.encodeBytes(validators),
+                Rlp.encodeBytes(SERVICE_ADDR),
+                Rlp.encodeBytes(CODE_HASH),
+                Rlp.encodeBytes(epoch)));
+        final var base = verifiedBundle(contentBytes(relayedMetadata(filled(32, 0x02))), new byte[0]);
+        final var verified = new BesuQbftVerifier.VerifiedBundle(
+                base.blockHash32(),
+                base.bundleContentBytes(),
+                base.queueMetadata(),
+                validators,
+                successorEpoch,
+                new byte[0]);
+
+        try (final var constructed = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any(), nullable(byte[].class)))
+                        .willReturn(verified))) {
+            final var result = new BesuQBFTVerifyBundleCall(mockEnhancement(), gasCalculator, new byte[] {1}, anchor)
+                    .execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            verify(constructed.constructed().getFirst()).verifyBundle(any(), eq(validators), any(), eq(epoch));
+            final var output = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
+                    result.fullResult().output().toArray());
+            final var successor = Rlp.decodeOne((byte[]) output.get(2));
+            assertThat(successor.children()).hasSize(4);
+            assertThat(successor.children().get(3).asBytes()).isEqualTo(successorEpoch);
+            assertThat((byte[]) output.get(3)).isEqualTo(successorEpoch);
+        }
+    }
+
+    @Test
+    void legacyAnchorRotationFailsClosedWithoutTrustedEpoch() {
+        final byte[] payload = Rlp.encodeList(List.of(
+                Rlp.encodeList(List.of()),
+                Rlp.encodeList(List.of(Rlp.encodeList(List.of()))),
+                Rlp.encodeList(List.of()),
+                Rlp.encodeList(List.of()),
+                Rlp.encodeBytes(new byte[0])));
+        final var result = new BesuQBFTVerifyBundleCall(
+                        mockEnhancement(), gasCalculator, payload, buildTrustAnchorRlp())
+                .execute(frame);
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
     void returnsProvenManifestVersionIgnoringRelayedContent() {
         // The relayed content claims an inflated endpoint-manifest version (999); the proven queue metadata says 7.
         // The returned metaTuple must carry the PROVEN value — a relay cannot inflate it to make the peer look
@@ -121,8 +176,9 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
                 new byte[0],
                 new byte[0]);
 
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
+        try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any(), nullable(byte[].class)))
                         .willReturn(verified))) {
             final var call = new BesuQBFTVerifyBundleCall(
                     mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp());
@@ -189,8 +245,9 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     private Call.PricedResult executeWith(final BesuQbftVerifier.VerifiedBundle verified) {
-        try (final MockedConstruction<BesuQbftVerifier> ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
+        try (final MockedConstruction<BesuQbftVerifier> ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any(), nullable(byte[].class)))
                         .willReturn(verified))) {
             return new BesuQBFTVerifyBundleCall(
                             mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp())

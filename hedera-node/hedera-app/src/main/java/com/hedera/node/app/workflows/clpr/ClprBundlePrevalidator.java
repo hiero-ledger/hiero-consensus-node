@@ -157,10 +157,11 @@ public class ClprBundlePrevalidator {
             final var content = verifier.verifyBundleLocally(
                     payload.bundlePayload(),
                     channel.trustAnchor(),
+                    channel.trustAnchorId(),
                     channel.channelContext(),
                     callData ->
                             callVerifier(state, stores, channel, configuration, config.verifierGasLimit(), callData));
-            bundleValidator.validateTrustAnchor(content);
+            bundleValidator.validateTrustAnchor(channel, content, payload.bundlePayload());
             // Pure acks may be rejected as NoProgress. Still retain the peer's proven view of our
             // manifest so the sync runtime does not keep resending an already observed manifest.
             if (content.metadata() != null) {

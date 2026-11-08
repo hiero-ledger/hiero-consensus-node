@@ -2563,7 +2563,7 @@ class ClprDeepDiveBundleAuditTest {
         void verifyBundleRevertsRejectsBundle() {
             putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
             putConnector();
-            given(mockVerifier.verifyBundle(any(), any(), any(), any()))
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any()))
                     .willThrow(new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED));
 
             setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload())), true);
@@ -2588,7 +2588,7 @@ class ClprDeepDiveBundleAuditTest {
                     .build();
             putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
             setupHandleContext(validSingleDataBundle(), true);
-            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(trustOnlyContent);
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(trustOnlyContent);
 
             subject.handle(handleContext);
 
@@ -2613,7 +2613,7 @@ class ClprDeepDiveBundleAuditTest {
                     .build();
             putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 1L);
             setupHandleContextWithFlags(validSingleDataBundle(), true);
-            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(manifestOnlyContent);
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(manifestOnlyContent);
 
             subject.handle(handleContext);
 
@@ -2638,7 +2638,7 @@ class ClprDeepDiveBundleAuditTest {
                     .build();
             putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
             setupHandleContextWithFlags(validSingleDataBundle(), true);
-            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(manifestOnlyContent);
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(manifestOnlyContent);
 
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
@@ -2650,7 +2650,7 @@ class ClprDeepDiveBundleAuditTest {
         void metadataFreeResultWithoutAnchorIsRejected() {
             putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
             setupHandleContext(validSingleDataBundle(), true);
-            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(ClprBundleContent.DEFAULT);
+            given(mockVerifier.verifyBundle(any(), any(), any(), any(), any())).willReturn(ClprBundleContent.DEFAULT);
 
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
@@ -2666,7 +2666,7 @@ class ClprDeepDiveBundleAuditTest {
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
-            verify(mockVerifier, never()).verifyBundle(any(), any(), any(), any());
+            verify(mockVerifier, never()).verifyBundle(any(), any(), any(), any(), any());
         }
     }
 

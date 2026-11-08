@@ -84,6 +84,22 @@ public interface ClprVerifier {
             throws HandleException;
 
     /**
+     * Verifies with the channel's stored anchor identifier available for proof systems that
+     * require it for forward-only rotation. Existing verifier implementations retain their
+     * opaque-anchor behavior through the original overload.
+     */
+    @NonNull
+    default ClprBundleContent verifyBundle(
+            @NonNull Bytes bundlePayload,
+            @NonNull Bytes trustAnchor,
+            @NonNull Bytes trustAnchorId,
+            @NonNull Bytes channelContext,
+            @NonNull HandleContext context)
+            throws HandleException {
+        return verifyBundle(bundlePayload, trustAnchor, channelContext, context);
+    }
+
+    /**
      * Verifies a received bundle before consensus submission, using a local contract call.
      * Implementations that do not support local verification reject the bundle.
      *
@@ -107,5 +123,17 @@ public interface ClprVerifier {
             @NonNull Function<Bytes, Bytes> contractCall)
             throws HandleException {
         throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    /** Local equivalent of the anchor-identifier-aware consensus overload. */
+    @NonNull
+    default ClprBundleContent verifyBundleLocally(
+            @NonNull Bytes bundlePayload,
+            @NonNull Bytes trustAnchor,
+            @NonNull Bytes trustAnchorId,
+            @NonNull Bytes channelContext,
+            @NonNull Function<Bytes, Bytes> contractCall)
+            throws HandleException {
+        return verifyBundleLocally(bundlePayload, trustAnchor, channelContext, contractCall);
     }
 }

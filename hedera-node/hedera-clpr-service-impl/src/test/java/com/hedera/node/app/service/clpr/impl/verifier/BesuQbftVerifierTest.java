@@ -23,6 +23,8 @@ import java.util.List;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class BesuQbftVerifierTest {
 
@@ -695,7 +697,7 @@ class BesuQbftVerifierTest {
         }
 
         @Test
-        void trustAnchorFromConfigPayloadIsDecodableAsThreeByteStrings() {
+        void trustAnchorFromConfigPayloadIncludesTrustedEpoch() {
             // This test exercises the full verifyConfigPayload -> trust-anchor-consumer path.
             // BesuQBFTVerifyBundleCall.decodeRlpListOfByteStrings rejects nested RLP lists,
             // so item 0 (the validator set) must be a byte string, not a list.
@@ -726,7 +728,8 @@ class BesuQbftVerifierTest {
 
             Rlp.Item outerList = Rlp.decodeOne(trustAnchor);
             assertThat(outerList.isList()).isTrue();
-            assertThat(outerList.children()).hasSize(3);
+            assertThat(outerList.children()).hasSize(4);
+            assertThat(outerList.children().get(3).asBytes()).containsExactly((byte) 0);
 
             // Item 0: validator set — must be a byte string (not a nested list)
             Rlp.Item item0 = outerList.children().getFirst();
@@ -1445,7 +1448,7 @@ class BesuQbftVerifierTest {
         @Test
         void emptyEpochHeaders_trustAnchorUnchanged() {
             byte[] bundlePayload = buildBundlePayloadWithEpochHeaders(List.of());
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR));
+            var result = verifyEpochBundle(bundlePayload, validatorSet(VALIDATOR_ADDR));
             assertThat(result.newTrustAnchor()).isEmpty();
             assertThat(result.newTrustAnchorId()).isEmpty();
         }
@@ -1458,11 +1461,11 @@ class BesuQbftVerifierTest {
             byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             byte[] stateRoot = accountProof[0];
             // Current header must be signed by the new validator set {OTHER_ADDR} (quorum=1).
-            byte[] currentHeader = buildSignedHeader(OTHER_ADDR, stateRoot, OTHER_PRIV);
+            byte[] currentHeader = buildEpochHeader(List.of(OTHER_ADDR), 90_000L, stateRoot, List.of(OTHER_PRIV));
 
             byte[] bundlePayload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(
                     List.of(epochHeader), currentHeader, accountProof);
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR));
+            var result = verifyEpochBundle(bundlePayload, validatorSet(VALIDATOR_ADDR));
 
             // newTrustAnchor = encoded validator set {OTHER_ADDR}
             assertThat(result.newTrustAnchor()).isEqualTo(validatorSet(OTHER_ADDR));
@@ -1479,11 +1482,12 @@ class BesuQbftVerifierTest {
 
             byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             byte[] stateRoot = accountProof[0];
-            byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
+            byte[] currentHeader =
+                    buildEpochHeader(List.of(VALIDATOR_ADDR), 90_000L, stateRoot, List.of(VALIDATOR_PRIV));
 
             byte[] bundlePayload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(
                     List.of(epochHeader1, epochHeader2), currentHeader, accountProof);
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR));
+            var result = verifyEpochBundle(bundlePayload, validatorSet(VALIDATOR_ADDR));
 
             assertThat(result.newTrustAnchor()).isEqualTo(validatorSet(VALIDATOR_ADDR));
             assertThat(result.newTrustAnchorId())
@@ -1499,12 +1503,12 @@ class BesuQbftVerifierTest {
             byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             byte[] stateRoot = accountProof[0];
             // Current header needs quorum=2 seals from the new 2-validator set.
-            byte[] currentHeader = buildSignedHeaderMultiSeal(
-                    List.of(VALIDATOR_ADDR, OTHER_ADDR), stateRoot, List.of(VALIDATOR_PRIV, OTHER_PRIV));
+            byte[] currentHeader = buildEpochHeader(
+                    List.of(VALIDATOR_ADDR, OTHER_ADDR), 90_000L, stateRoot, List.of(VALIDATOR_PRIV, OTHER_PRIV));
 
             byte[] bundlePayload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(
                     List.of(epochHeader), currentHeader, accountProof);
-            var result = BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR));
+            var result = verifyEpochBundle(bundlePayload, validatorSet(VALIDATOR_ADDR));
 
             assertThat(result.newTrustAnchor()).isEqualTo(validatorSet(VALIDATOR_ADDR, OTHER_ADDR));
         }
@@ -1520,16 +1524,22 @@ class BesuQbftVerifierTest {
 
             byte[][] accountProofAB = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             byte[][] accountProofBA = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
-            byte[] currentAB = buildSignedHeaderMultiSeal(
-                    List.of(VALIDATOR_ADDR, OTHER_ADDR), accountProofAB[0], List.of(VALIDATOR_PRIV, OTHER_PRIV));
-            byte[] currentBA = buildSignedHeaderMultiSeal(
-                    List.of(OTHER_ADDR, VALIDATOR_ADDR), accountProofBA[0], List.of(VALIDATOR_PRIV, OTHER_PRIV));
+            byte[] currentAB = buildEpochHeader(
+                    List.of(VALIDATOR_ADDR, OTHER_ADDR),
+                    90_000L,
+                    accountProofAB[0],
+                    List.of(VALIDATOR_PRIV, OTHER_PRIV));
+            byte[] currentBA = buildEpochHeader(
+                    List.of(OTHER_ADDR, VALIDATOR_ADDR),
+                    90_000L,
+                    accountProofBA[0],
+                    List.of(VALIDATOR_PRIV, OTHER_PRIV));
 
-            var resultAB = BUNDLE_SUBJECT.verifyBundle(
+            var resultAB = verifyEpochBundle(
                     buildBundlePayloadWithEpochHeadersAndCurrentHeader(
                             List.of(epochHeaderAB), currentAB, accountProofAB),
                     validatorSet(VALIDATOR_ADDR));
-            var resultBA = BUNDLE_SUBJECT.verifyBundle(
+            var resultBA = verifyEpochBundle(
                     buildBundlePayloadWithEpochHeadersAndCurrentHeader(
                             List.of(epochHeaderBA), currentBA, accountProofBA),
                     validatorSet(VALIDATOR_ADDR));
@@ -1544,9 +1554,21 @@ class BesuQbftVerifierTest {
 
             byte[] bundlePayload = buildBundlePayloadWithEpochHeaders(List.of(epochHeader1, epochHeader2));
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR)))
+            assertThatThrownBy(() -> verifyEpochBundle(bundlePayload, validatorSet(VALIDATOR_ADDR)))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("is not strictly greater than previous");
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {0L, 29_999L, 30_001L})
+        void nonBoundaryEpochHeaderIsRejected(final long blockNumber) {
+            final byte[] epochHeader =
+                    buildEpochHeader(List.of(OTHER_ADDR), blockNumber, new byte[32], List.of(VALIDATOR_PRIV));
+            final byte[] payload = buildBundlePayloadWithEpochHeaders(List.of(epochHeader));
+
+            assertThatThrownBy(() -> verifyEpochBundle(payload, validatorSet(VALIDATOR_ADDR)))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("not a positive epoch boundary");
         }
 
         @Test
@@ -1555,7 +1577,7 @@ class BesuQbftVerifierTest {
             byte[] epochHeader = buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(OTHER_PRIV));
             byte[] bundlePayload = buildBundlePayloadWithEpochHeaders(List.of(epochHeader));
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR)))
+            assertThatThrownBy(() -> verifyEpochBundle(bundlePayload, validatorSet(VALIDATOR_ADDR)))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("not in the validator set");
         }
@@ -1567,20 +1589,103 @@ class BesuQbftVerifierTest {
 
             byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             byte[] stateRoot = accountProof[0];
-            byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
+            byte[] currentHeader =
+                    buildEpochHeader(List.of(VALIDATOR_ADDR), 90_000L, stateRoot, List.of(VALIDATOR_PRIV));
 
             byte[] bundlePayload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(
                     List.of(epochHeader), currentHeader, accountProof);
 
-            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(bundlePayload, validatorSet(VALIDATOR_ADDR)))
+            assertThatThrownBy(() -> verifyEpochBundle(bundlePayload, validatorSet(VALIDATOR_ADDR)))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("not in the validator set");
+        }
+
+        @Test
+        void legacyAnchorCannotRotateWithoutTrustedEpoch() {
+            final byte[] epochHeader =
+                    buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
+            final byte[] payload = buildBundlePayloadWithEpochHeaders(List.of(epochHeader));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(payload, validatorSet(VALIDATOR_ADDR)))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("trusted epoch is required");
+        }
+
+        @Test
+        void historicalIntermediateEpochCannotAuthenticateNewerFinalEpoch() {
+            final byte[] oldEpoch =
+                    buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
+            final byte[] forgedLaterEpoch =
+                    buildEpochHeader(List.of(VALIDATOR_ADDR), 90_000L, new byte[32], List.of(OTHER_PRIV));
+            final byte[] payload = buildBundlePayloadWithEpochHeaders(List.of(oldEpoch, forgedLaterEpoch));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            payload, validatorSet(VALIDATOR_ADDR), new byte[0], new byte[] {2}))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("strictly advance");
+        }
+
+        @Test
+        void historicalEpochIsRejectedWithTrustedStoredEpoch() {
+            final byte[] epochHeader =
+                    buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
+            final byte[] payload = buildBundlePayloadWithEpochHeaders(List.of(epochHeader));
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            payload, validatorSet(VALIDATOR_ADDR), new byte[0], new byte[] {1}))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("strictly advance");
+        }
+
+        @Test
+        void currentHeaderCannotPredateStoredEpochWithoutRotation() {
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final byte[] historical = buildSignedHeader(VALIDATOR_ADDR, accountProof[0], VALIDATOR_PRIV);
+            final byte[] payload =
+                    buildBundlePayloadWithEpochHeadersAndCurrentHeader(List.of(), historical, accountProof);
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            payload, validatorSet(VALIDATOR_ADDR), new byte[0], new byte[] {1}))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("current block header predates the trusted epoch");
+        }
+
+        @Test
+        void currentHeaderCannotPredateFinalRotatedEpoch() {
+            final byte[] epochHeader =
+                    buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final byte[] historical = buildSignedHeader(OTHER_ADDR, accountProof[0], OTHER_PRIV);
+            final byte[] payload =
+                    buildBundlePayloadWithEpochHeadersAndCurrentHeader(List.of(epochHeader), historical, accountProof);
+
+            assertThatThrownBy(() -> BUNDLE_SUBJECT.verifyBundle(
+                            payload, validatorSet(VALIDATOR_ADDR), new byte[0], new byte[] {0}))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("current block header predates the trusted epoch");
+        }
+
+        @Test
+        void currentHeaderAtTrustedEpochBoundaryIsAccepted() {
+            final byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            final byte[] current =
+                    buildEpochHeader(List.of(VALIDATOR_ADDR), 30_000L, accountProof[0], List.of(VALIDATOR_PRIV));
+            final byte[] payload = buildBundlePayloadWithEpochHeadersAndCurrentHeader(List.of(), current, accountProof);
+
+            assertThat(BUNDLE_SUBJECT.verifyBundle(payload, validatorSet(VALIDATOR_ADDR), new byte[0], new byte[] {1}))
+                    .isNotNull();
+        }
+
+        private static BesuQbftVerifier.VerifiedBundle verifyEpochBundle(
+                final byte[] payload, final byte[] validators) {
+            return BUNDLE_SUBJECT.verifyBundle(payload, validators, new byte[0], new byte[] {0});
         }
 
         private static byte[] buildBundlePayloadWithEpochHeaders(List<byte[]> epochHeaders) {
             byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
             byte[] stateRoot = accountProof[0];
-            byte[] currentHeader = buildSignedHeader(VALIDATOR_ADDR, stateRoot, VALIDATOR_PRIV);
+            byte[] currentHeader =
+                    buildEpochHeader(List.of(VALIDATOR_ADDR), 90_000L, stateRoot, List.of(VALIDATOR_PRIV));
             return buildBundlePayloadWithEpochHeadersAndCurrentHeader(epochHeaders, currentHeader, accountProof);
         }
 
@@ -1845,13 +1950,14 @@ class BesuQbftVerifierTest {
     /**
      * Builds the expected {@code initialTrustAnchor} bytes produced by
      * {@link BesuQbftVerifier#verifyConfigPayload}:
-     * {@code RLP([RLP_BYTES(encodeValidatorSet(validators)), serviceAddr, codeHash])}.
+     * {@code RLP([RLP_BYTES(encodeValidatorSet(validators)), serviceAddr, codeHash, epoch])}.
      */
     private static byte[] qbftTrustAnchor(List<byte[]> validators, byte[] serviceAddr, byte[] codeHash) {
         return Rlp.encodeList(List.of(
                 Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(validators)),
                 Rlp.encodeBytes(serviceAddr),
-                Rlp.encodeBytes(codeHash)));
+                Rlp.encodeBytes(codeHash),
+                Rlp.encodeBytes(new byte[] {0})));
     }
 
     private static byte[] buildTrieLeafNode(byte[] pathHash32, byte[] value32) {

@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
 
@@ -63,8 +64,9 @@ class BesuQBFTProofBindingAuditTest extends CallTestBase {
                 new byte[0],
                 new byte[0],
                 new byte[0]);
-        try (final var ignored =
-                mockConstruction(BesuQbftVerifier.class, (mock, context) -> given(mock.verifyBundle(any(), any()))
+        try (final var ignored = mockConstruction(
+                BesuQbftVerifier.class,
+                (mock, context) -> given(mock.verifyBundle(any(), any(), any(), nullable(byte[].class)))
                         .willReturn(proven))) {
             final var subject = new BesuQBFTVerifyBundleCall(
                     mockEnhancement(), gasCalculator, new byte[] {1}, fullAnchor((byte) 0x11));

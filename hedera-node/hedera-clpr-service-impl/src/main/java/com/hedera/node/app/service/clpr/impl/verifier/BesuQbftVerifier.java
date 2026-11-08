@@ -72,6 +72,8 @@ import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
  * </ol>
  */
 public final class BesuQbftVerifier {
+    /** Epoch length supported by the built-in QBFT verifier's current wire protocol. */
+    public static final long DEFAULT_EPOCH_LENGTH = 30_000L;
 
     private static final Logger log = LogManager.getLogger(BesuQbftVerifier.class);
     private static final HexFormat HEX = HexFormat.of();
@@ -189,6 +191,77 @@ public final class BesuQbftVerifier {
     }
 
     /**
+     * Binds a verified QBFT rotation to the channel's stored epoch. The native verifier checks
+     * the epoch carried in its trust-anchor envelope; callers holding channel state can repeat
+     * this check before installing any returned anchor. Every intermediate epoch must advance the
+     * stored epoch: checking only the final identifier would allow a historical validator set
+     * to authenticate a forged later rotation in the same bundle.
+     *
+     * @param bundlePayload the already cryptographically verified QBFT bundle
+     * @param currentTrustAnchorId the channel's current unsigned big-endian epoch, empty for genesis
+     * @param newTrustAnchorId the returned unsigned big-endian epoch, empty when no rotation was proven
+     * @param epochLength the same epoch length used for cryptographic verification
+     * @throws ProofException if the rotation does not advance strictly from the stored epoch
+     */
+    public static void validateEpochProgress(
+            @NonNull final byte[] bundlePayload,
+            @NonNull final byte[] currentTrustAnchorId,
+            @NonNull final byte[] newTrustAnchorId,
+            final long epochLength) {
+        if (epochLength <= 0) {
+            throw ProofException.besuQbft("epochLength must be positive");
+        }
+        final var bundle = Rlp.decodeOne(bundlePayload);
+        if (!bundle.isList()
+                || (bundle.children().size() != 5 && bundle.children().size() != 7)) {
+            throw ProofException.besuQbft("expected QBFT bundle with 5 or 7 fields");
+        }
+        final var epochs = bundle.children().get(1);
+        if (!epochs.isList()) {
+            throw ProofException.besuQbft("epochBlockHeaders must be a list");
+        }
+        if (epochs.children().isEmpty()) {
+            if (newTrustAnchorId.length != 0) {
+                throw ProofException.besuQbft("successor epoch returned without an epoch header");
+            }
+            return;
+        }
+        BigInteger previousEpoch =
+                currentTrustAnchorId.length == 0 ? BigInteger.ZERO : new BigInteger(1, currentTrustAnchorId);
+        for (final var header : epochs.children()) {
+            final long blockNumber = blockNumberFromHeader(header);
+            if (blockNumber == 0 || blockNumber % epochLength != 0) {
+                throw ProofException.besuQbft("rotation header is not a positive epoch boundary");
+            }
+            final var epoch = BigInteger.valueOf(blockNumber / epochLength);
+            if (epoch.compareTo(previousEpoch) <= 0) {
+                throw ProofException.besuQbft("rotation epoch must strictly advance the stored and preceding epochs");
+            }
+            previousEpoch = epoch;
+        }
+        if (newTrustAnchorId.length == 0 || !new BigInteger(1, newTrustAnchorId).equals(previousEpoch)) {
+            throw ProofException.besuQbft("successor epoch does not match the final proven epoch");
+        }
+    }
+
+    private static long blockNumberFromHeader(@NonNull final Rlp.Item header) {
+        if (!header.isList()
+                || header.children().size() < MIN_HEADER_FIELDS
+                || header.children().size() > MAX_HEADER_FIELDS) {
+            throw ProofException.besuQbft("expected a block-header RLP list");
+        }
+        final byte[] number = header.children().get(HEADER_BLOCK_NUMBER_INDEX).asBytes();
+        if (number.length > Long.BYTES) {
+            throw ProofException.besuQbft("block header number exceeds 8 bytes");
+        }
+        final var value = number.length == 0 ? BigInteger.ZERO : new BigInteger(1, number);
+        if (value.bitLength() > 63) {
+            throw ProofException.besuQbft("block header number exceeds supported range");
+        }
+        return value.longValueExact();
+    }
+
+    /**
      * Decode and structurally verify a QBFT bundle payload, returning the proven block hash and
      * the (verbatim) protobuf-serialized {@code ClprBundleContent} bytes pulled from the proof's
      * final RLP item.
@@ -219,6 +292,19 @@ public final class BesuQbftVerifier {
     @NonNull
     public VerifiedBundle verifyBundle(
             @NonNull final byte[] bundlePayload, @NonNull final byte[] trustAnchor, @NonNull final byte[] channelId) {
+        return verifyBundle(bundlePayload, trustAnchor, channelId, null);
+    }
+
+    /**
+     * Verifies a QBFT bundle with the trusted epoch carried in its anchor envelope. A legacy
+     * anchor with no epoch may authenticate ordinary bundles but cannot rotate validators.
+     */
+    @NonNull
+    public VerifiedBundle verifyBundle(
+            @NonNull final byte[] bundlePayload,
+            @NonNull final byte[] trustAnchor,
+            @NonNull final byte[] channelId,
+            @Nullable final byte[] currentTrustAnchorId) {
         Objects.requireNonNull(bundlePayload, "bundlePayload");
         Objects.requireNonNull(trustAnchor, "trustAnchor");
         Objects.requireNonNull(channelId, "channelId");
@@ -266,11 +352,15 @@ public final class BesuQbftVerifier {
             throw ProofException.besuQbft("epochBlockHeaders (field 1) must be an RLP list");
         }
 
+        if (!epochBlockHeadersItem.children().isEmpty() && currentTrustAnchorId == null) {
+            throw ProofException.besuQbft("a trusted epoch is required for validator rotation");
+        }
+
         // --- 0. Walk epoch headers (if any), advancing the trust anchor -----------------
         final byte[] effectiveTrustAnchorEncoded =
                 epochBlockHeadersItem.children().isEmpty()
                         ? trustAnchor
-                        : processEpochHeaders(epochBlockHeadersItem, trustAnchor);
+                        : processEpochHeaders(epochBlockHeadersItem, trustAnchor, config.epochLength());
         final List<byte[]> effectiveTrustAnchor =
                 decodeValidatorSet(effectiveTrustAnchorEncoded, "effectiveTrustAnchor");
         final byte[] newTrustAnchor;
@@ -281,6 +371,7 @@ public final class BesuQbftVerifier {
                     .children()
                     .get(epochBlockHeadersItem.children().size() - 1);
             newTrustAnchorId = epochNumberBytesFromHeader(lastEpochHeader, config.epochLength());
+            validateEpochProgress(bundlePayload, currentTrustAnchorId, newTrustAnchorId, config.epochLength());
             log.debug(
                     "BesuQbftProofVerifier.verifyBundle epochHeaders={} newValidators={} epochNumber(bytes)=0x{}",
                     epochBlockHeadersItem.children().size(),
@@ -298,6 +389,16 @@ public final class BesuQbftVerifier {
                 || headerItem.children().size() > MAX_HEADER_FIELDS) {
             throw ProofException.besuQbft(
                     "block header is not an RLP list of " + MIN_HEADER_FIELDS + ".." + MAX_HEADER_FIELDS + " fields");
+        }
+        // A validator set can overlap an older set enough to authenticate a historical header.
+        // Even with no rotation, that header must not predate the epoch this anchor represents.
+        final byte[] effectiveEpochId = newTrustAnchorId.length > 0 ? newTrustAnchorId : currentTrustAnchorId;
+        if (effectiveEpochId != null) {
+            final var earliestBlock =
+                    new BigInteger(1, effectiveEpochId).multiply(BigInteger.valueOf(config.epochLength()));
+            if (BigInteger.valueOf(blockNumberFromHeader(headerItem)).compareTo(earliestBlock) < 0) {
+                throw ProofException.besuQbft("current block header predates the trusted epoch");
+            }
         }
         final byte[] stateRoot32 =
                 checkedCopy(headerItem.children().get(HEADER_STATE_ROOT_INDEX).asBytes(), 32, "blockHeader.stateRoot");
@@ -595,7 +696,8 @@ public final class BesuQbftVerifier {
         final var initialTrustAnchor = Bytes.wrap(Rlp.encodeList(List.of(
                 Rlp.encodeBytes(encodeValidatorSet(genesisValidators)),
                 Rlp.encodeBytes(checkedCopy(contractAddress20, ADDRESS_LENGTH, "clprServiceAddress")),
-                Rlp.encodeBytes(checkedCopy(provenAccount.codeHash32(), 32, "clprServiceCodeHash")))));
+                Rlp.encodeBytes(checkedCopy(provenAccount.codeHash32(), 32, "clprServiceCodeHash")),
+                Rlp.encodeBytes(BigInteger.ZERO.toByteArray()))));
         final var ledgerCfg = payload.ledgerConfiguration()
                 .copyBuilder()
                 .initialTrustAnchor(initialTrustAnchor)
@@ -857,7 +959,9 @@ public final class BesuQbftVerifier {
      */
     @NonNull
     private static byte[] processEpochHeaders(
-            @NonNull final Rlp.Item epochHeadersItem, @NonNull final byte[] currentTrustAnchor) {
+            @NonNull final Rlp.Item epochHeadersItem,
+            @NonNull final byte[] currentTrustAnchor,
+            final long epochLength) {
         List<byte[]> validatorSet = decodeValidatorSet(currentTrustAnchor, "trustAnchor");
         final List<Rlp.Item> epochHeaders = epochHeadersItem.children();
         long prevBlockNumber = -1L;
@@ -886,6 +990,10 @@ public final class BesuQbftVerifier {
             if (blockNumber <= prevBlockNumber) {
                 throw ProofException.besuQbft("epochBlockHeaders[" + i + "] block number " + blockNumber
                         + " is not strictly greater than previous " + prevBlockNumber);
+            }
+            if (blockNumber == 0 || blockNumber % epochLength != 0) {
+                throw ProofException.besuQbft("epochBlockHeaders[" + i + "] block number " + blockNumber
+                        + " is not a positive epoch boundary (epoch length " + epochLength + ")");
             }
             prevBlockNumber = blockNumber;
             log.debug(

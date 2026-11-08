@@ -171,6 +171,61 @@ public class EvmClprVerifier implements ClprVerifier {
                 callData -> dispatchRaw(callData.toByteArray(), CLPR_BUNDLE_VERIFICATION_FAILED, context));
     }
 
+    @Override
+    @NonNull
+    public ClprBundleContent verifyBundle(
+            @NonNull final Bytes bundlePayload,
+            @NonNull final Bytes trustAnchor,
+            @NonNull final Bytes trustAnchorId,
+            @NonNull final Bytes channelContext,
+            @NonNull final HandleContext context)
+            throws HandleException {
+        return verifyBundle(bundlePayload, qbftAnchorWithEpoch(trustAnchor, trustAnchorId), channelContext, context);
+    }
+
+    @Override
+    @NonNull
+    public ClprBundleContent verifyBundleLocally(
+            @NonNull final Bytes bundlePayload,
+            @NonNull final Bytes trustAnchor,
+            @NonNull final Bytes trustAnchorId,
+            @NonNull final Bytes channelContext,
+            @NonNull final Function<Bytes, Bytes> contractCall)
+            throws HandleException {
+        return verifyBundleLocally(
+                bundlePayload, qbftAnchorWithEpoch(trustAnchor, trustAnchorId), channelContext, contractCall);
+    }
+
+    /** Supplies the separately stored epoch to legacy three-field built-in QBFT anchors. */
+    private Bytes qbftAnchorWithEpoch(@NonNull final Bytes anchor, @NonNull final Bytes anchorId) {
+        final boolean isQbft = verifierContract.hasContractNum()
+                ? verifierContract.contractNumOrElse(0L) == 0x16fL
+                : verifierContract
+                        .evmAddressOrElse(Bytes.EMPTY)
+                        .equals(Bytes.fromHex("000000000000000000000000000000000000016f"));
+        if (!isQbft) {
+            return anchor;
+        }
+        try {
+            final var envelope = Rlp.decodeOne(anchor.toByteArray());
+            if (!envelope.isList()
+                    || (envelope.children().size() != 3 && envelope.children().size() != 4)) {
+                throw new IllegalArgumentException("invalid QBFT anchor envelope");
+            }
+            final var fields = new java.util.ArrayList<byte[]>(
+                    envelope.children().stream().map(Rlp.Item::rawBytes).toList());
+            final var epoch = anchorId.length() == 0 ? new byte[] {0} : anchorId.toByteArray();
+            if (fields.size() == 3) {
+                fields.add(Rlp.encodeBytes(epoch));
+            } else if (!new BigInteger(1, envelope.children().get(3).asBytes()).equals(new BigInteger(1, epoch))) {
+                throw new IllegalArgumentException("QBFT anchor epoch differs from stored identifier");
+            }
+            return Bytes.wrap(Rlp.encodeList(fields));
+        } catch (final RuntimeException e) {
+            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
+    }
+
     /**
      * {@inheritDoc}
      *

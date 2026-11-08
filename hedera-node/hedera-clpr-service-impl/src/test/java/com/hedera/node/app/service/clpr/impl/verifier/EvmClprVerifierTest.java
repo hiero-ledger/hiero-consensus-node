@@ -31,6 +31,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
+import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -173,6 +174,55 @@ class EvmClprVerifierTest {
 
         assertThat(content.metadata().endpointManifestVersion()).isEqualTo(9L);
         verifyNoInteractions(context, dispatchResult);
+    }
+
+    @Test
+    void legacyBuiltInQbftAnchorReceivesStoredEpochForLocalVerification() {
+        final var verifier =
+                new EvmClprVerifier(ContractID.newBuilder().contractNum(0x16fL).build());
+        final var legacyAnchor = Bytes.wrap(Rlp.encodeList(List.of(
+                Rlp.encodeBytes(new byte[] {1}), Rlp.encodeBytes(new byte[20]), Rlp.encodeBytes(new byte[32]))));
+        final var epoch = Bytes.wrap(new byte[] {5});
+        final var function = new Function("verifyBundle(bytes,bytes,bytes)", "()");
+
+        verifier.verifyBundleLocally(Bytes.EMPTY, legacyAnchor, epoch, Bytes.EMPTY, callData -> {
+            final Tuple args = function.decodeCall(callData.toByteArray());
+            final var envelope = Rlp.decodeOne((byte[]) args.get(1));
+            assertThat(envelope.children()).hasSize(4);
+            assertThat(envelope.children().get(3).asBytes()).containsExactly((byte) 5);
+            return bundleWithManifestReturn(1L, 0L, SERVICE_ADDR, 9L);
+        });
+        verifyNoInteractions(context, dispatchResult);
+    }
+
+    @Test
+    void builtinQbftAnchorEpochMustEqualStoredIdentifier() {
+        final var verifier =
+                new EvmClprVerifier(ContractID.newBuilder().contractNum(0x16fL).build());
+        final var anchor = Bytes.wrap(Rlp.encodeList(List.of(
+                Rlp.encodeBytes(new byte[] {1}),
+                Rlp.encodeBytes(new byte[20]),
+                Rlp.encodeBytes(new byte[32]),
+                Rlp.encodeBytes(new byte[] {5}))));
+
+        assertThatThrownBy(() -> verifier.verifyBundleLocally(
+                        Bytes.EMPTY, anchor, Bytes.wrap(new byte[] {6}), Bytes.EMPTY, ignored -> Bytes.EMPTY))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+    }
+
+    @Test
+    void deployedVerifierReceivesOpaqueAnchorUnchanged() {
+        final var verifier =
+                new EvmClprVerifier(ContractID.newBuilder().contractNum(1234).build());
+        final var anchor = Bytes.fromHex("010203");
+        final var function = new Function("verifyBundle(bytes,bytes,bytes)", "()");
+
+        verifier.verifyBundleLocally(Bytes.EMPTY, anchor, Bytes.fromHex("ff"), Bytes.EMPTY, callData -> {
+            final Tuple args = function.decodeCall(callData.toByteArray());
+            assertThat((byte[]) args.get(1)).isEqualTo(anchor.toByteArray());
+            return bundleWithManifestReturn(1L, 0L, SERVICE_ADDR, 9L);
+        });
     }
 
     @Test

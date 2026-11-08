@@ -1217,9 +1217,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             final var payload = context.body().clprSubmitBundleOrThrow().bundlePayload();
             bundleValidator.validatePayloadSize(payload, ledgerConfig.throttlesOrThrow());
             final var verifier = verifierFactory.getVerifier(channel.verifierContractOrThrow());
-            final var content =
-                    verifier.verifyBundle(payload, channel.trustAnchor(), channel.channelContext(), context);
-            bundleValidator.validateTrustAnchor(content);
+            final var content = verifier.verifyBundle(
+                    payload, channel.trustAnchor(), channel.trustAnchorId(), channel.channelContext(), context);
+            bundleValidator.validateTrustAnchor(channel, content, payload);
 
             // Spec §4.5: this node-local signal must survive even a later NoProgress rejection.
             // Idle peers send pure acks containing our manifest version, so recording this only
