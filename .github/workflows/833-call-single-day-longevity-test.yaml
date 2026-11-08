@@ -797,7 +797,7 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -956,7 +956,7 @@ jobs:
 
   longevity-tests-finish:
     name: Read results of Longevity test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - acquire-kubernetes-resources
@@ -1134,7 +1134,7 @@ jobs:
   # Send this output back to the caller workflow
   longevity-test-reconnect:
     name: Reconnect test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - acquire-kubernetes-resources
@@ -1315,7 +1315,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start
