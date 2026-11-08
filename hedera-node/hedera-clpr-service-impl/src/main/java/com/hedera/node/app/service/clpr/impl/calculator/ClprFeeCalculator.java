@@ -19,9 +19,9 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  *
  * <p>Besides its base fee, a {@code ClprCompleteChannel} is charged {@link Extra#STATE_BYTES} for the proof bytes
  * whose verified result it writes to state, and a {@code ClprSubmitBundle} is charged {@link Extra#PROCESSING_BYTES}
- * for its bundle payload. Both are charged {@link Extra#GAS} for their verifier call, at {@link #VERIFIER_FEE_GAS}
- * since its actual gas is only known after the transaction is handled. Each extra applies only when the fee schedule
- * lists it for the transaction.
+ * for its bundle payload. Neither is charged {@link Extra#GAS} here: their verifier call is billed at the gas it
+ * actually uses, through a payer reservation made before the verifier runs. Each extra applies only when the fee
+ * schedule lists it for the transaction.
  *
  * @param functionality the CLPR functionality for fee schedule lookup
  * @param transactionType the transaction body discriminant this calculator handles
@@ -30,9 +30,9 @@ public record ClprFeeCalculator(
         @NonNull HederaFunctionality functionality, @NonNull TransactionBody.DataOneOfType transactionType)
         implements ServiceFeeCalculator {
     /**
-     * The verifier gas charged for an operation that verifies a proof. The CLPR fee proposal prices verifier cost as
-     * the {@link Extra#GAS} extra "up to 300k", so this is a fixed cap rather than the gas the verifier actually uses
-     * (which may be up to {@code clpr.verifierGasLimit}).
+     * The verifier gas charged to a CLPR query that verifies a proof. The CLPR fee proposal prices verifier cost as
+     * the {@link Extra#GAS} extra "up to 300k", so this is a fixed cap rather than the gas the verifier actually uses.
+     * Transactions do not use it; their verifier gas is billed at actual use.
      */
     public static final long VERIFIER_FEE_GAS = 300_000L;
 
@@ -53,13 +53,11 @@ public record ClprFeeCalculator(
                 final long proofBytes = op.configProofBytes().length()
                         + op.endpointManifestProofBytes().length();
                 addScheduledExtraFee(feeResult, serviceDef, Extra.STATE_BYTES, feeSchedule, proofBytes);
-                addScheduledExtraFee(feeResult, serviceDef, Extra.GAS, feeSchedule, VERIFIER_FEE_GAS);
             }
             case CLPR_SUBMIT_BUNDLE -> {
                 final long bundleBytes =
                         txnBody.clprSubmitBundleOrThrow().bundlePayload().length();
                 addScheduledExtraFee(feeResult, serviceDef, Extra.PROCESSING_BYTES, feeSchedule, bundleBytes);
-                addScheduledExtraFee(feeResult, serviceDef, Extra.GAS, feeSchedule, VERIFIER_FEE_GAS);
             }
             default -> {
                 // Only the base fee

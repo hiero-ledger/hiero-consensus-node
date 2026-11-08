@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
@@ -79,10 +78,8 @@ public class ClprBaseFeeSuite {
     /** {@code ClprRegisterConnector} base fee from genesis simpleFeesSchedules.json. */
     private static final double REGISTER_CONNECTOR_FEE_USD = 10.0;
 
-    /** {@code ClprSubmitBundle} base fee and verifier gas charged by its calculator. */
+    /** {@code ClprSubmitBundle} base fee charged by its calculator. */
     private static final double SUBMIT_BUNDLE_BASE_FEE_USD = 0.01;
-
-    private static final long SUBMIT_BUNDLE_VERIFIER_GAS = 300_000L;
 
     /** Matches the HIP-1261 simple-fees convention. Tight, because the expected USD is precise. */
     private static final double ALLOWED_PERCENT_DIFF = 0.1;
@@ -94,9 +91,7 @@ public class ClprBaseFeeSuite {
     final Stream<DynamicTest> failedSubmitBundleChargesConfiguredFees() {
         final var txn = "clprSubmitBundleConfiguredFeesTxn";
         final var bundlePayload = new byte[] {1};
-        final double serviceFeeUsd = SUBMIT_BUNDLE_BASE_FEE_USD
-                + bundlePayload.length * PROCESSING_BYTES_FEE_USD
-                + SUBMIT_BUNDLE_VERIFIER_GAS * GAS_FEE_USD;
+        final double serviceFeeUsd = SUBMIT_BUNDLE_BASE_FEE_USD + bundlePayload.length * PROCESSING_BYTES_FEE_USD;
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),

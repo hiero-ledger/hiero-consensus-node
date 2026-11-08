@@ -168,14 +168,15 @@ fee schedule update mechanism, not config.
 
 Besides its base fee, `ClprCompleteChannel` is charged the `STATE_BYTES` extra for its config and
 endpoint-manifest proof bytes (first 8,192 free), and `ClprSubmitBundle` the `PROCESSING_BYTES` extra for its
-bundle payload. Both are charged the `GAS` extra for their verifier call at a fixed
-`ClprFeeCalculator.VERIFIER_FEE_GAS` (300,000), since the actual gas is only known after handling. The
+bundle payload. Neither lists the `GAS` extra: their verifier call is billed at the gas it actually uses, through
+a payer reservation made before the verifier runs, so a fixed schedule allowance would charge it twice. The
 `ClprGetLedgerConfiguration` and `ClprGetEndpointManifest` queries are paid, priced by `ClprQueryFeeCalculator`
-(exposed by `FacilityInitModule.provideClprQueryFeeCalculators`) at their base fee plus the same `GAS` extra.
+(exposed by `FacilityInitModule.provideClprQueryFeeCalculators`) at their base fee plus the `GAS` extra at a fixed
+`ClprFeeCalculator.VERIFIER_FEE_GAS` (300,000).
 
 `ClprSubmitBundle` is also exempt from node and network fees (`nodeNetworkFeeExempt`), like the node-submitted
-`ClprEndpointPublication`. Its total fee is then the fee proposal's $0.01 + `PROCESSING_BYTES` × bundle bytes + verifier
-`GAS`. Without the exemption, the node fee's own `PROCESSING_BYTES` extra and the 9× network fee would charge the
+`ClprEndpointPublication`. Its total fee is then the fee proposal's $0.01 + `PROCESSING_BYTES` × bundle bytes, plus
+the verifier gas actually used. Without the exemption, the node fee's own `PROCESSING_BYTES` extra and the 9× network fee would charge the
 bundle's bytes another 10 times over, so a 4 MiB bundle would cost about $46 instead of about $4.25.
 
 CLPR transactions use the standard fee-charging path, including its existing treatment of failures. There is no
