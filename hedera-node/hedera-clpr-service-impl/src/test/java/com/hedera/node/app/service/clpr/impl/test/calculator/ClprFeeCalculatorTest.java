@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNE
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
-import static com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator.VERIFIER_FEE_GAS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -108,8 +107,8 @@ class ClprFeeCalculatorTest {
     }
 
     @Test
-    @DisplayName("ClprCompleteChannel is charged for proof bytes beyond those included and for verifier gas")
-    void completeChannelChargesProofBytesAndVerifierGas() {
+    @DisplayName("ClprCompleteChannel is charged for proof bytes beyond those included, not a fixed verifier gas")
+    void completeChannelChargesProofBytesButNoFixedVerifierGas() {
         final var calculator =
                 new ClprFeeCalculator(CLPR_COMPLETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_COMPLETE_CHANNEL);
         final var feeResult = new FeeResult();
@@ -120,13 +119,12 @@ class ClprFeeCalculatorTest {
 
         calculator.accumulateServiceFee(COMPLETE_CHANNEL, mock(SimpleFeeContext.class), feeResult, feeSchedule);
 
-        assertThat(feeResult.getServiceTotalTinycents())
-                .isEqualTo(BASE_FEE_TINYCENTS + 500 * STATE_BYTE_FEE_TINYCENTS + VERIFIER_FEE_GAS * GAS_FEE_TINYCENTS);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(BASE_FEE_TINYCENTS + 500 * STATE_BYTE_FEE_TINYCENTS);
     }
 
     @Test
-    @DisplayName("ClprSubmitBundle is charged for every payload byte and for verifier gas")
-    void submitBundleChargesPayloadBytesAndVerifierGas() {
+    @DisplayName("ClprSubmitBundle is charged for every payload byte, not a fixed verifier gas")
+    void submitBundleChargesPayloadBytesButNoFixedVerifierGas() {
         final var feeResult = new FeeResult();
         final var feeSchedule = scheduleWith(
                 CLPR_SUBMIT_BUNDLE, makeExtraIncluded(Extra.PROCESSING_BYTES, 0), makeExtraIncluded(Extra.GAS, 0));
@@ -134,9 +132,7 @@ class ClprFeeCalculatorTest {
         subject.accumulateServiceFee(SUBMIT_BUNDLE, mock(SimpleFeeContext.class), feeResult, feeSchedule);
 
         assertThat(feeResult.getServiceTotalTinycents())
-                .isEqualTo(BASE_FEE_TINYCENTS
-                        + 1_000 * PROCESSING_BYTE_FEE_TINYCENTS
-                        + VERIFIER_FEE_GAS * GAS_FEE_TINYCENTS);
+                .isEqualTo(BASE_FEE_TINYCENTS + 1_000 * PROCESSING_BYTE_FEE_TINYCENTS);
     }
 
     private static FeeSchedule scheduleWith(
