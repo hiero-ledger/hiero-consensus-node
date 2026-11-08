@@ -58,7 +58,12 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 public class SendMessageCall extends AbstractCall {
 
     private static final Logger logger = LogManager.getLogger(SendMessageCall.class);
+    /**
+     * The CLPR fee proposal's estimated gas for a {@code sendMessage} call. At the schedule's {@code GAS} rate (852
+     * tinycents) it pays about $0.0109 of the call's price; {@code valueFee} collects the rest from attached value.
+     */
     private static final long GAS_REQUIREMENT = 127_520L;
+
     private static final long AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT = 50_000L;
     private static final int MAX_STACK_DEPTH = 1024;
 

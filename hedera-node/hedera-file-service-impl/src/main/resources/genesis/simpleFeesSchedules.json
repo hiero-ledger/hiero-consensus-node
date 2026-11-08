@@ -826,7 +826,8 @@
           "extras": [
             { "name": "PROCESSING_BYTES", "includedCount": 0 },
             { "name": "GAS", "includedCount": 0 }
-          ]
+          ],
+          "nodeNetworkFeeExempt": true
         },
         {
           "name": "ClprRegisterConnector",

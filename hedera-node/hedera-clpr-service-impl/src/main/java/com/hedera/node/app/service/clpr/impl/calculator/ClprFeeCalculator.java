@@ -30,8 +30,9 @@ public record ClprFeeCalculator(
         @NonNull HederaFunctionality functionality, @NonNull TransactionBody.DataOneOfType transactionType)
         implements ServiceFeeCalculator {
     /**
-     * The verifier gas charged for an operation that verifies a proof, which is the most a verifier call is
-     * priced at.
+     * The verifier gas charged for an operation that verifies a proof. The CLPR fee proposal prices verifier cost as
+     * the {@link Extra#GAS} extra "up to 300k", so this is a fixed cap rather than the gas the verifier actually uses
+     * (which may be up to {@code clpr.verifierGasLimit}).
      */
     public static final long VERIFIER_FEE_GAS = 300_000L;
 

@@ -193,7 +193,7 @@ mechanism; they should be made consistent once the paid-storage direction is set
 ## E-7. Geometric slashing escalation
 
 Hiero uses geometric escalation for connector misbehavior penalties. The formula,
-implemented in `ClprSlashingUtils.slashConnector`:
+implemented in `ClprSlashingUtils.applySlash`:
 
 ```
 penalty = basePenalty * (multiplier ^ slashCount)
@@ -201,8 +201,9 @@ banned  = (slashCount + 1) >= slashBanThreshold
 ```
 
 `penalty` is capped at `connector.lockedStake` (a connector cannot be penalized past
-its entire stake). If `banned`, the connector's record remains in state but all further
-operations on it are blocked until an admin intervenes.
+its entire stake). If `banned`, the connector's entire remaining stake is forfeited and
+its record is removed from state; its ownership commitment stays registered, so the
+connector ID cannot be registered again.
 
 ### Default values (from `ClprConfig`)
 
@@ -225,10 +226,12 @@ With defaults, the escalation sequence is:
 A connector starting with the minimum locked stake of 30,000 ℏ would lose 1,500 ℏ (5% of
 its stake) over the first four offences and would be banned on the 5th.
 
-**Endpoint payout:** on a slash event, the submitting endpoint receives
-`min(endpointPenaltyTinybars, penalty * endpointMarginPercent / 100)` from the slashed
-stake. This is always paid to the *submitting* endpoint, regardless of which side
-(source or destination connector) was at fault.
+**Endpoint payout:** on a slash event, the submitting endpoint receives the full
+penalty from the slashed stake (`ClprSlashingUtils.reimburseEndpoint`), capped at the
+staking account's balance. This is always paid to the *submitting* endpoint, regardless
+of which side (source or destination connector) was at fault. The CLPR fee proposal
+keeps this until a different destination for slash proceeds (a protocol treasury, a
+per-bundle cap) is decided.
 
 **Cross-implementation note:** the EVM CLPR implementation also uses geometric
 escalation with the same formula. The formula and defaults should be promoted to the
