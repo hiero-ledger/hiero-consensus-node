@@ -600,6 +600,14 @@ public interface HandleContext {
     NodeInfo creatorInfo();
 
     /**
+     * Returns this dispatch's transaction category.
+     *
+     * @return the dispatch category
+     */
+    @NonNull
+    TransactionCategory transactionCategory();
+
+    /**
      * Whether a dispatch should be throttled at consensus. True for everything except certain dispatches
      * internal to the EVM which are only constrained by gas.
      */

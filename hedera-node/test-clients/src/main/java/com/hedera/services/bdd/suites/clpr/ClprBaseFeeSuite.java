@@ -4,6 +4,10 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
@@ -11,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
@@ -23,10 +28,14 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleCon
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -49,6 +58,7 @@ import org.junit.jupiter.api.Tag;
  *   <li>{@code updateLedgerConfiguration} and {@code closeChannel} — a non-admin payer fails authorization at
  *       consensus. The admin-only transactions have a $0 service fee, so a non-admin pays only the node and
  *       network fees.</li>
+ *   <li>Both proof queries quote and collect the base fee plus verifier gas.</li>
  *   <li>Reveal-phase ops ({@code completeChannel}, {@code completeConnector}) are not covered here because they
  *       require a deployed verifier/connector smart contract and a full two-phase lifecycle setup.</li>
  * </ul>
@@ -82,6 +92,8 @@ public class ClprBaseFeeSuite {
     /** {@code ClprSubmitBundle} base fee and verifier gas charged by its calculator. */
     private static final double SUBMIT_BUNDLE_BASE_FEE_USD = 0.01;
 
+    private static final double CLPR_BUNDLE_BYTE_FEE_USD = 0.0000001;
+
     private static final long SUBMIT_BUNDLE_VERIFIER_GAS = 300_000L;
 
     /** Matches the HIP-1261 simple-fees convention. Tight, because the expected USD is precise. */
@@ -95,7 +107,7 @@ public class ClprBaseFeeSuite {
         final var txn = "clprSubmitBundleConfiguredFeesTxn";
         final var bundlePayload = new byte[] {1};
         final double serviceFeeUsd = SUBMIT_BUNDLE_BASE_FEE_USD
-                + bundlePayload.length * PROCESSING_BYTES_FEE_USD
+                + bundlePayload.length * CLPR_BUNDLE_BYTE_FEE_USD
                 + SUBMIT_BUNDLE_VERIFIER_GAS * GAS_FEE_USD;
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
@@ -174,6 +186,46 @@ public class ClprBaseFeeSuite {
                         .hasKnownStatusFrom(AUTHORIZATION_FAILED, NOT_SUPPORTED),
                 validateChargedUsdFromRecordWithTxnSize(
                         txn, txnSize -> expectedClprTotalUsd(0.0, PAYER_SIGNATURES, txnSize), ALLOWED_PERCENT_DIFF));
+    }
+
+    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    final Stream<DynamicTest> proofQueriesQuoteAndCollectBaseFeePlusVerifierGas() {
+        final var configPayment = "clprConfigQueryPayment";
+        final var manifestPayment = "clprManifestQueryPayment";
+        final var configQuote = new AtomicLong();
+        final var manifestQuote = new AtomicLong();
+        final long baseFeeTinycents = 100_000_000L;
+        final long totalFeeTinycents = baseFeeTinycents + 300_000L * 852L;
+        return hapiTest(
+                overriding("fees.simpleFeesEnabled", "true"),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                clprGetLedgerConfiguration()
+                        .payingWith(PAYER)
+                        .exposingNodePaymentTo(configQuote::set)
+                        .via(configPayment),
+                clprGetEndpointManifest()
+                        .payingWith(PAYER)
+                        .exposingNodePaymentTo(manifestQuote::set)
+                        .via(manifestPayment),
+                withOpContext((spec, log) -> {
+                    final long expectedQuote = spec.ratesProvider().toTbWithActiveRates(totalFeeTinycents);
+                    assertEquals(expectedQuote, configQuote.get());
+                    assertEquals(expectedQuote, manifestQuote.get());
+                }),
+                getTxnRecord(configPayment)
+                        .setRetryLimit(6_000)
+                        .hasPriority(recordWith().status(SUCCESS)),
+                getTxnRecord(manifestPayment)
+                        .setRetryLimit(6_000)
+                        .hasPriority(recordWith().status(SUCCESS)),
+                clprGetLedgerConfiguration()
+                        .payingWith(PAYER)
+                        .nodePayment(spec -> spec.ratesProvider().toTbWithActiveRates(baseFeeTinycents))
+                        .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE),
+                clprGetEndpointManifest()
+                        .payingWith(PAYER)
+                        .nodePayment(spec -> spec.ratesProvider().toTbWithActiveRates(baseFeeTinycents))
+                        .hasAnswerOnlyPrecheck(INSUFFICIENT_TX_FEE));
     }
 
     /**

@@ -21,7 +21,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
 import java.util.function.Predicate;
 import org.apache.tuweni.bytes.Bytes;
-import org.hiero.hapi.support.fees.FeeSchedule;
 
 public interface SystemContractOperations {
     /**
@@ -148,14 +147,6 @@ public interface SystemContractOperations {
      */
     @NonNull
     ExchangeRate currentExchangeRate();
-
-    /**
-     * Returns the simple fee schedule in effect, whose rates price any part of a system contract call not paid in gas.
-     *
-     * @return the simple fee schedule
-     */
-    @NonNull
-    FeeSchedule simpleFeesSchedule();
 
     /**
      * Returns the ecdsa eth key for the sender of current transaction if one exists.

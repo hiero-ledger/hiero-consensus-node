@@ -29,12 +29,18 @@ import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalH
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.getchannel.GetChannelTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.getendpointmanifest.GetEndpointManifestTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage.SendMessageTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyBundleTranslator;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
@@ -51,6 +57,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -65,6 +72,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -313,12 +321,21 @@ class CustomMessageCallProcessorTest {
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
     }
 
-    @Test
-    void clprSendMessageMayCarryValueForItsFee() {
+    static Stream<SystemContractMethod> pricedClprMethods() {
+        return Stream.of(
+                SendMessageTranslator.SEND_MESSAGE,
+                VerifyConfigTranslator.VERIFY_CONFIG,
+                VerifyBundleTranslator.VERIFY_BUNDLE,
+                GetChannelTranslator.GET_CHANNEL_QUEUE_STATE,
+                GetEndpointManifestTranslator.GET_ENDPOINT_MANIFEST);
+    }
+
+    @ParameterizedTest
+    @MethodSource("pricedClprMethods")
+    void pricedClprCallMayCarryValueForItsFee(final SystemContractMethod method) {
         final var address = Address.fromHexString("0x16e");
-        final var clprContract = mock(AbstractClprSystemContract.class);
-        final var sendMessageInput = Bytes.concatenate(
-                Bytes.wrap(SendMessageTranslator.SEND_MESSAGE.selector()), Bytes.fromHexString("0x1234"));
+        final var clprContract = mock(ClprSystemContract.class, CALLS_REAL_METHODS);
+        final var callInput = Bytes.concatenate(Bytes.wrap(method.selector()), Bytes.fromHexString("0x1234"));
         subject = new CustomMessageCallProcessor(
                 evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
         givenCallWithCode(address);
@@ -326,9 +343,8 @@ class CustomMessageCallProcessorTest {
                 .willReturn(HederaTestConfigBuilder.create()
                         .withValue("clpr.enabled", true)
                         .getOrCreateConfig());
-        doCallRealMethod().when(clprContract).isDisabled(frame);
         given(frame.getValue()).willReturn(Wei.ONE);
-        given(frame.getInputData()).willReturn(sendMessageInput);
+        given(frame.getInputData()).willReturn(callInput);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(stack.getLast()).willReturn(frame);
         given(frame.getContextVariable(OPS_DURATION_COUNTER))
@@ -339,11 +355,11 @@ class CustomMessageCallProcessorTest {
                     return null;
                 })
                 .when(clprContract)
-                .computeFully(any(), eq(sendMessageInput), eq(frame), any());
+                .computeFully(any(), eq(callInput), eq(frame), any());
 
         subject.start(frame, operationTracer);
 
-        verify(clprContract).computeFully(any(), eq(sendMessageInput), eq(frame), any());
+        verify(clprContract).computeFully(any(), eq(callInput), eq(frame), any());
         verify(frame, never()).setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.INVALID_CONTRACT_ID));
         verify(frame).setOutputData(OUTPUT_DATA);
     }

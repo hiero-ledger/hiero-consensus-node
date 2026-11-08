@@ -43,17 +43,18 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 | `slashBasePenalty`                   | `10 000 000 000` tinybars     | yes      | Base slash on first offence; each penalty is paid to the submitting endpoint. |
 | `slashMultiplier`                    | `2`                           | yes      | Geometric escalation factor per repeat offence.                               |
 | `slashBanThreshold`                  | `5`                           | yes      | Cumulative offences after which a connector is banned.                        |
-| `endpointMisbehaviorPenaltyTinybars` | `1 000 000 000` tinybars      | yes      | Charged to the submitting node when its bundle fails verification.            |
-| `messageExecutionCost`               | `1 000 000`                   | yes      | Notional cost component used in fee/refund maths.                             |
-| `endpointMarginPercent`              | `10`                          | yes      | Endpoint margin (% of recovered cost) per spec §3.3.3.                        |
+| `endpointMisbehaviorPenaltyTinybars` | `5 000 000` tinybars          | yes      | Charged to the submitting node when its bundle fails verification.            |
+| `messageExecutionCost`              | `1 000 000` tinybars          | yes      | Flat reimbursement for callback execution.                                   |
+| `progressRewardTinybars`            | `10 000 000` tinybars         | yes      | Flat endpoint reward per newly dispatched data message.                       |
 
-### Fees (consumed by `SendMessageCall` and `ClprBundleSubmitter`)
+### Fee configuration
 
 |            Key             |          Default           | Network? |                                               Purpose                                                |
 |----------------------------|----------------------------|----------|------------------------------------------------------------------------------------------------------|
 | `sendMessageFeeTinycents`  | `1 000 000 000` tinycents  | yes      | Price of a `sendMessage` call ($0.10), including its gas; the rest is collected from attached value. |
-| `sendMessageIncludedBytes` | `1 024`                    | yes      | Message data bytes covered by that price; each further byte is charged the `STATE_BYTES` rate.       |
+| `sendMessageIncludedBytes` | `1 024`                    | yes      | Message bytes covered by the base price. Additional bytes cost $0.00001 each.                        |
 | `nodeSubmitBundleMaxFee`   | `100 000 000 000` tinybars | yes      | Maximum fee a node pays to submit an inbound bundle (1,000 ℏ).                                       |
+| `manifestSubmissionMaxFee` | `10 000 000 000` tinybars | no       | Maximum fee a node offers to publish its endpoint (100 ℏ).                                           |
 
 ### Sync orchestration (CLPR-4.3, used by `ClprChannelManager` / `ClprEndpointClient`)
 
@@ -160,31 +161,37 @@ of them is rejected:
 A single record parameterised by `HederaFunctionality` + `TransactionBody.DataOneOfType`.
 For each CLPR functionality, `ClprServiceImpl.serviceFeeCalculators()` produces one
 calculator instance. Each looks up its base fee from the platform `FeeSchedule` via
-`lookupServiceFee` — no CLPR-specific fee maths beyond reading the schedule.
+`lookupServiceFee`. The schedule lists the extras and included quantities for each operation.
 
-`FacilityInitModule.provideClprServiceFeeCalculators` exposes the set into the standard
-fee plumbing, so CLPR fees ride the normal fee-schedule path and are tunable through the
-fee schedule update mechanism, not config.
+`FacilityInitModule.provideClprServiceFeeCalculators` registers the calculators with the standard fee workflow.
+The CLPR-specific byte rates are $0.00001 per state byte and $0.0000001 per bundle byte.
 
-Besides its base fee, `ClprCompleteChannel` is charged the `STATE_BYTES` extra for its config and
-endpoint-manifest proof bytes (first 8,192 free), and `ClprSubmitBundle` the `PROCESSING_BYTES` extra for its
-bundle payload. Both are charged the `GAS` extra for their verifier call at a fixed
-`ClprFeeCalculator.VERIFIER_FEE_GAS` (300,000), since the actual gas is only known after handling. The
-`ClprGetLedgerConfiguration` and `ClprGetEndpointManifest` queries are paid, priced by `ClprQueryFeeCalculator`
-(exposed by `FacilityInitModule.provideClprQueryFeeCalculators`) at their base fee plus the same `GAS` extra.
+Besides its base fee, `ClprCompleteChannel` pays the `STATE_BYTES` extra for its serialized channel state,
+with the first 8,192 bytes included. `ClprSubmitBundle` pays the `PROCESSING_BYTES` extra for its bundle
+payload. Both reserve 300,000 units for the verifier `GAS` extra and settle against the measured verifier
+gas up to that cap on successful handling.
 
-`ClprSubmitBundle` is also exempt from node and network fees (`nodeNetworkFeeExempt`), like the node-submitted
-`ClprEndpointPublication`. Its total fee is then the fee proposal's $0.01 + `PROCESSING_BYTES` × bundle bytes + verifier
-`GAS`. Without the exemption, the node fee's own `PROCESSING_BYTES` extra and the 9× network fee would charge the
-bundle's bytes another 10 times over, so a 4 MiB bundle would cost about $46 instead of about $4.25.
+The `ClprGetLedgerConfiguration` and `ClprGetEndpointManifest` queries are priced by `ClprQueryFeeCalculator`
+(exposed by `FacilityInitModule.provideClprQueryFeeCalculators`). Both quote $0.01 plus 300,000 gas units at the
+schedule rate before building a proof. The gas units estimate the Java proof work, including TSS verification when enabled.
 
-CLPR transactions use the standard fee-charging path, including its existing treatment of failures. There is no
-separate failure price in the schedule; handler failures retain the configured base fee and extras. The admin-only
-transactions have a $0 service fee, while a privileged payer's fees are waived entirely.
+`ClprSubmitBundle` is exempt from node and network fees (`nodeNetworkFeeExempt`) so that bundle bytes
+are billed once. A 4 MiB bundle costs about $0.46 at the proposal's byte and gas rates. The node-originated
+`ClprEndpointPublication` pays a $1 service base fee plus the ordinary node and network components.
 
-Defaults for connector bonds and penalties (`minLockedStake`, `slashBasePenalty`,
-`endpointMisbehaviorPenaltyTinybars`) are in tinybars, sized from the fee proposal's USD figures at $0.10/ℏ:
-$3,000 stake, $10 first slash (doubling, ban on the 5th), and a $1 endpoint misbehavior penalty.
+CLPR transactions use the standard fee workflow. On handle failure, the workflow charges the upfront
+fees after rolling back handle effects. The admin-only transactions have a $0 service fee and waive the
+remaining fees for privileged payers.
+
+External EVM transactions pay gas plus any remaining top-up from attached value to reach the method's base target.
+The targets are $0.10 for `sendMessage`, $0.01 for `verifyConfig`, and $0.02 each for `verifyBundle`,
+`getChannelQueueState`, and `getEndpointManifest`. The `sendMessage` state-byte surcharge is in addition to its base
+target. Native verifier dispatches use the gas charged by the native operation. Off-chain contract queries use the
+ordinary query payment path. On-chain calls that need a top-up must use a payable call.
+
+Defaults for the minimum connector stake, first slash, and progress reward use the proposal's USD amounts at
+a reference rate of $0.10/ℏ. The stake is $3,000, the first slash is $10 (doubling, with a ban on the fifth
+offence), and the reward is $0.01 per newly dispatched data message. The amounts are fixed in tinybars.
 
 ## Slashing: `ClprSlashingUtils`
 
@@ -202,8 +209,7 @@ else:
 ```
 
 `ClprSubmitBundleHandler` then calls `reimburseEndpoint`, which transfers the whole `penalty` from `stakingAccount` to
-the submitting endpoint, capped at the staking account's balance so that hbar is conserved. As in the fee proposal,
-the submitter keeps the full penalty; routing it elsewhere (a protocol treasury, a per-bundle cap) is undecided.
+the submitting endpoint, capped at the staking account's balance so that hbar is conserved.
 
 ### Which `ClprMessageReplyStatus` triggers a slash?
 
@@ -225,21 +231,15 @@ and endpoint incentives.
 
 ### Per-message charge on successful dispatch
 
-For every inbound data message that dispatches successfully (i.e., the application
-contract returns without reverting and the reply status is `SUCCESS`), the following
-transfer occurs:
+For each new inbound data message with a funded connector, the node charges the connector
+before dispatching the application callback. The charge is
 
-1. **Connector is charged** — the receiving connector's contract account is debited:
+```
+charge = messageExecutionCost + progressRewardTinybars
+```
 
-   ```
-   charge = messageExecutionCost + (messageExecutionCost * endpointMarginPercent / 100)
-   ```
-2. **Submitting endpoint is paid** — the entire `charge` is credited to the Hiero
-   consensus node that submitted the `ClprSubmitBundle` transaction. There is no
-   central treasury; the submitter receives the full amount.
-
-The submitting endpoint is identified by `endpoint_node_id` on the transaction body,
-resolved through `ReadableNodeStore`. The node's account receives the payment.
+The bundle payer receives the charge. A handled application error still advances the
+incoming message cursor and produces a reply. Replayed messages are skipped.
 
 ### Why the submitter receives the full charge
 
@@ -249,19 +249,11 @@ the execution payment to whichever node eventually submits the same bundle. Ther
 "protocol fee" extracted to a treasury — the design assumes that enough competition
 among nodes will keep margins honest.
 
-### Planned gas-based model (E-10)
+### Planned bundle fee recovery
 
-The current flat `messageExecutionCost` is a placeholder. The planned model charges
-the connector the *actual gas consumed* by the application dispatch plus margin:
-
-```
-charge = gasUsed * gasPriceTinybars * (1 + endpointMarginPercent / 100)
-```
-
-The same "submitter receives all" rule applies. Under the gas-based model, high-gas
-messages cost connectors more and compensate submitters more, aligning costs with
-actual compute. See E-10 in [`clpr-hiero-spec.md`](clpr-hiero-spec.md) for the full
-rationale and implementation notes.
+The fee proposal models distributing the real submission fee among connectors in
+proportion to their message count. See E-10 in [`clpr-hiero-spec.md`](clpr-hiero-spec.md)
+for the distinction between shared submission fees and callback reimbursement.
 
 ### Slashing payouts (non-success path)
 

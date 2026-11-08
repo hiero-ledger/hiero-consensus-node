@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
@@ -108,8 +109,8 @@ class ClprFeeCalculatorTest {
     }
 
     @Test
-    @DisplayName("ClprCompleteChannel is charged for proof bytes beyond those included and for verifier gas")
-    void completeChannelChargesProofBytesAndVerifierGas() {
+    @DisplayName("ClprCompleteChannel reserves verifier gas and leaves storage charging to handle")
+    void completeChannelReservesVerifierGas() {
         final var calculator =
                 new ClprFeeCalculator(CLPR_COMPLETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_COMPLETE_CHANNEL);
         final var feeResult = new FeeResult();
@@ -121,7 +122,7 @@ class ClprFeeCalculatorTest {
         calculator.accumulateServiceFee(COMPLETE_CHANNEL, mock(SimpleFeeContext.class), feeResult, feeSchedule);
 
         assertThat(feeResult.getServiceTotalTinycents())
-                .isEqualTo(BASE_FEE_TINYCENTS + 500 * STATE_BYTE_FEE_TINYCENTS + VERIFIER_FEE_GAS * GAS_FEE_TINYCENTS);
+                .isEqualTo(BASE_FEE_TINYCENTS + VERIFIER_FEE_GAS * GAS_FEE_TINYCENTS);
     }
 
     @Test
@@ -134,9 +135,7 @@ class ClprFeeCalculatorTest {
         subject.accumulateServiceFee(SUBMIT_BUNDLE, mock(SimpleFeeContext.class), feeResult, feeSchedule);
 
         assertThat(feeResult.getServiceTotalTinycents())
-                .isEqualTo(BASE_FEE_TINYCENTS
-                        + 1_000 * PROCESSING_BYTE_FEE_TINYCENTS
-                        + VERIFIER_FEE_GAS * GAS_FEE_TINYCENTS);
+                .isEqualTo(BASE_FEE_TINYCENTS + 1_000 * 1_000L + VERIFIER_FEE_GAS * GAS_FEE_TINYCENTS);
     }
 
     private static FeeSchedule scheduleWith(
@@ -177,6 +176,10 @@ class ClprFeeCalculatorTest {
                 Arguments.of(
                         CLPR_DEREGISTER_CONNECTOR,
                         TransactionBody.DataOneOfType.CLPR_DEREGISTER_CONNECTOR,
+                        TransactionBody.DEFAULT),
+                Arguments.of(
+                        CLPR_ENDPOINT_PUBLICATION,
+                        TransactionBody.DataOneOfType.CLPR_ENDPOINT_PUBLICATION,
                         TransactionBody.DEFAULT),
                 Arguments.of(CLPR_SUBMIT_BUNDLE, TransactionBody.DataOneOfType.CLPR_SUBMIT_BUNDLE, SUBMIT_BUNDLE));
     }

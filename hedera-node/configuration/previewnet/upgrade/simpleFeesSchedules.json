@@ -846,9 +846,8 @@
         },
         {
           "name": "ClprEndpointPublication",
-          "baseFee": 0,
-          "extras": [],
-          "nodeNetworkFeeExempt": true
+          "baseFee": 10000000000,
+          "extras": []
         },
         {
           "name": "ClprGetLedgerConfiguration",

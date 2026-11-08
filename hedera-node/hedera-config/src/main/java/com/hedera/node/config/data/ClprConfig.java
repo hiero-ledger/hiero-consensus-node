@@ -5,6 +5,7 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
@@ -45,15 +46,16 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "2") @NetworkProperty int slashMultiplier,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int slashBanThreshold,
 
-        // Charged to an endpoint whose bundle fails verification ($1)
-        @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
+        // Penalty charged to an endpoint whose bundle fails verification
+        @ConfigProperty(defaultValue = "5000000") @NetworkProperty
         long endpointMisbehaviorPenaltyTinybars,
 
         @ConfigProperty(defaultValue = "1000000") @NetworkProperty
         long messageExecutionCost,
 
-        @ConfigProperty(defaultValue = "10") @NetworkProperty
-        int endpointMarginPercent,
+        // Flat reward per newly dispatched data message ($0.01 at $0.10/ℏ).
+        @ConfigProperty(defaultValue = "10000000") @Min(0) @NetworkProperty
+        long progressRewardTinybars,
         // --- Sync orchestration (CLPR-4.3) ---
         @ConfigProperty(defaultValue = "4") int maxConcurrentSyncs,
         @ConfigProperty(defaultValue = "30") int syncTimeoutSeconds,
@@ -87,7 +89,7 @@ public record ClprConfig(
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
         // Maximum fee the node will pay when submitting an inbound bundle for consensus. A bundle is exempt from node
         // and network fees and pays $0.01 + PROCESSING_BYTES per bundle byte + verifier gas, so a bundle at the
-        // default 4 MiB max_sync_bytes costs about $4.25. The 1,000 ℏ default covers that down to about $0.005/ℏ.
+        // default 4 MiB max_sync_bytes costs about $0.46 at the proposal's byte and gas rates.
         @ConfigProperty(defaultValue = "100000000000") @NetworkProperty
         long nodeSubmitBundleMaxFee,
 
@@ -131,4 +133,7 @@ public record ClprConfig(
         Duration manifestSubmissionRetryDelay,
 
         @ConfigProperty(defaultValue = "10") @NetworkProperty
-        int manifestSubmissionDistinctTxnIds) {}
+        int manifestSubmissionDistinctTxnIds,
+
+        // Maximum fee offered by a node for its endpoint self-publication, in tinybars.
+        @ConfigProperty(defaultValue = "10000000000") long manifestSubmissionMaxFee) {}

@@ -12,4 +12,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * newly-registered Channel at {@code completeChannel} time.
  */
 public record VerifiedConfig(
-        @NonNull ClprLedgerConfiguration config, @NonNull ClprEndpointManifest manifest) {}
+        @NonNull ClprLedgerConfiguration config, @NonNull ClprEndpointManifest manifest, long verifierGasUsed) {
+    /** Use the prepaid verifier charge when the implementation does not report measured gas. */
+    public VerifiedConfig(@NonNull final ClprLedgerConfiguration config, @NonNull final ClprEndpointManifest manifest) {
+        this(config, manifest, Long.MAX_VALUE);
+    }
+}
