@@ -4,7 +4,6 @@ package com.hedera.services.yahcli.commands.clpr;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.services.yahcli.commands.clpr.GenerateChannelIdentityCommand.ClprIdentityCrypto;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.HexFormat;
@@ -119,14 +118,17 @@ public class GenerateConnectorIdentityCommand implements Callable<Integer> {
         final byte[] sigMsgHash = MiscCryptoUtils.keccak256DigestOf(sigPreimage);
         final byte[] signature = SignatureGenerator.signBytes(sigMsgHash, keys.privateKey());
 
-        // 6. Emit JSON.
+        if (outFile == null || outFile.isBlank()) {
+            throw new IllegalArgumentException("--out is required; the private key must be stored in a file");
+        }
+
+        // 6. Emit JSON. privateKey is intentionally absent — written to the companion .key file.
         final var hex = HexFormat.of();
         final var json = """
                 {
                   "channelId":    "0x%s",
                   "connectorId":     "0x%s",
                   "publicKey":       "0x%s",
-                  "privateKey":      "0x%s",
                   "salt":            "0x%s",
                   "signatureScheme": "%s",
                   "serviceAddress":  "0x%s",
@@ -137,19 +139,18 @@ public class GenerateConnectorIdentityCommand implements Callable<Integer> {
                         hex.formatHex(channelId),
                         hex.formatHex(connectorId),
                         hex.formatHex(publicKey),
-                        hex.formatHex(keys.privateKeyBytes()),
                         hex.formatHex(salt),
                         scheme,
                         hex.formatHex(serviceAddress),
                         hex.formatHex(commitment),
                         hex.formatHex(signature));
 
-        if (outFile != null && !outFile.isBlank()) {
-            Files.writeString(Path.of(outFile), json);
-            System.out.println("Wrote connector identity bundle to " + outFile);
-        } else {
-            System.out.println(json);
-        }
+        final var bundlePath = Path.of(outFile);
+        final var keyPath = Path.of(outFile + ".key");
+        ClprArgs.writeSecure(keyPath, "0x" + hex.formatHex(keys.privateKeyBytes()) + "\n");
+        ClprArgs.writeSecure(bundlePath, json);
+        System.out.println("Wrote connector identity bundle to " + outFile);
+        System.out.println("Wrote private key to " + keyPath + " — keep it secret");
         return 0;
     }
 }

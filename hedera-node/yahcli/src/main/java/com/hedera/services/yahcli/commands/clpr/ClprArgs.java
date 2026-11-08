@@ -5,10 +5,18 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -22,6 +30,28 @@ import java.util.regex.Pattern;
  */
 final class ClprArgs {
     private ClprArgs() {}
+
+    private static final Set<PosixFilePermission> OWNER_RW =
+            Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
+
+    /**
+     * Writes {@code content} to {@code path} with owner-only permissions (0600), refusing to
+     * follow symlinks or overwrite an existing file.
+     */
+    static void writeSecure(final Path path, final String content) throws IOException {
+        final var perms = PosixFilePermissions.asFileAttribute(OWNER_RW);
+        try (final var ch = FileChannel.open(
+                path,
+                Set.of(StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, LinkOption.NOFOLLOW_LINKS),
+                perms)) {
+            final var buf = ByteBuffer.wrap(content.getBytes(StandardCharsets.UTF_8));
+            while (buf.hasRemaining()) {
+                if (ch.write(buf) <= 0) {
+                    throw new IOException("FileChannel.write made no progress on " + path);
+                }
+            }
+        }
+    }
 
     static byte[] requiredBytes(final String flagName, @Nullable final String hex) {
         if (hex == null || hex.isBlank()) {

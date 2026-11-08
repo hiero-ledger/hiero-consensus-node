@@ -69,7 +69,6 @@ JSON="$(cat <<EOF
 {
   "channelId":       "0x${CHANNEL_HEX}",
   "publicKey":          "0x${PUB_HEX}",
-  "privateKey":         "0x${PRIV_HEX}",
   "signatureScheme":    "ECDSA_SECP256K1",
   "ownershipCommitment":"0x${COMMIT}",
   "signature":          "0x${SIG_RS}"
@@ -78,8 +77,13 @@ EOF
 )"
 
 if [ -n "$OUT" ]; then
-    printf '%s\n' "$JSON" > "$OUT"
+    # Write bundle with owner-only permissions (no umask leakage).
+    (umask 177 && printf '%s\n' "$JSON" > "$OUT")
+    # Write private key to companion file, also owner-only.
+    (umask 177 && printf '0x%s\n' "${PRIV_HEX}" > "${OUT}.key")
     echo "Wrote channel identity bundle to $OUT" >&2
+    echo "Wrote private key to ${OUT}.key — keep it secret" >&2
 else
     printf '%s\n' "$JSON"
+    echo "WARNING: private key not saved (no --out given)" >&2
 fi

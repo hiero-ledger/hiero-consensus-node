@@ -6,7 +6,6 @@ import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import java.math.BigInteger;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
@@ -78,13 +77,17 @@ public class GenerateChannelIdentityCommand implements Callable<Integer> {
         final byte[] revealMsgHash = MiscCryptoUtils.keccak256DigestOf(channelId);
         final byte[] signature = SignatureGenerator.signBytes(revealMsgHash, privateKey);
 
+        if (outFile == null || outFile.isBlank()) {
+            throw new IllegalArgumentException("--out is required; the private key must be stored in a file");
+        }
+
         // 5. Emit JSON. Hand-rolled to avoid an extra protobuf type for an ad-hoc bundle.
+        // privateKey is intentionally absent — it is written to the companion .key file.
         final var hex = HexFormat.of();
         final var json = """
                 {
                   "channelId":       "0x%s",
                   "publicKey":          "0x%s",
-                  "privateKey":         "0x%s",
                   "signatureScheme":    "%s",
                   "ownershipCommitment":"0x%s",
                   "signature":          "0x%s"
@@ -92,17 +95,16 @@ public class GenerateChannelIdentityCommand implements Callable<Integer> {
                 """.formatted(
                         hex.formatHex(channelId),
                         hex.formatHex(publicKey),
-                        hex.formatHex(keys.privateKeyBytes()),
                         scheme,
                         hex.formatHex(commitment),
                         hex.formatHex(signature));
 
-        if (outFile != null && !outFile.isBlank()) {
-            Files.writeString(Path.of(outFile), json);
-            System.out.println("Wrote channel identity bundle to " + outFile);
-        } else {
-            System.out.println(json);
-        }
+        final var bundlePath = Path.of(outFile);
+        final var keyPath = Path.of(outFile + ".key");
+        ClprArgs.writeSecure(keyPath, "0x" + hex.formatHex(keys.privateKeyBytes()) + "\n");
+        ClprArgs.writeSecure(bundlePath, json);
+        System.out.println("Wrote channel identity bundle to " + outFile);
+        System.out.println("Wrote private key to " + keyPath + " — keep it secret");
         return 0;
     }
 

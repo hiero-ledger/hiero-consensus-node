@@ -35,6 +35,7 @@ from __future__ import annotations  # PEP 604/585 annotations on Python 3.9
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -59,6 +60,17 @@ except ImportError as e:  # pragma: no cover — install hint
 
 CHANNEL_ID_LEN = 32
 PRIVATE_KEY_LEN = 32
+
+
+def _write_secure(path: Path, content: str) -> None:
+    """Write content to path with mode 0o600, regardless of umask or prior permissions."""
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.write(fd, content.encode())
+    finally:
+        os.close(fd)
+    # O_CREAT mode is ignored on existing files; chmod enforces 0600 in all cases.
+    os.chmod(str(path), 0o600)
 
 ED25519 = "ED25519"
 ECDSA = "ECDSA_SECP256K1"
@@ -193,18 +205,20 @@ def derive(channel_id: bytes, private_key: bytes, scheme: str) -> dict[str, byte
 
 
 def render_json(bundle: dict, derived: dict[str, bytes], scheme: str) -> str:
-    """Emit the channel-identity JSON in the same field order yahcli uses."""
+    """Emit the channel-identity JSON in the same field order yahcli uses.
+
+    privateKey is intentionally excluded — it lives in the companion .key file.
+    """
     ordered: dict[str, str] = {
         "channelId": _ensure_0x(bundle["channelId"]),
         "publicKey": "0x" + derived["publicKey"].hex(),
-        "privateKey": _ensure_0x(bundle["privateKey"]),
         "signatureScheme": scheme,
         "ownershipCommitment": "0x" + derived["ownershipCommitment"].hex(),
         "signature": "0x" + derived["signature"].hex(),
     }
     # Preserve any extra keys the caller had (e.g. notes, label) without reordering them in front.
     for k, v in bundle.items():
-        if k not in ordered:
+        if k not in ordered and k != "privateKey":
             ordered[k] = v
     return json.dumps(ordered, indent=2) + "\n"
 
@@ -221,6 +235,11 @@ def main(argv=None) -> int:
         epilog=__doc__,
     )
     parser.add_argument("input", help="Path to the channel identity JSON (e.g. channel.json).")
+    parser.add_argument(
+        "--key-file",
+        help="Path to the .key file containing the hex-encoded private key. "
+             "Required when the input bundle has no privateKey field.",
+    )
     out = parser.add_mutually_exclusive_group()
     out.add_argument("--out", help="Write the resulting JSON to this path.")
     out.add_argument("--in-place", action="store_true", help="Overwrite the input file.")
@@ -236,7 +255,18 @@ def main(argv=None) -> int:
     try:
         scheme = normalize_scheme(bundle.get("signatureScheme", ""))
         channel_id = parse_hex(bundle.get("channelId"), "channelId", CHANNEL_ID_LEN)
-        private_key = parse_hex(bundle.get("privateKey"), "privateKey", PRIVATE_KEY_LEN)
+        if args.key_file:
+            private_key = parse_hex(Path(args.key_file).read_text().strip(), "key-file", PRIVATE_KEY_LEN)
+        elif bundle.get("privateKey"):
+            print(
+                "WARNING: reading privateKey from bundle is deprecated. "
+                "Use --key-file <path> instead.",
+                file=sys.stderr,
+            )
+            private_key = parse_hex(bundle.get("privateKey"), "privateKey", PRIVATE_KEY_LEN)
+        else:
+            print("ERROR: no private key source: provide --key-file <path>", file=sys.stderr)
+            return 2
     except ValueError as e:
         print("ERROR: {}".format(e), file=sys.stderr)
         return 2
@@ -250,10 +280,10 @@ def main(argv=None) -> int:
     rendered = render_json(bundle, derived, scheme)
 
     if args.out:
-        Path(args.out).write_text(rendered)
+        _write_secure(Path(args.out), rendered)
         print("wrote {}".format(args.out), file=sys.stderr)
     elif args.in_place:
-        in_path.write_text(rendered)
+        _write_secure(in_path, rendered)
         print("updated {}".format(in_path), file=sys.stderr)
     else:
         sys.stdout.write(rendered)
