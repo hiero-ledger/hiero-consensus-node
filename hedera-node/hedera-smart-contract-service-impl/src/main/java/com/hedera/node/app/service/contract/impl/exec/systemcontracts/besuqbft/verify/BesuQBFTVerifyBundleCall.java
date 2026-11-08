@@ -25,6 +25,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -61,12 +62,14 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * <p>Decoding and Merkle-proof verification are delegated to
  * {@link BesuQbftVerifier#verifyBundle(byte[], byte[])}; the verifier returns the verbatim
  * {@code ClprBundleContent} bytes from the proof's final RLP item, which this call converts
- * into the metadata, messages and trust-anchor return tuple. The proven manifest is appended as the
- * fifth tuple member.
+ * into the metadata, messages and trust-anchor return tuple after checking the relayed metadata
+ * against the proven queue state. Only proof-derived trust-anchor rotations are returned. The proven
+ * manifest is appended as the fifth tuple member.
  */
 public class BesuQBFTVerifyBundleCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(BesuQBFTVerifyBundleCall.class);
     private static final long GAS_REQUIREMENT = 100_000L;
+    private static final byte[] ZERO_HASH = new byte[32];
     private static final long EPOCH_LENGTH =
             30_000L; // matches relay config default; configure per-channel in a follow-up
 
@@ -145,25 +148,50 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
         final var bundleContentBytes = verified.bundleContentBytes();
 
-        // Manifest-only recovery bundle (spec §8.1.4): the verifier proved an endpoint manifest with no
-        // bundle content. Accepted so the CLPR Service can apply the manifest update out-of-band.
-        if (bundleContentBytes.length == 0) {
-            if (verified.newEndpointManifestBytes().length > 0) {
-                return manifestOnlySuccess(verified.newEndpointManifestBytes());
-            }
-            return fail();
-        }
-
         final ClprBundleContent parsedContent;
         try {
-            parsedContent = ClprBundleContent.PROTOBUF.parseStrict(
-                    Bytes.wrap(bundleContentBytes).toReadableSequentialData());
+            parsedContent = bundleContentBytes.length == 0
+                    ? ClprBundleContent.DEFAULT
+                    : ClprBundleContent.PROTOBUF.parseStrict(
+                            Bytes.wrap(bundleContentBytes).toReadableSequentialData());
             requireNonNull(parsedContent);
         } catch (final Exception e) {
             log.warn(
                     "verifyBundle (QBFT): inner bytes are not a valid ClprBundleContent for trustAnchor {}",
                     trustAnchorBytes,
                     e);
+            return fail();
+        }
+
+        // Relayed content is not authenticated merely because the surrounding header and storage
+        // proofs are valid. Bind every queue field to the values the verifier actually proved.
+        final var metadata = parsedContent.metadata();
+        final var proven = verified.queueMetadata();
+        final boolean hasProvenStateUpdate =
+                verified.newTrustAnchor().length > 0 || verified.newEndpointManifestBytes().length > 0;
+        if (metadata == null || metadata.nextMessageId() == 0) {
+            // A state-update-only bundle carries no queue state or messages. Its anchor and manifest
+            // still come exclusively from the verified result, including when content bytes are empty.
+            if (!isAbsentQueue(proven) || !parsedContent.messages().isEmpty() || !hasProvenStateUpdate) {
+                log.warn("verifyBundle (QBFT): metadata-less content is not a proven state update");
+                return fail();
+            }
+        }
+        if (metadata != null
+                && (metadata.nextMessageId() != proven.nextMessageId()
+                        || metadata.receivedMessageId() != proven.receivedMessageId()
+                        || metadata.status().protoOrdinal() != proven.status()
+                        || !metadata.sentRunningHash().equals(Bytes.wrap(proven.sentRunningHash()))
+                        || !metadata.receivedRunningHash().equals(Bytes.wrap(proven.receivedRunningHash())))) {
+            log.warn("verifyBundle (QBFT): relayed metadata does not match proven queue state");
+            return fail();
+        }
+        // The service folds the message payloads from its locally stored running hash before
+        // dispatching them. Bind that chain's final hash to the proven last-message slot as well.
+        if (!parsedContent.messages().isEmpty()
+                && (!proven.hasLastMessageProof()
+                        || !metadata.sentRunningHash().equals(Bytes.wrap(proven.lastMessageRunningHash())))) {
+            log.warn("verifyBundle (QBFT): messages are not bound to a proven last-message running hash");
             return fail();
         }
 
@@ -175,6 +203,13 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             // and code hash are stable across epochs and carry forward from the current trust anchor.
             final byte[] newFullTrustAnchor = encodeFullTrustAnchor(
                     verified.newTrustAnchor(), trustedClprServiceAddress20, trustedClprServiceCodeHash32);
+            if ((parsedContent.newTrustAnchor().length() > 0
+                            && !parsedContent.newTrustAnchor().equals(Bytes.wrap(newFullTrustAnchor)))
+                    || (parsedContent.newTrustAnchorId().length() > 0
+                            && !parsedContent.newTrustAnchorId().equals(Bytes.wrap(verified.newTrustAnchorId())))) {
+                log.warn("verifyBundle (QBFT): claimed trust-anchor rotation differs from proven successor");
+                return fail();
+            }
             finalBundleContentBytes =
                     augmentWithNewTrustAnchor(parsedContent, newFullTrustAnchor, verified.newTrustAnchorId());
             log.info(
@@ -182,6 +217,11 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                     Bytes.wrap(verified.newTrustAnchor()),
                     HexFormat.of().formatHex(verified.newTrustAnchorId()));
         } else {
+            if (parsedContent.newTrustAnchor().length() > 0
+                    || parsedContent.newTrustAnchorId().length() > 0) {
+                log.warn("verifyBundle (QBFT): content claims a trust-anchor rotation without proven evidence");
+                return fail();
+            }
             finalBundleContentBytes = bundleContentBytes;
         }
 
@@ -212,8 +252,9 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             log.warn("verifyBundle (QBFT): failed to parse final bundle content", e);
             return fail();
         }
-        final ClprQueueMetadata meta = outContent.metadataOrElse(ClprQueueMetadata.DEFAULT);
-        final Tuple metaTuple = metadataTuple(meta, provenEndpointManifestVersion);
+        final ClprQueueMetadata meta = outContent.metadata();
+        final Tuple metaTuple =
+                meta == null ? absentMetadataTuple() : metadataTuple(meta, provenEndpointManifestVersion);
         if (metaTuple == null) {
             log.warn("verifyBundle (QBFT): queue metadata is not ABI-encodable");
             return fail();
@@ -248,35 +289,15 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                 true);
     }
 
-    /**
-     * Manifest-aware success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with an
-     * empty message set and no trust-anchor rotation. Metadata is signalled absent via a zero
-     * {@code nextMessageId} sentinel (a normal bundle's is always {@code >= 1}), which
-     * {@link com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier} decodes to a null metadata so
-     * {@code ClprSubmitBundleHandler} takes its state-update-only path.
-     */
-    @NonNull
-    private PricedResult manifestOnlySuccess(@NonNull final byte[] newEndpointManifestBytes) {
-        final ClprEndpointManifest manifest;
-        try {
-            manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
-                    Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
-        } catch (final Exception e) {
-            log.warn("verifyBundle (QBFT): manifest-only recovery bytes are not a ClprEndpointManifest", e);
-            return fail();
-        }
-        final Tuple absentMetadata = absentMetadataTuple();
-        return gasOnly(
-                successResult(
-                        VERIFY_BUNDLE_RETURN.encode(Tuple.of(
-                                absentMetadata,
-                                new byte[0][],
-                                new byte[0],
-                                new byte[0],
-                                manifestStructTuple(manifest))),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                true);
+    private static boolean isAbsentQueue(@NonNull final BesuQbftVerifier.QueueMetadata proven) {
+        return proven.nextMessageId() == 0
+                && proven.receivedMessageId() == 0
+                && proven.status() == 0
+                && proven.endpointManifestVersion() == 0
+                && !proven.hasLastMessageProof()
+                && Arrays.equals(proven.sentRunningHash(), ZERO_HASH)
+                && Arrays.equals(proven.receivedRunningHash(), ZERO_HASH)
+                && Arrays.equals(proven.lastMessageRunningHash(), ZERO_HASH);
     }
 
     /**

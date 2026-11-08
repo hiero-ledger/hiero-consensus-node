@@ -346,7 +346,7 @@ public final class BesuQbftVerifier {
         final QueueMetadata queueMetadata;
         if (storageProof.isEmpty()) {
             // Absent queue metadata: the all-zero sentinel (nextMessageId == 0, manifest version 0).
-            queueMetadata = new QueueMetadata(0L, new byte[32], 0L, new byte[32], 0, new byte[32], 0L);
+            queueMetadata = new QueueMetadata(0L, new byte[32], 0L, new byte[32], 0, new byte[32], 0L, false);
         } else {
             if (storageProof.size() != CHANNEL_STORAGE_SLOTS && storageProof.size() != CHANNEL_STORAGE_SLOTS + 1) {
                 throw ProofException.besuQbft("storageProof has " + storageProof.size() + " entries; expected "
@@ -414,8 +414,11 @@ public final class BesuQbftVerifier {
 
         // A bundle must carry SOMETHING: queue metadata, message content, or a manifest advance. When both the
         // queue metadata and the content are absent, the bundle MUST carry a manifest advance (spec §8.1.4);
-        // otherwise it is empty/meaningless and verification fails. (Mirrors the Ethereum verifier.)
-        if (storageProof.isEmpty() && bundleContentBytes.length == 0 && newEndpointManifestBytes.length == 0) {
+        // or a proven trust-anchor rotation; otherwise it is empty/meaningless and verification fails.
+        if (storageProof.isEmpty()
+                && bundleContentBytes.length == 0
+                && newEndpointManifestBytes.length == 0
+                && newTrustAnchor.length == 0) {
             throw ProofException.besuQbft("bundle has no queue metadata, no content, and no endpoint-manifest advance");
         }
 
@@ -1317,7 +1320,8 @@ public final class BesuQbftVerifier {
                 receivedRunningHash,
                 status,
                 lastMsgRunningHash,
-                endpointManifestVersion);
+                endpointManifestVersion,
+                provenSlotValues.length > SP_INDEX_LAST_MSG_RUNNING_HASH);
     }
 
     /** Reads 8 bytes from {@code buf} starting at {@code offset} as a big-endian unsigned long. */
@@ -1404,6 +1408,7 @@ public final class BesuQbftVerifier {
      * @param endpointManifestVersion the peer Channel's {@code endpoint_manifest_version} (SC-189
      *     Channel offset 16) — the peer's cached view of our endpoint-manifest version; proven, so a
      *     relay cannot inflate it to suppress our manifest re-pushes (spec §4.5)
+     * @param hasLastMessageProof whether a last-message running-hash storage slot was proven
      */
     public record QueueMetadata(
             long nextMessageId,
@@ -1412,7 +1417,27 @@ public final class BesuQbftVerifier {
             @NonNull byte[] receivedRunningHash,
             int status,
             @NonNull byte[] lastMessageRunningHash,
-            long endpointManifestVersion) {
+            long endpointManifestVersion,
+            boolean hasLastMessageProof) {
+        public QueueMetadata(
+                final long nextMessageId,
+                @NonNull final byte[] sentRunningHash,
+                final long receivedMessageId,
+                @NonNull final byte[] receivedRunningHash,
+                final int status,
+                @NonNull final byte[] lastMessageRunningHash,
+                final long endpointManifestVersion) {
+            this(
+                    nextMessageId,
+                    sentRunningHash,
+                    receivedMessageId,
+                    receivedRunningHash,
+                    status,
+                    lastMessageRunningHash,
+                    endpointManifestVersion,
+                    true);
+        }
+
         public QueueMetadata {
             sentRunningHash = checkedCopy(sentRunningHash, 32, "sentRunningHash");
             receivedRunningHash = checkedCopy(receivedRunningHash, 32, "receivedRunningHash");

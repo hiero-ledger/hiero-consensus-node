@@ -296,6 +296,16 @@ class ClprBundleValidatorTest {
     }
 
     @Test
+    void rejectsAlteredMessageWithAuthenticQueueMetadata() {
+        final var content = bundle(CHANNEL, List.of(dataPayload(1)));
+
+        // A verifier binds this metadata to the peer's storage. Reusing it with different
+        // payload bytes must fail before the application can receive the substituted message.
+        assertRejected(
+                CHANNEL, content.copyBuilder().messages(List.of(dataPayload(2))).build(), CLPR_RUNNING_HASH_MISMATCH);
+    }
+
+    @Test
     void rejectsAckRegressionAndAckForUnsentMessage() {
         final var channel =
                 CHANNEL.copyBuilder().ackedMessageId(1).nextMessageId(3).build();

@@ -1471,6 +1471,25 @@ class BesuQbftVerifierTest {
         }
 
         @Test
+        void provenRotationWithoutQueueOrContentIsAccepted() {
+            byte[] epochHeader = buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
+            byte[][] accountProof = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
+            byte[] currentHeader = buildSignedHeader(OTHER_ADDR, accountProof[0], OTHER_PRIV);
+            byte[] bundle = Rlp.encodeList(List.of(
+                    currentHeader,
+                    Rlp.encodeList(List.of(epochHeader)),
+                    Rlp.encodeList(List.of(Rlp.encodeBytes(accountProof[1]))),
+                    Rlp.encodeList(List.of()),
+                    Rlp.encodeBytes(new byte[0])));
+            var verified = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR));
+            assertThat(verified.bundleContentBytes()).isEmpty();
+            assertThat(verified.queueMetadata().nextMessageId()).isZero();
+            assertThat(verified.queueMetadata().hasLastMessageProof()).isFalse();
+            assertThat(verified.newTrustAnchor()).isEqualTo(validatorSet(OTHER_ADDR));
+            assertThat(verified.newTrustAnchorId()).isEqualTo(java.math.BigInteger.ONE.toByteArray());
+        }
+
+        @Test
         void twoEpochHeaders_chainsCorrectly() {
             // First epoch: {VALIDATOR_ADDR} → {OTHER_ADDR}
             byte[] epochHeader1 = buildEpochHeader(List.of(OTHER_ADDR), 30_000L, new byte[32], List.of(VALIDATOR_PRIV));
@@ -1632,6 +1651,7 @@ class BesuQbftVerifierTest {
             assertThat(meta.receivedRunningHash()[0]).isEqualTo((byte) 0xBB);
             assertThat(meta.endpointManifestVersion()).isEqualTo(9L);
             assertThat(meta.lastMessageRunningHash()).isEqualTo(new byte[32]);
+            assertThat(meta.hasLastMessageProof()).isFalse();
         }
 
         @Test
@@ -1652,6 +1672,7 @@ class BesuQbftVerifierTest {
             assertThat(meta.nextMessageId()).isEqualTo(1L);
             assertThat(meta.endpointManifestVersion()).isEqualTo(3L);
             assertThat(meta.lastMessageRunningHash()[0]).isEqualTo((byte) 0xCC);
+            assertThat(meta.hasLastMessageProof()).isTrue();
         }
 
         @Test
