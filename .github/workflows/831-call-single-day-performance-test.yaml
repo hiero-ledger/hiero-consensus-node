@@ -934,7 +934,7 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -1126,7 +1126,7 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -1483,7 +1483,7 @@ jobs:
   performance-post-test-validation:
     name: Consensus Node State Validator
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
@@ -1606,7 +1606,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report
