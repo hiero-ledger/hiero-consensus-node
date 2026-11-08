@@ -158,6 +158,28 @@ class ClprBundleValidatorTest {
     }
 
     @Test
+    void initialQbftRotationMustAdvanceFromGenesisEpoch() throws PreCheckException {
+        final var channel = CHANNEL.copyBuilder()
+                .verifierContract(ContractID.newBuilder().contractNum(0x16fL))
+                .trustAnchorId(Bytes.EMPTY)
+                .build();
+        final var firstRotation = anchorBundle(true, true)
+                .copyBuilder()
+                .newTrustAnchorId(Bytes.fromHex("01"))
+                .build();
+
+        assertThat(subject.validate(channel, firstRotation, LEDGER_CONFIG).content())
+                .isEqualTo(firstRotation);
+        assertRejected(
+                channel,
+                firstRotation
+                        .copyBuilder()
+                        .newTrustAnchorId(Bytes.fromHex("00"))
+                        .build(),
+                CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
     void preservesOpaqueAnchorIdsForOtherVerifiers() {
         final var channel = CHANNEL.copyBuilder()
                 .verifierContract(ContractID.newBuilder().contractNum(0x170L))

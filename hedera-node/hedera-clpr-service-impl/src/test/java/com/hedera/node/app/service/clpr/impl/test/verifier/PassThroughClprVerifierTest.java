@@ -14,12 +14,57 @@ import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+import java.util.function.Function;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class PassThroughClprVerifierTest {
 
     private final PassThroughClprVerifier subject = new PassThroughClprVerifier();
+
+    @Test
+    void identifierAwareConsensusCallSupportsLegacyVerifiers() {
+        final var expected = ClprBundleContent.newBuilder()
+                .newTrustAnchor(Bytes.fromHex("010203"))
+                .build();
+        final var payload = ClprBundleContent.PROTOBUF.toBytes(expected);
+        assertThat(subject.verifyBundle(payload, Bytes.fromHex("aabb"), Bytes.fromHex("ff"), Bytes.EMPTY, null))
+                .isEqualTo(expected);
+    }
+
+    @Test
+    void identifierAwareLocalCallPreservesLegacyImplementationAndCallback() {
+        final var expected = ClprBundleContent.newBuilder()
+                .newTrustAnchor(Bytes.fromHex("010203"))
+                .build();
+        final var payload = Bytes.fromHex("1122");
+        final var anchor = Bytes.fromHex("3344");
+        final var channel = Bytes.fromHex("5566");
+        final var verifier = new PassThroughClprVerifier() {
+            @Override
+            public ClprBundleContent verifyBundleLocally(
+                    final Bytes proof, final Bytes trusted, final Bytes identity, final Function<Bytes, Bytes> call) {
+                assertThat(proof).isEqualTo(payload);
+                assertThat(trusted).isEqualTo(anchor);
+                assertThat(identity).isEqualTo(channel);
+                assertThat(call.apply(proof)).isEqualTo(Bytes.fromHex("7788"));
+                return expected;
+            }
+        };
+        assertThat(verifier.verifyBundleLocally(
+                        payload, anchor, Bytes.fromHex("ff"), channel, ignored -> Bytes.fromHex("7788")))
+                .isSameAs(expected);
+    }
+
+    @Test
+    void identifierAwareLocalCallRemainsFailClosedWhenLocalVerificationIsUnsupported() {
+        assertThatThrownBy(() -> subject.verifyBundleLocally(
+                        Bytes.EMPTY, Bytes.EMPTY, Bytes.fromHex("ff"), Bytes.EMPTY, ignored -> {
+                            throw new AssertionError("Unsupported verifier executed a local contract call");
+                        }))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+    }
 
     @Test
     @DisplayName("verifyConfig parses valid protobuf and preserves the embedded trust anchor")

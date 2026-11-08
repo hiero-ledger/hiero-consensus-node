@@ -196,6 +196,83 @@ class EvmClprVerifierTest {
     }
 
     @Test
+    void legacyQbftAnchorReceivesStoredEpochAtConsensus() {
+        givenConfig();
+        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR, 9L));
+        final var verifier =
+                new EvmClprVerifier(ContractID.newBuilder().contractNum(0x16fL).build());
+        final var anchor = qbftAnchor();
+
+        final var content = verifier.verifyBundle(Bytes.EMPTY, anchor, Bytes.fromHex("05"), Bytes.EMPTY, context);
+
+        final var options = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(context).dispatch(options.capture());
+        final var call = options.getValue().body().contractCallOrThrow().functionParameters();
+        final Tuple args = new Function("verifyBundle(bytes,bytes,bytes)", "()").decodeCall(call.toByteArray());
+        final var envelope = Rlp.decodeOne((byte[]) args.get(1));
+        assertThat(envelope.children()).hasSize(4);
+        assertThat(envelope.children().get(3).asBytes()).containsExactly((byte) 5);
+        assertThat(content.metadata().endpointManifestVersion()).isEqualTo(9);
+    }
+
+    @Test
+    void evmAddressBuiltinMigratesAnEmptyStoredEpochToGenesis() {
+        final var verifier = new EvmClprVerifier(ContractID.newBuilder()
+                .evmAddress(Bytes.fromHex("000000000000000000000000000000000000016f"))
+                .build());
+        verifier.verifyBundleLocally(Bytes.EMPTY, qbftAnchor(), Bytes.EMPTY, Bytes.EMPTY, callData -> {
+            final Tuple args = new Function("verifyBundle(bytes,bytes,bytes)", "()").decodeCall(callData.toByteArray());
+            final var envelope = Rlp.decodeOne((byte[]) args.get(1));
+            assertThat(envelope.children()).hasSize(4);
+            assertThat(envelope.children().get(3).asBytes()).containsExactly((byte) 0);
+            return bundleWithManifestReturn(1L, 0L, SERVICE_ADDR, 9L);
+        });
+    }
+
+    @Test
+    void consistentEpochBearingAnchorIsPreserved() {
+        final var verifier =
+                new EvmClprVerifier(ContractID.newBuilder().contractNum(0x16fL).build());
+        final var fields =
+                new java.util.ArrayList<byte[]>(Rlp.decodeOne(qbftAnchor().toByteArray()).children().stream()
+                        .map(Rlp.Item::rawBytes)
+                        .toList());
+        fields.add(Rlp.encodeBytes(new byte[] {5}));
+        final var anchor = Bytes.wrap(Rlp.encodeList(fields));
+        verifier.verifyBundleLocally(Bytes.EMPTY, anchor, Bytes.fromHex("05"), Bytes.EMPTY, callData -> {
+            final Tuple args = new Function("verifyBundle(bytes,bytes,bytes)", "()").decodeCall(callData.toByteArray());
+            assertThat((byte[]) args.get(1)).isEqualTo(anchor.toByteArray());
+            return bundleWithManifestReturn(1L, 0L, SERVICE_ADDR, 9L);
+        });
+    }
+
+    @ParameterizedTest
+    @MethodSource("malformedQbftAnchors")
+    void malformedBuiltinAnchorIsRejectedBeforeAnyContractCall(final Bytes anchor) {
+        final var verifier =
+                new EvmClprVerifier(ContractID.newBuilder().contractNum(0x16fL).build());
+        assertThatThrownBy(() ->
+                        verifier.verifyBundleLocally(Bytes.EMPTY, anchor, Bytes.fromHex("01"), Bytes.EMPTY, ignored -> {
+                            throw new AssertionError("Malformed anchor reached EVM verification");
+                        }))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+        verifyNoInteractions(context, dispatchResult);
+    }
+
+    static Stream<Bytes> malformedQbftAnchors() {
+        return Stream.of(
+                Bytes.EMPTY,
+                Bytes.wrap(Rlp.encodeBytes(new byte[] {1})),
+                Bytes.wrap(Rlp.encodeList(List.of(Rlp.encodeBytes(new byte[] {1})))));
+    }
+
+    private static Bytes qbftAnchor() {
+        return Bytes.wrap(Rlp.encodeList(List.of(
+                Rlp.encodeBytes(new byte[] {1}), Rlp.encodeBytes(new byte[20]), Rlp.encodeBytes(new byte[32]))));
+    }
+
+    @Test
     void builtinQbftAnchorEpochMustEqualStoredIdentifier() {
         final var verifier =
                 new EvmClprVerifier(ContractID.newBuilder().contractNum(0x16fL).build());

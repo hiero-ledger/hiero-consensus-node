@@ -24,7 +24,10 @@ import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.commo
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.MockedConstruction;
 
 class BesuQBFTVerifyBundleCallTest extends CallTestBase {
@@ -131,6 +134,29 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
             assertThat(successor.children().get(3).asBytes()).isEqualTo(successorEpoch);
             assertThat((byte[]) output.get(3)).isEqualTo(successorEpoch);
         }
+    }
+
+    @ParameterizedTest
+    @MethodSource("malformedAnchorEnvelopes")
+    void rejectsMalformedAnchorBeforeAttemptingProofVerification(final byte[] anchor) {
+        try (final var constructed = mockConstruction(BesuQbftVerifier.class)) {
+            final var result = new BesuQBFTVerifyBundleCall(mockEnhancement(), gasCalculator, new byte[] {1}, anchor)
+                    .execute(frame);
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+            assertThat(constructed.constructed()).isEmpty();
+        }
+    }
+
+    static Stream<byte[]> malformedAnchorEnvelopes() {
+        final byte[] validators = Rlp.encodeBytes(BesuQbftVerifier.encodeValidatorSet(List.of(VALIDATOR_ADDR)));
+        final byte[] address = Rlp.encodeBytes(SERVICE_ADDR);
+        final byte[] code = Rlp.encodeBytes(CODE_HASH);
+        return Stream.of(
+                Rlp.encodeBytes(new byte[] {1}),
+                Rlp.encodeList(List.of(validators, address)),
+                Rlp.encodeList(List.of(validators, address, code, Rlp.encodeBytes(new byte[] {1}), code)),
+                Rlp.encodeList(List.of(validators, address, code, Rlp.encodeBytes(new byte[0]))),
+                Rlp.encodeList(List.of(validators, address, code, Rlp.encodeList(List.of()))));
     }
 
     @Test
