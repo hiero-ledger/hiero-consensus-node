@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
@@ -24,6 +25,7 @@ import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.clpr.ClprControlMessage;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
@@ -35,7 +37,9 @@ import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ValidatedBundle;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
+import com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
@@ -133,8 +137,16 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // of a later penalizing HandleException would not undo it; the refresh is therefore applied only once the
         // bundle has been handled without an exception.
         final var deferredPeerEndpoints = new DeferredPeerEndpoints();
-        handleBundle(context, deferredPeerEndpoints);
-        deferredPeerEndpoints.seedInto(channelLifecycle);
+        try {
+            handleBundle(context, deferredPeerEndpoints);
+            ClprGasAccounting.refundUnusedGas(context);
+            deferredPeerEndpoints.seedInto(channelLifecycle);
+        } catch (final HandleException failure) {
+            throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
+        } catch (final RuntimeException failure) {
+            log.error("Unexpected failure while handling CLPR transaction", failure);
+            throw ClprGasAccounting.preservingChargesOnRollback(context, new HandleException(FAIL_INVALID));
+        }
     }
 
     private void handleBundle(
@@ -229,18 +241,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     return svc == null ? "?" : svc.ipAddress() + ":" + svc.port();
                                 })
                                 .collect(Collectors.joining(", ", "[", "]")));
-                // Apply this ledger's max_peer_endpoints policy before storing, mirroring
-                // ClprCompleteChannel — the peer's declared list must not override our storage
-                // bound (spec §3.10.5). Zero means no limit; entries beyond it are dropped in order.
-                final int rawPeerLimit = throttles.maxPeerEndpoints();
-                final var incomingEndpoints = newEndpointManifest.endpoints();
-                final var truncatedEndpoints = rawPeerLimit > 0 && incomingEndpoints.size() > rawPeerLimit
-                        ? incomingEndpoints.subList(0, rawPeerLimit)
-                        : incomingEndpoints;
-                final var storedManifest = newEndpointManifest
-                        .copyBuilder()
-                        .endpoints(truncatedEndpoints)
-                        .build();
+                // Bound the same serialized manifest state as channel completion, including certificate bytes.
+                final ClprEndpointManifest storedManifest;
+                try {
+                    storedManifest =
+                            ClprPeerManifestPolicy.boundedManifest(newEndpointManifest, throttles.maxPeerEndpoints());
+                } catch (final IllegalArgumentException e) {
+                    throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+                }
+                final var truncatedEndpoints = storedManifest.endpoints();
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());

@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_COMMITMENT_MISMATC
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
@@ -19,11 +20,14 @@ import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
+import com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
@@ -137,12 +141,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         validateTruePreCheck(op.hasVerifierContract(), INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.configProofBytes().length() > 0, INVALID_TRANSACTION_BODY);
 
-        final var expectedKeyLength =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
-                    case ED25519 -> ED25519_KEY_LENGTH;
-                    default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
-                };
+        final var expectedKeyLength = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
+            case ED25519 -> ED25519_KEY_LENGTH;
+            default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
+        };
         validateTruePreCheck(op.publicKey().length() == expectedKeyLength, INVALID_TRANSACTION_BODY);
     }
 
@@ -153,6 +156,17 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
+        try {
+            completeChannel(context);
+        } catch (final HandleException failure) {
+            throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
+        } catch (final RuntimeException failure) {
+            log.error("Unexpected failure while handling CLPR transaction", failure);
+            throw ClprGasAccounting.preservingChargesOnRollback(context, new HandleException(FAIL_INVALID));
+        }
+    }
+
+    private void completeChannel(@NonNull final HandleContext context) {
         final var op = context.body().clprCompleteChannelOrThrow();
         log.debug(
                 "[ClprCompleteChannel] ENTER channelId={} verifierContract={} signatureScheme={} "
@@ -193,12 +207,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // 3. Verify signature over keccak256(channel_id)
         // FUTURE: We may be able to move this to pre-handle to avoid the crypto work on the handle thread
         final var messageHash = MiscCryptoUtils.keccak256DigestOf(op.channelId().toByteArray());
-        final var signatureType =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
-                    case ED25519 -> SignatureType.ED25519;
-                    default -> throw new HandleException(INVALID_TRANSACTION_BODY);
-                };
+        final var signatureType = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
+            case ED25519 -> SignatureType.ED25519;
+            default -> throw new HandleException(INVALID_TRANSACTION_BODY);
+        };
         log.debug(
                 "[ClprCompleteChannel] signature verification START channelId={} signatureScheme={} "
                         + "messageHash={} publicKeyBytes={} signatureBytes={}",
@@ -327,17 +340,17 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 op.verifierContractOrThrow(),
                 shortHex(verifierFingerprint));
 
-        // 7. Truncate the peer endpoint list to this ledger's max_peer_endpoints (spec §3.10.5).
-        //    The receiving ledger imposes its own bound on how many peer endpoints it stores on
-        //    chain per Channel; entries beyond the limit are silently discarded in declared
-        //    order. Zero means no limit. Read from the LOCAL ledger config — the peer's
-        //    declaration of its own list doesn't override our storage policy.
+        // 7. Apply local count and byte limits before storing any peer-controlled manifest data.
         final var localConfigStore = context.storeFactory().readableStore(ReadableLedgerConfigurationStore.class);
         final var localThrottles = localConfigStore.getConfiguration().throttlesOrElse(ClprThrottles.DEFAULT);
         final int rawPeerLimit = localThrottles.maxPeerEndpoints();
-        final List<ClprEndpoint> truncatedPeerEndpoints = rawPeerLimit > 0 && peerEndpoints.size() > rawPeerLimit
-                ? peerEndpoints.subList(0, rawPeerLimit)
-                : peerEndpoints;
+        final ClprEndpointManifest storedManifest;
+        try {
+            storedManifest = ClprPeerManifestPolicy.boundedManifest(peerManifest, rawPeerLimit);
+        } catch (final IllegalArgumentException e) {
+            throw new HandleException(CLPR_VERIFIER_CONFIG_FAILED);
+        }
+        final List<ClprEndpoint> truncatedPeerEndpoints = storedManifest.endpoints();
         log.debug(
                 "[ClprCompleteChannel] endpoint policy channelId={} peerEndpoints={} localMaxPeerEndpoints={} "
                         + "storedEndpoints={}",
@@ -381,8 +394,6 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // Store the manifest carrying the LOCALLY TRUNCATED endpoint list (this ledger's
         // max_peer_endpoints policy), not the peer's full list — the stored manifest IS what the
         // orchestrator dials, so it must honor the same bound applied to the seeded cache below.
-        final var storedManifest =
-                peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
         channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
         channelStore.put(channel);
@@ -397,6 +408,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 shortHex(peerConfig.initialTrustAnchorId()),
                 peerManifest.version(),
                 truncatedPeerEndpoints.size());
+        ClprGasAccounting.refundUnusedGas(context);
         // Notify the runtime sync orchestrator. If the surrounding transaction
         // rolls back, the orchestrator will self-correct on its next tick by
         // detecting the missing state record.

@@ -1090,3 +1090,22 @@ but the impact on the node's transaction throughput budget must be evaluated.
 | V-6 | `LedgerIdentityChangeListener` SPI fires on all roster change types (join, leave, key rotation).                                               | Verify SPI contract and existing listeners.                         |
 | V-7 | The ingest pipeline can handle `submitBundle` as a new transaction type without special handling.                                              | Verify transaction dispatch and throttle configuration.             |
 | V-8 | Proof construction from `VirtualMap`-backed state can complete within 2 seconds for typical queue depths.                                      | Benchmark required.                                                 |
+
+### Peer manifest storage ceiling
+
+Channel completion and manifest-update bundles retain only the declared endpoint prefix
+that fits both `max_peer_endpoints` and a 16 KiB serialized `ClprEndpointManifest` ceiling.
+The byte ceiling includes certificates, account identifiers, addresses, and protobuf framing,
+and applies even when `max_peer_endpoints` is zero. Oversized endpoint entries and all
+following entries are discarded before state or peer-cache writes. Oversized manifest
+framing (the service address and version alone) rejects the transaction. The bundled
+ledger configuration sets `max_peer_endpoints` to 100. These bounds limit retained state;
+they do not replace the planned fee model for retained storage.
+
+Verifier execution is separately paid by the transaction payer at the ordinary
+`ContractCall` gas price, including congestion and the active exchange rate. The payer
+must cover the gas reservation before the verifier is dispatched. Successful parent
+transactions refund unused gas; a failed parent replays the charge for gas already
+consumed after state rollback, so a later invalid manifest cannot erase execution fees.
+A verifier dispatch without a gas report consumes its full allowance. The verifier gas
+charge must not also be included as a fixed gas allowance in the fee schedule.

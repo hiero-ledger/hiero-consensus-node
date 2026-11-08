@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.verifier;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
@@ -31,6 +32,7 @@ import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -324,39 +326,52 @@ public class EvmClprVerifier implements ClprVerifier {
                 callData.length,
                 syntheticBodyBytes.length(),
                 failureCode);
-        final var result = context.dispatch(stepDispatch(
-                context.payer(),
-                syntheticBody,
-                HookDispatchStreamBuilder.class,
-                NOOP_SIGNED_TX_CUSTOMIZER,
-                REMOVABLE,
-                CLPR_DISPATCH_METADATA,
-                DISPATCH_ONLY_NOOP_FEE_CHARGING));
-        log.debug(
-                "[EvmClprVerifier] dispatchRaw RESULT: contract={} status={} evmResult={}",
-                verifierContract,
-                result.status(),
-                evmResultSummary(result));
-        if (result.status() != SUCCESS) {
+        final var payer = context.payer();
+        final var gasAccounting = ClprGasAccounting.forContext(context);
+        if (!gasAccounting.prepayVerifier(payer, gasLimit)) {
+            throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
+        }
+        HookDispatchStreamBuilder result = null;
+        try {
+            result = context.dispatch(stepDispatch(
+                    context.payer(),
+                    syntheticBody,
+                    HookDispatchStreamBuilder.class,
+                    NOOP_SIGNED_TX_CUSTOMIZER,
+                    REMOVABLE,
+                    CLPR_DISPATCH_METADATA,
+                    DISPATCH_ONLY_NOOP_FEE_CHARGING));
+            if (result == null) {
+                throw new HandleException(failureCode);
+            }
             log.debug(
-                    "Verifier dispatchRaw failed: contract={} status={} (translated to {}) payer={} gasLimit={}",
+                    "[EvmClprVerifier] dispatchRaw RESULT: contract={} status={} evmResult={}",
                     verifierContract,
                     result.status(),
-                    failureCode,
-                    context.payer(),
-                    gasLimit);
-            throw new HandleException(failureCode);
+                    evmResultSummary(result));
+            if (result.status() != SUCCESS) {
+                log.debug(
+                        "Verifier dispatchRaw failed: contract={} status={} (translated to {}) payer={} gasLimit={}",
+                        verifierContract,
+                        result.status(),
+                        failureCode,
+                        context.payer(),
+                        gasLimit);
+                throw new HandleException(failureCode);
+            }
+            final var evmResult = result.getEvmCallResult();
+            if (evmResult == null || evmResult.length() == 0) {
+                log.warn("[EvmClprVerifier] dispatchRaw returned empty EVM result (throwing {})", failureCode);
+                throw new HandleException(failureCode);
+            }
+            log.debug(
+                    "[EvmClprVerifier] dispatchRaw EXIT: evmResultBytes={} evmResultHash={}",
+                    evmResult.length(),
+                    shortHex(MiscCryptoUtils.keccak256DigestOf(evmResult)));
+            return evmResult;
+        } finally {
+            gasAccounting.settle(payer, gasLimit, result);
         }
-        final var evmResult = result.getEvmCallResult();
-        if (evmResult == null || evmResult.length() == 0) {
-            log.warn("[EvmClprVerifier] dispatchRaw returned empty EVM result (throwing {})", failureCode);
-            throw new HandleException(failureCode);
-        }
-        log.debug(
-                "[EvmClprVerifier] dispatchRaw EXIT: evmResultBytes={} evmResultHash={}",
-                evmResult.length(),
-                shortHex(MiscCryptoUtils.keccak256DigestOf(evmResult)));
-        return evmResult;
     }
 
     /**
