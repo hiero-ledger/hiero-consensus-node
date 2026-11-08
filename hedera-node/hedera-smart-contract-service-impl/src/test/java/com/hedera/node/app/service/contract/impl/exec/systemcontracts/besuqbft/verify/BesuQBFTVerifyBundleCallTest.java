@@ -190,11 +190,9 @@ class BesuQBFTVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void revertsForDeeplyNestedRlpBundle() {
-        byte[] payload = Rlp.encodeList(List.of());
-        for (int i = 0; i < 128; i++) {
-            payload = Rlp.encodeList(List.of(payload));
-        }
+    void revertsForNonCanonicalRlpBundle() {
+        // This one-byte list payload must use a short-form list prefix.
+        final byte[] payload = {(byte) 0xf8, 0x01, (byte) 0x80};
 
         final var result = new BesuQBFTVerifyBundleCall(
                         mockEnhancement(), gasCalculator, payload, buildTrustAnchorRlp())

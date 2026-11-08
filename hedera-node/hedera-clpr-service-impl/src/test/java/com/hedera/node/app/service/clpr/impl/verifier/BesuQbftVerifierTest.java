@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.clpr.impl.verifier;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.PbjTestUtils.appendUnknownField;
+import static com.hedera.node.app.service.clpr.impl.verifier.RlpTest.nestedLists;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -72,11 +73,7 @@ class BesuQbftVerifierTest {
     }
 
     private static byte[] deeplyNestedRlp() {
-        byte[] item = Rlp.encodeList(List.of());
-        for (int i = 0; i < 128; i++) {
-            item = Rlp.encodeList(List.of(item));
-        }
-        return item;
+        return nestedLists(Rlp.encodeList(List.of()), Rlp.MAX_NESTING_DEPTH + 1);
     }
 
     @Nested
