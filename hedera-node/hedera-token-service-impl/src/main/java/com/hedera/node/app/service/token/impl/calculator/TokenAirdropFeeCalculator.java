@@ -9,7 +9,9 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
@@ -40,5 +42,20 @@ public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
 
     public TransactionBody.DataOneOfType getTransactionType() {
         return TransactionBody.DataOneOfType.TOKEN_AIRDROP;
+    }
+
+    /**
+     * An airdrop is priced from the CRYPTO_TRANSFER definition, whose extras {@link CryptoTransferFeeCalculator}
+     * already requires, so the airdrop definition itself has no required extras.
+     */
+    @Override
+    public Set<Extra> requiredExtras() {
+        return Set.of();
+    }
+
+    /** The airdrop charges the extras of the {@code CRYPTO_TRANSFER} definition it is priced from. */
+    @Override
+    public Set<Extra> chargedExtras() {
+        return super.requiredExtras();
     }
 }
