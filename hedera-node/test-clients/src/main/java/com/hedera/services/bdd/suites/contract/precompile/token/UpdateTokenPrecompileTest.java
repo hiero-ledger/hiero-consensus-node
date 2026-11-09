@@ -35,6 +35,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
@@ -64,6 +65,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -237,25 +239,33 @@ public class UpdateTokenPrecompileTest {
     }
 
     @HapiTest
-    @DisplayName(
-            "updateTokenKeys with an empty key list from an authorized contract reports success and changes nothing")
+    @DisplayName("updateTokenKeys with an empty key list from an authorized contract succeeds and changes nothing")
     public Stream<DynamicTest> emptyKeyListFromAuthorizedContractChangesNothing() {
-        return authorizedContractUpdateKeepsAllKeys("emptyKeyList", _ -> new Tuple[0]);
+        return authorizedContractUpdateKeepsAllKeys("emptyKeyList", false, _ -> new Tuple[0]);
     }
 
     @HapiTest
-    @DisplayName("updateTokenKeys with keyType zero from an authorized contract reports success and changes nothing")
-    public Stream<DynamicTest> zeroKeyTypeFromAuthorizedContractChangesNothing() {
+    @DisplayName("updateTokenKeys with keyType zero from an authorized contract is rejected and changes nothing")
+    public Stream<DynamicTest> zeroKeyTypeFromAuthorizedContractIsRejected() {
         return authorizedContractUpdateKeepsAllKeys(
-                "zeroKeyType", newKeys -> new Tuple[] {keyEntry(BigInteger.ZERO, newKeys[0])});
+                "zeroKeyType", true, newKeys -> new Tuple[] {keyEntry(BigInteger.ZERO, newKeys[0])});
     }
 
     @HapiTest
-    @DisplayName(
-            "updateTokenKeys with an undefined bit from an authorized contract reports success and changes nothing")
-    public Stream<DynamicTest> undefinedBitFromAuthorizedContractChangesNothing() {
-        return authorizedContractUpdateKeepsAllKeys(
-                "undefinedBit", newKeys -> new Tuple[] {keyEntry(BigInteger.valueOf(0x100), newKeys[0])});
+    @DisplayName("updateTokenKeys with only undefined bits from an authorized contract is rejected for each bit")
+    public Stream<DynamicTest> undefinedBitsFromAuthorizedContractAreRejected() {
+        // At 0x167, bits 0x80 and up have no key; 0x80 is only the metadata key at 0x16c
+        final var undefinedBits = IntStream.range(7, 16).mapToObj(bit -> BigInteger.ONE.shiftLeft(bit));
+        return undefinedBits.flatMap(bit -> authorizedContractUpdateKeepsAllKeys(
+                "undefinedBit" + bit.toString(16), true, newKeys -> new Tuple[] {keyEntry(bit, newKeys[0])}));
+    }
+
+    @HapiTest
+    @DisplayName("updateTokenKeys with a valid and an undefined entry from an authorized contract updates nothing")
+    public Stream<DynamicTest> validEntryWithUndefinedEntryFromAuthorizedContractUpdatesNothing() {
+        return authorizedContractUpdateKeepsAllKeys("validAndUndefined", true, newKeys -> new Tuple[] {
+            keyEntry(BigInteger.valueOf(0x10), newKeys[0]), keyEntry(BigInteger.valueOf(0x100), newKeys[0])
+        });
     }
 
     @HapiTest
@@ -276,11 +286,12 @@ public class UpdateTokenPrecompileTest {
     }
 
     /**
-     * The contract holds the token's admin key, so authorization is not in play: the call succeeds (the contract
-     * reverts on any status but SUCCESS) and none of the token's keys may change.
+     * The contract holds the token's admin key, so authorization is not in play. The call either succeeds, or is
+     * rejected with INVALID_TRANSACTION_BODY (the contract reverts on any status but SUCCESS); either way none of
+     * the token's keys may change.
      */
     private Stream<DynamicTest> authorizedContractUpdateKeepsAllKeys(
-            @NonNull final String tag, @NonNull final Function<byte[][], Tuple[]> entries) {
+            @NonNull final String tag, final boolean rejected, @NonNull final Function<byte[][], Tuple[]> entries) {
         final var newKey = tag + "NewKey";
         return hapiTest(
                 newKeyNamed(newKey),
@@ -290,7 +301,12 @@ public class UpdateTokenPrecompileTest {
                                 .call("updateTokenKeys", sharedAuthorizedToken, entries.apply(new byte[][] {
                                     ed25519Of(spec, newKey)
                                 }))
-                                .gas(GAS_NEEDED))),
+                                .gas(GAS_NEEDED)
+                                .andAssert(txn -> {
+                                    if (rejected) {
+                                        txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TRANSACTION_BODY);
+                                    }
+                                }))),
                 // Role keys are looked up by token name: the supply key is the original one, the rest were never set
                 sharedAuthorizedToken
                         .getInfo()

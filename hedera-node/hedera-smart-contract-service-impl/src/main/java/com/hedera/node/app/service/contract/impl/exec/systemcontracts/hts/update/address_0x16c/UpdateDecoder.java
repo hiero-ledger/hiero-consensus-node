@@ -14,7 +14,6 @@ import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -84,8 +83,8 @@ public class UpdateDecoder extends UpdateCommonDecoder {
     }
 
     @Override
-    @Nullable
-    public TransactionBody decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
+    @NonNull
+    public KeyUpdate decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
 
         final var call = decodeCall(attempt);
 
@@ -101,9 +100,11 @@ public class UpdateDecoder extends UpdateCommonDecoder {
         addMetaKey(tokenKeys, txnBodyBuilder);
 
         try {
-            return TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build();
+            return new KeyUpdate(
+                    TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build(),
+                    preemptingStatusFor(tokenKeys, KEY_TYPES_16C));
         } catch (final IllegalArgumentException ignore) {
-            return null;
+            return new KeyUpdate(null, null);
         }
     }
 

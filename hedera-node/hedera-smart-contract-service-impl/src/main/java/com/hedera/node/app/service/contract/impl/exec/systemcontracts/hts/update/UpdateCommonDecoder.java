@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updat
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TREASURY_ACCOUNT_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
@@ -12,6 +13,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
@@ -159,8 +161,45 @@ public abstract class UpdateCommonDecoder {
         return tokenKeys;
     }
 
+    /**
+     * The result of decoding an {@code updateTokenKeys} call.
+     *
+     * @param body the synthetic body to dispatch, or null if the call cannot be decoded
+     * @param preemptingStatus if not null, the status to report instead of dispatching the body
+     */
+    public record KeyUpdate(
+            @Nullable TransactionBody body, @Nullable ResponseCodeEnum preemptingStatus) {}
+
+    /**
+     * Key type bits that select a token key at the 0x167 address: admin, KYC, freeze, wipe, supply, fee schedule
+     * and pause.
+     */
+    protected static final int KEY_TYPES_167 = 0x7F;
+
+    /**
+     * Key type bits that select a token key at the 0x16c address, which adds the metadata key.
+     */
+    protected static final int KEY_TYPES_16C = 0xFF;
+
+    /**
+     * Returns the status that preempts an update of the given keys, or null if there is no reason to preempt it.
+     * An entry whose key type has no defined bit would select no key, so its update could only be silently ignored.
+     * An empty list is not an error, since nothing was asked for; undefined bits next to a defined one are ignored.
+     *
+     * @param tokenKeys the decoded key entries
+     * @param definedKeyTypes the key type bits that select a token key
+     * @return the preempting status, or null
+     */
     @Nullable
-    public TransactionBody decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
+    protected static ResponseCodeEnum preemptingStatusFor(
+            @NonNull final List<TokenKeyWrapper> tokenKeys, final int definedKeyTypes) {
+        return tokenKeys.stream().anyMatch(tokenKey -> (tokenKey.keyType() & definedKeyTypes) == 0)
+                ? INVALID_TRANSACTION_BODY
+                : null;
+    }
+
+    @NonNull
+    public KeyUpdate decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
 
         final var call = decodeCall(attempt);
 
@@ -175,9 +214,11 @@ public abstract class UpdateCommonDecoder {
         addKeys(tokenKeys, txnBodyBuilder);
 
         try {
-            return TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build();
+            return new KeyUpdate(
+                    TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build(),
+                    preemptingStatusFor(tokenKeys, KEY_TYPES_167));
         } catch (final IllegalArgumentException ignore) {
-            return null;
+            return new KeyUpdate(null, null);
         }
     }
 
