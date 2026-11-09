@@ -62,6 +62,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
+      enable-chaos:
+        required: false
+        default: true
+        type: boolean
+        description: "Enable Chaos"
 
 defaults:
   run:

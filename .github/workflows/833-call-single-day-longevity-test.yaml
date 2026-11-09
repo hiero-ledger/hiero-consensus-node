@@ -65,12 +65,17 @@ on:
         default: ""
       nlg-version:
         required: true
-        default: "0.14.3"
+        default: "0.15.4"
         description: "NLG Version:"
         type: string
       java-version:
         description: "Java JDK Version:"
         type: string
+      enable-chaos:
+        required: false
+        default: true
+        type: boolean
+        description: "Enable Chaos"
     secrets:
       slack-report-webhook:
         required: true
@@ -731,6 +736,7 @@ jobs:
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
       - name: Add Chaos controlling container
+        if: ${{ inputs.enable-chaos }}
         run: |
           set +x
           set +e
