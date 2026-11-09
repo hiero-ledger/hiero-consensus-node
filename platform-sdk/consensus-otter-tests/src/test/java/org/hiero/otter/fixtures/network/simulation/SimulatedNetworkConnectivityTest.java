@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.network.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
+import static org.hiero.otter.fixtures.network.simulation.TestRosters.rosterOf;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -61,7 +62,8 @@ class SimulatedNetworkConnectivityTest {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
-        network = new SimulatedNetworkConnectivity(new Random(seed), START, List.of(node0, node1, node2));
+        network = new SimulatedNetworkConnectivity(
+                new Random(seed), START, rosterOf(NODE_0, NODE_1, NODE_2), List.of(node0, node1, node2));
         now = 0;
         network.tick(at(0));
     }
@@ -85,7 +87,8 @@ class SimulatedNetworkConnectivityTest {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
-        network = new SimulatedNetworkConnectivity(new Random(0), START, List.of(node2, node0, node1));
+        network = new SimulatedNetworkConnectivity(
+                new Random(0), START, rosterOf(NODE_0, NODE_1, NODE_2), List.of(node2, node0, node1));
         network.tick(at(0));
         network.setConnections(connections(true));
 
@@ -100,8 +103,39 @@ class SimulatedNetworkConnectivityTest {
     @DisplayName("a node cannot have more than one event receiver")
     void duplicateEventReceiversAreRejected() {
         assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
-                        new Random(0), START, List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
+                        new Random(0),
+                        START,
+                        rosterOf(NODE_0),
+                        List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("every node in the roster must have an event receiver")
+    void missingEventReceiversAreRejected() {
+        assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
+                        new Random(0), START, rosterOf(NODE_0, NODE_1), List.of(new RecordingReceiver(NODE_0))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("every event receiver must belong to a node in the roster")
+    void eventReceiversOutsideTheRosterAreRejected() {
+        assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
+                        new Random(0),
+                        START,
+                        rosterOf(NODE_0),
+                        List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_1))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("connection data must contain every connection or none")
+    void incompleteConnectionDataIsRejected() {
+        final Map<ConnectionKey, ConnectionState> incomplete = connections(true);
+        incomplete.remove(new ConnectionKey(NODE_1, NODE_0));
+
+        assertThatThrownBy(() -> network.setConnections(incomplete)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

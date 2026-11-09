@@ -345,7 +345,9 @@ jobs:
           ensure_forward 37546 "${relay_pod:-${relay_svc}}" 7546
 
       # Solo reports readiness before the mirror node REST backend serves data (see 818 and 819), and the relay
-      # needs the mirror node for its own startup queries. Wait for both before running hardhat.
+      # needs the mirror node for its own startup queries. Wait for both before running hardhat. Then warm the
+      # mirror node's EVM simulation: its first request after startup can exceed the 4 s budget of contracts/call
+      # and fail with FAIL_INVALID.
       - name: Wait for network readiness
         id: wait-for-network
         run: |
@@ -384,6 +386,24 @@ jobs:
             echo "::error::JSON-RPC relay did not become ready on 127.0.0.1:37546"
             kubectl -n "${SOLO_NAMESPACE}" get pods >&2
             exit 1
+          fi
+
+          # A deployment estimate from the first test account (0.0.1001), like the tests' first requests
+          echo "Warming the mirror node EVM simulation through the relay (up to 2m)"
+          warm="false"
+          for i in $(seq 1 6); do
+            gas=$(curl -sf -m 15 -X POST "http://127.0.0.1:37546" -H "Content-Type: application/json" \
+              --data '{"jsonrpc":"2.0","id":1,"method":"eth_estimateGas","params":[{"from":"0xf70febf7420398c3892ce79fdc393c1a5487ad27","data":"0x6001600c60003960016000f300"}]}' \
+              | jq -r '.result // empty' || true)
+            if [[ -n "${gas}" ]]; then
+              echo "Mirror node EVM simulation warm (estimate ${gas}, attempt ${i})"
+              warm="true"
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${warm}" != "true" ]]; then
+            echo "::warning::The mirror node answered no deployment estimate; the first test may still hit its cold start"
           fi
 
       # WORKAROUND for hiero-ledger/hiero-json-rpc-relay#5933 (hiero-ledger/hiero-consensus-node#27992): while the

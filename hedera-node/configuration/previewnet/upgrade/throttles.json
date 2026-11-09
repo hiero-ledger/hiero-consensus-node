@@ -218,7 +218,7 @@
       "throttleGroups": [
         {
           "opsPerSec": 0,
-          "milliOpsPerSec": 2000,
+          "milliOpsPerSec": 3000,
           "operations": [
             "CryptoCreate",
             "NodeCreate",

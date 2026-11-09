@@ -141,7 +141,7 @@ public final class BlockNodeReader {
      * Returns the newest block stored on a real block node. Unlike {@link #latestAvailableBlock()}, this
      * excludes a block still being received, which a subscriber would only get as a partial live block.
      */
-    private long lastStoredBlock() {
+    public long lastStoredBlock() {
         long best = -1L;
         for (final var entry : network.getBlockNodeContainerById().entrySet()) {
             final var container = entry.getValue();
