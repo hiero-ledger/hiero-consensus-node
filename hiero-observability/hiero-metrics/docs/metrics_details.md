@@ -84,12 +84,12 @@ counter.removeIf(labelValues -> "3".equals(labelValues.get("node")));
 ```
 
 - `SettableMetric.removeIf(Predicate<LabelValues>)` removes matching measurements and returns their number.
-The next `getOrCreateLabeled` call with the same label values creates a new measurement from the initializer.
+  The next `getOrCreateLabeled` call with the same label values creates a new measurement from the initializer.
 - `ObservableGauge.removeIf(Predicate<LabelValues>)` removes matching value suppliers and releases them.
-The same label values can be observed again. An export already in progress may call a removed supplier once more,
-so it must stay safe to call after removal: a throwing supplier fails the whole export.
+  The same label values can be observed again. An export already in progress may call a removed supplier once more,
+  so it must stay safe to call after removal: a throwing supplier fails the whole export.
 - `MetricRegistry.remove(MetricKey)` removes a whole metric. Its name can be registered again.
-A metric without dynamic labels has a single measurement, which can be removed only this way.
+  A metric without dynamic labels has a single measurement, which can be removed only this way.
 
 Removed metrics and measurements are not exported by the next export.
 References to them held by application code remain usable, but their updates are not exported anymore,
