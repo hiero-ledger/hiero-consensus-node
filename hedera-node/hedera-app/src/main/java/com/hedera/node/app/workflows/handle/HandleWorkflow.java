@@ -1055,10 +1055,10 @@ public class HandleWorkflow {
         final var scheduledTxn = parentTxnFactory.createSystemTxn(
                 state, creatorInfo, consensusNow, ORDINARY_TRANSACTION, executableTxn.payerId(), executableTxn.body());
         final var baseBuilder = baseBuilderFor(executableTxn, scheduledTxn);
-        final var dispatch =
-                parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
-        stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
+            final var dispatch =
+                    parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
+            stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
             // Once the block is full, a due schedule whose payer is not throttle-exempt is rejected just like a
             // submitted transaction; it is still consumed, so a later block never retries it
             if (isRejectedForBlockBudget(executableTxn)) {

@@ -57,7 +57,8 @@ public abstract class SettableMetric<I, M> extends Metric {
             synchronized (this) {
                 localRef = noLabelsMeasurement;
                 if (localRef == null) {
-                    noLabelsMeasurement = localRef = createMeasurementAndSnapshot(LabelValues.EMPTY);
+                    noLabelsMeasurement =
+                            localRef = createMeasurementAndSnapshot(LabelValues.EMPTY, defaultInitializer);
                 }
             }
         }
@@ -81,9 +82,8 @@ public abstract class SettableMetric<I, M> extends Metric {
         final LabelValues labelValues = createLabelValues(namesAndValues);
         if (labelValues.size() == 0) {
             return getOrCreateNotLabeled();
-        } else {
-            return measurements.computeIfAbsent(labelValues, this::createMeasurementAndSnapshot);
         }
+        return getOrCreate(labelValues, defaultInitializer);
     }
 
     /**
@@ -106,9 +106,7 @@ public abstract class SettableMetric<I, M> extends Metric {
                     "This metric has no dynamic labels, so you must call getOrCreateNotLabeled()");
         }
         Objects.requireNonNull(initializer, "custom measurement initializer must not be null");
-        return measurements.computeIfAbsent(
-                createLabelValues(namesAndValues),
-                labelValues -> createMeasurementAndSnapshot(labelValues, initializer));
+        return getOrCreate(createLabelValues(namesAndValues), initializer);
     }
 
     /**
@@ -147,8 +145,15 @@ public abstract class SettableMetric<I, M> extends Metric {
         }
     }
 
-    private M createMeasurementAndSnapshot(LabelValues labelValues) {
-        return createMeasurementAndSnapshot(labelValues, defaultInitializer);
+    private M getOrCreate(LabelValues labelValues, I initializer) {
+        // lock-free lookup first: computeIfAbsent may lock the map bin even when the key exists
+        final M existing = measurements.get(labelValues);
+        if (existing != null) {
+            return existing;
+        }
+        // the snapshot is added inside computeIfAbsent, so the map entry and its snapshot change together per key
+        // and a failed snapshot creation leaves no measurement in the map
+        return measurements.computeIfAbsent(labelValues, key -> createMeasurementAndSnapshot(key, initializer));
     }
 
     private M createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {
