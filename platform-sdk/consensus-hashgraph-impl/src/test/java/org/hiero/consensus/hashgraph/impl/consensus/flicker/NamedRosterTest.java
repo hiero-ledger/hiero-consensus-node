@@ -30,6 +30,18 @@ class NamedRosterTest {
     }
 
     @Test
+    @DisplayName("ids start one above the first node id and advance by gaps of 1, 3 and 2")
+    void idsFollowTheDocumentedSequence() {
+        final List<Long> ids = "abcdefg"
+                .chars()
+                .mapToObj(letter ->
+                        NamedRoster.nodeIdFor(Character.toString(letter)).id())
+                .toList();
+        assertThat(ids).as("the values nodeIdFor's javadoc lists").containsExactly(1L, 2L, 5L, 7L, 8L, 11L, 13L);
+        assertThat(NamedRoster.nodeIdFor("z").id()).isEqualTo(50L);
+    }
+
+    @Test
     @DisplayName("every letter has its own node id, and nothing else is a letter")
     void everyLetterHasItsOwnNodeId() {
         final Set<Long> ids = new HashSet<>();

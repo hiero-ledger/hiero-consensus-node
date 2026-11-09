@@ -3,7 +3,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.flicker;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -26,20 +25,7 @@ import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
  */
 public record NamedRoster(@NonNull String name, @NonNull SequencedMap<String, Long> weightsByLetter) {
 
-    /**
-     * Node ids advance irregularly from {@link NodeId#FIRST_NODE_ID} rather than being the letter's position.
-     * <p>
-     * A real roster assigns arbitrary ids, and consensus code holds two numbers for every node: its id, and its index
-     * in the roster. If the ids here were {@code 0,1,2,3} they would equal the indices of a roster listed {@code a}
-     * to {@code d}, and any code that confused the two would pass every fixture in the suite.
-     * <p>
-     * The gaps mirror {@code RosterWrapperFactory.createRandomNodeIds}, which advances one to three per node, so the
-     * values stay small enough to hold in your head while debugging — {@code a,b,c,d} are {@code 1,2,5,7}. Starting
-     * one above the first node id is what guarantees a letter's id is always greater than its position, so the two can
-     * never be confused for one another. The value is a function of the letter alone and strictly increases with it,
-     * so each letter has its own id, and a node keeps that id — and its events keep their hashes — in every roster
-     * and every graph in the suite.
-     */
+    /** The node id of {@code a}, one above the first node id; see {@link #nodeIdFor} for why. */
     private static final long ID_ORIGIN = NodeId.FIRST_NODE_ID.id() + 1;
 
     public NamedRoster {
@@ -49,6 +35,8 @@ public record NamedRoster(@NonNull String name, @NonNull SequencedMap<String, Lo
     }
 
     /**
+     * Returns the letters of all nodes in this named roster.
+     *
      * @return the node letters, in declaration order
      */
     @NonNull
@@ -57,6 +45,21 @@ public record NamedRoster(@NonNull String name, @NonNull SequencedMap<String, Lo
     }
 
     /**
+     * The node id a letter always maps to.
+     * <p>
+     * {@code a} is one above {@link NodeId#FIRST_NODE_ID}, and each later letter adds a gap that cycles through 1, 3
+     * and 2, so {@code a} to {@code g} are {@code 1, 2, 5, 7, 8, 11, 13} and {@code z} is {@code 50}. The id depends on
+     * the letter alone and strictly increases with it, so each letter has its own id, and a node keeps that id — and
+     * its events keep their hashes — in every roster and every graph in the suite.
+     * <p>
+     * The ids are deliberately not the letters' positions. The consensus code holds two numbers for every node: its id,
+     * and its index in the roster. If the ids here were {@code 0, 1, 2, 3} they would equal the indices of a roster
+     * listed {@code a} to {@code d}, and any code that confused the two would pass every fixture in the suite. Starting
+     * one above the first node id keeps every letter's id greater than its position, so the two can never coincide.
+     * Adding gaps between the node ids ensures no code depends on contiguous ids. The gaps mirror
+     * {@code RosterWrapperFactory.createRandomNodeIds}, which advances one to three per node, so the values stay small
+     * enough to hold in your head while debugging.
+     *
      * @param letter a node letter, {@code a} to {@code z}
      * @return the node id that letter always maps to, which no other letter maps to
      * @throws IllegalArgumentException if {@code letter} is not a single lower-case letter
@@ -76,16 +79,14 @@ public record NamedRoster(@NonNull String name, @NonNull SequencedMap<String, Lo
     }
 
     /**
-     * @return this block as a roster the algorithm can run under
+     * Returns the roster wrapper representation of the contained nodes and weights.
+     *
+     * @return this roster as one the algorithm can run under
      */
     @NonNull
     public RosterWrapper toRosterWrapper() {
-        final List<RosterEntry> entries = weightsByLetter.entrySet().stream()
-                .map(entry -> RosterEntry.newBuilder()
-                        .nodeId(nodeIdFor(entry.getKey()).id())
-                        .weight(entry.getValue())
-                        .build())
-                .toList();
-        return RosterWrapperFactory.createRosterWrapper(entries);
+        final SequencedMap<NodeId, Long> weightsByNodeId = new LinkedHashMap<>();
+        weightsByLetter.forEach((letter, weight) -> weightsByNodeId.put(nodeIdFor(letter), weight));
+        return RosterWrapperFactory.createRosterWrapper(weightsByNodeId);
     }
 }
