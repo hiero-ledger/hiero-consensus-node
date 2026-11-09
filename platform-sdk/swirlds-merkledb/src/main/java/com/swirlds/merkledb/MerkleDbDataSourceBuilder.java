@@ -218,7 +218,8 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
             if (Files.isDirectory(snapshotDataSourceDir)) {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
-                return new MerkleDbDataSource(dataSourceDir, configuration, fileSystemManager, label, compactionEnabled);
+                return new MerkleDbDataSource(
+                        dataSourceDir, configuration, fileSystemManager, label, compactionEnabled);
             }
             throw new IOException(
                     "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);

@@ -82,8 +82,7 @@ public class DelegateVirtualDataSource implements VirtualDataSource {
 
     @NonNull
     @Override
-    public VirtualDataSource copy(@NonNull final Path storageDir, final boolean compactionEnabled)
-            throws IOException {
+    public VirtualDataSource copy(@NonNull final Path storageDir, final boolean compactionEnabled) throws IOException {
         return delegate.copy(storageDir, compactionEnabled);
     }
 

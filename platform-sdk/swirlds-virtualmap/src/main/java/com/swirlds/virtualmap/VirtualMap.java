@@ -1239,7 +1239,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // flush() doesn't throw, if the thread is interrupted. The data source copy may be
             // incomplete in this case, it must not be returned
             if (Thread.currentThread().isInterrupted()) {
-                throw new IllegalStateException("Interrupted while flushing the cache snapshot to the data source copy");
+                throw new IllegalStateException(
+                        "Interrupted while flushing the cache snapshot to the data source copy");
             }
         } catch (final RuntimeException | Error e) {
             // Don't leak the data source copy, if the flush failed
@@ -1253,7 +1254,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     ///
     /// @param cache the cache snapshot
     /// @param dataSource the data source copy, the caller is responsible for closing it
-    private record DataSourceAndCacheCopy(@NonNull VirtualNodeCache cache, @NonNull VirtualDataSource dataSource) {}
+    private record DataSourceAndCacheCopy(
+            @NonNull VirtualNodeCache cache, @NonNull VirtualDataSource dataSource) {}
 
     /// Copies this map's data source and takes a snapshot of its cache. The virtual pipeline is paused
     /// meanwhile to make sure no data is flushed to the data source and no caches are merged.

@@ -980,8 +980,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /// performance.
     @NonNull
     @Override
-    public MerkleDbDataSource copy(@NonNull final Path storageDir, final boolean compactionEnabled)
-            throws IOException {
+    public MerkleDbDataSource copy(@NonNull final Path storageDir, final boolean compactionEnabled) throws IOException {
         // Kept outside the snapshot, so the copied indexes are released also if resuming compaction or
         // opening the copy fails
         final CopiedIndexes indexes = preferDiskBasedIndices ? null : new CopiedIndexes();
