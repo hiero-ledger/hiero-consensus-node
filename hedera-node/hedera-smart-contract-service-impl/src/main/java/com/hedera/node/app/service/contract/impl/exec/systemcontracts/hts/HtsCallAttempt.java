@@ -3,10 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_EVM_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.TRANSFER_NFT;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.TRANSFER_NFTS;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.TRANSFER_TOKEN;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.TRANSFER_TOKENS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.ClassicTransfersTranslator.supportsQualifiedDelegate;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
@@ -67,8 +64,7 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
         if (strategy instanceof AccountAuthorizingVerificationStrategy scoped) {
             // Keep the qualified delegate's existing primitive-key activation rules, while
             // matching account authority to the method's actual caller semantics.
-            final var accountAuthority =
-                    isSelector(TRANSFER_TOKENS, TRANSFER_TOKEN, TRANSFER_NFTS, TRANSFER_NFT) ? authorizingId : senderId;
+            final var accountAuthority = supportsQualifiedDelegate(this) ? authorizingId : senderId;
             return new AccountAuthorizingVerificationStrategy(accountAuthority, scoped.primitiveStrategy());
         }
         return strategy;
