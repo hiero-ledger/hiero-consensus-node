@@ -50,6 +50,20 @@ class KeyRequirementTest {
         assertThat(requirement.key().thresholdKeyOrThrow().keysOrThrow().keys())
                 .containsExactly(SHARED_KEY, SHARED_KEY);
         assertThatThrownBy(() -> requirement.alternatives().clear()).isInstanceOf(UnsupportedOperationException.class);
+        final var equivalent = KeyRequirement.anyOf(List.of(owner, explicit));
+        assertThat(requirement).isEqualTo(equivalent);
+        assertThat(requirement.hashCode()).isEqualTo(equivalent.hashCode());
+        assertThat(requirement)
+                .isNotEqualTo(KeyRequirement.anyOf(List.of(KeyRequirement.forAccount(C, SHARED_KEY), explicit)));
+    }
+
+    @Test
+    void repeatedKeyCallsReturnTheSameProjection() {
+        final var requirement = KeyRequirement.anyOf(
+                List.of(KeyRequirement.forAccount(A, SHARED_KEY), KeyRequirement.forKey(SHARED_KEY)));
+        final var key = requirement.key();
+
+        assertThat(requirement.key()).isSameAs(key);
     }
 
     @Test

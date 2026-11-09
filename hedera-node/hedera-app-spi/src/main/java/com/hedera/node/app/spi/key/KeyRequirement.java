@@ -64,23 +64,46 @@ public sealed interface KeyRequirement {
     }
 
     /** Authorization by at least one alternative, retaining each alternative's own identity. */
-    record AnyOf(@NonNull List<KeyRequirement> alternatives) implements KeyRequirement {
-        public AnyOf {
-            alternatives = List.copyOf(requireNonNull(alternatives));
-            if (alternatives.isEmpty()) {
+    final class AnyOf implements KeyRequirement {
+        private final List<KeyRequirement> alternatives;
+        private final Key key;
+
+        public AnyOf(@NonNull final List<KeyRequirement> alternatives) {
+            this.alternatives = List.copyOf(requireNonNull(alternatives));
+            if (this.alternatives.isEmpty()) {
                 throw new IllegalArgumentException("At least one authorization alternative is required");
             }
+            this.key = Key.newBuilder()
+                    .thresholdKey(ThresholdKey.newBuilder()
+                            .threshold(1)
+                            .keys(new KeyList(this.alternatives.stream()
+                                    .map(KeyRequirement::key)
+                                    .toList())))
+                    .build();
+        }
+
+        public @NonNull List<KeyRequirement> alternatives() {
+            return alternatives;
         }
 
         @Override
         public @NonNull Key key() {
-            return Key.newBuilder()
-                    .thresholdKey(ThresholdKey.newBuilder()
-                            .threshold(1)
-                            .keys(new KeyList(alternatives.stream()
-                                    .map(KeyRequirement::key)
-                                    .toList())))
-                    .build();
+            return key;
+        }
+
+        @Override
+        public boolean equals(final Object other) {
+            return other instanceof AnyOf anyOf && alternatives.equals(anyOf.alternatives);
+        }
+
+        @Override
+        public int hashCode() {
+            return alternatives.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "AnyOf[alternatives=" + alternatives + "]";
         }
     }
 }
