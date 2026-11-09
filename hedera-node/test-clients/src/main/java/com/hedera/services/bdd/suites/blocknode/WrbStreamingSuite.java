@@ -44,6 +44,12 @@ public class WrbStreamingSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
+                            // Wrapped record blocks only exist in the pre-cutover world
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true",
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             // Forces votingBlockNumInitialized() so WRB emission fires without
                             // waiting for migration voting; matches the unit-test pattern in
@@ -107,6 +113,10 @@ public class WrbStreamingSuite {
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true",
                             "blockStream.writerMode", "FILE",
                             // WRB build path on but streaming flag off: items computed locally,
                             // never forwarded to the block node.

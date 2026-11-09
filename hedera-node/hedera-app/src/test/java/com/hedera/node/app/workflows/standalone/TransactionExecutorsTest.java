@@ -317,7 +317,9 @@ public class TransactionExecutorsTest {
 
     @Test
     void connectorAuthorizationIsTracedAndItsHaltContainedWithinSendMessageTransaction() {
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true");
+        // The actions are read from sidecars, which only the record stream builds
+        final var overrides = Map.of(
+                "hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true", "blockStream.streamMode", "BOTH");
         final var state = genesisState(overrides);
         final var executor = TRANSACTION_EXECUTORS.newExecutor(
                 TransactionExecutors.Properties.newBuilder()

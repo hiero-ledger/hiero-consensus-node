@@ -57,7 +57,7 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                         blockNodePriorities = {0})
             })
     @Order(1)
-    final Stream<DynamicTest> nodeDeathReconnectBothAndFileAndGrpc() {
+    final Stream<DynamicTest> nodeDeathReconnectBlocksAndFileAndGrpc() {
         return hapiTest(
                 // Validate we can initially submit transactions to node2
                 cryptoCreate("nobody").setNode("5"),
