@@ -323,11 +323,12 @@ public abstract class AbstractScheduleHandler {
         });
         return key -> switch (key.key().kind()) {
             case ED25519, ECDSA_SECP256K1 -> cryptoSigs.contains(key);
-                // A contract id key is only activated by direct authorization
+            // A contract id key is only activated by direct authorization
             case CONTRACT_ID -> isAuthorized(key.contractIDOrThrow(), accountStore, contractIdSigs, emptySet());
-                // The more permissive "delegatable" key is activated by either type of authorization
-            case DELEGATABLE_CONTRACT_ID -> isAuthorized(
-                    key.delegatableContractIdOrThrow(), accountStore, delegatableContractIdSigs, contractIdSigs);
+            // The more permissive "delegatable" key is activated by either type of authorization
+            case DELEGATABLE_CONTRACT_ID ->
+                isAuthorized(
+                        key.delegatableContractIdOrThrow(), accountStore, delegatableContractIdSigs, contractIdSigs);
             default -> false;
         };
     }
@@ -391,13 +392,13 @@ public abstract class AbstractScheduleHandler {
                     signatories.add(key);
                 }
             }
-            case KEY_LIST -> key.keyListOrThrow()
-                    .keys()
-                    .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow()
-                    .keysOrThrow()
-                    .keys()
-                    .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
+            case KEY_LIST ->
+                key.keyListOrThrow().keys().forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow()
+                        .keysOrThrow()
+                        .keys()
+                        .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
         }
     }
 

@@ -69,11 +69,12 @@ public class IdentityScopedSignatureRequirementsTest {
                 cryptoCreate("attacker").balance(ONE_HUNDRED_HBARS),
                 uploadInitCode("PayableConstructor"),
                 contractCreate("PayableConstructor"),
-                cryptoCreate("owner").withHook(spec -> accountAllowanceHook(1L, "PayableConstructor")
-                        .apply(spec)
-                        .copyBuilder()
-                        .adminKey(toPbj(spec.registry().getKey("hookAdmin")))
-                        .build()),
+                cryptoCreate("owner")
+                        .withHook(spec -> accountAllowanceHook(1L, "PayableConstructor")
+                                .apply(spec)
+                                .copyBuilder()
+                                .adminKey(toPbj(spec.registry().getKey("hookAdmin")))
+                                .build()),
                 accountEvmHookStore("owner", 1L)
                         .putSlot(Bytes.fromHex("01"), Bytes.fromHex("02"))
                         .payingWith("attacker")

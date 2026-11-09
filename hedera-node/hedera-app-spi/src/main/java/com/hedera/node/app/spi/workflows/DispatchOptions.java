@@ -204,16 +204,14 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final PropagateFeeChargingStrategy propagateFeeChargingStrategy) {
         requireNonNull(customFeeCharging);
         requireNonNull(propagateFeeChargingStrategy);
-        final var category =
-                switch (requireNonNull(stakingRewards)) {
-                    case ON -> TransactionCategory.SCHEDULED;
-                    case OFF -> TransactionCategory.CHILD;
-                };
-        final var metadata =
-                switch (propagateFeeChargingStrategy) {
-                    case YES -> new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
-                    case NO -> EMPTY_METADATA;
-                };
+        final var category = switch (requireNonNull(stakingRewards)) {
+            case ON -> TransactionCategory.SCHEDULED;
+            case OFF -> TransactionCategory.CHILD;
+        };
+        final var metadata = switch (propagateFeeChargingStrategy) {
+            case YES -> new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
+            case NO -> EMPTY_METADATA;
+        };
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,

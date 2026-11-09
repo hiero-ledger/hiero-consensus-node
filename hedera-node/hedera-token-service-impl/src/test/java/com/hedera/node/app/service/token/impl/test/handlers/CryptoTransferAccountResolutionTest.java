@@ -159,9 +159,11 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> existingForms() {
-        return Arrays.stream(Form.values()).flatMap(form -> Arrays.stream(Kind.values())
-                .flatMap(kind -> Stream.of(false, true).flatMap(sender -> Stream.of(0, 1, 2, 3)
-                        .map(domain -> Arguments.of(form, kind, sender, domain)))));
+        return Arrays.stream(Form.values())
+                .flatMap(form -> Arrays.stream(Kind.values())
+                        .flatMap(kind -> Stream.of(false, true)
+                                .flatMap(sender -> Stream.of(0, 1, 2, 3)
+                                        .map(domain -> Arguments.of(form, kind, sender, domain)))));
     }
 
     @ParameterizedTest(name = "{0} {1}, sender={2}, domain={3}")
@@ -223,8 +225,9 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> missingLongZeros() {
-        return Arrays.stream(Kind.values()).flatMap(kind -> Stream.of(1, 2, 3)
-                .flatMap(domain -> Stream.of(0L, 1L).map(seed -> Arguments.of(kind, domain, seed))));
+        return Arrays.stream(Kind.values())
+                .flatMap(kind -> Stream.of(1, 2, 3)
+                        .flatMap(domain -> Stream.of(0L, 1L).map(seed -> Arguments.of(kind, domain, seed))));
     }
 
     @ParameterizedTest(name = "{0}, foreign domain={1}, seed credit={2}")
@@ -313,22 +316,27 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     static Stream<Arguments> missingIds() {
         final var missingNumber = AccountID.newBuilder().accountNum(9_876_543).build();
         return Arrays.stream(Kind.values())
-                .flatMap(kind -> Stream.of(false, true).flatMap(sender -> Stream.of(
-                                AccountID.DEFAULT,
-                                AccountID.newBuilder().accountNum(0).build(),
-                                AccountID.newBuilder().accountNum(-1).build(),
-                                longZero(AccountID.newBuilder().accountNum(0).build()),
-                                AccountID.newBuilder().alias(Bytes.EMPTY).build(),
-                                AccountID.newBuilder()
-                                        .alias(Bytes.fromHex("ff"))
-                                        .build(),
-                                missingNumber,
-                                inDomain(missingNumber, 1),
-                                inDomain(missingNumber, 2),
-                                longZero(missingNumber),
-                                inDomain(longZero(missingNumber), 1),
-                                inDomain(longZero(missingNumber), 2))
-                        .map(id -> Arguments.of(kind, sender, id))));
+                .flatMap(kind -> Stream.of(false, true)
+                        .flatMap(sender -> Stream.of(
+                                        AccountID.DEFAULT,
+                                        AccountID.newBuilder().accountNum(0).build(),
+                                        AccountID.newBuilder().accountNum(-1).build(),
+                                        longZero(AccountID.newBuilder()
+                                                .accountNum(0)
+                                                .build()),
+                                        AccountID.newBuilder()
+                                                .alias(Bytes.EMPTY)
+                                                .build(),
+                                        AccountID.newBuilder()
+                                                .alias(Bytes.fromHex("ff"))
+                                                .build(),
+                                        missingNumber,
+                                        inDomain(missingNumber, 1),
+                                        inDomain(missingNumber, 2),
+                                        longZero(missingNumber),
+                                        inDomain(longZero(missingNumber), 1),
+                                        inDomain(longZero(missingNumber), 2))
+                                .map(id -> Arguments.of(kind, sender, id))));
     }
 
     @ParameterizedTest
@@ -357,8 +365,9 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> missingLongZeroAmounts() {
-        return Stream.of(Kind.HBAR, Kind.FUNGIBLE).flatMap(kind -> Stream.of(0, 1, 2, 3)
-                .flatMap(domain -> Stream.of(-1L, 0L, 1L).map(amount -> Arguments.of(kind, domain, amount))));
+        return Stream.of(Kind.HBAR, Kind.FUNGIBLE)
+                .flatMap(kind -> Stream.of(0, 1, 2, 3)
+                        .flatMap(domain -> Stream.of(-1L, 0L, 1L).map(amount -> Arguments.of(kind, domain, amount))));
     }
 
     @ParameterizedTest
@@ -395,17 +404,14 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     @ParameterizedTest
     @EnumSource(Form.class)
     void unknownAliasesCannotBeSendersEvenWithAHook(Form form) throws PreCheckException {
-        final var missing =
-                switch (form) {
-                    case NUMBER -> inDomain(ownerId, 1);
-                    case LONG_ZERO -> inDomain(longZero(ownerId), 1);
-                    case EVM -> AccountID.newBuilder().alias(EVM_ALIAS).build();
-                    case ED25519 ->
-                        AccountID.newBuilder()
-                                .alias(Key.PROTOBUF.toBytes(RECEIVER_KEY))
-                                .build();
-                    case ECDSA, ECDSA_DERIVED -> unknownAliasedId;
-                };
+        final var missing = switch (form) {
+            case NUMBER -> inDomain(ownerId, 1);
+            case LONG_ZERO -> inDomain(longZero(ownerId), 1);
+            case EVM -> AccountID.newBuilder().alias(EVM_ALIAS).build();
+            case ED25519 ->
+                AccountID.newBuilder().alias(Key.PROTOBUF.toBytes(RECEIVER_KEY)).build();
+            case ECDSA, ECDSA_DERIVED -> unknownAliasedId;
+        };
         final var nft = nftTransferWith(missing, tokenReceiverId, 1)
                 .copyBuilder()
                 .preTxSenderAllowanceHook(HookCall.newBuilder().hookId(1).build())
@@ -510,13 +516,12 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
             value = Form.class,
             names = {"EVM", "ED25519", "ECDSA"})
     void repeatedNewAliasesAcrossDomainsCreateOneAccount(Form form) throws PreCheckException {
-        final var alias =
-                switch (form) {
-                    case EVM -> EVM_ALIAS;
-                    case ED25519 -> Key.PROTOBUF.toBytes(RECEIVER_KEY);
-                    case ECDSA -> ecKeyAlias.value();
-                    default -> throw new IllegalArgumentException();
-                };
+        final var alias = switch (form) {
+            case EVM -> EVM_ALIAS;
+            case ED25519 -> Key.PROTOBUF.toBytes(RECEIVER_KEY);
+            case ECDSA -> ecKeyAlias.value();
+            default -> throw new IllegalArgumentException();
+        };
         final var newId = AccountID.newBuilder().accountNum(9_876_543).build();
         final var input = AccountID.newBuilder().alias(alias).build();
         writableTokenStore.put(nonFungibleToken
@@ -569,9 +574,11 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> hookForms() {
-        return Arrays.stream(Form.values()).flatMap(form -> Arrays.stream(Kind.values())
-                .flatMap(kind -> Stream.of(false, true).flatMap(sender -> Stream.of(false, true)
-                        .map(prePost -> Arguments.of(form, kind, sender, prePost)))));
+        return Arrays.stream(Form.values())
+                .flatMap(form -> Arrays.stream(Kind.values())
+                        .flatMap(kind -> Stream.of(false, true)
+                                .flatMap(sender -> Stream.of(false, true)
+                                        .map(prePost -> Arguments.of(form, kind, sender, prePost)))));
     }
 
     @ParameterizedTest
@@ -674,8 +681,9 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     }
 
     static Stream<Arguments> tokenSeeds() {
-        return Stream.of(Kind.FUNGIBLE, Kind.NFT).flatMap(kind -> Stream.of(1, 2, 3)
-                .flatMap(domain -> Stream.of(0L, 1L).map(amount -> Arguments.of(kind, domain, amount))));
+        return Stream.of(Kind.FUNGIBLE, Kind.NFT)
+                .flatMap(kind -> Stream.of(1, 2, 3)
+                        .flatMap(domain -> Stream.of(0L, 1L).map(amount -> Arguments.of(kind, domain, amount))));
     }
 
     @ParameterizedTest
@@ -768,13 +776,12 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     private AccountID reference(Form form, AccountID canonical, int domain) {
         if (form == Form.NUMBER) return canonical;
         if (form == Form.LONG_ZERO) return longZero(canonical);
-        final var alias =
-                switch (form) {
-                    case EVM -> EVM_ALIAS;
-                    case ED25519 -> Key.PROTOBUF.toBytes(RECEIVER_KEY);
-                    case ECDSA, ECDSA_DERIVED -> ecKeyAlias.value();
-                    default -> throw new IllegalArgumentException();
-                };
+        final var alias = switch (form) {
+            case EVM -> EVM_ALIAS;
+            case ED25519 -> Key.PROTOBUF.toBytes(RECEIVER_KEY);
+            case ECDSA, ECDSA_DERIVED -> ecKeyAlias.value();
+            default -> throw new IllegalArgumentException();
+        };
         writableAccountStore.putAlias(form == Form.ECDSA_DERIVED ? extractEvmAddress(alias) : alias, canonical);
         return inDomain(AccountID.newBuilder().alias(alias).build(), domain);
     }

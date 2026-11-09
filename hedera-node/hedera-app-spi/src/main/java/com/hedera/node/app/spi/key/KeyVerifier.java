@@ -67,8 +67,9 @@ public interface KeyVerifier {
         requireNonNull(requirement);
         if (requirement instanceof KeyRequirement.AnyOf anyOf) {
             return requirementVerification(
-                    requirement, anyOf.alternatives().stream().anyMatch(r -> verificationFor(r)
-                            .passed()));
+                    requirement,
+                    anyOf.alternatives().stream()
+                            .anyMatch(r -> verificationFor(r).passed()));
         }
         return verificationFor(requirement.key());
     }
