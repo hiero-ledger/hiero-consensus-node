@@ -38,8 +38,10 @@ public class LabelValuesTest {
         }
 
         @Test
-        void testGetByNameReturnsNull() {
-            assertThat(LabelValues.EMPTY.get("name")).isNull();
+        void testGetByNameThrows() {
+            assertThatThrownBy(() -> LabelValues.EMPTY.get("name"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("Unknown label name: name");
         }
 
         @Test
@@ -84,10 +86,16 @@ public class LabelValuesTest {
 
         assertThat(labelNamesAndValues.get("name1")).isEqualTo("name2");
         assertThat(labelNamesAndValues.get("name2")).isEqualTo("value2");
-        assertThat(labelNamesAndValues.get("value2"))
+        assertThatThrownBy(() -> labelNamesAndValues.get("value2"))
                 .as("values are not matched as names")
-                .isNull();
-        assertThat(labelNamesAndValues.get("unknown")).isNull();
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unknown label name: value2");
+        assertThatThrownBy(() -> labelNamesAndValues.get("unknown"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unknown label name: unknown");
+        assertThatThrownBy(() -> labelNamesAndValues.get(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("label name must not be null");
     }
 
     @ParameterizedTest

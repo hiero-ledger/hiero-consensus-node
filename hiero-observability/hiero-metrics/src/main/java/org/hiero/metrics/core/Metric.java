@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
  * Base class for all metric implementations.
@@ -21,7 +23,8 @@ import java.util.Set;
  * <p>
  * Additionally it stores a reusable {@link MetricSnapshot} instance for exporting measurements.
  * Measurements are not part of this abstract class, but subclasses, knowing their measurement and snapshot type,
- * must add measurement snapshots to metric snapshot by calling {@link #addMeasurementSnapshot(MeasurementSnapshot)}.
+ * must add measurement snapshots to metric snapshot by calling {@link #addMeasurementSnapshot(MeasurementSnapshot)}
+ * and remove measurements with their snapshots by calling {@link #removeMeasurements(ConcurrentHashMap, Predicate)}.
  */
 public abstract class Metric implements MetricInfo {
 
@@ -137,33 +140,65 @@ public abstract class Metric implements MetricInfo {
      * Adds a measurement snapshot to the metric's snapshot.
      * Subclasses must call this method to register their measurement snapshots for exporting.
      * <p>
-     * If measurements can be removed, see {@link #removeMeasurementSnapshot(LabelValues)} for the required locking.
+     * If measurements can be removed, see {@link #removeMeasurements(ConcurrentHashMap, Predicate)}
+     * for the required locking.
      *
      * @param measurementSnapshot the measurement snapshot to add, must not be {@code null}
-     * @return the provided measurement snapshot
      */
-    @NonNull
-    protected final MeasurementSnapshot addMeasurementSnapshot(@NonNull MeasurementSnapshot measurementSnapshot) {
+    protected final void addMeasurementSnapshot(@NonNull MeasurementSnapshot measurementSnapshot) {
         if (snapshot != null) {
             snapshot.addMeasurementSnapshot(measurementSnapshot);
         }
-        return measurementSnapshot;
     }
 
     /**
-     * Removes the measurement snapshot with the given dynamic label values from the metric's snapshot,
-     * so it is not exported anymore. Subclasses must call this method when they remove a measurement.
+     * Removes the measurements whose dynamic label values match the given filter from the given map,
+     * together with their measurement snapshots, so they are not exported anymore.
+     * Subclasses with removable measurements must call this method to remove them.
      * <p>
-     * Adding and removing measurement snapshots with equal label values must happen under one lock, for example
-     * inside {@code ConcurrentHashMap.compute} methods of the map holding the measurements, so they are applied
-     * to the snapshot in the order they happened.
+     * The filter is called for the label values of each measurement without holding any lock.
+     * Each matching measurement and its snapshot are removed inside {@link ConcurrentHashMap#computeIfPresent},
+     * under the map bin lock. Subclasses must add measurement snapshots under the same lock, inside
+     * {@link ConcurrentHashMap#computeIfAbsent} of the same map, so adding and removing snapshots with equal label values
+     * are applied to the metric snapshot in the order they happened. All measurement snapshots with equal label values
+     * are removed, so the metric snapshot must hold at most one measurement snapshot per label values.
      *
-     * @param labelValues the dynamic label values of the measurement snapshot to remove, must not be {@code null}
+     * @param measurements the map holding the measurements by their dynamic label values,
+     *                     may be {@code null} only if metric has no dynamic labels
+     * @param filter       returns {@code true} for label values of measurements to remove, must not be {@code null}
+     * @param <V>          the type of the map values
+     * @return the number of removed measurements
+     * @throws IllegalStateException if metric has no dynamic labels specified during creation
+     * @throws NullPointerException  if the filter is {@code null}
      */
-    protected final void removeMeasurementSnapshot(@NonNull LabelValues labelValues) {
-        if (snapshot != null) {
-            snapshot.removeMeasurementSnapshot(labelValues);
+    protected final <V> int removeMeasurements(
+            ConcurrentHashMap<LabelValues, V> measurements, @NonNull Predicate<LabelValues> filter) {
+        if (dynamicLabelNames.isEmpty()) {
+            throw new IllegalStateException(
+                    "This metric has no dynamic labels, so it can be removed only from the metric registry");
         }
+        Objects.requireNonNull(filter, "filter must not be null");
+
+        int removed = 0;
+        for (LabelValues labelValues : measurements.keySet()) {
+            if (filter.test(labelValues) && removeMeasurement(measurements, labelValues)) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    private <V> boolean removeMeasurement(ConcurrentHashMap<LabelValues, V> measurements, LabelValues labelValues) {
+        final boolean[] removed = {false};
+        // the snapshot is removed under the map bin lock, which also guards adding the snapshot for equal label values
+        measurements.computeIfPresent(labelValues, (key, _) -> {
+            if (snapshot != null) {
+                snapshot.removeMeasurementSnapshot(key);
+            }
+            removed[0] = true;
+            return null;
+        });
+        return removed[0];
     }
 
     /**

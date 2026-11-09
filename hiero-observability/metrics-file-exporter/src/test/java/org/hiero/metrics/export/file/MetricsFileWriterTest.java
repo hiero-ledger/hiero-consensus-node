@@ -284,31 +284,31 @@ public class MetricsFileWriterTest {
             assertThat(second)
                     .isEqualTo("# TYPE test_gauge gauge\n" + "# HELP test_gauge new\n" + "test_gauge 5 " + ts + "\n");
         }
-    }
 
-    @Test
-    void testMetadataWrittenAgainForMetricRegisteredAgainAfterExportWithoutIt() {
-        MetricRegistry registry = createRegistry();
-        LongGauge.builder("test_gauge")
-                .register(registry)
-                .getOrCreateNotLabeled()
-                .set(1);
-        exporter.export(defaultWriter);
+        @Test
+        void testMetadataWrittenAgainForMetricRegisteredAgainAfterExportWithoutIt() {
+            MetricRegistry registry = createRegistry();
+            LongGauge.builder("test_gauge")
+                    .register(registry)
+                    .getOrCreateNotLabeled()
+                    .set(1);
+            exporter.export(defaultWriter);
 
-        registry.remove(LongGauge.key("test_gauge"));
-        String withoutMetric = exporter.export(defaultWriter);
-        assertThat(withoutMetric).isEmpty();
+            registry.remove(LongGauge.key("test_gauge"));
+            String withoutMetric = exporter.export(defaultWriter);
+            assertThat(withoutMetric).isEmpty();
 
-        LongGauge.builder("test_gauge")
-                .setDescription("new")
-                .register(registry)
-                .getOrCreateNotLabeled()
-                .set(5);
-        String registeredAgain = exporter.export(defaultWriter);
-        long ts = exporter.lastTimestamp;
+            LongGauge.builder("test_gauge")
+                    .setDescription("new")
+                    .register(registry)
+                    .getOrCreateNotLabeled()
+                    .set(5);
+            String registeredAgain = exporter.export(defaultWriter);
+            long ts = exporter.lastTimestamp;
 
-        assertThat(registeredAgain)
-                .isEqualTo("# TYPE test_gauge gauge\n" + "# HELP test_gauge new\n" + "test_gauge 5 " + ts + "\n");
+            assertThat(registeredAgain)
+                    .isEqualTo("# TYPE test_gauge gauge\n" + "# HELP test_gauge new\n" + "test_gauge 5 " + ts + "\n");
+        }
     }
 
     @Nested

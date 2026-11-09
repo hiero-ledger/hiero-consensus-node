@@ -2,7 +2,6 @@
 package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 
 /**
@@ -49,18 +48,22 @@ public final class LabelValues {
     /**
      * Get the value of the label with the specified name.
      * Useful in filters, for example {@code labelValues -> "3".equals(labelValues.get("node"))}.
+     * Throws for an unknown label name, so a misspelled name in a filter fails instead of matching nothing.
      *
-     * @param labelName the name of the label to retrieve the value of
-     * @return the label value, or {@code null} if there is no label with the specified name
+     * @param labelName the name of the label to retrieve the value of, must not be {@code null}
+     * @return the label value
+     * @throws NullPointerException     if the label name is {@code null}
+     * @throws IllegalArgumentException if there is no label with the specified name
      */
-    @Nullable
+    @NonNull
     public String get(@NonNull String labelName) {
+        Objects.requireNonNull(labelName, "label name must not be null");
         for (int i = 0; i < namesAndValues.length; i += 2) {
             if (namesAndValues[i].equals(labelName)) {
                 return namesAndValues[i + 1];
             }
         }
-        return null;
+        throw new IllegalArgumentException("Unknown label name: " + labelName);
     }
 
     @Override

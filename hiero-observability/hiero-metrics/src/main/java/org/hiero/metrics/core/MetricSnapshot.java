@@ -33,7 +33,7 @@ public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSna
     }
 
     /**
-     * Internal method to remove the measurement snapshot with the given label values from this metric snapshot.
+     * Internal method to remove all measurement snapshots with the given label values from this metric snapshot.
      * Package private method, because it is called by the {@link Metric} internally during measurement removal.
      */
     void removeMeasurementSnapshot(LabelValues labelValues) {

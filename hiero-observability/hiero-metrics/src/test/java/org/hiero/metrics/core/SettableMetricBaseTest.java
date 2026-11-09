@@ -8,7 +8,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.hiero.metrics.ThreadUtils;
 import org.junit.jupiter.api.Nested;
@@ -350,31 +352,51 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
         }
 
         @Test
+        void testRemoveIfCallsFilterWithoutLock() {
+            M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+            metric.getOrCreateLabeled("label", "a");
+            AtomicInteger removedByOtherThread = new AtomicInteger();
+
+            int removed = metric.removeIf(_ -> {
+                // removing the same measurement in another thread would block, if the filter held the map bin lock
+                removedByOtherThread.set(CompletableFuture.supplyAsync(() -> metric.removeIf(_ -> true))
+                        .orTimeout(1, TimeUnit.SECONDS)
+                        .join());
+                return true;
+            });
+
+            assertThat(removedByOtherThread).hasValue(1);
+            assertThat(removed).as("already removed by the other thread").isZero();
+        }
+
+        @Test
         void testConcurrentCreateAndRemoveKeepSnapshotConsistent() throws InterruptedException {
             M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
             MetricSnapshot snapshot = metric.snapshot();
             final int threadCount = 4;
-            final int iterations = 2_000;
+            final int iterations = 20_000;
             final int labelsCount = 5;
 
-            AtomicBoolean running = new AtomicBoolean(true);
-            Thread exporter = Thread.ofPlatform().start(() -> {
-                while (running.get()) {
-                    snapshot.update();
-                }
-            });
-            ThreadUtils.runConcurrentAndWait(threadCount, Duration.ofSeconds(10), threadIdx -> () -> {
-                for (int i = 0; i < iterations; i++) {
-                    final String label = "v" + (i % labelsCount);
-                    if ((i + threadIdx) % 2 == 0) {
-                        metric.getOrCreateLabeled("label", label);
-                    } else {
-                        metric.removeIf(labelValues -> label.equals(labelValues.get("label")));
-                    }
-                }
-            });
-            running.set(false);
-            exporter.join();
+            // a broken lock duplicates snapshots only until the next removal, so every export is checked
+            ThreadUtils.runConcurrentAndCheck(
+                    threadCount,
+                    Duration.ofSeconds(10),
+                    threadIdx -> () -> {
+                        for (int i = 0; i < iterations; i++) {
+                            final String label = "v" + (i % labelsCount);
+                            if ((i + threadIdx) % 2 == 0) {
+                                metric.getOrCreateLabeled("label", label);
+                            } else {
+                                metric.removeIf(labelValues -> label.equals(labelValues.get("label")));
+                            }
+                        }
+                    },
+                    () -> {
+                        snapshot.update();
+                        assertThat(labels(snapshot))
+                                .as("export has duplicate labels")
+                                .doesNotHaveDuplicates();
+                    });
 
             List<String> exported = labels(snapshot);
             assertThat(exported).doesNotHaveDuplicates();

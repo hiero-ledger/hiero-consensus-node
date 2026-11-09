@@ -4,7 +4,6 @@ package org.hiero.metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleSupplier;
@@ -30,7 +29,8 @@ import org.hiero.metrics.core.MetricType;
  */
 public final class ObservableGauge extends Metric {
 
-    private final Map<LabelValues, MeasurementSnapshot> observed = new ConcurrentHashMap<>();
+    // observed label values, a map instead of a set to add and remove their snapshots under the map bin locks
+    private final ConcurrentHashMap<LabelValues, Boolean> observed = new ConcurrentHashMap<>();
 
     private ObservableGauge(ObservableGauge.Builder builder) {
         super(builder);
@@ -90,12 +90,16 @@ public final class ObservableGauge extends Metric {
 
     /**
      * Removes all observed value suppliers whose dynamic label values match the given filter,
-     * so they are not exported anymore and are released. The same label values can be observed again afterwards.
+     * so they are not exported anymore. The same label values can be observed again afterwards.
      * Use {@link LabelValues#get(String)} to match by label name, for example
      * {@code gauge.removeIf(labelValues -> "3".equals(labelValues.get("node")))}.
      * <p>
      * The filter is called for the label values of each observed supplier without holding any lock.
      * Suppliers observed concurrently with this call may or may not be removed.
+     * <p>
+     * The gauge releases removed suppliers, but an export already in progress may call a removed supplier once more.
+     * A supplier must stay safe to call after its removal, for example it must not throw when its source is closed,
+     * because a throwing supplier fails the whole export.
      *
      * @param filter returns {@code true} for label values of suppliers to remove, must not be {@code null}
      * @return the number of removed suppliers
@@ -103,30 +107,7 @@ public final class ObservableGauge extends Metric {
      * @throws NullPointerException  if the filter is {@code null}
      */
     public int removeIf(@NonNull Predicate<LabelValues> filter) {
-        if (dynamicLabelNames().isEmpty()) {
-            throw new IllegalStateException(
-                    "This metric has no dynamic labels, so it can be removed only from the metric registry");
-        }
-        Objects.requireNonNull(filter, "filter must not be null");
-
-        int removed = 0;
-        for (LabelValues labelValues : observed.keySet()) {
-            if (filter.test(labelValues) && removeObserved(labelValues)) {
-                removed++;
-            }
-        }
-        return removed;
-    }
-
-    private boolean removeObserved(LabelValues labelValues) {
-        final boolean[] removed = {false};
-        // the snapshot is removed under the map bin lock, which also guards observing the same label values
-        observed.computeIfPresent(labelValues, (key, _) -> {
-            removeMeasurementSnapshot(key);
-            removed[0] = true;
-            return null;
-        });
-        return removed[0];
+        return removeMeasurements(observed, filter);
     }
 
     private void observeInternal(@NonNull Object valueSupplier, @NonNull String... labelNamesAndValues) {
@@ -139,9 +120,13 @@ public final class ObservableGauge extends Metric {
 
         // the snapshot calls the supplier, so it is created before taking the map bin lock
         final MeasurementSnapshot snapshot = createSnapshot(valueSupplier, labelValues);
-        final MeasurementSnapshot observedSnapshot =
-                observed.computeIfAbsent(labelValues, _ -> addMeasurementSnapshot(snapshot));
-        if (observedSnapshot != snapshot) {
+        final boolean[] added = {false};
+        observed.computeIfAbsent(labelValues, _ -> {
+            addMeasurementSnapshot(snapshot);
+            added[0] = true;
+            return Boolean.TRUE;
+        });
+        if (!added[0]) {
             throw duplicateLabelValues(labelValues);
         }
     }

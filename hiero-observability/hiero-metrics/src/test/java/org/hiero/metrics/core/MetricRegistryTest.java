@@ -25,7 +25,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.hiero.metrics.DoubleCounter;
@@ -447,37 +446,54 @@ public class MetricRegistryTest {
         MetricRegistry registry =
                 MetricRegistry.builder().setMetricsExporter(exporter).build();
         final int threadCount = 4;
-        final int iterations = 2_000;
+        final int iterations = 20_000;
         final int namesCount = 5;
 
-        AtomicBoolean running = new AtomicBoolean(true);
-        Thread exportThread = Thread.ofPlatform().start(() -> {
-            while (running.get()) {
-                exporter.snapshotSupplier.get();
-            }
-        });
-        ThreadUtils.runConcurrentAndWait(threadCount, Duration.ofSeconds(10), threadIdx -> () -> {
-            for (int i = 0; i < iterations; i++) {
-                final String name = "metric_" + (i % namesCount);
-                if ((i + threadIdx) % 2 == 0) {
-                    try {
-                        registry.register(LongCounter.builder(name));
-                    } catch (IllegalArgumentException alreadyRegistered) {
-                        // another thread registered it first
+        ThreadUtils.runConcurrentAndCheck(
+                threadCount,
+                Duration.ofSeconds(10),
+                threadIdx -> () -> {
+                    for (int i = 0; i < iterations; i++) {
+                        final String name = "metric_" + (i % namesCount);
+                        if ((i + threadIdx) % 2 == 0) {
+                            try {
+                                registry.register(LongCounter.builder(name));
+                            } catch (IllegalArgumentException alreadyRegistered) {
+                                // another thread registered it first
+                            }
+                        } else {
+                            registry.remove(LongCounter.key(name));
+                        }
                     }
-                } else {
-                    registry.remove(LongCounter.key(name));
-                }
-            }
-        });
-        running.set(false);
-        exportThread.join();
+                },
+                () -> assertThat(exportedNames(exporter.snapshotSupplier.get()))
+                        .as("export has duplicate metrics")
+                        .doesNotHaveDuplicates());
 
-        List<String> exported = exportedNames(exporter.snapshotSupplier.get());
+        List<MetricSnapshot> exported = new ArrayList<>();
+        exporter.snapshotSupplier.get().forEach(exported::add);
         assertThat(exported)
-                .doesNotHaveDuplicates()
+                .as("exported snapshots are the ones of the registered metrics")
                 .containsExactlyInAnyOrderElementsOf(
-                        registry.metrics().stream().map(Metric::name).toList());
+                        registry.metrics().stream().map(Metric::snapshot).toList());
+    }
+
+    @Test
+    void testRemovedMetricStaysUsableButIsNotExported() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        LongCounter counter = registry.register(LongCounter.builder("removed").addDynamicLabelNames("label"));
+        counter.getOrCreateLabeled("label", "a").increment();
+
+        assertThat(registry.remove(LongCounter.key("removed"))).isTrue();
+        counter.getOrCreateLabeled("label", "a").increment();
+        counter.getOrCreateLabeled("label", "b").increment();
+
+        assertThat(counter.getOrCreateLabeled("label", "a").get()).isEqualTo(2);
+        assertThat(counter.removeIf(labelValues -> "b".equals(labelValues.get("label"))))
+                .isEqualTo(1);
+        assertThat(exportedNames(exporter.snapshotSupplier.get())).isEmpty();
     }
 
     private static List<String> exportedNames(MetricRegistrySnapshot registrySnapshot) {

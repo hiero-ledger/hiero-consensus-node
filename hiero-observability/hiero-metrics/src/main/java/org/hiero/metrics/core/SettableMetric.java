@@ -2,7 +2,6 @@
 package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -28,7 +27,7 @@ public abstract class SettableMetric<I, M> extends Metric {
     private final I defaultInitializer;
 
     private volatile M noLabelsMeasurement;
-    private final Map<LabelValues, M> measurements;
+    private final ConcurrentHashMap<LabelValues, M> measurements;
 
     protected SettableMetric(SettableMetric.Builder<I, ?, ?> builder) {
         super(builder);
@@ -129,19 +128,7 @@ public abstract class SettableMetric<I, M> extends Metric {
      * @throws NullPointerException  if the filter is {@code null}
      */
     public final int removeIf(@NonNull Predicate<LabelValues> filter) {
-        if (measurements == null) {
-            throw new IllegalStateException(
-                    "This metric has no dynamic labels, so it can be removed only from the metric registry");
-        }
-        Objects.requireNonNull(filter, "filter must not be null");
-
-        int removed = 0;
-        for (LabelValues labelValues : measurements.keySet()) {
-            if (filter.test(labelValues) && removeMeasurement(labelValues)) {
-                removed++;
-            }
-        }
-        return removed;
+        return removeMeasurements(measurements, filter);
     }
 
     /**
@@ -189,17 +176,6 @@ public abstract class SettableMetric<I, M> extends Metric {
         // the snapshot is added inside computeIfAbsent, so the map entry and its snapshot change together per key
         // and a failed snapshot creation leaves no measurement in the map
         return measurements.computeIfAbsent(labelValues, key -> createMeasurementAndSnapshot(key, initializer));
-    }
-
-    private boolean removeMeasurement(LabelValues labelValues) {
-        final boolean[] removed = {false};
-        // the snapshot is removed inside computeIfPresent, under the same map bin lock that guards its creation
-        measurements.computeIfPresent(labelValues, (key, _) -> {
-            removeMeasurementSnapshot(key);
-            removed[0] = true;
-            return null;
-        });
-        return removed[0];
     }
 
     private M createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {
