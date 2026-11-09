@@ -12,7 +12,7 @@ This doc lists every tag and what it means.
 These tags partition the suite by feature area. PR-check tasks use them to keep CI shards roughly
 balanced; for example, `hapiTestCrypto` includes only `CRYPTO`-tagged tests.
 
-| Tag                | Used by                                                                           | Meaning                                      |
+|        Tag         |                                      Used by                                      |                   Meaning                    |
 |--------------------|-----------------------------------------------------------------------------------|----------------------------------------------|
 | `CRYPTO`           | `hapiTestCrypto`, `hapiTestCryptoSerial`, `hapiTestCryptoEmbedded`                | Crypto-service tests                         |
 | `TOKEN`            | `hapiTestToken`, `hapiTestTokenSerial`                                            | Token-service tests                          |
