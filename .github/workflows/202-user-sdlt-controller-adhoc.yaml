@@ -279,6 +279,8 @@ jobs:
       allocation-id: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
+      enable-chaos: "${{ inputs.enable-chaos }}"
+
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
