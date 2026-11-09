@@ -29,10 +29,10 @@ contract ClprSystemContract {
     }
 
     function getChannelQueueState(bytes32 channelId)
-        external
+        external payable
         returns (uint64 receivedMessageId, uint64 ackedMessageId)
     {
-        (bool success, bytes memory result) = CLPR_PRECOMPILE.staticcall(
+        (bool success, bytes memory result) = CLPR_PRECOMPILE.call{value: msg.value}(
             abi.encodeWithSelector(
                 IClprSystemContract.getChannelQueueState.selector,
                 channelId

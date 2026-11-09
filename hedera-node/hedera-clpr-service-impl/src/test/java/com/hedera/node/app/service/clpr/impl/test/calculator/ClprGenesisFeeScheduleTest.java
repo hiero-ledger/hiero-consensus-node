@@ -32,8 +32,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 /**
- * Pins the CLPR fee proposal's prices in the genesis {@code simpleFeesSchedules.json} and the testnet and previewnet
- * upgrade schedules, so that any drift in a base fee, extra, or node/network exemption is caught.
+ * Pins the CLPR fee proposal's prices in the genesis and network upgrade schedules, so that any drift in a
+ * base fee, extra, or node/network exemption is caught.
  */
 class ClprGenesisFeeScheduleTest {
 
@@ -52,6 +52,7 @@ class ClprGenesisFeeScheduleTest {
                     "resources",
                     "genesis",
                     "simpleFeesSchedules.json"),
+            Path.of("..", "configuration", "mainnet", "upgrade", "simpleFeesSchedules.json"),
             Path.of("..", "configuration", "testnet", "upgrade", "simpleFeesSchedules.json"),
             Path.of("..", "configuration", "previewnet", "upgrade", "simpleFeesSchedules.json"));
 
@@ -87,8 +88,7 @@ class ClprGenesisFeeScheduleTest {
             Map.entry(CLPR_CLOSE_CHANNEL, Price.of(0)),
             Map.entry(CLPR_EVICT_PEER_ENDPOINT, Price.of(0)),
             Map.entry(CLPR_UPDATE_LEDGER_CONFIGURATION, Price.of(0)),
-            // Node-submitted; left free until nodes are funded to pay for it
-            Map.entry(CLPR_ENDPOINT_PUBLICATION, new Price(0, Map.of(), true)),
+            Map.entry(CLPR_ENDPOINT_PUBLICATION, Price.of(USD)),
             Map.entry(CLPR_GET_LEDGER_CONFIGURATION, Price.of(ONE_CENT).withExtras(Map.of(Extra.GAS, 0))),
             Map.entry(CLPR_GET_ENDPOINT_MANIFEST, Price.of(ONE_CENT).withExtras(Map.of(Extra.GAS, 0))));
 

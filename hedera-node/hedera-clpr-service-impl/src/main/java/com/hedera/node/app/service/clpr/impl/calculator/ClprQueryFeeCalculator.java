@@ -15,9 +15,10 @@ import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
- * A fee calculator for the CLPR queries, each of which builds a state proof and verifies its TSS signature. Besides
- * its base fee, each is charged {@link Extra#GAS} at {@link ClprFeeCalculator#VERIFIER_FEE_GAS} for that
- * verification, when the fee schedule lists the extra for the query.
+ * Calculates fees for the CLPR proof queries. When the schedule includes {@link Extra#GAS}, the quote
+ * uses {@link ClprFeeCalculator#VERIFIER_FEE_GAS} as a gas-equivalent estimate for building the proof
+ * and, if enabled, verifying its TSS signature. Both the quote and the payment check run before proof
+ * generation.
  *
  * @param functionality the CLPR query functionality for fee schedule lookup
  * @param queryType the query discriminant this calculator handles

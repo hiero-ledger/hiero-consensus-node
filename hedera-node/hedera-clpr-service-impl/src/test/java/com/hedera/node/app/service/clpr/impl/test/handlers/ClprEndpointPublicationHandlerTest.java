@@ -3,7 +3,10 @@ package com.hedera.node.app.service.clpr.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -15,6 +18,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
@@ -58,6 +62,8 @@ class ClprEndpointPublicationHandlerTest {
 
     private static final long PUBLISHER_NODE_ID = 7L;
     private static final long PEER_NODE_ID = 8L;
+    private static final AccountID PUBLISHER_ACCOUNT =
+            AccountID.newBuilder().accountNum(10L).build();
     private static final ClprEndpoint ENDPOINT = ClprEndpoint.newBuilder()
             .serviceEndpoint(ClprServiceEndpoint.newBuilder()
                     .ipAddress("127.0.0.1")
@@ -121,6 +127,18 @@ class ClprEndpointPublicationHandlerTest {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_NOT_ENABLED));
+    }
+
+    @Test
+    @DisplayName("signed user transactions cannot publish a node's endpoint")
+    void rejectsUserPublication() {
+        setupHandleContext(bodyWithEndpoint(), true);
+        given(handleContext.transactionCategory()).willReturn(USER);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(UNAUTHORIZED));
+        verify(constructionStore, never()).put(any());
     }
 
     @Test
@@ -193,6 +211,9 @@ class ClprEndpointPublicationHandlerTest {
         given(handleContext.configuration()).willReturn(config);
         lenient().when(handleContext.body()).thenReturn(body);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
+        lenient().when(creatorInfo.accountId()).thenReturn(PUBLISHER_ACCOUNT);
+        lenient().when(handleContext.payer()).thenReturn(PUBLISHER_ACCOUNT);
+        lenient().when(handleContext.transactionCategory()).thenReturn(NODE);
         lenient().when(creatorInfo.nodeId()).thenReturn(PUBLISHER_NODE_ID);
         lenient().when(handleContext.consensusNow()).thenReturn(Instant.parse("2026-07-30T12:00:00Z"));
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);

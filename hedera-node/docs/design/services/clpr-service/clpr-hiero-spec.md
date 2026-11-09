@@ -229,9 +229,7 @@ its stake) over the first four offences and would be banned on the 5th.
 **Endpoint payout:** on a slash event, the submitting endpoint receives the full
 penalty from the slashed stake (`ClprSlashingUtils.reimburseEndpoint`), capped at the
 staking account's balance. This is always paid to the *submitting* endpoint, regardless
-of which side (source or destination connector) was at fault. The CLPR fee proposal
-keeps this until a different destination for slash proceeds (a protocol treasury, a
-per-bundle cap) is decided.
+of which side (source or destination connector) was at fault.
 
 **Cross-implementation note:** the EVM CLPR implementation also uses geometric
 escalation with the same formula. The formula and defaults should be promoted to the
@@ -293,46 +291,33 @@ actual send, which may never happen on an idle channel.
 
 ---
 
-## E-10. `messageExecutionCost` (currently flat; planned gas-based)
+## E-10. Callback reimbursement and progress reward
 
 ### Current behavior
 
-Every successful inbound bundle dispatch charges the receiving connector:
+Each new inbound data message with a funded connector is charged before the application
+callback dispatch:
 
 ```
-charge = messageExecutionCost + margin
+charge = messageExecutionCost + progressRewardTinybars
 ```
 
 where:
 - `messageExecutionCost` — a flat `clpr.messageExecutionCost` config value (default:
 1,000,000 tinybars).
-- `margin` — `charge * clpr.endpointMarginPercent / 100`.
+- `progressRewardTinybars` — a flat reward (default: 10,000,000 tinybars, representing
+  $0.01 at the proposal's $0.10/ℏ reference rate).
 
 The full `charge` amount is paid to the **submitting endpoint** (the Hiero consensus
 node that submitted the `ClprSubmitBundle` transaction). There is no central treasury;
 the submitter receives the entire payment.
 
-### Planned behavior (Richard's directive)
+### Planned cost recovery
 
-The flat fee is a placeholder. The correct model is:
-
-> Charge connector `gasUsed * gasPriceTinybars * (1 + margin)`, where `gasUsed` is the
-> actual gas consumed by the application-contract dispatch. Pay the entire amount to
-> the submitter; there is no separate treasury account.
-
-This aligns the charge with actual compute cost and provides submitters honest
-incentives: submitters earn more by including higher-gas messages and are not penalized
-for low-gas messages. The margin component (`endpointMarginPercent`) remains the
-protocol's incentive premium above break-even.
-
-**Current limitation:** under the flat model, a high-gas message that costs more to
-execute than `messageExecutionCost` under-reimburses the submitting endpoint. Until the
-gas-based model is implemented, connectors sending gas-heavy messages impose an
-uncompensated cost on submitters.
-
-**Implementation note:** measuring `gasUsed` requires reading the child contract call
-result from the dispatch. `ClprSubmitBundleHandler` already captures the child call
-result to detect `APPLICATION_ERROR`; extending it to read `gasUsed` is straightforward.
+Callback reimbursement can be based on measured application gas, and the fee proposal's
+bundle billing appendix models recovering the actual submission fee separately, split by
+the number of messages attributed to each connector. The flat progress reward is paid
+once per newly dispatched message.
 
 See also D-8 in [DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md) and the
 "Success-path economics" subsection in [`config-and-slashing.md`](config-and-slashing.md).

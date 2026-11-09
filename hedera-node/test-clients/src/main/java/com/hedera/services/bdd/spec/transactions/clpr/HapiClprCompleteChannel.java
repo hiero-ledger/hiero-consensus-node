@@ -32,7 +32,7 @@ public class HapiClprCompleteChannel extends HapiTxnOp<HapiClprCompleteChannel> 
     private byte[] configProofBytes;
     private byte[] endpointManifestProofBytes;
 
-    /** Covers the $100 CLPR price plus its proof bytes and verifier gas at the test exchange rate; an explicit {@link #fee} overrides it. */
+    /** Covers the $100 CLPR price plus its persisted state bytes and verifier gas at the test exchange rate; an explicit {@link #fee} overrides it. */
     private static final long DEFAULT_MAX_FEE_TINYBARS = 2_000L * 100_000_000L;
 
     public HapiClprCompleteChannel() {

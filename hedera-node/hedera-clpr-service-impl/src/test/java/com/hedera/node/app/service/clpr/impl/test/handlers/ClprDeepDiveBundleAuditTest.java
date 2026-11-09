@@ -122,14 +122,10 @@ class ClprDeepDiveBundleAuditTest {
     // Per-message gas ceiling used by the default test config; the application callbacks
     // (onClprMessage / onClprResponse) are dispatched with this budget (spec §1.1 max_gas_per_message).
     private static final long TEST_MAX_GAS_PER_MESSAGE = 15_000_000L;
-    // Connector execution charge, mirrored into the test config in setupHandleContext():
-    //   worstCaseCharge = messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100
-    // (see ClprSubmitBundleHandler worstCaseCharge). Kept as named constants so the charge
-    // assertions below trace back to the config values that produce them.
+    // Per-message execution reimbursement and progress reward, configured in setupHandleContext().
     private static final long MESSAGE_EXECUTION_COST = 1_000_000L;
-    private static final long ENDPOINT_MARGIN_PERCENT = 10L;
-    private static final long WORST_CASE_CHARGE =
-            MESSAGE_EXECUTION_COST + MESSAGE_EXECUTION_COST * ENDPOINT_MARGIN_PERCENT / 100;
+    private static final long PROGRESS_REWARD = 10_000_000L;
+    private static final long WORST_CASE_CHARGE = MESSAGE_EXECUTION_COST + PROGRESS_REWARD;
     private static final Timestamp CONFIG_TIMESTAMP =
             Timestamp.newBuilder().seconds(1000).nanos(0).build();
     private static final Timestamp ZERO_TIMESTAMP =
@@ -763,7 +759,7 @@ class ClprDeepDiveBundleAuditTest {
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true);
         putConnectorWithStakeAndBalance(100_000_000L, 0, 0L);
-        // Balance 0 < worstCaseCharge (1_100_000) triggers the pre-check underfunded path; no dispatch
+        // Balance 0 < worstCaseCharge triggers the pre-check underfunded path; no dispatch
 
         subject.handle(handleContext);
 
@@ -963,14 +959,14 @@ class ClprDeepDiveBundleAuditTest {
         @DisplayName("within-budget dispatch succeeds; connector charge is independent of the gas limit")
         void withinBudgetDispatchChargesFlatExecutionCost() {
             setUpSingleDataDispatch();
-            // Even with a very large gas ceiling, the charge stays the flat messageExecutionCost + margin.
+            // Even with a very large gas ceiling, the charge stays the flat execution reimbursement + progress reward.
             overrideMaxGasPerMessage(30_000_000L);
 
             subject.handle(handleContext);
 
             final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
             assertThat(response.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
-            // WORST_CASE_CHARGE = messageExecutionCost + 10% margin, gas-limit-independent.
+            // WORST_CASE_CHARGE = messageExecutionCost + progress reward, gas-limit-independent.
             verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
         }
     }
@@ -2908,7 +2904,7 @@ class ClprDeepDiveBundleAuditTest {
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.endpointMarginPercent", String.valueOf(ENDPOINT_MARGIN_PERCENT))
+                .withValue("clpr.progressRewardTinybars", String.valueOf(PROGRESS_REWARD))
                 .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
                 .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
@@ -2993,7 +2989,7 @@ class ClprDeepDiveBundleAuditTest {
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.endpointMarginPercent", String.valueOf(ENDPOINT_MARGIN_PERCENT))
+                .withValue("clpr.progressRewardTinybars", String.valueOf(PROGRESS_REWARD))
                 .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
                 .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();

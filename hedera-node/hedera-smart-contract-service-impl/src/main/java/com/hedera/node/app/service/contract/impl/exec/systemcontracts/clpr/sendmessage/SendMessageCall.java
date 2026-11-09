@@ -7,16 +7,18 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_STATE_BYTE_FEE_TINYCENTS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.ClprCallPricing.valueTopUp;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasPlus;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
@@ -38,7 +40,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.support.fees.Extra;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -50,7 +51,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * <p>Delegates to {@link ClprServiceApi#sendMessage} for all business logic
  * and state mutations.
  *
- * <p>A call is priced at {@link ClprConfig#sendMessageFeeTinycents()}, plus the {@link Extra#STATE_BYTES} rate for each
+ * <p>A call is priced at {@link ClprConfig#sendMessageFeeTinycents()}, plus the CLPR state-byte rate for each
  * message data byte beyond {@link ClprConfig#sendMessageIncludedBytes()}. Like an HTS token creation, the call pays
  * part of that price as gas, and must attach at least the rest as value; only a successful send is charged that rest,
  * which is collected from the sender as a fee.
@@ -59,8 +60,8 @@ public class SendMessageCall extends AbstractCall {
 
     private static final Logger logger = LogManager.getLogger(SendMessageCall.class);
     /**
-     * The CLPR fee proposal's estimated gas for a {@code sendMessage} call. At the schedule's {@code GAS} rate (852
-     * tinycents) it pays about $0.0109 of the call's price; {@code valueFee} collects the rest from attached value.
+     * The CLPR fee proposal's gas estimate for native {@code sendMessage} work. EVM authorization
+     * gas is tracked separately from this estimate.
      */
     private static final long GAS_REQUIREMENT = 127_520L;
 
@@ -84,7 +85,7 @@ public class SendMessageCall extends AbstractCall {
     private final byte[] targetApplication;
     private final byte[] messageData;
     private boolean authorized;
-    private long valueFee = -1;
+    private long authorizationGasUsed;
 
     public SendMessageCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -113,8 +114,8 @@ public class SendMessageCall extends AbstractCall {
 
     /**
      * Schedules the connector's {@code authorizeOutboundMessage} as a child call frame on the sending transaction's
-     * own frame stack, with the CLPR system contract as {@code msg.sender} and a fixed gas budget that (as with the
-     * earlier child dispatch) is not charged to the caller. Because the child shares the sending transaction's context,
+     * own frame stack, with the CLPR system contract as {@code msg.sender}. The child can use up to 50,000
+     * of the caller's gas remaining after reserving the native cost. Because the child shares the transaction's context,
      * the connector observes its {@code tx.origin}, transient storage, and warm addresses; and when the sender is an EVM
      * hook, the hook's restrictions (e.g. no {@code DELEGATECALL} or {@code CALLCODE}) also apply to the connector.
      * The connector may update its own state and emit logs; these changes revert if the send or an enclosing call fails.
@@ -128,12 +129,10 @@ public class SendMessageCall extends AbstractCall {
         if (connector == null || !connector.hasConnectorContract() || frame.getDepth() >= MAX_STACK_DEPTH) {
             return false;
         }
-        // Without gas for the system contract charge the call halts with INSUFFICIENT_GAS, so skip authorization
-        if (frame.getRemainingGas() < GAS_REQUIREMENT) {
-            return false;
-        }
-        // A call without enough value for its fee is rejected anyway, so skip authorization
-        if (lacksValueFee(frame)) {
+        final long gasBudget =
+                Math.min(AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT, frame.getRemainingGas() - GAS_REQUIREMENT);
+        // Skip authorization if it cannot execute or its maximum gas cost still leaves a shortfall in attached value.
+        if (gasBudget <= 0 || !coversValueFee(frame, valueFee(frame, GAS_REQUIREMENT + gasBudget))) {
             return false;
         }
         final var contract = proxyUpdaterFor(frame).getHederaAccount(connector.connectorContractOrThrow());
@@ -146,7 +145,7 @@ public class SendMessageCall extends AbstractCall {
         MessageFrame.builder()
                 .parentMessageFrame(frame)
                 .type(MessageFrame.Type.MESSAGE_CALL)
-                .initialGas(AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT)
+                .initialGas(gasBudget)
                 .address(contract.getAddress())
                 .contract(contract.getAddress())
                 .inputData(org.apache.tuweni.bytes.Bytes.wrap(callData))
@@ -155,7 +154,7 @@ public class SendMessageCall extends AbstractCall {
                 .apparentValue(Wei.ZERO)
                 .code(codeCache.getCodeFromTuweni(contract.getCode()))
                 .isStatic(frame.isStatic())
-                .completer(child -> completeAuthorization(frame, child, continuation))
+                .completer(child -> completeAuthorization(frame, child, gasBudget, continuation))
                 .build();
         frame.setState(MessageFrame.State.CODE_SUSPENDED);
         return true;
@@ -164,7 +163,12 @@ public class SendMessageCall extends AbstractCall {
     private void completeAuthorization(
             @NonNull final MessageFrame frame,
             @NonNull final MessageFrame child,
+            final long gasBudget,
             @NonNull final Runnable continuation) {
+        authorizationGasUsed = gasBudget - child.getRemainingGas();
+        // Charge the child once here. The result's gas requirement is only the native work,
+        // which the message processor separately charges and records as system contract work.
+        frame.decrementRemainingGas(authorizationGasUsed);
         authorized = child.getState() == MessageFrame.State.COMPLETED_SUCCESS
                 && decodeBoolResult(tuweniToPbjBytes(child.getOutputData()));
         // Merge the child's logs as a CALL's completer would; if authorization fails the send reverts, clearing them
@@ -175,8 +179,9 @@ public class SendMessageCall extends AbstractCall {
 
     @Override
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
-        if (lacksValueFee(frame)) {
-            return gasOnly(ordinalRevertResult(INSUFFICIENT_TX_FEE, GAS_REQUIREMENT), INSUFFICIENT_TX_FEE, false);
+        final long fee = valueFee(frame, GAS_REQUIREMENT + authorizationGasUsed);
+        if (!coversValueFee(frame, fee)) {
+            return insufficientValue();
         }
         if (!authorized) {
             return gasOnly(
@@ -194,9 +199,8 @@ public class SendMessageCall extends AbstractCall {
                     Bytes.wrap(senderAddress.getBytes().toArray()),
                     Bytes.wrap(messageData));
             logger.info("[CLPR-DEBUG] SendMessageCall: SUCCESS assignedMessageId={}", assignedMessageId);
-            final long fee = valueFee(frame);
-            if (fee > 0) {
-                operations().collectHtsFee(senderId, fee);
+            if (fee > 0 && !proxyUpdaterFor(frame).collectClprFee(senderId, fee)) {
+                return insufficientValue();
             }
             return gasPlus(
                     successResult(
@@ -220,29 +224,23 @@ public class SendMessageCall extends AbstractCall {
         }
     }
 
-    private boolean lacksValueFee(@NonNull final MessageFrame frame) {
-        return frame.getValue().lessThan(Wei.of(valueFee(frame)));
+    private static PricedResult insufficientValue() {
+        return gasOnly(ordinalRevertResult(INSUFFICIENT_TX_FEE, GAS_REQUIREMENT), INSUFFICIENT_TX_FEE, false);
     }
 
-    /**
-     * Returns the part of this call's price, in tinybars, that its gas does not pay for and that the caller must
-     * attach as value.
-     */
-    private long valueFee(@NonNull final MessageFrame frame) {
-        if (valueFee < 0) {
-            final var clprConfig = configOf(frame).getConfigData(ClprConfig.class);
-            long priceInTinycents = clprConfig.sendMessageFeeTinycents();
-            final long extraBytes = (long) messageData.length - clprConfig.sendMessageIncludedBytes();
-            if (extraBytes > 0) {
-                final var stateBytes =
-                        lookupExtraFee(systemContractOperations().simpleFeesSchedule(), Extra.STATE_BYTES);
-                final long byteFee = stateBytes == null ? 0 : stateBytes.fee();
-                priceInTinycents = clampedAdd(priceInTinycents, clampedMultiply(extraBytes, byteFee));
-            }
-            final long price = operations().valueInTinybars(priceInTinycents);
-            valueFee = Math.max(0, price - gasCalculator.gasCostInTinybars(GAS_REQUIREMENT));
-        }
-        return valueFee;
+    private static boolean coversValueFee(@NonNull final MessageFrame frame, final long fee) {
+        return fee == 0 || (!isDelegateCall(frame) && !frame.getValue().lessThan(Wei.of(fee)));
+    }
+
+    private long valueFee(@NonNull final MessageFrame frame, final long gas) {
+        final var clprConfig = configOf(frame).getConfigData(ClprConfig.class);
+        final long topUp = valueTopUp(frame, operations(), clprConfig.sendMessageFeeTinycents(), gas);
+        final long extraBytes = Math.max(0, (long) messageData.length - clprConfig.sendMessageIncludedBytes());
+        return extraBytes == 0
+                ? topUp
+                : clampedAdd(
+                        topUp,
+                        operations().valueInTinybars(clampedMultiply(extraBytes, CLPR_STATE_BYTE_FEE_TINYCENTS)));
     }
 
     /**

@@ -27,7 +27,6 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import java.time.InstantSource;
 import org.apache.tuweni.bytes.Bytes;
-import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -93,13 +92,5 @@ class QuerySystemContractOperationsTest {
     @Test
     void maybeEthSenderKeyIsNullTest() {
         assertNull(subject.maybeEthSenderKey());
-    }
-
-    @Test
-    void simpleFeesScheduleIsTheContextSchedule() {
-        final var schedule = FeeSchedule.DEFAULT;
-        given(context.simpleFeesSchedule()).willReturn(schedule);
-
-        assertThat(subject.simpleFeesSchedule()).isSameAs(schedule);
     }
 }

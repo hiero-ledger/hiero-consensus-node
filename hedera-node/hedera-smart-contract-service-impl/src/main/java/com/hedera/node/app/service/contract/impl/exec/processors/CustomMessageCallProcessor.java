@@ -6,11 +6,9 @@ import static com.hedera.hapi.streams.CallOperationType.OP_CREATE;
 import static com.hedera.hapi.streams.CallOperationType.OP_STATICCALL;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
-import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.*;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage.SendMessageTranslator.SEND_MESSAGE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.*;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
@@ -29,6 +27,7 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
@@ -152,7 +151,6 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
-    private static final Address CLPR_SYSTEM_CONTRACT_ADDRESS = Address.fromHexString(CLPR_EVM_ADDRESS);
 
     private final Map<Address, HederaSystemContract> systemContracts;
     private final ContractMetrics contractMetrics;
@@ -233,6 +231,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
 
     private void handleSystemContractCall(
             @NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
+        final var systemContract = systemContracts.get(context.executableCodeAddress);
         if (context.isCodeDelegation) {
             final var recipientIsTokenOrScheduleAccount = context.contractAccount.stream()
                     .anyMatch(a -> a instanceof TokenEvmAccount || a instanceof ScheduleEvmAccount);
@@ -243,7 +242,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                 if (context.transfersValue) {
                     doHalt(context, INVALID_CONTRACT_ID, tracer);
                 } else {
-                    doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
+                    doExecuteSystemContract(context, systemContract);
                 }
             } else {
                 // For any other Hedera accounts: code delegation to System Contracts is a no-op - so just succeed.
@@ -254,11 +253,14 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                     doTransferValueOrHalt(context, tracer);
                 }
             }
-        } else if (context.transfersValue && !isTokenCreation(context.frame) && !isClprSendMessage(context)) {
-            // System Contract calls that transfer value aren't allowed, unless they're token creation or CLPR sends.
+        } else if (context.transfersValue
+                && !isTokenCreation(context.frame)
+                && !(systemContract instanceof AbstractClprSystemContract clpr
+                        && clpr.acceptsValue(context.frame.getInputData()))) {
+            // Only token creation and priced CLPR calls can attach value.
             doHalt(context, INVALID_CONTRACT_ID, tracer);
         } else {
-            doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
+            doExecuteSystemContract(context, systemContract);
         }
     }
 
@@ -459,20 +461,6 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      */
     private static boolean isAllowanceHook(final @NonNull MessageFrame frame, final Address codeAddress) {
         return FrameUtils.isHookExecution(frame) && HTS_HOOKS_CONTRACT_ADDRESS.equals(codeAddress);
-    }
-
-    /**
-     * Checks if the given call is a CLPR {@code sendMessage}, which may carry value to pay the part of its fee
-     * that its gas does not cover.
-     *
-     * @param context the message call context to check
-     * @return true if the call targets the CLPR system contract with the {@code sendMessage} selector
-     */
-    private static boolean isClprSendMessage(@NonNull final CustomMessageCallContext context) {
-        final var input = context.frame.getInputData();
-        return CLPR_SYSTEM_CONTRACT_ADDRESS.equals(context.executableCodeAddress)
-                && input.size() >= 4
-                && Arrays.equals(SEND_MESSAGE.selector(), input.slice(0, 4).toArray());
     }
 
     /**

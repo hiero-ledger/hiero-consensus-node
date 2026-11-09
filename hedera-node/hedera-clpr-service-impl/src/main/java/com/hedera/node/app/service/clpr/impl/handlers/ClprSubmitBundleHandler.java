@@ -183,14 +183,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var throttles = ledgerConfig.throttlesOrThrow();
         log.debug(
                 "[ClprSubmitBundle] ledger config conn={} maxSyncBytes={} maxMessagesPerBundle={} "
-                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} endpointMarginPercent={}",
+                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} progressRewardTinybars={}",
                 channelId,
                 throttles.maxSyncBytes(),
                 throttles.maxMessagesPerBundle(),
                 throttles.maxMessagePayloadBytes(),
                 throttles.maxGasPerMessage(),
                 clprConfig.messageExecutionCost(),
-                clprConfig.endpointMarginPercent());
+                clprConfig.progressRewardTinybars());
 
         // Complete node validation before any state mutation or application dispatch. The
         // validator is independent of handling so endpoints can reuse it with locally verified content.
@@ -467,10 +467,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         outbound.enqueueReply(
                                 receivedMessageId, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND, Bytes.EMPTY);
                     } else {
-                        // Compute worst-case charge: execution cost + endpoint margin
-                        final var executionCost = clprConfig.messageExecutionCost();
-                        final var margin = executionCost * clprConfig.endpointMarginPercent() / 100;
-                        final var worstCaseCharge = executionCost + margin;
+                        // Reimburse execution and pay the flat progress reward once for this new data message.
+                        final var worstCaseCharge =
+                                Math.addExact(clprConfig.messageExecutionCost(), clprConfig.progressRewardTinybars());
 
                         // Validate the connector has sufficient balance before dispatching.
                         // Use getContractById to handle both contractNum and evmAddress forms.

@@ -16,11 +16,11 @@ interface IClprSystemContract {
         bytes calldata messageData
     ) external payable returns (uint64 messageId);
 
-    /// Returns queue delivery counters for a channel.
+    /// Returns queue delivery counters for a channel. Attach enough value for its fee top-up.
     /// @param channelId 32-byte channel identifier
     /// @return receivedMessageId total inbound messages processed (advances on each received bundle)
     /// @return ackedMessageId total outbound messages acknowledged (advances when peer confirms delivery)
     function getChannelQueueState(bytes32 channelId)
-        external
+        external payable
         returns (uint64 receivedMessageId, uint64 ackedMessageId);
 }

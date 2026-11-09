@@ -21,7 +21,7 @@ public final class ClprConfigBuilder {
     private int slashBanThreshold = 5;
     private long endpointMisbehaviorPenaltyTinybars = 5_000_000L;
     private long messageExecutionCost = 1_000_000L;
-    private int endpointMarginPercent = 10;
+    private long progressRewardTinybars = 10_000_000L;
     private int maxConcurrentSyncs = 4;
     private int syncTimeoutSeconds = 30;
     private int reputationDecaySeconds = 300;
@@ -105,8 +105,8 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder endpointMarginPercent(final int endpointMarginPercent) {
-        this.endpointMarginPercent = endpointMarginPercent;
+    public ClprConfigBuilder progressRewardTinybars(final long progressRewardTinybars) {
+        this.progressRewardTinybars = progressRewardTinybars;
         return this;
     }
 
@@ -218,7 +218,7 @@ public final class ClprConfigBuilder {
                 slashBanThreshold,
                 endpointMisbehaviorPenaltyTinybars,
                 messageExecutionCost,
-                endpointMarginPercent,
+                progressRewardTinybars,
                 maxConcurrentSyncs,
                 syncTimeoutSeconds,
                 reputationDecaySeconds,
@@ -239,6 +239,7 @@ public final class ClprConfigBuilder {
                 manifestMaxGraceExtensions,
                 manifestSubmissionRetries,
                 manifestSubmissionRetryDelay,
-                manifestSubmissionDistinctTxnIds);
+                manifestSubmissionDistinctTxnIds,
+                10_000_000_000L);
     }
 }

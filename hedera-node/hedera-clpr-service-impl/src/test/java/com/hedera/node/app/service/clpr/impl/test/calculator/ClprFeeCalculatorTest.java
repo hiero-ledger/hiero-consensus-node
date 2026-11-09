@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
@@ -39,7 +40,7 @@ class ClprFeeCalculatorTest {
     private static final long STATE_BYTE_FEE_TINYCENTS = 1_000_000L;
     private static final long PROCESSING_BYTE_FEE_TINYCENTS = 10_000L;
     private static final long GAS_FEE_TINYCENTS = 852L;
-    private static final int INCLUDED_PROOF_BYTES = 8_192;
+    private static final int INCLUDED_STATE_BYTES = 8_192;
 
     private static final TransactionBody SUBMIT_BUNDLE = TransactionBody.newBuilder()
             .clprSubmitBundle(ClprSubmitBundleTransactionBody.newBuilder()
@@ -48,7 +49,7 @@ class ClprFeeCalculatorTest {
             .build();
     private static final TransactionBody COMPLETE_CHANNEL = TransactionBody.newBuilder()
             .clprCompleteChannel(ClprCompleteChannelTransactionBody.newBuilder()
-                    .configProofBytes(Bytes.wrap(new byte[INCLUDED_PROOF_BYTES]))
+                    .configProofBytes(Bytes.wrap(new byte[INCLUDED_STATE_BYTES]))
                     .endpointManifestProofBytes(Bytes.wrap(new byte[500]))
                     .build())
             .build();
@@ -107,23 +108,23 @@ class ClprFeeCalculatorTest {
     }
 
     @Test
-    @DisplayName("ClprCompleteChannel is charged for proof bytes beyond those included, not a fixed verifier gas")
-    void completeChannelChargesProofBytesButNoFixedVerifierGas() {
+    @DisplayName("ClprCompleteChannel bills verifier gas and stored bytes during handle")
+    void completeChannelAccumulatesOnlyItsBaseFee() {
         final var calculator =
                 new ClprFeeCalculator(CLPR_COMPLETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_COMPLETE_CHANNEL);
         final var feeResult = new FeeResult();
         final var feeSchedule = scheduleWith(
                 CLPR_COMPLETE_CHANNEL,
-                makeExtraIncluded(Extra.STATE_BYTES, INCLUDED_PROOF_BYTES),
+                makeExtraIncluded(Extra.STATE_BYTES, INCLUDED_STATE_BYTES),
                 makeExtraIncluded(Extra.GAS, 0));
 
         calculator.accumulateServiceFee(COMPLETE_CHANNEL, mock(SimpleFeeContext.class), feeResult, feeSchedule);
 
-        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(BASE_FEE_TINYCENTS + 500 * STATE_BYTE_FEE_TINYCENTS);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(BASE_FEE_TINYCENTS);
     }
 
     @Test
-    @DisplayName("ClprSubmitBundle is charged for every payload byte, not a fixed verifier gas")
+    @DisplayName("ClprSubmitBundle accrues the CLPR rate for every payload byte before handle")
     void submitBundleChargesPayloadBytesButNoFixedVerifierGas() {
         final var feeResult = new FeeResult();
         final var feeSchedule = scheduleWith(
@@ -131,8 +132,7 @@ class ClprFeeCalculatorTest {
 
         subject.accumulateServiceFee(SUBMIT_BUNDLE, mock(SimpleFeeContext.class), feeResult, feeSchedule);
 
-        assertThat(feeResult.getServiceTotalTinycents())
-                .isEqualTo(BASE_FEE_TINYCENTS + 1_000 * PROCESSING_BYTE_FEE_TINYCENTS);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(BASE_FEE_TINYCENTS + 1_000 * 1_000L);
     }
 
     private static FeeSchedule scheduleWith(
@@ -173,6 +173,10 @@ class ClprFeeCalculatorTest {
                 Arguments.of(
                         CLPR_DEREGISTER_CONNECTOR,
                         TransactionBody.DataOneOfType.CLPR_DEREGISTER_CONNECTOR,
+                        TransactionBody.DEFAULT),
+                Arguments.of(
+                        CLPR_ENDPOINT_PUBLICATION,
+                        TransactionBody.DataOneOfType.CLPR_ENDPOINT_PUBLICATION,
                         TransactionBody.DEFAULT),
                 Arguments.of(CLPR_SUBMIT_BUNDLE, TransactionBody.DataOneOfType.CLPR_SUBMIT_BUNDLE, SUBMIT_BUNDLE));
     }
