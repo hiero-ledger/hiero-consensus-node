@@ -168,8 +168,8 @@ The CLPR-specific byte rates are $0.00001 per state byte and $0.0000001 per bund
 
 Besides its base fee, `ClprCompleteChannel` pays the `STATE_BYTES` extra for its serialized channel state,
 with the first 8,192 bytes included. `ClprSubmitBundle` pays the `PROCESSING_BYTES` extra for its bundle
-payload. Both reserve 300,000 units for the verifier `GAS` extra and settle against the measured verifier
-gas up to that cap on successful handling.
+payload. Both bill the verifier's measured gas, capped at 300,000 units, at the schedule's global
+`GAS` rate during successful handling.
 
 The `ClprGetLedgerConfiguration` and `ClprGetEndpointManifest` queries are priced by `ClprQueryFeeCalculator`
 (exposed by `FacilityInitModule.provideClprQueryFeeCalculators`). Both quote $0.01 plus 300,000 gas units at the

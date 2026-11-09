@@ -21,6 +21,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -40,6 +42,7 @@ import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -51,6 +54,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -163,6 +167,7 @@ class EvmClprVerifierTest {
         assertThat(content.metadata()).isNotNull();
         assertThat(content.metadata().nextMessageId()).isEqualTo(1L);
         assertThat(content.newEndpointManifest()).isNull();
+        verify(context, never()).tryToChargePayer(anyLong());
     }
 
     @Test
@@ -177,13 +182,14 @@ class EvmClprVerifierTest {
         assertThat(content.metadata().endpointManifestVersion()).isEqualTo(9L);
     }
 
-    @Test
-    void refundsUnusedVerifierGasFromTheBundleReservationAtTheChargedCongestionMultiplier() {
+    @ParameterizedTest
+    @CsvSource({"100000,100000", "500000,300000"})
+    void chargesMeasuredBundleVerifierGasUpToTheCap(final long gasUsed, final long gasCharged) {
         final var payload = Bytes.wrap(new byte[100]);
         givenConfig();
         givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
         given(dispatchResult.hasContractResult()).willReturn(true);
-        given(dispatchResult.getGasUsedForContractTxn()).willReturn(100_000L);
+        given(dispatchResult.getGasUsedForContractTxn()).willReturn(gasUsed);
         given(context.simpleFeesSchedule())
                 .willReturn(FeeSchedule.newBuilder()
                         .extras(makeExtraDef(Extra.GAS, 852L), makeExtraDef(Extra.PROCESSING_BYTES, 10_000L))
@@ -192,11 +198,11 @@ class EvmClprVerifierTest {
                                 makeServiceFee(
                                         CLPR_SUBMIT_BUNDLE,
                                         100_000_000L,
-                                        makeExtraIncluded(Extra.GAS, 0),
                                         makeExtraIncluded(Extra.PROCESSING_BYTES, 0))))
                         .build());
         given(context.body())
                 .willReturn(TransactionBody.newBuilder()
+                        .transactionFee(2_000_000_000L)
                         .clprSubmitBundle(
                                 ClprSubmitBundleTransactionBody.newBuilder().bundlePayload(payload))
                         .build());
@@ -206,9 +212,19 @@ class EvmClprVerifierTest {
         given(((FeeContext) context).tinybarsFromTinycents(anyLong()))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
+        final var savepointStack = mock(HandleContext.SavepointStack.class);
+        final var streamBuilder = mock(StreamBuilder.class);
+        given(context.savepointStack()).willReturn(savepointStack);
+        given(savepointStack.getBaseBuilder(StreamBuilder.class)).willReturn(streamBuilder);
+        given(streamBuilder.isUserDispatch()).willReturn(true);
+        given(streamBuilder.transactionFee()).willReturn(100_000_000L);
+        final long gasFee = gasCharged * 852L * 2;
+        given(context.tryToChargePayer(gasFee)).willReturn(true);
+
         subject.verifyBundle(payload, Bytes.EMPTY, Bytes.EMPTY, context);
 
-        verify(context).refundServiceFee(PAYER, 200_000L * 852L * 2);
+        verify(context).tryToChargePayer(gasFee);
+        verify(context, never()).refundServiceFee(any(), anyLong());
     }
 
     @Test

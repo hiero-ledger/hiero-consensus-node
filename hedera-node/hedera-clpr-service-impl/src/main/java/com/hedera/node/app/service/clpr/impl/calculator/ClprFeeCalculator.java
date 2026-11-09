@@ -29,10 +29,9 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  * A single fee calculator for all CLPR transaction types. Each instance is parameterized
  * by the {@link HederaFunctionality} and {@link TransactionBody.DataOneOfType} it handles.
  *
- * <p>Both channel completion and bundle submission reserve {@link #VERIFIER_FEE_GAS} for the verifier.
- * Bundle submission also pays {@link Extra#PROCESSING_BYTES} for the bundle payload. Channel completion's
- * {@link Extra#STATE_BYTES} charge is settled during handle, once the size of the channel state is known.
- * Each extra applies only when the fee schedule lists it for the transaction.
+ * <p>Bundle submission pays {@link Extra#PROCESSING_BYTES} for its submitted payload. Channel completion's
+ * {@link Extra#STATE_BYTES} charge is calculated during handle, once the size of the persisted channel is known.
+ * Both transactions settle measured verifier gas during handle, using the global {@link Extra#GAS} rate.
  *
  * @param functionality the CLPR functionality for fee schedule lookup
  * @param transactionType the transaction body discriminant this calculator handles
@@ -41,8 +40,8 @@ public record ClprFeeCalculator(
         @NonNull HederaFunctionality functionality, @NonNull TransactionBody.DataOneOfType transactionType)
         implements ServiceFeeCalculator {
     /**
-     * The verifier gas reserved before handle and the cap on the verifier's final charge. Actual execution
-     * remains bounded by {@code clpr.verifierGasLimit}.
+     * The cap on the verifier's actual gas charge and the fixed gas-equivalent fee for proof queries.
+     * The native verifier execution limit remains separately configurable.
      */
     public static final long VERIFIER_FEE_GAS = 300_000L;
 
@@ -57,7 +56,7 @@ public record ClprFeeCalculator(
             @NonNull final FeeSchedule feeSchedule) {
         final var serviceDef = lookupServiceFee(feeSchedule, functionality);
         if (serviceDef != null) {
-            addServiceFee(feeResult, serviceDef, feeSchedule, txnBody, VERIFIER_FEE_GAS, 0);
+            addServiceFee(feeResult, serviceDef, txnBody, 0);
         }
     }
 
@@ -72,9 +71,9 @@ public record ClprFeeCalculator(
         settleServiceFee(context, CLPR_COMPLETE_CHANNEL, gasUsed, stateBytes);
     }
 
-    /** Settles the bundle's reserved verifier gas. Its processing bytes were known up front. */
+    /** Charges the bundle's measured verifier gas. Its processing bytes were known up front. */
     public static void settleBundleVerifierFee(@NonNull final HandleContext context, final long gasUsed) {
-        if (gasUsed < VERIFIER_FEE_GAS) {
+        if (gasUsed > 0) {
             settleServiceFee(context, CLPR_SUBMIT_BUNDLE, gasUsed, 0);
         }
     }
@@ -88,7 +87,6 @@ public record ClprFeeCalculator(
         final var serviceDef = lookupServiceFee(feeSchedule, function);
         if (serviceDef == null
                 || serviceDef.free()
-                || serviceDef.extras().isEmpty()
                 || context.configuration().getConfigData(FeesConfig.class).simpleFeesAreFree()) {
             return;
         }
@@ -101,9 +99,16 @@ public record ClprFeeCalculator(
         }
 
         final var prepaid = new FeeResult();
-        addServiceFee(prepaid, serviceDef, feeSchedule, body, VERIFIER_FEE_GAS, 0);
+        addServiceFee(prepaid, serviceDef, body, 0);
         final var measured = new FeeResult();
-        addServiceFee(measured, serviceDef, feeSchedule, body, Math.clamp(gasUsed, 0, VERIFIER_FEE_GAS), stateBytes);
+        addServiceFee(measured, serviceDef, body, stateBytes);
+        if (gasUsed > 0) {
+            measured.addServiceExtraFeeTinycents(
+                    Extra.GAS.name(),
+                    lookupExtraFee(feeSchedule, Extra.GAS).fee(),
+                    Math.min(gasUsed, VERIFIER_FEE_GAS),
+                    0);
+        }
         if (prepaid.getServiceTotalTinycents() == measured.getServiceTotalTinycents()) {
             return;
         }
@@ -121,28 +126,18 @@ public record ClprFeeCalculator(
                 validateTrue(delta <= body.transactionFee() - builder.transactionFee(), INSUFFICIENT_TX_FEE);
             }
             validateTrue(context.tryToChargePayer(delta), INSUFFICIENT_PAYER_BALANCE);
-        } else if (delta < 0) {
-            context.refundServiceFee(payer, -delta);
         }
     }
 
     private static void addServiceFee(
             @NonNull final FeeResult result,
             @NonNull final ServiceFeeDefinition serviceDef,
-            @NonNull final FeeSchedule schedule,
             @NonNull final TransactionBody body,
-            final long verifierGas,
             final int stateBytes) {
         result.setServiceBaseFeeTinycents(serviceDef.baseFee());
         if (serviceDef.name() == CLPR_COMPLETE_CHANNEL || serviceDef.name() == CLPR_SUBMIT_BUNDLE) {
             for (final var extra : serviceDef.extras()) {
                 switch (extra.name()) {
-                    case GAS ->
-                        result.addServiceExtraFeeTinycents(
-                                Extra.GAS.name(),
-                                lookupExtraFee(schedule, Extra.GAS).fee(),
-                                verifierGas,
-                                extra.includedCount());
                     case STATE_BYTES -> {
                         if (serviceDef.name() == CLPR_COMPLETE_CHANNEL) {
                             result.addServiceExtraFeeTinycents(

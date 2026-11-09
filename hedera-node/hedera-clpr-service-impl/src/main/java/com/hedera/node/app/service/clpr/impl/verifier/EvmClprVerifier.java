@@ -360,7 +360,7 @@ public class EvmClprVerifier implements ClprVerifier {
                 "[EvmClprVerifier] dispatchRaw EXIT: evmResultBytes={} evmResultHash={}",
                 evmResult.length(),
                 shortHex(MiscCryptoUtils.keccak256DigestOf(evmResult)));
-        final long gasUsed = result.hasContractResult() ? result.getGasUsedForContractTxn() : Long.MAX_VALUE;
+        final long gasUsed = result.hasContractResult() ? result.getGasUsedForContractTxn() : 0;
         return new VerifierResult(evmResult, gasUsed);
     }
 

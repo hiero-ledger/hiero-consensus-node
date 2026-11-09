@@ -13,8 +13,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public record VerifiedConfig(
         @NonNull ClprLedgerConfiguration config, @NonNull ClprEndpointManifest manifest, long verifierGasUsed) {
-    /** Use the prepaid verifier charge when the implementation does not report measured gas. */
+    /** A verifier that does not report measured gas incurs no gas charge. */
     public VerifiedConfig(@NonNull final ClprLedgerConfiguration config, @NonNull final ClprEndpointManifest manifest) {
-        this(config, manifest, Long.MAX_VALUE);
+        this(config, manifest, 0);
     }
 }

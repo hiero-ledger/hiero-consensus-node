@@ -18,7 +18,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdFromRecordWithTxnSize;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.GAS_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NETWORK_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_BASE_FEE_USD;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_INCLUDED_BYTES;
@@ -52,9 +51,10 @@ import org.junit.jupiter.api.Tag;
  * <ul>
  *   <li>{@code registerChannel} — success path; the permissionless commit only needs CLPR enabled, and pays the
  *       full $100 base fee.</li>
- *   <li>{@code submitBundle} and {@code registerConnector} — failure paths against an unknown channel. Pre-check
- *       passes and the handler throws {@code CLPR_CHANNEL_NOT_FOUND}, so the payer is charged the configured
- *       base fee and extras. A bundle is exempt from node and network fees, so it pays only its service fee.</li>
+ *   <li>{@code submitBundle} and {@code registerConnector} — failure paths against an unknown channel. Both
+ *       pay the configured base fee. Bundle submission also pays for its payload bytes, and the handler
+ *       returns {@code CLPR_CHANNEL_NOT_FOUND} before running the verifier. Bundles are exempt from node and
+ *       network fees.</li>
  *   <li>{@code updateLedgerConfiguration} and {@code closeChannel} — a non-admin payer fails authorization at
  *       consensus. The admin-only transactions have a $0 service fee, so a non-admin pays only the node and
  *       network fees.</li>
@@ -89,12 +89,10 @@ public class ClprBaseFeeSuite {
     /** {@code ClprRegisterConnector} base fee from genesis simpleFeesSchedules.json. */
     private static final double REGISTER_CONNECTOR_FEE_USD = 10.0;
 
-    /** {@code ClprSubmitBundle} base fee and verifier gas charged by its calculator. */
+    /** {@code ClprSubmitBundle} base fee charged by its calculator. */
     private static final double SUBMIT_BUNDLE_BASE_FEE_USD = 0.01;
 
     private static final double CLPR_BUNDLE_BYTE_FEE_USD = 0.0000001;
-
-    private static final long SUBMIT_BUNDLE_VERIFIER_GAS = 300_000L;
 
     /** Matches the HIP-1261 simple-fees convention. Tight, because the expected USD is precise. */
     private static final double ALLOWED_PERCENT_DIFF = 0.1;
@@ -105,10 +103,9 @@ public class ClprBaseFeeSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> failedSubmitBundleChargesConfiguredFees() {
         final var txn = "clprSubmitBundleConfiguredFeesTxn";
-        final var bundlePayload = new byte[] {1};
-        final double serviceFeeUsd = SUBMIT_BUNDLE_BASE_FEE_USD
-                + bundlePayload.length * CLPR_BUNDLE_BYTE_FEE_USD
-                + SUBMIT_BUNDLE_VERIFIER_GAS * GAS_FEE_USD;
+        // Make the payload surcharge large enough to distinguish the CLPR rate from the global byte rate.
+        final var bundlePayload = new byte[1_024];
+        final double serviceFeeUsd = SUBMIT_BUNDLE_BASE_FEE_USD + bundlePayload.length * CLPR_BUNDLE_BYTE_FEE_USD;
         return hapiTest(
                 overriding("fees.simpleFeesEnabled", "true"),
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),

@@ -10,7 +10,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNE
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
-import static com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator.VERIFIER_FEE_GAS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -41,7 +40,7 @@ class ClprFeeCalculatorTest {
     private static final long STATE_BYTE_FEE_TINYCENTS = 1_000_000L;
     private static final long PROCESSING_BYTE_FEE_TINYCENTS = 10_000L;
     private static final long GAS_FEE_TINYCENTS = 852L;
-    private static final int INCLUDED_PROOF_BYTES = 8_192;
+    private static final int INCLUDED_STATE_BYTES = 8_192;
 
     private static final TransactionBody SUBMIT_BUNDLE = TransactionBody.newBuilder()
             .clprSubmitBundle(ClprSubmitBundleTransactionBody.newBuilder()
@@ -50,7 +49,7 @@ class ClprFeeCalculatorTest {
             .build();
     private static final TransactionBody COMPLETE_CHANNEL = TransactionBody.newBuilder()
             .clprCompleteChannel(ClprCompleteChannelTransactionBody.newBuilder()
-                    .configProofBytes(Bytes.wrap(new byte[INCLUDED_PROOF_BYTES]))
+                    .configProofBytes(Bytes.wrap(new byte[INCLUDED_STATE_BYTES]))
                     .endpointManifestProofBytes(Bytes.wrap(new byte[500]))
                     .build())
             .build();
@@ -109,33 +108,31 @@ class ClprFeeCalculatorTest {
     }
 
     @Test
-    @DisplayName("ClprCompleteChannel reserves verifier gas and leaves storage charging to handle")
-    void completeChannelReservesVerifierGas() {
+    @DisplayName("ClprCompleteChannel bills verifier gas and stored bytes during handle")
+    void completeChannelAccumulatesOnlyItsBaseFee() {
         final var calculator =
                 new ClprFeeCalculator(CLPR_COMPLETE_CHANNEL, TransactionBody.DataOneOfType.CLPR_COMPLETE_CHANNEL);
         final var feeResult = new FeeResult();
         final var feeSchedule = scheduleWith(
                 CLPR_COMPLETE_CHANNEL,
-                makeExtraIncluded(Extra.STATE_BYTES, INCLUDED_PROOF_BYTES),
+                makeExtraIncluded(Extra.STATE_BYTES, INCLUDED_STATE_BYTES),
                 makeExtraIncluded(Extra.GAS, 0));
 
         calculator.accumulateServiceFee(COMPLETE_CHANNEL, mock(SimpleFeeContext.class), feeResult, feeSchedule);
 
-        assertThat(feeResult.getServiceTotalTinycents())
-                .isEqualTo(BASE_FEE_TINYCENTS + VERIFIER_FEE_GAS * GAS_FEE_TINYCENTS);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(BASE_FEE_TINYCENTS);
     }
 
     @Test
-    @DisplayName("ClprSubmitBundle is charged for every payload byte and for verifier gas")
-    void submitBundleChargesPayloadBytesAndVerifierGas() {
+    @DisplayName("ClprSubmitBundle accrues the CLPR rate for every payload byte before handle")
+    void submitBundleChargesPayloadBytesButNoFixedVerifierGas() {
         final var feeResult = new FeeResult();
         final var feeSchedule = scheduleWith(
                 CLPR_SUBMIT_BUNDLE, makeExtraIncluded(Extra.PROCESSING_BYTES, 0), makeExtraIncluded(Extra.GAS, 0));
 
         subject.accumulateServiceFee(SUBMIT_BUNDLE, mock(SimpleFeeContext.class), feeResult, feeSchedule);
 
-        assertThat(feeResult.getServiceTotalTinycents())
-                .isEqualTo(BASE_FEE_TINYCENTS + 1_000 * 1_000L + VERIFIER_FEE_GAS * GAS_FEE_TINYCENTS);
+        assertThat(feeResult.getServiceTotalTinycents()).isEqualTo(BASE_FEE_TINYCENTS + 1_000 * 1_000L);
     }
 
     private static FeeSchedule scheduleWith(

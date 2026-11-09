@@ -73,18 +73,16 @@ class ClprGenesisFeeScheduleTest {
     /** The proposal's price for every CLPR transaction and query. */
     private static final Map<HederaFunctionality, Price> EXPECTED = Map.ofEntries(
             Map.entry(CLPR_REGISTER_CHANNEL, Price.of(100 * USD)),
-            Map.entry(
-                    CLPR_COMPLETE_CHANNEL,
-                    Price.of(100 * USD).withExtras(Map.of(Extra.STATE_BYTES, 8_192, Extra.GAS, 0))),
+            Map.entry(CLPR_COMPLETE_CHANNEL, Price.of(100 * USD).withExtras(Map.of(Extra.STATE_BYTES, 8_192))),
             Map.entry(CLPR_REGISTER_CONNECTOR, Price.of(10 * USD)),
             Map.entry(CLPR_COMPLETE_CONNECTOR, Price.of(25 * USD)),
             Map.entry(CLPR_DEREGISTER_CONNECTOR, Price.of(ONE_CENT)),
-            // The proposal prices a bundle at $0.01 + bundle bytes + verifier gas in total, so its bytes are not
-            // charged again by the node and network fees
+            // A bundle costs $0.01 + bundle bytes, so its bytes are not charged again by the node and network
+            // fees; its verifier gas is billed at actual use, outside the schedule
             Map.entry(
                     CLPR_SUBMIT_BUNDLE,
                     Price.of(ONE_CENT)
-                            .withExtras(Map.of(Extra.PROCESSING_BYTES, 0, Extra.GAS, 0))
+                            .withExtras(Map.of(Extra.PROCESSING_BYTES, 0))
                             .exemptFromNodeAndNetworkFees()),
             // Admin-only: a privileged payer's fees are waived
             Map.entry(CLPR_CLOSE_CHANNEL, Price.of(0)),

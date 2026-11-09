@@ -806,8 +806,7 @@
           "name": "ClprCompleteChannel",
           "baseFee": 1000000000000,
           "extras": [
-            { "name": "STATE_BYTES", "includedCount": 8192 },
-            { "name": "GAS", "includedCount": 0 }
+            { "name": "STATE_BYTES", "includedCount": 8192 }
           ]
         },
         {
@@ -824,8 +823,7 @@
           "name": "ClprSubmitBundle",
           "baseFee": 100000000,
           "extras": [
-            { "name": "PROCESSING_BYTES", "includedCount": 0 },
-            { "name": "GAS", "includedCount": 0 }
+            { "name": "PROCESSING_BYTES", "includedCount": 0 }
           ],
           "nodeNetworkFeeExempt": true
         },

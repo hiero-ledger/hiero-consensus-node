@@ -320,17 +320,35 @@ public class ClprEnabledSuite {
                             .setSender(ByteString.copyFrom(new byte[20]))
                             .setMessageData(ByteString.EMPTY))
                     .build();
+            final var bundleBytes =
+                    toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload));
+            final var verifierId = spec.registry().getContractId(VERIFIER_CONTRACT);
             allRunFor(
                     spec,
                     clprSubmitBundle()
                             .channelId(crypto.channelId())
                             .endpointNodeId(0L)
-                            .bundlePayload(toBundleProofBytes(
-                                    ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload)))
+                            .bundlePayload(bundleBytes)
                             .payingWith(CALLER)
                             .via(submittedBundle)
                             .hasKnownStatus(SUCCESS),
                     getTxnRecord(submittedBundle).exposingAllTo(records -> {
+                        final var verifier = records.stream()
+                                .filter(r -> r.hasContractCallResult()
+                                        && r.getContractCallResult()
+                                                .getContractID()
+                                                .equals(verifierId))
+                                .findFirst()
+                                .orElseThrow();
+                        final long verifierGas =
+                                verifier.getContractCallResult().getGasUsed();
+                        assertTrue(verifierGas > 0);
+                        final long expectedFee = spec.ratesProvider()
+                                .toTbWithActiveRates(100_000_000L
+                                        + 1_000L * bundleBytes.length
+                                        + Math.min(verifierGas, 300_000L)
+                                                * spec.ratesProvider().tinycentGasPrice());
+                        assertEquals(expectedFee, records.getFirst().getTransactionFee());
                         final var creations = records.stream()
                                 .filter(r -> r.hasContractCreateResult())
                                 .toList();
