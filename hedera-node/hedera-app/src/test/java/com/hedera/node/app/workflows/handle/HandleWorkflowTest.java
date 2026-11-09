@@ -1179,8 +1179,9 @@ class HandleWorkflowTest {
                                     .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
                                     .toList();
                             return reasonOf(items) == ENDPOINT_MANIFEST_RECONCILIATION
-                                    && updates.stream().anyMatch(change -> change.singletonUpdateOrThrow()
-                                            .hasClprEndpointManifestConstructionValue());
+                                    && updates.stream()
+                                            .anyMatch(change -> change.singletonUpdateOrThrow()
+                                                    .hasClprEndpointManifestConstructionValue());
                         }),
                         eq(firstEventTime.minusNanos(100)));
         assertEquals(List.of(pendingChange), changes);
@@ -1625,7 +1626,7 @@ class HandleWorkflowTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void fullBlockStillExecutesAllDueSchedules(final boolean initiallyFull) throws Exception {
+    void fullBlockRejectsButStillConsumesDueSchedulesWithNonExemptPayer(final boolean initiallyFull) throws Exception {
         givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"));
         final var executionStart = NOW.minusSeconds(2);
         final var entityIdStates =
@@ -1677,15 +1678,93 @@ class HandleWorkflowTest {
 
         assertTrue((boolean) method.invoke(subject, state, executionStart, NOW, mock(NodeInfo.class)));
 
-        // Every due schedule runs through the ordinary scheduled dispatch path, never the block-full rejection
+        // Only a schedule handled before the block is full executes; every later one is rejected
+        final int executed = initiallyFull ? 0 : 1;
+        verify(dispatchProcessor, times(executed)).processDispatch(dispatch);
+        verify(dispatchProcessor, times(3 - executed)).processDispatch(dispatch, null, true);
+        // Rejected schedules are still consumed and their output written, so none are retried in a later block
         assertEquals(0, remaining.get());
-        verify(dispatchProcessor, times(3)).processDispatch(dispatch);
-        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
-        // Scheduled output is still written, so it counts toward the block size
         verify(blockStreamManager, times(3)).writeSavepointItems(any(), any());
-        // The whole interval is processed, so nothing is left behind for a later block
         verify(blockStreamManager).setLastIntervalProcessTime(NOW);
         assertTrue(full.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,false", "1,true", "2,true", "37,true", "38,false", "1001,false"})
+    void fullBlockRejectsDueScheduleUnlessPayerIsThrottleExempt(final long payerNum, final boolean exempt)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("accounts.lastThrottleExempt", "37"));
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var dispatch = givenScheduledDispatch();
+
+        invokeExecuteScheduled(scheduledPaidBy(payerNum));
+
+        if (exempt) {
+            verify(dispatchProcessor).processDispatch(dispatch);
+            verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        } else {
+            verify(dispatchProcessor).processDispatch(dispatch, null, true);
+            verify(dispatchProcessor, never()).processDispatch(any());
+        }
+        // Scheduled executions are not submitted parents, so they never feed the submitted-transaction diagnostics
+        verify(blockStreamManager, never()).recordSubmittedTransaction(any(), anyBoolean());
+    }
+
+    @Test
+    void dueScheduleWithNonExemptPayerExecutesBeforeBlockIsFull() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(false);
+        final var dispatch = givenScheduledDispatch();
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StreamMode.class,
+            names = {"BOTH", "RECORDS"})
+    void dueScheduleIgnoresBlockBudgetOutsideBlocksStreamMode(final StreamMode mode) throws Exception {
+        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList());
+        // Only StreamMode.BLOCKS enforces the budget, even if the manager were to report a full block
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var dispatch = givenScheduledDispatch();
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+    }
+
+    private static ExecutableTxn<StreamBuilder> scheduledPaidBy(final long payerNum) {
+        return new ExecutableTxn<>(
+                TransactionBody.DEFAULT,
+                AccountID.newBuilder().accountNum(payerNum).build(),
+                key -> true,
+                NOW.minusSeconds(1),
+                StreamBuilder.class,
+                builder -> {});
+    }
+
+    private Dispatch givenScheduledDispatch() {
+        final var scheduledTxn = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(scheduledTxn);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(scheduledTxn), any(), any(), any()))
+                .willReturn(dispatch);
+        given(scheduledTxn.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        return dispatch;
+    }
+
+    private void invokeExecuteScheduled(@NonNull final ExecutableTxn<StreamBuilder> executableTxn) throws Exception {
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeScheduled", State.class, Instant.class, NodeInfo.class, ExecutableTxn.class);
+        method.setAccessible(true);
+        method.invoke(subject, state, NOW, mock(NodeInfo.class), executableTxn);
     }
 
     /**

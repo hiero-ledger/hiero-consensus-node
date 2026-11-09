@@ -340,12 +340,10 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
-        final boolean isGenesis =
-                switch (streamMode) {
-                    case RECORDS ->
-                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
-                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
-                };
+        final boolean isGenesis = switch (streamMode) {
+            case RECORDS -> blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+            case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+        };
         if (isGenesis) {
             final var genesisEventTime = firstEvent.getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
@@ -793,8 +791,10 @@ public class HandleWorkflow {
      * time to the latest time known to have been processed; and the {@link #lastExecutedSecond} value to the last
      * second of the interval for which all scheduled transactions were executed.
      * <p>
-     * Scheduled executions are exempt from the {@code StreamMode.BLOCKS} block execution budget, so they run here
-     * even after {@link BlockStreamManager#hasReachedMaxBlockSize()} is {@code true}.
+     * Due schedules are still processed after {@link BlockStreamManager#hasReachedMaxBlockSize()} is {@code true}
+     * in {@code StreamMode.BLOCKS}, but only those with a throttle-exempt payer execute; the rest are rejected with
+     * {@code THROTTLED_AT_CONSENSUS} and normal consensus throttle fees. Either way the schedule is consumed, and its
+     * output is written to the block.
      *
      * @param state the state to execute scheduled transactions from
      * @param executionStart the start of the interval to execute transactions in
@@ -946,6 +946,17 @@ public class HandleWorkflow {
     }
 
     /**
+     * Returns whether the given due schedule must be rejected with {@code THROTTLED_AT_CONSENSUS} instead of executed,
+     * because the {@code StreamMode.BLOCKS} block execution budget is spent and the schedule's payer is not in
+     * {@code 1..accounts.lastThrottleExempt}.
+     */
+    private boolean isRejectedForBlockBudget(@NonNull final ExecutableTxn<? extends StreamBuilder> executableTxn) {
+        return streamMode == BLOCKS
+                && blockStreamManager.hasReachedMaxBlockSize()
+                && !throttleExempt(executableTxn.payerId(), configProvider.getConfiguration());
+    }
+
+    /**
      * Executes the user transaction and returns the output that should be externalized in the
      * block stream. (And if still producing records, the precomputed records.)
      * <p>
@@ -1048,7 +1059,13 @@ public class HandleWorkflow {
                 parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
         stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
-            dispatchProcessor.processDispatch(dispatch);
+            // Once the block is full, a due schedule whose payer is not throttle-exempt is rejected just like a
+            // submitted transaction; it is still consumed, so a later block never retries it
+            if (isRejectedForBlockBudget(executableTxn)) {
+                dispatchProcessor.processDispatch(dispatch, null, true);
+            } else {
+                dispatchProcessor.processDispatch(dispatch);
+            }
             final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
                     .stack()

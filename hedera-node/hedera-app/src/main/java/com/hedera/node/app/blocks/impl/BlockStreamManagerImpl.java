@@ -188,7 +188,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private boolean savepointOutputSuppressed;
     // Independent of the circuit breaker above: in StreamMode.BLOCKS (canonical), tracks the same running size
     // against the maxBlockExecutionSizeBytes limit, but never suppresses output — HandleWorkflow consults
-    // hasReachedMaxBlockSize() to reject further submitted transactions with normal consensus throttle fees instead.
+    // hasReachedMaxBlockSize() to reject further submitted and scheduled transactions with normal consensus throttle
+    // fees instead.
     // Separate state from the circuit breaker so other consumers of isSavepointOutputSuppressed()
     // (e.g. trace-data serialization)
     // are unaffected by this StreamMode.BLOCKS-only mechanism.
@@ -1113,12 +1114,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         return null;
                     });
 
-            final var exportNetworkToDisk =
-                    switch (diskNetworkExport) {
-                        case NEVER -> false;
-                        case EVERY_BLOCK -> true;
-                        case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
-                    };
+            final var exportNetworkToDisk = switch (diskNetworkExport) {
+                case NEVER -> false;
+                case EVERY_BLOCK -> true;
+                case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
+            };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
@@ -1250,9 +1250,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Independent of the circuit breaker above: in {@code StreamMode.BLOCKS}, tracks the running size against
      * the {@code maxBlockExecutionSizeBytes} limit, but never suppresses output. Once tripped, {@link
      * #hasReachedMaxBlockSize()} reports {@code true} for the rest of the block, and {@code HandleWorkflow}
-     * is expected to reject further non-exempt submitted transactions with {@code THROTTLED_AT_CONSENSUS} using
-     * normal consensus throttle fee charging rather than let them run. Scheduled executions are exempt and keep
-     * running (their output still counts toward the running size); block signatures remain eligible to run.
+     * is expected to reject further non-exempt submitted transactions and scheduled executions with {@code
+     * THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging rather than let them run. Scheduled
+     * executions with a throttle-exempt payer keep running (their output still counts toward the running size);
+     * block signatures remain eligible to run.
      */
     private void trackMaxBlockSizeThrottle(@NonNull final List<BlockItem> items) {
         if (!maxBlockSizeThrottleEnabled) {
