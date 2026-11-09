@@ -15,6 +15,7 @@ import com.swirlds.merkledb.collections.CASableLongIndex;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -136,6 +137,15 @@ public class DataFileCompactor {
      * {@link #snapshotCompactionLock}.
      */
     private int compactionLevelInProgress = 0;
+
+    /**
+     * Indicates that the current compaction must stop, because a snapshot failed to finish its
+     * current output file in {@link #pauseCompaction()} or to start a new one in {@link
+     * #resumeCompaction()}. Items must not be copied after that, as there is no output file the
+     * collection can read them from. The compaction then stops with an exception and keeps its
+     * input files. This field is synchronized using {@link #snapshotCompactionLock}.
+     */
+    private boolean compactionAborted = false;
 
     /**
      * A flag used to interrupt this compaction task rather than using {@link Thread#interrupt()}.
@@ -338,6 +348,7 @@ public class DataFileCompactor {
             currentCompactionStartTime.set(Instant.now());
             newCompactedFiles.clear();
             totalCompactedBytes = 0;
+            compactionAborted = false;
             startNewCompactionFile(targetCompactionLevel);
         } finally {
             snapshotCompactionLock.unlock();
@@ -524,6 +535,11 @@ public class DataFileCompactor {
         // and current data file writer and reader will point to a new file
         snapshotCompactionLock.lock();
         try {
+            if (compactionAborted) {
+                // Stop with an exception rather than skip the item, so the input files aren't deleted
+                throw new IOException("[" + storeName + "] Compaction is aborted, as a snapshot failed to "
+                        + "finish its output file or to start a new one");
+            }
             final DataFileWriter newFileWriter = currentWriter.get();
             final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
             assert itemBytesWithTag != null;
@@ -548,6 +564,10 @@ public class DataFileCompactor {
      * this method before compaction is resumed.
      * <p>
      * This method must be called under snapshot/compaction lock.
+     * <p>
+     * The new file is used for compaction only if both its writer and its reader are created. If
+     * the reader can't be created, the writer is closed, and the file is deleted, so no items are
+     * written to a file the collection can't read.
      *
      * @throws IOException If an I/O error occurs
      */
@@ -555,14 +575,36 @@ public class DataFileCompactor {
         final Instant startTime = currentCompactionStartTime.get();
         assert startTime != null;
         final DataFileWriter newFileWriter = dataFileCollection.newDataFile(startTime, compactionLevel);
-        currentWriter.set(newFileWriter);
         final Path newFileCreated = newFileWriter.getPath();
-        newCompactedFiles.add(newFileCreated);
-        final DataFileMetadata newFileMetadata = newFileWriter.getMetadata();
-        final DataFileReader newFileReader = dataFileCollection.addNewDataFileReader(newFileCreated, newFileMetadata);
+        final DataFileReader newFileReader;
+        try {
+            newFileReader = dataFileCollection.addNewDataFileReader(newFileCreated, newFileWriter.getMetadata());
+        } catch (final Throwable t) {
+            discardNewFile(newFileWriter, t);
+            throw t;
+        }
+        currentWriter.set(newFileWriter);
         currentReader.set(newFileReader);
+        newCompactedFiles.add(newFileCreated);
         logger.debug(
                 MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
+    }
+
+    /**
+     * Closes and deletes a new compaction file that isn't registered in the collection. Failures
+     * are added to the given cause as suppressed.
+     */
+    private static void discardNewFile(@NonNull final DataFileWriter writer, @NonNull final Throwable cause) {
+        try {
+            writer.close();
+        } catch (final IOException | RuntimeException e) {
+            cause.addSuppressed(e);
+        }
+        try {
+            Files.deleteIfExists(writer.getPath());
+        } catch (final IOException | RuntimeException e) {
+            cause.addSuppressed(e);
+        }
     }
 
     /**
@@ -576,6 +618,10 @@ public class DataFileCompactor {
      */
     private void finishCurrentCompactionFile() throws IOException {
         final DataFileWriter writer = currentWriter.get();
+        if (writer == null) {
+            // No output file, because a snapshot failed to start a new one in resumeCompaction()
+            return;
+        }
         writer.close();
         currentWriter.set(null);
 
@@ -622,6 +668,7 @@ public class DataFileCompactor {
         // it's included to the snapshot
         final DataFileWriter compactionWriter = currentWriter.get();
         if (compactionWriter != null) {
+            // Set before the file is finished. If finishing it fails, resumeCompaction() aborts the compaction
             compactionWasInProgress = true;
             compactionLevelInProgress = compactionWriter.getMetadata().getCompactionLevel();
             finishCurrentCompactionFile();
@@ -643,7 +690,13 @@ public class DataFileCompactor {
      * the same thread. If there are more or less calls to resume compactions than to pause, or if
      * they are called in a wrong order, it will result in deadlocks.</b>
      *
+     * <p>If {@link #pauseCompaction()} failed to finish the current output file, or if a new output
+     * file can't be started here, the compaction in progress is aborted. It then stops without
+     * deleting its input files. The lock is released in any case.
+     *
      * @throws IOException If an I/O error occurs
+     * @throws IllegalStateException If {@link #pauseCompaction()} failed to finish the current
+     *      output file
      * @throws IllegalMonitorStateException If this method is called on a different thread than
      *      {@link #pauseCompaction()}
      */
@@ -651,11 +704,22 @@ public class DataFileCompactor {
         try {
             if (compactionWasInProgress) {
                 compactionWasInProgress = false;
-                assert currentWriter.get() == null;
-                assert currentReader.get() == null;
-                currentCompactionStartTime.set(Instant.now());
-                startNewCompactionFile(compactionLevelInProgress);
+                final int compactionLevel = compactionLevelInProgress;
                 compactionLevelInProgress = 0;
+                if ((currentWriter.get() != null) || (currentReader.get() != null)) {
+                    // The compaction thread finishes this file when it stops, so the file is included
+                    // to later snapshots. A new file must not replace it
+                    compactionAborted = true;
+                    throw new IllegalStateException("[" + storeName + "] Compaction is aborted, as its output file "
+                            + "wasn't finished when the compaction was paused");
+                }
+                currentCompactionStartTime.set(Instant.now());
+                try {
+                    startNewCompactionFile(compactionLevel);
+                } catch (final Throwable t) {
+                    compactionAborted = true;
+                    throw t;
+                }
             }
         } finally {
             snapshotCompactionLock.unlock();
