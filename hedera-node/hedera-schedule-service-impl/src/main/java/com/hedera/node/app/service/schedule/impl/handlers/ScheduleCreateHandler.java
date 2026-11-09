@@ -135,7 +135,14 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final long defaultLifetime = ledgerConfig.scheduleTxExpiryTimeSecs();
         final var schedule = createProvisionalSchedule(
                 body, instantSource.instant(), defaultLifetime, schedulingConfig.longTermEnabled());
-        final var transactionKeys = getRequiredKeys(schedule, context::allKeysForTransaction);
+        // Only the top-level workflow runs hollow-payer completion before handle.
+        final var payerId = context.payer();
+        final var canDeferHollowPayer = !op.hasPayerAccountID()
+                && context.isUserTransaction()
+                && !body.hasBatchKey()
+                && context.requiredHollowAccounts().stream().anyMatch(account -> payerId.equals(account.accountId()));
+        final var transactionKeys =
+                getRequiredKeys(schedule, context::allKeysForTransaction, canDeferHollowPayer ? payerId : null);
         // If the schedule payer inherits from the ScheduleCreate, it is already in the required keys
         if (op.hasPayerAccountID()) {
             context.optionalKeyRequirement(transactionKeys.payerKeyRequirement());

@@ -208,6 +208,32 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
     }
 
     @Test
+    void batchInnerCannotDeferCompletionOfInheritedHollowPayer() throws PreCheckException {
+        final var hollowScheduler = schedulerAccount
+                .copyBuilder()
+                .key(EMPTY_KEY_LIST)
+                .alias(Bytes.wrap(new byte[20]))
+                .build();
+        accountsMapById.put(scheduler, hollowScheduler);
+        BDDMockito.willAnswer(invocation -> {
+                    invocation
+                            .<PreHandleContext>getArgument(0)
+                            .requireKeyOrThrow(scheduler, ResponseCodeEnum.INVALID_ACCOUNT_ID);
+                    return null;
+                })
+                .given(mockDispatcher)
+                .dispatchPreHandle(Mockito.any());
+        final var body =
+                scheduleCreateTransaction(null).copyBuilder().batchKey(adminKey).build();
+        realPreContext = new PreHandleContextImpl(
+                mockStoreFactory, body, testConfig, mockDispatcher, mockTransactionChecker, creatorInfo);
+        realPreContext.requireSignatureForHollowAccount(hollowScheduler);
+
+        Assertions.assertThrowsPreCheck(
+                () -> subject.preHandle(realPreContext), ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS);
+    }
+
+    @Test
     void preHandleRejectsNonWhitelist() throws PreCheckException {
         final Set<HederaFunctionality> configuredWhitelist =
                 scheduleConfig.whitelist().functionalitySet();

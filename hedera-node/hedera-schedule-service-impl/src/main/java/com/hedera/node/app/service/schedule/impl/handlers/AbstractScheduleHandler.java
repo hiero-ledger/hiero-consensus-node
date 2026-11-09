@@ -98,6 +98,19 @@ public abstract class AbstractScheduleHandler {
     @NonNull
     protected TransactionKeys getRequiredKeys(@NonNull final Schedule schedule, @NonNull final TransactionKeysFn fn)
             throws PreCheckException {
+        return getRequiredKeys(schedule, fn, null);
+    }
+
+    /**
+     * Gets a schedule's signing requirements, allowing a hollow payer that the enclosing transaction will complete.
+     * This allowance is only for pre-handle. Handle must check the requirements again against current state.
+     */
+    @NonNull
+    protected TransactionKeys getRequiredKeys(
+            @NonNull final Schedule schedule,
+            @NonNull final TransactionKeysFn fn,
+            @Nullable final AccountID payerToBeCompleted)
+            throws PreCheckException {
         requireNonNull(schedule);
         requireNonNull(fn);
         final var body = childAsOrdinary(schedule);
@@ -106,8 +119,9 @@ public abstract class AbstractScheduleHandler {
                 .accountIDOrThrow();
         final var payerId = schedule.payerAccountIdOrElse(creatorId);
         final var transactionKeys = fn.apply(body, payerId);
-        // We do not currently support scheduling transactions that would need to complete hollow accounts
-        if (!transactionKeys.requiredHollowAccounts().isEmpty()) {
+        // A scheduled transaction cannot complete any remaining hollow accounts itself.
+        if (transactionKeys.requiredHollowAccounts().stream()
+                .anyMatch(account -> payerToBeCompleted == null || !payerToBeCompleted.equals(account.accountId()))) {
             throw new PreCheckException(UNRESOLVABLE_REQUIRED_SIGNERS);
         }
         return transactionKeys;
