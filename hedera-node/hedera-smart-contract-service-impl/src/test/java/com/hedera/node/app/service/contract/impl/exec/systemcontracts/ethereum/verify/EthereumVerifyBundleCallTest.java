@@ -245,7 +245,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .serviceAddress(Bytes.wrap(SERVICE_ADDR))
                 .build();
 
-        try (final var ignored = mockVerifier(manifestOnly(manifest))) {
+        try (final var ignored = mockVerifier(manifestOnly(manifest, null, null))) {
             final var out = subject().execute(frame).fullResult().output().toArray();
 
             // Flag on => 5-member manifest-aware return; metadata absent (nextMessageId == 0 sentinel); trailing
@@ -256,6 +256,46 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
             assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isZero();
             final Tuple manifestTuple = tuple.get(4);
             assertThat(((BigInteger) manifestTuple.get(0)).longValueExact()).isEqualTo(9L);
+        }
+    }
+
+    @Test
+    @DisplayName("given a manifest-only bundle with a verified rotation, then execute returns absent metadata, the"
+            + " proven manifest and the proven successor anchor and id")
+    void givenManifestOnlyBundleWithRotation_thenReturnsManifestAndProvenSuccessorAnchor() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(9L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+
+        try (final var ignored = mockVerifier(manifestOnly(manifest, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
+            final var result = subject().execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple out = decodedTuple(result.fullResult().output().toArray());
+            assertThat(out.<Tuple>get(0)).isEqualTo(ClprVerifierAbi.absentMetadataTuple());
+            assertThat(out.<byte[][]>get(1)).isEmpty();
+            assertThat(out.<byte[]>get(2)).isEqualTo(NEXT_ANCHOR);
+            assertThat(out.<byte[]>get(3)).isEqualTo(NEXT_ANCHOR_ID);
+            assertThat(out.<Tuple>get(4)).isEqualTo(ClprVerifierAbi.manifestStructTuple(manifest));
+        }
+    }
+
+    @Test
+    @DisplayName("given a manifest-only bundle without a rotation, then execute returns empty anchor fields")
+    void givenManifestOnlyBundleWithoutRotation_thenReturnsEmptyAnchorFields() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(9L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+
+        try (final var ignored = mockVerifier(manifestOnly(manifest, null, null))) {
+            final Tuple out =
+                    decodedTuple(subject().execute(frame).fullResult().output().toArray());
+
+            assertThat(out.<byte[]>get(2)).isEmpty();
+            assertThat(out.<byte[]>get(3)).isEmpty();
+            assertThat(out.<Tuple>get(4)).isEqualTo(ClprVerifierAbi.manifestStructTuple(manifest));
         }
     }
 
@@ -309,13 +349,17 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .build();
     }
 
-    private static VerifiedBundle manifestOnly(final ClprEndpointManifest manifest) {
-        // Empty content + a proven manifest is the manifest-only recovery signal the Call detects.
+    private static VerifiedBundle manifestOnly(
+            final ClprEndpointManifest manifest, final byte[] nextTrustAnchor, final byte[] nextTrustAnchorId) {
+        // Empty content + a proven manifest is the manifest-only recovery signal the Call detects; the payload's
+        // rotations sit beside the delivery, so the verifier may still return a successor anchor.
         return VerifiedBundle.builder()
                 .beaconBlockRoot32(BEACON_ROOT)
                 .bundleContentBytes(new byte[0])
                 .queueMetadata(
                         new ProvenQueueMetadata(0, filled(32, 0x00), 0, filled(32, 0x00), 0, filled(32, 0x00), 0L))
+                .nextTrustAnchor(nextTrustAnchor)
+                .nextTrustAnchorId(nextTrustAnchorId)
                 .newEndpointManifest(manifest)
                 .build();
     }

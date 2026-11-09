@@ -315,29 +315,36 @@ public class EthereumVerifyBundleCall extends AbstractCall {
     }
 
     /**
-     * Manifest-aware success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with an empty
-     * message set and no trust-anchor rotation. Metadata is signalled absent via a zero {@code nextMessageId}
+     * Manifest-aware success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with an
+     * empty message set and, when the payload carried verified sync-committee rotations, the proven successor trust
+     * anchor and its id. The rotations sit beside the delivery in the payload, not in its empty bundle content, so a
+     * recovery bundle can still advance the anchor. Metadata is signalled absent via a zero {@code nextMessageId}
      * sentinel (a normal bundle's is always {@code >= 1}), which
      * {@link com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier} decodes to a null metadata so
-     * {@code ClprSubmitBundleHandler} takes its state-update-only path (applying the already-proven manifest).
+     * {@code ClprSubmitBundleHandler} takes its state-update-only path (applying the already-proven manifest and
+     * anchor).
      */
     @NonNull
     private PricedResult manifestOnlySuccess(@NonNull final VerifiedBundle verified) {
         final ClprEndpointManifest manifest = requireNonNull(verified.newEndpointManifest());
+        final byte[] nextAnchor = verified.nextTrustAnchor();
+        final byte[] nextAnchorId = verified.nextTrustAnchorId();
+        final boolean rotated = nextAnchor != null && nextAnchorId != null;
         log.info(
                 "[EthereumVerifier] verifyBundle EXIT: SUCCESS manifest-only recovery bundle beaconBlockRoot={}"
-                        + " manifestVersion={} manifestEndpoints={}",
+                        + " manifestVersion={} manifestEndpoints={} rotation={}",
                 Bytes.wrap(verified.beaconBlockRoot32()),
                 manifest.version(),
-                manifest.endpoints().size());
+                manifest.endpoints().size(),
+                rotated ? "trustAnchorId=0x" + Bytes.wrap(nextAnchorId).toHex() : "none");
         final Tuple absentMetadata = absentMetadataTuple();
         return gasOnly(
                 successResult(
                         VERIFY_BUNDLE_RETURN.encode(Tuple.of(
                                 absentMetadata,
                                 new byte[0][],
-                                new byte[0],
-                                new byte[0],
+                                rotated ? nextAnchor : new byte[0],
+                                rotated ? nextAnchorId : new byte[0],
                                 manifestStructTuple(manifest))),
                         GAS_REQUIREMENT),
                 SUCCESS,
