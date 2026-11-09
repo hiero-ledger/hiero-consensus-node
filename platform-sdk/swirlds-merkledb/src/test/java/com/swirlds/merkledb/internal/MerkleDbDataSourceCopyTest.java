@@ -7,8 +7,8 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllData
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertNoDatabaseFolders;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -21,17 +21,15 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListSegment;
-import com.swirlds.merkledb.config.DataSourceCopyMode;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
-import com.swirlds.merkledb.internal.MerkleDbDataSource.CopiedIndexes;
+import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.merkledb.test.fixtures.TestType;
-import com.swirlds.virtualmap.datasource.PreparedDataSourceCopy;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.io.IORunnable;
@@ -40,16 +38,21 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
-/// Tests for copying a MerkleDb data source in memory, see [MerkleDbDataSource#snapshotWithCopiedIndexes(Path)]
-/// and [MerkleDbDataSourceBuilder#prepareCopy(String, VirtualDataSource, boolean, boolean)].
+/// Tests for copying a MerkleDb data source, see [MerkleDbDataSource#copy(Path, boolean)] and
+/// [MerkleDbDataSourceBuilder#copy(VirtualDataSource, boolean)].
 class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
 
     private static final String LABEL = "copyTest";
+
+    /// Same as [MerkleDbTestUtils#DEFAULT_CONFIGURATION], with disk based indices
+    private static final Configuration DISK_INDICES_CONFIGURATION = ConfigurationBuilder.create()
+            .autoDiscoverExtensions()
+            .withValue(MerkleDbConfig_.USE_DISK_INDICES, "true")
+            .build();
 
     /// The number of internal nodes and leaves. Leaf paths are from COUNT to 2 * COUNT - 1
     private static final int COUNT = 10_000;
@@ -64,7 +67,7 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
     @EnumSource(TestType.class)
     @DisplayName("A copy has the same contents as the source, also after the source is closed")
     void copyHasSameContents(final TestType testType) throws IOException {
-        final MerkleDbDataSource source = createPopulatedDataSource(testType, false);
+        final MerkleDbDataSource source = createPopulatedDataSource(testType);
         final MerkleDbDataSource copy;
         try {
             copy = copyInMemory(source, false);
@@ -114,7 +117,7 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
     @DisplayName("A copy can be updated and compacted independently of the source")
     void copyCanBeUpdatedAndCompacted() throws IOException {
         final TestType testType = TestType.variable_variable;
-        final MerkleDbDataSource source = createPopulatedDataSource(testType, false);
+        final MerkleDbDataSource source = createPopulatedDataSource(testType);
         try {
             final MerkleDbDataSource copy = copyInMemory(source, true);
             try {
@@ -142,7 +145,7 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
     @DisplayName("A copy stays readable after its source compacts")
     void copyIsReadableAfterSourceCompacts() throws IOException {
         final TestType testType = TestType.variable_variable;
-        final MerkleDbDataSource source = createPopulatedDataSource(testType, false, true);
+        final MerkleDbDataSource source = createPopulatedDataSource(testType, true);
         try {
             final MerkleDbDataSource copy = copyInMemory(source, false);
             try {
@@ -167,48 +170,19 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
     }
 
     @Test
-    @DisplayName("Closing a prepared copy without completing it releases it")
-    void uncompletedCopyIsReleased() throws IOException {
-        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, false);
-        try {
-            final MerkleDbDataSourceBuilder builder = builder(DEFAULT_CONFIGURATION);
-            final PreparedDataSourceCopy prepared = builder.prepareCopy(LABEL, source, false, false);
-            final CopiedIndexes indexes =
-                    assertInstanceOf(InMemoryDataSourceCopy.class, prepared).indexes();
-            final List<LongList> indexList =
-                    List.of(indexes.hashChunkIndex(), indexes.leafIndex(), indexes.bucketIndex());
-            for (final LongList index : indexList) {
-                assertTrue(index.size() > 0, "The copied index should have entries");
-                assertTrue(offHeapConsumption(index) > 0, "The copied index should use off-heap memory");
-            }
-            prepared.close();
-            assertAllDatabasesClosedExcept(1);
-            for (final LongList index : indexList) {
-                assertEquals(0, index.size(), "The copied index should be closed");
-                assertEquals(0, offHeapConsumption(index), "The copied index memory should be released");
-            }
-            // The source's indexes aren't affected
-            checkData(TestType.long_fixed, source, 1);
-        } finally {
-            source.close();
-        }
-        // The copy's storage dir is checked in checkNoDataSourcesLeft()
-    }
-
-    @Test
     @DisplayName("Copied indexes are released, if resuming compaction fails after they are copied")
     void copiedIndexesAreReleasedIfResumingCompactionFails() throws IOException {
-        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, false);
+        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed);
         try {
             final MerkleDbDataSource spy = Mockito.spy(source);
-            final AtomicReference<CopiedIndexes> copied = new AtomicReference<>();
+            final List<LongList> copiedIndexes = new CopyOnWriteArrayList<>();
             doAnswer(invocation -> {
-                        final CopiedIndexes indexes = (CopiedIndexes) invocation.callRealMethod();
-                        copied.set(indexes);
-                        return indexes;
+                        final LongList copy = (LongList) invocation.callRealMethod();
+                        copiedIndexes.add(copy);
+                        return copy;
                     })
                     .when(spy)
-                    .snapshotWithCopiedIndexes(any());
+                    .copyIndex(any());
             // Runs the action, then fails as resuming compaction would, e.g. if a new compaction file
             // can't be created
             doAnswer(invocation -> {
@@ -219,13 +193,11 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
                     .pauseCompactionAndRun(any());
 
             final MerkleDbDataSourceBuilder builder = builder(DEFAULT_CONFIGURATION);
-            final UncheckedIOException e =
-                    assertThrows(UncheckedIOException.class, () -> builder.prepareCopy(LABEL, spy, false, false));
+            final UncheckedIOException e = assertThrows(UncheckedIOException.class, () -> builder.copy(spy, false));
             assertEquals("Test: resuming compaction failed", e.getCause().getMessage());
 
-            final CopiedIndexes indexes = copied.get();
-            assertNotNull(indexes, "The indexes should have been copied");
-            for (final LongList index : List.of(indexes.hashChunkIndex(), indexes.leafIndex(), indexes.bucketIndex())) {
+            assertEquals(3, copiedIndexes.size(), "The indexes should have been copied");
+            for (final LongList index : copiedIndexes) {
                 assertEquals(0, index.size(), "The copied index should be closed");
                 assertEquals(0, offHeapConsumption(index), "The copied index memory should be released");
             }
@@ -240,7 +212,7 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
     @Test
     @DisplayName("A failed snapshot to a new temp dir deletes the dir")
     void failedSnapshotToTempDirDeletesIt() throws IOException {
-        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, false);
+        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed);
         try {
             final MerkleDbDataSource spy = Mockito.spy(source);
             // Takes the snapshot, then fails as resuming compaction would
@@ -260,23 +232,27 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         // The snapshot's temp dir is checked in checkNoDataSourcesLeft()
     }
 
-    @Test
-    @DisplayName("A data source with disk-based indices can't be copied in memory")
-    void diskBasedIndicesCantBeCopiedInMemory() throws IOException {
-        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, true);
+    @ParameterizedTest
+    @EnumSource(TestType.class)
+    @DisplayName("A data source with disk-based indices is copied with disk-based indices")
+    void diskBasedIndicesAreCopied(final TestType testType) throws IOException {
+        final MerkleDbDataSourceBuilder builder = builder(DISK_INDICES_CONFIGURATION);
+        final MerkleDbDataSource source = createPopulatedDataSource(builder, testType, false);
         try {
-            final Path copyDir = fileSystemManager.resolveNewTemp(MerkleDbDataSourceBuilder.FOLDER_PREFIX + LABEL);
-            assertThrows(IllegalStateException.class, () -> source.snapshotWithCopiedIndexes(copyDir));
-            // The builder copies such a data source through a snapshot
-            final MerkleDbDataSourceBuilder builder = builder(DEFAULT_CONFIGURATION);
-            try (final PreparedDataSourceCopy prepared = builder.prepareCopy(LABEL, source, false, false)) {
-                assertEquals("SnapshotDataSourceCopy", prepared.getClass().getSimpleName());
-                final MerkleDbDataSource copy = assertInstanceOf(MerkleDbDataSource.class, prepared.complete());
-                try {
-                    checkData(TestType.long_fixed, copy, 1);
-                } finally {
-                    copy.close();
-                }
+            assertTrue(source.isPreferDiskBasedIndices());
+            final MerkleDbDataSource copy = (MerkleDbDataSource) builder.copy(source, true);
+            try {
+                assertTrue(copy.isPreferDiskBasedIndices());
+                assertTrue(copy.isCompactionEnabled());
+                assertSameIndex(source.getPathToDiskLocationLeafNodes(), copy.getPathToDiskLocationLeafNodes());
+                assertSameHashes(source, copy);
+                checkData(testType, copy, 1);
+                // The copy is independent of the source
+                updateAllLeaves(testType, copy, 2);
+                checkData(testType, copy, 2);
+                checkData(testType, source, 1);
+            } finally {
+                copy.close();
             }
         } finally {
             source.close();
@@ -284,81 +260,39 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
     }
 
     @ParameterizedTest
-    @MethodSource("copyModes")
-    @DisplayName("The copy mode and other settings select how the builder copies a data source")
-    void copyModeSelectsCopyMethod(
-            final DataSourceCopyMode copyMode,
-            final boolean compactionEnabled,
-            final boolean offlineUse,
-            final boolean indexRebuildingEnforced,
-            final String expectedCopyClass,
-            final boolean expectedDiskBasedIndices)
-            throws IOException {
+    @CsvSource({"false, false", "true, false", "false, true", "true, true"})
+    @DisplayName("A copy has in-memory indexes and the requested compaction, also if index rebuilding is enforced")
+    void copyHasInMemoryIndexesAndRequestedCompaction(
+            final boolean compactionEnabled, final boolean indexRebuildingEnforced) throws IOException {
         final Configuration config = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
-                .withValue(MerkleDbConfig_.DATA_SOURCE_COPY_MODE, copyMode.name())
                 .withValue(MerkleDbConfig_.INDEX_REBUILDING_ENFORCED, Boolean.toString(indexRebuildingEnforced))
                 .build();
-        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, false);
+        final MerkleDbDataSourceBuilder builder = builder(config);
+        final MerkleDbDataSource source = createPopulatedDataSource(builder, TestType.long_fixed, false);
         try {
-            final MerkleDbDataSourceBuilder builder = builder(config);
-            try (final PreparedDataSourceCopy prepared =
-                    builder.prepareCopy(LABEL, source, compactionEnabled, offlineUse)) {
-                assertEquals(expectedCopyClass, prepared.getClass().getSimpleName());
-                final MerkleDbDataSource copy = assertInstanceOf(MerkleDbDataSource.class, prepared.complete());
-                try {
-                    assertThrows(IllegalStateException.class, prepared::complete, "A copy is completed only once");
-                    assertEquals(expectedDiskBasedIndices, copy.isPreferDiskBasedIndices());
-                    checkData(TestType.long_fixed, copy, 1);
-                } finally {
-                    copy.close();
-                }
+            final MerkleDbDataSource copy = (MerkleDbDataSource) builder.copy(source, compactionEnabled);
+            try {
+                assertFalse(copy.isPreferDiskBasedIndices());
+                assertEquals(compactionEnabled, copy.isCompactionEnabled());
+                // The copied indexes are used, they aren't rebuilt
+                assertSameIndex(source.getPathToDiskLocationLeafNodes(), copy.getPathToDiskLocationLeafNodes());
+                checkData(TestType.long_fixed, copy, 1);
+            } finally {
+                copy.close();
             }
         } finally {
             source.close();
         }
     }
 
-    /// Arguments: copy mode, compaction enabled, offline use, index rebuilding enforced, expected copy class,
-    /// expected disk-based indices.
-    static Stream<Arguments> copyModes() {
-        final String inMemory = "InMemoryDataSourceCopy";
-        final String snapshot = "SnapshotDataSourceCopy";
-        return Stream.of(
-                // The copy mode decides
-                Arguments.of(DataSourceCopyMode.IN_MEMORY, false, false, false, inMemory, false),
-                Arguments.of(DataSourceCopyMode.IN_MEMORY, true, false, false, inMemory, false),
-                Arguments.of(DataSourceCopyMode.SNAPSHOT, false, false, false, snapshot, false),
-                Arguments.of(DataSourceCopyMode.SNAPSHOT, true, false, false, snapshot, false),
-                Arguments.of(DataSourceCopyMode.DISK_INDEXES, false, false, false, snapshot, true),
-                Arguments.of(DataSourceCopyMode.DISK_INDEXES, true, false, false, inMemory, false),
-                // Offline copies are made through a snapshot, with disk-based indices, in every mode
-                Arguments.of(DataSourceCopyMode.IN_MEMORY, false, true, false, snapshot, true),
-                Arguments.of(DataSourceCopyMode.IN_MEMORY, true, true, false, snapshot, true),
-                Arguments.of(DataSourceCopyMode.SNAPSHOT, false, true, false, snapshot, true),
-                Arguments.of(DataSourceCopyMode.SNAPSHOT, true, true, false, snapshot, true),
-                Arguments.of(DataSourceCopyMode.DISK_INDEXES, false, true, false, snapshot, true),
-                Arguments.of(DataSourceCopyMode.DISK_INDEXES, true, true, false, snapshot, true),
-                // Enforced index rebuilding needs a snapshot to rebuild the indexes from, in every mode
-                Arguments.of(DataSourceCopyMode.IN_MEMORY, false, false, true, snapshot, false),
-                Arguments.of(DataSourceCopyMode.IN_MEMORY, true, false, true, snapshot, false),
-                Arguments.of(DataSourceCopyMode.SNAPSHOT, false, false, true, snapshot, false),
-                Arguments.of(DataSourceCopyMode.SNAPSHOT, true, false, true, snapshot, false),
-                Arguments.of(DataSourceCopyMode.DISK_INDEXES, false, false, true, snapshot, true),
-                Arguments.of(DataSourceCopyMode.DISK_INDEXES, true, false, true, snapshot, false));
-    }
-
     private MerkleDbDataSourceBuilder builder(final Configuration config) {
         return new MerkleDbDataSourceBuilder(config, fileSystemManager, COUNT);
     }
 
-    /// Copies the data source in memory with the builder, and completes the copy.
+    /// Copies the data source with the builder.
     private MerkleDbDataSource copyInMemory(final MerkleDbDataSource source, final boolean compactionEnabled) {
-        try (final PreparedDataSourceCopy prepared =
-                builder(DEFAULT_CONFIGURATION).prepareCopy(LABEL, source, compactionEnabled, false)) {
-            assertInstanceOf(InMemoryDataSourceCopy.class, prepared);
-            return (MerkleDbDataSource) prepared.complete();
-        }
+        return (MerkleDbDataSource) builder(DEFAULT_CONFIGURATION).copy(source, compactionEnabled);
     }
 
     /// Compacts all stores of a data source. The first run only scans the stores for garbage. The
@@ -392,20 +326,24 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         return assertInstanceOf(LongListSegment.class, index).getOffHeapConsumption();
     }
 
-    /// Creates a data source with hashes for paths 0 to 2 * COUNT - 1, and leaves for paths COUNT to
-    /// 2 * COUNT - 1, written in several flushes, so every store has several data files.
-    private MerkleDbDataSource createPopulatedDataSource(final TestType testType, final boolean diskBasedIndices)
-            throws IOException {
-        return createPopulatedDataSource(testType, diskBasedIndices, false);
+    /// Creates a data source with in-memory indices, hashes for paths 0 to 2 * COUNT - 1, and leaves for
+    /// paths COUNT to 2 * COUNT - 1, written in several flushes, so every store has several data files.
+    private MerkleDbDataSource createPopulatedDataSource(final TestType testType) throws IOException {
+        return createPopulatedDataSource(testType, false);
     }
 
-    /// Same as [#createPopulatedDataSource(TestType, boolean)], with background compaction enabled
-    /// or disabled in the data source.
-    private MerkleDbDataSource createPopulatedDataSource(
-            final TestType testType, final boolean diskBasedIndices, final boolean compactionEnabled)
+    /// Same as [#createPopulatedDataSource(TestType)], with background compaction enabled or disabled
+    /// in the data source.
+    private MerkleDbDataSource createPopulatedDataSource(final TestType testType, final boolean compactionEnabled)
             throws IOException {
-        final MerkleDbDataSource dataSource = (MerkleDbDataSource)
-                builder(DEFAULT_CONFIGURATION).build(LABEL, null, compactionEnabled, diskBasedIndices);
+        return createPopulatedDataSource(builder(DEFAULT_CONFIGURATION), testType, compactionEnabled);
+    }
+
+    /// Same as [#createPopulatedDataSource(TestType, boolean)], with the given builder.
+    private MerkleDbDataSource createPopulatedDataSource(
+            final MerkleDbDataSourceBuilder builder, final TestType testType, final boolean compactionEnabled)
+            throws IOException {
+        final MerkleDbDataSource dataSource = (MerkleDbDataSource) builder.build(LABEL, null, compactionEnabled);
         final int batches = 5;
         final int batchSize = COUNT / batches;
         for (int batch = 0; batch < batches; batch++) {
@@ -466,9 +404,5 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         for (long i = Math.max(0, expected.getMinValidIndex()); i <= expected.getMaxValidIndex(); i++) {
             assertEquals(expected.get(i), actual.get(i), "Index mismatch at " + i);
         }
-    }
-
-    private static void assertAllDatabasesClosedExcept(final long openCount) {
-        assertEquals(openCount, MerkleDbDataSourceBuilder.getCountOfOpenDatabases());
     }
 }

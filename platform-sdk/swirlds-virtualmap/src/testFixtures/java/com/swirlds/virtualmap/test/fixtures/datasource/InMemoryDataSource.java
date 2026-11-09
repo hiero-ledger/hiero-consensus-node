@@ -186,6 +186,15 @@ public class InMemoryDataSource implements VirtualDataSource {
         // nop
     }
 
+    /// {@inheritDoc}
+    ///
+    /// The copy is kept in memory, the storage dir isn't used.
+    @NonNull
+    @Override
+    public InMemoryDataSource copy(@NonNull final Path storageDir, final boolean compactionEnabled) {
+        return new InMemoryDataSource(this);
+    }
+
     /**
      * This database has no statistics.
      */

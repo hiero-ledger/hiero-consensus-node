@@ -80,6 +80,13 @@ public class DelegateVirtualDataSource implements VirtualDataSource {
         delegate.snapshot(snapshotDirectory);
     }
 
+    @NonNull
+    @Override
+    public VirtualDataSource copy(@NonNull final Path storageDir, final boolean compactionEnabled)
+            throws IOException {
+        return delegate.copy(storageDir, compactionEnabled);
+    }
+
     @Override
     public void copyStatisticsFrom(VirtualDataSource that) {
         delegate.copyStatisticsFrom(that);

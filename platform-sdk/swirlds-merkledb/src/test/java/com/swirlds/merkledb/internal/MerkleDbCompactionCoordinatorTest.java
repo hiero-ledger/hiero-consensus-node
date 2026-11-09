@@ -83,8 +83,7 @@ class MerkleDbCompactionCoordinatorTest {
                 defaultConfig.maxThreadsPerFileChannel(),
                 defaultConfig.useDiskIndices(),
                 defaultConfig.consolidationMaxInputFileSizeMB(),
-                defaultConfig.consolidationMinFileCount(),
-                defaultConfig.dataSourceCopyMode());
+                defaultConfig.consolidationMinFileCount());
         coordinator = new MerkleDbCompactionCoordinator(config);
         coordinator.enableBackgroundCompaction();
     }
@@ -1169,7 +1168,6 @@ class MerkleDbCompactionCoordinatorTest {
                 d.maxThreadsPerFileChannel(),
                 d.useDiskIndices(),
                 maxInputSizeMB,
-                minFileCount,
-                d.dataSourceCopyMode());
+                minFileCount);
     }
 }

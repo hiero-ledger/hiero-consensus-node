@@ -126,6 +126,18 @@ public interface VirtualDataSource {
      */
     void snapshot(final Path snapshotDirectory) throws IOException;
 
+    /// Copies this data source into the given storage dir. The copy has the same data as this data source
+    /// and the same label, but is independent of it: either one can be changed or closed without
+    /// affecting the other. Like [#snapshot(Path)], this method must be called while this data source
+    /// isn't modified, and it blocks until the copy is created.
+    ///
+    /// @param storageDir        Storage dir of the copy, which must not exist yet
+    /// @param compactionEnabled Indicates whether background compaction should be enabled in the copy
+    /// @return the data source copy, the caller is responsible for closing it
+    /// @throws IOException If there was a problem copying the data source
+    @NonNull
+    VirtualDataSource copy(@NonNull Path storageDir, boolean compactionEnabled) throws IOException;
+
     /**
      * Switch this database instance to use the statistics registered in another database. Required due
      * to statistics restriction that prevents stats from being registered after initial boot up process.

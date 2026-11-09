@@ -64,25 +64,26 @@ run one after the other.
 
 ### Idea
 
-Add `VirtualDataSourceBuilder.prepareCopy(String label, VirtualDataSource source, boolean compactionEnabled, boolean
-offlineUse)`. It returns a `PreparedDataSourceCopy`, which is completed with `complete()` and always closed. The copy
-is made in two steps, so the source is held unmodified only while its state is captured. The default implementation
-is today's `snapshot()` + `build()`: the snapshot is prepared, and the copy is built from it when completed, so other
-data source implementations keep working. `MerkleDbDataSourceBuilder` overrides it.
+Add `VirtualDataSource.copy(Path storageDir, boolean compactionEnabled)`, next to `snapshot(Path)`, and
+`VirtualDataSourceBuilder.copy(VirtualDataSource source, boolean compactionEnabled)`, which picks the copy's storage
+dir and calls it, as `VirtualDataSourceBuilder.snapshot()` does for snapshots. `VirtualMap` calls it inside the
+pipeline pause and gets a complete data source copy back, for the teacher, for the learner, and for `createSnapshot()`.
+Nothing is restored from a snapshot anymore.
 
-With the pipeline and compaction paused, `MerkleDbDataSource.snapshotWithCopiedIndexes(dir)` makes a regular
-snapshot straight into the copy's directory, with one difference: the three indexes aren't written to files.
-Instead, each `LongListSegment` index is copied in memory: a new chunk is allocated for each non-null source chunk,
-and `MemorySegment.copy()` fills it. The chunks are copied in parallel on the data source's flush pool, which is idle
-while the pipeline is paused. The index copies run as snapshot executor tasks, next to the file links of the three
-stores and the metadata, the way `snapshot()` runs them today.
+With the pipeline and compaction paused, `MerkleDbDataSource.copy()` makes a regular snapshot straight into the
+copy's directory, with one difference: the three indexes aren't written to files. Instead, each `LongListSegment`
+index is copied in memory: a new chunk is allocated for each non-null source chunk, and `MemorySegment.copy()` fills
+it. The chunks are copied in parallel on the data source's flush pool, which is idle while the pipeline is paused.
+The index copies run as snapshot executor tasks, next to the file links of the three stores and the metadata, the way
+`snapshot()` runs them today.
 
-After the pause, `complete()` creates the copy with the existing load path, from that directory, with one new
-constructor parameter: the copied indexes, used instead of index files. `HalfDiskHashMap` gets the same optional
-parameter for its bucket index. Loading opens a reader for every data file in the three stores and reads its header,
-as the rebuild does today. That's why it runs after the pause. The number of files depends on the state size and the
-compaction settings: about 43K in the 1B-account test, and fewer if compaction merges files more aggressively. If
-reading the headers turns out to matter, passing the known file metadata into the load path is a small follow-up.
+Then the copy is created with the existing load path, from that directory, with one new constructor parameter: the
+copied indexes, used instead of index files. `HalfDiskHashMap` gets the same optional parameter for its bucket index.
+Loading opens a reader for every data file in the three stores and reads its header, as the rebuild does today. This
+runs inside the pause too, and took 1.2–1.3 s in the 1B-account test, which has about 43K data files. Running it
+after the pause would need a copy in two steps, prepared inside the pause and completed after it, which isn't worth
+the extra API. If reading the headers turns out to matter, passing the known file metadata into the load path is a
+small follow-up.
 
 So the copy is a snapshot whose indexes are handed over in memory instead of written to disk, and the
 directory is hard-linked once instead of twice.
@@ -93,19 +94,13 @@ used. They were dropped: writes to one index file are serialized by the kernel's
 Copying the 26 GB leaf index on one thread took about 18 s, as long as writing it to a file, so the chunks are
 copied in parallel (see "Measured effect" below).
 
-`merkleDb.dataSourceCopyMode` selects how a data source is copied:
-
-- `IN_MEMORY` (default): the in-memory copy above.
-- `SNAPSHOT`: today's snapshot + rebuild, as a rollback switch. It uses as much memory as `IN_MEMORY`, and writes the
-  indexes to disk inside the pipeline pause, as today.
-- `DISK_INDEXES`: copies with compaction disabled, like the teacher's, are restored from a snapshot with disk-based
-  indexes. They need no off-heap memory for indexes, but read their indexes from disk. As with `SNAPSHOT`, the indexes
-  are written to disk inside the pipeline pause, so the teacher's pause is as long as today. Copies with compaction
-  enabled become live data sources, so they are made as with `IN_MEMORY`.
-
-If the source uses disk-based indexes (`merkleDb.useDiskIndices = true`), the copy is requested for offline use, as
-`createSnapshot()` does, or index rebuilding is enforced (`merkleDb.indexRebuildingEnforced = true`), the copy is made
-through a snapshot.
+There is no setting to choose how a data source is copied. The `offlineUse` flag, which made a copy use disk-based
+indexes to save memory, is removed from `VirtualDataSourceBuilder.build()` and the `MerkleDbDataSource` constructors.
+Disk-based indexes are only selected with `merkleDb.useDiskIndices`, for setups where memory matters more than
+performance. Such indexes aren't in memory, so `MerkleDbDataSource.copy()` writes them to the copy's snapshot, and the
+copy loads them from there, inside the pause. A copy always uses the copied indexes, also if index rebuilding is
+enforced (`merkleDb.indexRebuildingEnforced = true`): that setting is for indexes loaded from a saved state, and only
+tests set it in this repository.
 
 ### What the copy carries over
 
@@ -130,17 +125,18 @@ another snapshot of the same data source.
 
 ### `createSnapshot()`
 
-`createSnapshot()` uses disk-based indexes on purpose: `offlineUse` was added in
+`createSnapshot()` used disk-based indexes on purpose: `offlineUse` was added in
 [#16090](https://github.com/hiero-ledger/hiero-consensus-node/pull/16090) so that such copies "should use as little
-resources as possible". An in-memory copy there would add 34.4 GiB of off-heap memory on the learner, when it already
-holds the reconnect data source and, from the next cycle, its copy. Three options:
-- **Option A, memory-neutral:** inside the pause, write the source's index chunks straight into the copy's
-`LongListDisk` temp files. It's one 37 GB write instead of three passes, but the pause stays about as long as a
-snapshot: the write runs into the same per-file limit, about 18 s for the leaf index.
-- **Option B, short pause:** inside the pause, make the in-memory copy (a few seconds). Outside it, write the copy to
-`LongListDisk` and free it. This holds 34.4 GiB of extra off-heap memory for about 30 s, against the `offlineUse`
-intent. On the learner, that raises non-reclaimable memory from about 186 GiB to about 220 GiB, out of a 256 GiB
-container limit.
+resources as possible". It now uses the same in-memory copy as the teacher and the learner (option B): the copy is made inside
+the pause, the cache is flushed to it, and it's written to the target dir. The copy holds 34.4 GiB of extra off-heap
+memory at 1B accounts until it's written, about 30 s. On the learner, that raises non-reclaimable memory from about
+186 GiB to about 220 GiB, out of a 256 GiB container limit. That's accepted for a simpler copy: no copy needs disk-based
+indexes anymore, so the code that restored them from a snapshot is gone.
+
+Alternatives that keep the copy memory-neutral, if that turns out to be needed:
+- **Option A:** inside the pause, write the source's index chunks straight into the copy's `LongListDisk` temp files.
+It's one 37 GB write instead of three passes, but the pause stays about as long as a snapshot: the write runs into the
+same per-file limit, about 18 s for the leaf index.
 - **Option C, mapped:** inside the pause, take the snapshot as today. Outside it, map the snapshot's index files
 instead of copying them into `LongListDisk` temp files (see "Alternative: map the indexes" below). Like option A, it
 pauses for a snapshot, needs no extra off-heap memory and makes two passes over the indexes instead of three. Unlike

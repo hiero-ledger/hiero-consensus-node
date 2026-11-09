@@ -78,10 +78,6 @@ import com.swirlds.config.api.validation.annotation.Positive;
  * @param consolidationMinFileCount
  *      Minimum number of small files at a level before consolidation triggers. Prevents
  *      pointless runs when only a few small files exist.
- * @param dataSourceCopyMode
- *      How a data source is copied, for example when a virtual map is detached for a reconnect. See
- *      {@link DataSourceCopyMode}. Data sources with disk-based indices, and all data sources when
- *      indexRebuildingEnforced is set, are always copied through a snapshot.
  */
 // spotless:off
 @ConfigData("merkleDb")
@@ -111,8 +107,7 @@ public record MerkleDbConfig(
         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel,
         @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
         @Min(0) @ConfigProperty(defaultValue = "50") long consolidationMaxInputFileSizeMB,
-        @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount,
-        @ConfigProperty(defaultValue = "IN_MEMORY") DataSourceCopyMode dataSourceCopyMode){
+        @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount){
 
     // spotless:on
 

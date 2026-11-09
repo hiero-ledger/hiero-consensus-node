@@ -143,37 +143,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      *                                       possible. This will come with a significant performance cost, especially for writing. It
      *                                       is possible to load a data source that was written with memory index with disk based
      *                                       index and vice versa.
+     * @param bucketIndex                    The bucket index to use instead of the bucket index file, or null to load
+     *                                       or rebuild the index. If it's provided, the store dir must exist, and if
+     *                                       this constructor succeeds, this map owns the bucket index.
      * @throws IOException If there was a problem creating or opening a set of data files.
      */
-    public HalfDiskHashMap(
-            final @NonNull MerkleDbConfig config,
-            final @NonNull ForkJoinPool flushPool,
-            final @NonNull FileSystemManager fileSystemManager,
-            final long initialCapacity,
-            final @NonNull Path storeDir,
-            final String storeName,
-            final String legacyStoreName,
-            final boolean preferDiskBasedIndex)
-            throws IOException {
-        this(
-                config,
-                flushPool,
-                fileSystemManager,
-                initialCapacity,
-                storeDir,
-                storeName,
-                legacyStoreName,
-                preferDiskBasedIndex,
-                null);
-    }
-
-    /// Construct a new HalfDiskHashMap. Same as
-    /// [#HalfDiskHashMap(MerkleDbConfig, ForkJoinPool, FileSystemManager, long, Path, String, String, boolean)],
-    /// but if a bucket index is provided, it's used instead of the bucket index file. The store dir must
-    /// then exist, typically a snapshot made with [#snapshotWithoutIndex(Path)]. If this constructor
-    /// succeeds, this map owns the bucket index.
-    ///
-    /// @param bucketIndex the bucket index to use, or `null` to load or rebuild the index
     public HalfDiskHashMap(
             final @NonNull MerkleDbConfig config,
             final @NonNull ForkJoinPool flushPool,
@@ -186,9 +160,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final @Nullable LongList bucketIndex)
             throws IOException {
         requireNonNull(config);
-        if ((bucketIndex != null) && !Files.exists(storeDir)) {
-            throw new IllegalArgumentException("A bucket index is provided, but the store dir doesn't exist");
-        }
         this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.

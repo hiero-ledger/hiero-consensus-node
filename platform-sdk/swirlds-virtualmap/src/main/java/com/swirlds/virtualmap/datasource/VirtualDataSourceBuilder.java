@@ -25,12 +25,10 @@ public interface VirtualDataSourceBuilder {
      *
      * @param sourceDir         The directory of the snapshot the data source should be created from. Can be null, in this case it creates an empty data source
      * @param compactionEnabled Indicates whether background compaction should be enabled in the data source copy
-     * @param offlineUse        Indicates that the copied data source should use as little resources as possible. Data
-     *                          source copies created for offline use should not be used for performance critical tasks
      * @return An opened {@link VirtualDataSource}
      */
     @NonNull
-    VirtualDataSource build(String label, @Nullable Path sourceDir, boolean compactionEnabled, boolean offlineUse);
+    VirtualDataSource build(String label, @Nullable Path sourceDir, boolean compactionEnabled);
 
     /**
      * Creates a snapshot of the given data source in the specified folder.
@@ -49,29 +47,13 @@ public interface VirtualDataSourceBuilder {
     @NonNull
     Path snapshot(@Nullable Path destination, @NonNull VirtualDataSource dataSource);
 
-    /// Prepares a copy of the given data source. The returned copy is completed with
-    /// [PreparedDataSourceCopy#complete()], and must always be closed.
+    /// Copies the given data source with [VirtualDataSource#copy(Path, boolean)], into a new storage
+    /// dir chosen by this builder. Like [#snapshot(Path, VirtualDataSource)], this method must be called
+    /// while the data source isn't modified.
     ///
-    /// This method must be called while the data source isn't modified, like
-    /// [#snapshot(Path, VirtualDataSource)]. [PreparedDataSourceCopy#complete()] may be
-    /// called after the data source is modified again.
-    ///
-    /// The default implementation takes a snapshot of the data source. The copy is restored from
-    /// the snapshot with [#build(String, Path, boolean, boolean)], when completed.
-    ///
-    /// @param label             The label of the copy
     /// @param dataSource        The data source to copy
     /// @param compactionEnabled Indicates whether background compaction should be enabled in the copy
-    /// @param offlineUse        Indicates that the copy should use as little resources as possible, see
-    ///                          [#build(String, Path, boolean, boolean)]
-    /// @return the prepared copy
+    /// @return the data source copy, the caller is responsible for closing it
     @NonNull
-    default PreparedDataSourceCopy prepareCopy(
-            final String label,
-            @NonNull final VirtualDataSource dataSource,
-            final boolean compactionEnabled,
-            final boolean offlineUse) {
-        final Path snapshotPath = snapshot(null, dataSource);
-        return new SnapshotDataSourceCopy(this, label, snapshotPath, compactionEnabled, offlineUse);
-    }
+    VirtualDataSource copy(@NonNull VirtualDataSource dataSource, boolean compactionEnabled);
 }

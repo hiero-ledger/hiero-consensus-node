@@ -5,12 +5,8 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.hardLinkTree;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.config.DataSourceCopyMode;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.merkledb.internal.InMemoryDataSourceCopy;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
-import com.swirlds.merkledb.internal.MerkleDbDataSource.CopiedIndexes;
-import com.swirlds.virtualmap.datasource.PreparedDataSourceCopy;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,7 +15,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 
@@ -33,7 +28,7 @@ import org.hiero.base.file.FileUtils;
  *
  * <p>When a data source snapshot is taken, or a data source is restored from a snapshot, the
  * builder uses certain sub-folder under snapshot dir as described in {@link #snapshot(Path, VirtualDataSource)}
- * and {@link VirtualDataSourceBuilder#build(String, Path, boolean, boolean)} methods.
+ * and {@link VirtualDataSourceBuilder#build(String, Path, boolean)} methods.
  */
 public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
@@ -124,20 +119,16 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     @NonNull
     @Override
     public VirtualDataSource build(
-            final String label,
-            @Nullable final Path sourceDir,
-            final boolean compactionEnabled,
-            final boolean offlineUse) {
+            final String label, @Nullable final Path sourceDir, final boolean compactionEnabled) {
         if (sourceDir == null) {
-            return buildNewDataSource(label, compactionEnabled, offlineUse);
+            return buildNewDataSource(label, compactionEnabled);
         } else {
-            return restoreDataSource(label, sourceDir, compactionEnabled, offlineUse);
+            return restoreDataSource(label, sourceDir, compactionEnabled);
         }
     }
 
     @NonNull
-    private MerkleDbDataSource buildNewDataSource(
-            final String label, final boolean compactionEnabled, final boolean offlineUse) {
+    private MerkleDbDataSource buildNewDataSource(final String label, final boolean compactionEnabled) {
         if (initialCapacity <= 0) {
             throw new IllegalArgumentException("Initial map capacity not set");
         }
@@ -153,13 +144,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                 dataSourceDir = newTempDataSourceDir(label);
             }
             return new MerkleDbDataSource(
-                    dataSourceDir,
-                    configuration,
-                    fileSystemManager,
-                    label,
-                    initialCapacity,
-                    compactionEnabled,
-                    offlineUse);
+                    dataSourceDir, configuration, fileSystemManager, label, initialCapacity, compactionEnabled);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -178,7 +163,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      *
      * <p>Data source snapshot is placed under "data/label" sub-folder in the provided
      * {@code snapshotDir}. If {@code snapshotDir} is null, a new temp folder is created and
-     * returned. The resulting layout is what {@link #build(String, Path, boolean, boolean)}
+     * returned. The resulting layout is what {@link #build(String, Path, boolean)}
      * expects as its source dir.
      *
      * <p><b>The caller owns the returned directory and is responsible for deleting it when it is
@@ -202,7 +187,11 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         } catch (final RuntimeException | Error e) {
             // The temp dir is returned only on success, nobody else can delete it
             if (isTempDir) {
-                discardCopy(null, snapshotDir, e);
+                try {
+                    FileUtils.deleteDirectory(snapshotDir);
+                } catch (final IOException | UncheckedIOException deletionFailure) {
+                    e.addSuppressed(deletionFailure);
+                }
             }
             throw e;
         }
@@ -223,17 +212,13 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      */
     @NonNull
     private MerkleDbDataSource restoreDataSource(
-            final String label,
-            @NonNull final Path snapshotDir,
-            final boolean compactionEnabled,
-            final boolean offlineUse) {
+            final String label, @NonNull final Path snapshotDir, final boolean compactionEnabled) {
         try {
             final Path dataSourceDir = newRestoredDataSourceDir(label);
             final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
             if (Files.isDirectory(snapshotDataSourceDir)) {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
-                return new MerkleDbDataSource(
-                        dataSourceDir, configuration, fileSystemManager, label, compactionEnabled, offlineUse);
+                return new MerkleDbDataSource(dataSourceDir, configuration, fileSystemManager, label, compactionEnabled);
             }
             throw new IOException(
                     "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);
@@ -257,72 +242,19 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     /// {@inheritDoc}
     ///
-    /// How the copy is made depends on [MerkleDbConfig#dataSourceCopyMode()], see
-    /// [DataSourceCopyMode]. An in-memory copy is a snapshot made directly in the copy's storage
-    /// dir, but its indexes are copied in memory instead of written to disk, see
-    /// [MerkleDbDataSource#snapshotWithCopiedIndexes(Path)]. The copy is created from the snapshot
-    /// and the copied indexes, when it's completed. Other copies are restored from a regular snapshot,
-    /// as in the default implementation. Copies for offline use, copies of data sources with disk-based
-    /// indices, and all copies when [MerkleDbConfig#indexRebuildingEnforced()] is set, are always
-    /// restored from a snapshot.
+    /// The copy's storage dir is chosen as for a restored data source. See
+    /// [MerkleDbDataSource#copy(Path, boolean)] for how the copy is made.
     @NonNull
     @Override
-    public PreparedDataSourceCopy prepareCopy(
-            final String label,
-            @NonNull final VirtualDataSource dataSource,
-            final boolean compactionEnabled,
-            final boolean offlineUse) {
+    public VirtualDataSource copy(@NonNull final VirtualDataSource dataSource, final boolean compactionEnabled) {
         if (!(dataSource instanceof MerkleDbDataSource merkleDbDataSource)) {
             throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
         }
-        final DataSourceCopyMode copyMode = configuration.dataSourceCopyMode();
-        // Copies for offline use, like createSnapshot()'s, and read-only copies in DISK_INDEXES mode, like
-        // the teacher's, use disk-based indices to save memory
-        final boolean diskBasedIndices =
-                offlineUse || (copyMode == DataSourceCopyMode.DISK_INDEXES && !compactionEnabled);
-        // Disk-based indices can't be copied in memory, and enforced index rebuilding needs a snapshot to
-        // rebuild the indexes from
-        if (diskBasedIndices
-                || copyMode == DataSourceCopyMode.SNAPSHOT
-                || merkleDbDataSource.isPreferDiskBasedIndices()
-                || configuration.indexRebuildingEnforced()) {
-            return VirtualDataSourceBuilder.super.prepareCopy(label, dataSource, compactionEnabled, diskBasedIndices);
-        }
-        return copyInMemory(label, merkleDbDataSource, compactionEnabled);
-    }
-
-    /// Prepares a copy with indexes copied in memory, see [MerkleDbDataSource#snapshotWithCopiedIndexes(Path)].
-    private PreparedDataSourceCopy copyInMemory(
-            final String label, final MerkleDbDataSource merkleDbDataSource, final boolean compactionEnabled) {
-        final Path copyDir = newRestoredDataSourceDir(label);
-        // The indexes are kept outside the action, so they can be released, if resuming compaction fails
-        // after they are copied. Copied indexes aren't freed by GC, they must be closed explicitly
-        final AtomicReference<CopiedIndexes> indexes = new AtomicReference<>();
         try {
-            merkleDbDataSource.pauseCompactionAndRun(
-                    () -> indexes.set(merkleDbDataSource.snapshotWithCopiedIndexes(copyDir)));
-            return new InMemoryDataSourceCopy(
-                    label, copyDir, indexes.get(), configuration, fileSystemManager, compactionEnabled);
+            return merkleDbDataSource.copy(
+                    newRestoredDataSourceDir(merkleDbDataSource.getTableName()), compactionEnabled);
         } catch (final IOException e) {
-            discardCopy(indexes.get(), copyDir, e);
             throw new UncheckedIOException(e);
-        } catch (final RuntimeException | Error e) {
-            discardCopy(indexes.get(), copyDir, e);
-            throw e;
-        }
-    }
-
-    /// Releases the copied indexes, if any, and deletes the copy's directory after a failure. Deletion
-    /// failures are added to the failure as suppressed.
-    private static void discardCopy(
-            @Nullable final CopiedIndexes indexes, @NonNull final Path dir, @NonNull final Throwable cause) {
-        if (indexes != null) {
-            indexes.close();
-        }
-        try {
-            FileUtils.deleteDirectory(dir);
-        } catch (final IOException e) {
-            cause.addSuppressed(e);
         }
     }
 }

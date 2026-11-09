@@ -13,7 +13,6 @@ import com.hedera.pbj.runtime.Codec;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
-import com.swirlds.merkledb.config.DataSourceCopyMode;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -32,11 +31,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /// Tests [VirtualMap#detach()] and [VirtualMap#detachAsDataSourceCopy()] with MerkleDb data
-/// sources, in every [DataSourceCopyMode]. The detached map has data both in its data source and
-/// in its cache.
+/// sources, with in-memory and disk based indices. The detached map has data both in its data source
+/// and in its cache.
 class VirtualMapMerkleDbDetachTest {
 
     /// The number of keys flushed to the data source. Keys are from 0 to COUNT - 1
@@ -54,12 +53,12 @@ class VirtualMapMerkleDbDetachTest {
     }
 
     @ParameterizedTest
-    @EnumSource(DataSourceCopyMode.class)
+    @ValueSource(booleans = {false, true})
     @DisplayName("Detached copies have the data from the data source and the cache, and outlive the map")
-    void detachedCopiesHaveAllData(final DataSourceCopyMode copyMode) throws Exception {
+    void detachedCopiesHaveAllData(final boolean useDiskIndices) throws Exception {
         final Configuration config = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
-                .withValue(MerkleDbConfig_.DATA_SOURCE_COPY_MODE, copyMode.name())
+                .withValue(MerkleDbConfig_.USE_DISK_INDICES, Boolean.toString(useDiskIndices))
                 .build();
         final FileSystemManager fileSystemManager = new FileSystemManager(tempDir);
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(config, fileSystemManager, COUNT);
