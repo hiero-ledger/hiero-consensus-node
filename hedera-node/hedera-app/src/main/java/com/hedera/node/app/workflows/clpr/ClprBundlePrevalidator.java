@@ -23,9 +23,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
-import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
-import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.spi.records.RecordCache;
@@ -117,8 +115,13 @@ public class ClprBundlePrevalidator {
      * <p>The checks run in this order, and the first failure is reported: CLPR is enabled; the channel id is 32 bytes;
      * the channel exists and is neither {@code CLOSED} nor {@code PENDING}; the raw payload fits
      * {@code max_sync_bytes}; the proof verifies; the successor trust-anchor invariant holds;
-     * {@link ClprBundleValidator#validate} passes; and {@link ClprBundleValidator#validateReplies} passes without an
-     * ordering violation.
+     * and {@link ClprBundleValidator#prevalidate} passes.
+     *
+     * <p>This runs on the working state while the handle thread changes it, so the channel read here can be older than
+     * the state consensus applies the bundle to. Only checks that an older channel cannot turn from a rejection into an
+     * acceptance are applied (see {@link ClprBundleValidator#prevalidate}), so a valid bundle is never dropped for this
+     * ledger's stale view. The rest, including the replies against the outbound queue, is left to consensus, which
+     * checks them on consistent state.
      *
      * <p>As at consensus, once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
      * endpoint-manifest version is recorded, even if a later check rejects the bundle. Idle peers send pure
@@ -128,9 +131,8 @@ public class ClprBundlePrevalidator {
      * @param payload the inbound sync payload
      * @param configuration the node configuration
      * @throws PreCheckException with the response code consensus handling reports for the same failure, including
-     *     {@code CLPR_NO_PROGRESS} for a bundle that is valid but changes nothing. A reply ordering violation, which
-     *     consensus handles by pausing the channel, is reported as {@code CLPR_BUNDLE_VERIFICATION_FAILED}. Other
-     *     unexpected failures propagate as runtime exceptions, which callers must treat as a rejection.
+     *     {@code CLPR_NO_PROGRESS} for a bundle that is valid but changes nothing. Other unexpected failures propagate
+     *     as runtime exceptions, which callers must treat as a rejection.
      */
     public void validate(@NonNull final ClprSyncPayload payload, @NonNull final Configuration configuration)
             throws PreCheckException {
@@ -166,11 +168,7 @@ public class ClprBundlePrevalidator {
                         .recordPeerObservedManifestVersion(
                                 channel.channelId(), content.metadataOrThrow().endpointManifestVersion());
             }
-            final var validated = bundleValidator.validate(channel, content, ledgerConfig);
-            final var replies = bundleValidator.validateReplies(
-                    channel, validated, stores.readableStore(ReadableMessageQueueStore.class));
-            validateTruePreCheck(
-                    !(replies instanceof ReplyValidation.OrderingViolated), CLPR_BUNDLE_VERIFICATION_FAILED);
+            bundleValidator.prevalidate(channel, content, ledgerConfig);
         } catch (final HandleException e) {
             throw new PreCheckException(e.getStatus());
         }

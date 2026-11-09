@@ -16,6 +16,7 @@ import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
+import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -157,41 +158,14 @@ public class ClprBundleValidator {
 
         final var metadata = content.metadata();
         final var messages = content.messages();
-        final var newTrustAnchor = content.newTrustAnchor();
-        final var newManifest = content.newEndpointManifest();
         // Compare against the original channel, before installing either state update.
-        final boolean shouldUpdateManifest =
-                newManifest != null && newManifest.version() > channel.endpointManifestVersion();
+        final boolean shouldUpdateManifest = advancesManifest(channel, content);
         if (metadata == null) {
-            // A metadata-less bundle must carry a proven anchor or manifest update, with no messages.
-            validateTruePreCheck(
-                    messages.isEmpty() && (newTrustAnchor.length() > 0 || shouldUpdateManifest),
-                    CLPR_BUNDLE_VERIFICATION_FAILED);
+            validateMetadataLess(content, shouldUpdateManifest);
             return new ValidatedBundle(content, List.of(), channel.receivedRunningHash(), true, shouldUpdateManifest);
         }
-
-        // Any one of the five progress criteria suffices. The claimed ack is rechecked by the
-        // handler against the outbound queue because replies may legitimately be deferred.
-        final boolean hasTrustAnchorAdvancement =
-                newTrustAnchor.length() > 0 && !content.newTrustAnchorId().equals(channel.trustAnchorId());
-        final boolean hasProgressOtherThanAck = !messages.isEmpty()
-                || hasTrustAnchorAdvancement
-                || isStateTransitionProgress(metadata.status(), channel.status())
-                || shouldUpdateManifest;
-        validateTruePreCheck(
-                hasProgressOtherThanAck || metadata.receivedMessageId() > channel.ackedMessageId(), CLPR_NO_PROGRESS);
-
-        final var throttles = ledgerConfig.throttlesOrThrow();
-        validateTruePreCheck(messages.size() <= throttles.maxMessagesPerBundle(), CLPR_BUNDLE_VERIFICATION_FAILED);
-        final long maxPayloadBytes = throttles.maxMessagePayloadBytes();
-        if (maxPayloadBytes > 0) {
-            for (final var payload : messages) {
-                if (payload.hasMessage()) {
-                    validateTruePreCheck(
-                            payload.messageOrThrow().messageData().length() <= maxPayloadBytes, CLPR_PAYLOAD_TOO_LARGE);
-                }
-            }
-        }
+        final boolean hasProgressOtherThanAck = validateProgress(channel, content, metadata, shouldUpdateManifest);
+        validateSizeLimits(messages, ledgerConfig.throttlesOrThrow());
 
         // The sender may overlap messages already processed, but it must not skip any unseen
         // messages or claim to have sent fewer than we have received.
@@ -224,6 +198,146 @@ public class ClprBundleValidator {
 
         validateControlMessages(newMessages, ledgerConfig, channel.peerConfigTimestamp());
         return new ValidatedBundle(content, newMessages, computedHash, hasProgressOtherThanAck, shouldUpdateManifest);
+    }
+
+    /**
+     * Checks, before a bundle is gossiped, the parts of {@link #validate} whose outcome the channel advancing cannot
+     * change from a rejection to an acceptance.
+     *
+     * <p>Prevalidation reads the working state while the handle thread changes it, and the working state caches each
+     * value read until the round ends, so {@code channel} can be older than the state consensus will apply the bundle
+     * to. A channel only advances: its acknowledged and received message ids, running hash, manifest version and peer
+     * configuration timestamp never go back. So a check is applied here only if failing against an older channel means
+     * failing against every newer one; otherwise a valid bundle could be dropped for this ledger's stale view. These
+     * checks qualify:
+     * <ul>
+     *   <li>the trust-anchor invariant, the metadata-less bundle rules, and the size limits, which do not depend on the
+     *       channel's progress;</li>
+     *   <li>progress ({@code CLPR_NO_PROGRESS}): an older acknowledgement or manifest version only makes progress more
+     *       likely;</li>
+     *   <li>the bundle covers at least one message past {@code channel.received_message_id} (an older received id
+     *       only makes that more likely), and the peer does not acknowledge less than
+     *       {@code channel.acked_message_id} (an older acknowledgement is lower);</li>
+     *   <li>control messages, checked against the bundle alone: known variant, protocol version, a valid timestamp,
+     *       and timestamps strictly increasing within the bundle.</li>
+     * </ul>
+     *
+     * <p>Left to consensus, which checks them on consistent state: the bundle not skipping unseen messages, the
+     * running hash, the acknowledgement being below {@code channel.next_message_id}, configuration timestamps being
+     * later than the stored one, and the replies ({@link #validateReplies}).
+     *
+     * @param channel this ledger's channel as read before gossip, possibly older than the state consensus applies
+     * @param content the verifier's attested bundle content
+     * @param ledgerConfig this ledger's configuration, which supplies the throttles and the protocol version
+     * @throws PreCheckException with {@code CLPR_NO_PROGRESS}, {@code CLPR_PAYLOAD_TOO_LARGE}, or
+     *     {@code CLPR_BUNDLE_VERIFICATION_FAILED} if a check fails
+     */
+    public void prevalidate(
+            @NonNull final ClprChannel channel,
+            @NonNull final ClprBundleContent content,
+            @NonNull final ClprLedgerConfiguration ledgerConfig)
+            throws PreCheckException {
+        requireNonNull(channel);
+        requireNonNull(content);
+        requireNonNull(ledgerConfig);
+        validateTrustAnchor(content);
+
+        final var metadata = content.metadata();
+        final var messages = content.messages();
+        final boolean shouldUpdateManifest = advancesManifest(channel, content);
+        if (metadata == null) {
+            validateMetadataLess(content, shouldUpdateManifest);
+            return;
+        }
+        validateProgress(channel, content, metadata, shouldUpdateManifest);
+        validateSizeLimits(messages, ledgerConfig.throttlesOrThrow());
+
+        final long lastIdBeforeBundle = metadata.nextMessageId() - messages.size() - 1;
+        validateTruePreCheck(lastIdBeforeBundle >= 0, CLPR_BUNDLE_VERIFICATION_FAILED);
+        validateTruePreCheck(
+                channel.receivedMessageId() - lastIdBeforeBundle <= messages.size(), CLPR_BUNDLE_VERIFICATION_FAILED);
+        validateTruePreCheck(metadata.receivedMessageId() >= channel.ackedMessageId(), CLPR_BUNDLE_VERIFICATION_FAILED);
+        validateControlMessages(messages, ledgerConfig, null);
+    }
+
+    /**
+     * Returns whether the bundle's endpoint manifest advances the channel's cached version.
+     *
+     * @param channel the channel before this bundle is applied
+     * @param content the verifier's attested bundle content
+     * @return {@code true} if the bundle carries a manifest with a higher version than the channel's
+     */
+    private static boolean advancesManifest(
+            @NonNull final ClprChannel channel, @NonNull final ClprBundleContent content) {
+        final var newManifest = content.newEndpointManifest();
+        return newManifest != null && newManifest.version() > channel.endpointManifestVersion();
+    }
+
+    /**
+     * Checks that a bundle without queue metadata carries no messages and a proven anchor or manifest update.
+     *
+     * @param content the verifier's attested bundle content
+     * @param shouldUpdateManifest whether the bundle's manifest advances the channel's cached version
+     * @throws PreCheckException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} if it does not
+     */
+    private static void validateMetadataLess(
+            @NonNull final ClprBundleContent content, final boolean shouldUpdateManifest) throws PreCheckException {
+        validateTruePreCheck(
+                content.messages().isEmpty() && (content.newTrustAnchor().length() > 0 || shouldUpdateManifest),
+                CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    /**
+     * Checks that a bundle with queue metadata meets at least one of the five progress criteria.
+     *
+     * @param channel the channel before this bundle is applied
+     * @param content the verifier's attested bundle content
+     * @param metadata the bundle's queue metadata
+     * @param shouldUpdateManifest whether the bundle's manifest advances the channel's cached version
+     * @return whether the bundle meets a progress criterion other than a claimed acknowledgement
+     * @throws PreCheckException with {@code CLPR_NO_PROGRESS} if it meets none
+     */
+    private static boolean validateProgress(
+            @NonNull final ClprChannel channel,
+            @NonNull final ClprBundleContent content,
+            @NonNull final ClprQueueMetadata metadata,
+            final boolean shouldUpdateManifest)
+            throws PreCheckException {
+        // Any one of the five progress criteria suffices. The claimed ack is rechecked by the
+        // handler against the outbound queue because replies may legitimately be deferred.
+        final var newTrustAnchor = content.newTrustAnchor();
+        final boolean hasTrustAnchorAdvancement =
+                newTrustAnchor.length() > 0 && !content.newTrustAnchorId().equals(channel.trustAnchorId());
+        final boolean hasProgressOtherThanAck = !content.messages().isEmpty()
+                || hasTrustAnchorAdvancement
+                || isStateTransitionProgress(metadata.status(), channel.status())
+                || shouldUpdateManifest;
+        validateTruePreCheck(
+                hasProgressOtherThanAck || metadata.receivedMessageId() > channel.ackedMessageId(), CLPR_NO_PROGRESS);
+        return hasProgressOtherThanAck;
+    }
+
+    /**
+     * Checks the bundle's message count and, when the limit is positive, each data message's payload size.
+     *
+     * @param messages the bundle's messages
+     * @param throttles this ledger's throttles
+     * @throws PreCheckException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} or {@code CLPR_PAYLOAD_TOO_LARGE} if a
+     *     limit is exceeded
+     */
+    private static void validateSizeLimits(
+            @NonNull final List<ClprMessagePayload> messages, @NonNull final ClprThrottles throttles)
+            throws PreCheckException {
+        validateTruePreCheck(messages.size() <= throttles.maxMessagesPerBundle(), CLPR_BUNDLE_VERIFICATION_FAILED);
+        final long maxPayloadBytes = throttles.maxMessagePayloadBytes();
+        if (maxPayloadBytes > 0) {
+            for (final var payload : messages) {
+                if (payload.hasMessage()) {
+                    validateTruePreCheck(
+                            payload.messageOrThrow().messageData().length() <= maxPayloadBytes, CLPR_PAYLOAD_TOO_LARGE);
+                }
+            }
+        }
     }
 
     /**
@@ -374,7 +488,7 @@ public class ClprBundleValidator {
      * @param messages the bundle's new (non-replayed) messages
      * @param ledgerConfig this ledger's configuration
      * @param initialPeerConfigTimestamp the channel's stored {@code peer_config_timestamp}, or {@code null} if none is
-     *     stored
+     *     stored or the bundle is checked on its own
      * @throws PreCheckException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} if a control message is invalid
      */
     private static void validateControlMessages(

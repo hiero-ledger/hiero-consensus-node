@@ -553,6 +553,73 @@ class ClprBundleValidatorTest {
                 Arguments.of(timestamp(11, 1_000_000_000)));
     }
 
+    @Test
+    void prevalidationLeavesChecksAgainstTheLatestChannelProgressToConsensus() throws PreCheckException {
+        // Built for a channel that has already received 2 messages; this read is older and has received none
+        final var bundleAhead =
+                bundle(CHANNEL.copyBuilder().receivedMessageId(2).build(), List.of(dataPayload(1)));
+        final var content = bundle(CHANNEL, List.of(dataPayload(1)));
+        final var badHash = content.copyBuilder()
+                .metadata(content.metadataOrThrow().copyBuilder().sentRunningHash(ANCHOR))
+                .build();
+        final var ackOfUnsent = withPeerAck(content, 3);
+        final var notNewerConfig = bundle(CHANNEL, List.of(configPayload(PEER_TIMESTAMP)));
+
+        // Consensus rejects each of them against this channel...
+        assertRejected(CHANNEL, bundleAhead, CLPR_BUNDLE_VERIFICATION_FAILED);
+        assertRejected(CHANNEL, badHash, CLPR_RUNNING_HASH_MISMATCH);
+        assertRejected(CHANNEL, ackOfUnsent, CLPR_BUNDLE_VERIFICATION_FAILED);
+        assertRejected(CHANNEL, notNewerConfig, CLPR_BUNDLE_VERIFICATION_FAILED);
+        // ...but each may only reflect an older channel read, so prevalidation lets them through
+        subject.prevalidate(CHANNEL, bundleAhead, LEDGER_CONFIG);
+        subject.prevalidate(CHANNEL, badHash, LEDGER_CONFIG);
+        subject.prevalidate(CHANNEL, ackOfUnsent, LEDGER_CONFIG);
+        subject.prevalidate(CHANNEL, notNewerConfig, LEDGER_CONFIG);
+    }
+
+    @Test
+    void prevalidationRejectsWhatNoNewerChannelCouldAccept() {
+        final var content = bundle(CHANNEL, List.of(dataPayload(1)));
+        // No progress, even against this (possibly older) acknowledgement
+        assertPrevalidationRejected(CHANNEL, bundle(CHANNEL, List.of()), CLPR_NO_PROGRESS);
+        // Only messages this channel has already received
+        assertPrevalidationRejected(
+                CHANNEL.copyBuilder().receivedMessageId(2).build(), content, CLPR_BUNDLE_VERIFICATION_FAILED);
+        // Fewer sent messages than the bundle carries
+        assertPrevalidationRejected(
+                CHANNEL,
+                content.copyBuilder()
+                        .metadata(content.metadataOrThrow().copyBuilder().nextMessageId(1))
+                        .build(),
+                CLPR_BUNDLE_VERIFICATION_FAILED);
+        // An acknowledgement below this channel's
+        final var acked =
+                CHANNEL.copyBuilder().ackedMessageId(1).nextMessageId(3).build();
+        assertPrevalidationRejected(
+                acked, withPeerAck(bundle(acked, List.of(dataPayload(1))), 0), CLPR_BUNDLE_VERIFICATION_FAILED);
+        // Size limits and the bundle's own control messages
+        assertPrevalidationRejected(CHANNEL, bundle(CHANNEL, List.of(dataPayload(4))), CLPR_PAYLOAD_TOO_LARGE);
+        assertPrevalidationRejected(
+                CHANNEL,
+                bundle(CHANNEL, List.of(configPayload(timestamp(11, 1)), configPayload(timestamp(11, 0)))),
+                CLPR_BUNDLE_VERIFICATION_FAILED);
+        assertPrevalidationRejected(
+                CHANNEL,
+                bundle(
+                        CHANNEL,
+                        List.of(ClprMessagePayload.newBuilder()
+                                .control(ClprControlMessage.DEFAULT)
+                                .build())),
+                CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    private void assertPrevalidationRejected(
+            final ClprChannel channel, final ClprBundleContent content, final ResponseCodeEnum code) {
+        assertThatThrownBy(() -> subject.prevalidate(channel, content, LEDGER_CONFIG))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(code));
+    }
+
     private void assertRejected(
             final ClprChannel channel, final ClprBundleContent content, final ResponseCodeEnum code) {
         assertThatThrownBy(() -> subject.validate(channel, content, LEDGER_CONFIG))

@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -21,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -56,7 +54,6 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
-import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
@@ -267,8 +264,11 @@ class ClprBundlePrevalidatorTest {
 
         subject.validate(PAYLOAD, configuration);
 
-        verify(validator).validate(CHANNEL, content, LEDGER_CONFIG);
-        verify(validator).validateReplies(eq(CHANNEL), any(), any(ReadableMessageQueueStore.class));
+        verify(validator).prevalidate(CHANNEL, content, LEDGER_CONFIG);
+        // Checks that depend on the latest state, including the replies, are left to consensus
+        verify(validator, never()).validate(any(), any(), any());
+        verify(validator, never()).validateReplies(any(), any(), any());
+        verifyNoInteractions(queue);
         verify(channelLifecycle).recordPeerObservedManifestVersion(CHANNEL_ID, 9L);
         verify(releaseState).run();
         final var contextCaptor = ArgumentCaptor.forClass(QueryContext.class);
@@ -301,13 +301,14 @@ class ClprBundlePrevalidatorTest {
     }
 
     @Test
-    void rejectsBadRunningHashBeforeSubmission() {
+    void leavesRunningHashToConsensus() throws PreCheckException {
         final var content = bundle(List.of(dataPayload()));
         givenLocalReturn(content.copyBuilder()
                 .metadata(content.metadataOrThrow().copyBuilder().sentRunningHash(ZERO_HASH))
                 .build());
 
-        assertRejected(PAYLOAD, CLPR_RUNNING_HASH_MISMATCH);
+        // A hash that does not continue this channel's received hash may only reflect a stale channel read
+        subject.validate(PAYLOAD, configuration);
 
         verify(releaseState).run();
     }
@@ -334,19 +335,15 @@ class ClprBundlePrevalidatorTest {
     }
 
     @Test
-    void rejectsOutOfOrderRepliesAgainstTheOutboundQueue() {
+    void leavesOutOfOrderRepliesToConsensus() throws PreCheckException {
         final var content = bundle(List.of(replyPayload(2), replyPayload(1)));
         givenLocalReturn(content.copyBuilder()
                 .metadata(content.metadataOrThrow().copyBuilder().receivedMessageId(2))
                 .build());
-        when(queue.get(ClprMessageKey.newBuilder()
-                        .channelId(CHANNEL_ID)
-                        .messageId(1)
-                        .build()))
-                .thenReturn(ClprMessageValue.newBuilder().payload(dataPayload()).build());
 
-        assertRejected(PAYLOAD, CLPR_BUNDLE_VERIFICATION_FAILED);
+        subject.validate(PAYLOAD, configuration);
 
+        verifyNoInteractions(queue);
         verify(releaseState).run();
     }
 
