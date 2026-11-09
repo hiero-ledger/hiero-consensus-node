@@ -27,8 +27,7 @@ the result is printed to stdout; pass --in-place to overwrite the input file or
 --out <path> to write somewhere else.
 
 Dependencies:
-  pip install pycryptodome      # required: Ed25519 + Keccak-256
-  cast (Foundry)                 # required only for ECDSA_SECP256K1; install via foundryup
+  pip install pycryptodome coincurve    # required
 """
 
 from __future__ import annotations  # PEP 604/585 annotations on Python 3.9
@@ -37,10 +36,17 @@ import argparse
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
+
+try:
+    import coincurve
+except ImportError as e:  # pragma: no cover — install hint
+    print(
+        "ERROR: missing coincurve ({}). Install it with:\n  pip install coincurve".format(e),
+        file=sys.stderr,
+    )
+    sys.exit(2)
 
 try:
     from Crypto.Hash import keccak
@@ -131,55 +137,20 @@ def ed25519_sign(seed: bytes, message: bytes) -> bytes:
 
 
 # -----------------------------------------------------------------------------
-# ECDSA secp256k1: shell out to Foundry's `cast` (no native Python secp256k1
-# without a third-party dep). `cast wallet sign --no-hash` signs a raw 32-byte
-# hash using deterministic RFC 6979, producing a canonical low-s signature.
+# ECDSA secp256k1: in-process via coincurve (libsecp256k1 bindings).
+# Keys are never passed on argv — no process-visible leak.
 # -----------------------------------------------------------------------------
-
-def _require_cast() -> str:
-    cast = shutil.which("cast")
-    if not cast:
-        raise RuntimeError(
-            "ECDSA_SECP256K1 requires Foundry's `cast` on PATH. Install foundry "
-            "(https://book.getfoundry.sh/getting-started/installation) and retry."
-        )
-    return cast
-
-
-def _cast(args: list[str]) -> str:
-    cast = _require_cast()
-    res = subprocess.run([cast, *args], capture_output=True, text=True, check=False)
-    if res.returncode != 0:
-        raise RuntimeError(
-            "`cast {}` failed (exit {}):\n{}".format(" ".join(args), res.returncode, res.stderr.strip())
-        )
-    return res.stdout.strip()
-
 
 def secp256k1_pubkey(scalar: bytes) -> bytes:
     """Returns the 64-byte uncompressed public key (X||Y, no 0x04 prefix)."""
-    out = _cast(["wallet", "public-key", "--raw-private-key", "0x" + scalar.hex()])
-    return parse_hex(out, "cast public-key output", expected_len=64)
+    return coincurve.PrivateKey(scalar).public_key.format(compressed=False)[1:]
 
 
 def secp256k1_sign(scalar: bytes, message_hash: bytes) -> bytes:
     """Signs the raw 32-byte hash and returns 64-byte r||s (drops the recovery byte)."""
     if len(message_hash) != 32:
         raise ValueError("ECDSA message hash must be 32 bytes; got {}".format(len(message_hash)))
-    out = _cast(
-        [
-            "wallet",
-            "sign",
-            "--no-hash",
-            "--private-key",
-            "0x" + scalar.hex(),
-            "0x" + message_hash.hex(),
-        ]
-    )
-    sig = parse_hex(out, "cast sign output")
-    if len(sig) != 65:
-        raise RuntimeError("expected 65-byte cast signature (r||s||v); got {} bytes".format(len(sig)))
-    return sig[:64]  # drop the trailing recovery byte
+    return coincurve.PrivateKey(scalar).sign_recoverable(message_hash, hasher=None)[:64]
 
 
 # -----------------------------------------------------------------------------
