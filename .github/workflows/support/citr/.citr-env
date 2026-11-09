@@ -9,4 +9,4 @@ block-node-version=v0.45.1
 bn-mirror-node-version=v0.165.2-rc1
 json-rpc-relay-version=v0.80.1
 mirror-node-explorer-version=v26.2.0
-nlg-version=0.15.3
+nlg-version=0.15.4
