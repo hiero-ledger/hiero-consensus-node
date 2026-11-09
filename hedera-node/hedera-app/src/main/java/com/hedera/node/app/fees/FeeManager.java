@@ -3,8 +3,10 @@ package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FEE_FILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toSet;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
@@ -28,11 +30,13 @@ import java.nio.BufferUnderflowException;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.TreeSet;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
@@ -45,6 +49,12 @@ public final class FeeManager {
 
     /** Functions only dispatched by a handler as a step of another transaction, which pays for them. */
     private static final Set<HederaFunctionality> HANDLER_STEP_FUNCTIONS = EnumSet.of(HOOK_DISPATCH);
+
+    /**
+     * Extras that handlers read straight from the schedule, so they must be defined even though no calculator
+     * charges them through a service fee definition.
+     */
+    private static final Set<Extra> EXTRAS_READ_BY_HANDLERS = EnumSet.of(Extra.TOKEN_ASSOCIATE, Extra.AIRDROPS);
 
     private FeeSchedule simpleFeesSchedule;
     private volatile SimpleFeeCalculator simpleFeeCalculator;
@@ -77,8 +87,7 @@ public final class FeeManager {
      * matches the file in state on every node; registered types it leaves unpriced are logged.
      *
      * @param bytes The new simple fee schedule file content.
-     * @return {@link ResponseCodeEnum#SUCCESS} if the schedule was installed, otherwise
-     * {@link ResponseCodeEnum#FEE_SCHEDULE_FILE_PART_UPLOADED}
+     * @return {@link ResponseCodeEnum#SUCCESS} if the schedule was installed, otherwise a failure status
      */
     public ResponseCodeEnum updateSimpleFees(@NonNull final Bytes bytes) {
         return updateSimpleFees(bytes, false);
@@ -86,14 +95,37 @@ public final class FeeManager {
 
     /**
      * Updates the simple fee schedule based on the given file content. A well-formed schedule that leaves some
-     * registered transaction or query type unpriced is rejected when {@code requireFullCoverage} is true; otherwise
-     * it is installed and the unpriced types are logged. Only genesis may require full coverage, since a rejected
-     * update would leave the file in state different from the schedule in use.
+     * registered transaction or query type unpriced, or lacks an extra that a calculator or handler charges, is
+     * rejected when {@code requireFullCoverage} is true; otherwise it is installed and the gaps are logged. Only
+     * genesis requires full coverage for an unpriced type, since a rejected update there would otherwise leave the
+     * file in state different from the schedule in use.
+     *
+     * <p>Two different kinds of rejection are distinguished so a caller can tell a schedule that still coherently
+     * parses from one that may simply be an in-progress chunked upload:
+     * <ul>
+     *   <li>{@link ResponseCodeEnum#FEE_SCHEDULE_FILE_PART_UPLOADED} for content that does not even parse, or
+     *   parses but fails {@link org.hiero.hapi.fees.FeeScheduleUtils#isValid} (which also covers empty or
+     *   otherwise structurally incomplete content) — consistent with an intermediate upload chunk.
+     *   <li>{@link ResponseCodeEnum#INVALID_FEE_FILE} for content that passes {@code isValid} (so it is internally
+     *   consistent on its own terms) but still cannot be evaluated by the registered calculators, treated as a
+     *   hard failure the caller may roll back — unlike an unpriced type, this is always rejected when
+     *   {@code requireFullCoverage} is true, not only at genesis, since the file write itself is rolled back with
+     *   it (see {@link com.hedera.node.app.workflows.handle.steps.SystemFileUpdates}), so no state/memory
+     *   divergence can result.
+     * </ul>
+     *
+     * <p>{@code isValid} can accept a prefix of a larger, well-formed schedule (for example one that already has a
+     * node fee, a network fee and a well-formed service), so a schedule uploaded in chunks could in principle
+     * pass {@code isValid} before every chunk has arrived and then hit this branch for an intermediate chunk, not
+     * only for a genuinely final-but-incomplete schedule. This is deliberately out of scope today: every schedule
+     * actually shipped is a single {@code FileUpdate}, well under the chunk size (see the size pins in
+     * {@code SimpleFeeScheduleCoverageTest}), so no real upload is ever chunked. A multi-chunk upload would need to
+     * defer this check until the upload is known to be complete, which this method does not attempt.
      *
      * @param bytes The new simple fee schedule file content.
-     * @param requireFullCoverage whether to reject a schedule that leaves a registered type unpriced
-     * @return {@link ResponseCodeEnum#SUCCESS} if the schedule was installed, otherwise
-     * {@link ResponseCodeEnum#FEE_SCHEDULE_FILE_PART_UPLOADED}
+     * @param requireFullCoverage whether to reject a schedule that leaves a registered type unpriced or an extra
+     * undefined
+     * @return {@link ResponseCodeEnum#SUCCESS} if the schedule was installed, otherwise a failure status
      */
     public synchronized ResponseCodeEnum updateSimpleFees(
             @NonNull final Bytes bytes, final boolean requireFullCoverage) {
@@ -107,9 +139,17 @@ public final class FeeManager {
             if (!unpriced.isEmpty()) {
                 if (requireFullCoverage) {
                     logger.error("Rejecting simple fee schedule with no prices for {}", unpriced);
-                    return FEE_SCHEDULE_FILE_PART_UPLOADED;
+                    return INVALID_FEE_FILE;
                 }
                 logger.error("Installing simple fee schedule with no prices for {}", unpriced);
+            }
+            final var missingExtras = missingExtras(schedule);
+            if (!missingExtras.isEmpty()) {
+                if (requireFullCoverage) {
+                    logger.error("Rejecting simple fee schedule missing extras {}", missingExtras);
+                    return INVALID_FEE_FILE;
+                }
+                logger.error("Installing simple fee schedule missing extras {}", missingExtras);
             }
             logger.info("Successfully validated simple fee schedule.");
             this.simpleFeesSchedule = schedule;
@@ -144,6 +184,40 @@ public final class FeeManager {
             }
         }
         return unpriced;
+    }
+
+    /**
+     * Returns the extras that a registered calculator or handler charges but the given schedule does not provide.
+     * Each entry is either the name of an extra that is not defined at all, or {@code FUNCTION.EXTRA} for an
+     * extra that the function's service fee definition does not reference. Functions the schedule does not price
+     * are reported by {@link #unpricedFunctions(FeeSchedule)} instead.
+     *
+     * @param schedule the schedule to check
+     * @return the missing extras
+     */
+    @VisibleForTesting
+    Set<String> missingExtras(@NonNull final FeeSchedule schedule) {
+        final var missing = new TreeSet<String>();
+        for (final var extra : EXTRAS_READ_BY_HANDLERS) {
+            if (lookupExtraFee(schedule, extra) == null) {
+                missing.add(extra.name());
+            }
+        }
+        for (final var calculator : serviceFeeCalculators) {
+            final var function = functionOf(calculator.getTransactionType());
+            final var definition = lookupServiceFee(schedule, function);
+            if (definition == null) {
+                continue;
+            }
+            final var referenced =
+                    definition.extras().stream().map(ExtraFeeReference::name).collect(toSet());
+            for (final var extra : calculator.requiredExtras()) {
+                if (!referenced.contains(extra)) {
+                    missing.add(function + "." + extra);
+                }
+            }
+        }
+        return missing;
     }
 
     private static HederaFunctionality functionOf(@NonNull final TransactionBody.DataOneOfType kind) {
