@@ -467,6 +467,28 @@ class SolvencyPreCheckTest extends AppTestBase {
         }
 
         @Test
+        void testContractCallGasCostThatDoesNotFitInALongIsRejected() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            // gas=Long.MAX_VALUE, price=2 → the gas cost saturates instead of wrapping to a negative number
+            final var builder = TransactionBody.newBuilder()
+                    .contractCall(ContractCallTransactionBody.newBuilder()
+                            .gas(Long.MAX_VALUE)
+                            .amount(0L));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CALL, builder);
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
+
+            assertThatThrownBy(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE));
+        }
+
+        @Test
         void testContractCreateBalanceThatDoesNotFitWithTheGasCostIsRejected() {
             when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
             when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
