@@ -165,10 +165,10 @@ a second set of in-memory indexes.
 These are learner reconnects on the 1B-account performance network, with the learner 21–23K rounds behind. Times are
 measured from the start of the reconnect.
 
-|                Copy                |  `main`  | Step 1, one thread per index | Step 1, parallel chunk copy |
-|------------------------------------|----------|------------------------------|-----------------------------|
-| Teacher (`detach`)                 | 75.6 s   | 19.6 s, 18.4 s of it paused  | 7.9 s                       |
-| Learner (`detachAsDataSourceCopy`) | 59.1 s   | 23.2 s                       | 11.4 s and 7.7 s            |
+|                Copy                | `main` | Step 1, one thread per index | Step 1, parallel chunk copy |
+|------------------------------------|--------|------------------------------|-----------------------------|
+| Teacher (`detach`)                 | 75.6 s | 19.6 s, 18.4 s of it paused  | 7.9 s                       |
+| Learner (`detachAsDataSourceCopy`) | 59.1 s | 23.2 s                       | 11.4 s and 7.7 s            |
 
 With one thread per index, "snapshot with copied indexes" took about 18 s on both nodes. Copying the leaf index took
 most of that time. With the parallel copy, the teacher's whole copy, including its pause, took less than 8 s.

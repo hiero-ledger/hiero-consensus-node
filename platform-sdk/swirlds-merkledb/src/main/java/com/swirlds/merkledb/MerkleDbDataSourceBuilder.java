@@ -192,11 +192,20 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
         }
         final String label = merkleDbDataSource.getTableName();
-        if (snapshotDir == null) {
+        final boolean isTempDir = (snapshotDir == null);
+        if (isTempDir) {
             snapshotDir = newTempDataSourceDir(label);
         }
         final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
-        snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
+        try {
+            snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
+        } catch (final RuntimeException | Error e) {
+            // The temp dir is returned only on success, nobody else can delete it
+            if (isTempDir) {
+                discardCopy(null, snapshotDir, e);
+            }
+            throw e;
+        }
         return snapshotDir;
     }
 

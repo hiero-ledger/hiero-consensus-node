@@ -2,14 +2,21 @@
 package com.swirlds.merkledb.collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -185,6 +192,54 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
             for (int i = 0; i < 3_000; i++) {
                 assertEquals(i + 1, source.get(i), "Value mismatch at index " + i);
             }
+        }
+    }
+
+    @Test
+    @DisplayName("A failed parallel copy waits for the tasks it started")
+    void failedParallelCopyWaitsForStartedTasks() throws Exception {
+        final ExecutorService pool = Executors.newFixedThreadPool(4);
+        final CountDownLatch release = new CountDownLatch(1);
+        try (final LongListSegment source = new LongListSegment(100, 10_000, 10)) {
+            source.updateValidRange(0, 2_999);
+            for (int i = 0; i < 3_000; i++) {
+                source.put(i, i + 1);
+            }
+            // Starts the first 10 chunk copies, which block until released, then rejects the next one
+            final AtomicInteger submitted = new AtomicInteger();
+            final Executor executor = task -> {
+                if (submitted.incrementAndGet() > 10) {
+                    throw new RejectedExecutionException("Test");
+                }
+                pool.execute(() -> {
+                    try {
+                        release.await();
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    task.run();
+                });
+            };
+            final CompletableFuture<Throwable> failure = CompletableFuture.supplyAsync(() -> {
+                try {
+                    new LongListSegment(source, executor).close();
+                    return null;
+                } catch (final RuntimeException | Error e) {
+                    return e;
+                }
+            });
+            // The 11th chunk copy is rejected right away, but the copy must wait for the 10 started ones
+            assertThrows(
+                    TimeoutException.class,
+                    () -> failure.get(500, TimeUnit.MILLISECONDS),
+                    "The copy should wait for the tasks it started");
+            release.countDown();
+            final Throwable e = failure.get(10, TimeUnit.SECONDS);
+            assertInstanceOf(RejectedExecutionException.class, e);
+            assertEquals("Test", e.getMessage());
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
         }
     }
 

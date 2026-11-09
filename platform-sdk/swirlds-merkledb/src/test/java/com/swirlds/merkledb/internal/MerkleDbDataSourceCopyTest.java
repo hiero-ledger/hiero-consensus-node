@@ -122,22 +122,45 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
             final MerkleDbDataSource copy = copyInMemory(source, true);
             try {
                 // Update all leaves in the copy. It creates new data files, and makes the old ones garbage
-                copy.saveRecords(
-                        COUNT,
-                        2 * COUNT - 1,
-                        Stream.empty(),
-                        IntStream.range(COUNT, 2 * COUNT)
-                                .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, 2 * i)),
-                        Stream.empty(),
-                        false);
-                copy.runPathToKeyValueStoreCompaction();
-                copy.runHashChunkStoreCompaction();
-                copy.runKeyToPathStoreCompaction();
-                copy.awaitForCurrentCompactionsToComplete(60_000);
+                updateAllLeaves(testType, copy, 2);
+                final int leafFilesBefore =
+                        copy.getKeyValueStore().getFileCollection().getNumOfFiles();
+                compact(copy);
+                assertTrue(
+                        copy.getKeyValueStore().getFileCollection().getNumOfFiles() < leafFilesBefore,
+                        "The copy should have been compacted");
                 checkData(testType, copy, 2);
                 assertSameHashes(source, copy);
                 // The source isn't affected
                 checkData(testType, source, 1);
+            } finally {
+                copy.close();
+            }
+        } finally {
+            source.close();
+        }
+    }
+
+    @Test
+    @DisplayName("A copy stays readable after its source compacts")
+    void copyIsReadableAfterSourceCompacts() throws IOException {
+        final TestType testType = TestType.variable_variable;
+        final MerkleDbDataSource source = createPopulatedDataSource(testType, false, true);
+        try {
+            final MerkleDbDataSource copy = copyInMemory(source, false);
+            try {
+                // Update all leaves in the source, and compact it. Compaction deletes the source's old data
+                // files. The copy has hard links to them, and its indexes still point to them
+                updateAllLeaves(testType, source, 2);
+                final int leafFilesBefore =
+                        source.getKeyValueStore().getFileCollection().getNumOfFiles();
+                compact(source);
+                assertTrue(
+                        source.getKeyValueStore().getFileCollection().getNumOfFiles() < leafFilesBefore,
+                        "The source should have been compacted");
+                checkData(testType, source, 2);
+                // The copy isn't affected
+                checkData(testType, copy, 1);
             } finally {
                 copy.close();
             }
@@ -218,6 +241,29 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
     }
 
     @Test
+    @DisplayName("A failed snapshot to a new temp dir deletes the dir")
+    void failedSnapshotToTempDirDeletesIt() throws IOException {
+        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, false);
+        try {
+            final MerkleDbDataSource spy = Mockito.spy(source);
+            // Takes the snapshot, then fails as resuming compaction would
+            doAnswer(invocation -> {
+                        invocation.<IORunnable>getArgument(0).run();
+                        throw new IOException("Test: resuming compaction failed");
+                    })
+                    .when(spy)
+                    .pauseCompactionAndRun(any());
+            final MerkleDbDataSourceBuilder builder = builder(DEFAULT_CONFIGURATION);
+            final UncheckedIOException e = assertThrows(UncheckedIOException.class, () -> builder.snapshot(null, spy));
+            assertEquals("Test: resuming compaction failed", e.getCause().getMessage());
+            checkData(TestType.long_fixed, source, 1);
+        } finally {
+            source.close();
+        }
+        // The snapshot's temp dir is checked in checkNoDataSourcesLeft()
+    }
+
+    @Test
     @DisplayName("A data source with disk-based indices can't be copied in memory")
     void diskBasedIndicesCantBeCopiedInMemory() throws IOException {
         final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, true);
@@ -242,21 +288,25 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
 
     @ParameterizedTest
     @MethodSource("copyModes")
-    @DisplayName("The copy mode setting selects how the builder copies a data source")
+    @DisplayName("The copy mode and other settings select how the builder copies a data source")
     void copyModeSelectsCopyMethod(
             final DataSourceCopyMode copyMode,
             final boolean compactionEnabled,
+            final boolean offlineUse,
+            final boolean indexRebuildingEnforced,
             final String expectedCopyClass,
             final boolean expectedDiskBasedIndices)
             throws IOException {
         final Configuration config = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
                 .withValue(MerkleDbConfig_.DATA_SOURCE_COPY_MODE, copyMode.name())
+                .withValue(MerkleDbConfig_.INDEX_REBUILDING_ENFORCED, Boolean.toString(indexRebuildingEnforced))
                 .build();
         final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed, false);
         try {
             final MerkleDbDataSourceBuilder builder = builder(config);
-            try (final PreparedDataSourceCopy prepared = builder.prepareCopy(LABEL, source, compactionEnabled, false)) {
+            try (final PreparedDataSourceCopy prepared =
+                    builder.prepareCopy(LABEL, source, compactionEnabled, offlineUse)) {
                 assertEquals(expectedCopyClass, prepared.getClass().getSimpleName());
                 final MerkleDbDataSource copy = assertInstanceOf(MerkleDbDataSource.class, prepared.complete());
                 try {
@@ -272,14 +322,35 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         }
     }
 
+    /**
+     * Arguments: copy mode, compaction enabled, offline use, index rebuilding enforced, expected copy class,
+     * expected disk-based indices.
+     */
     static Stream<Arguments> copyModes() {
+        final String inMemory = "InMemoryDataSourceCopy";
+        final String snapshot = "SnapshotDataSourceCopy";
         return Stream.of(
-                Arguments.of(DataSourceCopyMode.IN_MEMORY, false, "InMemoryDataSourceCopy", false),
-                Arguments.of(DataSourceCopyMode.IN_MEMORY, true, "InMemoryDataSourceCopy", false),
-                Arguments.of(DataSourceCopyMode.SNAPSHOT, false, "SnapshotDataSourceCopy", false),
-                Arguments.of(DataSourceCopyMode.SNAPSHOT, true, "SnapshotDataSourceCopy", false),
-                Arguments.of(DataSourceCopyMode.DISK_INDEXES, false, "SnapshotDataSourceCopy", true),
-                Arguments.of(DataSourceCopyMode.DISK_INDEXES, true, "InMemoryDataSourceCopy", false));
+                // The copy mode decides
+                Arguments.of(DataSourceCopyMode.IN_MEMORY, false, false, false, inMemory, false),
+                Arguments.of(DataSourceCopyMode.IN_MEMORY, true, false, false, inMemory, false),
+                Arguments.of(DataSourceCopyMode.SNAPSHOT, false, false, false, snapshot, false),
+                Arguments.of(DataSourceCopyMode.SNAPSHOT, true, false, false, snapshot, false),
+                Arguments.of(DataSourceCopyMode.DISK_INDEXES, false, false, false, snapshot, true),
+                Arguments.of(DataSourceCopyMode.DISK_INDEXES, true, false, false, inMemory, false),
+                // Offline copies are made through a snapshot, with disk-based indices, in every mode
+                Arguments.of(DataSourceCopyMode.IN_MEMORY, false, true, false, snapshot, true),
+                Arguments.of(DataSourceCopyMode.IN_MEMORY, true, true, false, snapshot, true),
+                Arguments.of(DataSourceCopyMode.SNAPSHOT, false, true, false, snapshot, true),
+                Arguments.of(DataSourceCopyMode.SNAPSHOT, true, true, false, snapshot, true),
+                Arguments.of(DataSourceCopyMode.DISK_INDEXES, false, true, false, snapshot, true),
+                Arguments.of(DataSourceCopyMode.DISK_INDEXES, true, true, false, snapshot, true),
+                // Enforced index rebuilding needs a snapshot to rebuild the indexes from, in every mode
+                Arguments.of(DataSourceCopyMode.IN_MEMORY, false, false, true, snapshot, false),
+                Arguments.of(DataSourceCopyMode.IN_MEMORY, true, false, true, snapshot, false),
+                Arguments.of(DataSourceCopyMode.SNAPSHOT, false, false, true, snapshot, false),
+                Arguments.of(DataSourceCopyMode.SNAPSHOT, true, false, true, snapshot, false),
+                Arguments.of(DataSourceCopyMode.DISK_INDEXES, false, false, true, snapshot, true),
+                Arguments.of(DataSourceCopyMode.DISK_INDEXES, true, false, true, snapshot, false));
     }
 
     private MerkleDbDataSourceBuilder builder(final Configuration config) {
@@ -297,6 +368,37 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         }
     }
 
+    /**
+     * Compacts all stores of a data source. The first run only scans the stores for garbage. The
+     * second one compacts, based on the results of the scan.
+     */
+    private static void compact(final MerkleDbDataSource dataSource) {
+        for (int i = 0; i < 2; i++) {
+            dataSource.runPathToKeyValueStoreCompaction();
+            dataSource.runHashChunkStoreCompaction();
+            dataSource.runKeyToPathStoreCompaction();
+            dataSource.awaitForCurrentCompactionsToComplete(60_000);
+        }
+    }
+
+    /**
+     * Updates all leaves of a data source created with {@link #createPopulatedDataSource}, so the
+     * leaf value index is the leaf key index times the given multiplier. The old leaf records become
+     * garbage.
+     */
+    private static void updateAllLeaves(
+            final TestType testType, final MerkleDbDataSource dataSource, final int valueMultiplier)
+            throws IOException {
+        dataSource.saveRecords(
+                COUNT,
+                2 * COUNT - 1,
+                Stream.empty(),
+                IntStream.range(COUNT, 2 * COUNT)
+                        .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, valueMultiplier * i)),
+                Stream.empty(),
+                false);
+    }
+
     private static long offHeapConsumption(final LongList index) {
         return assertInstanceOf(LongListSegment.class, index).getOffHeapConsumption();
     }
@@ -307,8 +409,18 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
      */
     private MerkleDbDataSource createPopulatedDataSource(final TestType testType, final boolean diskBasedIndices)
             throws IOException {
-        final MerkleDbDataSource dataSource =
-                (MerkleDbDataSource) builder(DEFAULT_CONFIGURATION).build(LABEL, null, false, diskBasedIndices);
+        return createPopulatedDataSource(testType, diskBasedIndices, false);
+    }
+
+    /**
+     * Same as {@link #createPopulatedDataSource(TestType, boolean)}, with background compaction enabled
+     * or disabled in the data source.
+     */
+    private MerkleDbDataSource createPopulatedDataSource(
+            final TestType testType, final boolean diskBasedIndices, final boolean compactionEnabled)
+            throws IOException {
+        final MerkleDbDataSource dataSource = (MerkleDbDataSource)
+                builder(DEFAULT_CONFIGURATION).build(LABEL, null, compactionEnabled, diskBasedIndices);
         final int batches = 5;
         final int batchSize = COUNT / batches;
         for (int batch = 0; batch < batches; batch++) {

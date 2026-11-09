@@ -12,6 +12,7 @@ import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.ass
 import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -53,7 +54,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -1315,6 +1318,40 @@ class VirtualMapTests extends VirtualTestBase {
     @DisplayName("Snapshot is not created when the flush is interrupted")
     void snapshotIsNotCreatedWhenFlushIsInterrupted() {
         assertDataSourceCopyIsClosedWhenFlushIsInterrupted(map -> map.createSnapshot(testDirectory));
+    }
+
+    @Test
+    @DisplayName("An Error from an async snapshot fails the snapshot, but doesn't shut down the map")
+    void asyncSnapshotErrorDoesNotShutDownMap() throws Exception {
+        final VirtualDataSourceBuilder builder = new InMemoryBuilder() {
+            @NonNull
+            @Override
+            public Path snapshot(@Nullable final Path destinationDir, @NonNull final VirtualDataSource snapshotMe) {
+                throw new InternalError("Test: snapshot failed");
+            }
+        };
+        final VirtualMap map0 = new VirtualMap(builder, DEFAULT_CONFIGURATION);
+        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        final VirtualMap map1 = map0.copy();
+        map0.getHash(); // forces copy to become hashed
+        final CompletableFuture<Void> snapshot = map0.createSnapshotAsync(testDirectory.resolve("asyncSnapshot"));
+        // The snapshot is written when map0 is flushed, after it's released
+        map0.release();
+        try {
+            final ExecutionException e = assertThrows(ExecutionException.class, () -> snapshot.get(30, SECONDS));
+            assertInstanceOf(InternalError.class, e.getCause());
+            // The pipeline isn't shut down: new copies can still be made, and the data is there
+            map1.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+            final VirtualMap map2 = map1.copy();
+            try {
+                assertEquals(APPLE, map2.get(A_KEY, TestValueCodec.INSTANCE));
+                assertEquals(BANANA, map2.get(B_KEY, TestValueCodec.INSTANCE));
+            } finally {
+                map2.release();
+            }
+        } finally {
+            map1.release();
+        }
     }
 
     /**

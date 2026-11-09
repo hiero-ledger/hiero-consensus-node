@@ -985,7 +985,10 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                     future.complete(null);
                 }
             }
-        } catch (final Exception e) {
+        } catch (final Exception | Error e) {
+            // The cache is already flushed, only the snapshot failed. Errors from the snapshot, like an
+            // OutOfMemoryError, must not reach the pipeline thread: it would shut down the live map. The
+            // snapshot's waiter gets the failure instead
             logger.error(EXCEPTION.getMarker(), "Failed to write snapshot to target path", e);
             final CompletableFuture<Void> future = snapshotFuture.get();
             if (future != null) {
