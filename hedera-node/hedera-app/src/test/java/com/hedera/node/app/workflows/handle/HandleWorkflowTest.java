@@ -136,15 +136,18 @@ import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.BlockRecordSource;
+import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.clpr.ClprHapiTlsEndpoint;
 import com.hedera.node.app.workflows.clpr.ClprSubmissions;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
 import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
@@ -159,6 +162,7 @@ import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -1066,7 +1070,7 @@ class HandleWorkflowTest {
                 .state(construction)
                 .build();
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
-        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("clpr.chainId", "upgrade-chain"));
+        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("contracts.chainId", "299"));
         final var method = HandleWorkflow.class.getDeclaredMethod(
                 "initializeMissingClprSingletons",
                 com.swirlds.state.State.class,
@@ -1093,7 +1097,7 @@ class HandleWorkflowTest {
                         }),
                         eq(NOW.minusNanos(100)));
         assertEquals(ClprEndpointManifestConstruction.DEFAULT, construction.get());
-        assertEquals("upgrade-chain", ledgerConfig.get().chainId());
+        assertEquals("eip155:299", ledgerConfig.get().chainId());
         assertEquals(new Timestamp(1, 0), ledgerConfig.get().timestamp());
         assertEquals(1, manifest.get().version());
 
@@ -1178,8 +1182,9 @@ class HandleWorkflowTest {
                                     .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
                                     .toList();
                             return reasonOf(items) == ENDPOINT_MANIFEST_RECONCILIATION
-                                    && updates.stream().anyMatch(change -> change.singletonUpdateOrThrow()
-                                            .hasClprEndpointManifestConstructionValue());
+                                    && updates.stream()
+                                            .anyMatch(change -> change.singletonUpdateOrThrow()
+                                                    .hasClprEndpointManifestConstructionValue());
                         }),
                         eq(firstEventTime.minusNanos(100)));
         assertEquals(List.of(pendingChange), changes);
@@ -1781,6 +1786,133 @@ class HandleWorkflowTest {
         verify(scheduleService).executableTxns(any(), any(), any());
         // Only the round-start initialization — no scheduled txn dispatch triggered a second call
         verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+    }
+
+    /**
+     * A scheduled transaction whose fee cannot be computed makes dispatch creation throw. That must fail only
+     * the one scheduled transaction, not abandon the rest of the interval: the failing transaction is still
+     * consumed from the iterator and its failure output externalized, and the next due transaction still executes.
+     */
+    @Test
+    void scheduledTxnWhoseDispatchCannotBeCreatedDoesNotDropTheNextOne() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(entityIdStates);
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true, true, false);
+        final var executableTxn = new ExecutableTxn<>(
+                TransactionBody.DEFAULT, AccountID.DEFAULT, key -> true, NOW, StreamBuilder.class, b -> {});
+        Mockito.doReturn(executableTxn, executableTxn).when(schedIter).next();
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+        final var failingTxn = mock(ParentTxn.class);
+        final var laterTxn = mock(ParentTxn.class);
+        given(laterTxn.creatorInfo()).willReturn(mock(NodeInfo.class));
+        given(laterTxn.txnInfo()).willReturn(mock(TransactionInfo.class));
+        given(laterTxn.stack()).willReturn(mock(SavepointStackImpl.class));
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(failingTxn, laterTxn);
+        final var laterDispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(any(), any(), any(), any()))
+                .willThrow(new IllegalArgumentException("Extra not defined"))
+                .willReturn(laterDispatch);
+        final var failureOutput = mock(HandleOutput.class);
+        given(failureOutput.lastAssignedConsensusTime()).willReturn(NOW);
+        given(failureOutput.recordSourceOrThrow()).willReturn(new LegacyListRecordSource(List.of(), List.of()));
+        final var laterOutput = mock(HandleOutput.class);
+        given(laterOutput.lastAssignedConsensusTime()).willReturn(NOW);
+        given(laterOutput.recordSourceOrThrow()).willReturn(new LegacyListRecordSource(List.of(), List.of()));
+        given(laterTxn.stack().buildHandleOutput(any(), any(), any())).willReturn(laterOutput);
+        givenSubjectWith(
+                RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 104);
+
+        try (final var handleOutput = Mockito.mockStatic(HandleOutput.class)) {
+            handleOutput
+                    .when(() -> HandleOutput.failInvalidStreamItems(any(), any(), any(), any()))
+                    .thenReturn(failureOutput);
+
+            subject.handleRound(state, round, txns -> {});
+
+            handleOutput.verify(() -> HandleOutput.failInvalidStreamItems(same(failingTxn), any(), any(), any()));
+            handleOutput.verify(
+                    () -> HandleOutput.failInvalidStreamItems(same(laterTxn), any(), any(), any()), never());
+        }
+        verify(dispatchProcessor).processDispatch(same(laterDispatch));
+        verify(blockRecordManager, times(2)).endUserTransaction(any(), same(state));
+        verify(schedIter, times(2)).remove();
+    }
+
+    @Test
+    void freshGenesisHandoffKeepsTheProofKeysOfNodesAPendingCandidateRosterDrops() {
+        final var activeRosterHash = Bytes.wrap("ACTIVE");
+        final var candidateRosterHash = Bytes.wrap("CANDIDATE");
+        final var activeRoster = Roster.newBuilder()
+                .rosterEntries(
+                        RosterEntry.newBuilder().nodeId(0L).weight(1L).build(),
+                        RosterEntry.newBuilder().nodeId(1L).weight(1L).build())
+                .build();
+        final var candidateRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+                .build();
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).willReturn(rosters);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .candidateRosterHash(candidateRosterHash)
+                        .roundRosterPairs(new RoundRosterPair(0, activeRosterHash))
+                        .build());
+        given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
+        given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
+        final var historyStore = mock(WritableHistoryStore.class);
+        given(historyStore.getActiveConstruction())
+                .willReturn(
+                        HistoryProofConstruction.newBuilder().constructionId(1L).build());
+        // A finished construction that grounds a new chain of trust for the roster the network already has
+        final var groundingConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .sourceRosterHash(activeRosterHash)
+                .targetRosterHash(activeRosterHash)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        willAnswer(invocation -> {
+                    invocation
+                            .<OnProofFinished>getArgument(0)
+                            .onFinished(historyStore, groundingConstruction, new TreeMap<>());
+                    return null;
+                })
+                .given(historyService)
+                .onFinishedConstruction(any());
+        // A round with one event and no transactions
+        final var creatorId = NodeId.of(0L);
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        lenient().when(event.getConsensusTimestamp()).thenReturn(NOW);
+        lenient().when(event.allParentsIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(event.getCreatorId()).thenReturn(creatorId);
+        lenient().when(event.consensusTransactionIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(networkInfo.nodeInfo(creatorId.id())).thenReturn(mock(NodeInfo.class));
+        lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+
+        subject.handleRound(state, round, txns -> {});
+
+        // The roster does not change, so no node's proof key may be removed
+        verify(historyStore).handoff(activeRoster, null, null);
     }
 
     @Test

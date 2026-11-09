@@ -32,6 +32,10 @@ services:
     command:
       - -storageDataPath=/victoria-metrics-data
       - -retentionPeriod=${METRICS_RETENTION}
+      # Single-node VictoriaMetrics keeps every copy of a sample unless this
+      # is set, so importing a dump twice would double its samples. 1ms only
+      # merges samples of one series that share a timestamp.
+      - -dedup.minScrapeInterval=1ms
       - -promscrape.config=/etc/vm/promscrape.yml
       - -httpListenAddr=:8428
     environment:

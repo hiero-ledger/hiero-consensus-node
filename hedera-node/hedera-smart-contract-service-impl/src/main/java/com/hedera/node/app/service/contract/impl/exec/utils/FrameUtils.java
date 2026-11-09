@@ -154,9 +154,9 @@ public class FrameUtils {
      * Returns a record builder able to track the beneficiaries of {@code SELFDESTRUCT} operations executed
      * so far in the frame's EVM transaction.
      *
-     * <p>Note it does not matter if we track a {@code SELFDESTRUCT} that is later reverted; we just need to
-     * be sure that for the committed self-destructs, we know what beneficiary they used so the staking logic
-     * can redirect rewards as appropriate.
+     * <p>This staking bookkeeping may retain entries from reverted attempts. World updaters separately
+     * journal successful beneficiaries across frame commits and rollbacks; when enabled, synthetic deletion
+     * children carry those committed beneficiaries into staking finalization, overriding stale entries here.
      *
      * @param frame the frame whose EVM transaction we are tracking beneficiaries in
      * @return the record builder able to track beneficiary ids

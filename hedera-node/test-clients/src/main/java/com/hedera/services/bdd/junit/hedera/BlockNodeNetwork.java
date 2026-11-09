@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera;
 
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.findAvailablePort;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
@@ -26,10 +27,13 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.testcontainers.DockerClientFactory;
 
 public class BlockNodeNetwork {
 
@@ -41,6 +45,17 @@ public class BlockNodeNetwork {
     private final Map<Long, BlockNodeContainer> blockNodeContainerById = new HashMap<>();
     private final Map<Long, Boolean> blockNodeHighLatencyById = new HashMap<>();
     private final Map<Long, BlockNodeTlsMode> blockNodeTlsModeById = new HashMap<>();
+    private final Map<Long, Boolean> blockNodeCatchUpFromPeersById = new HashMap<>();
+    // Real block node containers' host ports, chosen before they start so consensus nodes can be configured first
+    private final Map<Long, Integer> containerPortById = new ConcurrentHashMap<>();
+    // Consensus nodes given a block-nodes.json, which they reload if a container has to move to a fresh port
+    private final Map<Long, HederaNode> configuredNodeById = new ConcurrentHashMap<>();
+
+    @Nullable
+    private volatile String containerHost;
+
+    @Nullable
+    private volatile CompletableFuture<Void> containersStarted;
 
     // SubProcessNode configuration for Block Nodes (just priorities for now)
     private final Map<Long, long[]> blockNodePrioritiesBySubProcessNodeId = new HashMap<>();
@@ -64,6 +79,15 @@ public class BlockNodeNetwork {
     }
 
     public void start() {
+        startInBackground();
+        awaitStarted();
+    }
+
+    /**
+     * Starts the block nodes, leaving any real block node containers to come up in the background on ports chosen
+     * here; so consensus nodes can be configured and started meanwhile, before {@link #awaitStarted()}.
+     */
+    public void startInBackground() {
         if (!blockNodeModeById.isEmpty()) {
             logger.info("Starting Block Node Network with the following Block Node configurations:");
             // Log the configurations for each Block Node (sim or real/local node)
@@ -85,23 +109,70 @@ public class BlockNodeNetwork {
             }
         }
 
-        // First start block nodes if needed
-        startBlockNodesAsApplicable();
-
-        // Wait for gRPC readiness on real block node containers.
-        awaitGrpcReadiness(Duration.ofSeconds(30));
+        final List<Long> containerIds = new ArrayList<>();
+        for (final Map.Entry<Long, BlockNodeMode> entry : blockNodeModeById.entrySet()) {
+            final long blockNodeId = entry.getKey();
+            final BlockNodeMode mode = entry.getValue();
+            if (mode == BlockNodeMode.REAL) {
+                containerPortById.put(blockNodeId, findAvailablePort());
+                containerIds.add(blockNodeId);
+            } else if (mode == BlockNodeMode.SIMULATOR) {
+                startSimulatorNode(
+                        blockNodeId,
+                        catchesUpFromPeers(blockNodeId) ? () -> highestPeerVerifiedBlock(blockNodeId) : null);
+            }
+        }
+        if (!containerIds.isEmpty()) {
+            // What the containers' getHost() will return, known before they start
+            containerHost = DockerClientFactory.instance().dockerHostIpAddress();
+        }
+        containersStarted = containerIds.isEmpty()
+                ? CompletableFuture.completedFuture(null)
+                : CompletableFuture.runAsync(
+                        () -> {
+                            containerIds.forEach(this::startRealBlockNodeContainer);
+                            awaitGrpcReadiness(Duration.ofSeconds(30));
+                        },
+                        task -> Thread.ofPlatform()
+                                .name("block-node-start")
+                                .daemon()
+                                .start(task));
     }
 
     /**
-     * Polls each real block node container's gRPC server status endpoint until it responds, ensuring
-     * gRPC is ready before consensus nodes start. The container's own wait strategy only proves the
+     * Waits until the real block node containers started by {@link #startInBackground()} are ready, rethrowing
+     * whatever made one fail to start.
+     */
+    public void awaitStarted() {
+        final var started = containersStarted;
+        if (started == null) {
+            return;
+        }
+        try {
+            started.join();
+        } catch (final CompletionException e) {
+            throw e.getCause() instanceof RuntimeException cause ? cause : e;
+        }
+    }
+
+    // A container still starting would otherwise escape the log dump and the stops
+    private void settleStart() {
+        try {
+            awaitStarted();
+        } catch (final RuntimeException ignore) {
+            // Already rethrown to whoever started this network
+        }
+    }
+
+    /**
+     * Polls each real block node container's gRPC server status endpoint until it responds, so
+     * {@link #awaitStarted()} returns only once gRPC is ready. The container's own wait strategy only proves the
      * block node logged startup; this additionally confirms its mapped gRPC port is reachable from
      * the test JVM.
      *
      * <p>Readiness means "the server status RPC completed", not any property of the response. A
      * value-based check cannot work here: the block node holds no blocks until a consensus node
-     * streams to it, and consensus nodes have not started yet, so it necessarily reports the
-     * empty/accept-any sentinel.
+     * streams to it, so it may well report the empty/accept-any sentinel.
      */
     private void awaitGrpcReadiness(@NonNull final Duration timeout) {
         if (blockNodeContainerById.isEmpty()) {
@@ -141,6 +212,7 @@ public class BlockNodeNetwork {
     }
 
     public void terminate(@NonNull final Path scopeRoot) {
+        settleStart();
         dumpContainerLogs(scopeRoot);
         doTerminate();
     }
@@ -150,6 +222,7 @@ public class BlockNodeNetwork {
      * Intended for cleanup when the consensus network never started successfully.
      */
     public void terminateQuietly() {
+        settleStart();
         doTerminate();
     }
 
@@ -222,22 +295,11 @@ public class BlockNodeNetwork {
         }
     }
 
-    private void startBlockNodesAsApplicable() {
-        for (final Map.Entry<Long, BlockNodeMode> entry : blockNodeModeById.entrySet()) {
-            final long blockNodeId = entry.getKey();
-            final BlockNodeMode mode = entry.getValue();
-            if (mode == BlockNodeMode.REAL) {
-                startRealBlockNodeContainer(blockNodeId);
-            } else if (mode == BlockNodeMode.SIMULATOR) {
-                startSimulatorNode(entry.getKey(), null);
-            }
-        }
-    }
-
     private void startRealBlockNodeContainer(final long id) {
         Exception lastException = null;
         for (int attempt = 1; attempt <= MAX_START_ATTEMPTS; attempt++) {
-            final int port = findAvailablePort();
+            // Consensus nodes may already be configured with the first port
+            final int port = attempt == 1 ? containerPortById.get(id) : moveContainerToFreshPort(id);
             BlockNodeContainer container = null;
             try {
                 container = new BlockNodeContainer(id, port, rsaBootstrapJson);
@@ -274,6 +336,17 @@ public class BlockNodeNetwork {
         throw new RuntimeException(
                 "Failed to start real block node container " + id + " after " + MAX_START_ATTEMPTS + " attempts",
                 lastException);
+    }
+
+    /**
+     * Gives a container that failed to start a fresh port, and points every consensus node already configured for
+     * the old one at it.
+     */
+    private synchronized int moveContainerToFreshPort(final long id) {
+        final int port = findAvailablePort();
+        containerPortById.put(id, port);
+        configuredNodeById.values().forEach(this::configureBlockNodeConnectionInformation);
+        return port;
     }
 
     public void startSimulatorNode(final Long id, final Supplier<Long> lastVerifiedBlockNumberSupplier) {
@@ -329,31 +402,29 @@ public class BlockNodeNetwork {
      */
     private static @Nullable BlockNodeTlsConfig tlsConfigFor(
             @NonNull final BlockNodeTlsMode tlsMode, final boolean streaming) {
-        final boolean enabled =
-                switch (tlsMode) {
-                    case NONE -> false;
-                    case PUBLISH_ONLY -> streaming;
-                    case SERVICE_ONLY -> !streaming;
-                    case ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT -> true;
-                };
+        final boolean enabled = switch (tlsMode) {
+            case NONE -> false;
+            case PUBLISH_ONLY -> streaming;
+            case SERVICE_ONLY -> !streaming;
+            case ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT -> true;
+        };
         if (!enabled) {
             return null;
         }
         // null leaves the fingerprint unset, which makes the consensus node fall back to the platform trust store
-        final String fingerprint =
-                switch (tlsMode) {
-                    case ALL_BAD_FINGERPRINT -> UNMATCHED_FINGERPRINT;
-                    case ALL_NO_FINGERPRINT -> null;
-                    case NONE, PUBLISH_ONLY, SERVICE_ONLY, ALL ->
-                        SelfSignedCert.shared().sha384Fingerprint();
-                };
+        final String fingerprint = switch (tlsMode) {
+            case ALL_BAD_FINGERPRINT -> UNMATCHED_FINGERPRINT;
+            case ALL_NO_FINGERPRINT -> null;
+            case NONE, PUBLISH_ONLY, SERVICE_ONLY, ALL ->
+                SelfSignedCert.shared().sha384Fingerprint();
+        };
         return BlockNodeTlsConfig.newBuilder()
                 .enabled(true)
                 .certificateSha384(fingerprint)
                 .build();
     }
 
-    public void configureBlockNodeConnectionInformation(HederaNode node) {
+    public synchronized void configureBlockNodeConnectionInformation(HederaNode node) {
         final List<BlockNodeConfig> blockNodes = new ArrayList<>();
         final long[] blockNodeIds = blockNodeIdsBySubProcessNodeId.get(node.getNodeId());
         if (blockNodeIds == null) {
@@ -364,12 +435,12 @@ public class BlockNodeNetwork {
             final long blockNodeId = blockNodeIds[blockNodeIndex];
             final BlockNodeMode mode = blockNodeModeById.get(blockNodeId);
             if (mode == BlockNodeMode.REAL) {
-                final BlockNodeContainer blockNode = blockNodeContainerById.get(blockNodeId);
+                final int port = containerPortById.get(blockNodeId);
                 final int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
                 blockNodes.add(BlockNodeConfig.newBuilder()
-                        .address(blockNode.getHost())
-                        .streamingPort(blockNode.getPort())
-                        .servicePort(blockNode.getPort())
+                        .address(requireNonNull(containerHost))
+                        .streamingPort(port)
+                        .servicePort(port)
                         .priority(priority)
                         .build());
             } else if (mode == BlockNodeMode.SIMULATOR) {
@@ -401,6 +472,7 @@ public class BlockNodeNetwork {
             } catch (final IOException e) {
                 throw new RuntimeException(e);
             }
+            configuredNodeById.put(node.getNodeId(), node);
         }
         logger.info("Configured block node connection information for node {}: {}", node.getNodeId(), blockNodes);
     }
@@ -450,6 +522,28 @@ public class BlockNodeNetwork {
 
     public Map<Long, BlockNodeTlsMode> getBlockNodeTlsModeById() {
         return blockNodeTlsModeById;
+    }
+
+    public Map<Long, Boolean> getBlockNodeCatchUpFromPeersById() {
+        return blockNodeCatchUpFromPeersById;
+    }
+
+    /**
+     * Returns whether the given simulator adopts its peers' latest verified block when it is behind them.
+     */
+    public boolean catchesUpFromPeers(final long id) {
+        return blockNodeCatchUpFromPeersById.getOrDefault(id, false);
+    }
+
+    /**
+     * Returns the highest block verified by any simulator other than the given one, or -1 if there is none.
+     */
+    public long highestPeerVerifiedBlock(final long id) {
+        return simulatedBlockNodeById.entrySet().stream()
+                .filter(entry -> entry.getKey() != id)
+                .mapToLong(entry -> entry.getValue().getLastVerifiedBlockNumber())
+                .max()
+                .orElse(-1L);
     }
 
     public void setRsaBootstrapJson(@NonNull final String rsaBootstrapJson) {

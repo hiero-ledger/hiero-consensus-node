@@ -340,12 +340,10 @@ public class HandleWorkflow {
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();
         boolean transactionsDispatched = false;
-        final boolean isGenesis =
-                switch (streamMode) {
-                    case RECORDS ->
-                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
-                    case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
-                };
+        final boolean isGenesis = switch (streamMode) {
+            case RECORDS -> blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+            case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
+        };
         if (isGenesis) {
             final var genesisEventTime = firstEvent.getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
@@ -1044,10 +1042,10 @@ public class HandleWorkflow {
         final var scheduledTxn = parentTxnFactory.createSystemTxn(
                 state, creatorInfo, consensusNow, ORDINARY_TRANSACTION, executableTxn.payerId(), executableTxn.body());
         final var baseBuilder = baseBuilderFor(executableTxn, scheduledTxn);
-        final var dispatch =
-                parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
-        stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
+            final var dispatch =
+                    parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
+            stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
             dispatchProcessor.processDispatch(dispatch);
             final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
@@ -1251,7 +1249,12 @@ public class HandleWorkflow {
                                     activeRoster,
                                     requireNonNull(candidateRoster),
                                     requireNonNull(candidateRosterHash));
-                        } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
+                        } else if (historyStore.handoff(
+                                activeRoster,
+                                // A fresh genesis handoff keeps the active roster, so a pending candidate
+                                // roster must not remove the proof keys of the nodes it drops
+                                null,
+                                candidateRosterHash)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                             // The ledger id is that of the history a genesis proof grounds its chain of
