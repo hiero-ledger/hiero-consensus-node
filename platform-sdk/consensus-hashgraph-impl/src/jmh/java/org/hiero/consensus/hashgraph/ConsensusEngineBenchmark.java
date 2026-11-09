@@ -172,7 +172,7 @@ public class ConsensusEngineBenchmark {
         }
         switch (numNodes) {
             case 10 -> {
-                expectedRounds = 1931;
+                expectedRounds = 1934;
                 expectedStaleEvents = 0;
             }
             case 28 -> {

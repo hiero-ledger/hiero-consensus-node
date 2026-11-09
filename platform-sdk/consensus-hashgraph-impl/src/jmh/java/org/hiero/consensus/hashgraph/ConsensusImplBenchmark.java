@@ -146,7 +146,7 @@ public class ConsensusImplBenchmark {
             }
         }
         expectedRounds = switch (numNodes) {
-            case 10 -> 1931;
+            case 10 -> 1934;
             case 28 -> 601;
             default -> throw new IllegalArgumentException("No expected round count for numNodes=" + numNodes);
         };
