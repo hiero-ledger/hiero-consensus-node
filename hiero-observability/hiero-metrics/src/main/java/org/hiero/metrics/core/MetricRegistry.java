@@ -49,12 +49,33 @@ public final class MetricRegistry implements Closeable {
     @Nullable
     private final MetricRegistrySnapshot snapshot;
 
-    private MetricRegistry(@NonNull List<Label> globalLabels, @Nullable MetricsExporter exporter) {
+    /**
+     * Creates a registry and registers the given metric builders in one pass. Nobody else can see the registry yet,
+     * so builders are registered with a plain loop and the registry snapshot is created from all of them at once.
+     * The exporter gets its snapshot supplier last, so the first export sees every provided metric.
+     */
+    private MetricRegistry(
+            @NonNull List<Label> globalLabels,
+            @Nullable MetricsExporter exporter,
+            @NonNull List<Metric.Builder<?, ?>> builders) {
         this.globalLabels = List.copyOf(globalLabels);
         this.exporter = exporter;
 
+        final List<MetricSnapshot> metricSnapshots = new ArrayList<>(builders.size());
+        for (Metric.Builder<?, ?> builder : builders) {
+            Objects.requireNonNull(builder, "metric builder must not be null");
+            final MetricKey<?> key = builder.key();
+            throwIfDuplicateMetricName(key, metrics.get(key.name()));
+
+            final Metric metric = buildMetric(builder);
+            metrics.put(key.name(), metric);
+            if (exporter != null) {
+                metricSnapshots.add(metric.snapshot());
+            }
+        }
+
         if (exporter != null) {
-            snapshot = new MetricRegistrySnapshot();
+            snapshot = new MetricRegistrySnapshot(metricSnapshots);
             exporter.setSnapshotSupplier(snapshot::update);
             logger.log(
                     INFO,
@@ -66,6 +87,7 @@ public final class MetricRegistry implements Closeable {
             logger.log(INFO, "Created metric registry without exporter. globalLabels={0}", this.globalLabels);
         }
     }
+
     /**
      * @return {@code true} if this registry has an associated {@link MetricsExporter}, {@code false} otherwise
      */
@@ -116,18 +138,9 @@ public final class MetricRegistry implements Closeable {
         final MetricKey<M> metricKey = builder.key();
 
         return metricKey.type().cast(metrics.compute(metricKey.name(), (name, existingMetric) -> {
-            if (existingMetric != null) {
-                throw new IllegalArgumentException(
-                        "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.name());
-            }
+            throwIfDuplicateMetricName(metricKey, existingMetric);
 
-            builder.addStaticLabels(globalLabels.toArray(Label[]::new));
-            if (snapshot == null) {
-                builder.doNotSnapshot();
-            }
-
-            M metric = builder.build();
-            logger.log(DEBUG, "Registered metric. name={0}", metric.name());
+            final M metric = buildMetric(builder);
 
             if (snapshot != null) {
                 snapshot.addMetricSnapshot(metric.snapshot());
@@ -184,6 +197,24 @@ public final class MetricRegistry implements Closeable {
         if (exporter != null) {
             logger.log(INFO, "Closing metrics exporter: {0}", exporter.getClass());
             exporter.close();
+        }
+    }
+
+    private <M extends Metric> M buildMetric(Metric.Builder<?, M> builder) {
+        builder.addStaticLabels(globalLabels.toArray(Label[]::new));
+        if (exporter == null) {
+            builder.doNotSnapshot();
+        }
+
+        final M metric = builder.build();
+        logger.log(DEBUG, "Registered metric. name={0}", metric.name());
+        return metric;
+    }
+
+    private void throwIfDuplicateMetricName(MetricKey<?> key, @Nullable Metric existing) {
+        if (existing != null) {
+            throw new IllegalArgumentException(
+                    "Duplicate metric name: " + key + ". Existing metric: " + existing.name());
         }
     }
 
@@ -267,7 +298,7 @@ public final class MetricRegistry implements Closeable {
          * Registry may have associated {@link MetricsExporter} if set via
          * {@link #setMetricsExporter(MetricsExporter)} or discovered via
          * {@link #discoverMetricsExporter(Configuration)}. Discovered exporter takes precedence over
-         * explicitly set exporter.
+         * an explicitly set exporter, which serves as a fallback.
          * <p>
          * If exporter discovery is enabled via {@link #discoverMetricsExporter(Configuration)} and not disabled by
          * configuration property {@value #PROPERTY_EXPORT_DISCOVERY_DISABLED}, it attempts to discover a single
@@ -277,66 +308,101 @@ public final class MetricRegistry implements Closeable {
          * <p>
          * If metric providers discovery is enabled via {@link #discoverMetricProviders()}, it attempts to discover
          * all {@link MetricsRegistrationProvider} implementations via service loader and register their metrics
-         * in the constructed registry.
+         * in the constructed registry. Their metrics are registered before the exporter is attached,
+         * so the first export sees all of them. If registration fails, an exporter created by this method
+         * from a discovered {@link MetricsExporterFactory} is closed and the exception is rethrown;
+         * an exporter set via {@link #setMetricsExporter(MetricsExporter)} is left open for the caller.
          *
          * @return the constructed {@link MetricRegistry}
          */
         @NonNull
         public MetricRegistry build() {
-            if (configuration != null) {
-                Boolean exporterDiscoveryDisabled =
-                        configuration.getValue(PROPERTY_EXPORT_DISCOVERY_DISABLED, Boolean.class, false);
-                if (exporterDiscoveryDisabled != null && exporterDiscoveryDisabled) {
-                    logger.log(
-                            INFO,
-                            "Exporter discovery is disabled by configuration property: {0}",
-                            PROPERTY_EXPORT_DISCOVERY_DISABLED);
-                } else {
-                    List<MetricsExporterFactory> factories = MetricUtils.load(MetricsExporterFactory.class);
-                    if (factories.size() > 1) {
-                        logger.log(
-                                WARNING,
-                                "Multiple metrics exporter factories found: {0}. "
-                                        + "Expected at most one. Ignoring discovered exporter factories.",
-                                factories);
-                    } else if (factories.size() == 1) {
-                        MetricsExporterFactory factory = factories.getFirst();
-                        MetricsExporter exporter =
-                                factory.createExporter(Collections.unmodifiableList(globalLabels), configuration);
+            final List<Metric.Builder<?, ?>> providerBuilders = loadProviderBuilders();
+            final MetricsExporter discoveredExporter = discoverExporter();
+            final MetricsExporter exporter = discoveredExporter != null ? discoveredExporter : metricsExporter;
 
-                        if (exporter != null) {
-                            this.metricsExporter = exporter;
-                        } else {
-                            logger.log(INFO, "Exporter factory did not create an exporter: {0}", factory.getClass());
-                        }
+            try {
+                return new MetricRegistry(globalLabels, exporter, providerBuilders);
+            } catch (RuntimeException | Error e) {
+                // only the exporter created here is closed, one set via setMetricsExporter stays with the caller
+                if (discoveredExporter != null) {
+                    try {
+                        discoveredExporter.close();
+                    } catch (IOException | RuntimeException closeException) {
+                        e.addSuppressed(closeException);
                     }
                 }
+                throw e;
+            }
+        }
+
+        /**
+         * Creates an exporter from the single discovered {@link MetricsExporterFactory}, if exporter discovery is
+         * enabled via {@link #discoverMetricsExporter(Configuration)} and not disabled by configuration property
+         * {@value #PROPERTY_EXPORT_DISCOVERY_DISABLED}.
+         *
+         * @return the created exporter, or {@code null} if discovery is not enabled, no or multiple factories are
+         * found, or the factory did not create an exporter
+         */
+        @Nullable
+        private MetricsExporter discoverExporter() {
+            if (configuration == null) {
+                return null;
             }
 
-            final MetricRegistry registry = new MetricRegistry(globalLabels, metricsExporter);
-
-            if (discoverMetricProviders) {
-                List<MetricsRegistrationProvider> providers = MetricUtils.load(MetricsRegistrationProvider.class);
-
-                if (providers.isEmpty()) {
-                    logger.log(INFO, "No metrics registration providers found.");
-                    return registry;
-                }
-
-                for (MetricsRegistrationProvider provider : providers) {
-                    Objects.requireNonNull(provider, "metrics registration provider must not be null");
-                    logger.log(INFO, "Registering metrics from provider: {0}", provider.getClass());
-
-                    Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister();
-                    Objects.requireNonNull(metricsToRegister, "metrics collection must not be null");
-
-                    for (Metric.Builder<?, ?> builder : metricsToRegister) {
-                        registry.register(builder);
-                    }
-                }
+            Boolean exporterDiscoveryDisabled =
+                    configuration.getValue(PROPERTY_EXPORT_DISCOVERY_DISABLED, Boolean.class, false);
+            if (exporterDiscoveryDisabled != null && exporterDiscoveryDisabled) {
+                logger.log(
+                        INFO,
+                        "Exporter discovery is disabled by configuration property: {0}",
+                        PROPERTY_EXPORT_DISCOVERY_DISABLED);
+                return null;
             }
 
-            return registry;
+            List<MetricsExporterFactory> factories = MetricUtils.load(MetricsExporterFactory.class);
+            if (factories.size() > 1) {
+                logger.log(
+                        WARNING,
+                        "Multiple metrics exporter factories found: {0}. "
+                                + "Expected at most one. Ignoring discovered exporter factories.",
+                        factories);
+                return null;
+            }
+            if (factories.isEmpty()) {
+                return null;
+            }
+
+            MetricsExporterFactory factory = factories.getFirst();
+            MetricsExporter exporter =
+                    factory.createExporter(Collections.unmodifiableList(globalLabels), configuration);
+            if (exporter == null) {
+                logger.log(INFO, "Exporter factory did not create an exporter: {0}", factory.getClass());
+            }
+            return exporter;
+        }
+
+        private List<Metric.Builder<?, ?>> loadProviderBuilders() {
+            if (!discoverMetricProviders) {
+                return List.of();
+            }
+
+            List<MetricsRegistrationProvider> providers = MetricUtils.load(MetricsRegistrationProvider.class);
+            if (providers.isEmpty()) {
+                logger.log(INFO, "No metrics registration providers found.");
+                return List.of();
+            }
+
+            final List<Metric.Builder<?, ?>> builders = new ArrayList<>();
+            for (MetricsRegistrationProvider provider : providers) {
+                Objects.requireNonNull(provider, "metrics registration provider must not be null");
+                logger.log(INFO, "Loading metrics from provider: {0}", provider.getClass());
+
+                Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister();
+                Objects.requireNonNull(metricsToRegister, "metrics collection must not be null");
+                builders.addAll(metricsToRegister);
+            }
+            return builders;
         }
     }
 }
