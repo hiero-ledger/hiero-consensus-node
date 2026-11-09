@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNE
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_MAINTENANCE;
@@ -315,6 +316,7 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprRegisterChannel,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCompleteChannel,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCloseChannel,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprEvictPeerEndpoint,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprRegisterConnector,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCompleteConnector,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprDeregisterConnector,
@@ -422,6 +424,7 @@ public record ApiPermissionConfig(
         permissionKeys.put(CLPR_REGISTER_CHANNEL, c -> c.clprRegisterChannel);
         permissionKeys.put(CLPR_COMPLETE_CHANNEL, c -> c.clprCompleteChannel);
         permissionKeys.put(CLPR_CLOSE_CHANNEL, c -> c.clprCloseChannel);
+        permissionKeys.put(CLPR_EVICT_PEER_ENDPOINT, c -> c.clprEvictPeerEndpoint);
         permissionKeys.put(CLPR_REGISTER_CONNECTOR, c -> c.clprRegisterConnector);
         permissionKeys.put(CLPR_COMPLETE_CONNECTOR, c -> c.clprCompleteConnector);
         permissionKeys.put(CLPR_DEREGISTER_CONNECTOR, c -> c.clprDeregisterConnector);

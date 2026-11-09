@@ -29,11 +29,13 @@ jobs:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   # Required: a failed report fails the run. Starts together with MATS: same needs, so it reports running
-  # when MATS kicks off. Neither waits on the other.
+  # when MATS kicks off. Neither waits on the other. Public repository only: a copy that isn't public runs
+  # MATS without reporting it.
   report-mats-running:
     name: Report MATS Running to Chewie
     needs:
       - extract-jdk-version
+    if: ${{ github.event.repository.visibility == 'public' }}
     uses: ./.github/workflows/864-call-report-suite-result.yaml
     with:
       suite-type: mats
@@ -56,7 +58,7 @@ jobs:
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
-      enable-snyk-scan: "true"
+      enable-falcon-tests: "true"
       enable-benchmark-smoke: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
@@ -69,7 +71,6 @@ jobs:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict.
   report-mats-result:
@@ -77,7 +78,7 @@ jobs:
     needs:
       - report-mats-running # keeps the terminal report after the running one, so it is the latest
       - mats-tests
-    if: ${{ always() }}
+    if: ${{ always() && github.event.repository.visibility == 'public' }}
     uses: ./.github/workflows/864-call-report-suite-result.yaml
     with:
       suite-type: mats
@@ -135,13 +136,17 @@ jobs:
 
   # Always run on the outcome (MATS failure, Deploy CI Trigger failure, or canceled)
   # so it can classify the result into a category and send the appropriate Slack notification.
+  # Public repository only, like deploy-ci-trigger: in a copy that isn't public, deploy-ci-trigger is
+  # always skipped, and the alert, the Slack channels and the log collection all belong to this repository.
   report-status:
     name: Report MATS execution status
     runs-on: hl-cn-default-lin-sm
     needs:
       - mats-tests
       - deploy-ci-trigger
-    if: ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() }}
+    if:
+      ${{ (needs.mats-tests.result != 'success' || needs.deploy-ci-trigger.result != 'success') && always() &&
+      github.event.repository.visibility == 'public' }}
 
     steps:
       - name: Prepare Runner

@@ -38,7 +38,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *       re-derived from a proven state root.</li>
  * </ul>
  *
- * <p>The {@code configPayload} is the RLP-encoded sync-committee config payload carrying the initial sync
+ * <p>The {@code configPayload} is the protobuf {@code EthereumPosLedgerConfigurationPayload} carrying the initial sync
  * committee, the chain-pinning {@code genesisValidatorsRoot}/{@code forkVersion}, and the advertised
  * {@link ClprLedgerConfiguration}. Decoding is delegated to
  * {@link EthereumSyncCommitteeProofVerifier#verifyConfigPayload(byte[])}, which derives the initial trust
@@ -84,7 +84,7 @@ public class EthereumVerifyConfigCall extends AbstractCall {
 
         final ClprLedgerConfiguration parsed = verified.ledgerConfiguration();
         if (parsed.initialTrustAnchor().length() == 0) {
-            log.warn(
+            log.debug(
                     "[EthereumVerifier] verifyConfig: proven config has empty initial_trust_anchor; rejecting chainId={}",
                     parsed.chainId());
             return fail();
@@ -108,7 +108,7 @@ public class EthereumVerifyConfigCall extends AbstractCall {
         try {
             verified = verifier.verifyConfigPayload(configPayload);
         } catch (final ProofException e) {
-            log.warn("[EthereumVerifier] verifyConfig: payload rejected: {}", e.getMessage());
+            log.info("[EthereumVerifier] verifyConfig: payload rejected: {}", e.getMessage());
             return null;
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyConfig: unexpected error", e);
@@ -193,15 +193,21 @@ public class EthereumVerifyConfigCall extends AbstractCall {
             manifest =
                     ClprEndpointManifest.PROTOBUF.parseStrict(Bytes.wrap(bytes).toReadableSequentialData());
         } catch (final ParseException | RuntimeException e) {
-            log.error("[EthereumVerifier] verifyConfig: manifest bytes are not a valid ClprEndpointManifest", e);
+            log.info(
+                    "[EthereumVerifier] verifyConfig: manifest bytes are not a valid ClprEndpointManifest: {}",
+                    e.getMessage());
             return null;
         }
         if (manifest.version() == 0L) {
-            log.warn("[EthereumVerifier] verifyConfig: manifest version is 0 (must be >= 1)");
+            log.info("[EthereumVerifier] verifyConfig: manifest version is 0 (must be >= 1)");
             return null;
         }
         if (!manifest.serviceAddress().equals(parsed.serviceAddress())) {
-            log.warn("[EthereumVerifier] verifyConfig: manifest service_address does not match config service_address");
+            log.info(
+                    "[EthereumVerifier] verifyConfig: manifest service_address {} does not match config"
+                            + " service_address {}",
+                    manifest.serviceAddress(),
+                    parsed.serviceAddress());
             return null;
         }
         return manifest;

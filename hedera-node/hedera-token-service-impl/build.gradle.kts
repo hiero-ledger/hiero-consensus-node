@@ -19,7 +19,6 @@ testModuleInfo {
     requires("com.google.protobuf")
     requires("net.i2p.crypto.eddsa")
     requires("org.assertj.core")
-    requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
@@ -27,3 +26,5 @@ testModuleInfo {
 
     opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
 }
+
+apply(from = "../../gradle/extra-fee-call-site-coverage.gradle.kts")

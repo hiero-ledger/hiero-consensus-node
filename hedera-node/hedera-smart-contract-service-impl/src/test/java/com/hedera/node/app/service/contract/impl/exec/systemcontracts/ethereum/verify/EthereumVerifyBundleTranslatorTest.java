@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
@@ -70,6 +71,26 @@ class EthereumVerifyBundleTranslatorTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
         assertThat(subject.callFrom(attempt)).isInstanceOf(EthereumVerifyBundleCall.class);
+    }
+
+    @Test
+    @DisplayName("given verifyBundle calldata, then callFrom passes each argument to the call in its ABI position")
+    void givenVerifyBundleCalldata_thenCallFromPassesEachArgumentInItsAbiPosition() {
+        final byte[] bundlePayload = {1, 2, 3};
+        final byte[] trustAnchor = {4, 5, 6, 7};
+        final byte[] channelContext = {8, 9, 10, 11, 12};
+        given(attempt.inputBytes())
+                .willReturn(EthereumVerifyBundleTranslator.VERIFY_BUNDLE
+                        .encodeCall(Tuple.of(bundlePayload, trustAnchor, channelContext))
+                        .array());
+        given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
+
+        assertThat(subject.callFrom(attempt)).isInstanceOfSatisfying(EthereumVerifyBundleCall.class, call -> {
+            assertThat(call.bundlePayload()).isEqualTo(bundlePayload);
+            assertThat(call.trustAnchor()).isEqualTo(trustAnchor);
+            assertThat(call.channelContext()).isEqualTo(channelContext);
+        });
     }
 
     @Test

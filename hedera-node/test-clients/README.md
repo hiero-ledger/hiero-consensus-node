@@ -186,7 +186,12 @@ The values of `hapi.spec.blocknode.mode` correspond to the `BlockNodeMode` enum 
 - `SIMULATOR` - Use simulated block nodes (in-process fakes).
 - `REAL` - Use Docker containers running real block nodes.
 - `LOCAL_NODE` - Connect `SubProcessNode 1` to a local block node the developer is already running.
-- `NONE` - Do not use any block nodes (default when the property is unset).
+- `NONE` - Do not use any block nodes.
+
+When the property is unset, a shared subprocess network whose writer streams over gRPC (the production default)
+gets a `REAL` block node in CI. Outside CI (no `CI` environment variable) it instead writes block files only
+(`blockStream.writerMode=FILE`) and starts no block node, so running a test from the IDE needs no Docker. Set the
+property, or pin a writer in `hapi.spec.test.overrides`, to stream to a block node locally.
 
 ### Running Tests with Block Node Simulator
 

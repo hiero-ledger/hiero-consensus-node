@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 import org.hiero.metrics.core.Label;
+import org.hiero.metrics.core.MeasurementSnapshot;
 import org.hiero.metrics.core.MetricBaseTest;
 import org.hiero.metrics.core.MetricKey;
 import org.hiero.metrics.core.MetricSnapshotVerifier;
@@ -24,6 +29,20 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
     @Override
     protected ObservableGauge.Builder emptyMetricBuilder(String name) {
         return ObservableGauge.builder(name);
+    }
+
+    @Test
+    void testIterationStartedBeforeObserveSeesFixedList() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        gauge.observe(() -> 1L, "label", "a");
+
+        Iterator<MeasurementSnapshot> export = snapshotOf(gauge).iterator();
+        gauge.observe(() -> 2L, "label", "b");
+
+        List<String> seen = new ArrayList<>();
+        export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
+        assertThat(seen).containsExactly("[a]");
     }
 
     @Test
