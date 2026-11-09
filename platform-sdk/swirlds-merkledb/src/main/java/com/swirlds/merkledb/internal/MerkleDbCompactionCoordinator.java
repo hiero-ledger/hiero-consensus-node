@@ -160,19 +160,57 @@ class MerkleDbCompactionCoordinator {
      * submitted but have not yet created a compactor (still queued) are also unaffected — they will encounter the lock
      * when they start writing.
      *
+     * <p>Every paused compactor is resumed on the calling thread, even if the action or resuming
+     * another compactor fails. Otherwise, a compactor would keep its lock forever. The first failure
+     * is rethrown, and the action's failure takes precedence. Later failures are added to it as suppressed.
+     *
      * @param action action to run while compaction is paused
      */
     synchronized void pauseCompactionAndRun(final @NonNull IORunnable action) throws IOException {
+        final List<DataFileCompactor> pausedCompactors = new ArrayList<>(compactorsByName.size());
+        Throwable failure = null;
         try {
             for (final DataFileCompactor compactor : compactorsByName.values()) {
+                // pauseCompaction() takes the compactor's lock before anything that can fail, so the
+                // compactor must be resumed even if pausing it fails
+                pausedCompactors.add(compactor);
                 compactor.pauseCompaction();
             }
             action.run();
-        } finally {
-            for (final DataFileCompactor compactor : compactorsByName.values()) {
+        } catch (final Throwable t) {
+            failure = t;
+        }
+        for (final DataFileCompactor compactor : pausedCompactors) {
+            try {
                 compactor.resumeCompaction();
+            } catch (final Throwable t) {
+                if (failure == null) {
+                    failure = t;
+                } else {
+                    failure.addSuppressed(t);
+                }
             }
         }
+        if (failure != null) {
+            rethrow(failure);
+        }
+    }
+
+    /**
+     * Rethrows a failure caught in {@link #pauseCompactionAndRun(IORunnable)} as is.
+     */
+    private static void rethrow(final @NonNull Throwable failure) throws IOException {
+        if (failure instanceof IOException e) {
+            throw e;
+        }
+        if (failure instanceof RuntimeException e) {
+            throw e;
+        }
+        if (failure instanceof Error e) {
+            throw e;
+        }
+        // Not expected: the action and the compactors only throw IOExceptions and unchecked exceptions
+        throw new IOException(failure);
     }
 
     ///
