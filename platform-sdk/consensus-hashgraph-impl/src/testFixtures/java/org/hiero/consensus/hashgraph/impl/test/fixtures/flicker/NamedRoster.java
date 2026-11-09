@@ -28,6 +28,9 @@ public record NamedRoster(@NonNull String name, @NonNull SequencedMap<String, Lo
     /** The node id of {@code a}, one above the first node id; see {@link #nodeIdFor} for why. */
     private static final long ID_ORIGIN = NodeId.FIRST_NODE_ID.id() + 1;
 
+    /** The gaps between consecutive letters' ids, repeated in this order; see {@link #nodeIdFor} for why. */
+    private static final long[] GAPS = {1, 3, 2};
+
     public NamedRoster {
         requireNonNull(name, "name must not be null");
         weightsByLetter = Collections.unmodifiableSequencedMap(
@@ -70,10 +73,10 @@ public record NamedRoster(@NonNull String name, @NonNull SequencedMap<String, Lo
             throw new IllegalArgumentException(
                     "'%s' is not a node letter; use a single lower-case letter".formatted(letter));
         }
-        final int index = letter.charAt(0) - 'a';
+        final int position = letter.charAt(0) - 'a';
         long id = ID_ORIGIN;
-        for (int step = 1; step <= index; step++) {
-            id += 1 + (2L * step + 1) % 3;
+        for (int i = 0; i < position; i++) {
+            id += GAPS[i % GAPS.length];
         }
         return NodeId.of(id);
     }
