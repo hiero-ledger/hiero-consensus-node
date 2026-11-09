@@ -34,17 +34,15 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-/**
- * Tests {@link VirtualMap#detach()} and {@link VirtualMap#detachAsDataSourceCopy()} with MerkleDb data
- * sources, in every {@link DataSourceCopyMode}. The detached map has data both in its data source and
- * in its cache.
- */
+/// Tests [VirtualMap#detach()] and [VirtualMap#detachAsDataSourceCopy()] with MerkleDb data
+/// sources, in every [DataSourceCopyMode]. The detached map has data both in its data source and
+/// in its cache.
 class VirtualMapMerkleDbDetachTest {
 
-    /** The number of keys flushed to the data source. Keys are from 0 to COUNT - 1 */
+    /// The number of keys flushed to the data source. Keys are from 0 to COUNT - 1
     private static final int COUNT = 10_000;
 
-    /** The number of keys removed, and the number of keys added, in the cache of the detached copy */
+    /// The number of keys removed, and the number of keys added, in the cache of the detached copy
     private static final int CHANGED = COUNT / 10;
 
     @TempDir
@@ -132,10 +130,8 @@ class VirtualMapMerkleDbDetachTest {
         expected.put(key, value);
     }
 
-    /**
-     * Wraps a data source copy into a record accessor with an empty cache, so all reads go to the
-     * data source copy. Closing the accessor closes the data source copy.
-     */
+    /// Wraps a data source copy into a record accessor with an empty cache, so all reads go to the
+    /// data source copy. Closing the accessor closes the data source copy.
     private static RecordAccessor accessorFor(final VirtualDataSource dataSource, final VirtualMap.Metadata metadata) {
         final int hashChunkHeight = dataSource.getHashChunkHeight();
         final VirtualNodeCache emptyCache =

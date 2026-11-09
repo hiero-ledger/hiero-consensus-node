@@ -242,11 +242,9 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         }
     }
 
-    /**
-     * Returns a new storage dir for a data source, which is restored from a snapshot or copied from
-     * another data source. The default DB folder is used, if configured and doesn't exist yet.
-     * Otherwise, a new temp folder is used.
-     */
+    /// Returns a new storage dir for a data source, which is restored from a snapshot or copied from
+    /// another data source. The default DB folder is used, if configured and doesn't exist yet.
+    /// Otherwise, a new temp folder is used.
     private Path newRestoredDataSourceDir(final String label) {
         if (defaultDbFolderName != null) {
             final Path defaultDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
@@ -257,18 +255,16 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         return newTempDataSourceDir(label);
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>How the copy is made depends on {@link MerkleDbConfig#dataSourceCopyMode()}, see
-     * {@link DataSourceCopyMode}. An in-memory copy is a snapshot made directly in the copy's storage
-     * dir, but its indexes are copied in memory instead of written to disk, see
-     * {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}. The copy is created from the snapshot
-     * and the copied indexes, when it's completed. Other copies are restored from a regular snapshot,
-     * as in the default implementation. Copies for offline use, copies of data sources with disk-based
-     * indices, and all copies when {@link MerkleDbConfig#indexRebuildingEnforced()} is set, are always
-     * restored from a snapshot.
-     */
+    /// {@inheritDoc}
+    ///
+    /// How the copy is made depends on [MerkleDbConfig#dataSourceCopyMode()], see
+    /// [DataSourceCopyMode]. An in-memory copy is a snapshot made directly in the copy's storage
+    /// dir, but its indexes are copied in memory instead of written to disk, see
+    /// [MerkleDbDataSource#snapshotWithCopiedIndexes(Path)]. The copy is created from the snapshot
+    /// and the copied indexes, when it's completed. Other copies are restored from a regular snapshot,
+    /// as in the default implementation. Copies for offline use, copies of data sources with disk-based
+    /// indices, and all copies when [MerkleDbConfig#indexRebuildingEnforced()] is set, are always
+    /// restored from a snapshot.
     @NonNull
     @Override
     public PreparedDataSourceCopy prepareCopy(
@@ -295,9 +291,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         return copyInMemory(label, merkleDbDataSource, compactionEnabled);
     }
 
-    /**
-     * Prepares a copy with indexes copied in memory, see {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}.
-     */
+    /// Prepares a copy with indexes copied in memory, see [MerkleDbDataSource#snapshotWithCopiedIndexes(Path)].
     private PreparedDataSourceCopy copyInMemory(
             final String label, final MerkleDbDataSource merkleDbDataSource, final boolean compactionEnabled) {
         final Path copyDir = newRestoredDataSourceDir(label);
@@ -318,10 +312,8 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         }
     }
 
-    /**
-     * Releases the copied indexes, if any, and deletes the copy's directory after a failure. Deletion
-     * failures are added to the failure as suppressed.
-     */
+    /// Releases the copied indexes, if any, and deletes the copy's directory after a failure. Deletion
+    /// failures are added to the failure as suppressed.
     private static void discardCopy(
             @Nullable final CopiedIndexes indexes, @NonNull final Path dir, @NonNull final Throwable cause) {
         if (indexes != null) {

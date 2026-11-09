@@ -17,10 +17,8 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 
-/**
- * A data source copy prepared with {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}: a
- * snapshot without index files in the copy's storage dir, and the indexes copied in memory.
- */
+/// A data source copy prepared with [MerkleDbDataSource#snapshotWithCopiedIndexes(Path)]: a
+/// snapshot without index files in the copy's storage dir, and the indexes copied in memory.
 public final class InMemoryDataSourceCopy implements PreparedDataSourceCopy {
 
     private static final Logger logger = LogManager.getLogger(InMemoryDataSourceCopy.class);
@@ -33,16 +31,14 @@ public final class InMemoryDataSourceCopy implements PreparedDataSourceCopy {
     private final boolean compactionEnabled;
     private boolean completed = false;
 
-    /**
-     * Creates a prepared copy. It takes over the snapshot dir and the copied indexes.
-     *
-     * @param label the label of the copy
-     * @param dir the snapshot dir, it becomes the storage dir of the copy
-     * @param indexes the indexes copied when the snapshot was made
-     * @param config merkle db configuration
-     * @param fileSystemManager the file system manager
-     * @param compactionEnabled whether background compaction runs for the copy
-     */
+    /// Creates a prepared copy. It takes over the snapshot dir and the copied indexes.
+    ///
+    /// @param label the label of the copy
+    /// @param dir the snapshot dir, it becomes the storage dir of the copy
+    /// @param indexes the indexes copied when the snapshot was made
+    /// @param config merkle db configuration
+    /// @param fileSystemManager the file system manager
+    /// @param compactionEnabled whether background compaction runs for the copy
     public InMemoryDataSourceCopy(
             final String label,
             @NonNull final Path dir,
@@ -58,11 +54,9 @@ public final class InMemoryDataSourceCopy implements PreparedDataSourceCopy {
         this.compactionEnabled = compactionEnabled;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Creates a data source from the snapshot and the copied indexes.
-     */
+    /// {@inheritDoc}
+    ///
+    /// Creates a data source from the snapshot and the copied indexes.
     @NonNull
     @Override
     public VirtualDataSource complete() {
@@ -79,14 +73,12 @@ public final class InMemoryDataSourceCopy implements PreparedDataSourceCopy {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>If the copy hasn't been completed, releases the copied indexes and deletes the snapshot.
-     * Otherwise, does nothing: the indexes and the storage dir belong to the completed copy. Failures
-     * to delete the snapshot are logged. The snapshot is in the temp directory, which is cleaned up on
-     * node restart.
-     */
+    /// {@inheritDoc}
+    ///
+    /// If the copy hasn't been completed, releases the copied indexes and deletes the snapshot.
+    /// Otherwise, does nothing: the indexes and the storage dir belong to the completed copy. Failures
+    /// to delete the snapshot are logged. The snapshot is in the temp directory, which is cleaned up on
+    /// node restart.
     @Override
     public void close() {
         if (!completed) {
@@ -99,7 +91,7 @@ public final class InMemoryDataSourceCopy implements PreparedDataSourceCopy {
         }
     }
 
-    /** The copied indexes, for testing. */
+    /// The copied indexes, for testing.
     CopiedIndexes indexes() {
         return indexes;
     }

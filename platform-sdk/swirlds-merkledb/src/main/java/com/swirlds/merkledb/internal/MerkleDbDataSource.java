@@ -213,10 +213,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /** Flag for if a snapshot is in progress */
     private final AtomicBoolean snapshotInProgress = new AtomicBoolean(false);
 
-    /**
-     * Durations of the tasks of the snapshot in progress, in completion order. They are logged once
-     * the snapshot is finished. Snapshots never overlap, see {@link #snapshotInProgress}.
-     */
+    /// Durations of the tasks of the snapshot in progress, in completion order. They are logged once
+    /// the snapshot is finished. Snapshots never overlap, see [#snapshotInProgress].
     private final Queue<String> snapshotTaskTimes = new ConcurrentLinkedQueue<>();
 
     /** The range of valid leaf paths for data currently stored by this data source. */
@@ -319,20 +317,18 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 null);
     }
 
-    /**
-     * Creates a new MerkleDb data source from a snapshot made with {@link #snapshotWithCopiedIndexes(Path)}.
-     * The copied indexes are used instead of index files, even if {@link MerkleDbConfig#indexRebuildingEnforced()}
-     * is set. If this constructor succeeds, the data source owns the indexes. Otherwise, the caller is
-     * responsible for closing them.
-     *
-     * @param storageDir Directory with the snapshot
-     * @param config merkle db configuration
-     * @param tableName Data source label, used in logs, metrics, etc.
-     * @param compactionEnabled Indicates whether background compaction should be running for this data
-     *                          source
-     * @param copiedIndexes The indexes copied when the snapshot was made
-     * @throws IOException If an I/O error occurs
-     */
+    /// Creates a new MerkleDb data source from a snapshot made with [#snapshotWithCopiedIndexes(Path)].
+    /// The copied indexes are used instead of index files, even if [MerkleDbConfig#indexRebuildingEnforced()]
+    /// is set. If this constructor succeeds, the data source owns the indexes. Otherwise, the caller is
+    /// responsible for closing them.
+    ///
+    /// @param storageDir Directory with the snapshot
+    /// @param config merkle db configuration
+    /// @param tableName Data source label, used in logs, metrics, etc.
+    /// @param compactionEnabled Indicates whether background compaction should be running for this data
+    ///                          source
+    /// @param copiedIndexes The indexes copied when the snapshot was made
+    /// @throws IOException If an I/O error occurs
     public MerkleDbDataSource(
             final Path storageDir,
             final MerkleDbConfig config,
@@ -1016,21 +1012,19 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         snapshot(snapshotDirectory, false);
     }
 
-    /**
-     * Same as {@link #snapshot(Path)}, but the indexes aren't written to the snapshot. Instead, they
-     * are copied in memory and returned. To load the snapshot, use {@link #MerkleDbDataSource(Path,
-     * MerkleDbConfig, FileSystemManager, String, boolean, CopiedIndexes)}. This is faster than writing
-     * the indexes to disk and reading them back, but needs memory for the index copies.
-     *
-     * <p><b>IMPORTANT, after this is completed the caller owns the directory and the copied indexes.
-     * It is responsible for deleting / closing them when they are no longer needed.</b>
-     *
-     * @param snapshotDirectory Directory to put snapshot into, it will be created if it doesn't exist
-     * @return the copied indexes
-     * @throws IOException If there was a problem writing the snapshot
-     * @throws IllegalStateException If this data source uses disk based indices, or if there is
-     *     already a snapshot happening
-     */
+    /// Same as [#snapshot(Path)], but the indexes aren't written to the snapshot. Instead, they
+    /// are copied in memory and returned. To load the snapshot, use
+    /// [#MerkleDbDataSource(Path, MerkleDbConfig, FileSystemManager, String, boolean, CopiedIndexes)]. This is faster
+    /// than writing the indexes to disk and reading them back, but needs memory for the index copies.
+    ///
+    /// **IMPORTANT, after this is completed the caller owns the directory and the copied indexes.
+    /// It is responsible for deleting / closing them when they are no longer needed.**
+    ///
+    /// @param snapshotDirectory Directory to put snapshot into, it will be created if it doesn't exist
+    /// @return the copied indexes
+    /// @throws IOException If there was a problem writing the snapshot
+    /// @throws IllegalStateException If this data source uses disk based indices, or if there is
+    ///     already a snapshot happening
     @NonNull
     public CopiedIndexes snapshotWithCopiedIndexes(final Path snapshotDirectory) throws IOException {
         if (preferDiskBasedIndices) {
@@ -1039,10 +1033,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return requireNonNull(snapshot(snapshotDirectory, true));
     }
 
-    /**
-     * Writes a snapshot. If {@code copyIndexes} is true, the indexes are copied in memory and returned
-     * instead of written to the snapshot. Otherwise, returns {@code null}.
-     */
+    /// Writes a snapshot. If `copyIndexes` is true, the indexes are copied in memory and returned
+    /// instead of written to the snapshot. Otherwise, returns `null`.
     @Nullable
     private CopiedIndexes snapshot(final Path snapshotDirectory, final boolean copyIndexes) throws IOException {
         // check if another snapshot was running
@@ -1125,11 +1117,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
     }
 
-    /**
-     * Copies an in-memory index. Chunks are copied in parallel on {@link #flushPool}. Indexes are copied
-     * while the virtual pipeline is paused, so no flush competes for the pool. The copy is joined on a
-     * snapshot executor thread, not on a pool thread.
-     */
+    /// Copies an in-memory index. Chunks are copied in parallel on [#flushPool]. Indexes are copied
+    /// while the virtual pipeline is paused, so no flush competes for the pool. The copy is joined on a
+    /// snapshot executor thread, not on a pool thread.
     private LongList copyIndex(final LongList index) {
         if (!(index instanceof LongListSegment segment)) {
             throw new IllegalStateException("Only in-memory indexes can be copied, but got " + index);
@@ -1137,10 +1127,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return new LongListSegment(segment, flushPool);
     }
 
-    /**
-     * Indexes copied in memory by {@link #snapshotWithCopiedIndexes(Path)}. Closing releases the
-     * indexes. Don't close them after they're passed to a data source that was successfully created.
-     */
+    /// Indexes copied in memory by [#snapshotWithCopiedIndexes(Path)]. Closing releases the
+    /// indexes. Don't close them after they're passed to a data source that was successfully created.
     public record CopiedIndexes(
             @NonNull LongList hashChunkIndex,
             @NonNull LongList leafIndex,
@@ -1189,10 +1177,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return initialCapacity;
     }
 
-    /**
-     * Indicates whether this data source uses disk based indices. Such indices can't be copied with
-     * {@link #snapshotWithCopiedIndexes(Path)}.
-     */
+    /// Indicates whether this data source uses disk based indices. Such indices can't be copied with
+    /// [#snapshotWithCopiedIndexes(Path)].
     public boolean isPreferDiskBasedIndices() {
         return preferDiskBasedIndices;
     }
@@ -1292,13 +1278,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     // ==================================================================================================================
     // private methods
 
-    /**
-     * Run a runnable on background thread using snapshot ExecutorService.
-     *
-     * @param taskName the name of the task for logging
-     * @param runnable the code to run
-     * @return a future, which completes when the task is done, exceptionally if the task fails
-     */
+    /// Run a runnable on background thread using snapshot ExecutorService.
+    ///
+    /// @param taskName the name of the task for logging
+    /// @param runnable the code to run
+    /// @return a future, which completes when the task is done, exceptionally if the task fails
     private CompletableFuture<Void> runWithSnapshotExecutor(final String taskName, final IORunnable runnable) {
         return CompletableFuture.runAsync(
                 () -> {

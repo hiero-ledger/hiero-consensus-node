@@ -11,10 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileUtils;
 
-/**
- * A data source copy prepared as a snapshot of the source data source. The copy is restored from the
- * snapshot, when completed. The snapshot directory is deleted, when this prepared copy is closed.
- */
+/// A data source copy prepared as a snapshot of the source data source. The copy is restored from the
+/// snapshot, when completed. The snapshot directory is deleted, when this prepared copy is closed.
 final class SnapshotDataSourceCopy implements PreparedDataSourceCopy {
 
     private static final Logger logger = LogManager.getLogger(SnapshotDataSourceCopy.class);
@@ -39,11 +37,9 @@ final class SnapshotDataSourceCopy implements PreparedDataSourceCopy {
         this.offlineUse = offlineUse;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Restores a data source from the snapshot. It uses its own directory to store data files.
-     */
+    /// {@inheritDoc}
+    ///
+    /// Restores a data source from the snapshot. It uses its own directory to store data files.
     @NonNull
     @Override
     public VirtualDataSource complete() {
@@ -55,12 +51,10 @@ final class SnapshotDataSourceCopy implements PreparedDataSourceCopy {
         return dataSource;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Deletes the snapshot directory. Failures are logged, but not thrown. The snapshot directory
-     * is in the temp directory, which is cleaned up on node restart.
-     */
+    /// {@inheritDoc}
+    ///
+    /// Deletes the snapshot directory. Failures are logged, but not thrown. The snapshot directory
+    /// is in the temp directory, which is cleaned up on node restart.
     @Override
     public void close() {
         try {

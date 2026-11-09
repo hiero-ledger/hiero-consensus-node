@@ -132,29 +132,25 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         loadFromFile(file);
     }
 
-    /**
-     * Create a copy of the given list in memory, with the same chunk size, capacity, reserved buffer
-     * size, size and valid range. Every chunk of the source is copied into a new chunk, so the copy
-     * doesn't share memory with the source, and either list can be changed or closed independently.
-     *
-     * <p>The source must not be modified while it's copied. It may be read concurrently.
-     *
-     * @param source the list to copy
-     */
+    /// Create a copy of the given list in memory, with the same chunk size, capacity, reserved buffer
+    /// size, size and valid range. Every chunk of the source is copied into a new chunk, so the copy
+    /// doesn't share memory with the source, and either list can be changed or closed independently.
+    ///
+    /// The source must not be modified while it's copied. It may be read concurrently.
+    ///
+    /// @param source the list to copy
     public LongListSegment(@NonNull final LongListSegment source) {
         this(source, Runnable::run);
     }
 
-    /**
-     * Create a copy of the given list in memory, as {@link #LongListSegment(LongListSegment)} does, but
-     * copy the chunks in parallel. Every non-empty chunk is copied by a separate task run on the given
-     * executor. The constructor returns, once all tasks are complete.
-     *
-     * <p>The source must not be modified while it's copied. It may be read concurrently.
-     *
-     * @param source the list to copy
-     * @param executor the executor to copy chunks on
-     */
+    /// Create a copy of the given list in memory, as [#LongListSegment(LongListSegment)] does, but
+    /// copy the chunks in parallel. Every non-empty chunk is copied by a separate task run on the given
+    /// executor. The constructor returns, once all tasks are complete.
+    ///
+    /// The source must not be modified while it's copied. It may be read concurrently.
+    ///
+    /// @param source the list to copy
+    /// @param executor the executor to copy chunks on
     public LongListSegment(@NonNull final LongListSegment source, @NonNull final Executor executor) {
         super(source.longsPerChunk, source.capacity, source.reservedBufferSize);
         requireNonNull(executor);
@@ -201,13 +197,11 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         maxValidIndex.set(source.maxValidIndex.get());
     }
 
-    /**
-     * Copies a chunk of the source list into a new chunk of this list.
-     *
-     * @param sourceChunk the chunk to copy
-     * @param chunkIndex the index of the chunk in the chunk list
-     * @param failed set to true, if the copy fails
-     */
+    /// Copies a chunk of the source list into a new chunk of this list.
+    ///
+    /// @param sourceChunk the chunk to copy
+    /// @param chunkIndex the index of the chunk in the chunk list
+    /// @param failed set to true, if the copy fails
     private void copyChunk(
             @NonNull final SegmentChunk sourceChunk, final int chunkIndex, @NonNull final AtomicBoolean failed) {
         try {

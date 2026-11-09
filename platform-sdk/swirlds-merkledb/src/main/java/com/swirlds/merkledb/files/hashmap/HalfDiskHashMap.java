@@ -167,14 +167,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 null);
     }
 
-    /**
-     * Construct a new HalfDiskHashMap. Same as {@link #HalfDiskHashMap(MerkleDbConfig, ForkJoinPool,
-     * FileSystemManager, long, Path, String, String, boolean)}, but if a bucket index is provided, it's
-     * used instead of the bucket index file. The store dir must then exist, typically a snapshot made with
-     * {@link #snapshotWithoutIndex(Path)}. If this constructor succeeds, this map owns the bucket index.
-     *
-     * @param bucketIndex the bucket index to use, or {@code null} to load or rebuild the index
-     */
+    /// Construct a new HalfDiskHashMap. Same as
+    /// [#HalfDiskHashMap(MerkleDbConfig, ForkJoinPool, FileSystemManager, long, Path, String, String, boolean)],
+    /// but if a bucket index is provided, it's used instead of the bucket index file. The store dir must
+    /// then exist, typically a snapshot made with [#snapshotWithoutIndex(Path)]. If this constructor
+    /// succeeds, this map owns the bucket index.
+    ///
+    /// @param bucketIndex the bucket index to use, or `null` to load or rebuild the index
     public HalfDiskHashMap(
             final @NonNull MerkleDbConfig config,
             final @NonNull ForkJoinPool flushPool,
@@ -417,10 +416,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         snapshotWithoutIndex(snapshotDirectory);
     }
 
-    /**
-     * Same as {@link #snapshot(Path)}, but the bucket index isn't written. To load such a snapshot,
-     * the bucket index must be provided to the constructor.
-     */
+    /// Same as [#snapshot(Path)], but the bucket index isn't written. To load such a snapshot,
+    /// the bucket index must be provided to the constructor.
     public void snapshotWithoutIndex(final Path snapshotDirectory) throws IOException {
         // create snapshot directory if needed
         Files.createDirectories(snapshotDirectory);

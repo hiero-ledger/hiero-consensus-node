@@ -1237,15 +1237,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
     }
 
-    /**
-     * Creates a copy of this map's data source with this map's cache flushed into it. The virtual
-     * pipeline is paused only to snapshot the cache and to prepare the data source copy. The copy is
-     * completed after the pipeline is unpaused.
-     *
-     * @param compactionEnabled whether background compaction should be enabled in the copy
-     * @param offlineUse whether the copy should use as little resources as possible
-     * @return the data source copy, the caller is responsible for closing it
-     */
+    /// Creates a copy of this map's data source with this map's cache flushed into it. The virtual
+    /// pipeline is paused only to snapshot the cache and to prepare the data source copy. The copy is
+    /// completed after the pipeline is unpaused.
+    ///
+    /// @param compactionEnabled whether background compaction should be enabled in the copy
+    /// @param offlineUse whether the copy should use as little resources as possible
+    /// @return the data source copy, the caller is responsible for closing it
     private VirtualDataSource createDataSourceCopy(final boolean compactionEnabled, final boolean offlineUse) {
         final DataSourceCopyAndCacheSnapshot snapshot =
                 prepareDataSourceCopyAndSnapshotCache(compactionEnabled, offlineUse);
@@ -1285,31 +1283,27 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
     }
 
-    /**
-     * A snapshot of this map's cache and a copy of its data source, prepared at the same moment.
-     *
-     * @param cache the cache snapshot
-     * @param dataSourceCopy the prepared data source copy. It must be closed, once the copy is
-     *                       completed or abandoned
-     * @param waitMillis how long it took to pause the virtual pipeline. The pipeline is paused once the
-     *                   lifecycle thread finishes its current work, for example a flush with a snapshot
-     * @param pauseMillis how long the virtual pipeline was paused to prepare the copy
-     */
+    /// A snapshot of this map's cache and a copy of its data source, prepared at the same moment.
+    ///
+    /// @param cache the cache snapshot
+    /// @param dataSourceCopy the prepared data source copy. It must be closed, once the copy is
+    ///                       completed or abandoned
+    /// @param waitMillis how long it took to pause the virtual pipeline. The pipeline is paused once the
+    ///                   lifecycle thread finishes its current work, for example a flush with a snapshot
+    /// @param pauseMillis how long the virtual pipeline was paused to prepare the copy
     private record DataSourceCopyAndCacheSnapshot(
             @NonNull VirtualNodeCache cache,
             @NonNull PreparedDataSourceCopy dataSourceCopy,
             long waitMillis,
             long pauseMillis) {}
 
-    /**
-     * Takes a snapshot of this map's cache and prepares a copy of its data source. The virtual
-     * pipeline is paused meanwhile to make sure no data is flushed to the data source and no caches
-     * are merged. The data source copy is not completed here, though, it's up to the caller.
-     *
-     * @param compactionEnabled whether background compaction should be enabled in the copy
-     * @param offlineUse whether the copy should use as little resources as possible
-     * @return the cache snapshot and the prepared data source copy
-     */
+    /// Takes a snapshot of this map's cache and prepares a copy of its data source. The virtual
+    /// pipeline is paused meanwhile to make sure no data is flushed to the data source and no caches
+    /// are merged. The data source copy is not completed here, though, it's up to the caller.
+    ///
+    /// @param compactionEnabled whether background compaction should be enabled in the copy
+    /// @param offlineUse whether the copy should use as little resources as possible
+    /// @return the cache snapshot and the prepared data source copy
     private DataSourceCopyAndCacheSnapshot prepareDataSourceCopyAndSnapshotCache(
             final boolean compactionEnabled, final boolean offlineUse) {
         final long waitStart = System.currentTimeMillis();

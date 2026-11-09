@@ -49,24 +49,22 @@ public interface VirtualDataSourceBuilder {
     @NonNull
     Path snapshot(@Nullable Path destination, @NonNull VirtualDataSource dataSource);
 
-    /**
-     * Prepares a copy of the given data source. The returned copy is completed with
-     * {@link PreparedDataSourceCopy#complete()}, and must always be closed.
-     *
-     * <p>This method must be called while the data source isn't modified, like
-     * {@link #snapshot(Path, VirtualDataSource)}. {@link PreparedDataSourceCopy#complete()} may be
-     * called after the data source is modified again.
-     *
-     * <p>The default implementation takes a snapshot of the data source. The copy is restored from
-     * the snapshot with {@link #build(String, Path, boolean, boolean)}, when completed.
-     *
-     * @param label             The label of the copy
-     * @param dataSource        The data source to copy
-     * @param compactionEnabled Indicates whether background compaction should be enabled in the copy
-     * @param offlineUse        Indicates that the copy should use as little resources as possible, see
-     *                          {@link #build(String, Path, boolean, boolean)}
-     * @return the prepared copy
-     */
+    /// Prepares a copy of the given data source. The returned copy is completed with
+    /// [PreparedDataSourceCopy#complete()], and must always be closed.
+    ///
+    /// This method must be called while the data source isn't modified, like
+    /// [#snapshot(Path, VirtualDataSource)]. [PreparedDataSourceCopy#complete()] may be
+    /// called after the data source is modified again.
+    ///
+    /// The default implementation takes a snapshot of the data source. The copy is restored from
+    /// the snapshot with [#build(String, Path, boolean, boolean)], when completed.
+    ///
+    /// @param label             The label of the copy
+    /// @param dataSource        The data source to copy
+    /// @param compactionEnabled Indicates whether background compaction should be enabled in the copy
+    /// @param offlineUse        Indicates that the copy should use as little resources as possible, see
+    ///                          [#build(String, Path, boolean, boolean)]
+    /// @return the prepared copy
     @NonNull
     default PreparedDataSourceCopy prepareCopy(
             final String label,

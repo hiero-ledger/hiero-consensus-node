@@ -46,15 +46,13 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mockito;
 
-/**
- * Tests for copying a MerkleDb data source in memory, see {@link MerkleDbDataSource#snapshotWithCopiedIndexes(Path)}
- * and {@link MerkleDbDataSourceBuilder#prepareCopy(String, VirtualDataSource, boolean, boolean)}.
- */
+/// Tests for copying a MerkleDb data source in memory, see [MerkleDbDataSource#snapshotWithCopiedIndexes(Path)]
+/// and [MerkleDbDataSourceBuilder#prepareCopy(String, VirtualDataSource, boolean, boolean)].
 class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
 
     private static final String LABEL = "copyTest";
 
-    /** The number of internal nodes and leaves. Leaf paths are from COUNT to 2 * COUNT - 1 */
+    /// The number of internal nodes and leaves. Leaf paths are from COUNT to 2 * COUNT - 1
     private static final int COUNT = 10_000;
 
     @AfterEach
@@ -322,10 +320,8 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         }
     }
 
-    /**
-     * Arguments: copy mode, compaction enabled, offline use, index rebuilding enforced, expected copy class,
-     * expected disk-based indices.
-     */
+    /// Arguments: copy mode, compaction enabled, offline use, index rebuilding enforced, expected copy class,
+    /// expected disk-based indices.
     static Stream<Arguments> copyModes() {
         final String inMemory = "InMemoryDataSourceCopy";
         final String snapshot = "SnapshotDataSourceCopy";
@@ -357,9 +353,7 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         return new MerkleDbDataSourceBuilder(config, fileSystemManager, COUNT);
     }
 
-    /**
-     * Copies the data source in memory with the builder, and completes the copy.
-     */
+    /// Copies the data source in memory with the builder, and completes the copy.
     private MerkleDbDataSource copyInMemory(final MerkleDbDataSource source, final boolean compactionEnabled) {
         try (final PreparedDataSourceCopy prepared =
                 builder(DEFAULT_CONFIGURATION).prepareCopy(LABEL, source, compactionEnabled, false)) {
@@ -368,10 +362,8 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         }
     }
 
-    /**
-     * Compacts all stores of a data source. The first run only scans the stores for garbage. The
-     * second one compacts, based on the results of the scan.
-     */
+    /// Compacts all stores of a data source. The first run only scans the stores for garbage. The
+    /// second one compacts, based on the results of the scan.
     private static void compact(final MerkleDbDataSource dataSource) {
         for (int i = 0; i < 2; i++) {
             dataSource.runPathToKeyValueStoreCompaction();
@@ -381,11 +373,9 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         }
     }
 
-    /**
-     * Updates all leaves of a data source created with {@link #createPopulatedDataSource}, so the
-     * leaf value index is the leaf key index times the given multiplier. The old leaf records become
-     * garbage.
-     */
+    /// Updates all leaves of a data source created with [#createPopulatedDataSource], so the
+    /// leaf value index is the leaf key index times the given multiplier. The old leaf records become
+    /// garbage.
     private static void updateAllLeaves(
             final TestType testType, final MerkleDbDataSource dataSource, final int valueMultiplier)
             throws IOException {
@@ -403,19 +393,15 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         return assertInstanceOf(LongListSegment.class, index).getOffHeapConsumption();
     }
 
-    /**
-     * Creates a data source with hashes for paths 0 to 2 * COUNT - 1, and leaves for paths COUNT to
-     * 2 * COUNT - 1, written in several flushes, so every store has several data files.
-     */
+    /// Creates a data source with hashes for paths 0 to 2 * COUNT - 1, and leaves for paths COUNT to
+    /// 2 * COUNT - 1, written in several flushes, so every store has several data files.
     private MerkleDbDataSource createPopulatedDataSource(final TestType testType, final boolean diskBasedIndices)
             throws IOException {
         return createPopulatedDataSource(testType, diskBasedIndices, false);
     }
 
-    /**
-     * Same as {@link #createPopulatedDataSource(TestType, boolean)}, with background compaction enabled
-     * or disabled in the data source.
-     */
+    /// Same as [#createPopulatedDataSource(TestType, boolean)], with background compaction enabled
+    /// or disabled in the data source.
     private MerkleDbDataSource createPopulatedDataSource(
             final TestType testType, final boolean diskBasedIndices, final boolean compactionEnabled)
             throws IOException {
@@ -441,11 +427,9 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         return dataSource;
     }
 
-    /**
-     * Checks all leaves and leaf hashes of a data source created with {@link #createPopulatedDataSource}.
-     *
-     * @param valueMultiplier the leaf value index is the leaf key index times this multiplier
-     */
+    /// Checks all leaves and leaf hashes of a data source created with [#createPopulatedDataSource].
+    ///
+    /// @param valueMultiplier the leaf value index is the leaf key index times this multiplier
     private static void checkData(
             final TestType testType, final MerkleDbDataSource dataSource, final int valueMultiplier) {
         assertEquals(COUNT, dataSource.getFirstLeafPath());
@@ -455,9 +439,7 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         }
     }
 
-    /**
-     * Checks that two data sources have the same hash chunks.
-     */
+    /// Checks that two data sources have the same hash chunks.
     private static void assertSameHashes(final MerkleDbDataSource expected, final MerkleDbDataSource actual)
             throws IOException {
         final int hashChunkHeight = expected.getHashChunkHeight();
