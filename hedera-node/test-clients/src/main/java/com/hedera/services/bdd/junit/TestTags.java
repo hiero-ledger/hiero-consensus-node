@@ -29,6 +29,8 @@ public class TestTags {
     public static final String ATOMIC_BATCH = "ATOMIC_BATCH";
     public static final String WRAPS = "WRAPS";
     public static final String CUTOVER = "CUTOVER";
+    /** Tags tests that need the pre-cutover block stream world (BOTH with wrapped record blocks) from genesis. */
+    public static final String PRE_CUTOVER = "PRE_CUTOVER";
     /** Tags tests of block hashing under the configured {@code blockStream.digestType}. */
     public static final String BLOCK_HASHING = "BLOCK_HASHING";
     /**

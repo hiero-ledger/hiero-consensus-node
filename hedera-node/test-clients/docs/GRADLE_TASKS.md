@@ -30,7 +30,8 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestCryptoSerial`           | `(CRYPTO&SERIAL)`                             | `testSubprocess`           | 3                     |
 | `hapiTestToken`                  | `TOKEN`                                       | `testSubprocessConcurrent` | 3                     |
 | `hapiTestTokenSerial`            | `(TOKEN&SERIAL)`                              | `testSubprocess`           | 3                     |
-| `hapiTestRestart`                | `RESTART\|UPGRADE`                            | `testSubprocess`           | default (4)           |
+| `hapiTestRestart`                | `(RESTART\|UPGRADE)&!PRE_CUTOVER`             | `testSubprocess`           | default (4)           |
+| `hapiTestPreCutover`             | `PRE_CUTOVER\|BLOCK_HASHING`                  | `testSubprocess`           | default (4)           |
 | `hapiTestSmartContract`          | `SMART_CONTRACT`                              | `testSubprocessConcurrent` | 3                     |
 | `hapiTestSmartContractSerial`    | `(SMART_CONTRACT&SERIAL)`                     | `testSubprocess`           | 3                     |
 | `hapiTestNDReconnect`            | `ND_RECONNECT`                                | `testSubprocess`           | default               |
@@ -68,8 +69,8 @@ except for the ISS, ISS_GRPC, and BLOCK_NODE tasks, which skip validation:
 
 ## `remoteTest*` PR check tasks
 
-For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestIssGrpc`, `hapiTestRestart`,
-`hapiTestToken`, `hapiTestTokenSerial`, a sibling `remoteTest…` task is generated that
+For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestIssGrpc`, `hapiTestRestart`, `hapiTestPreCutover`,
+`hapiTestNodeStaking`, `hapiTestToken`, `hapiTestTokenSerial` and the CLPR tasks, a sibling `remoteTest…` task is generated that
 delegates to `testRemote` with the same tag expression.
 
 ## `hapiTest*Embedded` and `hapiTest*Repeatable` PR check tasks
@@ -89,44 +90,49 @@ Each task that needs to ship configuration changes adds them to a comma-separate
 
 - `hapiTestRestart` enables `tss.hintsEnabled`, sets `quiescence.enabled=true`,
   and shrinks `hedera.transaction.maximumPermissibleUnhealthySeconds`.
-- `hapiTestMisc` enables `blockStream.streamWrappedRecordBlocks` and `quiescence.enabled`.
-- `hapiTestCutover` configures TSS to start with `tss.hintsEnabled=false` to exercise the cutover
-  path.
+- `hapiTestMisc` enables `quiescence.enabled` and turns off node rewards.
+- `hapiTestCutover` starts from the pre-cutover block stream (`streamMode=BOTH` with wrapped record blocks)
+  and configures TSS to start with `tss.hintsEnabled=false` to exercise the cutover path.
+- `hapiTestPreCutover` runs the pre-cutover block stream that mainnet runs until it cuts over, for
+  the `PRE_CUTOVER` jumpstart and wrapped record hash tests. It also runs the `BLOCK_HASHING` tests
+  in that stream mode; `hapiTestMisc` and `hapiTestMiscRecords` run them in BLOCKS and RECORDS.
+- `hapiTestGenesisSubProcess` and `hapiTestClprMultinetwork` pin a `FILE` writer, since block nodes attach
+  only to the shared network.
 
 See `build.gradle.kts` for the full table.
 
-`preCutoverDefaultsOverrides` holds the pins a task needs only while the production block stream and TSS
-defaults are pre-cutover (e.g. `tss.forceMockSignatures=false` for `hapiTestCrypto`); it goes away once
-those defaults switch to the cutover values.
+Every other subprocess task except the `RECORDS`-only `hapiTestMiscRecords*` runs the production block stream
+defaults (`streamMode=BLOCKS`, `writerMode=FILE_AND_GRPC`, real TSS signatures), so in CI it starts one real block
+node shared by all the nodes. Run locally, it writes block files only unless `hapi.spec.blocknode.mode` is set (see
+[`../README.md`](../README.md) § *Block Node Modes*). Stream assertions follow the effective stream mode: with no
+record stream (`BLOCKS`), record-stream checks read the block stream instead.
 
-### Testnet configuration profile
+### Pre-cutover configuration profile
 
-`-PhapiTestConfigProfile=testnet` (or `HAPI_TEST_CONFIG_PROFILE=testnet`) runs the HAPI tasks with the cutover
-block stream and TSS values planned for testnet (`cutoverConfigValues` in `build.gradle.kts`) instead of the
-production defaults:
+`-PhapiTestConfigProfile=pre-cutover` (or `HAPI_TEST_CONFIG_PROFILE=pre-cutover`) runs the HAPI tasks in the
+pre-cutover world that MATS ran before the defaults switched: `streamMode=BOTH` with wrapped record blocks, the
+cutover disabled, no buffer persistence and mock signatures:
 
-- each task's `prCheckPropOverrides` still win (e.g. the `writerMode=FILE` pins that keep `hapiTestRestart`
-  and `hapiTestIss` off the block node), and `preCutoverDefaultsOverrides` are skipped;
-- a real block node is started for the gRPC writer;
-- embedded and repeatable tasks keep the `FILE` writer and mock signatures;
-- `hapiTestGenesisSubProcess`, `hapiTestClpr` and `hapiTestClprMultinetwork` keep the `FILE` writer (genesis and
-  multi-network nets get no block node);
-- `hapiTestMiscRecords*`, `hapiTestCutover`, `hapiTestBlockNodeCommunication` and `hapiTestIssGrpc` ignore it.
+- each task then gets the pins it had in that world (`preCutoverTaskOverrides`, e.g. real signatures for
+  `hapiTestCrypto`), and its `prCheckPropOverrides` on top;
+- every task whose writer streams over gRPC still gets a block node, which in `BOTH` mode receives the wrapped
+  record blocks;
+- embedded and repeatable nodes get the profile as system properties, and keep the `FILE` writer and mock
+  signatures;
+- `hapiTestMiscRecords*`, `hapiTestCutover`, `hapiTestPreCutover`, `hapiTestIssGrpc` and `hapiTestBlockNodeCommunication` ignore it.
 
-Stream assertions follow the effective stream mode: with no record stream (`BLOCKS`), record-stream checks read
-the block stream instead.
-
-XTS reruns the MATS HAPI panels, `hapiTestWraps` and `hapiTestWrapsDownload` this way
-(`829-call-execute-xts-hapi-testnet.yaml`).
+XTS reruns the MATS HAPI panels, the CLPR tasks and `hapiTestWraps` this way
+(`829-call-execute-xts-hapi-testnet.yaml`), so the pre-cutover world mainnet runs until it cuts over stays covered.
 
 ```bash
-./gradlew :test-clients:hapiTestCrypto -PhapiTestConfigProfile=testnet
+./gradlew :test-clients:hapiTestCrypto -PhapiTestConfigProfile=pre-cutover
 ```
 
 ## Platform overrides (`prCheckPlatformOverrides`)
 
-Currently only `hapiTestRestart` uses this: `platformStatus.observingStatusDelay=10s` is appended
-to the platform `settings.txt` for the subprocess nodes.
+`hapiTestRestart` and `hapiTestPreCutover` append `platformStatus.observingStatusDelay=10s` and
+`reconnect.minimumTimeBetweenReconnects=10s` to the platform `settings.txt` for their subprocess nodes;
+`hapiTestClprMultinetwork` appends the observing delay.
 
 ## Helper / utility tasks
 
