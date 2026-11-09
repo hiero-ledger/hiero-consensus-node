@@ -247,12 +247,11 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         final List<Arguments> args = new ArrayList<>();
 
         for (final EndOfStream.Code eosCode : EndOfStream.Code.values()) {
-            final CloseReason expectedCloseReason =
-                    switch (eosCode) {
-                        case Code.TIMEOUT, Code.DUPLICATE_BLOCK, Code.BAD_BLOCK_PROOF, Code.INVALID_REQUEST ->
-                            CloseReason.TRANSIENT_END_STREAM_RECEIVED;
-                        default -> CloseReason.END_STREAM_RECEIVED;
-                    };
+            final CloseReason expectedCloseReason = switch (eosCode) {
+                case Code.TIMEOUT, Code.DUPLICATE_BLOCK, Code.BAD_BLOCK_PROOF, Code.INVALID_REQUEST ->
+                    CloseReason.TRANSIENT_END_STREAM_RECEIVED;
+                default -> CloseReason.END_STREAM_RECEIVED;
+            };
 
             args.add(Arguments.of(eosCode, expectedCloseReason));
         }
@@ -279,24 +278,22 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
 
         for (final PublishStreamResponse.ResponseOneOfType responseType :
                 PublishStreamResponse.ResponseOneOfType.values()) {
-            final PublishStreamResponse resp =
-                    switch (responseType) {
-                        case ACKNOWLEDGEMENT, END_STREAM -> null; // these are accepted responses
-                        case SKIP_BLOCK ->
-                            PublishStreamResponse.newBuilder()
-                                    .skipBlock(SkipBlock.newBuilder().blockNumber(10))
-                                    .build();
-                        case RESEND_BLOCK ->
-                            PublishStreamResponse.newBuilder()
-                                    .resendBlock(ResendBlock.newBuilder().blockNumber(10))
-                                    .build();
-                        case UNSET -> PublishStreamResponse.newBuilder().build();
-                        case NODE_BEHIND_PUBLISHER ->
-                            PublishStreamResponse.newBuilder()
-                                    .nodeBehindPublisher(
-                                            BehindPublisher.newBuilder().blockNumber(10))
-                                    .build();
-                    };
+            final PublishStreamResponse resp = switch (responseType) {
+                case ACKNOWLEDGEMENT, END_STREAM -> null; // these are accepted responses
+                case SKIP_BLOCK ->
+                    PublishStreamResponse.newBuilder()
+                            .skipBlock(SkipBlock.newBuilder().blockNumber(10))
+                            .build();
+                case RESEND_BLOCK ->
+                    PublishStreamResponse.newBuilder()
+                            .resendBlock(ResendBlock.newBuilder().blockNumber(10))
+                            .build();
+                case UNSET -> PublishStreamResponse.newBuilder().build();
+                case NODE_BEHIND_PUBLISHER ->
+                    PublishStreamResponse.newBuilder()
+                            .nodeBehindPublisher(BehindPublisher.newBuilder().blockNumber(10))
+                            .build();
+            };
 
             if (resp != null) {
                 args.add(Arguments.of(resp));

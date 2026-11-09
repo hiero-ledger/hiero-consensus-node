@@ -436,53 +436,52 @@ public class BlockNodeConnectionManager {
             final BlockNode node = nodes.get(i);
             final BlockNodeEndpoint serviceEndpoint = node.configuration().serviceEndpoint();
             final Future<BlockNodeStatus> future = futures.get(i);
-            final BlockNodeStatus status =
-                    switch (future.state()) {
-                        case SUCCESS -> {
-                            final BlockNodeStatus bns = future.resultNow();
-                            if (bns == null) {
-                                logger.warn(
-                                        "[{}:{}] Retrieving block node status was successful, but null returned",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port());
-                                // we don't have any information so mark it unreachable... hopefully this never happens
-                                yield BlockNodeStatus.notReachable();
-                            } else {
-                                logger.debug(
-                                        "[{}:{}] Successfully retrieved block node status",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port());
-                                yield bns;
-                            }
-                        }
-                        case FAILED -> {
-                            final Throwable error = future.exceptionNow();
-                            final FailureType failureType = FailureType.findFailureType(error);
-                            if (failureType.isCommonFailure()) {
-                                logger.warn(
-                                        "[{}:{}] Failed to retrieve block node status (error: {})",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port(),
-                                        failureType);
-                            } else {
-                                logger.warn(
-                                        "[{}:{}] Failed to retrieve block node status",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port(),
-                                        error);
-                            }
+            final BlockNodeStatus status = switch (future.state()) {
+                case SUCCESS -> {
+                    final BlockNodeStatus bns = future.resultNow();
+                    if (bns == null) {
+                        logger.warn(
+                                "[{}:{}] Retrieving block node status was successful, but null returned",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port());
+                        // we don't have any information so mark it unreachable... hopefully this never happens
+                        yield BlockNodeStatus.notReachable();
+                    } else {
+                        logger.debug(
+                                "[{}:{}] Successfully retrieved block node status",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port());
+                        yield bns;
+                    }
+                }
+                case FAILED -> {
+                    final Throwable error = future.exceptionNow();
+                    final FailureType failureType = FailureType.findFailureType(error);
+                    if (failureType.isCommonFailure()) {
+                        logger.warn(
+                                "[{}:{}] Failed to retrieve block node status (error: {})",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port(),
+                                failureType);
+                    } else {
+                        logger.warn(
+                                "[{}:{}] Failed to retrieve block node status",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port(),
+                                error);
+                    }
 
-                            yield BlockNodeStatus.notReachable();
-                        }
-                        case CANCELLED, RUNNING -> {
-                            logger.warn(
-                                    "[{}:{}] Timed out waiting for block node status",
-                                    serviceEndpoint.host(),
-                                    serviceEndpoint.port());
-                            future.cancel(true);
-                            yield BlockNodeStatus.notReachable();
-                        }
-                    };
+                    yield BlockNodeStatus.notReachable();
+                }
+                case CANCELLED, RUNNING -> {
+                    logger.warn(
+                            "[{}:{}] Timed out waiting for block node status",
+                            serviceEndpoint.host(),
+                            serviceEndpoint.port());
+                    future.cancel(true);
+                    yield BlockNodeStatus.notReachable();
+                }
+            };
 
             node.onServerStatusCheck(status);
 
