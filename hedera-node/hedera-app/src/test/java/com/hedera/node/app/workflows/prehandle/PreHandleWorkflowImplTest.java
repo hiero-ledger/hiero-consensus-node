@@ -930,13 +930,12 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                     SO_FAR_SO_GOOD,
                     OK,
                     txInfo,
-                    Set.of(),
+                    Set.of(previousRequirement),
                     Set.of(),
                     Set.of(),
                     Map.of(payerKey, sigFuture),
                     null,
-                    DEFAULT_CONFIG_VERSION,
-                    Set.of(previousRequirement));
+                    DEFAULT_CONFIG_VERSION);
             doAnswer(invocation -> {
                         final var context = invocation.getArgument(0, PreHandleContext.class);
                         context.requireKeyRequirement(currentRequirement);

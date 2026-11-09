@@ -124,41 +124,6 @@ public record DispatchOptions<T extends StreamBuilder>(
     }
 
     /**
-     * Constructs options using the legacy primitive-key verification contract. Such a verifier
-     * receives no account authority and cannot grant an identity-scoped exemption.
-     */
-    public DispatchOptions(
-            @NonNull final Commit commit,
-            @NonNull final AccountID payerId,
-            @NonNull final TransactionBody body,
-            @NonNull final UsePresetTxnId usePresetTxnId,
-            @NonNull final Predicate<Key> keyVerifier,
-            @NonNull final Set<Key> authorizingKeys,
-            @NonNull final TransactionCategory category,
-            @NonNull final ConsensusThrottling throttling,
-            @NonNull final Class<T> streamBuilderType,
-            @NonNull final ReversingBehavior reversingBehavior,
-            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
-            @NonNull final DispatchMetadata dispatchMetadata,
-            @Nullable final FeeCharging customFeeCharging) {
-        this(
-                commit,
-                payerId,
-                body,
-                usePresetTxnId,
-                keyVerifier,
-                authorizingKeys,
-                category,
-                throttling,
-                streamBuilderType,
-                reversingBehavior,
-                signedTxCustomizer,
-                dispatchMetadata,
-                customFeeCharging,
-                null);
-    }
-
-    /**
      * Returns the effective key verifier for the dispatch ({@code null} if all keys should be treated as authorized).
      */
     public @Nullable Predicate<Key> effectiveKeyVerifier() {
@@ -202,7 +167,8 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REMOVABLE,
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 EMPTY_METADATA,
-                customFeeCharging);
+                customFeeCharging,
+                null);
     }
 
     /**
@@ -261,7 +227,8 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REVERSIBLE,
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 metadata,
-                customFeeCharging);
+                customFeeCharging,
+                null);
     }
 
     /**
@@ -437,7 +404,8 @@ public record DispatchOptions<T extends StreamBuilder>(
                 reversingBehavior,
                 signedTxCustomizer,
                 metadata,
-                customFeeCharging);
+                customFeeCharging,
+                null);
     }
 
     /**
@@ -473,7 +441,8 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REMOVABLE,
                 signedTxCustomizer,
                 metaData,
-                UNIVERSAL_NOOP_FEE_CHARGING);
+                UNIVERSAL_NOOP_FEE_CHARGING,
+                null);
     }
 
     /**
@@ -506,7 +475,8 @@ public record DispatchOptions<T extends StreamBuilder>(
                 ReversingBehavior.REVERSIBLE,
                 NOOP_SIGNED_TX_CUSTOMIZER,
                 dispatchMetadata,
-                customFeeCharging);
+                customFeeCharging,
+                null);
     }
 
     /**

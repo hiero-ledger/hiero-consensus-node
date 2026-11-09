@@ -2,7 +2,6 @@
 package com.hedera.node.app.workflows.handle;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.service.token.records.FinalizeContext;
@@ -34,7 +33,6 @@ public record RecordDispatch(
         @NonNull AppKeyVerifier keyVerifier,
         @NonNull NodeInfo creatorInfo,
         @NonNull Instant consensusNow,
-        @NonNull Set<Key> requiredKeys,
         @NonNull Set<Account> hollowAccounts,
         @NonNull HandleContext handleContext,
         @NonNull SavepointStackImpl stack,

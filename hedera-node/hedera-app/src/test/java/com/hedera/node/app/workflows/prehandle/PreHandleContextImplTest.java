@@ -178,35 +178,36 @@ class PreHandleContextImplTest implements Scenarios {
 
         // Feeding raw, mutable sets (not the unmodifiable views above) proves PreHandleResult does the wrapping
         // itself: the exposed collections still reject mutation...
-        final var rawRequiredKeys = new LinkedHashSet<>(subject.requiredNonPayerKeys());
-        final var rawOptionalKeys = new LinkedHashSet<>(subject.optionalNonPayerKeys());
+        final var rawRequiredRequirements = new LinkedHashSet<>(subject.requiredKeyRequirements());
+        final var rawOptionalRequirements = new LinkedHashSet<>(subject.optionalKeyRequirements());
         final var rawHollowAccounts = new LinkedHashSet<>(subject.requiredHollowAccounts());
+        final var payerRequirement = KeyRequirement.forKey(payerKey);
         final var result = new PreHandleResult(
                 PAYER,
                 payerKey,
                 SO_FAR_SO_GOOD,
                 OK,
                 null,
-                rawRequiredKeys,
-                rawOptionalKeys,
+                rawRequiredRequirements,
+                rawOptionalRequirements,
                 rawHollowAccounts,
                 Map.of(),
                 null,
                 0L);
-        assertThatThrownBy(() -> result.getRequiredKeys().add(payerKey))
+        assertThatThrownBy(() -> result.getRequiredKeyRequirements().add(payerRequirement))
                 .isInstanceOf(UnsupportedOperationException.class);
-        assertThatThrownBy(() -> result.getOptionalKeys().add(payerKey))
+        assertThatThrownBy(() -> result.optionalKeyRequirements().add(payerRequirement))
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> result.getHollowAccounts().add(account))
                 .isInstanceOf(UnsupportedOperationException.class);
 
         // ...and that it snapshots them, so mutating the source sets after construction is not visible through
         // the exposed collections.
-        rawRequiredKeys.add(payerKey);
-        rawOptionalKeys.add(payerKey);
+        rawRequiredRequirements.add(payerRequirement);
+        rawOptionalRequirements.add(payerRequirement);
         rawHollowAccounts.add(account);
-        assertThat(result.getRequiredKeys()).doesNotContain(payerKey);
-        assertThat(result.getOptionalKeys()).doesNotContain(payerKey);
+        assertThat(result.getRequiredKeyRequirements()).doesNotContain(payerRequirement);
+        assertThat(result.optionalKeyRequirements()).doesNotContain(payerRequirement);
         assertThat(result.getHollowAccounts()).doesNotContain(account);
     }
 

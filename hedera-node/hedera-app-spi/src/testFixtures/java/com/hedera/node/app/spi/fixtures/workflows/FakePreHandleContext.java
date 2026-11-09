@@ -55,20 +55,8 @@ public class FakePreHandleContext implements PreHandleContext {
     private final KeyRequirement payerKeyRequirement;
     private final Set<KeyRequirement> requiredKeyRequirements = new LinkedHashSet<>();
     private final Set<KeyRequirement> optionalKeyRequirements = new LinkedHashSet<>();
-    /**
-     * The set of all required non-payer keys. A {@link LinkedHashSet} is used to maintain a consistent ordering.
-     * While not strictly necessary, it is useful at the moment to ensure tests are deterministic. The tests should
-     * be updated to compare set contents rather than ordering.
-     */
-    private final Set<Key> requiredNonPayerKeys = new LinkedHashSet<>();
     /** The set of all hollow accounts that need to be validated. */
     private final Set<Account> requiredHollowAccounts = new LinkedHashSet<>();
-    /**
-     * The set of all optional non-payer keys. A {@link LinkedHashSet} is used to maintain a consistent ordering.
-     * While not strictly necessary, it is useful at the moment to ensure tests are deterministic. The tests should
-     * be updated to compare set contents rather than ordering.
-     */
-    private final Set<Key> optionalNonPayerKeys = new LinkedHashSet<>();
     /** The set of all hollow accounts that <strong>might</strong> need to be validated, but also might not. */
     private final Set<Account> optionalHollowAccounts = new LinkedHashSet<>();
 
@@ -167,13 +155,24 @@ public class FakePreHandleContext implements PreHandleContext {
     @NonNull
     @Override
     public Set<Key> requiredNonPayerKeys() {
-        return Collections.unmodifiableSet(requiredNonPayerKeys);
+        return projectNonPayerKeys(requiredKeyRequirements);
     }
 
     @NonNull
     @Override
     public Set<Key> optionalNonPayerKeys() {
-        return Collections.unmodifiableSet(optionalNonPayerKeys);
+        return projectNonPayerKeys(optionalKeyRequirements);
+    }
+
+    private Set<Key> projectNonPayerKeys(final Set<KeyRequirement> requirements) {
+        final Set<Key> keys = new LinkedHashSet<>();
+        for (final var requirement : requirements) {
+            final var key = requirement.key();
+            if (!key.equals(payerKey)) {
+                keys.add(key);
+            }
+        }
+        return Collections.unmodifiableSet(keys);
     }
 
     @NonNull
@@ -186,12 +185,8 @@ public class FakePreHandleContext implements PreHandleContext {
     @NonNull
     public PreHandleContext optionalKeyRequirement(@NonNull final KeyRequirement requirement) {
         requireNonNull(requirement);
-        final var key = requirement.key();
-        if (isValid(key)) {
+        if (isValid(requirement.key())) {
             optionalKeyRequirements.add(requirement);
-            if (!key.equals(payerKey)) {
-                optionalNonPayerKeys.add(key);
-            }
         }
         return this;
     }
@@ -264,12 +259,8 @@ public class FakePreHandleContext implements PreHandleContext {
     @NonNull
     public PreHandleContext requireKeyRequirement(@NonNull final KeyRequirement requirement) {
         requireNonNull(requirement);
-        final var key = requirement.key();
-        if (isValid(key)) {
+        if (isValid(requirement.key())) {
             requiredKeyRequirements.add(requirement);
-            if (!key.equals(payerKey)) {
-                requiredNonPayerKeys.add(key);
-            }
         }
         return this;
     }
@@ -532,7 +523,7 @@ public class FakePreHandleContext implements PreHandleContext {
                 + txn + ", payer="
                 + payer + ", payerKey="
                 + payerKey + ", requiredNonPayerKeys="
-                + requiredNonPayerKeys + ", stores="
+                + requiredNonPayerKeys() + ", stores="
                 + stores + '}';
     }
 

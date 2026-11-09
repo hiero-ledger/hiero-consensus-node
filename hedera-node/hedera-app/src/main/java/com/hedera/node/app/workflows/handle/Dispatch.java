@@ -4,7 +4,6 @@ package com.hedera.node.app.workflows.handle;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.service.token.records.FinalizeContext;
@@ -28,7 +27,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Set;
 import java.util.function.ObjLongConsumer;
-import java.util.stream.Collectors;
 
 /**
  * The fundamental unit of work in the handle workflow.
@@ -139,22 +137,12 @@ public interface Dispatch extends FeeCharging.Context {
     Instant consensusNow();
 
     /**
-     * The keys that must have signed to fully authorize the work
-     * in this dispatch.
-     *
-     * @return the required keys
-     */
-    Set<Key> requiredKeys();
-
-    /**
      * The individual authority requirements for this dispatch. Equal keys belonging to different
      * accounts remain separate requirements.
      *
      * @return the identity-scoped requirements
      */
-    default Set<KeyRequirement> requiredKeyRequirements() {
-        return requiredKeys().stream().map(KeyRequirement::forKey).collect(Collectors.toUnmodifiableSet());
-    }
+    Set<KeyRequirement> requiredKeyRequirements();
 
     /**
      * The hollow accounts that must have provided signatures proving

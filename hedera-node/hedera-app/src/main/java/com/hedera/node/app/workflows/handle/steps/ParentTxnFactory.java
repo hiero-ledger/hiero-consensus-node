@@ -426,7 +426,6 @@ public class ParentTxnFactory {
                 keyVerifier,
                 creatorInfo,
                 consensusNow,
-                preHandleResult.getRequiredKeys(),
                 preHandleResult.getHollowAccounts(),
                 dispatchHandleContext,
                 stack,
@@ -500,13 +499,12 @@ public class ParentTxnFactory {
                     SO_FAR_SO_GOOD,
                     OK,
                     txInfo,
-                    preHandleContext.requiredNonPayerKeys(),
+                    preHandleContext.requiredKeyRequirements(),
                     null,
                     preHandleContext.requiredHollowAccounts(),
                     null,
                     null,
-                    0,
-                    preHandleContext.requiredKeyRequirements());
+                    0);
         } catch (final PreCheckException e) {
             return new PreHandleResult(
                     null,

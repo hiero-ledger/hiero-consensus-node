@@ -66,21 +66,9 @@ public class PreHandleContextImpl implements PreHandleContext {
     private final Set<KeyRequirement> requiredKeyRequirements = new LinkedHashSet<>();
     private final Set<KeyRequirement> optionalKeyRequirements = new LinkedHashSet<>();
     /**
-     * The set of all required non-payer keys. A {@link LinkedHashSet} is used to maintain a consistent ordering.
-     * While not strictly necessary, it is useful at the moment to ensure tests are deterministic. The tests should
-     * be updated to compare set contents rather than ordering.
-     */
-    private final Set<Key> requiredNonPayerKeys = new LinkedHashSet<>();
-    /**
      * The set of all hollow accounts that need to be validated.
      */
     private final Set<Account> requiredHollowAccounts = new LinkedHashSet<>();
-    /**
-     * The set of all optional non-payer keys. A {@link LinkedHashSet} is used to maintain a consistent ordering.
-     * While not strictly necessary, it is useful at the moment to ensure tests are deterministic. The tests should
-     * be updated to compare set contents rather than ordering.
-     */
-    private final Set<Key> optionalNonPayerKeys = new LinkedHashSet<>();
     /**
      * The set of all hollow accounts that <strong>might</strong> need to be validated, but also might not.
      */
@@ -191,13 +179,13 @@ public class PreHandleContextImpl implements PreHandleContext {
     @NonNull
     @Override
     public Set<Key> requiredNonPayerKeys() {
-        return Collections.unmodifiableSet(requiredNonPayerKeys);
+        return projectRequiredKeys(requiredKeyRequirements, payerId, payerKey);
     }
 
     @NonNull
     @Override
     public Set<Key> optionalNonPayerKeys() {
-        return Collections.unmodifiableSet(optionalNonPayerKeys);
+        return projectNonPayerKeys(optionalKeyRequirements, payerKey, null);
     }
 
     @Override
@@ -232,11 +220,6 @@ public class PreHandleContextImpl implements PreHandleContext {
         verifyNotEmptyKey(key, ResponseCodeEnum.INVALID_ACCOUNT_ID);
         if (isValid(key)) {
             optionalKeyRequirements.add(requirement);
-            // This projection is used only to expand signatures and calculate fees. The payer's
-            // key is already expanded separately; its requirements must nevertheless be retained.
-            if (!key.equals(payerKey)) {
-                optionalNonPayerKeys.add(key);
-            }
         }
         return this;
     }
@@ -292,28 +275,50 @@ public class PreHandleContextImpl implements PreHandleContext {
     @NonNull
     public PreHandleContext requireKeyRequirement(@NonNull final KeyRequirement requirement) {
         requireNonNull(requirement);
-        final var key = requirement.key();
-        if (isValid(key)) {
+        if (isValid(requirement.key())) {
             requiredKeyRequirements.add(requirement);
-            // Preserve the legacy key projection for signature expansion and fee calculation only.
-            // Authorization always uses requiredKeyRequirements, including payer-equal keys.
-            // The payer's own canonical account requirement is already accounted for, even if
-            // its key references another contract. An explicit foreign-contract key still has
-            // the legacy projection behavior.
-            if (!key.equals(payerKey)
-                    || (!requirement.equals(payerKeyRequirement) && payerKeyIsForeignContractReference())) {
-                requiredNonPayerKeys.add(key);
-            }
         }
         return this;
     }
 
+    static Set<Key> projectRequiredKeys(
+            @NonNull final Set<KeyRequirement> requirements,
+            @Nullable final AccountID payerId,
+            @Nullable final Key payerKey) {
+        // Preserve the legacy projection of a required payer-equal key that names another contract.
+        final var foreignKeyPayer =
+                payerId != null && payerKey != null && payerKeyIsForeignContractReference(payerId, payerKey)
+                        ? payerId
+                        : null;
+        return projectNonPayerKeys(requirements, payerKey, foreignKeyPayer);
+    }
+
     /**
-     * Preserves the legacy signature-expansion and fee projection for a payer key referencing
-     * another contract. This classification never affects the authoritative requirements: all
-     * valid requirements are retained regardless of their key or their relationship to the payer.
+     * Projects the requirements for signature expansion and accounting. The payer's key is handled separately.
+     * When the payer uses a foreign contract key, retain that key if another requirement needs it.
      */
-    private boolean payerKeyIsForeignContractReference() {
+    static Set<Key> projectNonPayerKeys(
+            @NonNull final Set<KeyRequirement> requirements,
+            @Nullable final Key payerKey,
+            @Nullable final AccountID foreignKeyPayer) {
+        if (requirements.isEmpty()) {
+            return Collections.emptySet();
+        }
+        final Set<Key> keys = new LinkedHashSet<>();
+        for (final var requirement : requirements) {
+            final var key = requirement.key();
+            if (!key.equals(payerKey)
+                    || (foreignKeyPayer != null
+                            && !(requirement instanceof KeyRequirement.AccountKey accountKey
+                                    && foreignKeyPayer.equals(accountKey.accountId())))) {
+                keys.add(key);
+            }
+        }
+        return Collections.unmodifiableSet(keys);
+    }
+
+    private static boolean payerKeyIsForeignContractReference(
+            @NonNull final AccountID payerId, @NonNull final Key payerKey) {
         final ContractID ref;
         final var kind = payerKey.key().kind();
         if (kind == KeyOneOfType.CONTRACT_ID) {
@@ -323,7 +328,7 @@ public class PreHandleContextImpl implements PreHandleContext {
         } else {
             return false;
         }
-        return !contractIdReferencesPayer(ref);
+        return !contractIdReferencesPayer(ref, payerId);
     }
 
     /**
@@ -331,7 +336,7 @@ public class PreHandleContextImpl implements PreHandleContext {
      * realm, and number) i.e. it is the self-referential contract key the network installs for a
      * self-managed contract.
      */
-    private boolean contractIdReferencesPayer(@NonNull final ContractID ref) {
+    private static boolean contractIdReferencesPayer(@NonNull final ContractID ref, @NonNull final AccountID payerId) {
         return ref.hasContractNum()
                 && payerId.hasAccountNum()
                 && ref.shardNum() == payerId.shardNum()
@@ -655,7 +660,7 @@ public class PreHandleContextImpl implements PreHandleContext {
                 + txn + ", payerId="
                 + payerId + ", payerKey="
                 + payerKey + ", requiredNonPayerKeys="
-                + requiredNonPayerKeys + ", storeFactory="
+                + requiredNonPayerKeys() + ", storeFactory="
                 + storeFactory + '}';
     }
 

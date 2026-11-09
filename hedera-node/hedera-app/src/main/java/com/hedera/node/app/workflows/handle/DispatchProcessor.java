@@ -392,9 +392,9 @@ public class DispatchProcessor {
             if (isClprSubmitBundle(dispatch)) {
                 logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
-                                + "requiredKeys={} hollowAccounts={}",
+                                + "requiredKeyRequirements={} hollowAccounts={}",
                         dispatch.txnInfo().transactionID(),
-                        dispatch.requiredKeys().size(),
+                        dispatch.requiredKeyRequirements().size(),
                         dispatch.hollowAccounts().size());
             }
             dispatch.streamBuilder().status(INVALID_SIGNATURE);
