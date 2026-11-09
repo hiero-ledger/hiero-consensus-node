@@ -69,6 +69,30 @@ To be discovered by SPI mechanism implementations of this interface should be re
 Application classes can implement this interface to register metrics in the registry or retrieve metrics by `MetricKey`s for observations.
 Metric registry should be explicitly provided to the binder.
 
+### Removing Metrics and Measurements
+
+Metrics and measurements are kept until removed explicitly. Remove them only when their source is gone,
+for example when a node leaves the roster, because OpenMetrics expects series to stay exposed otherwise.
+
+Measurements of a metric with dynamic labels are removed by a filter on their label values.
+`LabelValues.get(String)` returns the value of a label by its name:
+
+```java
+// remove all measurements of node 3
+counter.removeIf(labelValues -> "3".equals(labelValues.get("node")));
+```
+
+- `SettableMetric.removeIf(Predicate<LabelValues>)` removes matching measurements and returns their number.
+The next `getOrCreateLabeled` call with the same label values creates a new measurement from the initializer.
+- `ObservableGauge.removeIf(Predicate<LabelValues>)` removes matching value suppliers and releases them.
+The same label values can be observed again.
+- `MetricRegistry.remove(MetricKey)` removes a whole metric. Its name can be registered again.
+A metric without dynamic labels has a single measurement, which can be removed only this way.
+
+Removed metrics and measurements are not exported by the next export.
+References to them held by application code remain usable, but their updates are not exported anymore,
+so code caching metrics or measurements must drop them on removal.
+
 ### Exporting
 
 Metrics exporting is done via exporter that implements [MetricsExporter](../src/main/java/org/hiero/metrics/core/MetricsExporter.java) interface.
@@ -82,6 +106,7 @@ Snapshots internally are reusable objects and values are added/updates during ea
 Each iteration over a snapshot (registry or metric level) reads a fixed list in append order.
 An export iterates twice: once in the snapshot supplier, which updates values, and once while writing.
 A metric or measurement added after the supplier read its list but before the writer read it is written with the value read when it was created; one added after the writer read its list is picked up by the next export.
+A metric or measurement removed before the writer read its list is not written; one removed after it is dropped by the next export.
 Metrics from discovered `MetricsRegistrationProvider`s are registered before the exporter receives its snapshot supplier, so the first export already contains all of them.
 
 ### Tips and Tricks

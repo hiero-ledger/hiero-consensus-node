@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.hiero.metrics.DoubleCounter;
@@ -211,6 +212,15 @@ public class MetricRegistryTest {
         }
 
         @Test
+        void testRemoveMetricWithNullKeyThrows() {
+            MetricRegistry registry = MetricRegistry.builder().build();
+
+            assertThatThrownBy(() -> registry.remove(null))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("metric key must not be null");
+        }
+
+        @Test
         void testGetMetricWithNullKeyThrows() {
             MetricRegistry registry = MetricRegistry.builder().build();
 
@@ -382,6 +392,98 @@ public class MetricRegistryTest {
         registry.register(LongCounter.builder(name));
 
         assertThat(registry.containsMetric(LongGauge.key(name))).isFalse();
+    }
+
+    @Test
+    void testRemoveMetric() {
+        MetricRegistry registry = MetricRegistry.builder().build();
+        String name = "test_metric";
+        LongCounter counter = registry.register(LongCounter.builder(name));
+
+        assertThat(registry.remove(LongCounter.key(name))).isTrue();
+        assertThat(registry.containsMetric(LongCounter.key(name))).isFalse();
+        assertThat(registry.metrics()).isEmpty();
+        assertThat(registry.remove(LongCounter.key(name))).as("already removed").isFalse();
+
+        assertThat(registry.register(LongCounter.builder(name)))
+                .as("name can be registered again")
+                .isNotSameAs(counter);
+    }
+
+    @Test
+    void testRemoveMetricWithWrongNameOrTypeKeepsIt() {
+        MetricRegistry registry = MetricRegistry.builder().build();
+        String name = "test_metric";
+        registry.register(LongCounter.builder(name));
+
+        assertThat(registry.remove(LongCounter.key(name + "_"))).isFalse();
+        assertThat(registry.remove(LongGauge.key(name))).isFalse();
+        assertThat(registry.containsMetric(LongCounter.key(name))).isTrue();
+    }
+
+    @Test
+    void testRemovedMetricIsNotExportedAndRegisteredAgainIsAppended() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        registry.register(LongCounter.builder("metric_a"));
+        registry.register(LongCounter.builder("metric_b"));
+        Iterator<MetricSnapshot> export = exporter.snapshotSupplier.get().iterator();
+
+        registry.remove(LongCounter.key("metric_a"));
+        assertThat(exportedNames(exporter.snapshotSupplier.get())).containsExactly("metric_b");
+
+        List<String> seen = new ArrayList<>();
+        export.forEachRemaining(s -> seen.add(s.name()));
+        assertThat(seen).as("started export is not affected").containsExactly("metric_a", "metric_b");
+
+        registry.register(LongGauge.builder("metric_a"));
+        assertThat(exportedNames(exporter.snapshotSupplier.get())).containsExactly("metric_b", "metric_a");
+    }
+
+    @Test
+    void testConcurrentRegisterAndRemoveKeepSnapshotConsistent() throws InterruptedException {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        final int threadCount = 4;
+        final int iterations = 2_000;
+        final int namesCount = 5;
+
+        AtomicBoolean running = new AtomicBoolean(true);
+        Thread exportThread = Thread.ofPlatform().start(() -> {
+            while (running.get()) {
+                exporter.snapshotSupplier.get();
+            }
+        });
+        ThreadUtils.runConcurrentAndWait(threadCount, Duration.ofSeconds(10), threadIdx -> () -> {
+            for (int i = 0; i < iterations; i++) {
+                final String name = "metric_" + (i % namesCount);
+                if ((i + threadIdx) % 2 == 0) {
+                    try {
+                        registry.register(LongCounter.builder(name));
+                    } catch (IllegalArgumentException alreadyRegistered) {
+                        // another thread registered it first
+                    }
+                } else {
+                    registry.remove(LongCounter.key(name));
+                }
+            }
+        });
+        running.set(false);
+        exportThread.join();
+
+        List<String> exported = exportedNames(exporter.snapshotSupplier.get());
+        assertThat(exported)
+                .doesNotHaveDuplicates()
+                .containsExactlyInAnyOrderElementsOf(
+                        registry.metrics().stream().map(Metric::name).toList());
+    }
+
+    private static List<String> exportedNames(MetricRegistrySnapshot registrySnapshot) {
+        List<String> names = new ArrayList<>();
+        registrySnapshot.forEach(s -> names.add(s.name()));
+        return names;
     }
 
     @Test

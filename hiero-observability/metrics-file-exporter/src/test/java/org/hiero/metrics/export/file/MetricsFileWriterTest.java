@@ -235,6 +235,80 @@ public class MetricsFileWriterTest {
                     .isEqualTo("test_counter_total 1 " + ts2 + "\n" + "# TYPE late_gauge gauge\n" + "late_gauge 5 "
                             + ts2 + "\n");
         }
+
+        @Test
+        void testMetadataWrittenForMetricRegisteredAfterRemoval() {
+            MetricRegistry registry = createRegistry();
+            LongCounter.builder("first")
+                    .register(registry)
+                    .getOrCreateNotLabeled()
+                    .increment();
+            LongGauge.builder("second")
+                    .register(registry)
+                    .getOrCreateNotLabeled()
+                    .set(2);
+            exporter.export(defaultWriter);
+
+            // the new metric takes the position the removed one had in the previous snapshot
+            registry.remove(LongCounter.key("first"));
+            LongGauge.builder("third")
+                    .register(registry)
+                    .getOrCreateNotLabeled()
+                    .set(3);
+
+            String second = exporter.export(defaultWriter);
+            long ts = exporter.lastTimestamp;
+
+            assertThat(second).isEqualTo("second 2 " + ts + "\n" + "# TYPE third gauge\n" + "third 3 " + ts + "\n");
+        }
+
+        @Test
+        void testMetadataWrittenAgainForMetricRegisteredAgain() {
+            MetricRegistry registry = createRegistry();
+            LongGauge.builder("test_gauge")
+                    .register(registry)
+                    .getOrCreateNotLabeled()
+                    .set(1);
+            exporter.export(defaultWriter);
+
+            registry.remove(LongGauge.key("test_gauge"));
+            LongGauge.builder("test_gauge")
+                    .setDescription("new")
+                    .register(registry)
+                    .getOrCreateNotLabeled()
+                    .set(5);
+
+            String second = exporter.export(defaultWriter);
+            long ts = exporter.lastTimestamp;
+
+            assertThat(second)
+                    .isEqualTo("# TYPE test_gauge gauge\n" + "# HELP test_gauge new\n" + "test_gauge 5 " + ts + "\n");
+        }
+    }
+
+    @Test
+    void testMetadataWrittenAgainForMetricRegisteredAgainAfterExportWithoutIt() {
+        MetricRegistry registry = createRegistry();
+        LongGauge.builder("test_gauge")
+                .register(registry)
+                .getOrCreateNotLabeled()
+                .set(1);
+        exporter.export(defaultWriter);
+
+        registry.remove(LongGauge.key("test_gauge"));
+        String withoutMetric = exporter.export(defaultWriter);
+        assertThat(withoutMetric).isEmpty();
+
+        LongGauge.builder("test_gauge")
+                .setDescription("new")
+                .register(registry)
+                .getOrCreateNotLabeled()
+                .set(5);
+        String registeredAgain = exporter.export(defaultWriter);
+        long ts = exporter.lastTimestamp;
+
+        assertThat(registeredAgain)
+                .isEqualTo("# TYPE test_gauge gauge\n" + "# HELP test_gauge new\n" + "test_gauge 5 " + ts + "\n");
     }
 
     @Nested

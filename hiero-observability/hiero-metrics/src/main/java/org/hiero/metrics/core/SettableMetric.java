@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
  * Abstract extension of {@link Metric}, that holds a set of measurements for each combination of dynamic label values
@@ -13,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Subclasses must implement the creation of measurements based on initializer
  * and measurement snapshots based on measurement with it's associated label values.
  * All measurements are created lazily, whenever new combination of dynamic label values are requested.
+ * Measurements with dynamic labels can be removed using {@link #removeIf(Predicate)}.
  * <p>
  * Clients should pay attention the dynamic label values cardinality, as high cardinality can lead to
  * higher costs for metrics backends. <b>Do not use</b> labels with values having unbounded cardinality,
@@ -110,6 +112,39 @@ public abstract class SettableMetric<I, M> extends Metric {
     }
 
     /**
+     * Removes all measurements whose dynamic label values match the given filter, so they are not exported anymore.
+     * Use {@link LabelValues#get(String)} to match by label name, for example
+     * {@code metric.removeIf(labelValues -> "3".equals(labelValues.get("node")))}.
+     * <p>
+     * The filter is called for the label values of each existing measurement without holding any lock.
+     * Measurements created concurrently with this call may or may not be removed.
+     * <p>
+     * The next {@code getOrCreateLabeled} call with the same label values creates a new measurement from the initializer.
+     * References to removed measurements held by callers remain usable, but their updates are not exported anymore,
+     * so callers caching measurements must drop them on removal.
+     *
+     * @param filter returns {@code true} for label values of measurements to remove, must not be {@code null}
+     * @return the number of removed measurements
+     * @throws IllegalStateException if metric has no dynamic labels specified during creation
+     * @throws NullPointerException  if the filter is {@code null}
+     */
+    public final int removeIf(@NonNull Predicate<LabelValues> filter) {
+        if (measurements == null) {
+            throw new IllegalStateException(
+                    "This metric has no dynamic labels, so it can be removed only from the metric registry");
+        }
+        Objects.requireNonNull(filter, "filter must not be null");
+
+        int removed = 0;
+        for (LabelValues labelValues : measurements.keySet()) {
+            if (filter.test(labelValues) && removeMeasurement(labelValues)) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /**
      * Create a new measurement using the provided initializer.
      *
      * @param initializer object to use for measurement creation
@@ -154,6 +189,17 @@ public abstract class SettableMetric<I, M> extends Metric {
         // the snapshot is added inside computeIfAbsent, so the map entry and its snapshot change together per key
         // and a failed snapshot creation leaves no measurement in the map
         return measurements.computeIfAbsent(labelValues, key -> createMeasurementAndSnapshot(key, initializer));
+    }
+
+    private boolean removeMeasurement(LabelValues labelValues) {
+        final boolean[] removed = {false};
+        // the snapshot is removed inside computeIfPresent, under the same map bin lock that guards its creation
+        measurements.computeIfPresent(labelValues, (key, _) -> {
+            removeMeasurementSnapshot(key);
+            removed[0] = true;
+            return null;
+        });
+        return removed[0];
     }
 
     private M createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {

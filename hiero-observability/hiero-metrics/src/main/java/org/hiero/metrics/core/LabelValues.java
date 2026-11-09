@@ -2,6 +2,7 @@
 package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 
 /**
@@ -43,6 +44,23 @@ public final class LabelValues {
     @NonNull
     public String get(int index) {
         return namesAndValues[2 * index + 1];
+    }
+
+    /**
+     * Get the value of the label with the specified name.
+     * Useful in filters, for example {@code labelValues -> "3".equals(labelValues.get("node"))}.
+     *
+     * @param labelName the name of the label to retrieve the value of
+     * @return the label value, or {@code null} if there is no label with the specified name
+     */
+    @Nullable
+    public String get(@NonNull String labelName) {
+        for (int i = 0; i < namesAndValues.length; i += 2) {
+            if (namesAndValues[i].equals(labelName)) {
+                return namesAndValues[i + 1];
+            }
+        }
+        return null;
     }
 
     @Override

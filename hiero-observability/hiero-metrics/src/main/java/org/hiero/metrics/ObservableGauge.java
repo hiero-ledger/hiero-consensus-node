@@ -4,11 +4,12 @@ package org.hiero.metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import org.hiero.metrics.core.DoubleMeasurementSnapshot;
 import org.hiero.metrics.core.LabelValues;
 import org.hiero.metrics.core.LongMeasurementSnapshot;
@@ -25,10 +26,11 @@ import org.hiero.metrics.core.MetricType;
  * {@link Builder#observe(LongSupplier, String...)}, {@link Builder#observe(DoubleSupplier, String...)}
  * or could be added later after metric creation using {@link #observe(LongSupplier, String...)}
  * or {@link #observe(DoubleSupplier, String...)}.
+ * Observed value suppliers with dynamic labels can be removed using {@link #removeIf(Predicate)}.
  */
 public final class ObservableGauge extends Metric {
 
-    private final Set<LabelValues> labelValuesSet = ConcurrentHashMap.newKeySet();
+    private final Map<LabelValues, MeasurementSnapshot> observed = new ConcurrentHashMap<>();
 
     private ObservableGauge(ObservableGauge.Builder builder) {
         super(builder);
@@ -86,16 +88,66 @@ public final class ObservableGauge extends Metric {
         return this;
     }
 
+    /**
+     * Removes all observed value suppliers whose dynamic label values match the given filter,
+     * so they are not exported anymore and are released. The same label values can be observed again afterwards.
+     * Use {@link LabelValues#get(String)} to match by label name, for example
+     * {@code gauge.removeIf(labelValues -> "3".equals(labelValues.get("node")))}.
+     * <p>
+     * The filter is called for the label values of each observed supplier without holding any lock.
+     * Suppliers observed concurrently with this call may or may not be removed.
+     *
+     * @param filter returns {@code true} for label values of suppliers to remove, must not be {@code null}
+     * @return the number of removed suppliers
+     * @throws IllegalStateException if metric has no dynamic labels specified during creation
+     * @throws NullPointerException  if the filter is {@code null}
+     */
+    public int removeIf(@NonNull Predicate<LabelValues> filter) {
+        if (dynamicLabelNames().isEmpty()) {
+            throw new IllegalStateException(
+                    "This metric has no dynamic labels, so it can be removed only from the metric registry");
+        }
+        Objects.requireNonNull(filter, "filter must not be null");
+
+        int removed = 0;
+        for (LabelValues labelValues : observed.keySet()) {
+            if (filter.test(labelValues) && removeObserved(labelValues)) {
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    private boolean removeObserved(LabelValues labelValues) {
+        final boolean[] removed = {false};
+        // the snapshot is removed under the map bin lock, which also guards observing the same label values
+        observed.computeIfPresent(labelValues, (key, _) -> {
+            removeMeasurementSnapshot(key);
+            removed[0] = true;
+            return null;
+        });
+        return removed[0];
+    }
+
     private void observeInternal(@NonNull Object valueSupplier, @NonNull String... labelNamesAndValues) {
         Objects.requireNonNull(valueSupplier, "value supplier must not be null");
 
-        LabelValues labelValues = createLabelValues(labelNamesAndValues);
-        if (!labelValuesSet.add(labelValues)) {
-            throw new IllegalArgumentException(
-                    "A measurement with the same label values already exists: " + labelValues);
+        final LabelValues labelValues = createLabelValues(labelNamesAndValues);
+        if (observed.containsKey(labelValues)) {
+            throw duplicateLabelValues(labelValues);
         }
 
-        addMeasurementSnapshot(createSnapshot(valueSupplier, labelValues));
+        // the snapshot calls the supplier, so it is created before taking the map bin lock
+        final MeasurementSnapshot snapshot = createSnapshot(valueSupplier, labelValues);
+        final MeasurementSnapshot observedSnapshot =
+                observed.computeIfAbsent(labelValues, _ -> addMeasurementSnapshot(snapshot));
+        if (observedSnapshot != snapshot) {
+            throw duplicateLabelValues(labelValues);
+        }
+    }
+
+    private static IllegalArgumentException duplicateLabelValues(LabelValues labelValues) {
+        return new IllegalArgumentException("A measurement with the same label values already exists: " + labelValues);
     }
 
     @Override

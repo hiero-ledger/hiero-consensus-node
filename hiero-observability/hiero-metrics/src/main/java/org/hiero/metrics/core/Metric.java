@@ -136,12 +136,33 @@ public abstract class Metric implements MetricInfo {
     /**
      * Adds a measurement snapshot to the metric's snapshot.
      * Subclasses must call this method to register their measurement snapshots for exporting.
+     * <p>
+     * If measurements can be removed, see {@link #removeMeasurementSnapshot(LabelValues)} for the required locking.
      *
      * @param measurementSnapshot the measurement snapshot to add, must not be {@code null}
+     * @return the provided measurement snapshot
      */
-    protected final void addMeasurementSnapshot(@NonNull MeasurementSnapshot measurementSnapshot) {
+    @NonNull
+    protected final MeasurementSnapshot addMeasurementSnapshot(@NonNull MeasurementSnapshot measurementSnapshot) {
         if (snapshot != null) {
             snapshot.addMeasurementSnapshot(measurementSnapshot);
+        }
+        return measurementSnapshot;
+    }
+
+    /**
+     * Removes the measurement snapshot with the given dynamic label values from the metric's snapshot,
+     * so it is not exported anymore. Subclasses must call this method when they remove a measurement.
+     * <p>
+     * Adding and removing measurement snapshots with equal label values must happen under one lock, for example
+     * inside {@code ConcurrentHashMap.compute} methods of the map holding the measurements, so they are applied
+     * to the snapshot in the order they happened.
+     *
+     * @param labelValues the dynamic label values of the measurement snapshot to remove, must not be {@code null}
+     */
+    protected final void removeMeasurementSnapshot(@NonNull LabelValues labelValues) {
+        if (snapshot != null) {
+            snapshot.removeMeasurementSnapshot(labelValues);
         }
     }
 
