@@ -1014,7 +1014,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /// Same as [#snapshot(Path)], but the indexes aren't written to the snapshot. Instead, they
     /// are copied in memory and returned. To load the snapshot, use
-    /// [#MerkleDbDataSource(Path, MerkleDbConfig, FileSystemManager, String, boolean, CopiedIndexes)]. This is faster
+    /// [#MerkleDbDataSource(Path, MerkleDbConfig, FileSystemManager, String, boolean, CopiedIndexes)]. This is
+    /// faster
     /// than writing the indexes to disk and reading them back, but needs memory for the index copies.
     ///
     /// **IMPORTANT, after this is completed the caller owns the directory and the copied indexes.

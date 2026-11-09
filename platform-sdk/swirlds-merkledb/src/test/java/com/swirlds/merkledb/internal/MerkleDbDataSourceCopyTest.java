@@ -26,7 +26,6 @@ import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.internal.MerkleDbDataSource.CopiedIndexes;
 import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.virtualmap.datasource.PreparedDataSourceCopy;
-import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import java.io.IOException;
 import java.io.UncheckedIOException;

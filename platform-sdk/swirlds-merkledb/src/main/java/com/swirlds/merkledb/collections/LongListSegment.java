@@ -19,9 +19,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * A {@link LongList} that stores its contents off-heap via {@link MemorySegment}s backed by
@@ -154,63 +153,57 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
     public LongListSegment(@NonNull final LongListSegment source, @NonNull final Executor executor) {
         super(source.longsPerChunk, source.capacity, source.reservedBufferSize);
         requireNonNull(executor);
+        // The first failure of a task or of a task submission. Tasks don't throw, they record their failure here
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
         final List<CompletableFuture<Void>> tasks = new ArrayList<>();
-        // Once a task fails, the remaining tasks skip their chunks, as the copy is closed anyway
-        final AtomicBoolean failed = new AtomicBoolean(false);
         try {
             for (int i = 0; i < source.chunkList.length(); i++) {
                 final SegmentChunk sourceChunk = source.chunkList.get(i);
                 if (sourceChunk != null) {
                     final int chunkIndex = i;
-                    tasks.add(CompletableFuture.runAsync(
-                            () -> {
-                                if (!failed.get()) {
-                                    copyChunk(sourceChunk, chunkIndex, failed);
-                                }
-                            },
-                            executor));
+                    tasks.add(CompletableFuture.runAsync(() -> copyChunk(sourceChunk, chunkIndex, failure), executor));
                 }
             }
-            // Wait for all tasks to finish, even if some of them fail. join() isn't interruptible
-            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
         } catch (final RuntimeException | Error e) {
-            // A task failed, or a task couldn't be submitted. Wait for the submitted tasks, so no
-            // chunk is allocated after this copy is closed
-            failed.set(true);
-            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new))
-                    .exceptionally(_ -> null)
-                    .join();
+            failure.compareAndSet(null, e);
+        }
+        // Wait for all submitted tasks, even after a failure, so no chunk is allocated after this copy is
+        // closed. join() isn't interruptible
+        CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+        final Throwable e = failure.get();
+        if (e != null) {
             // Don't leak the chunks allocated so far, e.g. if there isn't enough off-heap memory
             close();
-            // Copy tasks throw only unchecked exceptions, rethrow the task's exception
-            final Throwable cause = (e instanceof CompletionException) ? e.getCause() : e;
-            if (cause instanceof Error error) {
+            if (e instanceof Error error) {
                 throw error;
             }
-            if (cause instanceof RuntimeException runtimeException) {
-                throw runtimeException;
-            }
-            throw e;
+            // Only unchecked exceptions are recorded
+            throw (RuntimeException) e;
         }
         size.set(source.size.get());
         minValidIndex.set(source.minValidIndex.get());
         maxValidIndex.set(source.maxValidIndex.get());
     }
 
-    /// Copies a chunk of the source list into a new chunk of this list.
+    /// Copies a chunk of the source list into a new chunk of this list. Skips the chunk, if the copy has
+    /// already failed, as the copy is closed anyway.
     ///
     /// @param sourceChunk the chunk to copy
     /// @param chunkIndex the index of the chunk in the chunk list
-    /// @param failed set to true, if the copy fails
+    /// @param failure the first failure of the copy, set by this method if it fails
     private void copyChunk(
-            @NonNull final SegmentChunk sourceChunk, final int chunkIndex, @NonNull final AtomicBoolean failed) {
+            @NonNull final SegmentChunk sourceChunk,
+            final int chunkIndex,
+            @NonNull final AtomicReference<Throwable> failure) {
+        if (failure.get() != null) {
+            return;
+        }
         try {
             final SegmentChunk chunk = createChunk();
             chunkList.set(chunkIndex, chunk);
             MemorySegment.copy(sourceChunk.segment(), 0, chunk.segment(), 0, memoryChunkSize);
         } catch (final RuntimeException | Error e) {
-            failed.set(true);
-            throw e;
+            failure.compareAndSet(null, e);
         }
     }
 
