@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.CONTRACT;
 import static com.hedera.services.bdd.spec.keys.SigControl.ED25519_ON;
 import static com.hedera.services.bdd.spec.keys.SigControl.listSigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.threshSigs;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -22,8 +23,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.allowanceTinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
@@ -36,6 +39,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -87,6 +91,49 @@ public class HbarAllowanceApprovalTest {
     @HapiTest
     final Stream<DynamicTest> sharedAdminThresholdKeyDoesNotAuthorizeAccountAllowance() {
         return sharedAdminKeyDoesNotAuthorizeAccountAllowance(threshSigs(2, ED25519_ON, ED25519_ON, ED25519_ON));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> scheduledContractCallCannotApproveAllowanceForAccountWithSharedAdminKey() {
+        final var sharedKey = "sharedKey";
+        final var scheduledApproval = "scheduledApproval";
+        final var allowance = 1_000_000L;
+        return hapiTest(
+                newKeyNamed(sharedKey).shape(ED25519_ON),
+                cryptoCreate(ACCOUNT).key(sharedKey).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(SPENDER).balance(ONE_HUNDRED_HBARS),
+                uploadInitCode(HRC632_CONTRACT),
+                contractCreate(HRC632_CONTRACT).adminKey(sharedKey).signedBy(GENESIS, sharedKey),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, HRC632_CONTRACT, ONE_HUNDRED_HBARS)),
+                withOpContext((spec, opLog) -> {
+                    final var owner = idAsHeadlongAddress(spec.registry().getAccountID(ACCOUNT));
+                    final var spender = idAsHeadlongAddress(spec.registry().getAccountID(SPENDER));
+                    allRunFor(
+                            spec,
+                            scheduleCreate(
+                                            scheduledApproval,
+                                            contractCall(
+                                                            HRC632_CONTRACT,
+                                                            HBAR_APPROVE_CALL,
+                                                            owner,
+                                                            spender,
+                                                            BigInteger.valueOf(allowance))
+                                                    .gas(1_000_000))
+                                    .payingWith(SPENDER)
+                                    .signedBy(SPENDER)
+                                    .via(scheduledApproval));
+                }),
+                getTxnRecord(scheduledApproval)
+                        .scheduled()
+                        .hasPriority(recordWith().status(CONTRACT_REVERT_EXECUTED)),
+                getTxnRecord(scheduledApproval).hasChildRecords(recordWith().status(INVALID_SIGNATURE)),
+                getAccountDetails(ACCOUNT)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().cryptoAllowancesCount(0)),
+                cryptoTransfer(allowanceTinyBarsFromTo(ACCOUNT, SPENDER, allowance))
+                        .payingWith(SPENDER)
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE),
+                getAccountBalance(ACCOUNT).hasTinyBars(ONE_HUNDRED_HBARS));
     }
 
     private Stream<DynamicTest> sharedAdminKeyDoesNotAuthorizeAccountAllowance(final SigControl ownerKeyShape) {
