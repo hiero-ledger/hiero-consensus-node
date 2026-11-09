@@ -28,9 +28,7 @@ testModuleInfo {
 }
 
 jmhModuleInfo {
-    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.benchmark.tools")
-    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.otter.fixtures")
     requires("jmh.core")
