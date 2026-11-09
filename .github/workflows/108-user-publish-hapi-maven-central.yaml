@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "108: [USER] Publish HAPI to Maven Central"
 # Publishes only com.hedera.hashgraph:hedera-protobuf-java-api for an existing release tag, independently of the
-# full release aggregation in 301/850. Use dry-run, then validate, before publish: Maven Central releases are immutable.
+# full release aggregation in 301/850. Dry-run first, then validate, before publish: Maven Central releases are immutable.
 on:
   workflow_dispatch:
     inputs:
@@ -10,13 +10,17 @@ on:
         type: string
         required: true
       mode:
-        description: "dry-run: build and sign only | validate: upload to Central Portal without releasing | publish: upload and release to Maven Central"
+        description: "validate: upload to Central Portal without releasing | publish: upload and release to Maven Central"
         type: choice
         options:
-          - dry-run
           - validate
           - publish
-        default: dry-run
+        default: validate
+      dry-run-enabled:
+        description: "Perform Dry Run (build, sign and verify the bundle, but do not upload it to Central Portal)"
+        type: boolean
+        required: false
+        default: true
 
 defaults:
   run:
@@ -53,6 +57,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           MODE: ${{ inputs.mode }}
+          DRY_RUN: ${{ inputs.dry-run-enabled }}
         run: |
           if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "::error title=Invalid Tag::'${TAG}' is not a release tag name (expected vX.Y.Z or vX.Y.Z-suffix)."
@@ -68,7 +73,7 @@ jobs:
           POM_URL="https://repo1.maven.org/maven2/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.pom"
           HTTP_CODE="$(curl -sS -o /dev/null -w '%{http_code}' "${POM_URL}")"
           if [[ "${HTTP_CODE}" == "200" ]]; then
-            if [[ "${MODE}" != "dry-run" ]]; then
+            if [[ "${DRY_RUN}" != "true" ]]; then
               echo "::error title=Already Published::${ARTIFACT_ID} ${VERSION} is already on Maven Central (${POM_URL})."
               exit 1
             fi
@@ -81,6 +86,7 @@ jobs:
             echo "- Tag: \`${TAG}\`"
             echo "- Version: \`${VERSION}\`"
             echo "- Mode: \`${MODE}\`"
+            echo "- Dry run: \`${DRY_RUN}\`"
           } >>"${GITHUB_STEP_SUMMARY}"
 
   extract-jdk-version:
@@ -94,7 +100,7 @@ jobs:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
-    name: Publish ${{ inputs.tag }} (${{ inputs.mode }})
+    name: Publish ${{ inputs.tag }} (${{ inputs.mode }}${{ inputs.dry-run-enabled && ', dry run' || '' }})
     runs-on: hl-cn-default-lin-lg
     timeout-minutes: 120
     needs:
@@ -107,28 +113,21 @@ jobs:
     env:
       VERSION: ${{ needs.validate-input.outputs.version }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Tag
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: refs/tags/${{ inputs.tag }}
-          path: ${{ env.CHECKOUT_DIR }}
-          fetch-depth: "0"
-
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: temurin
+          checkout: "true"
+          checkout-ref: refs/tags/${{ inputs.tag }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-path: ${{ env.CHECKOUT_DIR }}
+          checkout-fetch-depth: "0"
+          checkout-persist: "false"
+          setup-java: "true"
+          java-distribution: temurin
           java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
-        with:
+          setup-gradle: "true"
           gradle-version: wrapper
+          setup-jq: "true"
 
       - name: Install GnuPG Tools
         run: |
@@ -216,9 +215,19 @@ jobs:
           path: ${{ steps.bundle.outputs.file }}
           if-no-files-found: error
 
+      - name: Dry Run Summary
+        if: ${{ inputs.dry-run-enabled }}
+        env:
+          MODE: ${{ inputs.mode }}
+          PUBLISHING_TYPE: ${{ inputs.mode == 'publish' && 'AUTOMATIC' || 'USER_MANAGED' }}
+        run: |
+          echo "Dry run: the bundle was built, signed and verified but not uploaded."
+          echo "A real '${MODE}' run would upload it to Central Portal as ${PUBLISHING_TYPE}."
+          echo "- Dry run: bundle not uploaded (a real \`${MODE}\` run uploads it as \`${PUBLISHING_TYPE}\`)" >>"${GITHUB_STEP_SUMMARY}"
+
       - name: Upload to Central Portal
         id: upload
-        if: ${{ inputs.mode != 'dry-run' }}
+        if: ${{ !inputs.dry-run-enabled }}
         env:
           NEXUS_USERNAME: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
@@ -238,7 +247,7 @@ jobs:
           echo "- Central Portal deployment: \`${DEPLOYMENT_ID}\` (\`${PUBLISHING_TYPE}\`)" >>"${GITHUB_STEP_SUMMARY}"
 
       - name: Wait for Central Portal
-        if: ${{ inputs.mode != 'dry-run' }}
+        if: ${{ !inputs.dry-run-enabled }}
         env:
           NEXUS_USERNAME: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
           NEXUS_PASSWORD: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
