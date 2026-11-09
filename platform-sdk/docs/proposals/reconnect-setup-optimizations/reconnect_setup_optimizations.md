@@ -64,20 +64,21 @@ run one after the other.
 
 ### Idea
 
-Add `VirtualDataSourceBuilder.prepareCopy(String label, VirtualDataSource source, boolean compactionEnabled, boolean
-offlineUse)`. It returns a `PreparedDataSourceCopy`, which is completed with `complete()` and always closed. The copy
-is made in two steps, so the source is held unmodified only while its state is captured. The default implementation
-is today's `snapshot()` + `build()`: the snapshot is prepared, and the copy is built from it when completed, so other
-data source implementations keep working. `MerkleDbDataSourceBuilder` overrides it.
+Add `VirtualDataSourceBuilder.copy(String label, VirtualDataSource source, boolean compactionEnabled, boolean
+offlineUse, Consumer<Runnable> whilePaused)`. The copy is made in two steps, so the source is held unmodified only
+while its state is captured: `whilePaused` runs an action that captures the state, with the pipeline paused, and the
+copy is opened after it returns. The default implementation is today's `snapshot()` + `build()`: the snapshot is
+taken in the action, and the copy is built from it afterwards, so other data source implementations keep working.
+`MerkleDbDataSourceBuilder` overrides it.
 
-With the pipeline and compaction paused, `MerkleDbDataSource.snapshotWithCopiedIndexes(dir)` makes a regular
+With the pipeline and compaction paused, `MerkleDbDataSource.copyInMemory()` makes a regular
 snapshot straight into the copy's directory, with one difference: the three indexes aren't written to files.
 Instead, each `LongListSegment` index is copied in memory: a new chunk is allocated for each non-null source chunk,
 and `MemorySegment.copy()` fills it. The chunks are copied in parallel on the data source's flush pool, which is idle
 while the pipeline is paused. The index copies run as snapshot executor tasks, next to the file links of the three
 stores and the metadata, the way `snapshot()` runs them today.
 
-After the pause, `complete()` creates the copy with the existing load path, from that directory, with one new
+After the pause, `copyInMemory()` creates the copy with the existing load path, from that directory, with one new
 constructor parameter: the copied indexes, used instead of index files. `HalfDiskHashMap` gets the same optional
 parameter for its bucket index. Loading opens a reader for every data file in the three stores and reads its header,
 as the rebuild does today. That's why it runs after the pause. The number of files depends on the state size and the

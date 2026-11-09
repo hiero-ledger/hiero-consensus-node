@@ -131,19 +131,10 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
     }
 
     /// Create a copy of the given list in memory, with the same chunk size, capacity, reserved buffer
-    /// size, size and valid range. Every chunk of the source is copied into a new chunk, so the copy
-    /// doesn't share memory with the source, and either list can be changed or closed independently.
-    ///
-    /// The source must not be modified while it's copied. It may be read concurrently.
-    ///
-    /// @param source the list to copy
-    public LongListSegment(@NonNull final LongListSegment source) {
-        this(source, Runnable::run);
-    }
-
-    /// Create a copy of the given list in memory, as [#LongListSegment(LongListSegment)] does, but
-    /// copy the chunks in parallel. Every non-empty chunk is copied by a separate task run on the given
-    /// executor. The constructor returns, once all tasks are complete.
+    /// size, size and valid range. Every non-empty chunk of the source is copied into a new chunk by a
+    /// separate task run on the given executor, so the copy doesn't share memory with the source, and
+    /// either list can be changed or closed independently. The constructor returns, once all tasks are
+    /// complete.
     ///
     /// The source must not be modified while it's copied. It may be read concurrently.
     ///

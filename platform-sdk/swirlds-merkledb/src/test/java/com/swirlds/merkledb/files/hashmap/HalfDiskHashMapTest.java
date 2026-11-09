@@ -47,7 +47,8 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
                 fileSystemManager.resolve(name),
                 "HalfDiskHashMapTest",
                 null,
-                false);
+                false,
+                null);
         map.printStats();
         return map;
     }
@@ -130,7 +131,8 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
                     tempSnapshotDir,
                     "HalfDiskHashMapTest",
                     null,
-                    false);
+                    false,
+                    null);
             mapFromSnapshot.printStats();
             checkData(testType, mapFromSnapshot, 1, count, 1);
             // check deletion
@@ -618,7 +620,8 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
                 fileSystemManager.resolve("test"),
                 "testResizeRespectsBucketIndexCapacity",
                 null,
-                false);
+                false,
+                null);
         try (hdhm) {
             final LongList bucketIndex = hdhm.getBucketIndexToBucketLocation();
             // 500 / 32 / 0.7, rounded up -> 32

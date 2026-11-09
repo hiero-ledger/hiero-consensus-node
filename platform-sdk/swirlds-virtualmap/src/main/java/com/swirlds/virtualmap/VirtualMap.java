@@ -26,7 +26,6 @@ import com.swirlds.common.utility.Labeled;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import com.swirlds.virtualmap.datasource.PreparedDataSourceCopy;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
@@ -1209,114 +1208,107 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public RecordAccessor detach() {
         checkDataSourceCanBeCopied();
-        final DataSourceCopyAndCacheSnapshot snapshot = prepareDataSourceCopyAndSnapshotCache(false, false);
-
-        // complete() below is called outside pausePipelineAndExecute() to unpause the lifecycle thread
-        // as quickly as possible. If the lifecycle thread is paused for too long, unhandled copies
-        // pile up in the virtual pipeline, which triggers size backpressure mechanism
-        try (final PreparedDataSourceCopy preparedCopy = snapshot.dataSourceCopy()) {
-            // Create the data source copy. It will use its own directory to store data files
-            final long completeStart = System.currentTimeMillis();
-            final VirtualDataSource dataSourceCopy = preparedCopy.complete();
-            logger.info(
-                    VIRTUAL_MERKLE_STATS.getMarker(),
-                    "Detached data source copy of {}: waited {} ms for the pipeline, pipeline paused for {} ms,"
-                            + " copy completed in {} ms",
-                    getLabel(),
-                    snapshot.waitMillis(),
-                    snapshot.pauseMillis(),
-                    System.currentTimeMillis() - completeStart);
-            try {
-                final int hashChunkHeight = dataSource.getHashChunkHeight();
-                return new RecordAccessor(metadata.copy(), hashChunkHeight, snapshot.cache(), dataSourceCopy);
-            } catch (final RuntimeException | Error e) {
-                // Don't leak the data source copy, if the record accessor can't be created
-                closeDataSourceCopy(dataSourceCopy, e);
-                throw e;
-            }
+        final DataSourceCopyAndCache copy = copyDataSourceAndSnapshotCache(false, false);
+        logger.info(
+                VIRTUAL_MERKLE_STATS.getMarker(),
+                "Detached data source copy of {}: waited {} ms for the pipeline, pipeline paused for {} ms,"
+                        + " copy completed in {} ms",
+                getLabel(),
+                copy.waitMillis,
+                copy.pauseMillis,
+                copy.completeMillis);
+        try {
+            final int hashChunkHeight = dataSource.getHashChunkHeight();
+            return new RecordAccessor(metadata.copy(), hashChunkHeight, copy.cache, copy.dataSource);
+        } catch (final RuntimeException | Error e) {
+            // Don't leak the data source copy, if the record accessor can't be created
+            closeDataSourceCopy(copy.dataSource, e);
+            throw e;
         }
     }
 
     /// Creates a copy of this map's data source with this map's cache flushed into it. The virtual
-    /// pipeline is paused only to snapshot the cache and to prepare the data source copy. The copy is
-    /// completed after the pipeline is unpaused.
+    /// pipeline is paused only to snapshot the cache and to capture the data source state.
     ///
     /// @param compactionEnabled whether background compaction should be enabled in the copy
     /// @param offlineUse whether the copy should use as little resources as possible
     /// @return the data source copy, the caller is responsible for closing it
     private VirtualDataSource createDataSourceCopy(final boolean compactionEnabled, final boolean offlineUse) {
-        final DataSourceCopyAndCacheSnapshot snapshot =
-                prepareDataSourceCopyAndSnapshotCache(compactionEnabled, offlineUse);
-
-        // complete() and flush() below are called outside pausePipelineAndExecute() to unpause the
-        // lifecycle thread as quickly as possible. If the lifecycle thread is paused for too long,
-        // unhandled copies pile up in the virtual pipeline, which triggers size backpressure mechanism
-        try (final PreparedDataSourceCopy preparedCopy = snapshot.dataSourceCopy()) {
-            // Create the data source copy. It will use its own directory to store data files
-            final long completeStart = System.currentTimeMillis();
-            final VirtualDataSource dataSourceCopy = preparedCopy.complete();
-            final long flushStart = System.currentTimeMillis();
-            try {
-                // Then flush the cache snapshot to the data source copy
-                flush(snapshot.cache(), dataSourceCopy);
-                logger.info(
-                        VIRTUAL_MERKLE_STATS.getMarker(),
-                        "Created data source copy of {}: waited {} ms for the pipeline, pipeline paused for {} ms,"
-                                + " copy completed in {} ms, cache flushed in {} ms",
-                        getLabel(),
-                        snapshot.waitMillis(),
-                        snapshot.pauseMillis(),
-                        flushStart - completeStart,
-                        System.currentTimeMillis() - flushStart);
-                // flush() doesn't throw, if the thread is interrupted. The data source copy may be
-                // incomplete in this case, it must not be returned
-                if (Thread.currentThread().isInterrupted()) {
-                    throw new IllegalStateException(
-                            "Interrupted while flushing the cache snapshot to the data source copy");
-                }
-            } catch (final RuntimeException | Error e) {
-                // Don't leak the data source copy, if the flush failed
-                closeDataSourceCopy(dataSourceCopy, e);
-                throw e;
+        final DataSourceCopyAndCache copy = copyDataSourceAndSnapshotCache(compactionEnabled, offlineUse);
+        final long flushStart = System.currentTimeMillis();
+        try {
+            // Then flush the cache snapshot to the data source copy
+            flush(copy.cache, copy.dataSource);
+            logger.info(
+                    VIRTUAL_MERKLE_STATS.getMarker(),
+                    "Created data source copy of {}: waited {} ms for the pipeline, pipeline paused for {} ms,"
+                            + " copy completed in {} ms, cache flushed in {} ms",
+                    getLabel(),
+                    copy.waitMillis,
+                    copy.pauseMillis,
+                    copy.completeMillis,
+                    System.currentTimeMillis() - flushStart);
+            // flush() doesn't throw, if the thread is interrupted. The data source copy may be
+            // incomplete in this case, it must not be returned
+            if (Thread.currentThread().isInterrupted()) {
+                throw new IllegalStateException(
+                        "Interrupted while flushing the cache snapshot to the data source copy");
             }
-            return dataSourceCopy;
+        } catch (final RuntimeException | Error e) {
+            // Don't leak the data source copy, if the flush failed
+            closeDataSourceCopy(copy.dataSource, e);
+            throw e;
         }
+        return copy.dataSource;
     }
 
-    /// A snapshot of this map's cache and a copy of its data source, prepared at the same moment.
-    ///
-    /// @param cache the cache snapshot
-    /// @param dataSourceCopy the prepared data source copy. It must be closed, once the copy is
-    ///                       completed or abandoned
-    /// @param waitMillis how long it took to pause the virtual pipeline. The pipeline is paused once the
-    ///                   lifecycle thread finishes its current work, for example a flush with a snapshot
-    /// @param pauseMillis how long the virtual pipeline was paused to prepare the copy
-    private record DataSourceCopyAndCacheSnapshot(
-            @NonNull VirtualNodeCache cache,
-            @NonNull PreparedDataSourceCopy dataSourceCopy,
-            long waitMillis,
-            long pauseMillis) {}
+    /// A copy of this map's data source and a snapshot of its cache, taken at the same moment. The
+    /// fields aren't final, as they are set from lambdas.
+    private static final class DataSourceCopyAndCache {
+        /// The data source copy, the caller is responsible for closing it
+        private VirtualDataSource dataSource;
+        /// The cache snapshot
+        private VirtualNodeCache cache;
+        /// How long it took to pause the virtual pipeline. The pipeline is paused once the lifecycle
+        /// thread finishes its current work, for example a flush with a snapshot
+        private long waitMillis;
+        /// How long the virtual pipeline was paused to capture the data source state
+        private long pauseMillis;
+        /// How long it took to complete the copy after the virtual pipeline was unpaused
+        private long completeMillis;
+    }
 
-    /// Takes a snapshot of this map's cache and prepares a copy of its data source. The virtual
-    /// pipeline is paused meanwhile to make sure no data is flushed to the data source and no caches
-    /// are merged. The data source copy is not completed here, though, it's up to the caller.
+    /// Takes a snapshot of this map's cache and copies its data source. The virtual pipeline is paused
+    /// to make sure no data is flushed to the data source and no caches are merged, but only to take
+    /// the cache snapshot and to capture the data source state. The data source copy is completed
+    /// outside the pause to unpause the lifecycle thread as quickly as possible. If the lifecycle
+    /// thread is paused for too long, unhandled copies pile up in the virtual pipeline, which triggers
+    /// size backpressure mechanism.
     ///
     /// @param compactionEnabled whether background compaction should be enabled in the copy
     /// @param offlineUse whether the copy should use as little resources as possible
-    /// @return the cache snapshot and the prepared data source copy
-    private DataSourceCopyAndCacheSnapshot prepareDataSourceCopyAndSnapshotCache(
+    /// @return the data source copy and the cache snapshot
+    private DataSourceCopyAndCache copyDataSourceAndSnapshotCache(
             final boolean compactionEnabled, final boolean offlineUse) {
+        final DataSourceCopyAndCache copy = new DataSourceCopyAndCache();
         final long waitStart = System.currentTimeMillis();
-        return pipeline.pausePipelineAndExecute("detach", () -> {
-            final long start = System.currentTimeMillis();
-            // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
-            final VirtualNodeCache cacheSnapshot = cache.snapshot();
-            // And prepare a data source copy
-            final PreparedDataSourceCopy dataSourceCopy =
-                    dataSourceBuilder.prepareCopy(getLabel(), dataSource, compactionEnabled, offlineUse);
-            return new DataSourceCopyAndCacheSnapshot(
-                    cacheSnapshot, dataSourceCopy, start - waitStart, System.currentTimeMillis() - start);
-        });
+        copy.dataSource = dataSourceBuilder.copy(
+                getLabel(),
+                dataSource,
+                compactionEnabled,
+                offlineUse,
+                capture -> pipeline.pausePipelineAndExecute("detach", () -> {
+                    final long start = System.currentTimeMillis();
+                    copy.waitMillis = start - waitStart;
+                    // Lifecycle thread is paused, no cache flushes/merges, it's safe to take cache snapshot
+                    copy.cache = cache.snapshot();
+                    // And capture the data source state
+                    capture.run();
+                    copy.pauseMillis = System.currentTimeMillis() - start;
+                    return null;
+                }));
+        copy.completeMillis = System.currentTimeMillis() - waitStart - copy.waitMillis - copy.pauseMillis;
+        return copy;
     }
 
     /**
