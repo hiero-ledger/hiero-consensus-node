@@ -12,8 +12,8 @@ on:
         required: false
         type: string
       solo-version:
-        description: "The version of solo to install (if not specified, latest will be used)"
-        required: false
+        description: "The version of solo to install (supplied by the caller, e.g. from the CITR vars)"
+        required: true
         type: string
       helm-release-name:
         description: "The Helm release name to use for the mirror node deployment"
@@ -90,8 +90,13 @@ jobs:
 
       - name: Install Solo
         env:
-          SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
-        run: npm install -g @hiero-ledger/solo@${SOLO_VERSION}
+          SOLO_VERSION: ${{ inputs.solo-version }}
+        run: |
+          if [[ -z "${SOLO_VERSION}" ]]; then
+            echo "::error::The 'solo-version' input is required and must not be blank."
+            exit 1
+          fi
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
 
       - name: Setup Kind
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0

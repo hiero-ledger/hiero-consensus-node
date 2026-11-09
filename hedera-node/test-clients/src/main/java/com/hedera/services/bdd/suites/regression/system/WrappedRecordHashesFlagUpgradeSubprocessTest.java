@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.regression.system;
 
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
+import static com.hedera.services.bdd.junit.TestTags.PRE_CUTOVER;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -38,6 +39,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(UPGRADE)
 @Tag(ONLY_SUBPROCESS)
+@Tag(PRE_CUTOVER)
 @HapiTestLifecycle
 @OrderedInIsolation
 // This test should run first to ensure the later `JumpstartFileSuite`'s constructed jumpstart file targets a block
