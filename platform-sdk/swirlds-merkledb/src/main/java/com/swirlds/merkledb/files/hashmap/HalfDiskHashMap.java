@@ -139,13 +139,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * @param legacyStoreName                Base name for the data store. If not null, the store will process
      *                                       files with this prefix at startup. New files in the store will be prefixed with {@code
      *                                       storeName}
-     * @param preferDiskBasedIndex           When true we will use disk based index rather than ram where
-     *                                       possible. This will come with a significant performance cost, especially for writing. It
-     *                                       is possible to load a data source that was written with memory index with disk based
-     *                                       index and vice versa.
      * @param bucketIndex                    The bucket index to use instead of the bucket index file, or null to load
-     *                                       or rebuild the index. If it's provided, the store dir must exist, and if
-     *                                       this constructor succeeds, this map owns the bucket index.
+     *                                       or rebuild the index. If it's null, the index is disk based if
+     *                                       {@link MerkleDbConfig#useDiskIndices()} is set. If it's provided, the store
+     *                                       dir must exist, and if this constructor succeeds, this map owns the bucket
+     *                                       index.
      * @throws IOException If there was a problem creating or opening a set of data files.
      */
     public HalfDiskHashMap(

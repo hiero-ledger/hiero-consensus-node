@@ -85,6 +85,12 @@ after the pause would need a copy in two steps, prepared inside the pause and co
 the extra API. If reading the headers turns out to matter, passing the known file metadata into the load path is a
 small follow-up.
 
+The hash chunk cache is handed over in memory too. A snapshot first writes the cached chunks, up to 262,144 of them,
+to a new hash file: 516 MB in 0.85 s in the 1B-account test. A copy skips that and gets the cached chunks in its own
+cache instead. Its copied hash chunk index points to older versions of these chunks on disk, as the source's index
+does, and both read cached chunks from the cache first. Cached chunks are never modified, so they're shared, not
+copied. The copy writes them when it's snapshotted, for example in `createSnapshot()`, after the pause.
+
 So the copy is a snapshot whose indexes are handed over in memory instead of written to disk, and the
 directory is hard-linked once instead of twice.
 

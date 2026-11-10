@@ -9,6 +9,7 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChu
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -26,10 +27,13 @@ import com.swirlds.merkledb.test.fixtures.TestType;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.IORunnable;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterEach;
@@ -131,6 +135,71 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
                 assertSameHashes(source, copy);
                 // The source isn't affected
                 checkData(testType, source, 1);
+            } finally {
+                copy.close();
+            }
+        } finally {
+            source.close();
+        }
+    }
+
+    @Test
+    @DisplayName("A copy gets the cached hash chunks in memory, and writes them when it's snapshotted")
+    void copyGetsCachedHashChunks() throws IOException {
+        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed);
+        try {
+            // All hash chunks of the test data are cached, none of them is in the hash store yet
+            assertEquals(0, source.getIdToDiskLocationHashChunks().size(), "All hash chunks should be cached");
+            final int hashFiles = source.getHashChunkStore().getFileCollection().getNumOfFiles();
+            final MerkleDbDataSource copy = copyInMemory(source, false);
+            try {
+                assertEquals(
+                        hashFiles,
+                        source.getHashChunkStore().getFileCollection().getNumOfFiles(),
+                        "The copy shouldn't write the cached hash chunks to the source's hash store");
+                assertEquals(0, copy.getIdToDiskLocationHashChunks().size());
+                // So the copy can only read the hash chunks from its cache
+                assertSameHashes(source, copy);
+                // A snapshot of the copy contains the cached hash chunks
+                final Path snapshotDir = fileSystemManager.resolveNewTemp("copyTestSnapshot");
+                try {
+                    final MerkleDbDataSourceBuilder builder = builder(DEFAULT_CONFIGURATION);
+                    builder.snapshot(snapshotDir, copy);
+                    final MerkleDbDataSource restored = (MerkleDbDataSource) builder.build(LABEL, snapshotDir, false);
+                    try {
+                        assertSameHashes(source, restored);
+                    } finally {
+                        restored.close();
+                    }
+                } finally {
+                    FileUtils.deleteDirectory(snapshotDir);
+                }
+            } finally {
+                copy.close();
+            }
+        } finally {
+            source.close();
+        }
+    }
+
+    @Test
+    @DisplayName("Hash chunks updated in a copy don't change the source's cached hash chunks")
+    void copyHashUpdatesDontChangeSource() throws IOException {
+        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed);
+        try {
+            final MerkleDbDataSource copy = copyInMemory(source, false);
+            try {
+                final List<Bytes> sourceHashes = serializedHashChunks(source);
+                // New hashes for all paths
+                copy.saveRecords(
+                        COUNT,
+                        2 * COUNT - 1,
+                        createHashChunkStream(0, 2 * COUNT - 1, t -> t + 1, copy.getHashChunkHeight()),
+                        Stream.empty(),
+                        Stream.empty(),
+                        false);
+                assertNotEquals(sourceHashes, serializedHashChunks(copy));
+                assertEquals(sourceHashes, serializedHashChunks(source));
             } finally {
                 copy.close();
             }
@@ -380,6 +449,17 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
             final VirtualHashChunk actualChunk = actual.loadHashChunk(chunkId);
             assertEquals(serialize(expectedChunk), serialize(actualChunk), "Hash chunk mismatch, id " + chunkId);
         }
+    }
+
+    /// Returns all hash chunks of a data source, serialized.
+    private static List<Bytes> serializedHashChunks(final MerkleDbDataSource dataSource) throws IOException {
+        final long lastChunkId =
+                VirtualHashChunk.lastChunkIdForPaths(dataSource.getLastLeafPath(), dataSource.getHashChunkHeight());
+        final List<Bytes> chunks = new ArrayList<>();
+        for (long chunkId = 0; chunkId <= lastChunkId; chunkId++) {
+            chunks.add(serialize(dataSource.loadHashChunk(chunkId)));
+        }
+        return chunks;
     }
 
     private static Bytes serialize(final VirtualHashChunk chunk) {

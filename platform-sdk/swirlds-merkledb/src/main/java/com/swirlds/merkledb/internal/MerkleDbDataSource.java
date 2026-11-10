@@ -44,6 +44,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -156,7 +157,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /**
      * In memory cache for hash chunks with IDs less than {@link #hashChunkCacheThreshold}.
      * When a data source snapshot is written to disk, all hash chunks from this cache are
-     * written to disk first.
+     * written to disk first. A copy made with {@link #copy(Path, boolean)} gets the cached
+     * chunks in its own cache instead.
      */
     private final Map<Long, VirtualHashChunk> hashChunkCache;
 
@@ -305,8 +307,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /// Creates a new MerkleDb data source. If `copiedIndexes` is provided, the storage dir is a snapshot
     /// made with them, see [#copy(Path, boolean)], and they are used instead of index files, even if
-    /// [MerkleDbConfig#indexRebuildingEnforced()] is set. If this constructor succeeds, the data source
-    /// owns these indexes. Otherwise, the caller is responsible for closing them.
+    /// [MerkleDbConfig#indexRebuildingEnforced()] is set, and the copied hash chunks start this data
+    /// source's hash chunk cache. If this constructor succeeds, the data source owns these indexes.
+    /// Otherwise, the caller is responsible for closing them.
     private MerkleDbDataSource(
             final Path storageDir,
             final MerkleDbConfig config,
@@ -404,8 +407,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Hash chunk store (hash chunks)
         final LoadedDataCallback hashChunkLoadedCallback;
         // Check if hash chunk index is to be restored: either the index file is missing, or
-        // index rebuilding is explicitly forced in MerkleDbConfig
-        final boolean needRestorePathToDiskLocationHashChunks = idToDiskLocationHashChunks.size() == 0;
+        // index rebuilding is explicitly forced in MerkleDbConfig. A copied index is never restored,
+        // it may be empty, if all hash chunks of the source are in its hash chunk cache
+        final boolean needRestorePathToDiskLocationHashChunks =
+                (copiedIndexes == null) && (idToDiskLocationHashChunks.size() == 0);
         if (needRestorePathToDiskLocationHashChunks) {
             if (validLeafPathRange.getMaxValidKey() >= 0) {
                 idToDiskLocationHashChunks.updateValidRange(0, validLeafPathRange.getMaxValidKey());
@@ -433,6 +438,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         hashChunkCacheThreshold = merkleDbConfig.hashChunkCacheThreshold();
         hashChunkCache = new ConcurrentHashMap<>(hashChunkCacheThreshold);
+        if (copiedIndexes != null) {
+            hashChunkCache.putAll(copiedIndexes.hashChunkCache);
+        }
 
         // KV disk location index (path to disk location)
         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
@@ -451,9 +459,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Leaves store (leaf nodes)
         final LoadedDataCallback leafRecordLoadedCallback;
         // Check if leaf node index is to be restored: either the index file is missing, or
-        // index rebuilding is explicitly forced in MerkleDbConfig
-        final boolean needRestorePathToDiskLocationLeafNodes =
-                (pathToDiskLocationLeafNodes.size() == 0) && (validLeafPathRange.getMinValidKey() > 0);
+        // index rebuilding is explicitly forced in MerkleDbConfig. A copied index is never restored
+        final boolean needRestorePathToDiskLocationLeafNodes = (copiedIndexes == null)
+                && (pathToDiskLocationLeafNodes.size() == 0)
+                && (validLeafPathRange.getMinValidKey() > 0);
         if (needRestorePathToDiskLocationLeafNodes) {
             if (validLeafPathRange.getMaxValidKey() >= 0) {
                 pathToDiskLocationLeafNodes.updateValidRange(
@@ -487,7 +496,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 dbPaths.keyToPathDirectory,
                 tableName + "_objectkeytopath",
                 null,
-                preferDiskBasedIndices,
                 (copiedIndexes != null) ? copiedIndexes.bucketIndex : null);
         keyToPath.printStats();
         // Repair keyToPath based on pathToKeyValue data, if requested and not disk based indices
@@ -978,6 +986,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /// copied indexes, even if [MerkleDbConfig#indexRebuildingEnforced()] is set: that setting applies to
     /// indexes loaded from disk. If the copy fails, the copied indexes are released, and the dir is deleted.
     ///
+    /// The hash chunk cache isn't written to disk either. The copy gets the cached chunks in its own cache,
+    /// and its copied hash chunk index points to older versions of them on disk, as the source's index
+    /// does. Both read cached chunks from the cache first. The copy writes them, when it's snapshotted.
+    ///
     /// Disk based indices aren't in memory, so they are written to the snapshot, and the copy loads them
     /// from there. This is much slower, but such data sources are used where memory matters more than
     /// performance.
@@ -1024,12 +1036,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // create snapshot dir if it doesn't exist
             Files.createDirectories(snapshotDirectory);
             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
-            // Flush cached hash chunks to the hash chunk store
-            flushHashChunkCache();
+            if (indexes == null) {
+                // Flush cached hash chunks to the hash chunk store. A copy gets them in memory instead
+                flushHashChunkCache();
+            }
             // main snapshotting process in multiple-threads
             final List<CompletableFuture<String>> tasks = new ArrayList<>();
             try {
                 if (indexes != null) {
+                    tasks.add(runWithSnapshotExecutor(
+                            "hashChunkCache", () -> indexes.hashChunkCache = copyHashChunkCache()));
                     tasks.add(runWithSnapshotExecutor(
                             "idToDiskLocationHashChunks",
                             () -> indexes.hashChunkIndex = copyIndex(idToDiskLocationHashChunks)));
@@ -1093,13 +1109,34 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return index.copy(flushPool);
     }
 
-    /// Indexes copied in memory by [#copy(Path, boolean)]. They are set one by one, as they are copied,
-    /// so a failed copy can release the ones copied so far. Copied indexes aren't freed by GC, they must
-    /// be closed explicitly.
+    /// Copies the hash chunk cache for [#copy(Path, boolean)], instead of writing it to disk. Chunks that
+    /// are no longer in the tree are skipped, as in [#flushHashChunkCache()]. The chunks are shared with
+    /// this data source, not copied, because a cached chunk is never modified. Flushes cache the chunks
+    /// of map copies that can't change anymore, and [#loadHashChunk(long)] caches a copy of the chunk it
+    /// returns.
+    private Map<Long, VirtualHashChunk> copyHashChunkCache() {
+        final long lastLeafPath = getLastLeafPath();
+        if (lastLeafPath <= 0) {
+            return Map.of();
+        }
+        final long maxValidChunkId = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, hashChunkHeight);
+        final Map<Long, VirtualHashChunk> copy = new HashMap<>(hashChunkCache.size());
+        hashChunkCache.forEach((chunkId, chunk) -> {
+            if (chunkId <= maxValidChunkId) {
+                copy.put(chunkId, chunk);
+            }
+        });
+        return copy;
+    }
+
+    /// Indexes and the hash chunk cache, copied in memory by [#copy(Path, boolean)]. They are set one by
+    /// one, as they are copied, so a failed copy can release the indexes copied so far. Copied indexes
+    /// aren't freed by GC, they must be closed explicitly.
     private static final class CopiedIndexes {
         private LongList hashChunkIndex;
         private LongList leafIndex;
         private LongList bucketIndex;
+        private Map<Long, VirtualHashChunk> hashChunkCache;
 
         /// Releases the copied indexes. Must not be called, once they are passed to a data source that
         /// was created successfully.
