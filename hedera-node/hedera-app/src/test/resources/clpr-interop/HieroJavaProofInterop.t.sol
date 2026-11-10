@@ -20,14 +20,14 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
     function test_javaMatchingAnchorDelivers() public {
         service.submitBundle(channelId, _javaProof("matching-anchor"));
         ClprTypes.Channel memory channel = service.getChannel(channelId);
-        assertEq(channel.trustAnchorId, _anchor("key0"));
+        assertEq(channel.trustAnchorId, abi.encodePacked(hex"01", _anchor("key0")));
         assertEq(channel.receivedMessageId, 1);
     }
 
     function test_javaShortRotationDelivers() public {
         service.submitBundle(channelId, _javaProof("short-rotation"));
         ClprTypes.Channel memory channel = service.getChannel(channelId);
-        assertEq(channel.trustAnchorId, _anchor("key1"));
+        assertEq(channel.trustAnchorId, abi.encodePacked(hex"01", _anchor("key1")));
         assertEq(channel.receivedMessageId, 1);
     }
 
@@ -39,16 +39,16 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
         _assertOnlyAnchorChanged(before, "key3");
         service.submitBundle(channelId, _javaProof("after-catch-up"));
         ClprTypes.Channel memory channel = service.getChannel(channelId);
-        assertEq(channel.trustAnchorId, _anchor("key4"));
+        assertEq(channel.trustAnchorId, abi.encodePacked(hex"01", _anchor("key4")));
         assertEq(channel.receivedMessageId, 1);
         assertEq(channel.ackedMessageId, 1);
     }
 
     function test_javaNativeWitnessAdvancesAnchor() public {
-        bytes32 nativeChannel = _openJavaChannel("native-initial-key", keccak256("native witness interoperability"));
+        bytes32 nativeChannel = _openJavaChannel("native-initial", keccak256("native witness interoperability"));
         service.submitBundle(nativeChannel, _javaProof("native-witness"));
         ClprTypes.Channel memory channel = service.getChannel(nativeChannel);
-        assertEq(channel.trustAnchorId, _javaAnchor("native-final-key"));
+        assertEq(channel.trustAnchorId, _javaAnchorId("native-final"));
         assertEq(channel.receivedMessageId, 0);
         assertEq(channel.ackedMessageId, 0);
     }
@@ -60,7 +60,7 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
         service = _deployClprService(1, "eip155:1337");
         service.initialize("", defaultThrottles, "", "", economics);
         service.setClprEnabled(true);
-        assertEq(_openJavaChannel("rotations-initial-key", bytes32(0)), channelId);
+        assertEq(_openJavaChannel("rotations-initial", bytes32(0)), channelId);
         connectorId = ConnectorRegistrar.register(
             IClprService(address(service)),
             channelId,
@@ -73,12 +73,12 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
 
         ClprTypes.Channel memory before = service.getChannel(channelId);
         service.submitBundle(channelId, _javaProof("rotations-first"));
-        _assertJavaAnchorOnly(before, "rotations-first-key");
+        _assertJavaAnchorOnly(before, "rotations-first");
         service.submitBundle(channelId, _javaProof("rotations-second"));
-        _assertJavaAnchorOnly(before, "rotations-second-key");
+        _assertJavaAnchorOnly(before, "rotations-second");
         service.submitBundle(channelId, _javaProof("rotations-state"));
         ClprTypes.Channel memory channel = service.getChannel(channelId);
-        assertEq(channel.trustAnchorId, _javaAnchor("rotations-final-key"));
+        assertEq(channel.trustAnchorId, _javaAnchorId("rotations-final"));
         assertEq(channel.receivedMessageId, 1);
         assertEq(channel.ackedMessageId, 1);
     }
@@ -107,13 +107,17 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
     }
 
     function _javaAnchor(string memory key) private view returns (bytes memory) {
-        return abi.encodePacked(keccak256(_javaProof(key)));
+        return abi.encodePacked(keccak256(_javaProof(string.concat(key, "-key"))));
+    }
+
+    function _javaAnchorId(string memory key) private view returns (bytes memory) {
+        return _javaProof(string.concat(key, "-anchor-id"));
     }
 
     function _assertJavaAnchorOnly(ClprTypes.Channel memory before, string memory key) private {
         ClprTypes.Channel memory channel = service.getChannel(channelId);
         before.trustAnchor = _javaAnchor(key);
-        before.trustAnchorId = before.trustAnchor;
+        before.trustAnchorId = _javaAnchorId(key);
         assertEq(abi.encode(channel), abi.encode(before));
     }
 
@@ -136,7 +140,7 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
                 uint96(0),
                 defaultThrottles,
                 initialAnchor,
-                initialAnchor,
+                abi.encodePacked(hex"01", initialAnchor),
                 ClprTypes.ClprEndpointManifest({
                     version: 1, serviceAddress: PEER_SERVICE_ADDRESS, endpoints: new ClprTypes.Endpoint[](0)
                 })
@@ -146,5 +150,6 @@ contract HieroJavaProofInteropTest is HieroWitnessSubmitBundleTest {
         (uint8 v, bytes32 r, bytes32 s) =
             vm.sign(signerPk, _ethSignedHash(keccak256(abi.encodePacked(nativeChannel, address(service)))));
         service.completeChannel(nativeChannel, pubKey, abi.encodePacked(r, s, v), salt, address(hieroVerifier), "", "");
+        assertEq(service.getChannel(nativeChannel).trustAnchorId, _javaAnchorId(initialKey));
     }
 }

@@ -13,13 +13,19 @@ All classes live under
 
 ## Outbound proof format
 
-The receiver selects the format in field 5 (`bundle_format`) of its opening
-`ClprBundleRequest`:
+The receiver reports its current verifier-defined ID in
+`ClprBundleRequest.current_trust_anchor_id` (field 3). The compact Hiero
+verifier advertises the following 33-byte ID:
 
-|                      Value                      |                            Bundle                            |                   Receiver's `current_trust_anchor_id`                    |
-|-------------------------------------------------|--------------------------------------------------------------|---------------------------------------------------------------------------|
-| Omitted or `CLPR_BUNDLE_FORMAT_STATE_PROOF` (0) | Existing Hiero `StateProof` with the WRAPS-bearing signature | Native Hiero trust anchor                                                 |
-| `CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1` (1)         | `HieroProof` version 1 for the EVM Hiero verifier            | Keccak-256 of the channel's current raw 1,096-byte hinTS verification key |
+```text
+0x01 || keccak256(raw 1,096-byte hinTS verification key)
+```
+
+The first byte selects `HieroProof` version 1 for a Hiero source. The sender
+uses the remaining 32 bytes to find the receiver's current hinTS key. An empty
+ID or any other encoding selects the native WRAPS-bearing `StateProof`.
+The tag belongs to the Hiero verifier's opaque ID format. The receiver relays
+the stored ID using the existing CLPR request fields.
 
 The compact profile uses SHA-256 block roots. A message bundle includes a
 `StateProof` with its signature shortened to the verification key and aggregate
@@ -40,8 +46,8 @@ The request guides proof construction. The receiver authorizes keys and
 messages by verifying the proof. `ANCHOR_AHEAD` means the peer's anchor is
 known to be ahead of the snapshot signer. `SNAPSHOT_NOT_READY` means the node
 lacks a signed snapshot with enough history to make progress. Retry both with a
-newer signed snapshot. For a well-formed hash, `UNKNOWN_ANCHOR` means the hash is
-unrecognized in the available history. Check current history before treating it
+newer signed snapshot. For a compact request, `UNKNOWN_ANCHOR` means the key hash
+is unrecognized in the available history. Check current history before treating it
 as foreign to the ledger.
 
 An `UNWITNESSED_GAP` means the sender found no usable witness endpoint within

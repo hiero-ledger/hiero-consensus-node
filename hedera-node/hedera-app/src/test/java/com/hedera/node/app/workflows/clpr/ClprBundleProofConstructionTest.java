@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
-import static com.hedera.hapi.node.state.clpr.ClprBundleFormat.CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1;
 import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.ACTIVE;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
@@ -189,8 +188,7 @@ class ClprBundleProofConstructionTest {
 
     private ClprBundleProducer producer(final ClprChannel channel, final Bytes anchorKey) {
         final var request = ClprBundleRequest.newBuilder()
-                .bundleFormat(CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1)
-                .currentTrustAnchorId(keccak256DigestOf(anchorKey))
+                .currentTrustAnchorId(Bytes.fromHex("01").append(keccak256DigestOf(anchorKey)))
                 .currentStatus(ACTIVE)
                 .currentReceivedMessageId(FIRST_MESSAGE_ID - 1)
                 .build();

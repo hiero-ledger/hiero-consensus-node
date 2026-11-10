@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
-import static com.hedera.hapi.node.state.clpr.ClprBundleFormat.CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.INVALID_PROOF;
@@ -9,7 +8,6 @@ import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipRe
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SHA_384_NETWORK;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SIZE_LIMIT;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SNAPSHOT_NOT_READY;
-import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNKNOWN_ANCHOR;
 import static com.hedera.node.app.workflows.clpr.ClprHieroProofCodec.MAX_STATE_PROOF_PATHS;
 import static java.util.Objects.requireNonNull;
 
@@ -120,9 +118,8 @@ final class ClprBundleProducer {
             final int maxBundles) {
         this.stateProofManager = requireNonNull(stateProofManager);
         this.channel = requireNonNull(channel);
-        this.compactPeerAnchor = peerRequest != null && peerRequest.bundleFormat() == CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1
-                ? peerRequest.currentTrustAnchorId()
-                : null;
+        this.compactPeerAnchor =
+                peerRequest == null ? null : ClprHieroProofCodec.compactAnchorHash(peerRequest.currentTrustAnchorId());
         this.allowPureAck = allowPureAck;
         this.maxBundles = maxBundles;
         this.peerClosed = peerRequest != null && peerRequest.currentStatus() == ClprChannelStatus.CLOSED;
@@ -182,9 +179,6 @@ final class ClprBundleProducer {
 
     @Nullable
     private Bytes nextCompact(@NonNull final Bytes anchor, final boolean includeEndpointManifest) {
-        if (anchor.length() != SHA256_HASH_LENGTH) {
-            return skipCompactProof(UNKNOWN_ANCHOR);
-        }
         if (!stateProofManager.supportsHieroProofV1()) {
             return skipCompactProof(SHA_384_NETWORK);
         }

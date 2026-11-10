@@ -2,7 +2,6 @@
 package com.hedera.node.app.workflows.clpr;
 
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_256;
-import static com.hedera.hapi.node.state.clpr.ClprBundleFormat.CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
@@ -434,6 +433,7 @@ class ClprBundleProducerTest {
 
             assertThat(producer.next(false)).isNull();
             assertThat(producer.nextStartingMessageId()).isEqualTo(1);
+            verify(stateProofManager).reportHieroProofSkip(CHANNEL_ID, UNKNOWN_ANCHOR);
         }
 
         @Test
@@ -456,7 +456,7 @@ class ClprBundleProducerTest {
 
             assertThat(producer.next(false)).isNull();
             assertThat(producer.nextStartingMessageId()).isEqualTo(1);
-            verify(stateProofManager).verifyHieroProof(expected, request.currentTrustAnchorId());
+            verify(stateProofManager).verifyHieroProof(expected, keccak256DigestOf(key(1)));
             verify(stateProofManager).reportHieroProofSkip(CHANNEL_ID, INVALID_PROOF);
         }
 
@@ -467,15 +467,16 @@ class ClprBundleProducerTest {
             verify(stateProofManager).reportHieroProofSkip(CHANNEL_ID, SHA_384_NETWORK);
         }
 
-        @Test
-        void ledgerIdDoesNotSelectAnAnchorForCompactProofs() {
-            final var request = compactRequest(1)
-                    .copyBuilder()
-                    .currentTrustAnchorId(Bytes.wrap(new byte[64]))
-                    .build();
-            assertThat(producer(channel(10, 0), request).next(false)).isNull();
+        @ParameterizedTest
+        @CsvSource({"01, 32", "01, 64", "02, 33", "01, 34"})
+        void otherAnchorIdsUseTheNativeBundle(final String firstByte, final int length) {
+            final var legacyId = Bytes.fromHex(firstByte).append(Bytes.wrap(new byte[length - 1]));
+            final var request =
+                    request(0).copyBuilder().currentTrustAnchorId(legacyId).build();
+            givenBundleOf(1);
+
+            assertThat(producer(channel(10, 0), request).next(false)).isEqualTo(BUNDLE);
             verify(stateProofManager, never()).latestSnapshot();
-            verify(stateProofManager).reportHieroProofSkip(CHANNEL_ID, UNKNOWN_ANCHOR);
         }
 
         private BlockProvenSnapshot signedSnapshot(final int signer) {
@@ -548,8 +549,7 @@ class ClprBundleProducerTest {
         private static ClprBundleRequest compactRequest(final int signer) {
             return request(0)
                     .copyBuilder()
-                    .bundleFormat(CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1)
-                    .currentTrustAnchorId(keccak256DigestOf(key(signer)))
+                    .currentTrustAnchorId(Bytes.fromHex("01").append(keccak256DigestOf(key(signer))))
                     .build();
         }
 
