@@ -118,4 +118,10 @@ public class UpdateDecoder extends UpdateCommonDecoder {
 
         return TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build();
     }
+
+    @NonNull
+    @Override
+    public KeyUpdate decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
+        return decodeTokenUpdateKeys(attempt, false);
+    }
 }

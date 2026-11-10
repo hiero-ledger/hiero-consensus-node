@@ -43,7 +43,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
      * now it is retained for backwards compatibility.)
      */
     private static final FailureCustomizer STANDARD_FAILURE_CUSTOMIZER =
-            (body, code, enhancement) -> standardized(code);
+            (_, code, _) -> standardized(code);
 
     private final AccountID senderId;
 
@@ -69,7 +69,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         /**
          * A no-op customizer that simply returns the original failure code.
          */
-        FailureCustomizer NOOP_CUSTOMIZER = (body, code, enhancement) -> code;
+        FailureCustomizer NOOP_CUSTOMIZER = (_, code, _) -> code;
 
         /**
          * Customizes the failure status of a dispatch.
@@ -94,7 +94,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         /**
          * A no-op customizer that simply returns the original failure code.
          */
-        SuccessProcessor NOOP_PROCESSOR = (recordBuilder, accountStore, frame) -> {};
+        SuccessProcessor NOOP_PROCESSOR = (_, _, _) -> {};
 
         /**
          * Apply additional logic after success status of a dispatch.
@@ -338,19 +338,16 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                     INVALID_TRANSACTION_BODY,
                     false);
         }
+        final var gasRequirement =
+                dispatchGasCalculator.gasRequirement(syntheticBody, gasCalculator, enhancement, senderId);
         if (preemptingFailureStatus != null) {
             // Report the failure without dispatching, so no part of the synthetic body is applied
             final var preemptedRecord = systemContractOperations()
                     .externalizePreemptedDispatch(syntheticBody, preemptingFailureStatus, functionality);
-            return completionWith(
-                    dispatchGasCalculator.gasRequirement(syntheticBody, gasCalculator, enhancement, senderId),
-                    preemptedRecord,
-                    encodedRc(preemptingFailureStatus));
+            return completionWith(gasRequirement, preemptedRecord, encodedRc(preemptingFailureStatus));
         }
         final var recordBuilder = systemContractOperations()
                 .dispatch(syntheticBody, verificationStrategy, senderId, ContractCallStreamBuilder.class);
-        final var gasRequirement =
-                dispatchGasCalculator.gasRequirement(syntheticBody, gasCalculator, enhancement, senderId);
         var status = recordBuilder.status();
         if (status != SUCCESS) {
             status = failureCustomizer.customize(syntheticBody, status, enhancement);

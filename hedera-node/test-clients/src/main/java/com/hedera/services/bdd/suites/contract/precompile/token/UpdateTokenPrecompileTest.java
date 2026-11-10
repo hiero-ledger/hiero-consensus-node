@@ -255,7 +255,7 @@ public class UpdateTokenPrecompileTest {
     @DisplayName("updateTokenKeys with only undefined bits from an authorized contract is rejected for each bit")
     public Stream<DynamicTest> undefinedBitsFromAuthorizedContractAreRejected() {
         // At 0x167, bits 0x80 and up have no key; 0x80 is only the metadata key at 0x16c
-        final var undefinedBits = IntStream.range(7, 16).mapToObj(bit -> BigInteger.ONE.shiftLeft(bit));
+        final var undefinedBits = IntStream.range(7, 16).mapToObj(BigInteger.ONE::shiftLeft);
         return undefinedBits.flatMap(bit -> authorizedContractUpdateKeepsAllKeys(
                 "undefinedBit" + bit.toString(16), true, newKeys -> new Tuple[] {keyEntry(bit, newKeys[0])}));
     }

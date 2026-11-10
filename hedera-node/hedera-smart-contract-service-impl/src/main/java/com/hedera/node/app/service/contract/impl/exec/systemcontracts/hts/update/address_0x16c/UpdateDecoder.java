@@ -9,6 +9,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
@@ -59,9 +60,8 @@ public class UpdateDecoder extends UpdateCommonDecoder {
             tokenUpdateTransactionBody.metadata(tokenMetadata);
         }
         final List<TokenKeyWrapper> tokenKeys =
-                decodeTokenKeys(hederaToken.get(7), addressIdConverter, nativeOperation);
-        addKeys(tokenKeys, tokenUpdateTransactionBody);
-        addMetaKey(tokenKeys, tokenUpdateTransactionBody);
+                TokenKeyUtils.decodeTokenKeys(hederaToken.get(7), addressIdConverter, nativeOperation);
+        TokenKeyUtils.addTokenKeys(tokenKeys, true, tokenUpdateTransactionBody);
         return tokenUpdateTransactionBody;
     }
 
@@ -82,38 +82,9 @@ public class UpdateDecoder extends UpdateCommonDecoder {
         return TransactionBody.newBuilder().tokenUpdateNfts(txnBodyBuilder).build();
     }
 
-    @Override
     @NonNull
+    @Override
     public KeyUpdate decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
-
-        final var call = decodeCall(attempt);
-
-        final var tokenId =
-                ConversionUtils.asTokenId(attempt.nativeOperations().entityIdFactory(), call.get(TOKEN_ADDRESS));
-        final var tokenKeys =
-                decodeTokenKeys(call.get(TOKEN_KEYS), attempt.addressIdConverter(), attempt.nativeOperations());
-
-        // Build the transaction body
-        final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
-        txnBodyBuilder.token(tokenId);
-        addKeys(tokenKeys, txnBodyBuilder);
-        addMetaKey(tokenKeys, txnBodyBuilder);
-
-        try {
-            return new KeyUpdate(
-                    TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build(),
-                    preemptingStatusFor(tokenKeys, KEY_TYPES_16C));
-        } catch (final IllegalArgumentException ignore) {
-            return new KeyUpdate(null, null);
-        }
-    }
-
-    private void addMetaKey(final List<TokenKeyWrapper> tokenKeys, final TokenUpdateTransactionBody.Builder builder) {
-        tokenKeys.forEach(tokenKeyWrapper -> {
-            final var key = tokenKeyWrapper.key().asGrpc();
-            if (tokenKeyWrapper.isUsedForMetadataKey()) {
-                builder.metadataKey(key);
-            }
-        });
+        return decodeTokenUpdateKeys(attempt, true);
     }
 }
