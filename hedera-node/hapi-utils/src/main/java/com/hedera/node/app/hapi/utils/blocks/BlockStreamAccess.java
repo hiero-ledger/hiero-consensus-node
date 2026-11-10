@@ -259,10 +259,11 @@ public enum BlockStreamAccess {
     }
 
     private static Stream<StateChange> stateChangesForState(@NonNull final List<Block> blocks, final int stateId) {
-        return blocks.stream().flatMap(block -> block.items().stream()
-                .filter(BlockItem::hasStateChanges)
-                .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
-                .filter(change -> change.stateId() == stateId));
+        return blocks.stream()
+                .flatMap(block -> block.items().stream()
+                        .filter(BlockItem::hasStateChanges)
+                        .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
+                        .filter(change -> change.stateId() == stateId));
     }
 
     private static List<Path> orderedBlocksFrom(@NonNull final Path path, boolean checkForMarkerFiles)

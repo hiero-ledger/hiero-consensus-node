@@ -701,10 +701,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // PlatformState). Readers have no baseline yet, so the entire genesis block must stay full.
             // Fix the encoding mode before onOpenBlock, whose commits belong to this block.
             final boolean hasReplayBaseline = pendingWork != GENESIS_WORK;
-            final boolean stateChangeDeltasEnabled = hasReplayBaseline && blockStreamConfig.stateChangeDeltasEnabled();
+            final boolean stateChangePartialsEnabled =
+                    hasReplayBaseline && blockStreamConfig.stateChangePartialsEnabled();
             final int deltaMinSaving = blockStreamConfig.stateChangeDeltaMinSaving();
-            immediateStateChangeListener.beginBlock(stateChangeDeltasEnabled, deltaMinSaving);
-            boundaryStateChangeListener.beginBlock(stateChangeDeltasEnabled, deltaMinSaving);
+            immediateStateChangeListener.beginBlock(stateChangePartialsEnabled, deltaMinSaving);
+            boundaryStateChangeListener.beginBlock(stateChangePartialsEnabled, deltaMinSaving);
 
             lifecycle.onOpenBlock(state);
 
@@ -1125,12 +1126,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         return null;
                     });
 
-            final var exportNetworkToDisk =
-                    switch (diskNetworkExport) {
-                        case NEVER -> false;
-                        case EVERY_BLOCK -> true;
-                        case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
-                    };
+            final var exportNetworkToDisk = switch (diskNetworkExport) {
+                case NEVER -> false;
+                case EVERY_BLOCK -> true;
+                case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
+            };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);

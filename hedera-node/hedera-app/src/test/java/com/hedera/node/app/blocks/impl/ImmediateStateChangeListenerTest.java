@@ -160,148 +160,134 @@ class ImmediateStateChangeListenerTest {
     @ParameterizedTest
     @EnumSource(MapChangeKey.KeyChoiceOneOfType.class)
     void allMapChangeKeysAreValid(MapChangeKey.KeyChoiceOneOfType type) {
-        final MapUpdateScenario<?, ?> scenario =
-                switch (type) {
-                    case UNSET -> null;
+        final MapUpdateScenario<?, ?> scenario = switch (type) {
+            case UNSET -> null;
 
-                    case ACCOUNT_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_ACCOUNTS.protoOrdinal(), AccountID.DEFAULT, Account.DEFAULT);
+            case ACCOUNT_ID_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_ACCOUNTS.protoOrdinal(), AccountID.DEFAULT, Account.DEFAULT);
 
-                    case TOKEN_RELATIONSHIP_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal(),
-                                new EntityIDPair(AccountID.DEFAULT, TokenID.DEFAULT),
-                                TokenRelation.DEFAULT);
+            case TOKEN_RELATIONSHIP_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal(),
+                        new EntityIDPair(AccountID.DEFAULT, TokenID.DEFAULT),
+                        TokenRelation.DEFAULT);
 
-                    case ENTITY_NUMBER_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_BYTECODE.protoOrdinal(),
-                                new EntityNumber(1L),
-                                Bytecode.DEFAULT);
+            case ENTITY_NUMBER_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_BYTECODE.protoOrdinal(), new EntityNumber(1L), Bytecode.DEFAULT);
 
-                    case FILE_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_FILES.protoOrdinal(), FileID.DEFAULT, File.DEFAULT);
+            case FILE_ID_KEY ->
+                new MapUpdateScenario<>(StateIdentifier.STATE_ID_FILES.protoOrdinal(), FileID.DEFAULT, File.DEFAULT);
 
-                    case NFT_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_NFTS.protoOrdinal(), NftID.DEFAULT, Nft.DEFAULT);
+            case NFT_ID_KEY ->
+                new MapUpdateScenario<>(StateIdentifier.STATE_ID_NFTS.protoOrdinal(), NftID.DEFAULT, Nft.DEFAULT);
 
-                    case PROTO_BYTES_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_ALIASES.protoOrdinal(),
-                                new ProtoBytes(Bytes.wrap("alias")),
-                                new ProtoString("value"));
+            case PROTO_BYTES_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_ALIASES.protoOrdinal(),
+                        new ProtoBytes(Bytes.wrap("alias")),
+                        new ProtoString("value"));
 
-                    case PROTO_LONG_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_ENTITY_ID.protoOrdinal(),
-                                new ProtoLong(123_456L),
-                                new ProtoString("value"));
+            case PROTO_LONG_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_ENTITY_ID.protoOrdinal(),
+                        new ProtoLong(123_456L),
+                        new ProtoString("value"));
 
-                    case PROTO_STRING_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_LEDGER_ID.protoOrdinal(),
-                                new ProtoString("key"),
-                                new ProtoString("value"));
+            case PROTO_STRING_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_LEDGER_ID.protoOrdinal(),
+                        new ProtoString("key"),
+                        new ProtoString("value"));
 
-                    case SCHEDULE_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_SCHEDULES_BY_ID.protoOrdinal(),
-                                ScheduleID.DEFAULT,
-                                Schedule.DEFAULT);
+            case SCHEDULE_ID_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_SCHEDULES_BY_ID.protoOrdinal(), ScheduleID.DEFAULT, Schedule.DEFAULT);
 
-                    case SCHEDULED_ORDER_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_SCHEDULED_ORDERS.protoOrdinal(),
-                                ScheduledOrder.DEFAULT,
-                                ScheduleList.DEFAULT);
+            case SCHEDULED_ORDER_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_SCHEDULED_ORDERS.protoOrdinal(),
+                        ScheduledOrder.DEFAULT,
+                        ScheduleList.DEFAULT);
 
-                    case TIMESTAMP_SECONDS_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_SCHEDULED_COUNTS.protoOrdinal(),
-                                new TimestampSeconds(0L),
-                                ScheduledCounts.DEFAULT);
+            case TIMESTAMP_SECONDS_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_SCHEDULED_COUNTS.protoOrdinal(),
+                        new TimestampSeconds(0L),
+                        ScheduledCounts.DEFAULT);
 
-                    case SLOT_KEY_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_STORAGE.protoOrdinal(), SlotKey.DEFAULT, SlotValue.DEFAULT);
+            case SLOT_KEY_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_STORAGE.protoOrdinal(), SlotKey.DEFAULT, SlotValue.DEFAULT);
 
-                    case CONTRACT_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_BYTECODE.protoOrdinal(), ContractID.DEFAULT, Bytecode.DEFAULT);
+            case CONTRACT_ID_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_BYTECODE.protoOrdinal(), ContractID.DEFAULT, Bytecode.DEFAULT);
 
-                    case TOKEN_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_TOKENS.protoOrdinal(), TokenID.DEFAULT, Token.DEFAULT);
+            case TOKEN_ID_KEY ->
+                new MapUpdateScenario<>(StateIdentifier.STATE_ID_TOKENS.protoOrdinal(), TokenID.DEFAULT, Token.DEFAULT);
 
-                    case TOPIC_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_TOPICS.protoOrdinal(), TopicID.DEFAULT, Topic.DEFAULT);
+            case TOPIC_ID_KEY ->
+                new MapUpdateScenario<>(StateIdentifier.STATE_ID_TOPICS.protoOrdinal(), TopicID.DEFAULT, Topic.DEFAULT);
 
-                    case PENDING_AIRDROP_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_PENDING_AIRDROPS.protoOrdinal(),
-                                PendingAirdropId.DEFAULT,
-                                AccountPendingAirdrop.DEFAULT);
+            case PENDING_AIRDROP_ID_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_PENDING_AIRDROPS.protoOrdinal(),
+                        PendingAirdropId.DEFAULT,
+                        AccountPendingAirdrop.DEFAULT);
 
-                    case TSS_MESSAGE_MAP_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_TSS_MESSAGES.protoOrdinal(),
-                                TssMessageMapKey.DEFAULT,
-                                TssMessageTransactionBody.DEFAULT);
+            case TSS_MESSAGE_MAP_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_TSS_MESSAGES.protoOrdinal(),
+                        TssMessageMapKey.DEFAULT,
+                        TssMessageTransactionBody.DEFAULT);
 
-                    case TSS_VOTE_MAP_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_TSS_VOTES.protoOrdinal(),
-                                TssVoteMapKey.DEFAULT,
-                                TssVoteTransactionBody.DEFAULT);
+            case TSS_VOTE_MAP_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_TSS_VOTES.protoOrdinal(),
+                        TssVoteMapKey.DEFAULT,
+                        TssVoteTransactionBody.DEFAULT);
 
-                    case HINTS_PARTY_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_HINTS_KEY_SETS.protoOrdinal(),
-                                HintsPartyId.DEFAULT,
-                                HintsKeySet.DEFAULT);
+            case HINTS_PARTY_ID_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_HINTS_KEY_SETS.protoOrdinal(),
+                        HintsPartyId.DEFAULT,
+                        HintsKeySet.DEFAULT);
 
-                    case PREPROCESSING_VOTE_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_PREPROCESSING_VOTES.protoOrdinal(),
-                                PreprocessingVoteId.DEFAULT,
-                                PreprocessingVote.DEFAULT);
+            case PREPROCESSING_VOTE_ID_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_PREPROCESSING_VOTES.protoOrdinal(),
+                        PreprocessingVoteId.DEFAULT,
+                        PreprocessingVote.DEFAULT);
 
-                    case NODE_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_NODES.protoOrdinal(), NodeId.DEFAULT, Node.DEFAULT);
+            case NODE_ID_KEY ->
+                new MapUpdateScenario<>(StateIdentifier.STATE_ID_NODES.protoOrdinal(), NodeId.DEFAULT, Node.DEFAULT);
 
-                    case CONSTRUCTION_NODE_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_HISTORY_SIGNATURES.protoOrdinal(),
-                                ConstructionNodeId.DEFAULT,
-                                RecordedHistorySignature.DEFAULT);
+            case CONSTRUCTION_NODE_ID_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_HISTORY_SIGNATURES.protoOrdinal(),
+                        ConstructionNodeId.DEFAULT,
+                        RecordedHistorySignature.DEFAULT);
 
-                    case HOOK_ID_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_EVM_HOOK_STATES.protoOrdinal(),
-                                HookId.DEFAULT,
-                                EvmHookState.DEFAULT);
+            case HOOK_ID_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_EVM_HOOK_STATES.protoOrdinal(), HookId.DEFAULT, EvmHookState.DEFAULT);
 
-                    case EVM_HOOK_SLOT_KEY ->
-                        new MapUpdateScenario<>(
-                                StateIdentifier.STATE_ID_EVM_HOOK_STORAGE.protoOrdinal(),
-                                EvmHookSlotKey.DEFAULT,
-                                SlotValue.DEFAULT);
+            case EVM_HOOK_SLOT_KEY ->
+                new MapUpdateScenario<>(
+                        StateIdentifier.STATE_ID_EVM_HOOK_STORAGE.protoOrdinal(),
+                        EvmHookSlotKey.DEFAULT,
+                        SlotValue.DEFAULT);
 
-                    case CLPR_MESSAGE_KEY ->
-                        new MapUpdateScenario<>(
-                                V0780ClprSchema.MESSAGE_QUEUE_STATE_ID,
-                                ClprMessageKey.DEFAULT,
-                                ClprMessageValue.DEFAULT);
+            case CLPR_MESSAGE_KEY ->
+                new MapUpdateScenario<>(
+                        V0780ClprSchema.MESSAGE_QUEUE_STATE_ID, ClprMessageKey.DEFAULT, ClprMessageValue.DEFAULT);
 
-                    case CLPR_CONNECTOR_KEY ->
-                        new MapUpdateScenario<>(
-                                V0780ClprSchema.CONNECTORS_STATE_ID, ClprConnectorKey.DEFAULT, ClprConnector.DEFAULT);
-                };
+            case CLPR_CONNECTOR_KEY ->
+                new MapUpdateScenario<>(
+                        V0780ClprSchema.CONNECTORS_STATE_ID, ClprConnectorKey.DEFAULT, ClprConnector.DEFAULT);
+        };
         if (scenario != null) {
             assertDoesNotThrow(() -> listener.mapUpdateChange(scenario.stateId, scenario.key, scenario.value));
         }

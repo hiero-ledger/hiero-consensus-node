@@ -19,22 +19,22 @@ class BlockStreamConfigTest {
                     .withValue("blockStream.streamMode", mode.name())
                     .getOrCreateConfig()
                     .getConfigData(BlockStreamConfig.class);
-            assertThat(defaults.stateChangeDeltasEnabled()).isFalse();
+            assertThat(defaults.stateChangePartialsEnabled()).isFalse();
             assertThat(defaults.stateChangeDeltaMinSaving()).isEqualTo(64);
             final var enabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                     .withValue("blockStream.streamMode", mode.name())
-                    .withValue("blockStream.enableStateChangeDeltas", true)
+                    .withValue("blockStream.enableStateChangePartials", true)
                     .withValue("blockStream.stateChangeDeltaMinSaving", 32)
                     .getOrCreateConfig()
                     .getConfigData(BlockStreamConfig.class);
             assertThat(enabled.stateChangeDeltaMinSaving()).isEqualTo(32);
-            assertThat(enabled.stateChangeDeltasEnabled()).isEqualTo(mode == StreamMode.BLOCKS);
+            assertThat(enabled.stateChangePartialsEnabled()).isEqualTo(mode == StreamMode.BLOCKS);
             final var disabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                     .withValue("blockStream.streamMode", mode.name())
-                    .withValue("blockStream.enableStateChangeDeltas", false)
+                    .withValue("blockStream.enableStateChangePartials", false)
                     .getOrCreateConfig()
                     .getConfigData(BlockStreamConfig.class);
-            assertThat(disabled.stateChangeDeltasEnabled()).isFalse();
+            assertThat(disabled.stateChangePartialsEnabled()).isFalse();
         }
     }
 

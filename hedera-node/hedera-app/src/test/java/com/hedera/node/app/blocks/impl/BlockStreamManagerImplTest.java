@@ -142,7 +142,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class BlockStreamManagerImplTest {
     private final ImmediateStateChangeListener deltaListener = new ImmediateStateChangeListener();
-    private boolean stateChangeDeltasEnabled;
+    private boolean stateChangePartialsEnabled;
     private static final int SHA_384_HASH_SIZE = DigestType.SHA_384.digestLength();
 
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
@@ -960,7 +960,7 @@ class BlockStreamManagerImplTest {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void genesisPublishesInitializedSingletonInFullEvenWhenUnchanged(final boolean enableDeltas) {
-        stateChangeDeltasEnabled = enableDeltas;
+        stateChangePartialsEnabled = enableDeltas;
         boundaryStateChangeListener = new BoundaryStateChangeListener(
                 new StoreMetricsServiceImpl(new NoOpMetrics()), HederaTestConfigBuilder::createConfig);
         givenSubjectWith(
@@ -991,7 +991,7 @@ class BlockStreamManagerImplTest {
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
     void onOpenBlockCommitsUseTheNewBlocksDeltaMode(final boolean enableDeltas) {
-        stateChangeDeltasEnabled = enableDeltas;
+        stateChangePartialsEnabled = enableDeltas;
         givenSubjectWith(
                 1,
                 0,
@@ -1020,7 +1020,7 @@ class BlockStreamManagerImplTest {
 
     @Test
     void commitEncodedDeltasReachWriterWithMatchingBytes() {
-        stateChangeDeltasEnabled = true;
+        stateChangePartialsEnabled = true;
         givenSubjectWith(
                 1,
                 0,
@@ -1106,7 +1106,7 @@ class BlockStreamManagerImplTest {
 
     @Test
     void blockCloseConsumesDeferredSingletonsAndPublishesAFullCheckpoint() {
-        stateChangeDeltasEnabled = true;
+        stateChangePartialsEnabled = true;
         boundaryStateChangeListener = new BoundaryStateChangeListener(
                 new StoreMetricsServiceImpl(new NoOpMetrics()), HederaTestConfigBuilder::createConfig);
         givenSubjectWith(
@@ -3843,7 +3843,7 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.maxBlockExecutionSizeBytes", maxBlockSizeBytes)
                 .withValue("blockStream.digestType", digestType.name())
                 .withValue("clpr.enabled", clprEnabled)
-                .withValue("blockStream.enableStateChangeDeltas", stateChangeDeltasEnabled)
+                .withValue("blockStream.enableStateChangePartials", stateChangePartialsEnabled)
                 .withValue("blockStream.maxBlockSizeLimitEnabled", maxBlockSizeLimitEnabled)
                 .withValue("blockStream.enableCutover", cutoverEnabled)
                 .getOrCreateConfig();
