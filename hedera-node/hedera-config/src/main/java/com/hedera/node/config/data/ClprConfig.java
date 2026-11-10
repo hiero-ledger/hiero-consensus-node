@@ -50,12 +50,6 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "2") @NetworkProperty int slashMultiplier,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int slashBanThreshold,
 
-        // Legacy tinybar penalty for failed bundle verification, retained unchanged by this fee update.
-        // The fee proposal does not specify this amount; its Economic Parameters cover connector bonds,
-        // connector slashing, and the progress reward.
-        @ConfigProperty(defaultValue = "5000000") @NetworkProperty
-        long endpointMisbehaviorPenaltyTinybars,
-
         @ConfigProperty(defaultValue = "1000000") @NetworkProperty
         long messageExecutionCost,
 

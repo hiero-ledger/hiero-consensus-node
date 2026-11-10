@@ -51,8 +51,7 @@ import javax.inject.Singleton;
 
 /**
  * Verifies inbound sync bundles locally before the node pays to submit them for consensus. A bundle that consensus
- * would reject is dropped here, so the node pays neither a {@code ClprSubmitBundle} transaction fee nor the endpoint
- * misbehavior penalty for it.
+ * would reject is dropped here, so the node does not pay a {@code ClprSubmitBundle} transaction fee for it.
  *
  * <p>{@link #validate} applies the admission checks of {@code ClprSubmitBundleHandler}, verifies the proof, and runs
  * the shared {@link ClprBundleValidator} checks. The proof is verified by calling the channel's verifier contract

@@ -75,7 +75,6 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -370,8 +369,7 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(exception).has(responseCode(CLPR_RUNNING_HASH_MISMATCH));
 
         exception.maybeReplay(feeChargingContext, handleContext);
-        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
-        verify(feeChargingContext, never()).charge(eq(ENDPOINT_ACCOUNT), any(Fees.class), any());
+        verify(feeChargingContext, never()).charge(any(), any(), any());
     }
 
     @Test
@@ -1228,8 +1226,7 @@ class ClprDeepDiveBundleAuditTest {
 
         subject.handle(handleContext);
 
-        verify(handleContext).tryToCharge(PAYER_ID, 5_000_000L);
-        verify(handleContext, never()).tryToCharge(eq(ENDPOINT_ACCOUNT), anyLong());
+        verify(handleContext, never()).tryToCharge(any(), anyLong());
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
         // Neither data message should be deleted
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
@@ -1294,8 +1291,7 @@ class ClprDeepDiveBundleAuditTest {
             "given a bundle claiming the ack of a data message it carries no reply for, then it is rejected as no progress")
     void givenBundleClaimingAckOfUnansweredDataMessage_thenRejectedAsNoProgressWithoutPenalty() {
         // The peer reports it received our data message 1 but ships neither its reply nor anything else, so the ack
-        // cannot move and the bundle is rejected. The peer may legitimately be deferring that reply, so the
-        // submitting endpoint pays only the transaction fee, never the misbehavior penalty.
+        // cannot move and the bundle is rejected. The peer may legitimately be deferring that reply.
         putOutboundDataMessage(1);
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of()), true);
@@ -2423,8 +2419,7 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(exception).has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
 
         exception.maybeReplay(feeChargingContext, handleContext);
-        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
-        verify(feeChargingContext, never()).charge(eq(ENDPOINT_ACCOUNT), any(Fees.class), any());
+        verify(feeChargingContext, never()).charge(any(), any(), any());
 
         // Channel state must not advance
         final var conn = channelStore.getChannel(CHANNEL_ID);
@@ -2910,8 +2905,6 @@ class ClprDeepDiveBundleAuditTest {
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
                 .withValue("clpr.progressRewardTinycents", String.valueOf(PROGRESS_REWARD))
-                .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
-                .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
         lenient().when(handleContext.configuration()).thenReturn(config);
     }
@@ -2995,8 +2988,6 @@ class ClprDeepDiveBundleAuditTest {
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
                 .withValue("clpr.progressRewardTinycents", String.valueOf(PROGRESS_REWARD))
-                .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
-                .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
         lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
         lenient()

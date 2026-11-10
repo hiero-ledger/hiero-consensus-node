@@ -43,7 +43,6 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 | `slashBasePenaltyTinycents`           | `100 000 000 000` tinycents ($10) | yes | Base slash on first offence, converted at the active consensus exchange rate; each penalty is paid to the submitting endpoint. |
 | `slashMultiplier`                    | `2`                           | yes      | Geometric escalation factor per repeat offence.                               |
 | `slashBanThreshold`                  | `5`                           | yes      | Cumulative offences after which a connector is banned.                        |
-| `endpointMisbehaviorPenaltyTinybars` | `5 000 000` tinybars          | yes      | Charged to the submitting node when its bundle fails verification.            |
 | `messageExecutionCost`              | `1 000 000` tinybars          | yes      | Flat reimbursement for callback execution.                                   |
 | `progressRewardTinycents`           | `100 000 000` tinycents ($0.01) | yes | Endpoint reward per newly dispatched data message, converted at the active consensus exchange rate. |
 
@@ -198,10 +197,10 @@ is not continuously revalued or topped up as the exchange rate changes.
 
 The first slash and progress reward are also denominated in tinycents: $10 for the first slash
 (doubling, with a ban on the fifth offence), and $0.01 per newly dispatched data message. Both are converted
-to tinybars using the active network exchange rate at the bundle transaction's consensus time. The separate
-`endpointMisbehaviorPenaltyTinybars` remains the existing fixed tinybar penalty for a failed bundle verification.
-Its 5,000,000-tinybar default predates this fee update. The proposal's **Economic Parameters → Proposed parameters**
-table specifies connector bonds, connector slashing and progress rewards, but no endpoint-penalty amount.
+to tinybars using the active network exchange rate at the bundle transaction's consensus time.
+
+CLPR imposes no endpoint penalty. A rejected `ClprSubmitBundle` costs the submitting node only its transaction fee,
+as the CLPR spec requires (§2.1.2, §4.2 Step 1); an out-of-order reply pauses the channel with no extra charge to the node.
 
 ## Slashing: `ClprSlashingUtils`
 
