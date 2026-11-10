@@ -13,7 +13,7 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
  */
 @ConfigData("iss.detection.wiring")
 public record IssDetectionWiringConfig(
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration issDetector,
 
         @ConfigProperty(defaultValue = "DIRECT") TaskSchedulerConfiguration issHandler) {}

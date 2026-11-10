@@ -12,5 +12,5 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
  */
 @ConfigData("status.monitor")
 public record StatusMonitorWiringConfig(
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration statusMonitor) {}

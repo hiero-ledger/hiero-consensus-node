@@ -22,22 +22,22 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
 @ConfigData("state.wiring")
 public record StateWiringConfig(
         @ConfigProperty(
-                defaultValue = "SEQUENTIAL_THREAD CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+                defaultValue = "SEQUENTIAL_THREAD CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration stateHasher,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration hashLogger,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateSigner,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateSignatureCollector,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(0) UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(-1) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateSnapshotManager,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration stateGarbageCollector,
 
         @ConfigProperty(defaultValue = "200ms") Duration stateGarbageCollectorHeartbeatPeriod,

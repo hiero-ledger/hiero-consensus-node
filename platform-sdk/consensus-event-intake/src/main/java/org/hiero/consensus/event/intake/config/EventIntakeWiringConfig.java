@@ -18,23 +18,23 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
  */
 @ConfigData("event.intake.wiring")
 public record EventIntakeWiringConfig(
-        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration eventHasher,
 
-        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration internalEventValidator,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration eventDeduplicator,
 
-        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration eventSignatureValidator,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration orphanBuffer,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration branchDetector,
 
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(-1) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration branchReporter) {}
