@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle.impl;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -77,6 +78,13 @@ class NetworkUtilizationManagerImplTest {
         verify(throttleAccumulator)
                 .checkAndEnforceThrottle(expectedTxnToBeChargedFor, consensusNow, state, null, false);
         verify(congestionMultipliers).updateMultiplier(consensusNow);
+    }
+
+    @Test
+    void leaksCapacityFromTheBucketsThatShouldThrottleNOfUnscaledClaimsFrom() {
+        subject.leakCapacityForNOfUnscaled(2, CRYPTO_CREATE);
+
+        verify(throttleAccumulator).leakCapacityForNOfUnscaled(2, CRYPTO_CREATE, false);
     }
 
     @Test
