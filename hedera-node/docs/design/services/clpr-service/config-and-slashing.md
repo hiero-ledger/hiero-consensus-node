@@ -241,15 +241,34 @@ and endpoint incentives.
 
 ### Per-message charge on successful dispatch
 
-For each new inbound data message with a funded connector, the node charges the connector
-before dispatching the application callback. The charge is
+Application execution gas is paid to the network by the original bundle payer before
+any EVM execution. The parent holds the full transaction gas allowance until completion,
+then refunds unused fees. A later parent rollback retains payment for executed gas.
+
+For each new inbound DATA message with a funded connector, the connector reimburses
+actual callback gas plus flat execution compensation and the progress reward:
 
 ```
-charge = messageExecutionCost + convertToTinybars(progressRewardTinycents, activeRate)
+connectorDebit = gasUsed * gasPriceTinybars
+               + messageExecutionCost
+               + convertToTinybars(progressRewardTinycents, activeRate)
 ```
 
-The bundle payer receives the charge. A handled application error still advances the
-incoming message cursor and produces a reply. Replayed messages are skipped.
+The worst-case reimbursement is debited before the callback and unused reimbursement
+is returned afterward. Response callbacks reimburse actual gas without the DATA flat
+compensation or progress reward; absent or underfunded source connectors skip best-effort
+delivery. Callbacks rejected by consensus throttling before execution incur no gas
+charge, so their entire gas reimbursement is returned to the connector.
+
+The bundle payer receives the reimbursement and compensation. A handled application
+error still advances the incoming message cursor and produces a reply. Replayed messages
+are skipped.
+
+The full sum of verifier and callback gas grants is capped by
+`contracts.maxGasPerTransaction`. Remaining callback payloads share the available gas,
+with each grant capped by `maxGasPerMessage`. EVM billing refunds do not restore granted
+execution capacity. See [E-10](clpr-hiero-spec.md#e-10-application-execution-gas-and-endpoint-compensation)
+for pricing, rollback, and grant-allocation details.
 
 ### Why the submitter receives the full charge
 

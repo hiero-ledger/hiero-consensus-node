@@ -201,16 +201,14 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final PropagateFeeChargingStrategy propagateFeeChargingStrategy) {
         requireNonNull(customFeeCharging);
         requireNonNull(propagateFeeChargingStrategy);
-        final var category =
-                switch (requireNonNull(stakingRewards)) {
-                    case ON -> TransactionCategory.SCHEDULED;
-                    case OFF -> TransactionCategory.CHILD;
-                };
-        final var metadata =
-                switch (propagateFeeChargingStrategy) {
-                    case YES -> new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
-                    case NO -> EMPTY_METADATA;
-                };
+        final var category = switch (requireNonNull(stakingRewards)) {
+            case ON -> TransactionCategory.SCHEDULED;
+            case OFF -> TransactionCategory.CHILD;
+        };
+        final var metadata = switch (propagateFeeChargingStrategy) {
+            case YES -> new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
+            case NO -> EMPTY_METADATA;
+        };
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -369,6 +367,17 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final Class<T> streamBuilderType,
             @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
             @NonNull final DispatchMetadata metaData) {
+        return stepDispatch(payerId, body, streamBuilderType, signedTxCustomizer, metaData, ConsensusThrottling.OFF);
+    }
+
+    /** Returns a parent business-logic dispatch with an explicit consensus throttling policy. */
+    public static <T extends StreamBuilder> DispatchOptions<T> stepDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
+            @NonNull final DispatchMetadata metaData,
+            @NonNull final ConsensusThrottling throttling) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -377,7 +386,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 PREAUTHORIZED_KEYS,
                 emptySet(),
                 TransactionCategory.CHILD,
-                ConsensusThrottling.OFF,
+                throttling,
                 streamBuilderType,
                 ReversingBehavior.REMOVABLE,
                 signedTxCustomizer,

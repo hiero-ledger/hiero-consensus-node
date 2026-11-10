@@ -206,6 +206,8 @@ public interface HandleContext {
              * Metadata for a contract child dispatch executed by the native CLPR service.
              */
             CLPR_DISPATCH,
+            /** Parent-owned network gas payments and remaining execution budget for CLPR. */
+            CLPR_GAS_ACCOUNTING,
             /**
              * Boolean marker identifying the verifier call within a native CLPR transaction.
              */
@@ -298,6 +300,9 @@ public interface HandleContext {
      * @param amount the amount to refund.
      */
     void refundBestEffort(AccountID accountId, long amount);
+
+    /** Refunds an extra handler charge through the same fee component and strategy as {@link #tryToCharge}. */
+    void refundHandlerCharge(@NonNull AccountID accountId, long amount);
 
     /**
      * Refunds the requested account in this context the given amount of service fee.

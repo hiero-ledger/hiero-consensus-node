@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -88,6 +89,7 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -123,7 +125,7 @@ class ClprSubmitBundleHandlerTest {
             AccountID.newBuilder().accountNum(8888).build();
     // Per-message gas ceiling used by the default test config; the application callbacks
     // (onClprMessage / onClprResponse) are dispatched with this budget (spec §1.1 max_gas_per_message).
-    private static final long TEST_MAX_GAS_PER_MESSAGE = 15_000_000L;
+    private static final long TEST_MAX_GAS_PER_MESSAGE = 1_000_000L;
     // Per-message execution reimbursement and progress reward, configured in setupHandleContext().
     private static final long MESSAGE_EXECUTION_COST = 1_000_000L;
     private static final long PROGRESS_REWARD = 10_000_000L;
@@ -839,6 +841,143 @@ class ClprSubmitBundleHandlerTest {
                 .isEqualTo(ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void dataAndResponseExecutionPayActualNetworkGas(final boolean response) {
+        putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+        if (response) putOutboundDataMessage(1);
+        final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+        putConnector();
+        pricedGasContext();
+
+        subject.handle(handleContext);
+
+        verify(handleContext).tryToCharge(PAYER_ID, 2000L);
+        verify(handleContext).refundHandlerCharge(PAYER_ID, 1800L);
+        verify(tokenServiceApi)
+                .transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, (response ? 0 : WORST_CASE_CHARGE) + 800);
+        verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 600L);
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext).dispatch(captor.capture());
+        assertThat(captor.getValue().payerId()).isEqualTo(CONNECTOR_CONTRACT_ACCOUNT);
+        assertThat(captor.getValue().throttling()).isEqualTo(HandleContext.ConsensusThrottling.ON);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "false, THROTTLED_AT_CONSENSUS",
+        "true, THROTTLED_AT_CONSENSUS",
+        "false, CONSENSUS_GAS_EXHAUSTED",
+        "true, CONSENSUS_GAS_EXHAUSTED"
+    })
+    void preExecutionThrottleRefundsAllCallbackGas(final boolean response, final ResponseCodeEnum status) {
+        putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+        if (response) putOutboundDataMessage(1);
+        final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+        putConnector();
+        pricedGasContext();
+        given(dispatchResult.status()).willReturn(status);
+        given(dispatchResult.hasContractResult()).willReturn(false);
+
+        final long initialBalance = WORST_CASE_CHARGE + 10_000_000L;
+        final var balances = new HashMap<AccountID, Long>();
+        balances.put(PAYER_ID, initialBalance);
+        balances.put(CONNECTOR_CONTRACT_ACCOUNT, initialBalance);
+        given(handleContext.tryToCharge(any(), anyLong())).willAnswer(invocation -> {
+            balances.merge(invocation.getArgument(0), -invocation.getArgument(1, Long.class), Long::sum);
+            return true;
+        });
+        doAnswer(invocation -> {
+                    balances.merge(invocation.getArgument(0), invocation.getArgument(1), Long::sum);
+                    return null;
+                })
+                .when(handleContext)
+                .refundHandlerCharge(any(), anyLong());
+        doAnswer(invocation -> {
+                    final long amount = invocation.getArgument(2);
+                    balances.merge(invocation.getArgument(0), -amount, Long::sum);
+                    balances.merge(invocation.getArgument(1), amount, Long::sum);
+                    return null;
+                })
+                .when(tokenServiceApi)
+                .transferFromTo(any(), any(), anyLong());
+
+        subject.handle(handleContext);
+
+        verify(handleContext).dispatch(any(DispatchOptions.class));
+        verify(handleContext).tryToCharge(PAYER_ID, 2000L);
+        verify(handleContext).refundHandlerCharge(PAYER_ID, 2000L);
+        final long nonGasCharge = response ? 0 : WORST_CASE_CHARGE;
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, nonGasCharge + 800);
+        verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 800L);
+        // DATA keeps its flat endpoint compensation; neither party has any net gas charge.
+        assertThat(balances.get(PAYER_ID)).isEqualTo(initialBalance + nonGasCharge);
+        assertThat(balances.get(CONNECTOR_CONTRACT_ACCOUNT)).isEqualTo(initialBalance - nonGasCharge);
+    }
+
+    @Test
+    void sharesTotalGasAcrossBothCallbacksEvenWhenBilledGasIsRefunded() {
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), dataPayload())), true);
+        putConnector();
+        pricedGasContext();
+        given(configStore.getConfiguration())
+                .willReturn(createLedgerConfig()
+                        .copyBuilder()
+                        .throttles(createLedgerConfig()
+                                .throttlesOrThrow()
+                                .copyBuilder()
+                                .maxGasPerMessage(1000))
+                        .build());
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext, times(2)).dispatch(captor.capture());
+        assertThat(captor.getAllValues().stream()
+                        .mapToLong(o -> o.body().contractCallOrThrow().gas())
+                        .toArray())
+                .containsExactly(450, 450);
+        verify(handleContext).refundHandlerCharge(PAYER_ID, 1600L);
+    }
+
+    private void pricedGasContext() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("contracts.maxGasPerTransaction", 1000L)
+                .withValue("clpr.verifierGasLimit", 100L)
+                .withValue("clpr.messageExecutionCost", MESSAGE_EXECUTION_COST)
+                .withValue("clpr.progressRewardTinycents", PROGRESS_REWARD)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+        given(configStore.getConfiguration())
+                .willReturn(createLedgerConfig()
+                        .copyBuilder()
+                        .throttles(createLedgerConfig()
+                                .throttlesOrThrow()
+                                .copyBuilder()
+                                .maxGasPerMessage(400))
+                        .build());
+        given(handleContext.getGasPriceInTinycents()).willReturn(2L);
+        given(handleContext.tryToCharge(any(), anyLong())).willReturn(true);
+        final var prices = org.mockito.Mockito.mock(com.hedera.node.app.spi.fees.ResourcePriceCalculator.class);
+        given(handleContext.resourcePriceCalculator()).willReturn(prices);
+        given(prices.resourcePricesFor(any(), any()))
+                .willReturn(new com.hedera.node.app.spi.workflows.FunctionalityResourcePrices(
+                        com.hedera.hapi.node.base.FeeData.DEFAULT, 1));
+        final var rates = org.mockito.Mockito.mock(com.hedera.node.app.spi.fees.ExchangeRateInfo.class);
+        given(handleContext.exchangeRateInfo()).willReturn(rates);
+        given(rates.activeRate(any()))
+                .willReturn(com.hedera.hapi.node.transaction.ExchangeRate.newBuilder()
+                        .hbarEquiv(1)
+                        .centEquiv(1)
+                        .build());
+        lenient().when(dispatchResult.getGasUsedForContractTxn()).thenReturn(100L);
+    }
+
     @Nested
     @DisplayName("max_gas_per_message ceiling (#129 — spec §1.1 / §6.0, test plan §3.10.3 / §5.6.2)")
     class MaxGasPerMessageCeiling {
@@ -878,6 +1017,7 @@ class ClprSubmitBundleHandlerTest {
             putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
             final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
             setupHandleContext(bundle, true);
+            putConnector();
 
             subject.handle(handleContext);
 
@@ -1251,6 +1391,7 @@ class ClprSubmitBundleHandlerTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         subject.handle(handleContext);
 
@@ -1265,6 +1406,7 @@ class ClprSubmitBundleHandlerTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         // Make dispatch throw — callback is best-effort
         given(handleContext.dispatch(any(DispatchOptions.class)))
@@ -3193,6 +3335,9 @@ class ClprSubmitBundleHandlerTest {
                 .thenReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
+        lenient()
+                .when(handleContext.dispatchMetadata())
+                .thenReturn(new HandleContext.DispatchMetadata(new java.util.HashMap<>()));
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
@@ -3223,6 +3368,7 @@ class ClprSubmitBundleHandlerTest {
         // Mock dispatch for application calls — default to SUCCESS
         lenient().when(handleContext.dispatch(any(DispatchOptions.class))).thenReturn(dispatchResult);
         lenient().when(dispatchResult.status()).thenReturn(ResponseCodeEnum.SUCCESS);
+        lenient().when(dispatchResult.hasContractResult()).thenReturn(true);
         lenient().when(dispatchResult.getEvmCallResult()).thenReturn(Bytes.EMPTY);
         // Mock entity factory for staking account
         lenient().when(entityIdFactory.newAccountId(803L)).thenReturn(STAKING_ACCOUNT);

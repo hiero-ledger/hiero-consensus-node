@@ -294,6 +294,7 @@ public class ClprEnabledSuite {
         final var crypto = new ClprChannelCrypto();
         final long executionCost = 1_000_000L;
         final long progressRewardTinycents = 100_000_000L;
+        final var callbackGasFee = new AtomicLong();
         final var operations = contractSetup();
         operations.add(overridingAllOf(Map.of(
                 "clpr.messageExecutionCost", Long.toString(executionCost),
@@ -343,12 +344,11 @@ public class ClprEnabledSuite {
                         final long verifierGas =
                                 verifier.getContractCallResult().getGasUsed();
                         assertTrue(verifierGas > 0);
-                        final long expectedFee = spec.ratesProvider()
+                        final long expectedNativeFee = spec.ratesProvider()
                                 .toTbWithActiveRates(100_000_000L
                                         + 1_000L * bundleBytes.length
                                         + Math.min(verifierGas, 300_000L)
                                                 * spec.ratesProvider().tinycentGasPrice());
-                        assertEquals(expectedFee, records.getFirst().getTransactionFee());
                         final var creations = records.stream()
                                 .filter(r -> r.hasContractCreateResult())
                                 .toList();
@@ -375,7 +375,15 @@ public class ClprEnabledSuite {
                         assertEquals(1, callbacks.size());
                         assertEquals(SUCCESS, callbacks.getFirst().getReceipt().getStatus());
                         assertEquals(0L, callbacks.getFirst().getTransactionFee(), "Callback gas is prepaid");
-                        assertTrue(callbacks.getFirst().getContractCallResult().getGasUsed() > 0);
+                        final var gasUsed =
+                                callbacks.getFirst().getContractCallResult().getGasUsed();
+                        assertTrue(gasUsed > 0);
+                        callbackGasFee.set(
+                                Math.multiplyExact(gasUsed, spec.ratesProvider().currentTinybarGasPrice()));
+                        assertTrue(callbackGasFee.get() > 0, "The connector reimburses the callback's network gas fee");
+                        assertEquals(
+                                Math.addExact(expectedNativeFee, callbackGasFee.get()),
+                                records.getFirst().getTransactionFee());
                         spec.registry().saveContractId("deletedClprChild", deletedId);
                     }),
                     getContractInfo("deletedClprChild").has(contractWith().isDeleted()));
@@ -388,7 +396,8 @@ public class ClprEnabledSuite {
                 getAccountBalance(CONNECTOR_CONTRACT)
                         .hasTinyBars(ONE_HUNDRED_HBARS
                                 - executionCost
-                                - spec.ratesProvider().toTbWithActiveRates(progressRewardTinycents)))));
+                                - spec.ratesProvider().toTbWithActiveRates(progressRewardTinycents)
+                                - callbackGasFee.get()))));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 

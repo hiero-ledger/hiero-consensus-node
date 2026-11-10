@@ -297,33 +297,60 @@ actual send, which may never happen on an idle channel.
 
 ---
 
-## E-10. Callback reimbursement and progress reward
+## E-10. Application execution gas and endpoint compensation
 
-### Current behavior
+Before verifier or application EVM execution, the submitting transaction's original
+payer prepays the network fee for `contracts.maxGasPerTransaction` gas. The gas-unit
+price uses the ordinary ContractCall price, congestion multiplier, and active exchange
+rate. Unused gas fees are refunded once the entire parent transaction succeeds. If a
+later failure rolls back application state, payment for gas already used is replayed
+against that original payer before other failure penalties. Reversible transfers from
+connectors never provide the backing for this network payment.
 
-Each new inbound data message with a funded connector is charged before the application
-callback dispatch:
+For each DATA callback, the receiving connector reimburses the payer for actual billed
+application gas, plus flat execution compensation and a progress reward:
 
 ```
-charge = messageExecutionCost + convertToTinybars(progressRewardTinycents, activeConsensusRate)
+networkGasFee = gasUsed * gasPriceTinybars
+endpointCompensation = messageExecutionCost + convertToTinybars(progressRewardTinycents, activeConsensusRate)
+connectorDebit = networkGasFee + endpointCompensation
 ```
 
-where:
-- `messageExecutionCost` — a flat `clpr.messageExecutionCost` config value (default:
-1,000,000 tinybars).
-- `progressRewardTinycents` — a USD-denominated reward (default: 100,000,000 tinycents, or
-$0.01), converted using the active network exchange rate at the bundle's consensus time.
+`messageExecutionCost` is a flat `clpr.messageExecutionCost` config value (default:
+1,000,000 tinybars). `progressRewardTinycents` is a USD-denominated reward (default:
+100,000,000 tinycents, or $0.01), converted using the active network exchange rate at
+the bundle's consensus time. The progress reward is paid once per newly dispatched
+DATA message.
 
-The full `charge` amount is paid to the **submitting endpoint** (the Hiero consensus
-node that submitted the `ClprSubmitBundle` transaction). There is no central treasury;
-the submitter receives the entire payment.
+The connector's worst-case gas reimbursement and compensation are transferred before
+the callback. Unused gas reimbursement is returned afterward. Response callbacks use
+the same gas payment and reimbursement path without the DATA compensation. An absent
+or underfunded originating connector causes best-effort response delivery to be skipped.
+Reverted callbacks still pay for gas consumed. A dispatch without a reported EVM result
+consumes its full gas reservation for billing. Callbacks rejected by consensus
+throttling before execution incur no gas charge, so their gas reimbursement is returned
+in full.
 
-### Planned cost recovery
+The sum of verifier and application gas grants cannot exceed the transaction cap.
+Callbacks share the remaining allowance: each DATA or response payload receives at
+most `min(maxGasPerMessage, remainingGas / remainingCallbackPayloads)`. Skipped payloads
+release their share for later callbacks. Once granted, gas capacity is consumed in full
+regardless of billed EVM gas refunds, so repeated storage refunds cannot reopen capacity.
+Application children use consensus throttling with the connector as child payer while
+retaining the CLPR service's synthetic EVM sender. When the verifier adapter does not
+report gas into the shared accounting ledger, its full configured gas allowance is
+conservatively reserved before allocating application grants.
 
-Callback reimbursement can be based on measured application gas, and the fee proposal's
-bundle billing appendix models recovering the actual submission fee separately, split by
-the number of messages attributed to each connector. The flat progress reward is paid
-once per newly dispatched message.
+A multi-message bundle can therefore give each callback less than the per-message
+ceiling. Applications must stay within the callback's allocated grant; exhausting it
+produces the existing application error response. Per-message limits remain ceilings.
+
+### Planned bundle fee recovery
+
+The fee proposal's bundle billing appendix models recovering the actual submission fee
+separately, split by the number of messages attributed to each connector. Native verifier
+GAS pricing remains separate from callback gas accounting; the same verifier execution
+must not also be charged through the actual-gas escrow.
 
 See also D-8 in [DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md) and the
 "Success-path economics" subsection in [`config-and-slashing.md`](config-and-slashing.md).
