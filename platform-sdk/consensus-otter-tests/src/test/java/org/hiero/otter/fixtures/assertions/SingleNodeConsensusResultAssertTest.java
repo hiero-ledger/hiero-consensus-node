@@ -11,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -26,7 +27,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Tests the assertions of {@link SingleNodeConsensusResultAssert} and {@link MultipleNodeConsensusResultsAssert} that
- * check the pre-consensus and stale events.
+ * check the pre-consensus and stale events and the ratios built on them.
  */
 class SingleNodeConsensusResultAssertTest {
 
@@ -170,6 +171,98 @@ class SingleNodeConsensusResultAssertTest {
         assertThatThrownBy(() -> assertThat(results).haveNoUnannouncedEvents())
                 .isInstanceOf(AssertionError.class)
                 .hasMessageContaining("node 1");
+    }
+
+    @Test
+    void ratioAssertions_passAtTheBounds() {
+        final List<EventDescriptorWrapper> events = events(4);
+        final SingleNodeConsensusResult result =
+                result(NODE_0, List.of(round(events.get(0), events.get(1))), events, List.of(events.get(2)));
+
+        assertThatCode(() ->
+                        assertThat(result).hasConsensusRatioBetween(0.5, 0.5).hasStaleRatioBetween(0.25, 0.25))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void hasConsensusRatioBetween_failsIfRatioIsBelowMin() {
+        final List<EventDescriptorWrapper> events = events(4);
+        final SingleNodeConsensusResult result =
+                result(NODE_0, List.of(round(events.get(0), events.get(1))), events, List.of());
+
+        assertThatThrownBy(() -> assertThat(result).hasConsensusRatioBetween(0.6, 1.0))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Expected consensus ratio of node 0 to be between <0.6> and <1.0> but was <0.5>")
+                .hasMessageContaining("2 consensus events, 4 pre-consensus events");
+    }
+
+    @Test
+    void hasConsensusRatioBetween_failsIfRatioIsAboveMax() {
+        final List<EventDescriptorWrapper> events = events(2);
+        final SingleNodeConsensusResult result =
+                result(NODE_0, List.of(round(events.get(0), events.get(1), ancientEvent())), events, List.of());
+
+        assertThatThrownBy(() -> assertThat(result).hasConsensusRatioBetween(0.9, 1.0))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("but was <1.5>")
+                .hasMessageContaining("3 consensus events, 2 pre-consensus events");
+    }
+
+    @Test
+    void hasStaleRatioBetween_failsIfRatioIsOutOfBounds() {
+        final List<EventDescriptorWrapper> events = events(4);
+        final SingleNodeConsensusResult result = result(NODE_0, List.of(), events, List.of(events.getFirst()));
+
+        assertThatThrownBy(() -> assertThat(result).hasStaleRatioBetween(0.0, 0.1))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Expected stale ratio of node 0 to be between <0.0> and <0.1> but was <0.25>")
+                .hasMessageContaining("1 stale events, 4 pre-consensus events");
+    }
+
+    @Test
+    void ratioAssertions_failWithoutPreConsensusEvents() {
+        final SingleNodeConsensusResult result =
+                result(NODE_0, List.of(round(ancientEvent())), List.of(), List.of(ancientEvent()));
+
+        assertThatThrownBy(() -> assertThat(result).hasConsensusRatioBetween(0.0, 2.0))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Cannot check the consensus ratio of node 0")
+                .hasMessageContaining("no pre-consensus events");
+        assertThatThrownBy(() -> assertThat(result).hasStaleRatioBetween(0.0, 1.0))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("Cannot check the stale ratio of node 0")
+                .hasMessageContaining("no pre-consensus events");
+    }
+
+    @Test
+    void haveConsensusRatioBetween_failsIfOneNodeIsOutOfBounds() {
+        final EventDescriptorWrapper event = ancientEvent();
+        final SingleNodeConsensusResult goodResult = result(NODE_0, List.of(round(event)), List.of(event), List.of());
+        final SingleNodeConsensusResult badResult = result(NODE_1, List.of(), List.of(event), List.of());
+        final MultipleNodeConsensusResults results =
+                new MultipleNodeConsensusResultsImpl(List.of(goodResult, badResult));
+
+        assertThatThrownBy(() -> assertThat(results).haveConsensusRatioBetween(0.9, 1.0))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("node 1");
+    }
+
+    @Test
+    void haveStaleRatioBetween_failsIfOneNodeIsOutOfBounds() {
+        final EventDescriptorWrapper event = ancientEvent();
+        final SingleNodeConsensusResult goodResult = result(NODE_0, List.of(), List.of(event), List.of());
+        final SingleNodeConsensusResult badResult = result(NODE_1, List.of(), List.of(event), List.of(event));
+        final MultipleNodeConsensusResults results =
+                new MultipleNodeConsensusResultsImpl(List.of(goodResult, badResult));
+
+        assertThatThrownBy(() -> assertThat(results).haveStaleRatioBetween(0.0, 0.1))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("node 1");
+    }
+
+    @NonNull
+    private List<EventDescriptorWrapper> events(final int count) {
+        return Stream.generate(this::ancientEvent).limit(count).toList();
     }
 
     @NonNull

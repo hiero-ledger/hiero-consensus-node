@@ -65,6 +65,9 @@ public class FlickerIntake {
     private final ConsensusLinker linker;
     private final ConsensusImpl consensus;
 
+    @Nullable
+    private final ConsensusTraceLog traceLog;
+
     /** Every event this harness has linked, by the name the test gave it. */
     private final Map<String, EventImpl> linkedEventsByName = new LinkedHashMap<>();
 
@@ -108,6 +111,7 @@ public class FlickerIntake {
         Objects.requireNonNull(configuration);
         Objects.requireNonNull(roster);
 
+        this.traceLog = traceLog;
         this.roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
         final BiFunction<PlatformEvent, List<EventImpl>, EventImpl> eventFactory = traceLog == null
@@ -147,6 +151,9 @@ public class FlickerIntake {
     public List<ConsensusRound> add(@NonNull final String name, @NonNull final PlatformEvent event) {
         hasher.hashEvent(event);
         eventNameByHash.put(event.getHash(), name);
+        if (traceLog != null) {
+            traceLog.beginAdd(name);
+        }
 
         // Ancient first: the orphan buffer also drops ancient events, so without this check an ancient event would be
         // reported below as a topological ordering problem, which it is not.
@@ -242,6 +249,8 @@ public class FlickerIntake {
     }
 
     /**
+     * Get every round this harness has produced.
+     *
      * @return every round that has reached consensus, in order
      */
     @NonNull

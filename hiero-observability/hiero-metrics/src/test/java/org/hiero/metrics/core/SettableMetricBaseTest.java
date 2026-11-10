@@ -5,12 +5,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.hiero.metrics.ThreadUtils;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B extends SettableMetric.Builder<?, B, M>>
         extends MetricBaseTest<M, B> {
+
+    @Test
+    void testIterationStartedBeforeAddSeesFixedList() {
+        M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+        metric.getOrCreateLabeled("label", "a");
+
+        Iterator<MeasurementSnapshot> export = metric.snapshot().iterator();
+        metric.getOrCreateLabeled("label", "b");
+
+        List<String> seen = new ArrayList<>();
+        export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
+        assertThat(seen).containsExactly("[a]");
+    }
 
     /**
      * Tests for accessing measurements in settable metrics.
@@ -218,6 +235,7 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                 assertThat(results[i]).isNotNull();
                 assertThat(results[i]).isSameAs(results[0]);
             }
+            assertThat(metric.snapshot()).hasSize(1);
         }
 
         @Test
@@ -237,6 +255,25 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                 assertThat(results[i]).isNotNull();
                 assertThat(results[i]).isSameAs(results[0]);
             }
+            assertThat(metric.snapshot()).hasSize(1);
+        }
+
+        @Test
+        void testConcurrentCreationOfDifferentLabelsAddsAllSnapshots() throws InterruptedException {
+            M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+            int threadCount = 10;
+
+            ThreadUtils.runConcurrentAndWait(
+                    threadCount,
+                    Duration.ofMillis(300),
+                    threadIdx -> () -> metric.getOrCreateLabeled("label", "v" + threadIdx));
+
+            List<String> seen = new ArrayList<>();
+            metric.snapshot().forEach(s -> seen.add(s.getDynamicLabelValues().toString()));
+            assertThat(seen)
+                    .containsExactlyInAnyOrderElementsOf(IntStream.range(0, threadCount)
+                            .mapToObj(i -> "[v" + i + "]")
+                            .toList());
         }
     }
 }
