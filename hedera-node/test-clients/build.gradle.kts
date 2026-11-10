@@ -411,7 +411,7 @@ val prCheckNetSizeOverrides =
     )
 // Caps a concurrent task's JUnit pool: the fixed strategy adds compensation threads
 // while tests block, up to parallelism + 256
-val prCheckJunitMaxPoolSizes = mapOf("hapiTestToken" to 32)
+val prCheckJunitMaxPoolSizes = mapOf("hapiTestToken" to 32, "hapiTestAtomicBatch" to 32)
 
 val embeddedBaseTags =
     mapOf(
