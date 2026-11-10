@@ -12,7 +12,6 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,8 +61,6 @@ public class SyncGossipModular implements Gossip {
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
     private Consumer<SyncProgress> syncProgressHandler;
-    private final AtomicReference<EventWindow> eventWindowHolder =
-            new AtomicReference<>(EventWindow.getGenesisEventWindow());
 
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
@@ -148,8 +145,7 @@ public class SyncGossipModular implements Gossip {
                 selfId,
                 fallenBehindMonitor,
                 event -> receivedEventHandler.accept(event),
-                socketExceptionDeduplicator,
-                eventWindowHolder::get);
+                socketExceptionDeduplicator);
 
         this.protocols = List.of(
                 HeartbeatProtocol.create(configuration, time, this.network.getNetworkMetrics()),
@@ -214,10 +210,7 @@ public class SyncGossipModular implements Gossip {
             rpcProtocol.addEvent(event);
             synchronizer.addEvent(event);
         });
-        eventWindowInput.bindConsumer(eventWindow -> {
-            synchronizer.updateEventWindow(eventWindow);
-            eventWindowHolder.set(eventWindow);
-        });
+        eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
         systemHealthInput.bindConsumer(rpcProtocol::reportUnhealthyDuration);
         platformStatusInput.bindConsumer(status -> {

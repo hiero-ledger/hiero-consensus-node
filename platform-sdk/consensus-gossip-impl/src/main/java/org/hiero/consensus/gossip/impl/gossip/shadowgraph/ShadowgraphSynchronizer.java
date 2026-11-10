@@ -85,6 +85,9 @@ public class ShadowgraphSynchronizer {
 
     private final int farFutureEventOffset;
 
+    @NonNull
+    private volatile EventWindow latestSelfEventWindow = EventWindow.getGenesisEventWindow();
+
     /**
      * Constructs a new ShadowgraphSynchronizer.
      *
@@ -239,6 +242,7 @@ public class ShadowgraphSynchronizer {
      */
     public void clear() {
         this.shadowGraph.clear();
+        latestSelfEventWindow = EventWindow.getGenesisEventWindow();
     }
 
     /**
@@ -256,7 +260,18 @@ public class ShadowgraphSynchronizer {
      * @param eventWindow new event window to apply
      */
     public void updateEventWindow(@NonNull final EventWindow eventWindow) {
+        this.latestSelfEventWindow = eventWindow;
         this.shadowGraph.updateEventWindow(eventWindow);
+    }
+
+    /**
+     * Returns the current event window for this node.
+     *
+     * @return this nodes current event window
+     */
+    @NonNull
+    public EventWindow getEventWindow() {
+        return latestSelfEventWindow;
     }
 
     /**

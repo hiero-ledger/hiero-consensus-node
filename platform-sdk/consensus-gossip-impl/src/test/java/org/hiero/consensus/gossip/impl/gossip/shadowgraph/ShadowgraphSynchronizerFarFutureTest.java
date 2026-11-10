@@ -54,13 +54,20 @@ class ShadowgraphSynchronizerFarFutureTest {
     }
 
     private static ShadowgraphSynchronizer createSynchronizer(final int offset, final int maxSyncEventCount) {
+        final ShadowgraphSynchronizer synchronizer = createSynchronizerWithoutEventWindow(offset, maxSyncEventCount);
+        synchronizer.updateEventWindow(MY_WINDOW);
+        return synchronizer;
+    }
+
+    private static ShadowgraphSynchronizer createSynchronizerWithoutEventWindow(
+            final int offset, final int maxSyncEventCount) {
         final Configuration configuration = new TestConfigBuilder()
                 // isolate the far future filter: do not let the duplicate filter drop events based on age
                 .withValue("sync.filterLikelyDuplicates", false)
                 .withValue("sync.maxSyncEventCount", maxSyncEventCount)
                 .withValue("gossip.farFutureEventOffset", offset)
                 .getOrCreateConfig();
-        final ShadowgraphSynchronizer synchronizer = new ShadowgraphSynchronizer(
+        return new ShadowgraphSynchronizer(
                 configuration,
                 new NoOpMetrics(),
                 new FakeTime(),
@@ -68,8 +75,6 @@ class ShadowgraphSynchronizerFarFutureTest {
                 mock(SyncMetrics.class),
                 new NoOpIntakeEventCounter(),
                 _ -> {});
-        synchronizer.updateEventWindow(MY_WINDOW);
-        return synchronizer;
     }
 
     /**
@@ -200,5 +205,25 @@ class ShadowgraphSynchronizerFarFutureTest {
     void offsetBelowDisabledValueIsRejected(final int offset) {
         assertThatThrownBy(() -> createSynchronizer(offset, UNLIMITED_EVENTS_PER_SYNC))
                 .isInstanceOf(ConfigViolationException.class);
+    }
+
+    // THIS NODE'S EVENT WINDOW, used by RpcPeerHandler to filter received events
+
+    /** Before any event window has been applied, this node's event window is the genesis window. */
+    @Test
+    void eventWindowIsGenesisBeforeFirstUpdate() {
+        final ShadowgraphSynchronizer synchronizer = createSynchronizerWithoutEventWindow(5, UNLIMITED_EVENTS_PER_SYNC);
+        assertThat(synchronizer.getEventWindow()).isEqualTo(EventWindow.getGenesisEventWindow());
+    }
+
+    /** This node's event window is the one most recently applied. */
+    @Test
+    void eventWindowIsLatestUpdate() {
+        final ShadowgraphSynchronizer synchronizer = createSynchronizer(5, UNLIMITED_EVENTS_PER_SYNC);
+        assertThat(synchronizer.getEventWindow()).isEqualTo(MY_WINDOW);
+
+        final EventWindow next = new EventWindow(31, 32, 1, 1);
+        synchronizer.updateEventWindow(next);
+        assertThat(synchronizer.getEventWindow()).isEqualTo(next);
     }
 }

@@ -110,8 +110,7 @@ class RpcPeerHandlerTest {
                 fallenBehindManager,
                 configuration.getConfigData(SyncConfig.class),
                 configuration.getConfigData(GossipConfig.class),
-                configuration.getConfigData(BroadcastConfig.class),
-                EventWindow::getGenesisEventWindow);
+                configuration.getConfigData(BroadcastConfig.class));
     }
 
     @Test

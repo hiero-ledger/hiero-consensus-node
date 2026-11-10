@@ -114,8 +114,13 @@ class RpcPeerHandlerFarFutureTest {
         return createPeerHandler(selfEventWindowSupplier, OFFSET);
     }
 
+    /**
+     * Creates a handler whose shadowgraph synchronizer reports {@code selfEventWindowSupplier.get()} as this node's
+     * current event window, read again on every call.
+     */
     private RpcPeerHandler createPeerHandler(
             final Supplier<EventWindow> selfEventWindowSupplier, final int farFutureEventOffset) {
+        when(synchronizer.getEventWindow()).thenAnswer(invocation -> selfEventWindowSupplier.get());
         final Configuration configuration = new TestConfigBuilder()
                 .withValue("gossip.farFutureEventOffset", farFutureEventOffset)
                 .getOrCreateConfig();
@@ -132,8 +137,7 @@ class RpcPeerHandlerFarFutureTest {
                 fallenBehindMonitor,
                 configuration.getConfigData(SyncConfig.class),
                 configuration.getConfigData(GossipConfig.class),
-                configuration.getConfigData(BroadcastConfig.class),
-                selfEventWindowSupplier);
+                configuration.getConfigData(BroadcastConfig.class));
     }
 
     private GossipEvent gossipEvent(final NodeId creator, final long birthRound) {
@@ -183,11 +187,15 @@ class RpcPeerHandlerFarFutureTest {
         handler.receiveBroadcastEvent(gossipEventWithBirthRound(MAX_ACCEPTABLE_BIRTH_ROUND + 1));
         verifyNoInteractions(eventHandler);
         verify(syncMetrics, never()).broadcastEventReceived();
+        verify(syncMetrics).receivedBroadcastedFarFutureEvent();
 
         final GossipEvent atLimit = gossipEventWithBirthRound(MAX_ACCEPTABLE_BIRTH_ROUND);
         handler.receiveBroadcastEvent(atLimit);
         assertThat(eventsPassedToIntake(1)).containsExactly(atLimit);
         verify(syncMetrics).broadcastEventReceived();
+        // only the far future event is counted as rejected, and only as a broadcast rejection
+        verify(syncMetrics).receivedBroadcastedFarFutureEvent();
+        verify(syncMetrics, never()).receivedSyncFarFutureEvent();
     }
 
     @Test
@@ -202,6 +210,9 @@ class RpcPeerHandlerFarFutureTest {
         assertThat(eventsPassedToIntake(2)).containsExactly(atLimit, old);
         // dropped events must not be counted as entering intake, or the counter would never be decremented for them
         verify(intakeEventCounter, times(2)).eventEnteredIntakePipeline(PEER);
+        // only the far future event is counted as rejected, and only as a sync rejection
+        verify(syncMetrics).receivedSyncFarFutureEvent();
+        verify(syncMetrics, never()).receivedBroadcastedFarFutureEvent();
     }
 
     @Test
@@ -384,6 +395,8 @@ class RpcPeerHandlerFarFutureTest {
 
         assertThat(eventsPassedToIntake(2)).containsExactly(broadcast, synced);
         verify(intakeEventCounter).eventEnteredIntakePipeline(PEER);
+        verify(syncMetrics, never()).receivedBroadcastedFarFutureEvent();
+        verify(syncMetrics, never()).receivedSyncFarFutureEvent();
     }
 
     /**

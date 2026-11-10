@@ -73,8 +73,7 @@ class RpcPeerHandlerTimeoutTest {
                 mock(FallenBehindMonitor.class),
                 syncConfig,
                 gossipConfig,
-                broadcastConfig,
-                EventWindow::getGenesisEventWindow);
+                broadcastConfig);
 
         // first tick starts a sync; the peer never replies
         handler.checkForPeriodicActions(false, false);
@@ -133,8 +132,7 @@ class RpcPeerHandlerTimeoutTest {
                 mock(FallenBehindMonitor.class),
                 syncConfig,
                 gossipConfig,
-                broadcastConfig,
-                EventWindow::getGenesisEventWindow);
+                broadcastConfig);
 
         // start a sync
         handler.checkForPeriodicActions(false, false);

@@ -15,7 +15,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
@@ -37,7 +36,6 @@ import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
@@ -89,9 +87,6 @@ public class RpcProtocol implements Protocol, GossipController {
      */
     private final List<RpcPeerHandler> allRpcPeers = new CopyOnWriteArrayList<>();
 
-    /** Supplier of the current event window. */
-    private final Supplier<EventWindow> eventWindowSupplier;
-
     /**
      * Constructs a new sync protocol
      *
@@ -108,7 +103,6 @@ public class RpcProtocol implements Protocol, GossipController {
      * @param fallenBehindMonitor shared monitoring of our event window falling behind peers
      * @param receivedEventHandler events that are received are passed here
      * @param socketExceptionDeduplicator remembers which socket exception stack traces were already logged in full
-     * @param eventWindowSupplier a supplier of this nodes latest event window
      */
     public RpcProtocol(
             @NonNull final Configuration configuration,
@@ -123,8 +117,7 @@ public class RpcProtocol implements Protocol, GossipController {
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
-            @NonNull final StackTraceDeduplicator socketExceptionDeduplicator,
-            @NonNull final Supplier<EventWindow> eventWindowSupplier) {
+            @NonNull final StackTraceDeduplicator socketExceptionDeduplicator) {
 
         this.synchronizer = synchronizer;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
@@ -154,7 +147,6 @@ public class RpcProtocol implements Protocol, GossipController {
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.receivedEventHandler = receivedEventHandler;
         this.socketExceptionDeduplicator = Objects.requireNonNull(socketExceptionDeduplicator);
-        this.eventWindowSupplier = eventWindowSupplier;
     }
 
     /**
@@ -189,8 +181,7 @@ public class RpcProtocol implements Protocol, GossipController {
                 fallenBehindMonitor,
                 syncConfig,
                 gossipConfig,
-                broadcastConfig,
-                eventWindowSupplier);
+                broadcastConfig);
 
         peerProtocol.setRpcPeerHandler(handler);
         allRpcPeers.add(handler);
