@@ -152,13 +152,14 @@ class MerkleDbCompactionCoordinator {
     }
 
     ///
-    /// Pauses compaction of all active data file compactors while running the provided action. Compaction may not stop
+    /// Pauses compaction of all active data file compactors while running the provided action.
+    /// Compaction may not stop
     /// immediately, but as soon as the compaction process needs to update data source state (which is critical for
     /// snapshots, e.g. update an index), it will be blocked until the action completes.
     ///
     /// Scanner tasks are not paused because they are read-only. Compaction tasks that have been
-    /// submitted but have not yet created a compactor (still queued) are also unaffected — they will encounter the lock
-    /// when they start writing.
+    /// submitted but have not yet created a compactor (still queued) are also unaffected — they will encounter
+    /// the lock when they start writing.
     ///
     /// Every paused compactor is resumed on the calling thread, even if the action or resuming
     /// another compactor fails. Otherwise, a compactor would keep its lock forever. Only the first
