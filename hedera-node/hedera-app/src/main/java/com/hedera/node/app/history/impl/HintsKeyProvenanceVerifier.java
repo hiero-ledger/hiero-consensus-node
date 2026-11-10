@@ -14,8 +14,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Reference acceptance rule for endpoint and EVM implementations of gas-bounded provenance catch-up; the node runtime
- * does not call this class. This class does not mutate an anchor; callers may
+ * Reference acceptance rule for endpoint and EVM implementations of gas-bounded provenance catch-up. The outbound CLPR sender also uses this check before
+ * sending a witness batch. This class does not mutate an anchor; callers may
  * commit the returned checkpoint only after a whole batch succeeds. A consumer's CLPR message freshness policy is a
  * separate check and must not be applied to historical key witnesses.
  */

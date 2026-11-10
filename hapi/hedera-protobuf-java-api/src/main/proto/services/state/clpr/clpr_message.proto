@@ -249,6 +249,15 @@ message ClprSyncPayload {
     bytes bundle_payload = 2;
 }
 
+/** Proof format the requester can verify for bundles from a Hiero source. */
+enum ClprBundleFormat {
+    /** The native StateProof with its full TSS signature. */
+    CLPR_BUNDLE_FORMAT_STATE_PROOF = 0;
+
+    /** The compact HieroProof version 1 envelope with explicit hinTS provenance. */
+    CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1 = 1;
+}
+
 /**
  * Unproven, self-reported Connection state sent ahead of a bundle so the peer
  * can shape its response to exactly what is still unacked. The value it
@@ -283,6 +292,13 @@ message ClprBundleRequest {
      * is PENDING.
      */
     uint64 current_endpoint_manifest_version = 4;
+
+    /**
+     * The requester's verifier format for Hiero bundles. This defaults to
+     * CLPR_BUNDLE_FORMAT_STATE_PROOF. With CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1,
+     * current_trust_anchor_id is the Keccak-256 hash of the pinned hinTS key.
+     */
+    ClprBundleFormat bundle_format = 5;
 }
 
 /**

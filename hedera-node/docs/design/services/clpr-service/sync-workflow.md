@@ -11,6 +11,40 @@ without a separate endpoint identity — the consensus roster *is* the endpoint 
 All classes live under
 `hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/clpr/`.
 
+## Outbound proof format
+
+The receiver selects the format in field 5 (`bundle_format`) of its opening
+`ClprBundleRequest`:
+
+| Value | Bundle | Receiver's `current_trust_anchor_id` |
+| --- | --- | --- |
+| Omitted or `CLPR_BUNDLE_FORMAT_STATE_PROOF` (0) | Existing Hiero `StateProof` with the WRAPS-bearing signature | Native Hiero trust anchor |
+| `CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1` (1) | `HieroProof` version 1 for the EVM Hiero verifier | Keccak-256 of the channel's current raw 1,096-byte hinTS verification key |
+
+The compact profile uses SHA-256 block roots. A message bundle includes a
+`StateProof` with its signature shortened to the verification key and aggregate
+signature (2,344 bytes). If the receiver's key differs from the block signer,
+the sender includes the predecessor certificates. Both the certificates and
+the state proof come from the same block-proven snapshot.
+
+A bundle may carry up to eight certificates and must fit the peer's
+`max_sync_bytes`. For a longer path the sender can send certificates and a
+SHA-256 adoption witness for the last key in the batch. This updates only the
+receiver's anchor and can run even with an empty message queue. The sender sends
+one batch per cycle and uses the anchor reported in the next request to resume
+from the committed key. Witness bundles leave the received message ID unchanged.
+Before sending either compact form, the sender checks its serialized proofs at
+the EVM verifier's threshold of strictly more than one third.
+
+The request guides proof construction; it cannot authorize a key or message
+at the receiver. An unknown anchor or one ahead of the snapshot signer yields
+no compact bundle. If a channel cannot reach a witnessed key within eight
+links and the missing witnesses belong to retired keys, it must reopen with a
+newer anchor. The compact profile does not change ledger-configuration or
+endpoint-manifest query formats. The sender records skipped compact proofs in
+the `clpr.hieroProofSkipped_*` counters, by reason and channel, and rate limits
+the corresponding logs.
+
 ## Class roles at a glance
 
 ```

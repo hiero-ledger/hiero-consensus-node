@@ -1,16 +1,31 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.hapi.node.state.clpr.ClprBundleFormat.CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1;
+import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
+import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.INVALID_PROOF;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.NO_PROGRESS;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SHA_384_NETWORK;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SIZE_LIMIT;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNKNOWN_ANCHOR;
+import static com.hedera.node.app.workflows.clpr.ClprHieroProofCodec.MAX_STATE_PROOF_PATHS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
+import com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager.BundleProof;
+import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Generates the next bundle for this channel, given the current position in the outbound queue. This class is shared by
@@ -31,6 +46,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
  *
  */
 final class ClprBundleProducer {
+    private static final int SHA256_HASH_LENGTH = 32;
 
     /**
      * How many bundles one side will send in one cycle (streaming call). The loop on either end handles any N; this is
@@ -39,6 +55,9 @@ final class ClprBundleProducer {
     static final int MAX_BUNDLE_EXCHANGES = 1;
 
     private final ClprStateProofManager stateProofManager;
+
+    @Nullable
+    private final Bytes compactPeerAnchor;
 
     /**
      * This side's view of the Channel at the start of the cycle; every bundle this cycle is built against its peer
@@ -100,6 +119,9 @@ final class ClprBundleProducer {
             final int maxBundles) {
         this.stateProofManager = requireNonNull(stateProofManager);
         this.channel = requireNonNull(channel);
+        this.compactPeerAnchor = peerRequest != null && peerRequest.bundleFormat() == CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1
+                ? peerRequest.currentTrustAnchorId()
+                : null;
         this.allowPureAck = allowPureAck;
         this.maxBundles = maxBundles;
         this.peerClosed = peerRequest != null && peerRequest.currentStatus() == ClprChannelStatus.CLOSED;
@@ -141,6 +163,9 @@ final class ClprBundleProducer {
         if (!hasBundleToOffer()) {
             return null;
         }
+        if (compactPeerAnchor != null) {
+            return nextCompact(compactPeerAnchor, includeEndpointManifest);
+        }
         final BundleProof bundleProof = stateProofManager.buildBundleProof(
                 channel.channelId(),
                 nextStartingMessageId,
@@ -151,12 +176,132 @@ final class ClprBundleProducer {
             queueEmptyForCycle = true;
             return null;
         }
+        return emitStateProof(bundleProof, bundleProof.payload());
+    }
+
+    @Nullable
+    private Bytes nextCompact(@NonNull final Bytes anchor, final boolean includeEndpointManifest) {
+        if (anchor.length() != SHA256_HASH_LENGTH) {
+            return skipCompactProof(UNKNOWN_ANCHOR);
+        }
+        if (!stateProofManager.supportsHieroProofV1()) {
+            return skipCompactProof(SHA_384_NETWORK);
+        }
+        try (final var snapshot = stateProofManager.latestSnapshot().orElse(null)) {
+            if (snapshot == null) {
+                return skipCompactProof(NO_PROGRESS);
+            }
+            final var siblings = snapshot.path().siblings();
+            if (siblings.stream().anyMatch(sibling -> sibling.hash().length() != SHA256_HASH_LENGTH)) {
+                return skipCompactProof(INVALID_PROOF);
+            }
+            return buildCompactBundle(snapshot, anchor, includeEndpointManifest);
+        } catch (final IllegalArgumentException e) {
+            return skipCompactProof(INVALID_PROOF);
+        }
+    }
+
+    @Nullable
+    private Bytes buildCompactBundle(
+            @NonNull final BlockProvenSnapshot snapshot,
+            @NonNull final Bytes anchor,
+            final boolean includeEndpointManifest) {
+        final var throttles = channel.peerThrottlesOrThrow();
+        final long maxPayloadBytes = ClprStateProofManager.maxBundlePayloadBytes(throttles);
+        final var signature = ClprHieroProofCodec.compactSignature(snapshot.tssSignature());
+        final var signingKey = signature.slice(0, VK_LENGTH);
+        final var signer = new ClprHieroProofCodec.CompactStateProof(signingKey, Bytes.EMPTY);
+        final boolean rotating = !anchor.equals(keccak256DigestOf(signingKey));
+        final var history = rotating ? snapshot.keyProvenanceWithWitnesses() : List.<HintsKeyWitnessRecord>of();
+        final var decision = ClprHieroProvenancePlanner.evaluate(anchor, history, signer, maxPayloadBytes, false);
+        final var batch = decision.plan();
+        if (batch == null) {
+            return skipCompactProof(requireNonNull(decision.reason()));
+        }
+        if (batch.witness() != null) {
+            return emitWitness(anchor, batch);
+        }
+
+        final var compactBlockProof =
+                TssSignedBlockProof.newBuilder().blockSignature(signature).build();
+        final var sizeLimited = new AtomicBoolean();
+        final var bundle = stateProofManager.buildBundleProof(
+                snapshot,
+                channel.channelId(),
+                nextStartingMessageId,
+                throttles,
+                allowPureAck,
+                includeEndpointManifest,
+                proof -> {
+                    final long size = proof.paths().size() > MAX_STATE_PROOF_PATHS
+                            ? Long.MAX_VALUE
+                            : ClprHieroProofCodec.stateProofEnvelopeSize(
+                                    proof.copyBuilder()
+                                            .signedBlockProof(compactBlockProof)
+                                            .build()
+                                            .protobufSize(),
+                                    batch.links().size());
+                    if (size > maxPayloadBytes) {
+                        sizeLimited.set(true);
+                    }
+                    return size;
+                });
+        if (bundle != null) {
+            final var compact = ClprHieroProofCodec.compactStateProof(bundle.payload());
+            final var encoded = ClprHieroProofCodec.encodeStateProof(compact, batch.links());
+            if (encoded.length() <= maxPayloadBytes) {
+                if (!stateProofManager.verifyHieroProof(encoded, anchor)) {
+                    return skipCompactProof(INVALID_PROOF);
+                }
+                if (sizeLimited.get() && bundle.messageCount() == 0) {
+                    // The channel proof can still advance an ACK or anchor, but the head message remains blocked.
+                    stateProofManager.reportHieroProofSkip(channel.channelId(), SIZE_LIMIT);
+                }
+                // A rotating state proof also changes the confirmed anchor for subsequent bundles.
+                queueEmptyForCycle = rotating;
+                return emitStateProof(bundle, encoded);
+            }
+            sizeLimited.set(true);
+        }
+        if (rotating) {
+            // The message proof did not fit or the queue is empty. A retained witness can still advance the anchor.
+            final var catchUp = ClprHieroProvenancePlanner.evaluate(anchor, history, signer, maxPayloadBytes, true);
+            if (catchUp.plan() != null) {
+                return emitWitness(anchor, catchUp.plan());
+            }
+            return skipCompactProof(sizeLimited.get() ? SIZE_LIMIT : requireNonNull(catchUp.reason()));
+        }
+        return skipCompactProof(sizeLimited.get() ? SIZE_LIMIT : NO_PROGRESS);
+    }
+
+    private Bytes emitStateProof(@NonNull final BundleProof bundleProof, @NonNull final Bytes payload) {
         bundlesSent++;
         nextStartingMessageId = bundleProof.lastMessageId() + 1;
         if (bundleProof.messageCount() == 0) {
             queueEmptyForCycle = true;
         }
-        return bundleProof.payload();
+        return payload;
+    }
+
+    @Nullable
+    private Bytes emitWitness(@NonNull final Bytes anchor, @NonNull final ClprHieroProvenancePlanner.Plan batch) {
+        final var payload = ClprHieroProofCodec.encodeWitness(batch.links(), requireNonNull(batch.witness()));
+        if (!stateProofManager.verifyHieroProof(payload, anchor)) {
+            return skipCompactProof(INVALID_PROOF);
+        }
+        bundlesSent++;
+        // Wait for the next request to report the committed anchor. This batch consumes no messages.
+        queueEmptyForCycle = true;
+        return payload;
+    }
+
+    @Nullable
+    private Bytes skipCompactProof(@NonNull final SkipReason reason) {
+        queueEmptyForCycle = true;
+        if (reason != NO_PROGRESS) {
+            stateProofManager.reportHieroProofSkip(channel.channelId(), reason);
+        }
+        return null;
     }
 
     /**

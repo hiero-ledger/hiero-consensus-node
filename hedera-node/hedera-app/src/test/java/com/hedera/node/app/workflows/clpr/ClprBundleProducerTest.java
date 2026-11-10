@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_256;
+import static com.hedera.hapi.node.state.clpr.ClprBundleFormat.CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1;
+import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
+import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
+import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.INVALID_PROOF;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SHA_384_NETWORK;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNKNOWN_ANCHOR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -9,18 +17,33 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
+import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager.BundleProof;
+import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.ToLongFunction;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -341,9 +364,205 @@ class ClprBundleProducerTest {
         }
     }
 
-    /**
-     * Stubs the builder to pack {@code messageCount} messages from whatever start it is given.
-     */
+    @Nested
+    class CompactPeer {
+        private static final int NATIVE_SIGNATURE_LENGTH = 13_712;
+
+        @Test
+        void wrapsStateProofForCurrentAnchorAndUsesCompactPayloadSize() {
+            final var snapshot = signedSnapshot(1);
+            final var expected = givenMessageProof(snapshot, 1, List.of());
+            final var producer = producer(channel(10, 0), compactRequest(1), 2);
+
+            given(stateProofManager.verifyHieroProof(eq(expected), any())).willReturn(true);
+            assertThat(producer.next(false)).isEqualTo(expected);
+            assertThat(producer.nextStartingMessageId()).isEqualTo(2);
+            assertThat(producer.hasBundleToOffer()).isTrue();
+        }
+
+        @Test
+        void shortRotationCarriesMessagesAndWaitsForAnchorConfirmation() {
+            final var snapshot = signedSnapshot(2);
+            final var links = givenAdoptionHistory(snapshot, 1, 0);
+            final var expected = givenMessageProof(snapshot, 2, links);
+            final var producer = producer(channel(10, 0), compactRequest(1), 2);
+
+            given(stateProofManager.verifyHieroProof(eq(expected), any())).willReturn(true);
+            assertThat(producer.next(false)).isEqualTo(expected);
+            assertThat(producer.nextStartingMessageId()).isEqualTo(2);
+            assertThat(producer.next(false)).isNull();
+        }
+
+        @Test
+        void witnessOnlyProgressKeepsTheCursorAndTheNextRequestCanDeliver() {
+            final var snapshot = signedSnapshot(10);
+            final var links = givenAdoptionHistory(snapshot, 9, 8);
+            final var expected = ClprHieroProofCodec.encodeWitness(links.subList(0, 8), witness(8));
+            final var producer = producer(channel(1, 0), compactRequest(1), 2);
+
+            given(stateProofManager.verifyHieroProof(eq(expected), any())).willReturn(true);
+            assertThat(producer.next(false)).isEqualTo(expected);
+            assertThat(producer.nextStartingMessageId()).isEqualTo(1);
+            assertThat(producer.next(false)).isNull();
+            verify(stateProofManager, never())
+                    .buildBundleProof(any(), any(), anyLong(), any(), anyBoolean(), anyBoolean(), any());
+
+            final var expectedMessage = givenMessageProof(snapshot, 10, links.subList(8, 9));
+            final var nextCycle = producer(channel(10, 0), compactRequest(9));
+            given(stateProofManager.verifyHieroProof(eq(expectedMessage), any()))
+                    .willReturn(true);
+            assertThat(nextCycle.next(false)).isEqualTo(expectedMessage);
+            assertThat(nextCycle.nextStartingMessageId()).isEqualTo(2);
+        }
+
+        @Test
+        void missingBatchEndpointKeepsTheCursor() {
+            final var snapshot = signedSnapshot(10);
+            givenAdoptionHistory(snapshot, 9, 0);
+            final var producer = producer(channel(10, 0), compactRequest(1));
+
+            assertThat(producer.next(false)).isNull();
+            assertThat(producer.nextStartingMessageId()).isEqualTo(1);
+        }
+
+        @Test
+        void unknownAnchorKeepsTheCursor() {
+            final var snapshot = signedSnapshot(2);
+            givenAdoptionHistory(snapshot, 1, 0);
+            final var producer = producer(channel(10, 0), compactRequest(3));
+
+            assertThat(producer.next(false)).isNull();
+            assertThat(producer.nextStartingMessageId()).isEqualTo(1);
+        }
+
+        @Test
+        void failedSenderCheckDoesNotSendOrMoveTheCursor() {
+            final var snapshot = signedSnapshot(1);
+            final var expected = givenMessageProof(snapshot, 1, List.of());
+            final var request = compactRequest(1);
+            final var producer = producer(channel(10, 0), request);
+
+            assertThat(producer.next(false)).isNull();
+            assertThat(producer.nextStartingMessageId()).isEqualTo(1);
+            verify(stateProofManager).verifyHieroProof(expected, request.currentTrustAnchorId());
+            verify(stateProofManager).reportHieroProofSkip(CHANNEL_ID, INVALID_PROOF);
+        }
+
+        @Test
+        void sha384NetworkDoesNotBuildCompactProofs() {
+            assertThat(producer(channel(10, 0), compactRequest(1)).next(false)).isNull();
+            verify(stateProofManager, never()).latestSnapshot();
+            verify(stateProofManager).reportHieroProofSkip(CHANNEL_ID, SHA_384_NETWORK);
+        }
+
+        @Test
+        void ledgerIdDoesNotSelectAnAnchorForCompactProofs() {
+            final var request = compactRequest(1)
+                    .copyBuilder()
+                    .currentTrustAnchorId(Bytes.wrap(new byte[64]))
+                    .build();
+            assertThat(producer(channel(10, 0), request).next(false)).isNull();
+            verify(stateProofManager, never()).latestSnapshot();
+            verify(stateProofManager).reportHieroProofSkip(CHANNEL_ID, UNKNOWN_ANCHOR);
+        }
+
+        private BlockProvenSnapshot signedSnapshot(final int signer) {
+            final var snapshot = mock(BlockProvenSnapshot.class);
+            given(stateProofManager.supportsHieroProofV1()).willReturn(true);
+            given(stateProofManager.latestSnapshot()).willReturn(Optional.of(snapshot));
+            given(snapshot.path())
+                    .willReturn(MerklePath.newBuilder()
+                            .siblings(SiblingNode.newBuilder()
+                                    .hash(Bytes.wrap(new byte[32]))
+                                    .build())
+                            .build());
+            given(snapshot.tssSignature()).willReturn(signature(signer));
+            return snapshot;
+        }
+
+        private List<HintsKeyProvenance> givenAdoptionHistory(
+                final BlockProvenSnapshot snapshot, final int count, final int witnessedLink) {
+            final var links = new ArrayList<HintsKeyProvenance>();
+            for (int i = 1; i <= count; i++) {
+                links.add(HintsKeyProvenance.newBuilder()
+                        .sourceVerificationKey(key(i))
+                        .targetVerificationKey(key(i + 1))
+                        .targetHintsConstructionId(i)
+                        .signature(Bytes.wrap(new byte[SIGNATURE_LENGTH]))
+                        .build());
+            }
+            final var records = links.stream()
+                    .map(link -> {
+                        final var record = HintsKeyWitnessRecord.newBuilder().provenance(link);
+                        if (link.targetHintsConstructionId() == witnessedLink) {
+                            record.witness(witness(witnessedLink));
+                        }
+                        return record.build();
+                    })
+                    .toList();
+            given(snapshot.keyProvenanceWithWitnesses()).willReturn(records);
+            return links;
+        }
+
+        private Bytes givenMessageProof(
+                final BlockProvenSnapshot snapshot, final int signer, final List<HintsKeyProvenance> links) {
+            final var proof = StateProof.newBuilder()
+                    .paths(MerklePath.newBuilder()
+                            .hash(Bytes.wrap(new byte[32]))
+                            .build())
+                    .signedBlockProof(TssSignedBlockProof.newBuilder()
+                            .blockSignature(signature(signer))
+                            .build())
+                    .build();
+            final var raw = StateProof.PROTOBUF.toBytes(proof);
+            final var expected =
+                    ClprHieroProofCodec.encodeStateProof(ClprHieroProofCodec.compactStateProof(raw), links);
+            given(stateProofManager.buildBundleProof(
+                            eq(snapshot),
+                            eq(CHANNEL_ID),
+                            eq(1L),
+                            eq(PEER_THROTTLES),
+                            anyBoolean(),
+                            anyBoolean(),
+                            any()))
+                    .willAnswer(inv -> {
+                        final ToLongFunction<StateProof> payloadSize = inv.getArgument(6);
+                        assertThat(payloadSize.applyAsLong(proof)).isEqualTo(expected.length());
+                        return new BundleProof(raw, 1, 1);
+                    });
+            return expected;
+        }
+
+        private static ClprBundleRequest compactRequest(final int signer) {
+            return request(0)
+                    .copyBuilder()
+                    .bundleFormat(CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1)
+                    .currentTrustAnchorId(keccak256DigestOf(key(signer)))
+                    .build();
+        }
+
+        private static HintsKeyWitness witness(final int construction) {
+            return HintsKeyWitness.newBuilder()
+                    .targetHintsConstructionId(construction)
+                    .timestamp(new Timestamp(1, 0))
+                    .siblingHash(Bytes.wrap(new byte[32]))
+                    .signature(Bytes.wrap(new byte[SIGNATURE_LENGTH]))
+                    .hashAlgorithm(SHA2_256)
+                    .build();
+        }
+
+        private static Bytes key(final int signer) {
+            return signature(signer).slice(0, VK_LENGTH);
+        }
+
+        private static Bytes signature(final int signer) {
+            final var signature = new byte[NATIVE_SIGNATURE_LENGTH];
+            signature[0] = (byte) signer;
+            return Bytes.wrap(signature);
+        }
+    }
+
+    /** Stubs the builder to pack {@code messageCount} messages from whatever start it is given. */
     private void givenBundleOf(final int messageCount) {
         given(stateProofManager.buildBundleProof(any(), anyLong(), any(), anyBoolean(), anyBoolean()))
                 .willAnswer(inv -> {
