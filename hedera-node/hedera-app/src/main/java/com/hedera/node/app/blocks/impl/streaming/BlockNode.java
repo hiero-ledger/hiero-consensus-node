@@ -499,12 +499,11 @@ public class BlockNode {
                 };
         // spotless:on
 
-        final int coolDownSeconds =
-                switch (coolDownType) {
-                    case BASIC -> bncConfig().basicNodeCoolDownSeconds();
-                    case EXTENDED -> bncConfig().extendedNodeCoolDownSeconds();
-                    default -> 0;
-                };
+        final int coolDownSeconds = switch (coolDownType) {
+            case BASIC -> bncConfig().basicNodeCoolDownSeconds();
+            case EXTENDED -> bncConfig().extendedNodeCoolDownSeconds();
+            default -> 0;
+        };
 
         if (coolDownSeconds == 0) {
             return;
