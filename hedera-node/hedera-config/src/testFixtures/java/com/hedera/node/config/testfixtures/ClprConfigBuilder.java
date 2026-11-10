@@ -14,7 +14,7 @@ public final class ClprConfigBuilder {
     private int protocolVersion = 1;
     private String ledgerConfigurationFile = "data/config/clprLedgerConfiguration.json";
     private String upgradeLedgerConfigurationFile = "clprLedgerConfiguration.json";
-    private long minLockedStake = 100_000_000L;
+    private long minLockedStakeTinycents = 30_000_000_000_000L;
     private long stakingAccount = 803L;
     private long slashBasePenalty = 10_000_000L;
     private int slashMultiplier = 2;
@@ -70,8 +70,8 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder minLockedStake(final long minLockedStake) {
-        this.minLockedStake = minLockedStake;
+    public ClprConfigBuilder minLockedStakeTinycents(final long minLockedStakeTinycents) {
+        this.minLockedStakeTinycents = minLockedStakeTinycents;
         return this;
     }
 
@@ -211,7 +211,7 @@ public final class ClprConfigBuilder {
                 protocolVersion,
                 ledgerConfigurationFile,
                 upgradeLedgerConfigurationFile,
-                minLockedStake,
+                minLockedStakeTinycents,
                 stakingAccount,
                 slashBasePenalty,
                 slashMultiplier,

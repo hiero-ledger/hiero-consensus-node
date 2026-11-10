@@ -223,7 +223,12 @@ With defaults, the escalation sequence is:
 | 4th       | 800 ℏ                                              |
 | 5th (ban) | remaining locked stake forfeited; connector banned |
 
-A connector starting with the minimum locked stake of 30,000 ℏ would lose 1,500 ℏ (5% of
+The minimum connector bond is `clpr.minLockedStakeTinycents`, defaulting to $3,000. Completing connector
+registration converts this minimum at the active network exchange rate for the transaction's consensus time.
+The actual bond is transferred and stored in tinybars; existing locked stake is not continuously revalued
+as the exchange rate changes.
+
+At $0.10/ℏ, the minimum bond is 30,000 ℏ. A connector starting with that bond would lose 1,500 ℏ (5% of
 its stake) over the first four offences and would be banned on the 5th.
 
 **Endpoint payout:** on a slash event, the submitting endpoint receives the full

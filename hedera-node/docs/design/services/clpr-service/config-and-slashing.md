@@ -38,7 +38,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |                 Key                  |            Default            | Network? |                                    Purpose                                    |
 |--------------------------------------|-------------------------------|----------|-------------------------------------------------------------------------------|
-| `minLockedStake`                     | `3 000 000 000 000` tinybars  | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.      |
+| `minLockedStakeTinycents`             | `30 000 000 000 000` tinycents ($3,000) | yes | Minimum bond for `completeConnector`, converted at its active consensus exchange rate; the submitted tinybars are transferred to `stakingAccount`. |
 | `stakingAccount`                     | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.     |
 | `slashBasePenalty`                   | `10 000 000 000` tinybars     | yes      | Base slash on first offence; each penalty is paid to the submitting endpoint. |
 | `slashMultiplier`                    | `2`                           | yes      | Geometric escalation factor per repeat offence.                               |
@@ -189,9 +189,13 @@ The targets are $0.10 for `sendMessage`, $0.01 for `verifyConfig`, and $0.02 eac
 target. Native verifier dispatches use the gas charged by the native operation. Off-chain contract queries use the
 ordinary query payment path. On-chain calls that need a top-up must use a payable call.
 
-Defaults for the minimum connector stake, first slash, and progress reward use the proposal's USD amounts at
-a reference rate of $0.10/ℏ. The stake is $3,000, the first slash is $10 (doubling, with a ban on the fifth
-offence), and the reward is $0.01 per newly dispatched data message. The amounts are fixed in tinybars.
+The minimum connector bond is denominated in tinycents and defaults to $3,000. `completeConnector` converts
+this minimum using the active network exchange rate at the transaction's consensus time and requires the
+submitted tinybar bond to meet it. The transferred and stored bond remains in tinybars; existing locked stake
+is not continuously revalued or topped up as the exchange rate changes.
+
+The first slash and progress reward remain fixed in tinybars, sized at the proposal's $0.10/ℏ reference rate:
+$10 for the first slash (doubling, with a ban on the fifth offence), and $0.01 per newly dispatched data message.
 
 ## Slashing: `ClprSlashingUtils`
 

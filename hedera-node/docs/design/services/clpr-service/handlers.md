@@ -91,9 +91,10 @@ side-effects.
   The channel ID is public metadata; the commitment preimage is verified during reveal.
 - Reveal verifies signature `ECDSA(keccak256(connector_id ‖ 0x…16e))` (Hiero-specific
   binding from spec §6.3 callout).
-- Stake: `complete` requires the connector's `min_locked_stake` (`ClprConfig.minLockedStake`)
-  to be transferred from payer to `ClprConfig.stakingAccount` via the transaction's
-  crypto-transfer list.
+- Stake: `complete` converts `ClprConfig.minLockedStakeTinycents` (default $3,000) at the active
+  exchange rate for the transaction's consensus time and requires `locked_stake` to meet that minimum.
+  The submitted `locked_stake` is transferred in tinybars from payer to `ClprConfig.stakingAccount`
+  and stored on the connector. Existing locked stake is not continuously revalued as exchange rates change.
 - Register rejects a commitment already in `PENDING_CONNECTOR_COMMITMENTS` with
   `CLPR_CONNECTOR_ALREADY_EXISTS`.
 - Writes: `CONNECTORS[ClprConnectorKey] = ClprConnector{...}`. The commitment stays in

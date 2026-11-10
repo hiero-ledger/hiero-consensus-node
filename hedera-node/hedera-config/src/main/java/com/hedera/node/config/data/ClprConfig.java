@@ -29,16 +29,16 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "clprLedgerConfiguration.json")
         String upgradeLedgerConfigurationFile,
 
-        // --- Connector bonds and penalties (tinybars) ---
-        // Defaults size the CLPR fee proposal's USD figures at $0.10/ℏ.
-        // Minimum locked stake of a Connector ($3,000)
-        @ConfigProperty(defaultValue = "3000000000000") @NetworkProperty
-        long minLockedStake,
+        // --- Connector bonds and penalties ---
+        // Minimum connector bond ($3,000), converted to tinybars at the active consensus exchange rate
+        // when completing registration. Existing locked stake remains denominated in tinybars.
+        @ConfigProperty(defaultValue = "30000000000000") @Min(0) @NetworkProperty
+        long minLockedStakeTinycents,
 
         @ConfigProperty(defaultValue = "803") @NetworkProperty
         long stakingAccount,
 
-        // First slash of a Connector ($10), multiplied by slashMultiplier for each later one until slashBanThreshold.
+        // First slash of a Connector ($10 at $0.10/ℏ), multiplied by slashMultiplier until slashBanThreshold.
         // The submitting endpoint receives each penalty in full, up to the staking account's balance.
         @ConfigProperty(defaultValue = "10000000000") @NetworkProperty
         long slashBasePenalty,

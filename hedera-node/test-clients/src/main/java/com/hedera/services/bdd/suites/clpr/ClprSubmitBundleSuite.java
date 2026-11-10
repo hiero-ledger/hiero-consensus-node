@@ -165,7 +165,7 @@ public class ClprSubmitBundleSuite {
                         .build())
                 .build();
         return hapiTest(
-                overriding("clpr.minLockedStake", "100"),
+                overriding("clpr.minLockedStakeTinycents", "0"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -293,7 +293,7 @@ public class ClprSubmitBundleSuite {
                         .build())
                 .build();
         return hapiTest(
-                overriding("clpr.minLockedStake", "100"),
+                overriding("clpr.minLockedStakeTinycents", "0"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),

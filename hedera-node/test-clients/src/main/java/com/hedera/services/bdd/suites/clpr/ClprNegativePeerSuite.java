@@ -75,7 +75,7 @@ public class ClprNegativePeerSuite {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.minLockedStake"})
+            overrides = {"clpr.minLockedStakeTinycents"})
     @DisplayName("Malformed (raw) bundle → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> malformedBundleRejected() {
         final var crypto = new ClprChannelCrypto();
@@ -105,7 +105,7 @@ public class ClprNegativePeerSuite {
     /** Spec §4.5 step 4: out-of-order replies → channel PAUSED (no bundle-level rejection). */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.minLockedStake"})
+            overrides = {"clpr.minLockedStakeTinycents"})
     @DisplayName("Out-of-order replies → channel PAUSED (spec §4.5)")
     final Stream<DynamicTest> outOfOrderReplies() {
         final var crypto = new ClprChannelCrypto();
@@ -123,7 +123,7 @@ public class ClprNegativePeerSuite {
     /** Spec §4.5 PAUSED-recovery: after PAUSED, a well-formed reply bundle returns the channel to ACTIVE. */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.minLockedStake"})
+            overrides = {"clpr.minLockedStakeTinycents"})
     @DisplayName("PAUSED → ACTIVE recovery after a multi-message bundle (spec §4.5)")
     final Stream<DynamicTest> pausedToActiveRecoveryAfterMultiMessageBundle() {
         final var crypto = new ClprChannelCrypto();
@@ -150,7 +150,7 @@ public class ClprNegativePeerSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.minLockedStake", "clpr.connectorQueueQuotaPct"})
+            overrides = {"clpr.minLockedStakeTinycents", "clpr.connectorQueueQuotaPct"})
     @DisplayName("Queue-full during multi-message inbound: reply enqueues bypass cap, app sends blocked")
     final Stream<DynamicTest> queueFullDuringMultiMessageInbound() {
         final var crypto = new ClprChannelCrypto();
@@ -181,7 +181,7 @@ public class ClprNegativePeerSuite {
     /** Step 8's non-resetting {@code responseIndex} must skip the Data slot between two replies. */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.minLockedStake"})
+            overrides = {"clpr.minLockedStakeTinycents"})
     @DisplayName("Interleaved Data+Reply in same bundle → channel stays ACTIVE")
     final Stream<DynamicTest> interleavedDataAndReplyInSameBundle() {
         final var crypto = new ClprChannelCrypto();
@@ -208,7 +208,7 @@ public class ClprNegativePeerSuite {
             final ClprLedgerConfiguration config,
             final AtomicReference<byte[]> aSentRunningHash) {
         return new SpecOperation[] {
-            overriding("clpr.minLockedStake", "100"),
+            overriding("clpr.minLockedStakeTinycents", "0"),
             clprUpdateLedgerConfiguration().configuration(config).payingWith(GENESIS),
             uploadInitCode(VERIFIER_CONTRACT),
             contractCreate(VERIFIER_CONTRACT),

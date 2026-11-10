@@ -129,8 +129,8 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 @HapiTestLifecycle
 public class ClprEnabledSuite {
-    /** The default {@code clpr.minLockedStake} (30,000 ℏ). */
-    private static final long DEFAULT_MIN_LOCKED_STAKE = 3_000_000_000_000L;
+    /** The default {@code clpr.minLockedStakeTinycents} ($3,000). */
+    private static final long DEFAULT_MIN_LOCKED_STAKE_TINYCENTS = 30_000_000_000_000L;
 
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String CALLER = "caller";
@@ -640,7 +640,7 @@ public class ClprEnabledSuite {
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
                         .adminKeyName(GENESIS)
-                        .lockedStake(DEFAULT_MIN_LOCKED_STAKE));
+                        .lockedStakeTinycents(DEFAULT_MIN_LOCKED_STAKE_TINYCENTS));
         txns.put(
                 "deregisterConnector",
                 clprDeregisterConnector()

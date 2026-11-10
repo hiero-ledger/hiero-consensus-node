@@ -58,8 +58,8 @@ public class ClprChannelCommitRevealSuite {
 
     private static final String VERIFIER = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
-    /** The default {@code clpr.minLockedStake} (30,000 ℏ). */
-    private static final long LOCKED_STAKE = 3_000_000_000_000L;
+    /** The default {@code clpr.minLockedStakeTinycents} ($3,000). */
+    private static final long LOCKED_STAKE_TINYCENTS = 30_000_000_000_000L;
 
     // ── Happy-path tests ─────────────────────────────────────────────────────
 
@@ -164,7 +164,7 @@ public class ClprChannelCommitRevealSuite {
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
                         .adminKeyName(GENESIS)
-                        .lockedStake(LOCKED_STAKE)
+                        .lockedStakeTinycents(LOCKED_STAKE_TINYCENTS)
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
                 // Connector exists

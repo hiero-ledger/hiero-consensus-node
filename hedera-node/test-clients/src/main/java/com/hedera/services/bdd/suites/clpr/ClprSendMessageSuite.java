@@ -52,7 +52,7 @@ public class ClprSendMessageSuite {
     final Stream<DynamicTest> sendMessageOnActiveChannelSucceeds() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
+                overriding("clpr.minLockedStakeTinycents", "0"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
