@@ -713,6 +713,27 @@ public class RepeatableNestedContractStorageTests {
             value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
             overrides = {"contracts.enforceCreationThrottle"},
             throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
+    final Stream<DynamicTest> nestedCreationRevertedWithOuterCallGivesBackItsCapacity() {
+        final var scheduleId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                cryptoCreate(CREATIONS_PAYER).balance(ONE_HUNDRED_HBARS).keyShape(KeyShape.CONTRACT.signedWith(WRITER)),
+                scheduledWriterCreation("nested", scheduleId),
+                overriding("contracts.enforceCreationThrottle", "true"),
+                // The outer call reverts after the nested creation, which gives back the throttle's only unit; so the
+                // outer call's check without creations passes, and it reverts with its own empty reason
+                writerAuthorizing(
+                        "revertingOuter", List.of(scheduleId), NO_WRITE, NO_WRITE, true, CONTRACT_REVERT_EXECUTED),
+                getTxnRecord("revertingOuter")
+                        .hasPriority(
+                                recordWith().contractCallResult(resultWith().error("0x"))),
+                getScheduleInfo("nested").isNotExecuted());
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            overrides = {"contracts.enforceCreationThrottle"},
+            throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
     final Stream<DynamicTest> ownCreationAfterRolledBackNestedCreationIsAdmitted() {
         final var factory = "NoncesExternalization";
         final var rolledBackId = new AtomicReference<ScheduleID>();
