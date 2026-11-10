@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
+import static java.util.Comparator.comparing;
 import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.Marker;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -24,23 +26,28 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
 
 /**
  * Helper class that collects all test results of a node.
+ *
+ * <p>This class is not thread-safe. Results are added on one thread at a time and are never read while they are
+ * added. Falcon and Container add the results of a node on the test thread. Turtle adds them on the thread that ticks
+ * the node, and the test thread waits until all nodes have finished their tick before it continues.
  */
 public class NodeResultsCollector {
 
     private final NodeId nodeId;
-    private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
+    // The rounds in the order the node delivered them. A restart delivers some of them again.
+    private final List<ConsensusRound> consensusRounds = new ArrayList<>();
+    private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new ArrayList<>();
     private final List<EventDescriptorWrapper> preConsensusEvents = new ArrayList<>();
     private final List<EventDescriptorWrapper> staleEvents = new ArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
-    private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
+    private final List<PlatformStatusSubscriber> platformStatusSubscribers = new ArrayList<>();
     private final List<StructuredLog> logEntries = new ArrayList<>();
-    private final List<LogSubscriber> logSubscribers = new CopyOnWriteArrayList<>();
+    private final List<LogSubscriber> logSubscribers = new ArrayList<>();
     private final ConsensusRoundPool roundPool;
     // Turtle and Container do not pass their pre-consensus and stale events yet (#28054, #28056)
     private final boolean collectsEvents;
 
-    // This class may be used in a multi-threaded context, so we use volatile to ensure visibility of state changes
-    private volatile boolean destroyed = false;
+    private boolean destroyed = false;
 
     /**
      * Creates a new instance of {@link NodeResultsCollector}.
@@ -76,10 +83,11 @@ public class NodeResultsCollector {
         requireNonNull(round);
         if (!destroyed) {
             // sends each round through the pool to deduplicate across nodes
-            final ConsensusRound internalRound = roundPool.update(round, nodeId);
+            final ConsensusRound canonicalRound = roundPool.canonicalize(round);
+            consensusRounds.add(canonicalRound);
 
             consensusRoundSubscribers.removeIf(
-                    subscriber -> subscriber.onConsensusRound(nodeId, internalRound) == SubscriberAction.UNSUBSCRIBE);
+                    subscriber -> subscriber.onConsensusRound(nodeId, canonicalRound) == SubscriberAction.UNSUBSCRIBE);
         }
     }
 
@@ -198,15 +206,32 @@ public class NodeResultsCollector {
     }
 
     /**
-     * Returns all the consensus rounds created by this node at the moment of invocation whose round number is greater
-     * than the provided round number.
+     * Returns the consensus rounds delivered by this node until the moment of invocation, starting with and including
+     * the delivery at the provided index. A round that was delivered more than once is returned once, but different
+     * rounds with the same round number are all returned. The rounds are ordered by round number.
      *
-     * @param roundNum the round number after which rounds are returned
+     * @param startIndex the index of the first delivery to include
      * @return the list of consensus rounds
      */
     @NonNull
-    public List<ConsensusRound> currentConsensusRoundsAfter(final long roundNum) {
-        return roundPool.currentConsensusRoundsAfter(roundNum, nodeId);
+    public List<ConsensusRound> currentConsensusRounds(final int startIndex) {
+        // This creates a Set based on identity. The ConsensusRoundPool ensures that the same round is always the same
+        // object. We cannot use a regular Set because equality of ConsensusRounds is based on the events only,
+        // which means a regular Set would remove empty rounds that were emitted at different times.
+        final Set<ConsensusRound> distinctRounds = Collections.newSetFromMap(new IdentityHashMap<>());
+        distinctRounds.addAll(consensusRounds.subList(startIndex, consensusRounds.size()));
+        return distinctRounds.stream()
+                .sorted(comparing(ConsensusRound::getRoundNum))
+                .toList();
+    }
+
+    /**
+     * Returns the number of consensus rounds delivered by this node, counting a round once for every delivery.
+     *
+     * @return the count of delivered consensus rounds
+     */
+    public int currentConsensusRoundsCount() {
+        return consensusRounds.size();
     }
 
     /**

@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.verifier.ethereum;
 
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.Map;
 
 /**
  * Shared test-only helpers for the Ethereum sync-committee verifier suite.
@@ -67,6 +68,44 @@ final class EthereumTestUtils {
             leaf[i] = (byte) (value >>> (8 * i));
         }
         return leaf;
+    }
+
+    /**
+     * Root of a sparse SSZ tree holding {@code leavesByGindex} at their generalized indices; every other subtree is a
+     * zero chunk. Lets a test commit several leaves at different depths (e.g. the finalized root and the next
+     * committee) under one state root.
+     */
+    static byte[] sparseRoot(final Map<Long, byte[]> leavesByGindex) {
+        return sparseNode(leavesByGindex, 1L);
+    }
+
+    /** Sibling path (bottom-up) of {@code gindex} in the sparse tree of {@link #sparseRoot}. */
+    static byte[][] sparseBranch(final Map<Long, byte[]> leavesByGindex, final long gindex) {
+        final int depth = 63 - Long.numberOfLeadingZeros(gindex);
+        final byte[][] branch = new byte[depth][];
+        long node = gindex;
+        for (int level = 0; level < depth; level++) {
+            branch[level] = sparseNode(leavesByGindex, node ^ 1);
+            node >>>= 1;
+        }
+        return branch;
+    }
+
+    private static byte[] sparseNode(final Map<Long, byte[]> leavesByGindex, final long gindex) {
+        final byte[] leaf = leavesByGindex.get(gindex);
+        if (leaf != null) {
+            return leaf;
+        }
+        final boolean hasLeafBelow =
+                leavesByGindex.keySet().stream().anyMatch(candidate -> isDescendant(candidate, gindex));
+        return hasLeafBelow
+                ? sha256(sparseNode(leavesByGindex, 2 * gindex), sparseNode(leavesByGindex, 2 * gindex + 1))
+                : new byte[32];
+    }
+
+    private static boolean isDescendant(final long candidate, final long ancestor) {
+        final int levelsBelow = Long.numberOfLeadingZeros(ancestor) - Long.numberOfLeadingZeros(candidate);
+        return levelsBelow > 0 && (candidate >>> levelsBelow) == ancestor;
     }
 
     /** Deterministic byte fixture: {@code out[i] = seed + i*31 (mod 256)}. */

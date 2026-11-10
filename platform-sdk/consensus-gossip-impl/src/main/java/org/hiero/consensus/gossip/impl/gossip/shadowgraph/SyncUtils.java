@@ -266,4 +266,19 @@ public final class SyncUtils {
 
         return knownTips;
     }
+
+    /**
+     * Checks if an event is a far future event: its birth round is more than {@code farFutureEventOffset} rounds ahead
+     * of the given pending round. Callers must check separately whether far future event filtering is enabled.
+     *
+     * @param farFutureEventOffset the number of rounds ahead of the pending round that a birth round may be without the
+     *                             event being a far future event; must not be negative
+     * @param eventBirthRound      the birth round of the event to check
+     * @param pendingRound         the pending round to base the check on
+     * @return true if the event is a far future event
+     */
+    public static boolean isFarFutureEvent(
+            final int farFutureEventOffset, final long eventBirthRound, final long pendingRound) {
+        return eventBirthRound > pendingRound + farFutureEventOffset;
+    }
 }

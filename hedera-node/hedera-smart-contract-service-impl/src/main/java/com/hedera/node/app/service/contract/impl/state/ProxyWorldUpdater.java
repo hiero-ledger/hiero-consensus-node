@@ -29,10 +29,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
@@ -72,6 +75,12 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * so a later reverted attempt cannot change the beneficiary externalized for a committed deletion.
      */
     private final Map<Address, AccountID> selfDestructBeneficiaries = new HashMap<>();
+
+    /**
+     * Numbers of the contracts created in this frame and its committed children. Like the beneficiaries,
+     * these follow frame rollback, so they identify exactly the creations of this execution that survive.
+     */
+    private final Set<Long> createdContractNumbers = new LinkedHashSet<>();
 
     /**
      * The factory used to create new {@link EvmFrameState} instances; used once in the
@@ -132,6 +141,15 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     public @Nullable PendingCreation getPendingCreation() {
         return pendingCreation;
+    }
+
+    /**
+     * Returns the numbers of the contracts created in this updater's frame and its committed children.
+     *
+     * @return the numbers of the contracts created in this frame and its committed children
+     */
+    public @NonNull Set<Long> getCreatedContractNumbers() {
+        return Collections.unmodifiableSet(createdContractNumbers);
     }
 
     @Override
@@ -322,7 +340,9 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         // Reset pending creation to null, as a CREATE2 operation "collided" with an existing
         // hollow account instead of creating a truly new contract
         pendingCreation = null;
-        enhancement.operations().externalizeHollowAccountMerge(getHederaContractId(address), aliasFrom(address));
+        final var contractId = getHederaContractId(address);
+        createdContractNumbers.add(contractId.contractNumOrThrow());
+        enhancement.operations().externalizeHollowAccountMerge(contractId, aliasFrom(address));
     }
 
     @Override
@@ -392,6 +412,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                     .operations()
                     .createContract(number, pendingCreation.parentNumber(), pendingCreation.aliasIfApplicable());
         }
+        createdContractNumbers.add(number);
         return evmFrameState.getMutableAccount(pendingCreation.address());
     }
 
@@ -425,6 +446,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         // ultimately the HederaOperations is the one tracking and managing all changes
         enhancement.operations().revert();
         selfDestructBeneficiaries.clear();
+        createdContractNumbers.clear();
         // Because of the revert-then-commit pattern that Besu uses for force deletions in
         // AbstractMessageProcessor#clearAccumulatedStateBesidesGasAndOutput(), we have
         // to take special measures here to avoid popping the savepoint stack twice for
@@ -453,6 +475,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             enhancement.operations().commit();
             if (parent instanceof ProxyWorldUpdater parentUpdater) {
                 parentUpdater.selfDestructBeneficiaries.putAll(selfDestructBeneficiaries);
+                parentUpdater.createdContractNumbers.addAll(createdContractNumbers);
             }
         }
     }
