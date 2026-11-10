@@ -187,13 +187,6 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
                     delegate.snapshot(snapshotDirectory);
                 }
 
-                @NonNull
-                @Override
-                public VirtualDataSource copy(@NonNull final Path storageDir, final boolean compactionEnabled)
-                        throws IOException {
-                    return delegate.copy(storageDir, compactionEnabled);
-                }
-
                 @Override
                 public void copyStatisticsFrom(final VirtualDataSource that) {
                     delegate.copyStatisticsFrom(that);

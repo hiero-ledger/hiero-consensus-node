@@ -64,11 +64,11 @@ run one after the other.
 
 ### Idea
 
-Add `VirtualDataSource.copy(Path storageDir, boolean compactionEnabled)`, next to `snapshot(Path)`, and
-`VirtualDataSourceBuilder.copy(VirtualDataSource source, boolean compactionEnabled)`, which picks the copy's storage
-dir and calls it, as `VirtualDataSourceBuilder.snapshot()` does for snapshots. `VirtualMap` calls it inside the
-pipeline pause and gets a complete data source copy back, for the teacher, for the learner, and for `createSnapshot()`.
-Nothing is restored from a snapshot anymore.
+Add `VirtualDataSourceBuilder.copy(VirtualDataSource source, boolean compactionEnabled)`, next to
+`VirtualDataSourceBuilder.snapshot()`. `VirtualMap` calls it inside the pipeline pause and gets a complete data source
+copy back, for the teacher, for the learner, and for `createSnapshot()`. Nothing is restored from a snapshot anymore.
+The MerkleDB builder creates a new temp dir for the copy and calls `MerkleDbDataSource.copy(Path storageDir, boolean
+compactionEnabled)`. `VirtualDataSource` gets no copy method: data sources are only copied through their builder.
 
 With the pipeline and compaction paused, `MerkleDbDataSource.copy()` makes a regular snapshot straight into the
 copy's directory, with one difference: the three indexes aren't written to files. Instead, each `LongListSegment`

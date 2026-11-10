@@ -16,7 +16,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.file.FileUtils;
 
 /**
  * Virtual data source builder that manages MerkleDb data sources.
@@ -177,24 +176,11 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
         }
         final String label = merkleDbDataSource.getTableName();
-        final boolean isTempDir = (snapshotDir == null);
-        if (isTempDir) {
+        if (snapshotDir == null) {
             snapshotDir = newTempDataSourceDir(label);
         }
         final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
-        try {
-            snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
-        } catch (final RuntimeException | Error e) {
-            // The temp dir is returned only on success, nobody else can delete it
-            if (isTempDir) {
-                try {
-                    FileUtils.deleteDirectory(snapshotDir);
-                } catch (final IOException | UncheckedIOException deletionFailure) {
-                    e.addSuppressed(deletionFailure);
-                }
-            }
-            throw e;
-        }
+        snapshotDataSource(merkleDbDataSource, snapshotDataSourceDir);
         return snapshotDir;
     }
 
@@ -214,7 +200,16 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     private MerkleDbDataSource restoreDataSource(
             final String label, @NonNull final Path snapshotDir, final boolean compactionEnabled) {
         try {
-            final Path dataSourceDir = newRestoredDataSourceDir(label);
+            Path dataSourceDir = null;
+            if (defaultDbFolderName != null) {
+                final Path defaultDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
+                if (!Files.exists(defaultDir)) {
+                    dataSourceDir = defaultDir;
+                }
+            }
+            if (dataSourceDir == null) {
+                dataSourceDir = newTempDataSourceDir(label);
+            }
             final Path snapshotDataSourceDir = snapshotDataDir(snapshotDir, label);
             if (Files.isDirectory(snapshotDataSourceDir)) {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
@@ -228,22 +223,9 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
         }
     }
 
-    /// Returns a new storage dir for a data source, which is restored from a snapshot or copied from
-    /// another data source. The default DB folder is used, if configured and doesn't exist yet.
-    /// Otherwise, a new temp folder is used.
-    private Path newRestoredDataSourceDir(final String label) {
-        if (defaultDbFolderName != null) {
-            final Path defaultDir = fileSystemManager.getTempPath().resolve(defaultDbFolderName);
-            if (!Files.exists(defaultDir)) {
-                return defaultDir;
-            }
-        }
-        return newTempDataSourceDir(label);
-    }
-
     /// {@inheritDoc}
     ///
-    /// The copy's storage dir is chosen as for a restored data source. See
+    /// The copy is created in a new temp dir, it doesn't use the default DB folder. See
     /// [MerkleDbDataSource#copy(Path, boolean)] for how the copy is made.
     @NonNull
     @Override
@@ -252,8 +234,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
         }
         try {
-            return merkleDbDataSource.copy(
-                    newRestoredDataSourceDir(merkleDbDataSource.getTableName()), compactionEnabled);
+            return merkleDbDataSource.copy(newTempDataSourceDir(merkleDbDataSource.getTableName()), compactionEnabled);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

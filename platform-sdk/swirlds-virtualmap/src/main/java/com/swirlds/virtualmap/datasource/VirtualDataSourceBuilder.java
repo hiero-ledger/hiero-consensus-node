@@ -47,9 +47,10 @@ public interface VirtualDataSourceBuilder {
     @NonNull
     Path snapshot(@Nullable Path destination, @NonNull VirtualDataSource dataSource);
 
-    /// Copies the given data source with [VirtualDataSource#copy(Path, boolean)], into a new storage
-    /// dir chosen by this builder. Like [#snapshot(Path, VirtualDataSource)], this method must be called
-    /// while the data source isn't modified.
+    /// Copies the given data source. The copy has the same data and label as the source, but is
+    /// independent of it: either one can be changed or closed without affecting the other. Like
+    /// [#snapshot(Path, VirtualDataSource)], this method must be called while the data source isn't
+    /// modified, and it blocks until the copy is created.
     ///
     /// @param dataSource        The data source to copy
     /// @param compactionEnabled Indicates whether background compaction should be enabled in the copy

@@ -968,7 +968,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         snapshot(snapshotDirectory, null);
     }
 
-    /// {@inheritDoc}
+    /// Copies this data source into the given storage dir. The copy has the same data and label as this
+    /// data source, but is independent of it: either one can be changed or closed without affecting the
+    /// other. Like [#snapshot(Path)], this method must be called while this data source isn't modified,
+    /// and it blocks until the copy is created.
     ///
     /// The copy is a snapshot in the given dir, but its indexes are copied in memory instead of written
     /// to the snapshot and read back. Compaction is paused while the snapshot is taken. The copy uses the
@@ -978,8 +981,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /// Disk based indices aren't in memory, so they are written to the snapshot, and the copy loads them
     /// from there. This is much slower, but such data sources are used where memory matters more than
     /// performance.
+    ///
+    /// @param storageDir        storage dir of the copy
+    /// @param compactionEnabled whether background compaction should be enabled in the copy
+    /// @return the data source copy, the caller is responsible for closing it
+    /// @throws IOException if the data source can't be copied
     @NonNull
-    @Override
     public MerkleDbDataSource copy(@NonNull final Path storageDir, final boolean compactionEnabled) throws IOException {
         // Kept outside the snapshot, so the copied indexes are released also if resuming compaction or
         // opening the copy fails
@@ -1133,7 +1140,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     /// Indicates whether this data source uses disk based indices, see [MerkleDbConfig#useDiskIndices()].
-    public boolean isPreferDiskBasedIndices() {
+    /// Only used in tests.
+    boolean isPreferDiskBasedIndices() {
         return preferDiskBasedIndices;
     }
 
@@ -1243,11 +1251,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 () -> {
                     final long START = System.currentTimeMillis();
                     try {
-                        runnable.run();
+                        FileUtils.rethrowIO(runnable);
                         return taskName + " " + (System.currentTimeMillis() - START) + " ms";
-                    } catch (final IOException e) {
-                        logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, e);
-                        throw new UncheckedIOException(e);
                     } catch (final RuntimeException | Error e) {
                         logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, e);
                         throw e;

@@ -207,29 +207,6 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         // The copy's storage dir is checked in checkNoDataSourcesLeft()
     }
 
-    @Test
-    @DisplayName("A failed snapshot to a new temp dir deletes the dir")
-    void failedSnapshotToTempDirDeletesIt() throws IOException {
-        final MerkleDbDataSource source = createPopulatedDataSource(TestType.long_fixed);
-        try {
-            final MerkleDbDataSource spy = Mockito.spy(source);
-            // Takes the snapshot, then fails as resuming compaction would
-            doAnswer(invocation -> {
-                        invocation.<IORunnable>getArgument(0).run();
-                        throw new IOException("Test: resuming compaction failed");
-                    })
-                    .when(spy)
-                    .pauseCompactionAndRun(any());
-            final MerkleDbDataSourceBuilder builder = builder(DEFAULT_CONFIGURATION);
-            final UncheckedIOException e = assertThrows(UncheckedIOException.class, () -> builder.snapshot(null, spy));
-            assertEquals("Test: resuming compaction failed", e.getCause().getMessage());
-            checkData(TestType.long_fixed, source, 1);
-        } finally {
-            source.close();
-        }
-        // The snapshot's temp dir is checked in checkNoDataSourcesLeft()
-    }
-
     @ParameterizedTest
     @EnumSource(TestType.class)
     @DisplayName("A data source with disk-based indices is copied with disk-based indices")
@@ -269,11 +246,30 @@ class MerkleDbDataSourceCopyTest extends AbstractFileManagerAwareTest {
         final MerkleDbDataSourceBuilder builder = builder(config);
         final MerkleDbDataSource source = createPopulatedDataSource(builder, TestType.long_fixed, false);
         try {
-            final MerkleDbDataSource copy = (MerkleDbDataSource) builder.copy(source, compactionEnabled);
+            // A rebuilt index has the same contents as a copied one, so the copies are tracked
+            final MerkleDbDataSource spy = Mockito.spy(source);
+            final List<LongList> copiedIndexes = new CopyOnWriteArrayList<>();
+            doAnswer(invocation -> {
+                        final LongList copy = (LongList) invocation.callRealMethod();
+                        copiedIndexes.add(copy);
+                        return copy;
+                    })
+                    .when(spy)
+                    .copyIndex(any());
+            final MerkleDbDataSource copy = (MerkleDbDataSource) builder.copy(spy, compactionEnabled);
             try {
                 assertFalse(copy.isPreferDiskBasedIndices());
                 assertEquals(compactionEnabled, copy.isCompactionEnabled());
                 // The copied indexes are used, they aren't rebuilt
+                assertEquals(3, copiedIndexes.size(), "All three indexes should be copied");
+                for (final LongList index : List.of(
+                        copy.getIdToDiskLocationHashChunks(),
+                        copy.getPathToDiskLocationLeafNodes(),
+                        copy.getKeyToPath().getBucketIndexToBucketLocation())) {
+                    assertTrue(
+                            copiedIndexes.stream().anyMatch(copied -> copied == index),
+                            "The copy should use the copied index " + index);
+                }
                 assertSameIndex(source.getPathToDiskLocationLeafNodes(), copy.getPathToDiskLocationLeafNodes());
                 checkData(TestType.long_fixed, copy, 1);
             } finally {
