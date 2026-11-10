@@ -34,12 +34,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/**
- * Tests that a compaction stays consistent when a snapshot fails to pause or resume it: no index
- * entry may point to a file the collection can't read, and the input files must be kept.
- */
+///
+/// Tests that a compaction stays consistent when a snapshot fails to pause or resume it: no index
+/// entry may point to a file the collection can't read, and the input files must be kept.
+///
 class DataFileCompactorFailureTest {
 
+    private static final String STORE_NAME = "store";
     private static final int NUM_FILES = 3;
     private static final int KEYS_PER_FILE = 100;
     private static final int NUM_KEYS = NUM_FILES * KEYS_PER_FILE;
@@ -59,7 +60,7 @@ class DataFileCompactorFailureTest {
     @BeforeEach
     void setUp() throws IOException {
         storeDir = tempDir.resolve("store");
-        store = new FailingDataFileCollection(storeDir, "store");
+        store = new FailingDataFileCollection(storeDir, STORE_NAME);
         index = new LongListOffHeap(KEYS_PER_FILE, NUM_KEYS, 0);
         index.updateValidRange(0, NUM_KEYS - 1);
         for (int file = 0; file < NUM_FILES; file++) {
@@ -149,9 +150,9 @@ class DataFileCompactorFailureTest {
         assertEquals(completedFilePaths(), dataFilePathsOnDisk());
     }
 
-    /**
-     * Starts a compaction of all files and pauses it after {@link #PAUSE_AT} items are copied.
-     */
+    ///
+    /// Starts a compaction of all files and pauses it after [#PAUSE_AT] items are copied.
+    ///
     private Future<?> startCompactionAndPause() throws Exception {
         return startCompactionAndPause(compactor::pauseCompaction);
     }
@@ -196,7 +197,8 @@ class DataFileCompactorFailureTest {
 
     private Set<Path> dataFilePathsOnDisk() throws IOException {
         try (final Stream<Path> files = Files.list(storeDir)) {
-            return files.filter(p -> p.toString().endsWith(DataFileCommon.FILE_EXTENSION))
+            // Leaves out the collection's metadata file, which has the same extension
+            return files.filter(p -> DataFileCommon.isFullyWrittenDataFile(STORE_NAME, p))
                     .collect(Collectors.toSet());
         }
     }
@@ -215,10 +217,10 @@ class DataFileCompactorFailureTest {
         void run() throws Exception;
     }
 
-    /**
-     * Blocks the compaction thread before it copies item {@link #PAUSE_AT}, outside the compactor's
-     * lock, until the test has paused the compaction.
-     */
+    ///
+    /// Blocks the compaction thread before it copies item [#PAUSE_AT], outside the compactor's
+    /// lock, until the test has paused the compaction.
+    ///
     private record PausingIndex(LongList index, CountDownLatch reached, CountDownLatch paused)
             implements CASableLongIndex {
 
@@ -248,9 +250,9 @@ class DataFileCompactorFailureTest {
         }
     }
 
-    /**
-     * A data file collection that fails to create the next data file or its reader on request.
-     */
+    ///
+    /// A data file collection that fails to create the next data file or its reader on request.
+    ///
     private static final class FailingDataFileCollection extends DataFileCollection {
 
         private volatile IOException newDataFileFailure;

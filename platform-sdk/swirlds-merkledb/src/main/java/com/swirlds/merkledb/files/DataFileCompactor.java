@@ -138,13 +138,13 @@ public class DataFileCompactor {
      */
     private int compactionLevelInProgress = 0;
 
-    /**
-     * Indicates that the current compaction must stop, because a snapshot failed to finish its
-     * current output file in {@link #pauseCompaction()} or to start a new one in {@link
-     * #resumeCompaction()}. Items must not be copied after that, as there is no output file the
-     * collection can read them from. The compaction then stops with an exception and keeps its
-     * input files. This field is synchronized using {@link #snapshotCompactionLock}.
-     */
+    ///
+    /// Indicates that the current compaction must stop, because a snapshot failed to finish its
+    /// current output file in [#pauseCompaction()] or to start a new one in [#resumeCompaction()].
+    /// Items must not be copied after that, as there is no output file the collection can read
+    /// them from. The compaction then stops with an exception and keeps its input files. This
+    /// field is synchronized using [#snapshotCompactionLock].
+    ///
     private boolean compactionAborted = false;
 
     /**
@@ -557,20 +557,20 @@ public class DataFileCompactor {
         }
     }
 
-    /**
-     * Opens a new file for writing during compaction. This method is called when compaction is
-     * started. If compaction is interrupted and resumed by data source snapshot using {@link
-     * #pauseCompaction()} and {@link #resumeCompaction()}, a new file is created for writing using
-     * this method before compaction is resumed.
-     * <p>
-     * This method must be called under snapshot/compaction lock.
-     * <p>
-     * The new file is used for compaction only if both its writer and its reader are created. If
-     * the reader can't be created, the writer is closed, and the file is deleted, so no items are
-     * written to a file the collection can't read.
-     *
-     * @throws IOException If an I/O error occurs
-     */
+    ///
+    /// Opens a new file for writing during compaction. This method is called when compaction is
+    /// started. If compaction is interrupted and resumed by data source snapshot using
+    /// [#pauseCompaction()] and [#resumeCompaction()], a new file is created for writing using
+    /// this method before compaction is resumed.
+    ///
+    /// This method must be called under snapshot/compaction lock.
+    ///
+    /// The new file is used for compaction only if both its writer and its reader are created. If
+    /// the reader can't be created, the writer is closed, and the file is deleted, so no items are
+    /// written to a file the collection can't read.
+    ///
+    /// @throws IOException If an I/O error occurs
+    ///
     private void startNewCompactionFile(int compactionLevel) throws IOException {
         final Instant startTime = currentCompactionStartTime.get();
         assert startTime != null;
@@ -590,10 +590,10 @@ public class DataFileCompactor {
                 MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
     }
 
-    /**
-     * Closes and deletes a new compaction file that isn't registered in the collection. Failures
-     * are added to the given cause as suppressed.
-     */
+    ///
+    /// Closes and deletes a new compaction file that isn't registered in the collection. Failures
+    /// are added to the given cause as suppressed.
+    ///
     private static void discardNewFile(@NonNull final DataFileWriter writer, @NonNull final Throwable cause) {
         try {
             writer.close();
@@ -681,25 +681,25 @@ public class DataFileCompactor {
         // done
     }
 
-    /**
-     * Resumes compaction previously put on hold with {@link #pauseCompaction()}. If there was no
-     * compaction running at that moment, but new compaction was started (and blocked) since {@link
-     * #pauseCompaction()}, this new compaction is resumed.
-     *
-     * <p><b>This method must be always balanced with and called after {@link #pauseCompaction()} on
-     * the same thread. If there are more or less calls to resume compactions than to pause, or if
-     * they are called in a wrong order, it will result in deadlocks.</b>
-     *
-     * <p>If {@link #pauseCompaction()} failed to finish the current output file, or if a new output
-     * file can't be started here, the compaction in progress is aborted. It then stops without
-     * deleting its input files. The lock is released in any case.
-     *
-     * @throws IOException If an I/O error occurs
-     * @throws IllegalStateException If {@link #pauseCompaction()} failed to finish the current
-     *      output file
-     * @throws IllegalMonitorStateException If this method is called on a different thread than
-     *      {@link #pauseCompaction()}
-     */
+    ///
+    /// Resumes compaction previously put on hold with [#pauseCompaction()]. If there was no
+    /// compaction running at that moment, but new compaction was started (and blocked) since
+    /// [#pauseCompaction()], this new compaction is resumed.
+    ///
+    /// **This method must be always balanced with and called after [#pauseCompaction()] on the
+    /// same thread. If there are more or less calls to resume compactions than to pause, or if
+    /// they are called in a wrong order, it will result in deadlocks.**
+    ///
+    /// If [#pauseCompaction()] failed to finish the current output file, or if a new output file
+    /// can't be started here, the compaction in progress is aborted. It then stops without
+    /// deleting its input files. The lock is released in any case.
+    ///
+    /// @throws IOException If an I/O error occurs
+    /// @throws IllegalStateException If [#pauseCompaction()] failed to finish the current output
+    ///      file
+    /// @throws IllegalMonitorStateException If this method is called on a different thread than
+    ///      [#pauseCompaction()]
+    ///
     public void resumeCompaction() throws IOException {
         try {
             if (compactionWasInProgress) {
