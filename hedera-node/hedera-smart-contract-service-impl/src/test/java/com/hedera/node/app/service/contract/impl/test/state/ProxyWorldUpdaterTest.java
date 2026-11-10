@@ -47,6 +47,7 @@ import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -405,6 +406,75 @@ class ProxyWorldUpdaterTest {
         subject.deleteAccount(SOME_EVM_ADDRESS);
 
         verify(hederaOperations).deleteAliasedContract(aliasFrom(SOME_EVM_ADDRESS), SENDER_ID);
+    }
+
+    @Test
+    void committedChildPassesItsCreatedContractsToItsParent() {
+        final var child = subject.updater();
+        createNextContractIn(child);
+
+        assertEquals(Set.of(NEXT_NUMBER), child.getCreatedContractNumbers());
+        assertTrue(subject.getCreatedContractNumbers().isEmpty());
+        child.commit();
+
+        assertEquals(Set.of(NEXT_NUMBER), subject.getCreatedContractNumbers());
+    }
+
+    @Test
+    void revertedChildDiscardsItsCreatedContracts() {
+        final var child = subject.updater();
+        createNextContractIn(child);
+        child.revert();
+        // Besu commits an updater after reverting it when clearing a failed frame.
+        child.commit();
+
+        assertTrue(child.getCreatedContractNumbers().isEmpty());
+        assertTrue(subject.getCreatedContractNumbers().isEmpty());
+    }
+
+    @Test
+    void revertedAncestorDiscardsCreatedContractsOfCommittedDescendant() {
+        final var child = subject.updater();
+        final var grandchild = child.updater();
+        createNextContractIn(grandchild);
+        grandchild.commit();
+        child.revert();
+        child.commit();
+
+        assertTrue(subject.getCreatedContractNumbers().isEmpty());
+    }
+
+    @Test
+    void failedCommitDoesNotPassCreatedContracts() {
+        final var child = subject.updater();
+        createNextContractIn(child);
+        doThrow(new ResourceExhaustedException(com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED))
+                .when(hederaOperations)
+                .commit();
+
+        assertThrows(ResourceExhaustedException.class, child::commit);
+
+        assertTrue(subject.getCreatedContractNumbers().isEmpty());
+    }
+
+    @Test
+    void finalizedHollowAccountCountsAsCreatedContract() {
+        given(evmFrameState.getAccount(EIP_1014_ADDRESS)).willReturn(proxyEvmContract);
+        given(proxyEvmContract.hederaContractId())
+                .willReturn(ContractID.newBuilder().contractNum(999L).build());
+        subject.setupTopLevelLazyCreate(EIP_1014_ADDRESS);
+
+        subject.finalizeHollowAccount(EIP_1014_ADDRESS, PERMITTED_ADDRESS_CALLER);
+
+        assertEquals(Set.of(999L), subject.getCreatedContractNumbers());
+    }
+
+    private void createNextContractIn(final ProxyWorldUpdater updater) {
+        given(hederaOperations.peekNextEntityNumber()).willReturn(NEXT_NUMBER);
+        given(hederaOperations.contractCreationLimit()).willReturn(1234L);
+        given(hederaOperations.accountCreationLimit()).willReturn(1234L);
+        updater.setupTopLevelCreate(ContractCreateTransactionBody.DEFAULT);
+        updater.createAccount(NEXT_LONG_ZERO_ADDRESS, 1, Wei.ZERO);
     }
 
     @Test

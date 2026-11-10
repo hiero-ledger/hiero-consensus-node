@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Test;
 class FlickerAssertionsTest {
 
     private static final RosterWrapper ROSTER = LadderGraph.roster();
-    private static final List<NamedEvent> GRAPH = LadderGraph.build(ROSTER);
+    private static final List<NamedEvent> GRAPH = LadderGraph.build();
 
     /**
      * Run the ladder graph and take the snapshot of round 1, the only round it decides.
@@ -57,7 +57,8 @@ class FlickerAssertionsTest {
     void anUnknownJudgeIsVisible() {
         // The snapshot read against a graph that is missing its judges: every name is unresolvable, and the list says
         // so rather than coming back short.
-        assertThat(judgeNames(roundOneSnapshot(), List.of())).hasSize(4).allSatisfy(name -> assertThat(name)
-                .startsWith("not-in-graph:"));
+        assertThat(judgeNames(roundOneSnapshot(), List.of()))
+                .hasSize(4)
+                .allSatisfy(name -> assertThat(name).startsWith("not-in-graph:"));
     }
 }

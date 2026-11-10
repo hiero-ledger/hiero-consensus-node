@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.falcon;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.falcon.RecordingEventCreationManager.copyEvent;
 import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 
@@ -23,7 +22,6 @@ import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
-import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -187,8 +185,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             assert wiring != null;
             if (stepRecorder != null) {
                 // Before the event goes onto the wire: on direct schedulers, the put releases it right away
-                final NodeId sender = requireNonNull(event.getSenderId());
-                stepRecorder.accept(new Received(timeManager.now(), sender, copyEvent(event, EventOrigin.GOSSIP)));
+                stepRecorder.accept(Received.of(timeManager.now(), event));
             }
             wiring.receivedGossipEventsInputWire().put(event);
             return true;

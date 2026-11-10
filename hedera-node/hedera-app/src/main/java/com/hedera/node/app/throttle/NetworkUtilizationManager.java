@@ -74,6 +74,16 @@ public interface NetworkUtilizationManager {
     boolean shouldThrottleNOfUnscaled(int n, @NonNull HederaFunctionality function, @NonNull Instant consensusTime);
 
     /**
+     * Gives back the capacity claimed by an earlier call to
+     * {@link #shouldThrottleNOfUnscaled(int, HederaFunctionality, Instant)} that returned {@code false} for the same
+     * positive number of the same function.
+     *
+     * @param n the number of the given function, as passed to the earlier call
+     * @param function the function
+     */
+    void leakCapacityForNOfUnscaled(int n, @NonNull HederaFunctionality function);
+
+    /**
      * Returns the current utilization percentage of the high-volume throttle for the given functionality.
      * The utilization is expressed in hundredths of one percent (0 to 10,000), where 10,000 = 100%.
      *

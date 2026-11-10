@@ -565,6 +565,16 @@ public interface HandleContext {
         <T> void forEachNonBaseBuilder(@NonNull Class<T> builderClass, @NonNull Consumer<T> consumer);
 
         /**
+         * Registers an action to run if the changes made so far in the current savepoint are rolled back. Like those
+         * changes, the action moves into the enclosing savepoint when this one commits, including the savepoint of
+         * the parent dispatch when this stack commits; so it runs if any savepoint holding the changes is rolled
+         * back, and is discarded once they are committed at the root.
+         *
+         * @param action the action to run on rollback
+         */
+        void onRollback(@NonNull Runnable action);
+
+        /**
          * Attaches a value to this stack under the given type. Until it is detached, {@link #findInLineage(Class)}
          * returns it from this stack and from the stacks of all dispatches made from it, directly or indirectly.
          *

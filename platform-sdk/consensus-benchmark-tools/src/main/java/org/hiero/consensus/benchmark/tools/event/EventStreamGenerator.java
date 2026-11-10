@@ -173,6 +173,27 @@ public final class EventStreamGenerator {
         return Collections.unmodifiableList(received);
     }
 
+    /**
+     * Receives an event as another node receives it through gossip: sends it through the streams that the gossip
+     * protocol writes and reads events with, and builds the event from the gossip event that the receiving side parses.
+     */
+    @NonNull
+    public static PlatformEvent receiveUnhashed(@NonNull final PlatformEvent event) {
+        try {
+            final ByteArrayOutputStream sent = new ByteArrayOutputStream();
+            try (final SerializableDataOutputStream out = new SerializableDataOutputStream(sent)) {
+                out.writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
+            }
+            try (final SerializableDataInputStream in =
+                    new SerializableDataInputStream(new ByteArrayInputStream(sent.toByteArray()))) {
+                final GossipEvent gossipEvent = in.readPbjRecord(GossipEvent.PROTOBUF);
+                return new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to send an event through the gossip streams", e);
+        }
+    }
+
     /** Generates the events, signed if there are signers. */
     @NonNull
     private static List<PlatformEvent> generateEvents(
@@ -211,27 +232,6 @@ public final class EventStreamGenerator {
             events.add(new PlatformEvent(unsignedEvent, signature, EventOrigin.RUNTIME));
         }
         return Collections.unmodifiableList(events);
-    }
-
-    /**
-     * Receives an event as another node receives it through gossip: sends it through the streams that the gossip
-     * protocol writes and reads events with, and builds the event from the gossip event that the receiving side parses.
-     */
-    @NonNull
-    private static PlatformEvent receiveUnhashed(@NonNull final PlatformEvent event) {
-        try {
-            final ByteArrayOutputStream sent = new ByteArrayOutputStream();
-            try (final SerializableDataOutputStream out = new SerializableDataOutputStream(sent)) {
-                out.writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
-            }
-            try (final SerializableDataInputStream in =
-                    new SerializableDataInputStream(new ByteArrayInputStream(sent.toByteArray()))) {
-                final GossipEvent gossipEvent = in.readPbjRecord(GossipEvent.PROTOBUF);
-                return new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
-            }
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to send an event through the gossip streams", e);
-        }
     }
 
     /**
