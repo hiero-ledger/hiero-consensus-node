@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -281,6 +282,7 @@ class HintsServiceImplTest {
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(context.constructionIdOrThrow()).willReturn(123L);
         given(signing.constructionId()).willReturn(123L);
         given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
         given(context.newSigningForActiveConstruction(eq(blockHash), any(Runnable.class)))
@@ -310,6 +312,7 @@ class HintsServiceImplTest {
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(context.constructionIdOrThrow()).willReturn(123L);
         given(signing.constructionId()).willReturn(123L);
         given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
 
@@ -319,6 +322,33 @@ class HintsServiceImplTest {
         assertSame(submissionFuture, returned.submissionFuture());
         verify(context, never()).newSigningForActiveConstruction(any(), any(Runnable.class));
         verify(submissions).submitPartialSignature(123L, blockHash);
+    }
+
+    @Test
+    void signReplacesExistingSigningOpenedUnderAnotherConstruction() {
+        final var blockHash = Bytes.wrap("same-hash".getBytes());
+        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
+        final var peerOpenedSigning = mock(HintsContext.Signing.class);
+        given(peerOpenedSigning.constructionId()).willReturn(122L);
+        signings.put(blockHash, peerOpenedSigning);
+        given(component.signingContext()).willReturn(context);
+        given(context.isReady()).willReturn(true);
+        given(component.signings()).willReturn(signings);
+        given(component.submissions()).willReturn(submissions);
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(context.constructionIdOrThrow()).willReturn(123L);
+        given(signing.constructionId()).willReturn(123L);
+        given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
+        given(context.newSigningForActiveConstruction(eq(blockHash), any(Runnable.class)))
+                .willReturn(signing);
+
+        final var returned = subject.sign(blockHash);
+
+        assertSame(signing, returned.signing());
+        assertSame(signing, signings.get(blockHash));
+        verify(peerOpenedSigning).cancel();
+        verify(submissions).submitPartialSignature(123L, blockHash);
+        verify(submissions, never()).submitPartialSignature(122L, blockHash);
     }
 
     @Test
@@ -687,10 +717,11 @@ class HintsServiceImplTest {
                 .willReturn(upcoming);
         given(hintsStore.getCrsState()).willReturn(activeCrs);
         lenient().when(hintsStore.getActiveConstruction()).thenReturn(old);
-        given(hintsStore.bindConstructionToCrs(eq(2L), anyLong(), anyInt())).willAnswer(inv -> upcoming.copyBuilder()
-                .crsId((long) inv.getArgument(1))
-                .numParties((int) inv.getArgument(2))
-                .build());
+        given(hintsStore.bindConstructionToCrs(eq(2L), anyLong(), anyInt()))
+                .willAnswer(inv -> upcoming.copyBuilder()
+                        .crsId((long) inv.getArgument(1))
+                        .numParties((int) inv.getArgument(2))
+                        .build());
         given(hintsStore.getCrsStateFor(any())).willAnswer(inv -> selected.get());
         lenient()
                 .when(hintsStore.startHintsKeyGracePeriod(eq(2L), any(), any()))

@@ -46,6 +46,7 @@ import java.util.Comparator;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -141,9 +142,27 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final var blockHashSigning = component.signings().computeIfAbsent(blockHash, b -> component
-                .signingContext()
-                .newSigningForActiveConstruction(b, () -> component.signings().remove(blockHash)));
+        final var context = component.signingContext();
+        final long activeConstructionId = context.constructionIdOrThrow();
+        final var displaced = new AtomicReference<BlockHashSigning>();
+        // Only reuse an attempt a peer opened in pre-handle if it is bound to the active construction
+        final var blockHashSigning = component.signings().compute(blockHash, (b, existing) -> {
+            if (existing instanceof HintsContext.Signing s && s.constructionId() == activeConstructionId) {
+                return existing;
+            }
+            displaced.set(existing);
+            return context.newSigningForActiveConstruction(
+                    b, () -> component.signings().remove(blockHash));
+        });
+        final var displacedSigning = displaced.get();
+        if (displacedSigning != null) {
+            logger.warn(
+                    "Replaced signing attempt on block hash {} that was not opened under active construction #{}",
+                    blockHash,
+                    activeConstructionId);
+            // Also cancels its timeout, so its completion callback cannot remove the replacement
+            displacedSigning.cancel();
+        }
         if (!(blockHashSigning instanceof HintsContext.Signing signing)) {
             throw new IllegalStateException("hinTS signing required for block hash " + blockHash);
         }
