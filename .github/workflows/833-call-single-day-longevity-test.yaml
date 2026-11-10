@@ -760,7 +760,7 @@ jobs:
               tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip dst ${NLG_IP}/32 flowid 1:12; \
               if [ \"$target\" = \"block-node-server\" ]; then netem=\"${{ env.FROM_BN_NETEM }}\"; else netem=\"${{ env.FROM_CN_NETEM }}\"; fi
               tc qdisc add dev eth0 parent 1:11 handle 11: netem \${netem}; \
-              for ip in $*; do tc filter add dev eth0 protocol ip parent 1:0 prio 3 u32 match ip dst \${ip}/32 flowid 1:3; done; \
+              for ip in $*; do tc filter add dev eth0 protocol ip parent 1:0 prio 3 u32 match ip dst \${ip}/32 flowid 1:11; done; \
               tc qdisc show dev eth0; \
               tc filter show dev eth0;"
           }
