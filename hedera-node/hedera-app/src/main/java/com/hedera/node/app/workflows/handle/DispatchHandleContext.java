@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNRESOLVABLE_REQUIRED_SIGNERS;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_RESERVATION;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INNER_TRANSACTION_BYTES;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
@@ -179,7 +183,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         this.expiryValidator = new ExpiryValidatorImpl(this);
         this.dispatcher = requireNonNull(dispatcher);
         this.networkInfo = requireNonNull(networkInfo);
-        this.dispatchMetaData = requireNonNull(handleMetaData);
+        this.dispatchMetaData = new DispatchMetadata(handleMetaData);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.transactionCategory = requireNonNull(transactionCategory);
         this.preHandleResults = preHandleResults;
@@ -534,6 +538,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 blockRecordInfo,
                 options,
                 childPreHandleResult);
+        if ((txnInfo.functionality() == CLPR_COMPLETE_CHANNEL || txnInfo.functionality() == CLPR_SUBMIT_BUNDLE)
+                && Boolean.TRUE.equals(options.dispatchMetadata().getMetadataIfPresent(CLPR_VERIFIER, Boolean.class))) {
+            dispatchMetaData
+                    .getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class)
+                    .ifPresent(reservation -> childDispatch
+                            .handleContext()
+                            .dispatchMetadata()
+                            .putMetadata(CLPR_GAS_RESERVATION, reservation));
+        }
         dispatchProcessor.processDispatch(childDispatch);
         // This can be non-empty for SCHEDULED dispatches, if rewards are paid for the triggered transaction
         final var paidStakingRewards = childDispatch.streamBuilder().getPaidStakingRewards();

@@ -42,13 +42,14 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     private static final String LEDGER_B_MANIFEST = "ledgerB_manifest";
 
     // HAPI TLS listener ports for the rotation test. Distinct from ClprHieroToHieroTlsSuite's
-    // 41450/42450 so the two suites' hard-coded tlsPorts never collide if scheduled together.
-    private static final int HAPI_TLS_PORT_A = 43450;
-    private static final int HAPI_TLS_PORT_B = 44450;
+    // 21450/22450 so the two suites' hard-coded tlsPorts never collide if scheduled together.
+    // Below the ephemeral range (32768+) and the test networks' ports (25000+), so nothing else holds them.
+    private static final int HAPI_TLS_PORT_A = 23450;
+    private static final int HAPI_TLS_PORT_B = 24450;
     /** A's new tlsPort after the rotation restart — a genuinely reachable listener B can dial. */
-    private static final int HAPI_TLS_PORT_A_ROTATED = 43460;
+    private static final int HAPI_TLS_PORT_A_ROTATED = 23460;
     /** B's new base tlsPort after a rotation (8.1.3 both-sides turnover). */
-    private static final int HAPI_TLS_PORT_B_ROTATED = 44460;
+    private static final int HAPI_TLS_PORT_B_ROTATED = 24460;
 
     @MultiNetworkHapiTest({
         @Network(
@@ -232,7 +233,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                 // B applies the advanced manifest via Step 1b (verifyBundle -> new_endpoint_manifest).
                                 awaitManifestAppliedOnPeer(ledgerB, versionBeforeRotation),
                                 // Prove B didn't just bump a version number: the manifest it applied actually carries
-                                // A's node0 ROTATED endpoint (:43460), so B's dial-target set now points at the new
+                                // A's node0 ROTATED endpoint (:23460), so B's dial-target set now points at the new
                                 // port. (The apply log lists the endpoints; assert the new port is present.)
                                 networkHapiTest(
                                                 "Assert B's applied manifest carries A node0's new port "

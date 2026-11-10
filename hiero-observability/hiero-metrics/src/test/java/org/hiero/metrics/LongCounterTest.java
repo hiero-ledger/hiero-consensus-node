@@ -136,6 +136,21 @@ public class LongCounterTest extends SettableMetricBaseTest<LongCounter, LongCou
             assertThat(metric.getOrCreateLabeled("label", "2").get()).isEqualTo(100);
         }
 
+        @Test
+        void testRemovedMeasurementCreatedAgainStartsFromInitializer() {
+            LongCounter metric = emptyMetricBuilder()
+                    .addDynamicLabelNames("label")
+                    .setDefaultInitValue(10)
+                    .build();
+            metric.getOrCreateLabeled("label", "1").increment(2); // 10 + 2 = 12
+            metric.getOrCreateLabeled(() -> 100, "label", "2").increment(3); // 100 + 3 = 103
+
+            assertThat(metric.removeIf(_ -> true)).isEqualTo(2);
+
+            assertThat(metric.getOrCreateLabeled("label", "1").get()).isEqualTo(10);
+            assertThat(metric.getOrCreateLabeled(() -> 200, "label", "2").get()).isEqualTo(200);
+        }
+
         @ParameterizedTest
         @ValueSource(longs = {0, 123456789, Long.MAX_VALUE})
         void testCustomInitializerNoLabels(long initialValue) {

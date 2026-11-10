@@ -179,7 +179,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
         this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
-        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
+        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool, false);
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         if (nodeConfiguration.current().getConfigData(EventConfig.class).enableEventCutover()) {
@@ -364,13 +364,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     protected void doSendQuiescenceCommand(@NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
         log.info("Sending quiescence command {} on node {}", command, selfId);
-        final org.hiero.otter.fixtures.container.proto.QuiescenceCommand dto =
-                switch (command) {
-                    case QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.QUIESCE;
-                    case BREAK_QUIESCENCE ->
-                        org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
-                    case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
-                };
+        final org.hiero.otter.fixtures.container.proto.QuiescenceCommand dto = switch (command) {
+            case QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.QUIESCE;
+            case BREAK_QUIESCENCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.BREAK_QUIESCENCE;
+            case DONT_QUIESCE -> org.hiero.otter.fixtures.container.proto.QuiescenceCommand.DONT_QUIESCE;
+        };
         nodeCommBlockingStub
                 .withDeadlineAfter(timeout)
                 .quiescenceCommandUpdate(

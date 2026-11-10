@@ -22,6 +22,10 @@ final class FalconLogConfigBuilder {
 
     private static final String CONFIGURATION_NAME = "FalconLogging";
 
+    /** The checks do not apply to the deterministic wiring model. */
+    private static final String DIRECT_SCHEDULER_CHECKS =
+            "org.hiero.consensus.wiring.framework.model.internal.analysis.DirectSchedulerChecks";
+
     private FalconLogConfigBuilder() {
         // utility
     }
@@ -44,6 +48,7 @@ final class FalconLogConfigBuilder {
                 .addAttribute("target", Target.SYSTEM_OUT)
                 .add(builder.newLayout("PatternLayout").addAttribute("pattern", DEFAULT_PATTERN)));
         builder.add(builder.newRootLogger(Level.WARN).add(builder.newAppenderRef("Console")));
+        builder.add(builder.newLogger(DIRECT_SCHEDULER_CHECKS, Level.OFF));
 
         Configurator.reconfigure(builder.build());
     }

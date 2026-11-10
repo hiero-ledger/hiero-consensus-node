@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChanne
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -474,7 +475,9 @@ public class ClprDisabledSuite {
                         .signature(crypto.signature())
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
-        txns.put("registerConnector", clprRegisterConnector().commitment(crypto.connectorCommitment()));
+        txns.put(
+                "registerConnector",
+                clprRegisterConnector().channelId(crypto.channelId()).commitment(crypto.connectorCommitment()));
         txns.put(
                 "completeConnector",
                 clprCompleteConnector()
@@ -509,12 +512,15 @@ public class ClprDisabledSuite {
                         .endpointNodeId(0L)
                         .bundlePayload(
                                 toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload))));
+        txns.put(
+                "evictPeerEndpoint",
+                clprEvictPeerEndpoint().channelId(crypto.channelId()).endpoint("203.0.113.1", 50211));
         txns.put("closeChannel", clprCloseChannel().channelId(crypto.channelId()));
         // Only governance operations require an administrator; public operations must exercise user throttles.
         txns.values()
                 .forEach(op -> op.payingWith(
                         switch (op.type()) {
-                            case ClprUpdateLedgerConfiguration, ClprCloseChannel -> GENESIS;
+                            case ClprUpdateLedgerConfiguration, ClprCloseChannel, ClprEvictPeerEndpoint -> GENESIS;
                             default -> CALLER;
                         }));
         return txns;

@@ -468,11 +468,14 @@ public class ConversionUtils {
                     .build());
             return;
         }
+        // The stream builder retains captured values for overlapping EVM scopes, which cannot recover them from
+        // final state, and omits them for ordinary executions that use the compact representation.
         if (explicitWriteKeys != null) {
             explicitWriteKeys.add(access.trimmedKeyBytes());
             reads.add(SlotRead.newBuilder()
                     .index(explicitWriteKeys.size() - 1)
                     .readValue(access.trimmedValueBytes())
+                    .writtenValue(access.trimmedWrittenValueBytes())
                     .build());
             return;
         }
@@ -480,6 +483,7 @@ public class ConversionUtils {
         reads.add(SlotRead.newBuilder()
                 .key(tuweniToPbjBytes(access.key()))
                 .readValue(access.trimmedValueBytes())
+                .writtenValue(access.trimmedWrittenValueBytes())
                 .build());
     }
 

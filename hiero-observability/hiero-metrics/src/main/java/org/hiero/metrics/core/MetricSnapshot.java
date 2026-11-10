@@ -5,20 +5,23 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A snapshot of a {@link Metric} at a point in time, allowing iteration over {@link MeasurementSnapshot}s
  * with consistent repetitive order (new measurements are appended).
+ * <p>
+ * Every iteration reads a fixed list: measurements added or removed after the iteration started
+ * are not added to or removed from it.
  */
 public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSnapshot> {
 
     private final Metric metric;
-    private final ConcurrentLinkedQueue<MeasurementSnapshot> measurementSnapshots;
+    private final CopyOnWriteArrayList<MeasurementSnapshot> measurementSnapshots;
 
     public MetricSnapshot(Metric metric) {
         this.metric = metric;
-        this.measurementSnapshots = new ConcurrentLinkedQueue<>();
+        this.measurementSnapshots = new CopyOnWriteArrayList<>();
     }
 
     /**
@@ -27,6 +30,15 @@ public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSna
      */
     void addMeasurementSnapshot(MeasurementSnapshot measurementSnapshot) {
         measurementSnapshots.add(measurementSnapshot);
+    }
+
+    /**
+     * Internal method to remove all measurement snapshots with the given label values from this metric snapshot.
+     * Package private method, because it is called by the {@link Metric} internally during measurement removal.
+     */
+    void removeMeasurementSnapshot(LabelValues labelValues) {
+        measurementSnapshots.removeIf(
+                snapshot -> snapshot.getDynamicLabelValues().equals(labelValues));
     }
 
     /**

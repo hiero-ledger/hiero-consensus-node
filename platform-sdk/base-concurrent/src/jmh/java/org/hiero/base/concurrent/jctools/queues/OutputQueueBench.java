@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.concurrent.jctools.queues;
 
+import static org.hiero.base.concurrent.SpinThenParkBackoff.backOff;
+
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
 import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -26,7 +27,8 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /// Compares bounded queues for a hand-off from N producers to a single consumer, as in the output queue of
-/// `AsyncOutputStream` (`swirlds-virtualmap`). The backoff constants are copied from it.
+/// `AsyncOutputStream` (`swirlds-virtualmap`). It waits the same way, with
+/// [org.hiero.base.concurrent.SpinThenParkBackoff] and the same park caps.
 ///
 /// Queues (`impl`):
 /// - `LINKED_BLOCKING`, `ARRAY_BLOCKING`: [LinkedBlockingQueue] and [ArrayBlockingQueue] with timed `offer`/`poll`.
@@ -71,8 +73,7 @@ public class OutputQueueBench {
     /// Max wait of one consumer call when the queue stays empty; keeps benchmark threads able to finish.
     private static final long POLL_TIMEOUT_NANOS = TimeUnit.MILLISECONDS.toNanos(10);
 
-    // Same backoff as AsyncOutputStream
-    private static final int SPIN_LIMIT = 128;
+    // Same park caps as AsyncOutputStream
     private static final int PRODUCER_MAX_PARK_SHIFT = 7;
     private static final int WRITER_MAX_PARK_SHIFT = 10;
 
@@ -132,12 +133,12 @@ public class OutputQueueBench {
             return true;
         }
         final long deadline = System.nanoTime() + OFFER_TIMEOUT_NANOS;
-        int idle = 0;
+        int backoffStep = 0;
         while (!mpscQueue.offer(PAYLOAD)) {
             if (System.nanoTime() - deadline >= 0) {
                 return false;
             }
-            idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
+            backoffStep = backOff(backoffStep, PRODUCER_MAX_PARK_SHIFT);
         }
         return true;
     }
@@ -148,12 +149,12 @@ public class OutputQueueBench {
             return true;
         }
         final long deadline = System.nanoTime() + OFFER_TIMEOUT_NANOS;
-        int idle = 0;
+        int backoffStep = 0;
         while (!offerLinked()) {
             if (System.nanoTime() - deadline >= 0) {
                 return false;
             }
-            idle = backOff(idle, PRODUCER_MAX_PARK_SHIFT);
+            backoffStep = backOff(backoffStep, PRODUCER_MAX_PARK_SHIFT);
         }
         return true;
     }
@@ -182,12 +183,12 @@ public class OutputQueueBench {
             message = linkedQueue.poll();
             if (message == null) {
                 final long deadline = System.nanoTime() + POLL_TIMEOUT_NANOS;
-                int idle = 0;
+                int backoffStep = 0;
                 while ((message = linkedQueue.poll()) == null) {
                     if (System.nanoTime() - deadline >= 0) {
                         break;
                     }
-                    idle = backOff(idle, WRITER_MAX_PARK_SHIFT);
+                    backoffStep = backOff(backoffStep, WRITER_MAX_PARK_SHIFT);
                 }
             }
             if (message != null) {
@@ -198,12 +199,12 @@ public class OutputQueueBench {
             message = mpscQueue.relaxedPoll();
             if (message == null) {
                 final long deadline = System.nanoTime() + POLL_TIMEOUT_NANOS;
-                int idle = 0;
+                int backoffStep = 0;
                 while ((message = mpscQueue.relaxedPoll()) == null) {
                     if (System.nanoTime() - deadline >= 0) {
                         break;
                     }
-                    idle = backOff(idle, WRITER_MAX_PARK_SHIFT);
+                    backoffStep = backOff(backoffStep, WRITER_MAX_PARK_SHIFT);
                 }
             }
         }
@@ -213,15 +214,6 @@ public class OutputQueueBench {
         bh.consume(message);
         Blackhole.consumeCPU(consumerTokens);
         return true;
-    }
-
-    private static int backOff(final int idle, final int maxParkShift) {
-        if (idle < SPIN_LIMIT) {
-            Thread.onSpinWait();
-        } else {
-            LockSupport.parkNanos(1_000L << Math.min(idle - SPIN_LIMIT, maxParkShift));
-        }
-        return Math.min(idle + 1, SPIN_LIMIT + maxParkShift);
     }
 
     /// Messages that went through, and calls that gave up, per thread. JMH reports each public field as a rate

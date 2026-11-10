@@ -1946,6 +1946,11 @@ enum HederaFunctionality {
      * (Internal-only) Externalize CLPR singleton maintenance.
      */
     ClprMaintenance = 129;
+
+    /**
+     * Remove a peer endpoint from a CLPR Channel's cached endpoint manifest.
+     */
+    ClprEvictPeerEndpoint = 130;
 }
 
 /**

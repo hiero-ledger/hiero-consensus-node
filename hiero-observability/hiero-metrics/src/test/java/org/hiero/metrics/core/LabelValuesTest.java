@@ -38,6 +38,13 @@ public class LabelValuesTest {
         }
 
         @Test
+        void testGetByNameThrows() {
+            assertThatThrownBy(() -> LabelValues.EMPTY.get("name"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("Unknown label name: name");
+        }
+
+        @Test
         void testToString() {
             assertThat(LabelValues.EMPTY.toString()).isEqualTo("[]");
         }
@@ -71,6 +78,24 @@ public class LabelValuesTest {
         assertThat(labelNamesAndValues.get(1)).isEqualTo("2");
         assertThatThrownBy(() -> labelNamesAndValues.get(2)).isInstanceOf(IndexOutOfBoundsException.class);
         assertThatThrownBy(() -> labelNamesAndValues.get(-1)).isInstanceOf(IndexOutOfBoundsException.class);
+    }
+
+    @Test
+    void testGetByName() {
+        LabelValues labelNamesAndValues = new LabelValues("name1", "name2", "name2", "value2");
+
+        assertThat(labelNamesAndValues.get("name1")).isEqualTo("name2");
+        assertThat(labelNamesAndValues.get("name2")).isEqualTo("value2");
+        assertThatThrownBy(() -> labelNamesAndValues.get("value2"))
+                .as("values are not matched as names")
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unknown label name: value2");
+        assertThatThrownBy(() -> labelNamesAndValues.get("unknown"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unknown label name: unknown");
+        assertThatThrownBy(() -> labelNamesAndValues.get(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("label name must not be null");
     }
 
     @ParameterizedTest

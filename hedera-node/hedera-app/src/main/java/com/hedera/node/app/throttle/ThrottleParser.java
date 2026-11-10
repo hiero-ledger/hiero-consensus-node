@@ -133,12 +133,13 @@ public class ThrottleParser {
     }
 
     /**
-     * Checks if there are throttle groups defined with zero operations per second.
+     * Checks if there are throttle groups defined with zero operations per second. A uint64 value above
+     * {@link Long#MAX_VALUE} reads as negative, and would otherwise build a bucket with zero capacity.
      */
     private void checkForZeroOpsPerSec(ThrottleDefinitions throttleDefinitions) {
         for (var bucket : throttleDefinitions.throttleBuckets()) {
             for (var group : bucket.throttleGroups()) {
-                if (group.milliOpsPerSec() == 0) {
+                if (group.milliOpsPerSec() <= 0) {
                     throw new HandleException(THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC);
                 }
             }

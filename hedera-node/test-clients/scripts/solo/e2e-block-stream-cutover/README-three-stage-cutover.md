@@ -160,6 +160,13 @@ ownership metadata, preserves ConfigMap contents and unrelated field managers, a
 patch with the resource version to detect concurrent writes. Helm 3 retains the label/annotation
 adoption behavior used by CI.
 
+Solo never retries a chart download, and the GitHub-hosted chart repositories occasionally answer
+5xx. The script therefore puts a `helm` wrapper first on `PATH` that re-runs a command up to five
+times when its chart, index or registry download failed; Helm downloads before it changes the
+cluster, so this is safe, and other commands pass straight through. Retries are recorded in
+`generated/three-stage-cutover/helm-download-retries.log`. Solo prefers `~/.solo/bin/helm` when it
+exists, which bypasses the wrapper.
+
 ```bash
 hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/solo-three-stage-block-stream-cutover.sh
 ```

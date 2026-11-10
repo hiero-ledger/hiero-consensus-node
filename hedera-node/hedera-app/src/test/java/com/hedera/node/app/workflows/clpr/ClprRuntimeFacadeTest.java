@@ -87,9 +87,18 @@ class ClprRuntimeFacadeTest {
         assertThat(syncWorkflowProviderCalls).hasValue(0);
     }
 
-    @Test
-    void enabledFeatureLazilyInstantiatesAndDelegatesToRuntimeGraph() {
-        given(clprConfig.enabled()).willReturn(true);
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void defaultOrExplicitlyEnabledConfigurationLazilyConstructsRuntime(final boolean explicitTrue) {
+        final var builder = HederaTestConfigBuilder.create();
+        if (explicitTrue) {
+            builder.withValue("clpr.enabled", true);
+        }
+        given(configuration.getConfigData(ClprConfig.class))
+                .willReturn(builder.getOrCreateConfig().getConfigData(ClprConfig.class));
+
+        assertThat(channelManagerProviderCalls).hasValue(0);
+        assertThat(syncWorkflowProviderCalls).hasValue(0);
 
         subject.start();
         subject.openStreamingSync();
@@ -102,15 +111,13 @@ class ClprRuntimeFacadeTest {
         verify(channelManager).stop();
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void defaultOrExplicitlyDisabledConfigurationNeverConstructsRuntime(final boolean explicitFalse) {
-        final var builder = HederaTestConfigBuilder.create();
-        if (explicitFalse) {
-            builder.withValue("clpr.enabled", false);
-        }
+    @Test
+    void explicitlyDisabledConfigurationNeverConstructsRuntime() {
         given(configuration.getConfigData(ClprConfig.class))
-                .willReturn(builder.getOrCreateConfig().getConfigData(ClprConfig.class));
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", false)
+                        .getOrCreateConfig()
+                        .getConfigData(ClprConfig.class));
 
         subject.start();
         subject.onChannelActivated(Bytes.EMPTY);

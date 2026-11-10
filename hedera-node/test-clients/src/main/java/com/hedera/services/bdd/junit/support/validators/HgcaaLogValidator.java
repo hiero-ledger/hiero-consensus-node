@@ -133,7 +133,10 @@ public class HgcaaLogValidator {
                 List.of("ClprStreamingSynchronizer", "Streaming sync failed for channel", "with status UNAVAILABLE"),
                 List.of("ClprPeerSelector", "circuit breaker opened"),
                 // The server side of the same churn: a peer cancels its sync stream when it fails or restarts
-                List.of("ClprStreamingSyncMethod", "stream aborted by peer"));
+                List.of("ClprStreamingSyncMethod", "stream aborted by peer"),
+                // SimpleFeeScheduleCoverageTest deliberately installs schedules the registered calculators
+                // cannot evaluate, to prove FeeManager rejects them
+                List.of("FeeManager", "Rejecting simple fee schedule"));
 
         /**
          * The level of a log line: the first word after its timestamp and optional {@code <network-nN>} tag.

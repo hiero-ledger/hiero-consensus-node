@@ -137,4 +137,20 @@ public class SingleNodeReconnectResultImpl implements SingleNodeReconnectResult 
         statusResults.clear();
         logResults.clear();
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isCleared() {
+        return statusResults.isCleared() || logResults.isCleared();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean allResultsArrived() {
+        return statusResults.allResultsArrived() && logResults.allResultsArrived();
+    }
 }

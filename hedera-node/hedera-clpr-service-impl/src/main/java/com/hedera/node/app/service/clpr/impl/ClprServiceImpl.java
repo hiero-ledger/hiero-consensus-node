@@ -57,6 +57,9 @@ public final class ClprServiceImpl implements ClprService {
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_SUBMIT_BUNDLE, TransactionBody.DataOneOfType.CLPR_SUBMIT_BUNDLE),
                 new ClprFeeCalculator(
+                        HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
+                        TransactionBody.DataOneOfType.CLPR_EVICT_PEER_ENDPOINT),
+                new ClprFeeCalculator(
                         HederaFunctionality.CLPR_ENDPOINT_PUBLICATION,
                         TransactionBody.DataOneOfType.CLPR_ENDPOINT_PUBLICATION));
     }

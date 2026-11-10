@@ -13,7 +13,7 @@ import org.hiero.base.crypto.DigestType;
 
 /**
  * Configuration for the block stream.
- * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
+ * @param streamMode RECORDS writes only the record stream; BOTH adds a preview block stream; BLOCKS writes only blocks
  * @param writerMode if we are writing to a file or gRPC stream
  * @param blockFileDir directory to store block files
  * @param roundsPerBlock the number of rounds per block
@@ -41,7 +41,7 @@ import org.hiero.base.crypto.DigestType;
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
-        @ConfigProperty(defaultValue = "BOTH") @NetworkProperty
+        @ConfigProperty(defaultValue = "BLOCKS") @NetworkProperty
         StreamMode streamMode,
 
         @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty
@@ -90,13 +90,13 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "256") @Min(64) @NetworkProperty
         int blockFileBufferGzipSizeKb,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enableCutover,
 
         @ConfigProperty(defaultValue = "SHA_256") @NetworkProperty
         DigestType digestType,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean streamWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "false") @NodeProperty

@@ -68,7 +68,7 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                             final var clprDispatch = isClprDispatch(dispatchedChild, evmResult);
                             final var isDispatched = isHook || clprDispatch;
                             if (parts.status() == SUCCESS
-                                    && (isDispatched || parts.isTopLevel() || parts.isInnerBatchTxn())) {
+                                    && (isDispatched || parts.hasEnrichedLegacyRecord() || parts.isInnerBatchTxn())) {
                                 if (needsClippedTraceBloomFallback(parts)) {
                                     // This fixture clips the only bloom-implying trace data, leaving implied bloom.
                                     derivedBuilder.logInfo(List.of()).bloom(bloomForAll(List.of()));
@@ -87,6 +87,9 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                     if (hookCreations != null && !hookCreations.isEmpty()) {
                                         derivedBuilder.createdContractIDs(hookCreations.removeFirst());
                                     }
+                                    // Consume the inferred entry to keep later hook executions aligned, then prefer
+                                    // this execution's captured IDs, including an explicitly empty list.
+                                    baseTranslator.addCapturedCreatedIdsTo(derivedBuilder, parts);
                                 }
                                 baseTranslator.addChangedContractNonces(derivedBuilder, evmResult.contractNonces());
                             }
@@ -100,7 +103,9 @@ public class ContractCallTranslator implements BlockTransactionPartsTranslator {
                                             parts.body().contractCallOrThrow().contractIDOrThrow(),
                                             result.contractIDOrElse(ContractID.DEFAULT),
                                             baseTranslator.getAliases());
-                            if ((parts.transactionIdOrThrow().nonce() == 0 || isDispatched)
+                            if ((parts.transactionIdOrThrow().nonce() == 0
+                                            || isDispatched
+                                            || parts.transactionResult().hasScheduleRef())
                                     && result.gasUsed() > 0L
                                     && reachedTarget) {
                                 receiptBuilder.contractID(result.contractID());

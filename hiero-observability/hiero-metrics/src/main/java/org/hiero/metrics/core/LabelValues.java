@@ -45,6 +45,27 @@ public final class LabelValues {
         return namesAndValues[2 * index + 1];
     }
 
+    /**
+     * Get the value of the label with the specified name.
+     * Useful in filters, for example {@code labelValues -> "3".equals(labelValues.get("node"))}.
+     * Throws for an unknown label name, so a misspelled name in a filter fails instead of matching nothing.
+     *
+     * @param labelName the name of the label to retrieve the value of, must not be {@code null}
+     * @return the label value
+     * @throws NullPointerException     if the label name is {@code null}
+     * @throws IllegalArgumentException if there is no label with the specified name
+     */
+    @NonNull
+    public String get(@NonNull String labelName) {
+        Objects.requireNonNull(labelName, "label name must not be null");
+        for (int i = 0; i < namesAndValues.length; i += 2) {
+            if (namesAndValues[i].equals(labelName)) {
+                return namesAndValues[i + 1];
+            }
+        }
+        throw new IllegalArgumentException("Unknown label name: " + labelName);
+    }
+
     @Override
     public boolean equals(Object other) {
         if (other instanceof LabelValues that) {

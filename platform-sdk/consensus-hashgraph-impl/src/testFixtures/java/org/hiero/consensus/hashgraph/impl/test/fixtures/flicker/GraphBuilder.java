@@ -13,17 +13,14 @@ import java.util.Random;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 
 /**
  * Turns a list of {@link EventSpec} into built events, in order.
  * <p>
- * Specs must be listed bottom-up: an event may only name parents defined above it in the list. That is also the order
- * the events must be fed to {@link FlickerIntake}, so the returned list is the feed order. Note this is the reverse of
- * a {@code .graph} file's row order, which reads like the hashgraph diagram with genesis at the bottom;
- * {@code GraphParser} does the reversal.
+ * Specs must be listed in creation order: an event may only name parents defined earlier in the list. That is also the
+ * order the events must be fed to {@link FlickerIntake}, so the returned list is the feed order. It is also the row
+ * order of a {@code .graph} file, so {@code GraphParser} hands a file's rows over one for one with no reordering.
  * <p>
  * <b>Four fields are specified on every event</b> rather than left to {@link TestingEventBuilder}'s defaults. All four
  * are hashed content, and hashes feed the final tie-break in consensus order, so a random value means a fixture that
@@ -41,9 +38,10 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
  *         the pinning is not about validity; it is about reproducibility and derivability. Event timestamps feed round
  *         timestamps and the consensus order a fixture asserts, and a value drawn from the shared {@code Random} shifts
  *         for every later event when a row is inserted. Derived instead from the self-parent by a fixed
- *         {@value #TIME_STEP_MILLIS}ms step, with a genesis event offset by its creator index. A timestamp therefore
+ *         {@value #TIME_STEP_MILLIS}ms step, with a genesis event offset by its creator's letter. A timestamp therefore
  *         reads as <i>height in its own column, plus who made it</i> — {@code a0} is the base, {@code a1} is +100ms,
- *         {@code b0} is +1ms — and the two components cannot collide while a graph has fewer creators than the step.
+ *         {@code b0} is +1ms — and the two components cannot collide, since there are fewer letters than milliseconds in a
+ *         step.
  *         Deriving from the self-parent rather than from list position is what bounds the effect of an edit. A
  *         timestamp then depends on the creator's own chain and nothing else, so inserting an event perturbs exactly
  *         the events that <i>descend</i> from it — which a structural edit was always going to change — rather than
@@ -63,6 +61,11 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
  * With all four specified, nothing the builder still draws from the {@code Random} — the signature and the placeholder
  * hash — reaches the content hash, so the seed no longer determines any hash in the graph.
  * <p>
+ * <b>The creator id is hashed too</b>, and it is not a builder default either: it comes from the letter that starts
+ * the event's name, through {@link NamedRoster#nodeIdFor}. So the graph alone fixes it, and building needs no roster.
+ * A roster only matters when the events are fed to consensus, and it must then use the same ids, which
+ * {@link NamedRoster#toRosterWrapper()} does.
+ * <p>
  * <b>Events are hashed as they are built</b>, before being used as anyone's parent. {@code TestingEventBuilder}
  * installs a random placeholder hash and takes a parent's descriptor from whatever hash the parent carries at the
  * time, while both intake paths overwrite that placeholder with the real content hash. Without hashing here, every
@@ -79,43 +82,32 @@ public final class GraphBuilder {
     /**
      * Build the events a graph specifies, taking {@link GraphDefaults#STANDARD}.
      *
-     * @param specs  the events, bottom-up; each may only name parents defined above it
+     * @param specs  the events in creation order; each may only name parents defined earlier
      * @param random the source of randomness; no longer reaches any hash, but still fills the signature
-     * @param roster the roster whose node ids the {@code creator} indices refer to
      * @return the built events in the same order, each paired with its name
      */
     @NonNull
-    public static List<NamedEvent> build(
-            @NonNull final List<EventSpec> specs, @NonNull final Random random, @NonNull final RosterWrapper roster) {
-        return build(specs, random, roster, GraphDefaults.STANDARD);
+    public static List<NamedEvent> build(@NonNull final List<EventSpec> specs, @NonNull final Random random) {
+        return build(specs, random, GraphDefaults.STANDARD);
     }
 
     /**
      * Build the events a graph specifies.
      *
-     * @param specs    the events, bottom-up; each may only name parents defined above it
+     * @param specs    the events in creation order; each may only name parents defined earlier
      * @param random   the source of randomness; no longer reaches any hash, but still fills the signature
-     * @param roster   the roster whose node ids the {@code creator} indices refer to
      * @param defaults the per-event fields a spec does not override
      * @return the built events in the same order, each paired with its name
      */
     @NonNull
     public static List<NamedEvent> build(
-            @NonNull final List<EventSpec> specs,
-            @NonNull final Random random,
-            @NonNull final RosterWrapper roster,
-            @NonNull final GraphDefaults defaults) {
+            @NonNull final List<EventSpec> specs, @NonNull final Random random, @NonNull final GraphDefaults defaults) {
 
-        final List<NodeId> nodeIds = roster.nodeIds();
         final Map<String, Long> birthRounds = deriveBirthRounds(specs, defaults.birthRound());
         final Map<String, PlatformEvent> builtByName = new LinkedHashMap<>();
         final List<NamedEvent> ordered = new ArrayList<>(specs.size());
 
         for (final EventSpec spec : specs) {
-            if (spec.creator() < 0 || spec.creator() >= nodeIds.size()) {
-                throw new IllegalArgumentException("'%s' names creator index %d, but the roster has %d nodes"
-                        .formatted(spec.name(), spec.creator(), nodeIds.size()));
-            }
             if (builtByName.containsKey(spec.name())) {
                 throw new IllegalArgumentException("'%s' is defined twice".formatted(spec.name()));
             }
@@ -124,7 +116,7 @@ public final class GraphBuilder {
                     spec.selfParent() == null ? null : resolve(builtByName, spec.selfParent(), spec.name());
 
             final TestingEventBuilder builder = new TestingEventBuilder(random)
-                    .setCreatorId(nodeIds.get(spec.creator()))
+                    .setCreatorId(NamedRoster.nodeIdFor(spec.creator()))
                     .setBirthRound(birthRounds.get(spec.name()))
                     .setTransactionBytes(transactions(
                             spec.name(),
@@ -154,7 +146,7 @@ public final class GraphBuilder {
      * This is a pure function of the specs — no consensus run, no algorithm dependency — which is what lets a
      * {@code .graph} file state birth rounds as frozen text rather than as a directive evaluated at load time.
      *
-     * @param specs          the events, bottom-up
+     * @param specs          the events in creation order
      * @param genesisDefault the birth round of an event with no parents
      * @return each event's birth round, by name
      * @throws IllegalArgumentException if an override is below the event's parents, which violates INV-011
@@ -217,17 +209,17 @@ public final class GraphBuilder {
     }
 
     /**
-     * The time an event is created: one fixed step after its self-parent, or the base time offset by the creator's
-     * index if it has none.
+     * The time an event is created: one fixed step after its self-parent, or, if it has none, the base time offset by
+     * the creator letter's position in the alphabet, so {@code a} is +0ms and {@code b} is +1ms.
      *
      * @param selfParent the event's self-parent, or null if it is a genesis event
-     * @param creator    the creator's index into the roster
+     * @param creator    the creator's letter
      * @return the time created
      */
     @NonNull
-    private static Instant timeCreated(@Nullable final PlatformEvent selfParent, final int creator) {
+    private static Instant timeCreated(@Nullable final PlatformEvent selfParent, @NonNull final String creator) {
         return selfParent == null
-                ? BASE_TIME.plusMillis(creator)
+                ? BASE_TIME.plusMillis(creator.charAt(0) - 'a')
                 : selfParent.getTimeCreated().plusMillis(TIME_STEP_MILLIS);
     }
 

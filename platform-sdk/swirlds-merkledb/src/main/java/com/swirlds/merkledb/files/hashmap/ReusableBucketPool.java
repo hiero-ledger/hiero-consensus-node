@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files.hashmap;
 
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 
 /**
@@ -35,7 +35,7 @@ public class ReusableBucketPool {
     private static final int DEFAULT_POOL_SIZE = 64;
 
     /** Buckets */
-    private final ConcurrentLinkedDeque<Bucket> buckets;
+    private final ConcurrentLinkedQueue<Bucket> buckets;
 
     private final Function<ReusableBucketPool, Bucket> newBucketSupplier;
 
@@ -55,9 +55,9 @@ public class ReusableBucketPool {
      */
     public ReusableBucketPool(final int size, Function<ReusableBucketPool, Bucket> bucketSupplier) {
         this.newBucketSupplier = bucketSupplier;
-        buckets = new ConcurrentLinkedDeque<>();
+        buckets = new ConcurrentLinkedQueue<>();
         for (int i = 0; i < size; i++) {
-            buckets.offerLast(bucketSupplier.apply(this));
+            buckets.offer(bucketSupplier.apply(this));
         }
     }
 
@@ -69,7 +69,7 @@ public class ReusableBucketPool {
      * to the pool
      */
     public Bucket getBucket() {
-        Bucket bucket = buckets.pollLast();
+        Bucket bucket = buckets.poll();
         if (bucket == null) {
             bucket = newBucketSupplier.apply(this);
         }
@@ -84,6 +84,6 @@ public class ReusableBucketPool {
      * @param bucket A bucket to release to this pool
      */
     public void releaseBucket(final Bucket bucket) {
-        buckets.offerLast(bucket);
+        buckets.offer(bucket);
     }
 }

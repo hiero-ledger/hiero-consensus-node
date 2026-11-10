@@ -4,28 +4,18 @@ package com.hedera.node.app.service.token.impl.test.keys;
 import static com.hedera.node.app.service.token.impl.test.keys.KeyFactory.DefaultKeyGen.DEFAULT_KEY_GEN;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
-import java.security.Security;
-import java.security.spec.InvalidKeySpecException;
+import java.security.interfaces.ECPrivateKey;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
 import net.i2p.crypto.eddsa.KeyPairGenerator;
-import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
-import org.bouncycastle.crypto.params.ECDomainParameters;
-import org.bouncycastle.crypto.params.ECKeyGenerationParameters;
-import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
-import org.bouncycastle.crypto.params.ECPublicKeyParameters;
-import org.bouncycastle.jce.ECNamedCurveTable;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.jce.spec.ECNamedCurveParameterSpec;
-import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.hiero.base.utility.CommonUtils;
 
 public class KeyFactory {
@@ -35,13 +25,11 @@ public class KeyFactory {
         return DEFAULT_INSTANCE;
     }
 
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+
     private final KeyGenerator keyGen;
     private final Map<String, Key> labelToPrimitive = new HashMap<>();
     private final Map<String, PrivateKey> publicToPrivateKey = new HashMap<>();
-
-    static {
-        Security.addProvider(new BouncyCastleProvider());
-    }
 
     public KeyFactory() {
         this(DEFAULT_KEY_GEN);
@@ -122,29 +110,17 @@ public class KeyFactory {
      * @return a gRPC key structure for the generated ECDSA(secp25k61) key
      */
     public static Key genSingleEcdsaSecp256k1Key(final Map<String, PrivateKey> publicToPrivateKey) {
-        final var kp = ecdsaKpGenerator.generateKeyPair();
-        final var pubKey = ((ECPublicKeyParameters) kp.getPublic()).getQ().getEncoded(true);
-        final var privKeySpec = new ECPrivateKeySpec(((ECPrivateKeyParameters) kp.getPrivate()).getD(), curveParams);
+        byte[] privateKeyBytes = new byte[Secp256k1Utils.SECRET_KEY_BYTES];
+        SECURE_RANDOM.nextBytes(privateKeyBytes);
 
-        try {
-            final var privKey = java.security.KeyFactory.getInstance("ECDSA").generatePrivate(privKeySpec);
-            publicToPrivateKey.put(CommonUtils.hex(pubKey), privKey);
-        } catch (InvalidKeySpecException | NoSuchAlgorithmException fatal) {
-            throw new IllegalStateException(fatal);
-        }
+        ECPrivateKey privateKey = Secp256k1Utils.readECKeyFrom(privateKeyBytes);
+        byte[] compressedPublicKey = Secp256k1Utils.extractEcdsaPublicKey(privateKeyBytes);
 
-        return Key.newBuilder().setECDSASecp256K1(ByteString.copyFrom(pubKey)).build();
-    }
+        publicToPrivateKey.put(CommonUtils.hex(compressedPublicKey), privateKey);
 
-    private static final ECNamedCurveParameterSpec curveParams = ECNamedCurveTable.getParameterSpec("secp256k1");
-    private static final ECDomainParameters domainParams = new ECDomainParameters(
-            curveParams.getCurve(), curveParams.getG(), curveParams.getN(), curveParams.getH(), curveParams.getSeed());
-    private static final ECKeyGenerationParameters genParams =
-            new ECKeyGenerationParameters(domainParams, new SecureRandom());
-    public static final ECKeyPairGenerator ecdsaKpGenerator = new ECKeyPairGenerator();
-
-    static {
-        ecdsaKpGenerator.init(genParams);
+        return Key.newBuilder()
+                .setECDSASecp256K1(ByteString.copyFrom(compressedPublicKey))
+                .build();
     }
 
     public enum DefaultKeyGen implements KeyGenerator {

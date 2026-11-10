@@ -114,7 +114,10 @@ public class ClprOrchestratorSubmitTest {
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(proofBytes.toByteArray())
                         .payingWith(GENESIS),
-                clprRegisterConnector().commitment(crypto.connectorCommitment).payingWith(GENESIS),
+                clprRegisterConnector()
+                        .channelId(crypto.channelId)
+                        .commitment(crypto.connectorCommitment)
+                        .payingWith(GENESIS),
                 clprCompleteConnector()
                         .connectorId(crypto.connectorId)
                         .publicKey(crypto.publicKey)

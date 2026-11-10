@@ -11,10 +11,12 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.service.contract.impl.exec.StorageAccountingScope;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.infra.IterableStorageManager;
 import com.hedera.node.app.service.contract.impl.infra.RentCalculator;
 import com.hedera.node.app.service.contract.impl.infra.StorageSizeValidator;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
@@ -38,6 +40,7 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private final IterableStorageManager storageManager;
     private final StorageSizeValidator storageSizeValidator;
     private final HandleContext context;
+    private final StorageAccountingScope storageAccountingScope;
 
     private boolean committed = false;
 
@@ -55,13 +58,15 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
             @NonNull final RentCalculator rentCalculator,
             @NonNull final IterableStorageManager storageManager,
             @NonNull final StorageSizeValidator storageSizeValidator,
-            @NonNull final HandleContext context) {
+            @NonNull final HandleContext context,
+            @NonNull final StorageAccountingScope storageAccountingScope) {
         super(enhancement, evmFrameStateFactory, null);
         this.contractsConfig = requireNonNull(contractsConfig);
         this.storageManager = requireNonNull(storageManager);
         this.rentCalculator = requireNonNull(rentCalculator);
         this.storageSizeValidator = requireNonNull(storageSizeValidator);
         this.context = context;
+        this.storageAccountingScope = requireNonNull(storageAccountingScope);
     }
 
     /**
@@ -82,11 +87,12 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         final boolean explicitWriteTracing = Boolean.TRUE.equals(
                 context.dispatchMetadata().getMetadataIfPresent(EXPLICIT_WRITE_TRACING, Boolean.class));
         txStorageUsage = evmFrameState.getTxStorageUsage(!explicitWriteTracing);
-        final var writes = txStorageUsage.accesses();
+        final var writes = storageManager.getPersistenceChanges(
+                enhancement, txStorageUsage.accesses(), enhancement.operations().getStore());
         // Validate the effects on size are legal
         final var sizeEffects = summarizeSizeEffects(writes);
         storageSizeValidator.assertValid(
-                sizeEffects.finalSlotsUsed(), enhancement.operations(), sizeEffects.sizeChanges());
+                sizeEffects.finalSlotsUsed(), enhancement.nativeOperations(), sizeEffects.sizeChanges());
         // Charge rent for each increase in storage size
         chargeRentFor(sizeEffects);
         // "Rewrite" the pending storage changes to preserve per-contract linked lists
@@ -103,9 +109,22 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         createdContractIds = contractChangeSummary.newContractIds();
 
         if (contractsConfig.enforceCreationThrottle()) {
-            final var creationCapacityIsAvailable =
-                    !context.throttleAdviser().shouldThrottleNOfUnscaled(createdContractIds.size(), CRYPTO_CREATE);
-            validateResource(creationCapacityIsAvailable, CONSENSUS_GAS_EXHAUSTED);
+            // Each execution throttles the surviving creations of its own frames; the creations of a nested
+            // execution were throttled at its commit, and leave this summary if rolled back with their capacity
+            final var ownCreatedNumbers = getCreatedContractNumbers();
+            final int ownCreations = (int) createdContractIds.stream()
+                    .filter(id -> ownCreatedNumbers.contains(id.contractNumOrThrow()))
+                    .count();
+            // Like a top-level execution, the owner still checks without creations, unless only nested ones remain
+            if (ownCreations > 0 || (storageAccountingScope.isOwner() && createdContractIds.isEmpty())) {
+                final var throttleAdviser = context.throttleAdviser();
+                final var creationCapacityIsAvailable =
+                        !throttleAdviser.shouldThrottleNOfUnscaled(ownCreations, CRYPTO_CREATE);
+                validateResource(creationCapacityIsAvailable, CONSENSUS_GAS_EXHAUSTED);
+                if (!storageAccountingScope.isOwner()) {
+                    giveBackIfRolledBackBeforeOwnerCommits(ownCreations, throttleAdviser);
+                }
+            }
         }
 
         // If nonces externalization is enabled, we need to capture the updated nonces
@@ -116,6 +135,25 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         super.commit();
         // Be sure not to externalize contract ids or nonces without a successful commit
         committed = true;
+        storageAccountingScope.markCommitted();
+    }
+
+    /**
+     * Gives back the creation throttle capacity just claimed for the given creations of a nested execution if they
+     * are rolled back before the owner of its scope commits. Until then, an enclosing frame or dispatch can still
+     * roll them back; and that only restores the throttle usage saved in state, not the throttle itself.
+     *
+     * @param creations the number of creations the capacity was claimed for
+     * @param throttleAdviser the throttle adviser the capacity was claimed from
+     */
+    private void giveBackIfRolledBackBeforeOwnerCommits(
+            final int creations, @NonNull final ThrottleAdviser throttleAdviser) {
+        context.savepointStack().onRollback(() -> {
+            // Once the owner commits, these creations count like its own, which a later rollback keeps claimed too
+            if (!storageAccountingScope.ownerHasCommitted()) {
+                throttleAdviser.leakCapacityForNOfUnscaled(creations, CRYPTO_CREATE);
+            }
+        });
     }
 
     @Override
@@ -165,13 +203,13 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
     private record SizeEffects(long finalSlotsUsed, List<StorageSizeChange> sizeChanges) {}
 
     private SizeEffects summarizeSizeEffects(@NonNull final List<StorageAccesses> allChanges) {
-        // The initial K/V state will still include the slots being "zeroed out"; i.e., removed
+        // Usage counters include previously persisted nested changes, but not this commit's changes.
         var finalSlotsUsed = evmFrameState.getKvStateSize();
         final List<StorageSizeChange> sizeChanges = new ArrayList<>();
         for (final var changes : allChanges) {
             final var sizeChange = changes.summarizeSizeEffects();
             sizeChanges.add(sizeChange);
-            finalSlotsUsed -= sizeChange.numRemovals();
+            finalSlotsUsed += sizeChange.netChange();
         }
         return new SizeEffects(finalSlotsUsed, sizeChanges);
     }

@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
@@ -32,6 +33,7 @@ import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import com.hedera.services.bdd.suites.validation.ConcurrentSubprocessValidationTest;
 import com.swirlds.config.api.ConfigurationBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -137,25 +139,37 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 return;
             }
             embedding = embeddingMode();
-            final HederaNetwork network =
-                    switch (embedding) {
-                        // Embedding is not applicable for a subprocess network
-                        case NA -> {
-                            final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
-                                    .map(Boolean::parseBoolean)
-                                    .orElse(false);
-                            yield isRemote ? sharedRemoteNetworkIfRequested() : sharedSubProcessNetwork(null, null);
-                        }
-                        // For the default Test task, we need to run some tests in concurrent embedded mode and
-                        // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
-                        // annotation; this PER_CLASS value supports that requirement
-                        // Embedded networks are created lazily on first demand, so that a
-                        // @GenesisHapiTest running before any other test is the only live instance
-                        case PER_CLASS, CONCURRENT, REPEATABLE -> null;
-                    };
+            final HederaNetwork network = switch (embedding) {
+                // Embedding is not applicable for a subprocess network
+                case NA -> {
+                    final boolean isRemote = Optional.ofNullable(System.getProperty("hapi.spec.remote"))
+                            .map(Boolean::parseBoolean)
+                            .orElse(false);
+                    if (!isRemote) {
+                        pinFileWriterForLocalRuns();
+                    }
+                    yield isRemote ? sharedRemoteNetworkIfRequested() : sharedSubProcessNetwork(null, null);
+                }
+                // For the default Test task, we need to run some tests in concurrent embedded mode and
+                // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
+                // annotation; this PER_CLASS value supports that requirement
+                // Embedded networks are created lazily on first demand, so that a
+                // @GenesisHapiTest running before any other test is the only live instance
+                case PER_CLASS, CONCURRENT, REPEATABLE -> null;
+            };
             if (network != null) {
-                maybeStartBlockNodeStreaming(network);
+                final var blockNodeNetwork = maybeStartBlockNodeStreaming(network);
                 network.start();
+                if (blockNodeNetwork != null) {
+                    try {
+                        // Its containers may still be starting alongside the consensus nodes
+                        blockNodeNetwork.awaitStarted();
+                    } catch (final RuntimeException e) {
+                        // Leave no consensus nodes running, as when a block node failed before they started
+                        network.terminate();
+                        throw e;
+                    }
+                }
                 SHARED_NETWORK.set(network);
                 if (network instanceof SubProcessNetwork subProcessNetwork) {
                     reconfigureSharedSubProcessLogging(subProcessNetwork);
@@ -350,17 +364,37 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
     }
 
     /**
-     * Starts a {@link BlockNodeNetwork} for the shared subprocess network when a per-task override asks for a gRPC
-     * writer, or when the effective writer could not run without one: a {@code GRPC}-only writer, or {@code BLOCKS}
-     * mode, where an unacknowledged buffer back-pressures and stalls the handle thread. Never for a {@code FILE}
-     * writer, a {@code RECORDS}-only stream, or {@code -Dhapi.spec.blocknode.mode=NONE}.
+     * Outside CI, a shared subprocess network that asks for neither a block node mode nor a writer only writes block
+     * files, so running a test locally needs no Docker. Setting {@code -Dhapi.spec.blocknode.mode} streams to a
+     * simulated or real block node, as in CI. Must run before the network is created, which reads the overrides.
      */
-    private static void maybeStartBlockNodeStreaming(HederaNetwork network) {
-        if (!(network instanceof SubProcessNetwork subProcessNetwork)) {
+    private static void pinFileWriterForLocalRuns() {
+        if (System.getenv("CI") != null
+                || System.getProperty("hapi.spec.blocknode.mode") != null
+                || ProcessUtils.prCheckOverrides().containsKey("blockStream.writerMode")) {
             return;
         }
+        final var overrides = System.getProperty("hapi.spec.test.overrides", "");
+        System.setProperty(
+                "hapi.spec.test.overrides",
+                (overrides.isBlank() ? "" : overrides + ",") + "blockStream.writerMode=FILE");
+        log.info("Outside CI with no block node requested, the shared network only writes block files; set"
+                + " -Dhapi.spec.blocknode.mode to stream to a block node");
+    }
+
+    /**
+     * Starts a {@link BlockNodeNetwork} for the shared subprocess network whenever its effective writer streams over
+     * gRPC, whether a per-task override or the production default sets it. Never for a {@code FILE} writer, a
+     * {@code RECORDS}-only stream, or {@code -Dhapi.spec.blocknode.mode=NONE}.
+     *
+     * @return the block node network, whose real containers may still be starting; or null if there is none
+     */
+    private static @Nullable BlockNodeNetwork maybeStartBlockNodeStreaming(HederaNetwork network) {
+        if (!(network instanceof SubProcessNetwork subProcessNetwork)) {
+            return null;
+        }
         final Map<String, String> prCheckOverrides = ProcessUtils.prCheckOverrides();
-        // Also read the production defaults, so a GRPC-only or BLOCKS default still gets a block node
+        // Fall back to the production defaults, which count the same as an override
         final BlockStreamConfig defaults = ConfigurationBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .build()
@@ -374,13 +408,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         final BlockNodeMode blockNodeMode = Optional.ofNullable(System.getProperty("hapi.spec.blocknode.mode"))
                 .map(BlockNodeMode::valueOf)
                 .orElse(BlockNodeMode.REAL);
-        final boolean streamsToBlockNodes = writerMode != BlockStreamWriterMode.FILE
-                && streamMode != StreamMode.RECORDS
-                && (prCheckOverrides.containsKey("blockStream.writerMode")
-                        || writerMode == BlockStreamWriterMode.GRPC
-                        || streamMode == StreamMode.BLOCKS);
+        final boolean streamsToBlockNodes =
+                writerMode != BlockStreamWriterMode.FILE && streamMode != StreamMode.RECORDS;
         if (!streamsToBlockNodes || blockNodeMode == BlockNodeMode.NONE) {
-            return;
+            return null;
         }
         log.info(
                 "Block streaming active (effective writerMode={}, streamMode={}); configuring a Block Node network with mode {}",
@@ -396,13 +427,30 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         if (blockNodeMode == BlockNodeMode.REAL) {
             blockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(subProcessNetwork.getNodeKeys()));
         }
-        blockNodeNetwork.start();
+        blockNodeNetwork.startInBackground();
         SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
+        if (!persistsBlockBuffer(prCheckOverrides)) {
+            // Nodes back off 15 s from a block node not yet up, and a restart in that window loses the
+            // blocks they hold in memory only; so without buffer persistence the block node starts first
+            blockNodeNetwork.awaitStarted();
+        }
         subProcessNetwork.setBlockNodeMode(blockNodeMode);
         subProcessNetwork.getPostInitWorkingDirActions().add(blockNodeNetwork::configureBlockNodeConnectionInformation);
         subProcessNetwork
                 .getPostInitWorkingDirActions()
                 .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
+        return blockNodeNetwork;
+    }
+
+    // Persistence saves a node's unacknowledged blocks across a restart
+    private static boolean persistsBlockBuffer(@NonNull final Map<String, String> prCheckOverrides) {
+        return Optional.ofNullable(prCheckOverrides.get("blockStream.buffer.isBufferPersistenceEnabled"))
+                .map(Boolean::parseBoolean)
+                .orElseGet(() -> ConfigurationBuilder.create()
+                        .withConfigDataType(BlockBufferConfig.class)
+                        .build()
+                        .getConfigData(BlockBufferConfig.class)
+                        .isBufferPersistenceEnabled());
     }
 
     public static String buildRsaBootstrapJson(final Map<NodeId, KeysAndCerts> nodeKeys) {

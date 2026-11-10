@@ -2,9 +2,9 @@
 package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
  * Abstract extension of {@link Metric}, that holds a set of measurements for each combination of dynamic label values
@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Subclasses must implement the creation of measurements based on initializer
  * and measurement snapshots based on measurement with it's associated label values.
  * All measurements are created lazily, whenever new combination of dynamic label values are requested.
+ * Measurements with dynamic labels can be removed using {@link #removeIf(Predicate)}.
  * <p>
  * Clients should pay attention the dynamic label values cardinality, as high cardinality can lead to
  * higher costs for metrics backends. <b>Do not use</b> labels with values having unbounded cardinality,
@@ -26,7 +27,7 @@ public abstract class SettableMetric<I, M> extends Metric {
     private final I defaultInitializer;
 
     private volatile M noLabelsMeasurement;
-    private final Map<LabelValues, M> measurements;
+    private final ConcurrentHashMap<LabelValues, M> measurements;
 
     protected SettableMetric(SettableMetric.Builder<I, ?, ?> builder) {
         super(builder);
@@ -57,7 +58,8 @@ public abstract class SettableMetric<I, M> extends Metric {
             synchronized (this) {
                 localRef = noLabelsMeasurement;
                 if (localRef == null) {
-                    noLabelsMeasurement = localRef = createMeasurementAndSnapshot(LabelValues.EMPTY);
+                    noLabelsMeasurement =
+                            localRef = createMeasurementAndSnapshot(LabelValues.EMPTY, defaultInitializer);
                 }
             }
         }
@@ -81,9 +83,8 @@ public abstract class SettableMetric<I, M> extends Metric {
         final LabelValues labelValues = createLabelValues(namesAndValues);
         if (labelValues.size() == 0) {
             return getOrCreateNotLabeled();
-        } else {
-            return measurements.computeIfAbsent(labelValues, this::createMeasurementAndSnapshot);
         }
+        return getOrCreate(labelValues, defaultInitializer);
     }
 
     /**
@@ -106,9 +107,28 @@ public abstract class SettableMetric<I, M> extends Metric {
                     "This metric has no dynamic labels, so you must call getOrCreateNotLabeled()");
         }
         Objects.requireNonNull(initializer, "custom measurement initializer must not be null");
-        return measurements.computeIfAbsent(
-                createLabelValues(namesAndValues),
-                labelValues -> createMeasurementAndSnapshot(labelValues, initializer));
+        return getOrCreate(createLabelValues(namesAndValues), initializer);
+    }
+
+    /**
+     * Removes all measurements whose dynamic label values match the given filter, so they are not exported anymore.
+     * Use {@link LabelValues#get(String)} to match by label name, for example
+     * {@code metric.removeIf(labelValues -> "3".equals(labelValues.get("node")))}.
+     * <p>
+     * The filter is called for the label values of each existing measurement without holding any lock.
+     * Measurements created concurrently with this call may or may not be removed.
+     * <p>
+     * The next {@code getOrCreateLabeled} call with the same label values creates a new measurement from the initializer.
+     * References to removed measurements held by callers remain usable, but their updates are not exported anymore,
+     * so callers caching measurements must drop them on removal.
+     *
+     * @param filter returns {@code true} for label values of measurements to remove, must not be {@code null}
+     * @return the number of removed measurements
+     * @throws IllegalStateException if metric has no dynamic labels specified during creation
+     * @throws NullPointerException  if the filter is {@code null}
+     */
+    public final int removeIf(@NonNull Predicate<LabelValues> filter) {
+        return removeMeasurements(measurements, filter);
     }
 
     /**
@@ -147,8 +167,15 @@ public abstract class SettableMetric<I, M> extends Metric {
         }
     }
 
-    private M createMeasurementAndSnapshot(LabelValues labelValues) {
-        return createMeasurementAndSnapshot(labelValues, defaultInitializer);
+    private M getOrCreate(LabelValues labelValues, I initializer) {
+        // lock-free lookup first: computeIfAbsent may lock the map bin even when the key exists
+        final M existing = measurements.get(labelValues);
+        if (existing != null) {
+            return existing;
+        }
+        // the snapshot is added inside computeIfAbsent, so the map entry and its snapshot change together per key
+        // and a failed snapshot creation leaves no measurement in the map
+        return measurements.computeIfAbsent(labelValues, key -> createMeasurementAndSnapshot(key, initializer));
     }
 
     private M createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {

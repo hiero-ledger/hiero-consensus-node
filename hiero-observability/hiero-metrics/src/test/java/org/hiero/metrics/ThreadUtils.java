@@ -2,10 +2,14 @@
 package org.hiero.metrics;
 
 import java.time.Duration;
+import java.util.Queue;
 import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntFunction;
 
 /**
@@ -16,15 +20,21 @@ public final class ThreadUtils {
     private ThreadUtils() {}
 
     /**
-     * Runs the given tasks concurrently in the specified number of threads.
+     * Runs the given tasks concurrently in the specified number of threads, started at the same time,
+     * and waits for their completion.
      *
      * @param threadsCount the number of threads to run
+     * @param timeout the maximum duration to wait for all tasks to complete
      * @param taskFactory a factory function that creates a Runnable task for each thread index
-     * @return a CountDownLatch that can be used to await the completion of all tasks
+     * @throws InterruptedException if the current thread is interrupted while waiting
+     * @throws AssertionError if a task fails or the threads do not finish in time
      */
-    public static CountDownLatch runConcurrent(int threadsCount, IntFunction<Runnable> taskFactory) {
+    public static void runConcurrentAndWait(int threadsCount, Duration timeout, IntFunction<Runnable> taskFactory)
+            throws InterruptedException {
         final CyclicBarrier barrier = new CyclicBarrier(threadsCount);
         final CountDownLatch doneLatch = new CountDownLatch(threadsCount);
+        // failures are added before counting down the latch, so they are visible after awaiting it
+        final Queue<Throwable> failures = new ConcurrentLinkedQueue<>();
 
         for (int i = 0; i < threadsCount; i++) {
             final int threadIndex = i;
@@ -34,9 +44,9 @@ public final class ThreadUtils {
                             taskFactory.apply(threadIndex).run();
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
-                            throw new RuntimeException("Interrupted", e);
-                        } catch (BrokenBarrierException e) {
-                            throw new RuntimeException(e);
+                            failures.add(e);
+                        } catch (BrokenBarrierException | RuntimeException | Error e) {
+                            failures.add(e);
                         } finally {
                             doneLatch.countDown();
                         }
@@ -44,71 +54,55 @@ public final class ThreadUtils {
                     .start();
         }
 
-        return doneLatch;
-    }
-
-    /**
-     * Runs the given tasks concurrently in the specified number of threads and waits for their completion.
-     *
-     * @param threadsCount the number of threads to run
-     * @param timeout the maximum duration to wait for all tasks to complete
-     * @param taskFactory a factory function that creates a Runnable task for each thread index
-     * @throws InterruptedException if the current thread is interrupted while waiting
-     */
-    public static void runConcurrentAndWait(int threadsCount, Duration timeout, IntFunction<Runnable> taskFactory)
-            throws InterruptedException {
-        CountDownLatch doneLatch = runConcurrent(threadsCount, taskFactory);
-        awaitLatch(doneLatch, timeout, "Threads did not finish in time");
-    }
-
-    /**
-     * Awaits on the given latch for up to 1 second.
-     *
-     * @param latch the latch to await
-     * @param errorMessage the error message for the AssertionError if the latch is not released in time
-     * @throws InterruptedException if the current thread is interrupted while waiting
-     */
-    public static void awaitLatch(CountDownLatch latch, String errorMessage) throws InterruptedException {
-        awaitLatch(latch, Duration.ofSeconds(1), errorMessage);
-    }
-
-    /**
-     * Awaits on the given latch for up to the specified duration.
-     *
-     * @param latch the latch to await
-     * @param duration the maximum duration to wait
-     * @param errorMessage the error message for the AssertionError if the latch is not released in time
-     * @throws InterruptedException if the current thread is interrupted while waiting
-     */
-    public static void awaitLatch(CountDownLatch latch, Duration duration, String errorMessage)
-            throws InterruptedException {
-        if (!latch.await(duration.toMillis(), TimeUnit.MILLISECONDS)) {
-            throw new AssertionError(errorMessage);
+        if (!doneLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+            throw new AssertionError("Threads did not finish in time");
+        }
+        if (!failures.isEmpty()) {
+            final AssertionError error = new AssertionError("Concurrent task failed", failures.poll());
+            failures.forEach(error::addSuppressed);
+            throw error;
         }
     }
 
     /**
-     * Joins the given thread for up to 1 second.
+     * Runs the given tasks concurrently like {@link #runConcurrentAndWait(int, Duration, IntFunction)},
+     * while another thread runs the given check in a loop until the tasks finish.
+     * Use it to verify invariants, which must hold at any time during concurrent modifications,
+     * because a broken invariant may be fixed again by later modifications before the tasks finish.
      *
-     * @param thread the thread to join
-     * @param errorMessage the error message for the AssertionError if the thread does not terminate in time
+     * @param threadsCount the number of threads to run
+     * @param timeout the maximum duration to wait for all tasks to complete
+     * @param taskFactory a factory function that creates a Runnable task for each thread index
+     * @param check the check to run in a loop, failing by throwing an exception or error
      * @throws InterruptedException if the current thread is interrupted while waiting
+     * @throws AssertionError if a task or the check fails, or the threads do not finish in time
      */
-    public static void joinThread(Thread thread, String errorMessage) throws InterruptedException {
-        joinThread(thread, Duration.ofSeconds(1), errorMessage);
-    }
+    public static void runConcurrentAndCheck(
+            int threadsCount, Duration timeout, IntFunction<Runnable> taskFactory, Runnable check)
+            throws InterruptedException {
+        final AtomicBoolean running = new AtomicBoolean(true);
+        final AtomicReference<Throwable> checkFailure = new AtomicReference<>();
+        final Thread checkThread = Thread.ofPlatform().start(() -> {
+            try {
+                while (running.get()) {
+                    check.run();
+                }
+            } catch (Throwable t) {
+                checkFailure.set(t);
+            }
+        });
 
-    /**
-     * Joins the given thread for up to the specified duration.
-     *
-     * @param thread the thread to join
-     * @param duration the maximum duration to wait
-     * @param errorMessage the error message for the AssertionError if the thread does not terminate in time
-     * @throws InterruptedException if the current thread is interrupted while waiting
-     */
-    public static void joinThread(Thread thread, Duration duration, String errorMessage) throws InterruptedException {
-        if (!thread.join(duration)) {
-            throw new AssertionError(errorMessage);
+        try {
+            runConcurrentAndWait(threadsCount, timeout, taskFactory);
+        } finally {
+            running.set(false);
+            if (!checkThread.join(Duration.ofSeconds(1))) {
+                throw new AssertionError("Check thread did not finish in time");
+            }
+        }
+
+        if (checkFailure.get() != null) {
+            throw new AssertionError("Check failed while concurrent tasks were running", checkFailure.get());
         }
     }
 }

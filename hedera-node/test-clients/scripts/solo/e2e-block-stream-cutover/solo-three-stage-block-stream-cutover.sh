@@ -180,6 +180,8 @@ MINIO_SERVICE_NAME="${MINIO_SERVICE_NAME:-}"
 ZSTD_WRAPPER_DIR="${WORK_DIR}/zstd-bin"
 ZSTD_WRAPPER_SRC="${ZSTD_WRAPPER_DIR}/ZstdCat.java"
 ZSTD_WRAPPER_BIN="${ZSTD_WRAPPER_DIR}/zstd"
+HELM_WRAPPER_DIR="${WORK_DIR}/helm-bin"
+HELM_DOWNLOAD_RETRY_LOG="${GENERATED_DIR}/helm-download-retries.log"
 MIGRATION_COMPARE_LOG="${GENERATED_DIR}/migration-compare.log"
 TMP_STAGE2_APP_PROPS="${GENERATED_DIR}/application-jumpstart.properties"
 WRAPPED_RECORD_HASHES_FILE="/opt/hgcapp/services-hedera/HapiApp2.0/data/wrappedRecordHashes/wrapped-record-hashes.pb"
@@ -237,6 +239,10 @@ cleanup() {
     collect_stage_diagnostics "${CURRENT_STAGE}-failure" || true
   fi
   cleanup_tck_resources
+  if [[ -s "${HELM_DOWNLOAD_RETRY_LOG}" ]]; then
+    echo "Helm retried transient chart downloads:" >&2
+    cat "${HELM_DOWNLOAD_RETRY_LOG}" >&2 || true
+  fi
   # Keep generated jumpstart inputs, comparisons and per-stage logs for CI artifacts.
   rm -rf "${WORK_DIR}" >/dev/null 2>&1 || true
   exit "${ec}"
@@ -571,7 +577,9 @@ async function main() {
   const client = Client.forNetwork({ [grpcEndpoint]: "0.0.3" });
   client.setOperator(operatorAccountId, PrivateKey.fromString(operatorPrivateKey));
   client.setMaxAttempts(3);
-  client.setRequestTimeout(20000);
+  // A just-restarted node needs ~17 s to accept transactions; the SDK retries a local
+  // (127.0.0.1:50211) node until this deadline, ignoring setMaxAttempts.
+  client.setRequestTimeout(120000);
 
   for (let i = 1; i <= txCount; i++) {
     const tx = new AccountCreateTransaction()
@@ -616,11 +624,16 @@ EOF
 
   if [[ ! -d "${WORK_DIR}/node_modules/@hashgraph/sdk" ]]; then
     log "Installing @hashgraph/sdk into ${WORK_DIR} (one-time, ~30s)"
+    # 2.81.0 is the final @hashgraph/sdk release (now @hiero-ledger/sdk); keep npm's log for failures.
     (
       cd "${WORK_DIR}"
       npm init -y >/dev/null 2>&1
-      npm install --no-fund --no-audit @hashgraph/sdk >/dev/null 2>&1
-    )
+      npm install --no-fund --no-audit @hashgraph/sdk@2.81.0 > npm-install-sdk.log 2>&1
+    ) || {
+      cat "${WORK_DIR}/npm-install-sdk.log" >&2
+      echo "npm install @hashgraph/sdk@2.81.0 failed" >&2
+      return 1
+    }
   fi
 
   log "Submitting ${tx_count} cryptoCreate txns to drive consensus rounds"
@@ -772,6 +785,57 @@ run_command_with_timeout() {
   done
 
   wait "${cmd_pid}"
+}
+
+# Solo runs `helm` from PATH and never retries a chart download, while GitHub-hosted chart repos
+# sometimes answer 5xx. Helm downloads before it touches the cluster, so retrying those is safe.
+# Solo prefers ~/.solo/bin/helm when it exists, which bypasses this wrapper (local runs only).
+install_helm_download_retry() {
+  local real_helm
+  real_helm="$(command -v helm)"
+  mkdir -p "${HELM_WRAPPER_DIR}"
+  : > "${HELM_DOWNLOAD_RETRY_LOG}"
+  {
+    echo '#!/usr/bin/env bash'
+    # Solo passes the helm process only PATH, HOME and HELM_* variables, so bake the settings in.
+    printf 'real_helm=%q\nretry_log=%q\n' "${real_helm}" "${HELM_DOWNLOAD_RETRY_LOG}"
+    cat <<'EOF'
+case "${1:-}" in
+  install|upgrade|pull|fetch|repo|dependency|dep|template|show) ;;
+  *) exec "${real_helm}" "$@" ;;
+esac
+# Helm's own download errors (HTTP chart or index, repo add, OCI registry), unless a 400-404.
+download_error='failed to fetch https?://[^ ]+ : |is not a valid chart repository or cannot be reached'
+download_error+='|unexpected status from [A-Z]+ request to https?://|failed to do request: [A-Za-z]+ "https?://'
+download_error+='|response status code [0-9]+|Get "https?://[^"]*(\.tgz|/index\.yaml)"'
+permanent_error='(: | code )40[0-4][ :]'
+attempts=5
+pid=""
+err="$(mktemp)"
+trap 'rm -f "${err}"' EXIT
+trap '[ -n "${pid}" ] && kill -TERM "${pid}" 2>/dev/null; wait "${pid}" 2>/dev/null; cat "${err}" >&2; exit 143' TERM INT
+for ((attempt = 1; ; attempt++)); do
+  # Background + wait lets the TERM trap reach helm; an explicit <&0 keeps stdin for the job.
+  "${real_helm}" "$@" <&0 2>"${err}" &
+  pid=$!
+  wait "${pid}"
+  rc=$?
+  if ((rc == 0 || attempt == attempts)) || ! grep -qE "${download_error}" "${err}" ||
+    grep -qE "${permanent_error}" "${err}"; then
+    cat "${err}" >&2
+    exit "${rc}"
+  fi
+  printf '[%s] helm %s (attempt %d/%d): %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" "${attempt}" \
+    "${attempts}" "$(grep -m 1 'Error' "${err}")" >> "${retry_log}"
+  sleep $((attempt * 15)) &
+  pid=$!
+  wait "${pid}"
+done
+EOF
+  } > "${HELM_WRAPPER_DIR}/helm"
+  chmod +x "${HELM_WRAPPER_DIR}/helm"
+  export PATH="${HELM_WRAPPER_DIR}:${PATH}"
+  log "Retrying transient Helm chart download failures via ${HELM_WRAPPER_DIR}/helm (log: ${HELM_DOWNLOAD_RETRY_LOG})"
 }
 
 # ======================================================================================
@@ -1280,7 +1344,8 @@ seed_block_node_tss_parameters() {
   local bn_logs=""
   while (( SECONDS < deadline )); do
     bn_logs="$(kubectl -n "${SOLO_NAMESPACE}" logs "${bn_pod}" 2>/dev/null)"
-    if grep -q "Successfully updated TSS data" <<<"${bn_logs}"; then
+    # BN <= 0.44 logs the first form, BN >= 0.45 the second.
+    if grep -qE "Successfully updated TSS data|Updated TSS data, valid from block" <<<"${bn_logs}"; then
       log "Block Node loaded seeded TSS application state — ready to verify real-TSS blocks"
       return 0
     fi
@@ -1730,9 +1795,9 @@ verify_stage2_migration_votes() {
 
 # ======================================================================================
 # Mirror node + explorer. The explorer is a UI over the mirror node's REST API, so both are
-# deployed together. Best-effort: deployment failures warn but do not abort the core cutover
-# test. Independent of the BN path (the BN uses the pre-seeded RSA bootstrap roster, not the
-# mirror REST endpoint).
+# deployed together. The explorer is best-effort: its deployment failures warn but do not abort
+# the core cutover test. Independent of the BN path (the BN uses the pre-seeded RSA bootstrap
+# roster, not the mirror REST endpoint).
 # ======================================================================================
 deployment_ready() {
   local deployment="$1"
@@ -1865,18 +1930,23 @@ start_explorer_ingress_port_forward() {
   return 1
 }
 
-# Deploys a mirror node (with ingress) and the explorer UI, then opens local port-forwards.
-# Returns non-zero only if the mirror node or explorer could not be deployed at all; transient
-# REST-Java readiness and port-forward issues are downgraded to warnings.
+# Deploys a mirror node and the explorer UI, then opens local port-forwards. The explorer and TCK
+# reach the mirror through its Services, so it needs no ingress controller (one less chart download).
+# Returns non-zero only if the mirror node could not be deployed; explorer, transient REST-Java
+# readiness and port-forward issues are downgraded to warnings.
 deploy_mirror_and_explorer() {
   log "=== Deploying mirror node + explorer ==="
   write_mirror_node_values_override
   if ! run_command_with_timeout "${SOLO_MIRROR_DEPLOY_TIMEOUT_SECS}" \
-      solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --enable-ingress --force-port-forward false \
+      solo mirror node add --deployment "${SOLO_DEPLOYMENT}" --force-port-forward false \
       --mirror-node-version "${MIRROR_NODE_VERSION}" \
       --values-file "${MIRROR_NODE_VALUES_FILE}"; then
     if mirror_node_failed_only_on_restjava; then
       log "Mirror node add failed only on REST Java readiness; required mirror services are up — continuing"
+    elif ! kubectl -n "${SOLO_NAMESPACE}" get deployment mirror-1-importer >/dev/null 2>&1; then
+      # Solo stopped before installing the mirror services (e.g. a chart download); waiting can't help.
+      echo "mirror: 'solo mirror node add' failed before deploying the mirror services (see the Solo error above)" >&2
+      return 1
     else
       log "Mirror node add failed; waiting up to 600s for required mirror services"
       wait_for_required_mirror_services_ready 600 || {
@@ -1884,11 +1954,12 @@ deploy_mirror_and_explorer() {
       }
     fi
   fi
-  if ! run_command_with_timeout "${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS}" \
+  if run_command_with_timeout "${SOLO_EXPLORER_DEPLOY_TIMEOUT_SECS}" \
       solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --force-port-forward false; then
-    echo "explorer: 'solo explorer node add' failed" >&2; return 1
+    start_explorer_ingress_port_forward || log "WARN: explorer UI tunnel unavailable; explorer may be inaccessible"
+  else
+    log "WARN: 'solo explorer node add' failed; continuing without the explorer UI"
   fi
-  start_explorer_ingress_port_forward || log "WARN: explorer UI tunnel unavailable; explorer may be inaccessible"
   start_mirror_rest_port_forward || log "WARN: mirror REST tunnel unavailable on localhost:${MIRROR_REST_LOCAL_PORT}"
   if wait_for_http_ok_simple "http://127.0.0.1:${MIRROR_REST_LOCAL_PORT}/api/v1/blocks?limit=1" 36 5; then
     log "Mirror REST is serving blocks; explorer UI at http://127.0.0.1:${EXPLORER_INGRESS_LOCAL_PORT}"
@@ -2050,6 +2121,7 @@ log "Validating prerequisites"
 for cmd in kind kubectl docker helm solo curl unzip node npm jq openssl grpcurl python3 java git; do
   require_cmd "${cmd}"
 done
+install_helm_download_retry
 [[ "${DOCKER_MIN_MEMORY_MIB}" =~ ^[1-9][0-9]*$ ]] || { echo "DOCKER_MIN_MEMORY_MIB must be a positive integer" >&2; exit 1; }
 verify_docker_memory_budget
 case "${ENABLE_TCK_TESTS}" in
@@ -2104,7 +2176,8 @@ nudge_consensus_with_transactions
 verify_wraps_on_consensus_nodes 600
 verify_stage2_migration_votes
 seed_block_node_tss_parameters
-wait_for_block_node_caught_up 180
+# The CN's reconnect after the seed roll used to overlap the seed step's idle 180 s; keep that budget.
+wait_for_block_node_caught_up 360
 validate_fresh_mirror_ingestion
 collect_stage_diagnostics "stage2-jumpstart-tss"
 
