@@ -44,7 +44,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -307,7 +306,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /// Creates a new MerkleDb data source. If `copiedIndexes` is provided, the storage dir is a snapshot
     /// made with them, see [#copy(Path, boolean)], and they are used instead of index files, even if
-    /// [MerkleDbConfig#indexRebuildingEnforced()] is set, and the copied hash chunks start this data
+    /// [MerkleDbConfig#indexRebuildingEnforced()] is set, and the copied hash chunk cache becomes this data
     /// source's hash chunk cache. If this constructor succeeds, the data source owns these indexes.
     /// Otherwise, the caller is responsible for closing them.
     private MerkleDbDataSource(
@@ -437,10 +436,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 idToDiskLocationHashChunks);
 
         hashChunkCacheThreshold = merkleDbConfig.hashChunkCacheThreshold();
-        hashChunkCache = new ConcurrentHashMap<>(hashChunkCacheThreshold);
-        if (copiedIndexes != null) {
-            hashChunkCache.putAll(copiedIndexes.hashChunkCache);
-        }
+        hashChunkCache = (copiedIndexes != null)
+                ? copiedIndexes.hashChunkCache
+                : new ConcurrentHashMap<>(hashChunkCacheThreshold);
 
         // KV disk location index (path to disk location)
         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
@@ -1109,24 +1107,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return index.copy(flushPool);
     }
 
-    /// Copies the hash chunk cache for [#copy(Path, boolean)], instead of writing it to disk. Chunks that
-    /// are no longer in the tree are skipped, as in [#flushHashChunkCache()]. The chunks are shared with
-    /// this data source, not copied, because a cached chunk is never modified. Flushes cache the chunks
-    /// of map copies that can't change anymore, and [#loadHashChunk(long)] caches a copy of the chunk it
-    /// returns.
-    private Map<Long, VirtualHashChunk> copyHashChunkCache() {
-        final long lastLeafPath = getLastLeafPath();
-        if (lastLeafPath <= 0) {
-            return Map.of();
-        }
-        final long maxValidChunkId = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, hashChunkHeight);
-        final Map<Long, VirtualHashChunk> copy = new HashMap<>(hashChunkCache.size());
-        hashChunkCache.forEach((chunkId, chunk) -> {
-            if (chunkId <= maxValidChunkId) {
-                copy.put(chunkId, chunk);
-            }
-        });
-        return copy;
+    /// Copies the hash chunk cache for [#copy(Path, boolean)], instead of writing it to disk. The copy
+    /// becomes the cache of the data source copy as is, so it's a concurrent map too. It's shallow: the
+    /// chunks are shared with this data source, because a cached chunk is never modified. Flushes cache
+    /// the chunks of map copies that can't change anymore, and [#loadHashChunk(long)] caches a copy of
+    /// the chunk it returns.
+    private ConcurrentHashMap<Long, VirtualHashChunk> copyHashChunkCache() {
+        return new ConcurrentHashMap<>(hashChunkCache);
     }
 
     /// Indexes and the hash chunk cache, copied in memory by [#copy(Path, boolean)]. They are set one by
@@ -1136,7 +1123,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         private LongList hashChunkIndex;
         private LongList leafIndex;
         private LongList bucketIndex;
-        private Map<Long, VirtualHashChunk> hashChunkCache;
+        private ConcurrentHashMap<Long, VirtualHashChunk> hashChunkCache;
 
         /// Releases the copied indexes. Must not be called, once they are passed to a data source that
         /// was created successfully.
