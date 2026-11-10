@@ -143,11 +143,9 @@ public class PredefinedPingTopologyImpl implements MeshTopology {
     @Override
     @NonNull
     public ConnectionState getConnectionData(@NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
-        // latency is half of ping
+        // latency is half of ping; computed in nanos so that odd pings are not truncated to whole milliseconds
+        final int pingMillis = configuration.pingMatrix()[allNodes.indexOf(sender)][allNodes.indexOf(receiver)];
         return new ConnectionState(
-                true,
-                Duration.ofMillis(configuration.pingMatrix()[allNodes.indexOf(sender)][allNodes.indexOf(receiver)] / 2),
-                configuration.jitter(),
-                configuration.bandwidth());
+                true, Duration.ofNanos(pingMillis * 1_000_000L / 2), configuration.jitter(), configuration.bandwidth());
     }
 }

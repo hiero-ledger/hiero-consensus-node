@@ -104,6 +104,30 @@ public class FalconTestEnvironment implements TestEnvironment {
     }
 
     /**
+     * Returns the creation-to-consensus latency (C2C) and the event throughput of the network, measured in simulated
+     * time from the moment the network was started until now. The C2C is observed by the full nodes only, because
+     * mini-nodes run no consensus engine; the throughput covers all nodes.
+     *
+     * @return a snapshot of the latency and throughput measured so far
+     * @throws IllegalStateException if the network has not been started yet
+     */
+    @NonNull
+    public ConsensusLatencyResult consensusLatency() {
+        return network.latencyRecorder().snapshot(timeManager.now());
+    }
+
+    /**
+     * Discards the creation-to-consensus latency and the event throughput measured so far, and starts measuring anew
+     * from now. Events created before now are left out of {@link #consensusLatency()}. Typically called right after
+     * the network has started, to leave out its start-up.
+     *
+     * @throws IllegalStateException if the network has not been started yet
+     */
+    public void restartConsensusLatencyMeasurement() {
+        network.latencyRecorder().restart(timeManager.now());
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override

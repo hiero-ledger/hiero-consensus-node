@@ -361,7 +361,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * thread scheduler decide all of that and break determinism, so the submissions are held and scheduled here
      * instead.
      *
-     * @param now the current time, in nanoseconds since the start
+     * @param now the time everything scheduled was sent at, the time of the previous tick, in nanoseconds since the start
      */
     private void scheduleSubmittedEvents(final long now) {
         for (int receiver = 0; receiver < roster.size(); receiver++) {
@@ -388,7 +388,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * {@link EventRouter#resendTo(TrackedEvent, int, long)}. This runs before the submissions of the current tick are
      * scheduled, which reach the restarted nodes on their own.
      *
-     * @param now the current time, in nanoseconds since the start
+     * @param now the time everything scheduled was sent at, the time of the previous tick, in nanoseconds since the start
      */
     private void replayEventLog(final long now) {
         for (int receiver = 0; receiver < roster.size(); receiver++) {
@@ -435,15 +435,18 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * @param now the new time
      */
     public void tick(@NonNull final Instant now) {
+        // Everything submitted since the previous tick was sent at the time of the previous tick: the nodes run right
+        // after the network in every tick, at the same instant.
+        final long sendTime = currentTime;
         currentTime = InFlightQueue.nanosSince(start, now);
         // The oldest event window is applied first, so that the window the tracked events are discarded by matches the
         // range of birth rounds the log still accepts when the submissions are appended.
         applyOldestEventWindow();
-        // Events are delivered before new ones are scheduled, so that an event always spends at least one tick in
-        // flight. Scheduling first would let a connection configured with no latency deliver an event in the same
-        // tick it was sent, with no simulated time passing in between.
+        // Submissions are scheduled at the time they were sent, and before delivery, so that an event spends exactly
+        // its latency in flight, rounded up to whole ticks, and not one extra tick. An event still spends at least one
+        // tick in flight, because it was sent at the previous tick.
+        scheduleForDelivery(sendTime);
         deliverArrived(now);
-        scheduleForDelivery(currentTime);
     }
 
     /**
@@ -485,7 +488,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * which goes first decides the arrival times of both, and the same seed only reproduces a run if it is always the
      * same.
      *
-     * @param now the current time, in nanoseconds since the start
+     * @param now the time everything scheduled was sent at, the time of the previous tick, in nanoseconds since the start
      */
     private void scheduleForDelivery(final long now) {
         if (!links.connectionsInitialized()) {
@@ -505,7 +508,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      *
      * <p>This takes the newly reported windows from {@link #eventWindows}.
      *
-     * @param now the current time, in nanoseconds since the start
+     * @param now the time everything scheduled was sent at, the time of the previous tick, in nanoseconds since the start
      */
     private void scheduleEventWindows(final long now) {
         final int nodeCount = roster.size();
