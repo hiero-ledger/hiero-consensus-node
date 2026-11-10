@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.consensus.benchmark.tools.event.EventStreamGenerator;
+import org.hiero.consensus.benchmark.tools.pipeline.TimedInput;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
@@ -19,7 +20,8 @@ import org.hiero.consensus.model.status.PlatformStatus;
  * One input or output of a recorded node, at the simulated time it happened.
  *
  * <p>The events of the steps are copies, as they were at that time; the simulation keeps changing its own objects. The
- * factories ({@code of}) make the copies when the step is recorded. Each copy is sent through the gossip streams
+ * factories ({@code of}) make the copies when the step is recorded, and {@link #pristine()} makes a new one in the same
+ * state for every pass of a replay. Each copy is sent through the gossip streams
  * ({@link EventStreamGenerator#receiveUnhashed(PlatformEvent)}), so that its lists and byte buffers are new, as in
  * production, where no code has used them yet. An event from another node has the origin {@link EventOrigin#GOSSIP}; an
  * event of the node itself is rebuilt as its event creator builds it, with the origin {@link EventOrigin#RUNTIME}. Each
@@ -39,15 +41,25 @@ import org.hiero.consensus.model.status.PlatformStatus;
  *       ({@link PlatformEvent#getTransactionReceivedTimes()}).</li>
  * </ul>
  */
-public sealed interface Step {
+public sealed interface Step extends TimedInput {
 
     /**
      * Returns the simulated time of this step.
      *
      * @return the time
      */
+    @Override
     @NonNull
     Instant time();
+
+    /**
+     * Returns this step with a new copy of its event, in the state described above, or this step if it has no event.
+     *
+     * @return a step that no pass has touched
+     */
+    @Override
+    @NonNull
+    Step pristine();
 
     /**
      * An event arrived from another node, before deduplication.
@@ -74,6 +86,15 @@ public sealed interface Step {
         public static Received of(@NonNull final Instant time, @NonNull final PlatformEvent delivered) {
             return new Received(time, requireNonNull(delivered.getSenderId()), received(delivered));
         }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Received pristine() {
+            return new Received(time, sender, received(event));
+        }
     }
 
     /**
@@ -99,6 +120,15 @@ public sealed interface Step {
                 @NonNull final Instant time, @NonNull final PlatformEvent event, @NonNull final EventOrigin origin) {
             return new Released(time, copy(event, origin, time));
         }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Released pristine() {
+            return new Released(time, copy(event, event.getOrigin(), event.getLastStageTime()));
+        }
     }
 
     /**
@@ -121,6 +151,15 @@ public sealed interface Step {
             return new CreationAttempt(
                     time, created == null ? null : copy(created, EventOrigin.RUNTIME, created.getLastStageTime()));
         }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public CreationAttempt pristine() {
+            return created == null ? this : of(time, created);
+        }
     }
 
     /**
@@ -129,7 +168,19 @@ public sealed interface Step {
      * @param time the time it got it
      * @param window the event window
      */
-    record NewEventWindow(@NonNull Instant time, @NonNull EventWindow window) implements Step {}
+    record NewEventWindow(@NonNull Instant time, @NonNull EventWindow window) implements Step {
+
+        /**
+         * Returns this step: an event window cannot change.
+         *
+         * @return this step
+         */
+        @Override
+        @NonNull
+        public NewEventWindow pristine() {
+            return this;
+        }
+    }
 
     /**
      * The event creator got a new platform status.
@@ -138,7 +189,19 @@ public sealed interface Step {
      * @param status the platform status
      */
     record PlatformStatusChange(
-            @NonNull Instant time, @NonNull PlatformStatus status) implements Step {}
+            @NonNull Instant time, @NonNull PlatformStatus status) implements Step {
+
+        /**
+         * Returns this step: a platform status cannot change.
+         *
+         * @return this step
+         */
+        @Override
+        @NonNull
+        public PlatformStatusChange pristine() {
+            return this;
+        }
+    }
 
     /**
      * Copies an event as gossip delivers it: not hashed, with the sender and the time received, which is also the time
