@@ -10,9 +10,13 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
+import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
+import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
+import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -37,10 +41,14 @@ import javax.inject.Singleton;
  *       and {@code ownership_commitment} is provided — deletes the pending commitment,
  *       cleaning up an abandoned registration.</li>
  * </ol>
- * Requires the CLPR admin key (network admin / superuser).
+ * An explicit force-close marks an established channel CLOSED and discards its
+ * outbound queue in bounded batches. Requires the CLPR admin key (network admin / superuser).
  */
 @Singleton
 public final class ClprCloseChannelHandler extends AbstractClprHandler {
+
+    // A legacy slot can be several MiB. Limit how many slots a cleanup transaction reads.
+    private static final int MAX_PURGE_SLOTS = 16;
 
     private final ClprChannelLifecycle channelLifecycle;
 
@@ -54,6 +62,7 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
         requireNonNull(context);
         final var op = context.body().clprCloseChannelOrThrow();
         validateTruePreCheck(op.channelId().length() == CHANNEL_ID_LENGTH, INVALID_TRANSACTION_BODY);
+        validateTruePreCheck(!op.forceClose() || op.ownershipCommitment().length() == 0, INVALID_TRANSACTION_BODY);
     }
 
     @Override
@@ -68,10 +77,17 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
         final var op = context.body().clprCloseChannelOrThrow();
         final var storeFactory = context.storeFactory();
         final var channelStore = storeFactory.writableStore(WritableChannelStore.class);
+        if (op.forceClose()) {
+            final var channel = requireChannel(channelStore, op.channelId());
+            if (channel.status() == ClprChannelStatus.PENDING) {
+                throw new HandleException(CLPR_INVALID_CHANNEL_STATUS);
+            }
+            forceClose(storeFactory, channelStore, channel);
+            return;
+        }
+
         final var commitmentStore = storeFactory.writableStore(WritablePendingCommitmentStore.class);
-
         final var existingChannel = channelStore.getChannel(op.channelId());
-
         if (existingChannel != null) {
             final var status = existingChannel.status();
             if (status == ClprChannelStatus.PENDING) {
@@ -102,6 +118,52 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
                 throw new HandleException(CLPR_CHANNEL_NOT_FOUND);
             }
             commitmentStore.remove(commitment);
+        }
+    }
+
+    private void forceClose(
+            @NonNull final StoreFactory storeFactory,
+            @NonNull final WritableChannelStore channelStore,
+            @NonNull final ClprChannel channel) {
+        final var channelId = channel.channelId();
+        final long cursor = channel.queuePurgeCursor();
+        final long nextMessageId = channel.nextMessageId();
+        if (cursor != 0 && cursor >= nextMessageId) {
+            return;
+        }
+
+        // An acknowledged slot has already been deleted. Do not alter the peer's actual acknowledgement.
+        long nextId = cursor == 0 ? channel.ackedMessageId() + 1 : cursor;
+        if (nextId < nextMessageId) {
+            final var queueStore = storeFactory.writableStore(WritableMessageQueueStore.class);
+            final var connectorStore = storeFactory.writableStore(WritableConnectorStore.class);
+            for (int i = 0; i < MAX_PURGE_SLOTS && nextId < nextMessageId; i++, nextId++) {
+                final var queued = queueStore.getMessage(channelId, nextId);
+                if (queued == null) {
+                    continue;
+                }
+                final var payload = queued.payload();
+                if (payload != null && payload.hasMessage()) {
+                    final var key = new ClprConnectorKey(
+                            channelId, payload.messageOrThrow().connectorId());
+                    final var connector = connectorStore.getConnector(key);
+                    if (connector != null && connector.inFlightMessageCount() > 0) {
+                        connectorStore.put(connector
+                                .copyBuilder()
+                                .inFlightMessageCount(connector.inFlightMessageCount() - 1)
+                                .build());
+                    }
+                }
+                queueStore.remove(channelId, nextId);
+            }
+        }
+
+        channelStore.put(channel.copyBuilder()
+                .status(ClprChannelStatus.CLOSED)
+                .queuePurgeCursor(nextId)
+                .build());
+        if (channel.status() != ClprChannelStatus.CLOSED) {
+            channelLifecycle.onChannelClosed(channelId);
         }
     }
 

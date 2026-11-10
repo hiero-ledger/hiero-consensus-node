@@ -20,6 +20,10 @@ option java_multiple_files = true;
  * set, the matching entry in PENDING_COMMITMENTS is deleted (admin sweep
  * of an abandoned commitment from a registerChannel that was never
  * completed).
+ *
+ * With force_close set, immediately closes an established channel and
+ * discards a bounded batch of unacknowledged messages from its outbound
+ * queue. Repeat with force_close set to discard any remaining messages.
  */
 message ClprCloseChannelTransactionBody {
     /**
@@ -33,4 +37,12 @@ message ClprCloseChannelTransactionBody {
      * Ignored when a Channel record is found for channel_id.
      */
     bytes ownership_commitment = 2;
+
+    /**
+     * Abandon an established channel without waiting for peer acknowledgments.
+     * The channel becomes terminal immediately and any abandoned messages are
+     * discarded without application callbacks. May also be set on a CLOSED
+     * channel to continue cleanup. Mutually exclusive with ownership_commitment.
+     */
+    bool force_close = 3;
 }

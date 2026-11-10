@@ -111,17 +111,23 @@ public class ClprServiceApiImpl implements ClprServiceApi {
             throw new HandleException(CLPR_PAYLOAD_TOO_LARGE);
         }
 
-        // Step 6: Validate queue depth — reserve an extra slot when config is stale,
-        // since a config-update control message will be prepended before the data message.
+        // Step 6: Limit locally initiated DATA so the peer can reply to the entire outstanding
+        // DATA prefix using the reply capacity reserved by its max_queue_depth. Count all queued
+        // slots conservatively, including the extra config-update slot when the config is stale.
         final var nextMessageId = channel.nextMessageId();
         final var ackedMessageId = channel.ackedMessageId();
         final var maxQueueDepth = localThrottles.maxQueueDepth();
-        final var queueDepth = nextMessageId - ackedMessageId;
+        final var peerMaxQueueDepth = peerThrottles == null ? 0 : peerThrottles.maxQueueDepth();
+        // Preserve the existing exclusive local limit. The peer's reserved capacity is inclusive.
+        final var localSendQueueLimit = (long) maxQueueDepth - 1;
+        final var sendQueueLimit =
+                peerMaxQueueDepth > 0 ? Math.min(localSendQueueLimit, peerMaxQueueDepth) : localSendQueueLimit;
+        final var queueDepthWithSend = nextMessageId - ackedMessageId;
         final var reservedSlots = configIsStale ? 1 : 0;
         log.debug(
                 "[CLPR-SEND] request conn={} connectorId={} targetApplication={} sender={} dataLen={} "
-                        + "status={} nextMsgId={} ackedMsgId={} queueDepth={} reservedSlots={} "
-                        + "maxQueueDepth={} configStale={} sentRH={}",
+                        + "status={} nextMsgId={} ackedMsgId={} queueDepthWithSend={} reservedSlots={} "
+                        + "sendQueueLimit={} configStale={} sentRH={}",
                 channelId,
                 connectorId,
                 targetApplication,
@@ -130,19 +136,19 @@ public class ClprServiceApiImpl implements ClprServiceApi {
                 channel.status(),
                 nextMessageId,
                 ackedMessageId,
-                queueDepth,
+                queueDepthWithSend,
                 reservedSlots,
-                maxQueueDepth,
+                sendQueueLimit,
                 configIsStale,
                 shortHex(channel.sentRunningHash()));
-        if (queueDepth + reservedSlots >= maxQueueDepth) {
+        if (queueDepthWithSend + reservedSlots > sendQueueLimit) {
             log.debug(
-                    "[CLPR-SEND] queue full conn={} queueDepth={} reservedSlots={} maxQueueDepth={} "
+                    "[CLPR-SEND] queue full conn={} queueDepthWithSend={} reservedSlots={} sendQueueLimit={} "
                             + "nextMsgId={} ackedMsgId={}",
                     channelId,
-                    queueDepth,
+                    queueDepthWithSend,
                     reservedSlots,
-                    maxQueueDepth,
+                    sendQueueLimit,
                     nextMessageId,
                     ackedMessageId);
             throw new HandleException(CLPR_QUEUE_FULL);

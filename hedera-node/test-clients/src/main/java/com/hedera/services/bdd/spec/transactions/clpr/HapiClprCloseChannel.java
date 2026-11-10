@@ -22,6 +22,7 @@ public class HapiClprCloseChannel extends HapiTxnOp<HapiClprCloseChannel> {
 
     private byte[] channelId;
     private byte[] ownershipCommitment;
+    private boolean forceClose;
 
     public HapiClprCloseChannel() {}
 
@@ -32,6 +33,11 @@ public class HapiClprCloseChannel extends HapiTxnOp<HapiClprCloseChannel> {
 
     public HapiClprCloseChannel ownershipCommitment(final byte[] ownershipCommitment) {
         this.ownershipCommitment = ownershipCommitment;
+        return this;
+    }
+
+    public HapiClprCloseChannel forceClose(final boolean forceClose) {
+        this.forceClose = forceClose;
         return this;
     }
 
@@ -56,6 +62,7 @@ public class HapiClprCloseChannel extends HapiTxnOp<HapiClprCloseChannel> {
                             if (ownershipCommitment != null) {
                                 b.setOwnershipCommitment(ByteString.copyFrom(ownershipCommitment));
                             }
+                            b.setForceClose(forceClose);
                         });
         return b -> b.setClprCloseChannel(opBody);
     }
