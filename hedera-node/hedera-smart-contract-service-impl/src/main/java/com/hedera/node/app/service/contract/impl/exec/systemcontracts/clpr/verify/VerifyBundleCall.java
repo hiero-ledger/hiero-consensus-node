@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
@@ -193,6 +194,17 @@ public class VerifyBundleCall extends AbstractCall {
             final int svTag = ClprProofExtraction.readFirstVarintTag(valueBytes);
             try {
                 if (svTag == ClprProofExtraction.SV_CHANNEL_TAG) {
+                    // A bundle proves exactly one channel; a second channel leaf would silently replace the first.
+                    if (channel != null) {
+                        log.warn("verifyBundle: more than one channel leaf for trustAnchor {}", trustAnchorBytes);
+                        return fail();
+                    }
+                    // Bind the leaf to the requested channel by its proven key, not only by the id in its value.
+                    final var channelKey = extractChannelKey(path.stateItemLeafOrThrow());
+                    if (channelKey == null || !channelKey.equals(expectedChannelId)) {
+                        log.warn("verifyBundle: channel leaf key does not match the requested channel context");
+                        return fail();
+                    }
                     final var inner = ClprProofExtraction.unwrapStateValueField(valueBytes);
                     if (inner != null) {
                         channel = ClprChannel.PROTOBUF.parseStrict(inner.toReadableSequentialData());
@@ -338,6 +350,25 @@ public class VerifyBundleCall extends AbstractCall {
         }
         final var inner = ClprProofExtraction.unwrapStateValueField(keyBytes);
         return inner == null ? null : ClprMessageKey.PROTOBUF.parseStrict(inner.toReadableSequentialData());
+    }
+
+    /**
+     * Reads the channel id from a channel leaf's {@code StateItem.key}, or returns {@code null} when the key is absent
+     * or is not a channels-state key.
+     */
+    @Nullable
+    private static Bytes extractChannelKey(@NonNull final Bytes stateItemLeaf) throws ParseException {
+        final var keyBytes = ClprProofExtraction.extractStateItemKey(stateItemLeaf);
+        if (keyBytes == null
+                || ClprProofExtraction.readFirstVarintTag(keyBytes) != ClprProofExtraction.SK_CHANNEL_KEY_TAG) {
+            return null;
+        }
+        final var inner = ClprProofExtraction.unwrapStateValueField(keyBytes);
+        return inner == null
+                ? null
+                : ProtoBytes.PROTOBUF
+                        .parseStrict(inner.toReadableSequentialData())
+                        .value();
     }
 
     /**
