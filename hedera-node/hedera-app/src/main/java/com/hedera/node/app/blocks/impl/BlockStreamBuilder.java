@@ -13,6 +13,7 @@ import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresen
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static com.hedera.node.app.service.token.impl.comparator.TokenComparators.PENDING_AIRDROP_ID_COMPARATOR;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
@@ -657,11 +658,10 @@ public class BlockStreamBuilder
         // Don't duplicate the transaction bytes for the batch inner transactions, since the transactions
         // can be inferred from the parent transaction.
         if (category != BATCH_INNER) {
-            if (customizer != null) {
+            if (customizer != NOOP_SIGNED_TX_CUSTOMIZER) {
                 signedTx = customizer.apply(signedTx);
-                // Right now only ContractService sets a customizer, and leaves serializedSignedTx as null;
-                // but to future proof, we null out the serialized bytes so they definitely get recreated
-                // from the _customized_ signed transaction in the block below
+                // Null out the serialized bytes so they get recreated from the _customized_ signed transaction
+                // below; without a customizer, the bytes submitted via HAPI must be kept exactly as received
                 serializedSignedTx = null;
             }
             // The serialized bytes can only be null here if the transaction was synthetic (not submitted via HAPI)

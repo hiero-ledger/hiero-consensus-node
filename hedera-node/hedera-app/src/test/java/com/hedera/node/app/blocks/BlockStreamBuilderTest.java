@@ -38,6 +38,8 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
@@ -691,6 +693,54 @@ public class BlockStreamBuilderTest {
         assertThat(record.contractCallResult().logInfo()).isEmpty();
         assertThat(record.contractCallResult().bloom()).isEqualTo(Bytes.EMPTY);
         assertThat(record.contractCallResult().createdContractIDs()).isEmpty();
+    }
+
+    @Test
+    void keepsSubmittedBytesWhenNotCustomized() throws Exception {
+        final var bodyBytes = signedTx.bodyBytes();
+        final var sigMap = SignatureMap.newBuilder()
+                .sigPair(SignaturePair.newBuilder()
+                        .pubKeyPrefix(Bytes.fromHex("01"))
+                        .ed25519(Bytes.fromHex("0203"))
+                        .build())
+                .build();
+        final var sigMapBytes = SignatureMap.PROTOBUF.toBytes(sigMap);
+        // A valid encoding with sig_map (field 2) written before body_bytes (field 1)
+        final var submittedBytes = Bytes.merge(
+                Bytes.merge(Bytes.wrap(new byte[] {0x12, (byte) sigMapBytes.length()}), sigMapBytes),
+                Bytes.merge(Bytes.wrap(new byte[] {0x0a, (byte) bodyBytes.length()}), bodyBytes));
+        final var submittedTx = SignedTransaction.PROTOBUF.parse(submittedBytes);
+        assertThat(SignedTransaction.PROTOBUF.toBytes(submittedTx)).isNotEqualTo(submittedBytes);
+
+        final var builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER)
+                .signedTx(submittedTx)
+                .serializedSignedTx(submittedBytes);
+
+        final var blockItems = builder.build(false, null).blockItems();
+
+        assertEquals(submittedBytes, blockItems.getFirst().signedTransaction());
+    }
+
+    @Test
+    void reserializesCustomizedTransaction() {
+        final var customizedTx = signedTx.copyBuilder()
+                .sigMap(SignatureMap.newBuilder()
+                        .sigPair(SignaturePair.newBuilder()
+                                .ed25519(Bytes.fromHex("0203"))
+                                .build())
+                        .build())
+                .build();
+        final var builder = new BlockStreamBuilder(REVERSIBLE, tx -> customizedTx, USER)
+                .functionality(HederaFunctionality.CRYPTO_TRANSFER)
+                .signedTx(signedTx)
+                .serializedSignedTx(signedTxBytes);
+
+        final var blockItems = builder.build(false, null).blockItems();
+
+        assertEquals(
+                SignedTransaction.PROTOBUF.toBytes(customizedTx),
+                blockItems.getFirst().signedTransaction());
     }
 
     private BlockStreamBuilder createBaseBuilder() {
