@@ -2704,8 +2704,9 @@ class BlockStreamManagerImplTest {
 
         final var sha256Genesis = hashOfZero(DigestType.SHA_256);
         assertEquals(32, sha256Genesis.length());
-        // Must take the genesis branch without reading BlockStreamService state (which is unmocked here).
-        assertDoesNotThrow(() -> subject.init(state, sha256Genesis, true));
+        // Must take the genesis branch without reading BlockStreamService state (which is unmocked here);
+        // the cutover schema never runs at genesis.
+        assertDoesNotThrow(() -> subject.init(state, sha256Genesis, false));
     }
 
     @Test

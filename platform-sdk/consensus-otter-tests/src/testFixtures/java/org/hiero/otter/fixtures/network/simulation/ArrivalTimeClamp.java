@@ -2,51 +2,50 @@
 package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 
 /**
  * Keeps arrival times in strictly increasing order for each kind of copy on each connection. Copies of different kinds
  * do not constrain each other, so a later copy of one kind may arrive before an earlier copy of another.
+ *
+ * <p>A connection is identified by the ranks of its sender and receiver, which are their indices in the roster.
+ * Arrival times are nanoseconds since the start of the simulation.
  *
  * <p>This class is not safe to use from more than one thread.
  */
 final class ArrivalTimeClamp {
 
     /**
-     * The last arrival time handed out for each kind of copy on each connection.
+     * The last arrival time handed out for each kind of copy on each connection, indexed by the ordinal of the kind,
+     * then by the rank of the sender and then by the rank of the receiver. Zero, the start of the simulation, if there
+     * was none. Arrival times are never earlier than that, unless jitter outweighs the latency of a copy sent right at
+     * the start, and such a copy is moved to just after the start.
      */
-    private final Map<Key, Instant> lastArrivalTimes = new HashMap<>();
+    private final long[][][] lastArrivalTimes;
 
     /**
-     * Identifies the copies that are kept in order relative to each other.
+     * Constructor.
      *
-     * @param connection the connection the copies travel on
-     * @param kind       the kind of copy
+     * @param nodeCount the number of nodes in the network
      */
-    private record Key(
-            @NonNull ConnectionKey connection, @NonNull MessageRoute kind) {}
+    ArrivalTimeClamp(final int nodeCount) {
+        lastArrivalTimes = new long[MessageRoute.values().length][nodeCount][nodeCount];
+    }
 
     /**
      * Gets the arrival time to use for a copy: the proposed time, or one nanosecond after the previous copy of the
      * same kind on the same connection if the proposal would be earlier than that.
      *
-     * @param connection the connection the copy travels on
-     * @param kind       the kind of copy
-     * @param proposed   the arrival time the copy would have without clamping
+     * @param senderRank   the rank of the node at the sending end of the connection
+     * @param receiverRank the rank of the node at the receiving end of the connection
+     * @param kind         the kind of copy
+     * @param proposed     the arrival time the copy would have without clamping
      * @return the time the copy arrives
      */
-    @NonNull
-    Instant clamp(
-            @NonNull final ConnectionKey connection,
-            @NonNull final MessageRoute kind,
-            @NonNull final Instant proposed) {
-        final Key key = new Key(connection, kind);
-        final Instant last = lastArrivalTimes.getOrDefault(key, Instant.MIN);
-        final Instant arrival = proposed.isBefore(last) ? last.plusNanos(1L) : proposed;
-        lastArrivalTimes.put(key, arrival);
+    long clamp(final int senderRank, final int receiverRank, @NonNull final MessageRoute kind, final long proposed) {
+        final long[] lastByReceiver = lastArrivalTimes[kind.ordinal()][senderRank];
+        final long last = lastByReceiver[receiverRank];
+        final long arrival = proposed < last ? last + 1 : proposed;
+        lastByReceiver[receiverRank] = arrival;
         return arrival;
     }
 }

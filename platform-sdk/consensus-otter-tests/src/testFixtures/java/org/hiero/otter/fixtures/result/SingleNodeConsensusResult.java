@@ -34,8 +34,11 @@ public interface SingleNodeConsensusResult extends OtterResult {
     }
 
     /**
-     * Returns the list of consensus rounds created during the test up to this moment. The list is ordered such that
-     * earlier rounds have lower indices.
+     * Returns the consensus rounds that the node delivered since the last {@link #clear()} up to this moment. The list
+     * is ordered such that earlier rounds have lower indices.
+     *
+     * <p>After a restart, the node delivers the rounds since its saved state again. A round delivered again after the
+     * last {@link #clear()} is included, once.
      *
      * @return the list of consensus rounds
      */
