@@ -3,12 +3,14 @@ package org.hiero.consensus.benchmark.tools.pipeline;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 import java.util.stream.Collectors;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -37,8 +40,11 @@ import org.openjdk.jmh.results.Result;
 
 class PipelineTimerTest {
 
-    /** 1,000 items, 10 µs apart. */
-    private static final List<Item> ITEMS = Item.evenlySpaced(1_000, 100_000);
+    /**
+     * 1,000 items, 200 µs apart. A pass of 200 ms keeps the saturation check from mistaking a short stall of a busy
+     * machine for a pipeline that falls behind.
+     */
+    private static final List<Item> ITEMS = Item.evenlySpaced(1_000, 5_000);
 
     private LatencyProfiler profiler;
 
@@ -348,6 +354,87 @@ class PipelineTimerTest {
         }
 
         assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
+    }
+
+    @Test
+    void aPipelineThatFallsBehindFailsThePassAndIsNotRecorded() {
+        // one thread that needs 300 µs per item gets one every 200 µs: the latency grows by half the elapsed time
+        final ExecutorService worker = Executors.newSingleThreadExecutor();
+        try {
+            final List<CompletableFuture<?>> tasks = new ArrayList<>();
+            final PipelineTimer timer = PipelineTimer.builder(ITEMS)
+                    .entryPoint(
+                            Item.class,
+                            item -> item,
+                            item -> tasks.add(CompletableFuture.runAsync(
+                                    () -> {
+                                        spin(300_000);
+                                        output.accept(item);
+                                    },
+                                    worker)))
+                    .exitPoint(this::attach)
+                    .drain(() -> CompletableFuture.allOf(tasks.toArray(new CompletableFuture<?>[0]))
+                            .join())
+                    .build();
+
+            timer.prepare();
+            assertThatThrownBy(timer::replay)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageStartingWith("The pipeline did not keep up");
+            assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
+            assertThat(results()).doesNotContainKey("latency.samples");
+        } finally {
+            worker.shutdownNow();
+        }
+    }
+
+    @Test
+    void theLatencyGrowthIsTheRateAtWhichTheLatencyGrows() {
+        // 1,001 inputs over 1 s: 250 in the first quarter, 251 in the last
+        final long[] due = new long[1_001];
+        for (int i = 0; i < due.length; i++) {
+            due[i] = i * 1_000_000L;
+        }
+
+        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000)))
+                .isZero();
+        // within the growth over one input's spacing: a quarter with an even count takes the upper of its middle values
+        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000 + t / 20)))
+                .isCloseTo(0.05, within(1e-4));
+        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> 50_000_000 - t / 50)))
+                .isCloseTo(-0.02, within(1e-4));
+        // a burst in the middle of the pass is no growth
+        assertThat(PipelineTimer.latencyGrowth(
+                        due, latencies(due, t -> t > 400_000_000 && t < 600_000_000 ? 10_000_000 : 50_000)))
+                .isZero();
+    }
+
+    @Test
+    void theLatencyGrowthNeedsAPassWithEnoughLatenciesInBothQuarters() {
+        final long[] due = new long[1_001];
+        for (int i = 0; i < due.length; i++) {
+            due[i] = i * 1_000_000L;
+        }
+        // only the inputs of the first 150 ms have a latency: 150 in the first quarter, none in the last
+        assertThat(PipelineTimer.latencyGrowth(due, latencies(due, t -> t < 150_000_000 ? 50_000 : -1)))
+                .isNaN();
+        // 101 inputs: 25 in the first quarter
+        assertThat(PipelineTimer.latencyGrowth(Arrays.copyOf(due, 101), new long[101]))
+                .isNaN();
+        // no length
+        assertThat(PipelineTimer.latencyGrowth(new long[1_000], new long[1_000]))
+                .isNaN();
+        assertThat(PipelineTimer.latencyGrowth(new long[0], new long[0])).isNaN();
+    }
+
+    /** Computes a latency for every due time. */
+    @NonNull
+    private static long[] latencies(@NonNull final long[] due, @NonNull final LongUnaryOperator latencyAt) {
+        final long[] latencies = new long[due.length];
+        for (int i = 0; i < due.length; i++) {
+            latencies[i] = latencyAt.applyAsLong(due[i]);
+        }
+        return latencies;
     }
 
     @Test

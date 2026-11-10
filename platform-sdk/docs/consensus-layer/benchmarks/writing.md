@@ -97,6 +97,9 @@ until it reaches the pipeline's output. Its Javadoc shows the pattern.
 - **Check the arrivals after every invocation** against their exact expected value, and fail the benchmark when a
   pipeline thread throws, with an `UncaughtExceptionCollector`.
 - **One exit point per timer:** the percentiles of a pipeline's parts do not add up to those of the whole.
+- **A pipeline that does not keep up fails the pass:** `replay()` throws if the latency grows by more than 1% of the
+  elapsed time. Choose the speedup with a one-time sweep, clearly below the one at which the pipeline falls behind or
+  loses inputs.
 - **A garbage collection counts as latency;** a pipeline pass is never discarded. `alloc.norm` counts what all threads
   allocate.
 

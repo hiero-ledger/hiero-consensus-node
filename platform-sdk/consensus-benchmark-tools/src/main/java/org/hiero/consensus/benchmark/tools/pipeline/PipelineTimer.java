@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
@@ -103,9 +104,27 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *       thread, busy-waiting until then. The latency counts from the due time, so an entry point that holds the timer
  *       up counts. After the last input, it runs the drain, for example the pipeline's {@code flush()}.</li>
  *   <li>Once the drain returns, {@code replay()} puts the latency of every counted value that arrived during the pass
- *       into the pass's histogram, and adds that to {@link LatencyProfiler#recorder()}. Values that never arrived are
- *       skipped; {@link #arrivals()} returns how many did, for the benchmark's exact check.</li>
+ *       into the pass's histogram. Values that never arrived are skipped; {@link #arrivals()} returns how many did, for
+ *       the benchmark's exact check.</li>
+ *   <li>If the pipeline did not keep up, {@code replay()} throws (see below). Otherwise it adds the pass to
+ *       {@link LatencyProfiler#recorder()}.</li>
  * </ol>
+ *
+ * <h2>Saturation</h2>
+ *
+ * <p>A pipeline that gets its inputs faster than it can process them falls behind: every input waits longer than the
+ * one before, so the latencies depend on the length of the pass and say nothing about the pipeline. If the inputs come
+ * a fraction ε faster than the pipeline's capacity, the latency grows by ε seconds per second of the pass. The timer
+ * compares the median latency of the inputs due in the last quarter of the pass with that of the first quarter, and
+ * divides the difference by the time between the quarters' centers. If that growth exceeds
+ * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} throws: lower the speedup. A pass with fewer than
+ * {@value #MIN_LATENCIES_PER_QUARTER} latencies in either quarter is not judged. Below their capacity, the pipelines
+ * measured so far, the event intake and the self-check {@code PipelineTimerBenchmark}, stayed below 0.13%, also in
+ * passes with short bursts; above it, the self-check's growth matched its overload.
+ *
+ * <p>A pipeline that drops inputs it cannot process in time, such as the intake, which drops events that turn ancient
+ * while they wait, shows saturation as missing arrivals rather than as growing latencies. The benchmark's exact check
+ * of {@link #arrivals()} catches it.
  *
  * <h2>Allocation and garbage collection</h2>
  *
@@ -128,6 +147,15 @@ public final class PipelineTimer {
 
     /** Measures the bytes allocated by all threads. */
     private static final ThreadMXBean THREAD_MX_BEAN = (ThreadMXBean) ManagementFactory.getThreadMXBean();
+
+    /**
+     * The largest growth of the latency, in seconds per second of the pass, of a pipeline that keeps up (see the class
+     * description).
+     */
+    static final double MAX_LATENCY_GROWTH = 0.01;
+
+    /** The fewest latencies in each of the two quarters for the saturation check to judge a pass. */
+    static final int MIN_LATENCIES_PER_QUARTER = 100;
 
     /** The replayed inputs, in their order. */
     private final List<TimedInput> inputs;
@@ -156,6 +184,9 @@ public final class PipelineTimer {
     /** The latencies of the latest pass. */
     private final LatencyHistogram pass = LatencyRecorder.newHistogram();
 
+    /** The latency of each replayed input in the latest pass, or -1 for one that does not count or did not arrive. */
+    private final long[] passLatencies;
+
     /** The recorder of the current iteration, or {@code null} before the first {@link #prepare()}. */
     @Nullable
     private LatencyRecorder recorder;
@@ -183,6 +214,7 @@ public final class PipelineTimer {
         this.drain = drain;
         this.output = output;
         this.passValues = new Object[dueNanos.length];
+        this.passLatencies = new long[dueNanos.length];
         output.configure(counted);
     }
 
@@ -230,8 +262,9 @@ public final class PipelineTimer {
      * Replays the inputs prepared by {@link #prepare()} into the pipeline at their due times, runs the drain, and adds
      * the latencies of the counted values to the profiler's recorder.
      *
-     * @throws IllegalStateException if {@link #prepare()} did not run since the latest pass, or if the exit point saw a
-     * value that did not enter in this pass, or a counted value twice
+     * @throws IllegalStateException if {@link #prepare()} did not run since the latest pass, if the exit point saw a
+     * value that did not enter in this pass, or a counted value twice, or if the pipeline did not keep up (see the
+     * class description); the pass is not recorded then
      */
     public void replay() {
         if (!prepared) {
@@ -264,12 +297,67 @@ public final class PipelineTimer {
         for (int i = 0; i < passValues.length; i++) {
             final long arrival = output.arrivalNanos.get(i);
             if (counted[i] && arrival != NOT_ARRIVED) {
-                pass.record(arrival - (start + dueNanos[i]));
+                final long latency = arrival - (start + dueNanos[i]);
+                pass.record(latency);
+                passLatencies[i] = latency;
                 arrived++;
+            } else {
+                passLatencies[i] = -1;
             }
         }
         arrivals = arrived;
+
+        final double growth = latencyGrowth(dueNanos, passLatencies);
+        if (growth > MAX_LATENCY_GROWTH) {
+            throw new IllegalStateException(String.format(
+                    Locale.ROOT,
+                    "The pipeline did not keep up: its latency grew by %.2f%% of the elapsed time, more than the %.0f%%"
+                            + " of a pipeline that keeps up; lower the speedup",
+                    growth * 100,
+                    MAX_LATENCY_GROWTH * 100));
+        }
         requireNonNull(recorder).recordPass(pass, allocatedBytes);
+    }
+
+    /**
+     * Computes how fast the latency grew during a pass: the median latency of the inputs due in the last quarter of the
+     * pass minus that of the first quarter, divided by the time between the quarters' centers.
+     *
+     * @param dueNanos the time each input was due, from the start of the pass, in ascending order
+     * @param latencies the latency of each input, or a negative value for one without a latency
+     * @return the growth in seconds per second, or {@link Double#NaN} if the pass has no length or a quarter has fewer
+     * than {@link #MIN_LATENCIES_PER_QUARTER} latencies
+     */
+    static double latencyGrowth(@NonNull final long[] dueNanos, @NonNull final long[] latencies) {
+        if (dueNanos.length == 0) {
+            return Double.NaN;
+        }
+        final long span = dueNanos[dueNanos.length - 1] - dueNanos[0];
+        if (span <= 0) {
+            return Double.NaN;
+        }
+        final long firstQuarterEnd = dueNanos[0] + span / 4;
+        final long lastQuarterStart = dueNanos[dueNanos.length - 1] - span / 4;
+        final long[] first = new long[latencies.length];
+        final long[] last = new long[latencies.length];
+        int firstCount = 0;
+        int lastCount = 0;
+        for (int i = 0; i < latencies.length; i++) {
+            if (latencies[i] >= 0) {
+                if (dueNanos[i] < firstQuarterEnd) {
+                    first[firstCount++] = latencies[i];
+                } else if (dueNanos[i] >= lastQuarterStart) {
+                    last[lastCount++] = latencies[i];
+                }
+            }
+        }
+        if (firstCount < MIN_LATENCIES_PER_QUARTER || lastCount < MIN_LATENCIES_PER_QUARTER) {
+            return Double.NaN;
+        }
+        Arrays.sort(first, 0, firstCount);
+        Arrays.sort(last, 0, lastCount);
+        // the quarters' centers are 3/4 of the span apart
+        return (last[lastCount / 2] - first[firstCount / 2]) / (0.75 * span);
     }
 
     /**
