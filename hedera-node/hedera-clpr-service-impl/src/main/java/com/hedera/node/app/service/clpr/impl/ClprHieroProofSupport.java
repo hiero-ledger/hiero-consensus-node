@@ -10,6 +10,7 @@ public interface ClprHieroProofSupport {
     enum SkipReason {
         UNKNOWN_ANCHOR,
         ANCHOR_AHEAD,
+        SNAPSHOT_NOT_READY,
         PENDING_WITNESS,
         UNWITNESSED_GAP,
         SHA_384_NETWORK,

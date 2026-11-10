@@ -7,9 +7,11 @@ import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.ANCHOR_AHEAD;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.INVALID_PROOF;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.NO_PROGRESS;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.PENDING_WITNESS;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SIZE_LIMIT;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SNAPSHOT_NOT_READY;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNKNOWN_ANCHOR;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNWITNESSED_GAP;
 import static com.hedera.node.app.workflows.clpr.ClprHieroProvenancePlanner.evaluate;
@@ -114,7 +116,7 @@ class ClprHieroProvenancePlannerTest {
         assertThat(requireNonNull(decision.plan()).witness())
                 .isEqualTo(history.get(2).witness());
         assertThat(evaluate(anchor(3), history, signer, Long.MAX_VALUE, true).reason())
-                .isEqualTo(UNWITNESSED_GAP);
+                .isEqualTo(SNAPSHOT_NOT_READY);
         assertThat(evaluate(anchor(4), history, signer, Long.MAX_VALUE, true).reason())
                 .isEqualTo(NO_PROGRESS);
         assertThat(evaluate(anchor(5), history, signer, Long.MAX_VALUE, true).reason())
@@ -148,15 +150,63 @@ class ClprHieroProvenancePlannerTest {
     }
 
     @Test
-    void refusesUnknownAnchorOlderSignerAndDiscontinuousHistory() {
+    void distinguishesUnknownAnchorFromUnavailableSnapshotHistoryAndKnownAheadAnchor() {
         final var history = history(3, Set.of());
         assertThat(evaluate(anchor(9), history, proof(3), Long.MAX_VALUE, false).reason())
                 .isEqualTo(UNKNOWN_ANCHOR);
         assertThat(evaluate(anchor(2), history, proof(1), Long.MAX_VALUE, false).reason())
                 .isEqualTo(ANCHOR_AHEAD);
-        history.set(1, record(7, 2, 2, null));
+        assertThat(evaluate(anchor(2), history, proof(9), Long.MAX_VALUE, false).reason())
+                .isEqualTo(SNAPSHOT_NOT_READY);
+        assertThat(evaluate(anchor(2), List.of(), proof(3), Long.MAX_VALUE, false)
+                        .reason())
+                .isEqualTo(SNAPSHOT_NOT_READY);
+    }
+
+    @Test
+    void ignoresMalformedRecordsBeforeAndAfterTheUsedWindow() {
+        final var first = record(1, 2, 2, null);
+        final var second = record(2, 3, 3, null);
+        final var history = List.of(HintsKeyWitnessRecord.DEFAULT, first, second, HintsKeyWitnessRecord.DEFAULT);
+        final var plan = requireNonNull(
+                evaluate(anchor(1), history, proof(3), Long.MAX_VALUE, false).plan());
+        assertThat(plan.links()).containsExactly(first.provenanceOrThrow(), second.provenanceOrThrow());
+    }
+
+    @Test
+    void refusesToReuseAnEarlierAnchorWhenALaterOccurrenceIsDisconnected() {
+        final var history = List.of(record(0, 1, 1, null), record(1, 2, 2, null), record(7, 1, 3, null));
+        final var decision = evaluate(anchor(1), history, proof(2), Long.MAX_VALUE, false);
+        assertThat(decision.plan()).isNull();
+        assertThat(decision.reason()).isEqualTo(INVALID_PROOF);
+    }
+
+    @Test
+    void refusesADiscontinuityEvenIfLatestOutgoingLinksWouldBypassIt() {
+        final var history = List.of(record(0, 1, 1, null), record(7, 2, 2, null), record(1, 3, 3, null));
         assertThat(evaluate(anchor(0), history, proof(3), Long.MAX_VALUE, false).reason())
-                .isEqualTo(UNWITNESSED_GAP);
+                .isEqualTo(INVALID_PROOF);
+    }
+
+    @Test
+    void refusesAWindowWhoseFirstSourceDoesNotMatchTheAnchor() {
+        final var history = List.of(record(0, 1, 1, null), record(7, 2, 2, null), record(2, 3, 3, null));
+        assertThat(evaluate(anchor(1), history, proof(3), Long.MAX_VALUE, false).reason())
+                .isEqualTo(INVALID_PROOF);
+    }
+
+    @Test
+    void conflictingKeysAtTheSameBoundaryAreInvalid() {
+        final var history = List.of(record(0, 1, 1, null), record(2, 3, 2, null));
+        assertThat(evaluate(anchor(2), history, proof(1), Long.MAX_VALUE, false).reason())
+                .isEqualTo(INVALID_PROOF);
+    }
+
+    @Test
+    void conflictingKeysAtALaterBoundaryAreInvalid() {
+        final var history = List.of(record(0, 1, 1, null), record(1, 2, 2, null), record(7, 3, 3, null));
+        assertThat(evaluate(anchor(7), history, proof(1), Long.MAX_VALUE, false).reason())
+                .isEqualTo(INVALID_PROOF);
     }
 
     @Test

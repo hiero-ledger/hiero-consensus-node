@@ -36,14 +36,25 @@ from the committed key. Witness bundles leave the received message ID unchanged.
 Before sending either compact form, the sender checks its serialized proofs at
 the EVM verifier's threshold of strictly more than one third.
 
-The request guides proof construction; it cannot authorize a key or message
-at the receiver. An unknown anchor or one ahead of the snapshot signer yields
-no compact bundle. If a channel cannot reach a witnessed key within eight
-links and the missing witnesses belong to retired keys, it must reopen with a
-newer anchor. The compact profile does not change ledger-configuration or
-endpoint-manifest query formats. The sender records skipped compact proofs in
-the `clpr.hieroProofSkipped_*` counters, by reason and channel, and rate limits
-the corresponding logs.
+The request guides proof construction. The receiver authorizes keys and
+messages by verifying the proof. `ANCHOR_AHEAD` means the peer's anchor is
+known to be ahead of the snapshot signer. `SNAPSHOT_NOT_READY` means the node
+lacks a signed snapshot with enough history to make progress. Retry both with a
+newer signed snapshot. For a well-formed hash, `UNKNOWN_ANCHOR` means the hash is
+unrecognized in the available history. Check current history before treating it
+as foreign to the ledger.
+
+An `UNWITNESSED_GAP` means the sender found no usable witness endpoint within
+eight links in the snapshot it used. A previously captured witness can still be
+published after a key retires. If the gap persists, check for pending publication
+or [historical backfill](../../explicit-key-provenance.md#production-and-consensus-admission)
+before reopening with a newer anchor.
+
+The sender records skipped compact proofs in the `clpr.hieroProofSkipped_*`
+counters, by reason and channel, and rate limits the corresponding logs.
+Ledger-configuration and endpoint-manifest queries use the native proof format.
+See the [Hiero to EVM interoperability guide](hiero-evm-proof-interop.md) for
+channel setup and the Solidity fixture tests.
 
 ## Class roles at a glance
 

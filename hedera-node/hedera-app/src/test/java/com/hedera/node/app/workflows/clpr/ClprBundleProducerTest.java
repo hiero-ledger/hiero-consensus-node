@@ -8,6 +8,7 @@ import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.INVALID_PROOF;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SHA_384_NETWORK;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SNAPSHOT_NOT_READY;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNKNOWN_ANCHOR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -433,6 +434,17 @@ class ClprBundleProducerTest {
 
             assertThat(producer.next(false)).isNull();
             assertThat(producer.nextStartingMessageId()).isEqualTo(1);
+        }
+
+        @Test
+        void reportsThatTheSnapshotIsNotReadyWhenNoSignedBlockIsAvailable() {
+            given(stateProofManager.supportsHieroProofV1()).willReturn(true);
+            given(stateProofManager.latestSnapshot()).willReturn(Optional.empty());
+            final var producer = producer(channel(10, 0), compactRequest(1));
+
+            assertThat(producer.next(false)).isNull();
+            assertThat(producer.nextStartingMessageId()).isEqualTo(1);
+            verify(stateProofManager).reportHieroProofSkip(CHANNEL_ID, SNAPSHOT_NOT_READY);
         }
 
         @Test

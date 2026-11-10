@@ -5,9 +5,11 @@ import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.ANCHOR_AHEAD;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.INVALID_PROOF;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.NO_PROGRESS;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.PENDING_WITNESS;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SIZE_LIMIT;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SNAPSHOT_NOT_READY;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNKNOWN_ANCHOR;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNWITNESSED_GAP;
 import static com.hedera.node.app.workflows.clpr.ClprHieroProofCodec.MAX_LINKS;
@@ -67,41 +69,28 @@ final class ClprHieroProvenancePlanner {
         }
 
         if (records.isEmpty()) {
-            return skip(UNKNOWN_ANCHOR);
+            return skip(SNAPSHOT_NOT_READY);
         }
         final var signer = proof.verificationKey();
-        int target = -1;
-        Bytes previous = null;
-        for (int i = 0; i < records.size(); i++) {
-            final var certificate = records.get(i).provenance();
-            if (certificate == null
-                    || certificate.sourceVerificationKey().length() != VK_LENGTH
-                    || certificate.targetVerificationKey().length() != VK_LENGTH
-                    || certificate.signature().length() != SIGNATURE_LENGTH
-                    || (previous != null && !previous.equals(certificate.sourceVerificationKey()))) {
-                return skip(UNWITNESSED_GAP);
-            }
-            if (i == 0 && certificate.sourceVerificationKey().equals(signer)) {
-                target = 0;
-            }
-            previous = certificate.targetVerificationKey();
-            if (previous.equals(signer)) {
-                target = i + 1;
-            }
-        }
+        final int target = signerPosition(signer, records);
         final int anchor = anchorPosition(anchorHash, records);
         if (anchor < 0) {
             return skip(UNKNOWN_ANCHOR);
         }
         if (target < 0) {
-            return skip(UNWITNESSED_GAP);
+            return skip(SNAPSHOT_NOT_READY);
         }
-        if (target <= anchor) {
-            return skip(ANCHOR_AHEAD);
+        if (target < anchor) {
+            // A broken suffix makes this anchor ambiguous. Do not emit a proof from an earlier occurrence.
+            final var laterKey = contiguousTarget(records, target, anchor, signer);
+            return skip(laterKey != null && matchesAnchor(anchorHash, laterKey) ? ANCHOR_AHEAD : INVALID_PROOF);
         }
-        final var path = latestPath(records.subList(0, target), anchor, signer);
+        if (target == anchor) {
+            return skip(INVALID_PROOF);
+        }
+        final var path = latestPath(records.subList(anchor, target), anchorHash, signer);
         if (path.isEmpty()) {
-            return skip(UNWITNESSED_GAP);
+            return skip(INVALID_PROOF);
         }
         final var stateProof = witnessOnly ? null : proof;
         final var plan = nextBatch(path, stateProof, maxPayloadBytes);
@@ -110,6 +99,9 @@ final class ClprHieroProvenancePlanner {
         }
         if (maxPayloadBytes != Long.MAX_VALUE && nextBatch(path, stateProof, Long.MAX_VALUE) != null) {
             return skip(SIZE_LIMIT);
+        }
+        if (target < records.size() && contiguousTarget(records, target, target + 1, signer) != null) {
+            return skip(SNAPSHOT_NOT_READY);
         }
         if (witnessOnly
                 && path.size() <= MAX_LINKS
@@ -126,33 +118,86 @@ final class ClprHieroProvenancePlanner {
     }
 
     private static int anchorPosition(final Bytes anchorHash, final List<HintsKeyWitnessRecord> records) {
-        for (int position = records.size(); position > 0; position--) {
-            final var key = records.get(position - 1).provenanceOrThrow().targetVerificationKey();
-            if (anchorHash.equals(keccak256DigestOf(key))) {
-                return position;
+        for (int i = records.size() - 1; i >= 0; i--) {
+            final var certificate = records.get(i).provenance();
+            if (certificate == null) {
+                continue;
+            }
+            if (matchesAnchor(anchorHash, certificate.targetVerificationKey())) {
+                return i + 1;
+            }
+            if (matchesAnchor(anchorHash, certificate.sourceVerificationKey())) {
+                // A leading source can recover the anchor when an earlier record is unavailable.
+                return i;
             }
         }
-        final var firstKey = records.getFirst().provenanceOrThrow().sourceVerificationKey();
-        return anchorHash.equals(keccak256DigestOf(firstKey)) ? 0 : -1;
+        return -1;
+    }
+
+    private static int signerPosition(final Bytes signer, final List<HintsKeyWitnessRecord> records) {
+        for (int i = records.size() - 1; i >= 0; i--) {
+            final var certificate = records.get(i).provenance();
+            if (certificate != null && signer.equals(certificate.targetVerificationKey())) {
+                return i + 1;
+            }
+        }
+        final var first = records.getFirst().provenance();
+        return first != null && signer.equals(first.sourceVerificationKey()) ? 0 : -1;
+    }
+
+    private static boolean matchesAnchor(final Bytes anchorHash, final Bytes key) {
+        return key.length() == VK_LENGTH && anchorHash.equals(keccak256DigestOf(key));
+    }
+
+    private static @Nullable Bytes contiguousTarget(
+            final List<HintsKeyWitnessRecord> records, final int start, final int end, final Bytes startingKey) {
+        var key = startingKey;
+        for (int i = start; i < end; i++) {
+            final var certificate = records.get(i).provenance();
+            if (certificate == null
+                    || !hasValidShape(certificate)
+                    || !key.equals(certificate.sourceVerificationKey())) {
+                return null;
+            }
+            key = certificate.targetVerificationKey();
+        }
+        return key;
+    }
+
+    private static boolean hasValidShape(final HintsKeyProvenance certificate) {
+        return certificate.sourceVerificationKey().length() == VK_LENGTH
+                && certificate.targetVerificationKey().length() == VK_LENGTH
+                && certificate.signature().length() == SIGNATURE_LENGTH;
     }
 
     private static List<Link> latestPath(
-            final List<HintsKeyWitnessRecord> prefix, final int anchor, final Bytes signer) {
+            final List<HintsKeyWitnessRecord> window, final Bytes anchorHash, final Bytes signer) {
+        final var first = window.getFirst().provenance();
+        if (first == null || !matchesAnchor(anchorHash, first.sourceVerificationKey())) {
+            return List.of();
+        }
+        final var anchor = first.sourceVerificationKey();
+        var previous = anchor;
         final Map<Bytes, Link> outgoing = new HashMap<>();
-        for (int i = anchor; i < prefix.size(); i++) {
-            final var record = prefix.get(i);
-            final var certificate = record.provenanceOrThrow();
+        for (final var record : window) {
+            final var certificate = record.provenance();
+            if (certificate == null
+                    || !hasValidShape(certificate)
+                    || !previous.equals(certificate.sourceVerificationKey())) {
+                return List.of();
+            }
             final var source = certificate.sourceVerificationKey();
-            if (!source.equals(certificate.targetVerificationKey())) {
+            previous = certificate.targetVerificationKey();
+            if (!source.equals(previous)) {
                 // The witness attests to this adoption. Another adoption may reuse the key at a different timestamp.
                 outgoing.put(source, new Link(certificate, compatibleWitness(record, certificate)));
             }
         }
         final var path = new ArrayList<Link>();
-        var key = prefix.get(anchor).provenanceOrThrow().sourceVerificationKey();
+        var key = anchor;
         while (!key.equals(signer)) {
-            // Latest outgoing links skip any earlier cycle back to this key, so the walk only moves forward.
-            final var link = outgoing.get(key);
+            // Latest outgoing links move forward in a contiguous window. Consume each link to guard against a cycle.
+            final var link = outgoing.remove(key);
             if (link == null) {
                 return List.of();
             }

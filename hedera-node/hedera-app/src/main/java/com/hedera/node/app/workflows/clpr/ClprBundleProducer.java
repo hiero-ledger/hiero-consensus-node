@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipRe
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.NO_PROGRESS;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SHA_384_NETWORK;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SIZE_LIMIT;
+import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.SNAPSHOT_NOT_READY;
 import static com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport.SkipReason.UNKNOWN_ANCHOR;
 import static com.hedera.node.app.workflows.clpr.ClprHieroProofCodec.MAX_STATE_PROOF_PATHS;
 import static java.util.Objects.requireNonNull;
@@ -189,7 +190,7 @@ final class ClprBundleProducer {
         }
         try (final var snapshot = stateProofManager.latestSnapshot().orElse(null)) {
             if (snapshot == null) {
-                return skipCompactProof(NO_PROGRESS);
+                return skipCompactProof(SNAPSHOT_NOT_READY);
             }
             final var siblings = snapshot.path().siblings();
             if (siblings.stream().anyMatch(sibling -> sibling.hash().length() != SHA256_HASH_LENGTH)) {
