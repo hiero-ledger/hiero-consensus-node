@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CHANNEL_ST
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -43,7 +44,6 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
-import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
@@ -301,14 +301,13 @@ class ClprBundlePrevalidatorTest {
     }
 
     @Test
-    void leavesRunningHashToConsensus() throws PreCheckException {
+    void rejectsBadRunningHashBeforeSubmission() {
         final var content = bundle(List.of(dataPayload()));
         givenLocalReturn(content.copyBuilder()
                 .metadata(content.metadataOrThrow().copyBuilder().sentRunningHash(ZERO_HASH))
                 .build());
 
-        // A hash that does not continue this channel's received hash may only reflect a stale channel read
-        subject.validate(PAYLOAD, configuration);
+        assertRejected(PAYLOAD, CLPR_RUNNING_HASH_MISMATCH);
 
         verify(releaseState).run();
     }
@@ -331,19 +330,6 @@ class ClprBundlePrevalidatorTest {
 
         assertRejected(PAYLOAD, CLPR_BUNDLE_VERIFICATION_FAILED);
 
-        verify(releaseState).run();
-    }
-
-    @Test
-    void leavesOutOfOrderRepliesToConsensus() throws PreCheckException {
-        final var content = bundle(List.of(replyPayload(2), replyPayload(1)));
-        givenLocalReturn(content.copyBuilder()
-                .metadata(content.metadataOrThrow().copyBuilder().receivedMessageId(2))
-                .build());
-
-        subject.validate(PAYLOAD, configuration);
-
-        verifyNoInteractions(queue);
         verify(releaseState).run();
     }
 
@@ -421,12 +407,6 @@ class ClprBundlePrevalidatorTest {
     private static ClprMessagePayload dataPayload() {
         return ClprMessagePayload.newBuilder()
                 .message(ClprMessage.newBuilder().messageData(Bytes.fromHex("01")))
-                .build();
-    }
-
-    private static ClprMessagePayload replyPayload(final long id) {
-        return ClprMessagePayload.newBuilder()
-                .messageReply(ClprMessageReply.newBuilder().messageId(id))
                 .build();
     }
 }
