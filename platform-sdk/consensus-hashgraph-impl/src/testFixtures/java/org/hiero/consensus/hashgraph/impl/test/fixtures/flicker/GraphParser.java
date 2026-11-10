@@ -25,29 +25,23 @@ import java.util.Set;
  * roster after     a=4 b=1 c=1 d=4
  *
  * #  name  self   other-parents
+ *    a0    -      -
+ *    b0    -      -
  *    c0    -      -
- *    b3    b2
- *    b4    b3     a3,d3
- *    c3    c2     b4
+ *    d0    -      -
+ *    a1    a0     b0
+ *    b1    b0     a1,c0,d0   coin=1
  * </pre>
  *
  * <b>Rows are listed in creation order</b> — genesis first, so a parent is always defined <i>above</i> its children.
  * A reference to a row below is a parse error, which enforces the ordering and catches a typo in the same check. The
  * {@link FlickerGraph#specs()} this produces are the rows in file order, because that is the order events must be fed.
- *
  * <p>
- * <b>The creator is not a column.</b> Every event's name starts with its creator's letter, which must be a node in
- * the graph's rosters, and a letter always names the same node. That is the convention the hand-written fixtures already follow, and it keeps the file
- * using structural names while a test names roles: the file says {@code b4}, the test calls it {@code MID}. Role
- * names in the file would have to change whenever the graph was edited.
- *
+ * <b>The creator is not a column.</b> Every event's name starts with its creator's letter, which must be a node in the
+ * graph's rosters, and a self-parent must start with the same letter, since it is the same creator's previous event.
  * <p>
- * <b>Roster membership is declared, never deduced.</b> A roster block is required even when a fixture does not argue about
- * weights, because a node that is in the roster and creates no events is a legitimate shape and is invisible in the
- * rows. Inferring the roster from the letters that appear would silently drop such a node and shrink the denominator
- * every supermajority is measured against, which changes what consensus decides. Weights are written out for the
- * same reason: an equal-weight roster is a fact the derivations argue about, and reading it off the page beats
- * knowing what an omitted weight defaults to.
+ * <b>Every node is declared in a roster block, with its weight.</b> A node that creates no events does not appear in
+ * the rows but still counts towards every supermajority, so the roster cannot be inferred from the rows.
  */
 public final class GraphParser {
 
@@ -116,11 +110,6 @@ public final class GraphParser {
                             "'requires' is not supported yet. It will name the properties a fixture depends on, "
                                     + "and until something exists to resolve them, an entry could only be accepted "
                                     + "without being checked.");
-                case "nodes" ->
-                    throw new GraphParseException(
-                            lineNumber,
-                            "'nodes' was replaced by named roster blocks, so that weights sit beside the derivation "
-                                    + "that argues about them. Write: roster initial   a=1 b=1 c=1 d=1");
                 default -> rows.add(parseRow(lineNumber, tokens));
             }
         }
@@ -128,7 +117,7 @@ public final class GraphParser {
         if (rosters.isEmpty()) {
             throw new GraphParseException(lines.length, "no roster declared; a graph needs at least one");
         }
-        requireSameMembership(rosters);
+        requireSameMembership(rosters, rosterLines);
         if (rows.isEmpty()) {
             throw new GraphParseException(lines.length, "no events declared");
         }
@@ -171,6 +160,14 @@ public final class GraphParser {
                                         .formatted(row.name(), letter, first.name(), letters)
                                 + "first letter of its name.");
             }
+            if (row.selfParent() != null && !row.selfParent().startsWith(letter)) {
+                throw new GraphParseException(
+                        row.line(),
+                        ("'%s' names '%s' as its self-parent, but a self-parent is the same creator's previous "
+                                        + "event, so its name must also start with '%s'. Consensus would treat '%s' as "
+                                        + "an other-parent.")
+                                .formatted(row.name(), row.selfParent(), letter, row.selfParent()));
+            }
 
             for (final String parent : row.parents()) {
                 if (!defined.contains(parent)) {
@@ -198,7 +195,7 @@ public final class GraphParser {
         try {
             GraphBuilder.deriveBirthRounds(specs, defaults.birthRound());
         } catch (final GraphBuilder.BirthRoundViolation e) {
-            throw new GraphParseException(lineByName.getOrDefault(e.eventName(), 0), e.getMessage());
+            throw new GraphParseException(lineByName.get(e.eventName()), e.getMessage());
         }
         return specs;
     }
@@ -266,8 +263,8 @@ public final class GraphParser {
                         line, "'%s' is not a node letter; use a single lower-case letter".formatted(token));
             }
             if (equals < 0) {
-                // Every weight is written out, including 1: a roster is an input the derivations argue about, so it
-                // should read without knowing what an omitted weight means.
+                // Every weight is written out, including 1, so a roster reads without knowing what an omitted
+                // weight would mean.
                 throw new GraphParseException(
                         line,
                         "'%s' has no weight; weights are always explicit, so write '%s=1'".formatted(letter, letter));
@@ -284,20 +281,23 @@ public final class GraphParser {
     }
 
     /**
-     * Only reweighting is supported. The syntax for membership change costs nothing — a second block simply
-     * lists different letters — but what consensus does with an event whose creator is not in the current roster is
-     * not established, so the parser refuses rather than producing something undefined.
+     * Only reweighting is supported: every roster must list the same nodes. Adding or removing a node would feed
+     * consensus events whose creator is not in the current roster, which this suite does not support yet, so the
+     * parser refuses such a graph.
+     *
+     * @param rosters     every roster block, in declaration order
+     * @param rosterLines the line each roster was declared on, by name
      */
-    private static void requireSameMembership(@NonNull final List<NamedRoster> rosters) {
+    private static void requireSameMembership(
+            @NonNull final List<NamedRoster> rosters, @NonNull final Map<String, Integer> rosterLines) {
         final NamedRoster first = rosters.getFirst();
         for (final NamedRoster other : rosters.subList(1, rosters.size())) {
             if (!Set.copyOf(other.letters()).equals(Set.copyOf(first.letters()))) {
                 throw new GraphParseException(
-                        0,
-                        ("roster '%s' (%s) does not have the same nodes as '%s' (%s). Only "
-                                        + "reweighting is supported: one DAG is replayed under both rosters, so a "
-                                        + "removed node's events are still in the replay and an added node has none, "
-                                        + "and that path is not yet established.")
+                        rosterLines.get(other.name()),
+                        ("roster '%s' (%s) does not have the same nodes as '%s' (%s). Only reweighting is "
+                                        + "supported: adding or removing a node between rosters is not supported "
+                                        + "yet.")
                                 .formatted(other.name(), other.letters(), first.name(), first.letters()));
             }
         }
@@ -369,7 +369,7 @@ public final class GraphParser {
         return (comment < 0 ? line : line.substring(0, comment)).trim();
     }
 
-    /** One parsed row, before its creator has been resolved. */
+    /** One parsed row, before its parents are checked. */
     private record Row(
             int line,
             @NonNull String name,

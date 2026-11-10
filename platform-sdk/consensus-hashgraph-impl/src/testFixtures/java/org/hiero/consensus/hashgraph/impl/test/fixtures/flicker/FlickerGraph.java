@@ -20,14 +20,13 @@ import java.util.Random;
  * Membership changes in the rosters are not currently supported. It will be implemented later when a test requires it.
  * Every roster block must list the same nodes, though not necessarily in the same order.
  * <p>
- * The format accepts any number of roster blocks, but there is only one {@code anchor} round, so the two-phase replay
- * it describes uses at most two. Which rosters a replay uses is up to the replay, which looks them up by name; the
- * format does not tie a roster to a phase.
+ * The format accepts any number of roster blocks. It does not say which roster applies to which events; a test looks
+ * the rosters up by name and decides that itself.
  *
  * @param kb          the knowledge-base entry this fixture reproduces, or null if it names none
  * @param config      consensus configuration keys the fixture needs, as written
  * @param defaults    the per-event fields a row does not override
- * @param anchorRound the round to take a snapshot at for a two-phase replay, or null for a single-phase fixture
+ * @param anchorRound the round given by the file's {@code anchor} header, or null if it has none
  * @param rosters     every roster block, in declaration order
  * @param specs       the events, in creation order
  */
@@ -68,26 +67,13 @@ public record FlickerGraph(
      * No roster is needed: every creator id comes from the letter starting its event's name, so the events, and every
      * hash in them, are the same whichever of the graph's rosters they are later fed under.
      * <p>
-     * The {@link Random} is fixed because it no longer reaches any hash — every hashed field is specified — so a seed
-     * would be a knob that changes nothing a fixture can observe.
+     * The {@link Random} is fixed because it reaches no hash — every hashed field is specified — so a seed would be a
+     * knob that changes nothing a fixture can observe.
      *
      * @return the events in feed order, each paired with its name
      */
     @NonNull
     public List<NamedEvent> build() {
         return GraphBuilder.build(specs, new Random(0), defaults);
-    }
-
-    /**
-     * Write this graph back out as {@code .graph} text.
-     * <p>
-     * The text parses back to an equal graph. Nothing in the suite consumes it yet; it exists so that the round-trip
-     * test can detect a field the format cannot carry.
-     *
-     * @return the file this graph would be written as
-     */
-    @NonNull
-    public String toText() {
-        return GraphWriter.write(this);
     }
 }

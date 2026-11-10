@@ -20,10 +20,8 @@ import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
  * letter one node id that depends on the letter alone. A roster built here therefore uses the same ids as the events
  * {@link GraphBuilder} builds, whatever weights it gives them.
  * <p>
- * Weights are declared in the {@code .graph} file itself rather than in a separate roster file. A fixture is reviewed
- * by checking the reasoning about what its weights make consensus do, and that reasoning sits with the graph, in the
- * file's comments and in the test that uses it; a separate roster file would put the weights somewhere else.
- * Lifting a captured production roster is a different workflow — that belongs with incident replay, not here.
+ * Weights are declared in the {@code .graph} file itself rather than in a separate roster file, so they sit beside the
+ * graph's comments and the test that uses it, which explain what the weights make consensus do.
  *
  * @param name            the roster's name, such as {@code initial} or {@code after}
  * @param weightsByLetter each node's letter mapped to its weight, in declaration order. The order is the order of the

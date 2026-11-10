@@ -124,6 +124,31 @@ class GraphParserTest {
         }
 
         @Test
+        @DisplayName("the example in GraphParser's javadoc parses")
+        void javadocExampleParses() {
+            // A copy of the example in GraphParser's class javadoc; update both together.
+            final String example = """
+                    kb SCN-001
+                    config roundsNonAncient=3
+                    defaults coin=0 txs=none
+                    anchor 2
+
+                    roster initial   a=1 b=1 c=1 d=1
+                    roster after     a=4 b=1 c=1 d=4
+
+                    #  name  self   other-parents
+                       a0    -      -
+                       b0    -      -
+                       c0    -      -
+                       d0    -      -
+                       a1    a0     b0
+                       b1    b0     a1,c0,d0   coin=1
+                    """;
+
+            assertThat(GraphParser.parse(example).specs()).hasSize(6);
+        }
+
+        @Test
         @DisplayName("rosters may list the same nodes in a different order")
         void rosterOrderMayDiffer() {
             final FlickerGraph graph = GraphParser.parse(
@@ -156,6 +181,15 @@ class GraphParserTest {
         }
 
         @Test
+        @DisplayName("a self-parent created by a different node")
+        void selfParentFromAnotherCreator() {
+            assertThatThrownBy(() -> GraphParser.parse(replaceRow("   a2    a1     b1", "   a2    b1     a1")))
+                    .isInstanceOf(GraphParseException.class)
+                    .hasMessageContaining("line 16")
+                    .hasMessageContaining("must also start with 'a'");
+        }
+
+        @Test
         @DisplayName("a parent that does not exist")
         void unknownParent() {
             assertThatThrownBy(() -> GraphParser.parse(replaceRow("   a1    a0     b0", "   a1    a0     z9")))
@@ -169,7 +203,8 @@ class GraphParserTest {
         void duplicateName() {
             assertThatThrownBy(() -> GraphParser.parse(replaceRow("   c0    -      -", "   a0    -      -")))
                     .isInstanceOf(GraphParseException.class)
-                    .hasMessageContaining("already defined");
+                    .hasMessageContaining("line 12")
+                    .hasMessageContaining("already defined on line 10");
         }
 
         @Test
@@ -195,6 +230,7 @@ class GraphParserTest {
         void requiresIsDeferred() {
             assertThatThrownBy(() -> GraphParser.parse(GRAPH + "requires witness(b1)\n"))
                     .isInstanceOf(GraphParseException.class)
+                    .hasMessageContaining("line 17")
                     .hasMessageContaining("not supported yet");
         }
 
@@ -204,6 +240,7 @@ class GraphParserTest {
             assertThatThrownBy(() -> GraphParser.parse(
                             GRAPH.replace("roster after     a=4 b=1 c=1 d=4", "roster after     a=4 b=1 c=1 e=4")))
                     .isInstanceOf(GraphParseException.class)
+                    .hasMessageContaining("line 7")
                     .hasMessageContaining("Only reweighting is supported");
         }
 
@@ -235,6 +272,8 @@ class GraphParserTest {
                        a0    -      -
                     """))
                     .isInstanceOf(GraphParseException.class)
+                    .as("the error is reported at the end of the file, where the missing roster was noticed")
+                    .hasMessageContaining("line 3")
                     .hasMessageContaining("no roster");
         }
     }

@@ -9,22 +9,18 @@ import java.util.Map;
 /**
  * Writes a {@link FlickerGraph} back out as {@code .graph} text. The inverse of {@link GraphParser}.
  * <p>
- * <b>Nothing consumes this yet.</b> It is here for the round-trip test, which is the automatic detector for a
- * lossy format: if a field reaches an event's hash but has nowhere to live in the text, {@code parse → write → parse}
- * produces a different graph and the test says so. That check is worth more before fixtures are written against the
- * gap than after, which is why the writer precedes the exporter that will eventually use it.
+ * <b>Nothing outside the tests uses this yet.</b> The round-trip test uses it to check that every field that reaches
+ * an event's hash can be written as text and read back.
  * <p>
  * <b>A value the reader can recompute is left out.</b> Three are:
  * <ul>
  *     <li>who created an event — the row has no column for it, because the name already says so: {@code b4} is
  *         created by node {@code b}.</li>
- *     <li>a birth round the event derives from its parents. Only a row that <i>raises</i> its birth round writes
- *         one.</li>
+ *     <li>a birth round the event derives from its parents. A row writes {@code br=} only if its spec sets the birth
+ *         round explicitly, which it is written for even when it equals the derived value.</li>
  *     <li>a default the graph never changed, which the header would otherwise restate from
  *         {@link GraphDefaults#STANDARD}.</li>
  * </ul>
- * Writing a derived value would let the text disagree with the derivation that produced it, and a file able to
- * contradict itself has two sources of truth.
  */
 public final class GraphWriter {
 
@@ -38,13 +34,12 @@ public final class GraphWriter {
      * Write a graph as {@code .graph} text.
      *
      * @param graph the graph
-     * @return text that parses back to an equal graph
+     * @return text that parses back to an equal graph, for any graph {@link GraphParser} accepts
      */
     @NonNull
     public static String write(@NonNull final FlickerGraph graph) {
         final StringBuilder out = new StringBuilder();
 
-        final int before = out.length();
         if (graph.kb() != null) {
             line(out, "kb " + graph.kb());
         }
@@ -58,7 +53,7 @@ public final class GraphWriter {
         if (graph.anchorRound() != null) {
             line(out, "anchor " + graph.anchorRound());
         }
-        if (out.length() > before) {
+        if (!out.isEmpty()) {
             out.append('\n');
         }
 

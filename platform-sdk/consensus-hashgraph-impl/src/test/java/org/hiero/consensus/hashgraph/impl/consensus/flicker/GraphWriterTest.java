@@ -3,26 +3,32 @@ package org.hiero.consensus.hashgraph.impl.consensus.flicker;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.SequencedMap;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.EventSpec;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerGraph;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.GraphDefaults;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.GraphParser;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.GraphWriter;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedRoster;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Test that checks the {@code parse → write → parse} round trip.
+ * Test that checks the {@code write → parse} round trip.
  * <p>
- * This is the automatic detector for a lossy format. Every field that reaches an event's content hash has to survive
- * a trip through the text, or the suite has a field it can set and cannot store — and the failure would otherwise
- * surface as a fixture that reproduces differently once it has been exported and read back.
+ * Every field that reaches an event's content hash has to survive a trip through the text, or the suite has a field
+ * it can set and cannot store. The round trip starts from a graph built in code rather than from parsed text, because
+ * parsed text can only hold fields the format already has syntax for. It catches a lost field only if
+ * {@link #everyField()} sets it, so a new hashed field in {@link EventSpec} needs adding there too.
  */
 class GraphWriterTest {
 
-    /** Exercises every header the format has and every override a row can carry. */
+    /** Text with every header the format has and every override a row can carry, for checking the layout. */
     private static final String GRAPH = """
             kb SCN-TEST
             config roundsNonAncient=3
@@ -43,23 +49,46 @@ class GraphWriterTest {
                a3    a2     b1          br=4
             """;
 
+    /**
+     * A graph built in code that sets every header field and every per-event field, including a birth round equal to
+     * the one its parents give it.
+     */
+    private static FlickerGraph everyField() {
+        return new FlickerGraph(
+                "SCN-TEST",
+                Map.of("roundsNonAncient", "3"),
+                new GraphDefaults(3, 2, 1),
+                2L,
+                List.of(roster("initial", 1, 1, 1, 1), roster("after", 4, 1, 1, 4)),
+                List.of(
+                        EventSpec.genesis("a0"),
+                        EventSpec.genesis("b0"),
+                        EventSpec.genesis("c0"),
+                        EventSpec.genesis("d0"),
+                        EventSpec.event("a1", "a0", "b0"),
+                        EventSpec.event("b1", "b0", "a0", "c0", "d0"),
+                        EventSpec.event("a2", "a1", "b1").withCoin(1).withTransactionCount(0),
+                        EventSpec.event("a3", "a2", "b1").withBirthRound(4),
+                        EventSpec.event("b2", "b1", "a1").withBirthRound(2),
+                        EventSpec.event("c1", "c0", "a1").withTransactionCount(2)));
+    }
+
     @Test
     @DisplayName("the text written out parses back to an equal graph")
     void roundTripIsLossless() {
-        final FlickerGraph graph = GraphParser.parse(GRAPH);
+        final FlickerGraph graph = everyField();
+        final String text = GraphWriter.write(graph);
 
-        final FlickerGraph reparsed = GraphParser.parse(graph.toText());
-
-        assertThat(reparsed)
-                .as("a difference here is a field the format cannot carry: %s", graph.toText())
+        assertThat(GraphParser.parse(text))
+                .as("a difference here is a field the format cannot carry: %s", text)
                 .isEqualTo(graph);
     }
 
     @Test
     @DisplayName("the rebuilt graph has the same event hashes")
     void roundTripPreservesHashes() {
-        final FlickerGraph graph = GraphParser.parse(GRAPH);
-        final FlickerGraph reparsed = GraphParser.parse(graph.toText());
+        final FlickerGraph graph = everyField();
+        final FlickerGraph reparsed = GraphParser.parse(GraphWriter.write(graph));
 
         assertThat(hashes(reparsed.build())).isEqualTo(hashes(graph.build()));
     }
@@ -67,15 +96,15 @@ class GraphWriterTest {
     @Test
     @DisplayName("writing what was written changes nothing")
     void writingIsIdempotent() {
-        final String once = GraphParser.parse(GRAPH).toText();
+        final String once = GraphWriter.write(GraphParser.parse(GRAPH));
 
-        assertThat(GraphParser.parse(once).toText()).isEqualTo(once);
+        assertThat(GraphWriter.write(GraphParser.parse(once))).isEqualTo(once);
     }
 
     @Test
     @DisplayName("both roster blocks survive, in declaration order")
     void bothRostersSurvive() {
-        final FlickerGraph reparsed = GraphParser.parse(GraphParser.parse(GRAPH).toText());
+        final FlickerGraph reparsed = GraphParser.parse(GraphWriter.write(GraphParser.parse(GRAPH)));
 
         assertThat(reparsed.rosters().stream().map(NamedRoster::name)).containsExactly("initial", "after");
         assertThat(reparsed.roster("after").weightsByLetter())
@@ -85,9 +114,12 @@ class GraphWriterTest {
     @Test
     @DisplayName("a value that can be recomputed is not written")
     void derivedValuesAreNotWritten() {
-        final String text = GraphParser.parse(GRAPH).toText();
+        final String text = GraphWriter.write(GraphParser.parse(GRAPH));
 
         assertThat(row(text, "a3")).as("an override is written").contains("br=4");
+        assertThat(row(GraphWriter.write(everyField()), "b2"))
+                .as("an explicit birth round is written even when it equals the derived one")
+                .contains("br=2");
         assertThat(row(text, "a2"))
                 .as("a2's birth round derives from its parents, and writing it would let the file contradict itself")
                 .doesNotContain("br=");
@@ -102,11 +134,11 @@ class GraphWriterTest {
     @Test
     @DisplayName("overrides line up in a column of their own")
     void overridesLineUp() {
-        final String text = GraphParser.parse(GRAPH).toText();
+        final String text = GraphWriter.write(GraphParser.parse(GRAPH));
 
         assertThat(row(text, "a3")).isEqualTo("a3    a2    b1        br=4");
         assertThat(row(text, "a2"))
-                .as("'none' rather than '-', because a row saying it carries no transactions should read as a count")
+                .as("zero transactions is written as 'none', which reads more plainly than '-'")
                 .isEqualTo("a2    a1    b1        coin=1 txs=none");
     }
 
@@ -121,8 +153,8 @@ class GraphWriterTest {
                    b1    b0    a0
                 """;
 
-        assertThat(GraphParser.parse(text).toText())
-                .as("a default equal to the standard one is noise, and the rows should start at the top")
+        assertThat(GraphWriter.write(GraphParser.parse(text)))
+                .as("a default equal to the standard one is not written, so the file starts with the roster block")
                 .isEqualTo("""
                         roster solo  a=1 b=3
 
@@ -131,6 +163,15 @@ class GraphWriterTest {
                            b0    -     -
                            b1    b0    a0
                         """);
+    }
+
+    private static NamedRoster roster(final String name, final long a, final long b, final long c, final long d) {
+        final SequencedMap<String, Long> weights = new LinkedHashMap<>();
+        weights.put("a", a);
+        weights.put("b", b);
+        weights.put("c", c);
+        weights.put("d", d);
+        return new NamedRoster(name, weights);
     }
 
     private static List<Hash> hashes(final List<NamedEvent> events) {

@@ -7,8 +7,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * Thrown when a {@code .graph} file cannot be parsed.
  * <p>
  * Every message names the line it came from. A fixture file is read far more often than it is written, usually by
- * someone debugging a failure rather than its author, so a parse error that does not say where it is costs more than
- * the check is worth.
+ * someone debugging a failure rather than its author, so a parse error must say where it is rather than leave the reader to
+ * search the file.
  */
 public class GraphParseException extends RuntimeException {
 
