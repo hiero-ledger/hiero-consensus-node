@@ -86,6 +86,9 @@ public final class SyncCommitteeProofs {
 
     private static final byte[] ZERO_32 = new byte[32];
 
+    /** A beacon block root that no bundle serves, signed in place of the attested header's root. */
+    private static final byte[] OTHER_BEACON_BLOCK_ROOT = generateBytes(32, 0x25);
+
     /** The consensus presets the verifier supports. */
     public enum Preset {
         MAINNET(512, 8192),
@@ -332,6 +335,19 @@ public final class SyncCommitteeProofs {
     }
 
     /**
+     * A bundle payload whose SSZ and Merkle-Patricia proofs are all valid, but whose sync-aggregate signature is the
+     * initial committee's signature over the signing root of another beacon block root. Only the BLS check can reject
+     * it, so the verifier fails it with {@code CLPR_BUNDLE_VERIFICATION_FAILED} unless the node's signature verifier
+     * accepts every signature.
+     */
+    public static byte[] wrongSigningRootBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+        final Delivery delivery =
+                new Delivery(Preset.MAINNET, CONFIG_PERIOD, Committee.initial(Preset.MAINNET), channelId, content);
+        delivery.signOtherRoot = true;
+        return bundle(List.of(), delivery.toRlpItems());
+    }
+
+    /**
      * A bundle that slides the channel's trust anchor by one period and delivers {@code content} under it: one rotation
      * of the period after the configured one, signed by the next committee and proving the committee after it, then a
      * delivery signed by that committee two periods after the configured one. The verifier returns a successor trust
@@ -429,6 +445,7 @@ public final class SyncCommitteeProofs {
         private final byte[] channelId;
         private final ClprBundleContent content;
         private boolean tamperAccountProof;
+        private boolean signOtherRoot;
         private byte[] manifestBytes;
 
         private Delivery(
@@ -488,6 +505,10 @@ public final class SyncCommitteeProofs {
             final byte[] attestedParentRoot = generateBytes(32, 0x21);
             final byte[] attestedStateRoot = sparseRoot(state);
             final byte[] attestedBodyRoot = generateBytes(32, 0x22);
+            final byte[] attestedRoot =
+                    beaconHeaderRoot(attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot);
+            // When signing another root, the served header and its proofs stay intact: only the signature is wrong.
+            final byte[] signedRoot = signOtherRoot ? OTHER_BEACON_BLOCK_ROOT : attestedRoot;
 
             // 5) Storage proof entries — every entry carries the full node set; only matching keys resolve.
             final List<Object> storageEntries = new ArrayList<>();
@@ -501,11 +522,7 @@ public final class SyncCommitteeProofs {
             return List.of(
                     header(attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot),
                     minimalBE(attestedSlot + 1), // signature slot
-                    syncAggregate(
-                            signer,
-                            preset,
-                            beaconHeaderRoot(
-                                    attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot)),
+                    syncAggregate(signer, preset, signedRoot),
                     signer.nonSignerEntries(),
                     List.of(
                             header(finalizedSlot, 3L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),

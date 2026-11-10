@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -157,6 +158,36 @@ public class ClprEthSyncCommitteeVerifierSuite {
                         .endpointNodeId(0L)
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED)));
+    }
+
+    /**
+     * A bundle whose SSZ and Merkle-Patricia proofs all verify, but whose sync-aggregate signature is over the signing
+     * root of another beacon block. Only the node's BLS signature verifier can reject it, so this guards the
+     * production wiring against an accept-all signature verifier.
+     */
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"clpr.verifierGasLimit"})
+    @DisplayName(
+            "given a bundle with valid proofs signed over another signing root, then CLPR_BUNDLE_VERIFICATION_FAILED")
+    final Stream<DynamicTest> givenSignatureOverAnotherSigningRoot_thenBundleVerificationFails() {
+        final var crypto = new ClprChannelCrypto();
+        final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
+
+        return hapiTest(flattened(
+                setupChannelWithEthereumVerifier(crypto, SyncCommitteeProofs.configPayload()),
+                clprSubmitBundle()
+                        .channelId(crypto.channelId())
+                        .bundlePayload(SyncCommitteeProofs.wrongSigningRootBundlePayload(crypto.channelId(), content))
+                        .endpointNodeId(0L)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED),
+                withOpContext((spec, opLog) -> {
+                    final var conn = readChannelFromState(spec, crypto);
+                    assertThat(conn.receivedMessageId())
+                            .as("the rejected bundle must not deliver message #1")
+                            .isZero();
+                })));
     }
 
     /**
