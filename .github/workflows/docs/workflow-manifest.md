@@ -18,6 +18,7 @@
 | 103-user-solo-tests-adhoc.yaml                      | 103: [USER] Solo Tests Adhoc                | 200-user-adhoc-solo-tests.yaml                        | 200: [USER] Ad Hoc Solo Tests                                     |
 | 106-disp-xts-optional-tests.yaml                    | 106: [DISP] XTS Optional Tests              | N/A                                                   | N/A                                                               |
 | 107-disp-clean-citr-namespaces.yaml                 | 107: [DISP] Clean CITR Namespaces           |                                                       |                                                                   |
+| 108-user-publish-hapi-maven-central.yaml            | 108: [USER] Publish HAPI to Maven Central   | N/A                                                   | N/A                                                               |
 |                                                     |                                             |                                                       |                                                                   |
 | # CITR (200-299)                                    |                                             |                                                       |                                                                   |
 | 201-user-sdpt-controller-adhoc.yaml                 | 201: [USER] CITR SDPT Ctrl Adhoc            | zxf-single-day-performance-test-controller-adhoc.yaml | ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT) |
@@ -79,7 +80,7 @@
 | 826-call-solo-three-stage-cutover.yaml              | 826: [CALL] Solo 3-Stage Cutover            | N/A                                                   | N/A                                                               |
 | 827-call-execute-xts-hapi.yaml                      | 827: [CALL] Exec XTS HAPI Suites            | N/A                                                   | N/A                                                               |
 | 828-call-execute-xts-otter.yaml                     | 828: [CALL] Exec XTS Otter Suites           | N/A                                                   | N/A                                                               |
-| 829-call-execute-xts-hapi-testnet.yaml              | 829: [CALL] Exec XTS HAPI Testnet           | N/A                                                   | N/A                                                               |
+| 829-call-execute-xts-hapi-testnet.yaml              | 829: [CALL] Exec XTS HAPI Pre-cutover       | N/A                                                   | N/A                                                               |
 | 831-call-single-day-performance-test.yaml           | 831: [CALL] CITR Exec SDPT                  | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |
 | 832-call-execute-performance-test.yaml              | 832: [CALL] CITR Exec Perf Test             | zxc-execute-performance-test.yaml                     | ZXC: [CITR] Execute Performance Test                              |
 | 833-call-single-day-longevity-test.yaml             | 833: [CALL] CITR Exec SDLT                  | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |
@@ -126,6 +127,7 @@
 | 903-cron-clean.yaml                                 | 903: [CRON] Clean Latitude NS               | zxcron-clean.yaml                                     | CronClean Latitude Namespaces                                     |
 | 904-cron-release-branching.yaml                     | 904: [CRON] Release Branching               | node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |
 | 905-cron-nightly-benchmarks.yaml                    | 905: [CRON] Nightly Benchmarks              | N/A                                                   | N/A                                                               |
+| 906-cron-block-node-matrix.yaml                     | 906: [CRON] Block Node Version Matrix       | N/A                                                   | N/A                                                               |
 
 ## Numbering conventions
 
