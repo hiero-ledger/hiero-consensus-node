@@ -17,8 +17,8 @@ public class WiringModelBuilder {
 
     private boolean deterministicModeEnabled;
     private ForkJoinPool defaultPool = ForkJoinPool.commonPool();
-    private boolean healthMonitorEnabled = true;
-    private boolean hardBackpressureEnabled = false;
+    private boolean healthMonitorEnabled = false;
+    private boolean hardBackpressureEnabled = true;
     private boolean jvmAnchorEnabled = false;
     private int healthMonitorCapacity = 500;
     private Duration healthMonitorPeriod = Duration.ofMillis(100);

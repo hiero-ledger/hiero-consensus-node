@@ -14,5 +14,5 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
 public record HashgraphWiringConfig(
         @ConfigProperty(
                 defaultValue =
-                        "SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+                        "SEQUENTIAL_THREAD CAPACITY(0) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration consensusEngine) {}

@@ -13,5 +13,5 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
  */
 @ConfigData("event.intake.wiring")
 public record PcesWiringConfig(
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration pcesInlineWriter) {}

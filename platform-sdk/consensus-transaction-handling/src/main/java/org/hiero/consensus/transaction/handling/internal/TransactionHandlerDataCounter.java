@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.ToLongFunction;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 
 /**
@@ -26,9 +25,9 @@ public class TransactionHandlerDataCounter implements ToLongFunction<Object> {
      */
     @Override
     public long applyAsLong(final Object data) {
-        if (data instanceof final ConsensusRound consensusRound) {
-            return (long) Math.max(minimumEffort, consensusRound.getNumAppTransactions());
-        }
+        //        if (data instanceof final ConsensusRound consensusRound) {
+        //            return (long) Math.max(minimumEffort, consensusRound.getNumAppTransactions());
+        //        }
         return 1L;
     }
 

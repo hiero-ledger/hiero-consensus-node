@@ -13,10 +13,10 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
  */
 @ConfigData("transaction.handling.wiring")
 public record TransactionHandlingWiringConfig(
-        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration prehandler,
 
         @ConfigProperty(
                 defaultValue =
-                        "SEQUENTIAL_THREAD CAPACITY(100000) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
+                        "SEQUENTIAL_THREAD CAPACITY(5) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
         TaskSchedulerConfiguration handler) {}

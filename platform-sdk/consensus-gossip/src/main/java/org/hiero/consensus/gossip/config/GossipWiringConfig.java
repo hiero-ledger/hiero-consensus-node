@@ -13,5 +13,5 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
  */
 @ConfigData("event.creation.wiring")
 public record GossipWiringConfig(
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration gossip) {}

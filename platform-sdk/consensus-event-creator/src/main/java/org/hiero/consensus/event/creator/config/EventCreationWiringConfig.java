@@ -12,5 +12,5 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
  */
 @ConfigData("event.creation.wiring")
 public record EventCreationWiringConfig(
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(0) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
         TaskSchedulerConfiguration eventCreationManager) {}
