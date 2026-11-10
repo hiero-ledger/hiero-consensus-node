@@ -42,8 +42,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
      * makes sense after the security model change that revoked use of top-level signatures; but for
      * now it is retained for backwards compatibility.)
      */
-    private static final FailureCustomizer STANDARD_FAILURE_CUSTOMIZER =
-            (_, code, _) -> standardized(code);
+    private static final FailureCustomizer STANDARD_FAILURE_CUSTOMIZER = (_, code, _) -> standardized(code);
 
     private final AccountID senderId;
 
