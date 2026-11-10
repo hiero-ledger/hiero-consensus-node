@@ -199,8 +199,51 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final UsePresetTxnId usePresetTxnId,
             @NonNull final FeeCharging customFeeCharging,
             @NonNull final PropagateFeeChargingStrategy propagateFeeChargingStrategy) {
+        return subDispatch(
+                payerId,
+                body,
+                keyVerifier,
+                authorizingKeys,
+                streamBuilderType,
+                stakingRewards,
+                usePresetTxnId,
+                customFeeCharging,
+                propagateFeeChargingStrategy,
+                EMPTY_METADATA);
+    }
+
+    /**
+     * Same as {@link #subDispatch(AccountID, TransactionBody, Predicate, Set, Class, StakingRewards, UsePresetTxnId,
+     * FeeCharging, PropagateFeeChargingStrategy)}, but lets the caller attach extra {@link DispatchMetadata} for the
+     * handler that will execute the dispatch.
+     *
+     * @param <T> the type of stream builder to use for the dispatch
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param keyVerifier the key verifier to use for the dispatch
+     * @param authorizingKeys the set of keys authorizing the dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param stakingRewards whether the dispatch can trigger staking rewards
+     * @param usePresetTxnId whether the dispatch's {@link TransactionBody} should include the expected txn id
+     * @param customFeeCharging the custom fee charging strategy for the dispatch
+     * @param propagateFeeChargingStrategy whether the dispatch's custom fee charging strategy should propagate
+     * @param extraMetadata metadata to pass to the dispatched handler, in addition to any this factory adds
+     * @return the options for the sub-dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> subDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Predicate<Key> keyVerifier,
+            @NonNull final Set<Key> authorizingKeys,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StakingRewards stakingRewards,
+            @NonNull final UsePresetTxnId usePresetTxnId,
+            @NonNull final FeeCharging customFeeCharging,
+            @NonNull final PropagateFeeChargingStrategy propagateFeeChargingStrategy,
+            @NonNull final DispatchMetadata extraMetadata) {
         requireNonNull(customFeeCharging);
         requireNonNull(propagateFeeChargingStrategy);
+        requireNonNull(extraMetadata);
         final var category =
                 switch (requireNonNull(stakingRewards)) {
                     case ON -> TransactionCategory.SCHEDULED;
@@ -208,8 +251,8 @@ public record DispatchOptions<T extends StreamBuilder>(
                 };
         final var metadata =
                 switch (propagateFeeChargingStrategy) {
-                    case YES -> new DispatchMetadata(CUSTOM_FEE_CHARGING, customFeeCharging);
-                    case NO -> EMPTY_METADATA;
+                    case YES -> extraMetadata.with(CUSTOM_FEE_CHARGING, customFeeCharging);
+                    case NO -> extraMetadata;
                 };
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,

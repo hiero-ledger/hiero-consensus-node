@@ -33,6 +33,8 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.time.Instant;
+import java.time.InstantSource;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,6 +65,8 @@ class QueryHederaNativeOperationsTest {
     @Mock
     private EntityIdFactory entityIdFactory;
 
+    private final InstantSource instantSource = InstantSource.fixed(Instant.ofEpochSecond(1_700_000_000L));
+
     private QueryHederaNativeOperations subject;
 
     private AccountID deletedAccount;
@@ -72,7 +76,7 @@ class QueryHederaNativeOperationsTest {
 
     @BeforeEach
     void setUp() {
-        subject = new QueryHederaNativeOperations(context, entityIdFactory);
+        subject = new QueryHederaNativeOperations(context, entityIdFactory, instantSource);
         deletedAccount = AccountID.newBuilder().accountNum(1L).build();
         fromAccount = AccountID.newBuilder().accountNum(3L).build();
         beneficiaryAccount = AccountID.newBuilder().accountNum(2L).build();
