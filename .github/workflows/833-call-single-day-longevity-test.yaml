@@ -742,6 +742,8 @@ jobs:
           set +e
 
           kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o custom-columns=NAME:.metadata.name,IP:.status.podIP --no-headers | awk '{print $1" "$2}' | grep -E 'network-node|block-node' >ips.txt
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o custom-columns=NAME:.metadata.name,IP:.status.podIP --no-headers | awk '{print $1" "$2}' | grep -E 'nlg-network-load-generator' >NLGip.txt
+          export NLG_IP=$(awk '{print $2}' NLGip.txt)
 
           apply() {
             pod=$1
@@ -749,10 +751,16 @@ jobs:
             shift;shift
             kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" debug "$pod" -it --image=nicolaka/netshoot --profile=netadmin --target $target \
             -- sh -c " \
-              tc qdisc replace dev eth0 root handle 1: prio; \
+              tc qdisc del dev eth0 root; \
+              tc qdisc add dev eth0 root handle 1: htb default 12 r2q 1000; \
+              tc class add dev eth0 parent 1: classid 1:1 htb rate 1gbit; \
+              tc class add dev eth0 parent 1:1 classid 1:11 htb rate 1gbit; \
+              tc class add dev eth0 parent 1:1 classid 1:12 htb rate 1gbit; \
+              tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip src ${NLG_IP}/32 flowid 1:12; \
+              tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip dst ${NLG_IP}/32 flowid 1:12; \
               if [ \"$target\" = \"block-node-server\" ]; then netem=\"${{ env.FROM_BN_NETEM }}\"; else netem=\"${{ env.FROM_CN_NETEM }}\"; fi
-              tc qdisc replace dev eth0 parent 1:3 handle 30: netem \${netem}; \
-              for ip in $*; do tc filter replace dev eth0 protocol ip parent 1:0 prio 3 u32 match ip dst \${ip}/32 flowid 1:3; done; \
+              tc qdisc add dev eth0 parent 1:11 handle 11: netem \${netem}; \
+              for ip in $*; do tc filter add dev eth0 protocol ip parent 1:0 prio 3 u32 match ip dst \${ip}/32 flowid 1:3; done; \
               tc qdisc show dev eth0; \
               tc filter show dev eth0;"
           }
