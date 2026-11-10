@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.hapi.utils.keys.KeyComparator;
-import com.hedera.node.app.spi.signatures.ContextualVerificationAssistant;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -72,30 +71,6 @@ public interface KeyVerifier {
                             .anyMatch(r -> verificationFor(r).passed()));
         }
         return verificationFor(requirement.key());
-    }
-
-    /**
-     * Evaluates every primitive with its originating requirement. Composed alternatives retain
-     * their own identities, while every leaf of a compound key retains the same requirement.
-     *
-     * @param requirement the authority and key required by the operation
-     * @param callback the contextual primitive verification assistant
-     * @return the verification of the requirement
-     */
-    @NonNull
-    default SignatureVerification verificationFor(
-            @NonNull final KeyRequirement requirement, @NonNull final ContextualVerificationAssistant callback) {
-        requireNonNull(requirement);
-        requireNonNull(callback);
-        if (requirement instanceof KeyRequirement.AnyOf anyOf) {
-            boolean passed = false;
-            for (final var alternative : anyOf.alternatives()) {
-                // Visit all alternatives because the assistant may observe or collect authorizing keys.
-                passed |= verificationFor(alternative, callback).passed();
-            }
-            return requirementVerification(requirement, passed);
-        }
-        return verificationFor(requirement.key(), (key, verification) -> callback.test(requirement, key, verification));
     }
 
     private static SignatureVerification requirementVerification(

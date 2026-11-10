@@ -54,7 +54,6 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
-import com.hedera.node.app.spi.signatures.ContextualVerificationAssistant;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
@@ -559,13 +558,6 @@ public class ChildDispatchFactory {
             public SignatureVerification verificationFor(
                     @NonNull final Key key, @NonNull final VerificationAssistant assistant) {
                 return verifier.verificationFor(key, assistant);
-            }
-
-            @Override
-            public SignatureVerification verificationFor(
-                    @NonNull final KeyRequirement requirement,
-                    @NonNull final ContextualVerificationAssistant assistant) {
-                return verifier.verificationFor(requirement, assistant);
             }
 
             @Override

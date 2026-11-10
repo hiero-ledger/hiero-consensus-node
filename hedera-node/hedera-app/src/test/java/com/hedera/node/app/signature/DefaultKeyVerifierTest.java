@@ -110,48 +110,6 @@ class DefaultKeyVerifierTest {
     }
 
     @Test
-    void contextualAssistantRetainsAccountAcrossCompoundKeyLeaves() {
-        final var key = Key.newBuilder()
-                .keyList(KeyList.newBuilder().keys(ED25519_X1, ECDSA_X1))
-                .build();
-        final var requirement = KeyRequirement.forAccount(
-                AccountID.newBuilder().accountNum(1234).build(), key);
-        final var seenRequirements = new ArrayList<KeyRequirement>();
-        final var seenKeys = new ArrayList<Key>();
-        final var verifier = createVerifier(Map.of());
-
-        final var result = verifier.verificationFor(requirement, (origin, primitive, evidence) -> {
-            seenRequirements.add(origin);
-            seenKeys.add(primitive);
-            return true;
-        });
-
-        assertThat(result.passed()).isTrue();
-        assertThat(seenRequirements).containsExactly(requirement, requirement);
-        assertThat(seenKeys).containsExactly(ED25519_X1, ECDSA_X1);
-        assertThat(verifier.authorizingSimpleKeys()).isEmpty();
-    }
-
-    @Test
-    void contextualAssistantRetainsEachAlternativeDespiteIdenticalKeys() {
-        final var account = KeyRequirement.forAccount(
-                AccountID.newBuilder().accountNum(1234).build(), ED25519_X1);
-        final var explicit = KeyRequirement.forKey(ED25519_X1);
-        final var requirement = KeyRequirement.anyOf(List.of(account, explicit));
-        final var seenRequirements = new ArrayList<KeyRequirement>();
-        final var verifier = createVerifier(Map.of());
-
-        final var result = verifier.verificationFor(requirement, (origin, primitive, evidence) -> {
-            seenRequirements.add(origin);
-            return origin.equals(explicit);
-        });
-
-        assertThat(result.passed()).isTrue();
-        assertThat(seenRequirements).containsExactly(account, explicit);
-        assertThat(result.key()).isEqualTo(requirement.key());
-    }
-
-    @Test
     void reportsNumSignsVerified() {
         final Map<Key, SignatureVerificationFuture> keyVerifications = new HashMap<>();
         final var key = ALICE.keyInfo().publicKey();
