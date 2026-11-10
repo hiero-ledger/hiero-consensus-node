@@ -208,11 +208,11 @@ connector ID cannot be registered again.
 
 ### Default values (from `ClprConfig`)
 
-|       Parameter       |        Config key        |             Default             |
-|-----------------------|--------------------------|---------------------------------|
+|       Parameter       |            Config key            |             Default             |
+|-----------------------|----------------------------------|---------------------------------|
 | Base penalty          | `clpr.slashBasePenaltyTinycents` | 100,000,000,000 tinycents ($10) |
-| Escalation multiplier | `clpr.slashMultiplier`   | 2                               |
-| Ban threshold         | `clpr.slashBanThreshold` | 5                               |
+| Escalation multiplier | `clpr.slashMultiplier`           | 2                               |
+| Ban threshold         | `clpr.slashBanThreshold`         | 5                               |
 
 At a constant exchange rate of $0.10/ℏ, the default escalation sequence is:
 
@@ -312,7 +312,7 @@ where:
 - `messageExecutionCost` — a flat `clpr.messageExecutionCost` config value (default:
 1,000,000 tinybars).
 - `progressRewardTinycents` — a USD-denominated reward (default: 100,000,000 tinycents, or
-  $0.01), converted using the active network exchange rate at the bundle's consensus time.
+$0.01), converted using the active network exchange rate at the bundle's consensus time.
 
 The full `charge` amount is paid to the **submitting endpoint** (the Hiero consensus
 node that submitted the `ClprSubmitBundle` transaction). There is no central treasury;

@@ -36,15 +36,15 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 ### Stake / slashing economics (consumed by `ClprSlashingUtils`)
 
-|                 Key                  |            Default            | Network? |                                    Purpose                                    |
-|--------------------------------------|-------------------------------|----------|-------------------------------------------------------------------------------|
-| `minLockedStakeTinycents`             | `30 000 000 000 000` tinycents ($3,000) | yes | Minimum bond for `completeConnector`, converted at its active consensus exchange rate; the submitted tinybars are transferred to `stakingAccount`. |
-| `stakingAccount`                     | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.     |
-| `slashBasePenaltyTinycents`           | `100 000 000 000` tinycents ($10) | yes | Base slash on first offence, converted at the active consensus exchange rate; each penalty is paid to the submitting endpoint. |
-| `slashMultiplier`                    | `2`                           | yes      | Geometric escalation factor per repeat offence.                               |
-| `slashBanThreshold`                  | `5`                           | yes      | Cumulative offences after which a connector is banned.                        |
-| `messageExecutionCost`              | `1 000 000` tinybars          | yes      | Flat reimbursement for callback execution.                                   |
-| `progressRewardTinycents`           | `100 000 000` tinycents ($0.01) | yes | Endpoint reward per newly dispatched data message, converted at the active consensus exchange rate. |
+|             Key             |                 Default                 | Network? |                                                                      Purpose                                                                       |
+|-----------------------------|-----------------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `minLockedStakeTinycents`   | `30 000 000 000 000` tinycents ($3,000) | yes      | Minimum bond for `completeConnector`, converted at its active consensus exchange rate; the submitted tinybars are transferred to `stakingAccount`. |
+| `stakingAccount`            | `0.0.803` (account num `803`)           | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.                                                                          |
+| `slashBasePenaltyTinycents` | `100 000 000 000` tinycents ($10)       | yes      | Base slash on first offence, converted at the active consensus exchange rate; each penalty is paid to the submitting endpoint.                     |
+| `slashMultiplier`           | `2`                                     | yes      | Geometric escalation factor per repeat offence.                                                                                                    |
+| `slashBanThreshold`         | `5`                                     | yes      | Cumulative offences after which a connector is banned.                                                                                             |
+| `messageExecutionCost`      | `1 000 000` tinybars                    | yes      | Flat reimbursement for callback execution.                                                                                                         |
+| `progressRewardTinycents`   | `100 000 000` tinycents ($0.01)         | yes      | Endpoint reward per newly dispatched data message, converted at the active consensus exchange rate.                                                |
 
 ### Fee configuration
 
@@ -53,7 +53,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 | `sendMessageFeeTinycents`  | `1 000 000 000` tinycents  | yes      | Price of a `sendMessage` call ($0.10), including its gas; the rest is collected from attached value. |
 | `sendMessageIncludedBytes` | `1 024`                    | yes      | Message bytes covered by the base price. Additional bytes cost $0.00001 each.                        |
 | `nodeSubmitBundleMaxFee`   | `100 000 000 000` tinybars | yes      | Maximum fee a node pays to submit an inbound bundle (1,000 ℏ).                                       |
-| `manifestSubmissionMaxFee` | `10 000 000 000` tinybars | no       | Maximum fee a node offers to publish its endpoint (100 ℏ).                                           |
+| `manifestSubmissionMaxFee` | `10 000 000 000` tinybars  | no       | Maximum fee a node offers to publish its endpoint (100 ℏ).                                           |
 
 ### Sync orchestration (CLPR-4.3, used by `ClprChannelManager` / `ClprEndpointClient`)
 
