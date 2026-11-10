@@ -406,9 +406,11 @@ class MerkleDbCompactionCoordinatorTest {
      * pauses and resumes them.
      */
     private void addActiveCompactors(final DataFileCompactor... compactors) {
+        assertTrue(compactors.length <= 10, "Single-digit keys keep the HashMap iteration order");
         synchronized (coordinator) {
             for (int i = 0; i < compactors.length; i++) {
-                coordinator.compactorsByName.put("compactor" + i, compactors[i]);
+                // The hash code of a single-digit key is 48 + i, so the keys fall into buckets 0 to 9 in order
+                coordinator.compactorsByName.put(Integer.toString(i), compactors[i]);
             }
             assertEquals(
                     List.of(compactors),
