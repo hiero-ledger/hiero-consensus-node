@@ -4,6 +4,7 @@ package org.hiero.consensus.gossip.config;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -11,26 +12,24 @@ import java.util.Optional;
 /**
  * Configuration for the gossip layer of the node.
  *
- * @param interfaceBindings A list of interface bindings used in {@code SocketFactory}.
- *                          These bindings allow overriding the default network behavior
- *                          in specialized environments, such as containerized
- *                          deployments, where custom network interfaces may be required.
- *                          Each entry specifies how the node should bind to its network
- *                          interfaces.
- * @param endpointOverrides A list of endpoint overrides used in {@code OutboundConnectionManager}.
- *                          These overrides provide the ability to replace the default IP
- *                          address and port of endpoints obtained from the roster. This is
- *                          particularly useful in cases where the actual network configuration
- *                          differs from the information specified in the roster, such as
- *                          behind NATs or when using virtualized networks.
+ * @param interfaceBindings              A list of interface bindings used in {@code SocketFactory}. These bindings
+ *                                       allow overriding the default network behavior in specialized environments, such
+ *                                       as containerized deployments, where custom network interfaces may be required.
+ *                                       Each entry specifies how the node should bind to its network interfaces.
+ * @param endpointOverrides              A list of endpoint overrides used in {@code OutboundConnectionManager}. These
+ *                                       overrides provide the ability to replace the default IP address and port of
+ *                                       endpoints obtained from the roster. This is particularly useful in cases where
+ *                                       the actual network configuration differs from the information specified in the
+ *                                       roster, such as behind NATs or when using virtualized networks.
  * @param connectionServerThreadPriority priority for threads that listen for incoming gossip connections.
- * @param hangingThreadDuration        the length of time a gossip thread is allowed to wait when it is asked to
- *                                      shutdown. If a gossip thread takes longer than this period to shut down, then an
- *                                      error message is written to the log.
- * @param farFutureEventOffset        the number of birth rounds ahead of the pending round for which this node will
+ * @param hangingThreadDuration          the length of time a gossip thread is allowed to wait when it is asked to
+ *                                       shutdown. If a gossip thread takes longer than this period to shut down, then
+ *                                       an error message is written to the log.
+ * @param farFutureEventOffset           the number of birth rounds ahead of the pending round for which this node will
  *                                       accept events from peers. All events with a birth round higher than the pending
  *                                       round plus this number are considered to be far future events and will be
- *                                       rejected. A negative value means no event is considered far future.
+ *                                       rejected. {@value #FAR_FUTURE_EVENT_FILTER_DISABLED} disables far future event
+ *                                       filtering, so no event is considered far future.
  */
 @ConfigData("gossip")
 public record GossipConfig(
@@ -42,7 +41,22 @@ public record GossipConfig(
 
         @ConfigProperty(defaultValue = "5") int connectionServerThreadPriority,
         @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration,
-        @ConfigProperty(defaultValue = "-1") int farFutureEventOffset) {
+
+        @Min(FAR_FUTURE_EVENT_FILTER_DISABLED) @ConfigProperty(defaultValue = "" + FAR_FUTURE_EVENT_FILTER_DISABLED)
+        int farFutureEventOffset) {
+
+    /** The value of {@code farFutureEventOffset} that disables far future event filtering. */
+    public static final int FAR_FUTURE_EVENT_FILTER_DISABLED = -1;
+
+    /**
+     * Determines if far future event filtering is disabled based on the given offset value.
+     *
+     * @param farFutureEventOffset the offset value to check
+     * @return true if far future event filtering is disabled
+     */
+    public static boolean isFarFutureEventFilterDisabled(final int farFutureEventOffset) {
+        return farFutureEventOffset == FAR_FUTURE_EVENT_FILTER_DISABLED;
+    }
 
     /**
      * Returns the interface binding for the given node ID.

@@ -8,15 +8,16 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Tests {@link SyncUtils#isFarFutureEvent}: an event is a far future event if its birth round is greater than the
- * pending round plus {@code gossip.farFutureEventOffset}, and no event is a far future event if the offset is negative.
+ * pending round plus {@code gossip.farFutureEventOffset}. Whether the filter is enabled is decided by the callers, and
+ * is covered by their tests.
  */
 class SyncUtilsFarFutureTest {
 
     private static final long PENDING_ROUND = 11;
 
     @ParameterizedTest
-    @ValueSource(longs = {0, 1, 5, 10})
-    void boundaryIsPendingRoundPlusOffset(final long offset) {
+    @ValueSource(ints = {0, 1, 5, 10})
+    void boundaryIsPendingRoundPlusOffset(final int offset) {
         final long maxAcceptable = PENDING_ROUND + offset;
 
         assertThat(SyncUtils.isFarFutureEvent(offset, 1, PENDING_ROUND)).isFalse();
@@ -26,14 +27,5 @@ class SyncUtilsFarFutureTest {
                 .isFalse();
         assertThat(SyncUtils.isFarFutureEvent(offset, maxAcceptable + 1, PENDING_ROUND))
                 .isTrue();
-    }
-
-    @ParameterizedTest
-    @ValueSource(longs = {-1, -5, Long.MIN_VALUE})
-    void negativeOffsetMeansNoEventIsFarFuture(final long offset) {
-        assertThat(SyncUtils.isFarFutureEvent(offset, PENDING_ROUND + 1, PENDING_ROUND))
-                .isFalse();
-        assertThat(SyncUtils.isFarFutureEvent(offset, Long.MAX_VALUE, PENDING_ROUND))
-                .isFalse();
     }
 }

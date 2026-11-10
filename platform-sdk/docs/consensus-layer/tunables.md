@@ -454,7 +454,7 @@ Module: `consensus-gossip`. Source: [GossipConfig.java](../../consensus-gossip/s
 | TUN-148 | `gossip.endpointOverrides`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node endpoint overrides used in `OutboundConnectionManager`; replaces roster IP/port when network config diverges from the roster.  |       | —         |
 | TUN-149 | `gossip.connectionServerThreadPriority` | int                         | `5`     | Priority for threads listening for incoming gossip connections.                                                                         |       | —         |
 | TUN-150 | `gossip.hangingThreadDuration`          | Duration                    | `60s`   | How long a gossip thread is allowed to wait on shutdown before logging an error.                                                        |       | —         |
-| TUN-233 | `gossip.farFutureEventOffset`           | int                         | `-1`    | Far future limit: events with birth round above a node's pending round plus this are not sent to it and are dropped; negative disables. |       | —         |
+| TUN-233 | `gossip.farFutureEventOffset`           | int                         | `-1`    | Far future limit: events with birth round above a node's pending round plus this are not sent to it and are dropped; `-1` disables.     | -1..  | —         |
 
 ## `event.creation.wiring.*` — GossipWiringConfig
 

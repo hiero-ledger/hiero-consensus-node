@@ -4,6 +4,7 @@ package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
+import static org.hiero.consensus.gossip.config.GossipConfig.isFarFutureEventFilterDisabled;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
 
@@ -312,7 +313,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         // be careful - this is un-synchronized access to non-volatile variables;
         // given it is only a hint, we don't really care if it is immediately visible with updates
         if (isBroadcastRunning()) {
-            if (farFutureEventOffset < 0) {
+            if (isFarFutureEventFilterDisabled(farFutureEventOffset)) {
                 sender.sendBroadcastEvent(gossipEvent);
                 return;
             }
@@ -418,8 +419,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      */
     private boolean isFarFutureEvent(@NonNull final GossipEvent event, final long pendingRound) {
         assert event.eventCore() != null;
-        return SyncUtils.isFarFutureEvent(
-                farFutureEventOffset, event.eventCore().birthRound(), pendingRound);
+        return !isFarFutureEventFilterDisabled(farFutureEventOffset)
+                && SyncUtils.isFarFutureEvent(
+                        farFutureEventOffset, event.eventCore().birthRound(), pendingRound);
     }
 
     /**

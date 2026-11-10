@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.gossip.config.GossipConfig.isFarFutureEventFilterDisabled;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.filterLikelyDuplicates;
 
 import com.swirlds.base.time.Time;
@@ -224,7 +225,7 @@ public class ShadowgraphSynchronizer {
      */
     private List<PlatformEvent> filterFarFutureEvents(
             final long theirPendingRound, @NonNull final List<PlatformEvent> sendList) {
-        if (farFutureEventOffset < 0) {
+        if (isFarFutureEventFilterDisabled(farFutureEventOffset)) {
             return sendList;
         }
 

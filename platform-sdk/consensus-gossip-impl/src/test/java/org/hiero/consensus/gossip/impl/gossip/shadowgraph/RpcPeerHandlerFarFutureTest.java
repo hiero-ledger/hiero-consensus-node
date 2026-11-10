@@ -3,6 +3,7 @@ package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.gossip.config.GossipConfig.FAR_FUTURE_EVENT_FILTER_DISABLED;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
@@ -370,10 +371,10 @@ class RpcPeerHandlerFarFutureTest {
 
     // FILTER DISABLED
 
-    /** A negative offset disables the filter, so far future events are accepted by both broadcast and sync. */
+    /** With the filter disabled, far future events are accepted by both broadcast and sync. */
     @Test
-    void negativeOffsetAcceptsFarFutureEvents() {
-        final RpcPeerHandler handler = createPeerHandler(() -> MY_WINDOW, -1);
+    void disabledFilterAcceptsFarFutureEvents() {
+        final RpcPeerHandler handler = createPeerHandler(() -> MY_WINDOW, FAR_FUTURE_EVENT_FILTER_DISABLED);
 
         final GossipEvent broadcast = gossipEventWithBirthRound(MAX_ACCEPTABLE_BIRTH_ROUND + 100);
         handler.receiveBroadcastEvent(broadcast);
@@ -386,12 +387,13 @@ class RpcPeerHandlerFarFutureTest {
     }
 
     /**
-     * A negative offset disables the filter, so a self event far ahead of the peer is still broadcast, and nothing
+     * With the filter disabled, a self event far ahead of the peer is still broadcast, and nothing
      * is counted as held back.
      */
     @Test
-    void negativeOffsetBroadcastsFarFutureEventsForPeer() {
-        final RpcPeerHandler handler = createPeerHandler(() -> MY_WINDOW_AHEAD_OF_PEER, -1);
+    void disabledFilterBroadcastsFarFutureEventsForPeer() {
+        final RpcPeerHandler handler =
+                createPeerHandler(() -> MY_WINDOW_AHEAD_OF_PEER, FAR_FUTURE_EVENT_FILTER_DISABLED);
         completeSync(handler, PEER_WINDOW);
 
         final GossipEvent event = gossipEvent(SELF, PEER_MAX_ACCEPTABLE_BIRTH_ROUND + 100);

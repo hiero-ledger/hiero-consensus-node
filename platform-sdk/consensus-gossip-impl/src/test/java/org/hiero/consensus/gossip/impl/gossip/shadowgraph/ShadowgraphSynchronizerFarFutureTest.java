@@ -2,11 +2,14 @@
 package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.gossip.config.GossipConfig.FAR_FUTURE_EVENT_FILTER_DISABLED;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.validation.ConfigViolationException;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -177,11 +180,11 @@ class ShadowgraphSynchronizerFarFutureTest {
                 .containsExactlyElementsOf(acceptable.subList(0, maxSyncEventCount));
     }
 
-    /** A negative offset disables the filter: every event is sent, however far ahead of the peer it is. */
-    @ParameterizedTest
-    @ValueSource(ints = {-1, -5})
-    void negativeOffsetSendsAllEvents(final int offset) {
-        final ShadowgraphSynchronizer synchronizer = createSynchronizer(offset, UNLIMITED_EVENTS_PER_SYNC);
+    /** Disabling the filter means every event is sent, however far ahead of the peer it is. */
+    @Test
+    void disabledFilterSendsAllEvents() {
+        final ShadowgraphSynchronizer synchronizer =
+                createSynchronizer(FAR_FUTURE_EVENT_FILTER_DISABLED, UNLIMITED_EVENTS_PER_SYNC);
 
         final List<PlatformEvent> all = new ArrayList<>();
         all.addAll(addSingleCreatorEventChain(synchronizer, NodeId.of(1), 1, 11));
@@ -189,5 +192,13 @@ class ShadowgraphSynchronizerFarFutureTest {
 
         final EventWindow theirWindow = new EventWindow(10, 11, 1, 1);
         assertThat(createSendList(synchronizer, theirWindow)).containsExactlyInAnyOrderElementsOf(all);
+    }
+
+    /** The disabled value is the only negative offset; any lower value is rejected when the configuration is read. */
+    @ParameterizedTest
+    @ValueSource(ints = {-2, -5, Integer.MIN_VALUE})
+    void offsetBelowDisabledValueIsRejected(final int offset) {
+        assertThatThrownBy(() -> createSynchronizer(offset, UNLIMITED_EVENTS_PER_SYNC))
+                .isInstanceOf(ConfigViolationException.class);
     }
 }
