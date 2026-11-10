@@ -1,0 +1,184 @@
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListImplementation.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListImplementation.java
+new file mode 100644
+index 0000000..2a2073d
+--- /dev/null
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListImplementation.java
+@@ -0,0 +1,82 @@
++// SPDX-License-Identifier: Apache-2.0
++package com.swirlds.merkledb.collections;
++
++import com.swirlds.merkledb.config.MerkleDbConfig;
++import edu.umd.cs.findbugs.annotations.NonNull;
++import java.io.IOException;
++import java.nio.file.Path;
++import org.hiero.base.file.FileSystemManager;
++
++/// Benchmark-only selector for the LongList implementation of all three MerkleDB indices.
++/// The snapshot benchmark campaign applies it as a patch; production code never contains it.
++public enum LongListImplementation {
++    HEAP,
++    OFF_HEAP,
++    SEGMENT,
++    DISK,
++    DISK_SEGMENT;
++
++    /// System property naming the implementation to use instead of the configured one.
++    public static final String SYSTEM_PROPERTY = "merkledb.benchmark.longListImplementation";
++
++    /// Returns the implementation named by [#SYSTEM_PROPERTY], or the one production code would use.
++    ///
++    /// @param preferDiskBasedIndices whether the configuration asks for disk-based indices
++    /// @return the implementation to create or load
++    public static LongListImplementation select(final boolean preferDiskBasedIndices) {
++        final String name = System.getProperty(SYSTEM_PROPERTY);
++        if (name != null) {
++            return valueOf(name);
++        }
++        return preferDiskBasedIndices ? DISK : SEGMENT;
++    }
++
++    /// Creates an empty LongList of this implementation.
++    ///
++    /// @param capacity list capacity
++    /// @param configuration MerkleDB settings
++    /// @param fileSystemManager file system manager for disk-based lists
++    /// @return the new list
++    public LongList create(
++            final long capacity,
++            @NonNull final MerkleDbConfig configuration,
++            @NonNull final FileSystemManager fileSystemManager) {
++        return switch (this) {
++            case HEAP -> new LongListHeap(capacity, configuration);
++            case OFF_HEAP -> new LongListOffHeap(capacity, configuration);
++            case SEGMENT -> new LongListSegment(capacity, configuration);
++            case DISK -> new LongListDisk(capacity, configuration, fileSystemManager);
++            case DISK_SEGMENT -> new LongListDiskSegment(capacity, configuration, fileSystemManager);
++        };
++    }
++
++    /// Loads a LongList of this implementation from a snapshot file.
++    ///
++    /// @param file snapshot file
++    /// @param capacity list capacity
++    /// @param configuration MerkleDB settings
++    /// @param fileSystemManager file system manager for disk-based lists
++    /// @return the loaded list
++    /// @throws IOException if the file cannot be read
++    public LongList load(
++            @NonNull final Path file,
++            final long capacity,
++            @NonNull final MerkleDbConfig configuration,
++            @NonNull final FileSystemManager fileSystemManager)
++            throws IOException {
++        return switch (this) {
++            case HEAP -> new LongListHeap(file, capacity, configuration);
++            case OFF_HEAP -> new LongListOffHeap(file, capacity, configuration);
++            case SEGMENT -> new LongListSegment(file, capacity, configuration);
++            case DISK -> new LongListDisk(file, capacity, configuration, fileSystemManager);
++            case DISK_SEGMENT -> new LongListDiskSegment(file, capacity, configuration, fileSystemManager);
++        };
++    }
++
++    /// Returns whether this implementation keeps its contents in a backing file.
++    ///
++    /// @return true for the disk-based implementations
++    public boolean isDiskBased() {
++        return this == DISK || this == DISK_SEGMENT;
++    }
++}
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java
+index 960d2f7..9a51a5d 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/files/hashmap/HalfDiskHashMap.java
+@@ -10,8 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
+ import com.swirlds.merkledb.FileStatisticAware;
+ import com.swirlds.merkledb.Snapshotable;
+ import com.swirlds.merkledb.collections.LongList;
+-import com.swirlds.merkledb.collections.LongListDisk;
+-import com.swirlds.merkledb.collections.LongListSegment;
++import com.swirlds.merkledb.collections.LongListImplementation;
+ import com.swirlds.merkledb.collections.OffHeapUser;
+ import com.swirlds.merkledb.config.MerkleDbConfig;
+ import com.swirlds.merkledb.files.DataFileCollection;
+@@ -208,15 +207,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
+             // load or rebuild index
+             final boolean forceIndexRebuilding = config.indexRebuildingEnforced();
+             if (Files.exists(indexFile) && !forceIndexRebuilding) {
+-                bucketIndexToBucketLocation = preferDiskBasedIndex
+-                        ? new LongListDisk(indexFile, bucketIndexCapacity, config, fileSystemManager)
+-                        : new LongListSegment(indexFile, bucketIndexCapacity, config);
++                bucketIndexToBucketLocation = LongListImplementation.select(preferDiskBasedIndex)
++                        .load(indexFile, bucketIndexCapacity, config, fileSystemManager);
+                 loadedDataCallback = null;
+             } else {
+                 // create new index and setup call back to rebuild
+-                bucketIndexToBucketLocation = preferDiskBasedIndex
+-                        ? new LongListDisk(bucketIndexCapacity, config, fileSystemManager)
+-                        : new LongListSegment(bucketIndexCapacity, config);
++                bucketIndexToBucketLocation = LongListImplementation.select(preferDiskBasedIndex)
++                        .create(bucketIndexCapacity, config, fileSystemManager);
+                 loadedDataCallback = (dataLocation, bucketData) -> {
+                     final Bucket bucket = bucketPool.getBucket();
+                     bucket.readFrom(bucketData);
+@@ -233,9 +230,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
+             // numOfBuckets is the nearest power of two greater than minimumBuckets with a min of 2
+             setNumberOfBuckets(Math.max(Integer.highestOneBit(minimumBuckets) * 2, 2));
+             // create new index
+-            bucketIndexToBucketLocation = preferDiskBasedIndex
+-                    ? new LongListDisk(bucketIndexCapacity, config, fileSystemManager)
+-                    : new LongListSegment(bucketIndexCapacity, config);
++            bucketIndexToBucketLocation = LongListImplementation.select(preferDiskBasedIndex)
++                    .create(bucketIndexCapacity, config, fileSystemManager);
+             // we are new, so no need for a loadedDataCallback
+             loadedDataCallback = null;
+             logger.info(
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/internal/MerkleDbDataSource.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/internal/MerkleDbDataSource.java
+index 8b2dbab..5c62940 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/internal/MerkleDbDataSource.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/internal/MerkleDbDataSource.java
+@@ -21,8 +21,7 @@ import com.swirlds.base.units.UnitConstants;
+ import com.swirlds.base.utility.ToStringBuilder;
+ import com.swirlds.merkledb.KeyRange;
+ import com.swirlds.merkledb.collections.LongList;
+-import com.swirlds.merkledb.collections.LongListDisk;
+-import com.swirlds.merkledb.collections.LongListSegment;
++import com.swirlds.merkledb.collections.LongListImplementation;
+ import com.swirlds.merkledb.config.MerkleDbConfig;
+ import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
+ import com.swirlds.merkledb.files.DataFileCommon;
+@@ -375,13 +374,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
+         // Hash chunk disk location index (chunk ID to disk location)
+         final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
+         if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
+-            idToDiskLocationHashChunks = preferDiskBasedIndices
+-                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager)
+-                    : new LongListSegment(idToHashChunksFile, hashIndexCapacity, merkleDbConfig);
++            idToDiskLocationHashChunks = LongListImplementation.select(preferDiskBasedIndices)
++                    .load(idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager);
+         } else {
+-            idToDiskLocationHashChunks = preferDiskBasedIndices
+-                    ? new LongListDisk(hashIndexCapacity, merkleDbConfig, fileSystemManager)
+-                    : new LongListSegment(hashIndexCapacity, merkleDbConfig);
++            idToDiskLocationHashChunks = LongListImplementation.select(preferDiskBasedIndices)
++                    .create(hashIndexCapacity, merkleDbConfig, fileSystemManager);
+         }
+ 
+         // Hash chunk store (hash chunks)
+@@ -420,13 +417,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
+         // KV disk location index (path to disk location)
+         final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
+         if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
+-            pathToDiskLocationLeafNodes = preferDiskBasedIndices
+-                    ? new LongListDisk(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager)
+-                    : new LongListSegment(pathToLeafLocationFile, kvIndexCapacity, config);
++            pathToDiskLocationLeafNodes = LongListImplementation.select(preferDiskBasedIndices)
++                    .load(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager);
+         } else {
+-            pathToDiskLocationLeafNodes = preferDiskBasedIndices
+-                    ? new LongListDisk(kvIndexCapacity, config, fileSystemManager)
+-                    : new LongListSegment(kvIndexCapacity, config);
++            pathToDiskLocationLeafNodes = LongListImplementation.select(preferDiskBasedIndices)
++                    .create(kvIndexCapacity, config, fileSystemManager);
+         }
+ 
+         // Leaves store (leaf nodes)

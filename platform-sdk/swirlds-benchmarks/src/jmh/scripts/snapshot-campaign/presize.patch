@@ -1,0 +1,24 @@
+diff --git a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java
+index ff81f9b..7849b51 100644
+--- a/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java
++++ b/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java
+@@ -13,6 +13,7 @@ import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
+ import edu.umd.cs.findbugs.annotations.NonNull;
+ import edu.umd.cs.findbugs.annotations.Nullable;
+ import java.io.IOException;
++import java.io.RandomAccessFile;
+ import java.nio.ByteBuffer;
+ import java.nio.channels.FileChannel;
+ import java.nio.file.Files;
+@@ -499,6 +500,11 @@ public abstract class AbstractLongList<C> implements LongList {
+             // write header
+             writeHeader(fc);
+             if (size() > 0) {
++                // Pre-size the file to its final length, so the writes below don't have to extend it
++                final long longsToWrite = max(0, size() - minValidIndex.get());
++                try (final RandomAccessFile sizedFile = new RandomAccessFile(file.toFile(), "rw")) {
++                    sizedFile.setLength(FILE_HEADER_SIZE_V3 + longsToWrite * Long.BYTES);
++                }
+                 // write data
+                 writeLongsData(fc);
+             }
