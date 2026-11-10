@@ -133,7 +133,10 @@ public class DispatchProcessor {
         processDispatch(dispatch, hollowAccountCompletionsDetails, false);
     }
 
-    /** Processes a submitted transaction using normal fee charging, with an optional block-capacity rejection. */
+    /**
+     * Processes a submitted or scheduled transaction using normal fee charging, with an optional block-capacity
+     * rejection.
+     */
     public void processDispatch(
             @NonNull final Dispatch dispatch,
             @Nullable final Details hollowAccountCompletionsDetails,
