@@ -16,10 +16,10 @@ All classes live under
 The receiver selects the format in field 5 (`bundle_format`) of its opening
 `ClprBundleRequest`:
 
-| Value | Bundle | Receiver's `current_trust_anchor_id` |
-| --- | --- | --- |
-| Omitted or `CLPR_BUNDLE_FORMAT_STATE_PROOF` (0) | Existing Hiero `StateProof` with the WRAPS-bearing signature | Native Hiero trust anchor |
-| `CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1` (1) | `HieroProof` version 1 for the EVM Hiero verifier | Keccak-256 of the channel's current raw 1,096-byte hinTS verification key |
+|                      Value                      |                            Bundle                            |                   Receiver's `current_trust_anchor_id`                    |
+|-------------------------------------------------|--------------------------------------------------------------|---------------------------------------------------------------------------|
+| Omitted or `CLPR_BUNDLE_FORMAT_STATE_PROOF` (0) | Existing Hiero `StateProof` with the WRAPS-bearing signature | Native Hiero trust anchor                                                 |
+| `CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1` (1)         | `HieroProof` version 1 for the EVM Hiero verifier            | Keccak-256 of the channel's current raw 1,096-byte hinTS verification key |
 
 The compact profile uses SHA-256 block roots. A message bundle includes a
 `StateProof` with its signature shortened to the verification key and aggregate
