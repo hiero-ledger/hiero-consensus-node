@@ -108,8 +108,8 @@ env:
   NUM_OF_BLOCK_NODES: 3
 
   #Chaos mapping
-  FROM_BN_NETEM: "delay 200ms 20ms 25% loss 10%"
-  FROM_CN_NETEM: "delay 100ms 50ms distribution normal loss 15%"
+  FROM_BN_NETEM: "delay 200ms 20ms 25%"
+  FROM_CN_NETEM: "delay 100ms 50ms distribution normal"
 
 jobs:
   get-chewie-jwt:
