@@ -54,6 +54,7 @@ import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
@@ -72,6 +73,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -139,6 +141,9 @@ class ClprDeepDiveBundleAuditTest {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private ExchangeRateInfo exchangeRateInfo;
 
     @Mock
     private StoreFactory storeFactory;
@@ -2900,11 +2905,11 @@ class ClprDeepDiveBundleAuditTest {
         setupHandleContext(txn, clprEnabled);
         final var config = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", clprEnabled)
-                .withValue("clpr.slashBasePenalty", "10000000")
+                .withValue("clpr.slashBasePenaltyTinycents", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.progressRewardTinybars", String.valueOf(PROGRESS_REWARD))
+                .withValue("clpr.progressRewardTinycents", String.valueOf(PROGRESS_REWARD))
                 .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
                 .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
@@ -2985,14 +2990,18 @@ class ClprDeepDiveBundleAuditTest {
     private void setupHandleContext(@NonNull final TransactionBody txn, final boolean enabled) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", enabled)
-                .withValue("clpr.slashBasePenalty", "10000000")
+                .withValue("clpr.slashBasePenaltyTinycents", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.progressRewardTinybars", String.valueOf(PROGRESS_REWARD))
+                .withValue("clpr.progressRewardTinycents", String.valueOf(PROGRESS_REWARD))
                 .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
                 .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
+        lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
+        lenient()
+                .when(exchangeRateInfo.activeRate(any()))
+                .thenReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
         lenient().when(handleContext.configuration()).thenReturn(config);

@@ -284,7 +284,7 @@ public class ClprEnabledSuite {
     @LeakyHapiTest(
             overrides = {
                 "clpr.messageExecutionCost",
-                "clpr.progressRewardTinybars",
+                "clpr.progressRewardTinycents",
                 "contracts.selfDestructs.externalization.enabled"
             })
     @DisplayName("A prepaid CLPR callback externalizes its committed constructor self-destruct")
@@ -293,11 +293,11 @@ public class ClprEnabledSuite {
         final var submittedBundle = "selfDestructBundle";
         final var crypto = new ClprChannelCrypto();
         final long executionCost = 1_000_000L;
-        final long progressReward = 10_000_000L;
+        final long progressRewardTinycents = 100_000_000L;
         final var operations = contractSetup();
         operations.add(overridingAllOf(Map.of(
                 "clpr.messageExecutionCost", Long.toString(executionCost),
-                "clpr.progressRewardTinybars", Long.toString(progressReward),
+                "clpr.progressRewardTinycents", Long.toString(progressRewardTinycents),
                 "contracts.selfDestructs.externalization.enabled", "true")));
         operations.add(uploadInitCode(application));
         operations.add(contractCreate(application).refusingEthConversion());
@@ -383,8 +383,12 @@ public class ClprEnabledSuite {
         operations.add(contractCallLocal(application, "deliveries")
                 .exposingTypedResultsTo(results -> assertEquals(BigInteger.ONE, results[0])));
         operations.add(getContractInfo(application).has(contractWith().isNotDeleted()));
-        operations.add(
-                getAccountBalance(CONNECTOR_CONTRACT).hasTinyBars(ONE_HUNDRED_HBARS - executionCost - progressReward));
+        operations.add(withOpContext((spec, log) -> allRunFor(
+                spec,
+                getAccountBalance(CONNECTOR_CONTRACT)
+                        .hasTinyBars(ONE_HUNDRED_HBARS
+                                - executionCost
+                                - spec.ratesProvider().toTbWithActiveRates(progressRewardTinycents)))));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 

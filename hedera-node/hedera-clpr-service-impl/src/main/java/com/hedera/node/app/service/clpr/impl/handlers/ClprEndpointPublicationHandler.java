@@ -20,6 +20,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.ClprConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -71,8 +72,10 @@ public class ClprEndpointPublicationHandler extends AbstractClprHandler {
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
         final var creator = context.creatorInfo();
-        validateTrue(
-                context.transactionCategory() == NODE && context.payer().equals(creator.accountId()), UNAUTHORIZED);
+        // The fee-charging context reports CHILD; the record builder retains the actual dispatch category.
+        final var category =
+                context.savepointStack().getBaseBuilder(StreamBuilder.class).category();
+        validateTrue(category == NODE && context.payer().equals(creator.accountId()), UNAUTHORIZED);
         final var op = context.body().clprEndpointPublicationOrThrow();
         final long publisherNodeId = creator.nodeId();
 

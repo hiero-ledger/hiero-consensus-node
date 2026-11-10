@@ -38,6 +38,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -74,6 +75,12 @@ class ClprEndpointPublicationHandlerTest {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
+
+    @Mock
+    private StreamBuilder streamBuilder;
 
     @Mock
     private PureChecksContext pureChecksContext;
@@ -133,7 +140,7 @@ class ClprEndpointPublicationHandlerTest {
     @DisplayName("signed user transactions cannot publish a node's endpoint")
     void rejectsUserPublication() {
         setupHandleContext(bodyWithEndpoint(), true);
-        given(handleContext.transactionCategory()).willReturn(USER);
+        given(streamBuilder.category()).willReturn(USER);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -213,7 +220,9 @@ class ClprEndpointPublicationHandlerTest {
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
         lenient().when(creatorInfo.accountId()).thenReturn(PUBLISHER_ACCOUNT);
         lenient().when(handleContext.payer()).thenReturn(PUBLISHER_ACCOUNT);
-        lenient().when(handleContext.transactionCategory()).thenReturn(NODE);
+        lenient().when(handleContext.savepointStack()).thenReturn(savepointStack);
+        lenient().when(savepointStack.getBaseBuilder(StreamBuilder.class)).thenReturn(streamBuilder);
+        lenient().when(streamBuilder.category()).thenReturn(NODE);
         lenient().when(creatorInfo.nodeId()).thenReturn(PUBLISHER_NODE_ID);
         lenient().when(handleContext.consensusNow()).thenReturn(Instant.parse("2026-07-30T12:00:00Z"));
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);

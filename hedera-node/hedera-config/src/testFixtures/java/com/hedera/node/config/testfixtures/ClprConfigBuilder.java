@@ -16,12 +16,12 @@ public final class ClprConfigBuilder {
     private String upgradeLedgerConfigurationFile = "clprLedgerConfiguration.json";
     private long minLockedStakeTinycents = 30_000_000_000_000L;
     private long stakingAccount = 803L;
-    private long slashBasePenalty = 10_000_000L;
+    private long slashBasePenaltyTinycents = 100_000_000_000L;
     private int slashMultiplier = 2;
     private int slashBanThreshold = 5;
     private long endpointMisbehaviorPenaltyTinybars = 5_000_000L;
     private long messageExecutionCost = 1_000_000L;
-    private long progressRewardTinybars = 10_000_000L;
+    private long progressRewardTinycents = 100_000_000L;
     private int maxConcurrentSyncs = 4;
     private int syncTimeoutSeconds = 30;
     private int reputationDecaySeconds = 300;
@@ -80,8 +80,8 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder slashBasePenalty(final long slashBasePenalty) {
-        this.slashBasePenalty = slashBasePenalty;
+    public ClprConfigBuilder slashBasePenaltyTinycents(final long slashBasePenaltyTinycents) {
+        this.slashBasePenaltyTinycents = slashBasePenaltyTinycents;
         return this;
     }
 
@@ -105,8 +105,8 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder progressRewardTinybars(final long progressRewardTinybars) {
-        this.progressRewardTinybars = progressRewardTinybars;
+    public ClprConfigBuilder progressRewardTinycents(final long progressRewardTinycents) {
+        this.progressRewardTinycents = progressRewardTinycents;
         return this;
     }
 
@@ -213,12 +213,12 @@ public final class ClprConfigBuilder {
                 upgradeLedgerConfigurationFile,
                 minLockedStakeTinycents,
                 stakingAccount,
-                slashBasePenalty,
+                slashBasePenaltyTinycents,
                 slashMultiplier,
                 slashBanThreshold,
                 endpointMisbehaviorPenaltyTinybars,
                 messageExecutionCost,
-                progressRewardTinybars,
+                progressRewardTinycents,
                 maxConcurrentSyncs,
                 syncTimeoutSeconds,
                 reputationDecaySeconds,

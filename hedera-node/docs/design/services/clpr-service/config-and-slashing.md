@@ -40,12 +40,12 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 |--------------------------------------|-------------------------------|----------|-------------------------------------------------------------------------------|
 | `minLockedStakeTinycents`             | `30 000 000 000 000` tinycents ($3,000) | yes | Minimum bond for `completeConnector`, converted at its active consensus exchange rate; the submitted tinybars are transferred to `stakingAccount`. |
 | `stakingAccount`                     | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.     |
-| `slashBasePenalty`                   | `10 000 000 000` tinybars     | yes      | Base slash on first offence; each penalty is paid to the submitting endpoint. |
+| `slashBasePenaltyTinycents`           | `100 000 000 000` tinycents ($10) | yes | Base slash on first offence, converted at the active consensus exchange rate; each penalty is paid to the submitting endpoint. |
 | `slashMultiplier`                    | `2`                           | yes      | Geometric escalation factor per repeat offence.                               |
 | `slashBanThreshold`                  | `5`                           | yes      | Cumulative offences after which a connector is banned.                        |
 | `endpointMisbehaviorPenaltyTinybars` | `5 000 000` tinybars          | yes      | Charged to the submitting node when its bundle fails verification.            |
 | `messageExecutionCost`              | `1 000 000` tinybars          | yes      | Flat reimbursement for callback execution.                                   |
-| `progressRewardTinybars`            | `10 000 000` tinybars         | yes      | Flat endpoint reward per newly dispatched data message.                       |
+| `progressRewardTinycents`           | `100 000 000` tinycents ($0.01) | yes | Endpoint reward per newly dispatched data message, converted at the active consensus exchange rate. |
 
 ### Fee configuration
 
@@ -186,7 +186,9 @@ remaining fees for privileged payers.
 External EVM transactions pay gas plus any remaining top-up from attached value to reach the method's base target.
 The targets are $0.10 for `sendMessage`, $0.01 for `verifyConfig`, and $0.02 each for `verifyBundle`,
 `getChannelQueueState`, and `getEndpointManifest`. The `sendMessage` state-byte surcharge is in addition to its base
-target. Native verifier dispatches use the gas charged by the native operation. Off-chain contract queries use the
+target. The [CLPR fee proposal](https://app.notion.com/p/swirldslabs/CLPR-Fee-Proposal-Initial-Draft-3f77c9ab259180cab83ec87e3cc53f99),
+under **Proposed pricing → System contract calls (EVM) → sendMessage**, explicitly includes
+`STATE_BYTES` at about $0.00001 per byte after the first 1,024 message-data bytes. Native verifier dispatches use the gas charged by the native operation. Off-chain contract queries use the
 ordinary query payment path. On-chain calls that need a top-up must use a payable call.
 
 The minimum connector bond is denominated in tinycents and defaults to $3,000. `completeConnector` converts
@@ -194,13 +196,17 @@ this minimum using the active network exchange rate at the transaction's consens
 submitted tinybar bond to meet it. The transferred and stored bond remains in tinybars; existing locked stake
 is not continuously revalued or topped up as the exchange rate changes.
 
-The first slash and progress reward remain fixed in tinybars, sized at the proposal's $0.10/ℏ reference rate:
-$10 for the first slash (doubling, with a ban on the fifth offence), and $0.01 per newly dispatched data message.
+The first slash and progress reward are also denominated in tinycents: $10 for the first slash
+(doubling, with a ban on the fifth offence), and $0.01 per newly dispatched data message. Both are converted
+to tinybars using the active network exchange rate at the bundle transaction's consensus time. The separate
+`endpointMisbehaviorPenaltyTinybars` remains the existing fixed tinybar penalty for a failed bundle verification.
+Its 5,000,000-tinybar default predates this fee update. The proposal's **Economic Parameters → Proposed parameters**
+table specifies connector bonds, connector slashing and progress rewards, but no endpoint-penalty amount.
 
 ## Slashing: `ClprSlashingUtils`
 
-`applySlash(connector, config, connectorStore) → SlashResult(updatedConnector, penaltyAmount, banned)` uses
-`slashBasePenalty`, `slashMultiplier` and `slashBanThreshold` from `ClprConfig` (matches spec §4.6):
+`applySlash(connector, config, connectorStore, activeRate) → SlashResult(updatedConnector, penaltyAmount, banned)` uses
+`slashBasePenaltyTinycents`, `slashMultiplier` and `slashBanThreshold` from `ClprConfig` (matches spec §4.6):
 
 ```
 new_slash_count = connector.slash_count + 1
@@ -208,7 +214,8 @@ if new_slash_count ≥ slashBanThreshold:
     penalty = connector.locked_stake      // ban: all remaining stake is forfeited
     remove the connector from state
 else:
-    penalty = min(slashBasePenalty × slashMultiplier ^ connector.slash_count, connector.locked_stake)
+    basePenaltyTinybars = convertToTinybars(slashBasePenaltyTinycents, activeRate)
+    penalty = min(basePenaltyTinybars × slashMultiplier ^ connector.slash_count, connector.locked_stake)
     connector.locked_stake -= penalty
 ```
 
@@ -239,7 +246,7 @@ For each new inbound data message with a funded connector, the node charges the 
 before dispatching the application callback. The charge is
 
 ```
-charge = messageExecutionCost + progressRewardTinybars
+charge = messageExecutionCost + convertToTinybars(progressRewardTinycents, activeRate)
 ```
 
 The bundle payer receives the charge. A handled application error still advances the

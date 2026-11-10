@@ -196,6 +196,7 @@ Hiero uses geometric escalation for connector misbehavior penalties. The formula
 implemented in `ClprSlashingUtils.applySlash`:
 
 ```
+basePenalty = convertToTinybars(slashBasePenaltyTinycents, activeConsensusRate)
 penalty = basePenalty * (multiplier ^ slashCount)
 banned  = (slashCount + 1) >= slashBanThreshold
 ```
@@ -209,11 +210,11 @@ connector ID cannot be registered again.
 
 |       Parameter       |        Config key        |             Default             |
 |-----------------------|--------------------------|---------------------------------|
-| Base penalty          | `clpr.slashBasePenalty`  | 10,000,000,000 tinybars (100 ℏ) |
+| Base penalty          | `clpr.slashBasePenaltyTinycents` | 100,000,000,000 tinycents ($10) |
 | Escalation multiplier | `clpr.slashMultiplier`   | 2                               |
 | Ban threshold         | `clpr.slashBanThreshold` | 5                               |
 
-With defaults, the escalation sequence is:
+At a constant exchange rate of $0.10/ℏ, the default escalation sequence is:
 
 | Offence # |                      Penalty                       |
 |-----------|----------------------------------------------------|
@@ -228,7 +229,7 @@ registration converts this minimum at the active network exchange rate for the t
 The actual bond is transferred and stored in tinybars; existing locked stake is not continuously revalued
 as the exchange rate changes.
 
-At $0.10/ℏ, the minimum bond is 30,000 ℏ. A connector starting with that bond would lose 1,500 ℏ (5% of
+At a constant $0.10/ℏ, the minimum bond is 30,000 ℏ. A connector starting with that bond would lose 1,500 ℏ (5% of
 its stake) over the first four offences and would be banned on the 5th.
 
 **Endpoint payout:** on a slash event, the submitting endpoint receives the full
@@ -304,14 +305,14 @@ Each new inbound data message with a funded connector is charged before the appl
 callback dispatch:
 
 ```
-charge = messageExecutionCost + progressRewardTinybars
+charge = messageExecutionCost + convertToTinybars(progressRewardTinycents, activeConsensusRate)
 ```
 
 where:
 - `messageExecutionCost` — a flat `clpr.messageExecutionCost` config value (default:
 1,000,000 tinybars).
-- `progressRewardTinybars` — a flat reward (default: 10,000,000 tinybars, representing
-  $0.01 at the proposal's $0.10/ℏ reference rate).
+- `progressRewardTinycents` — a USD-denominated reward (default: 100,000,000 tinycents, or
+  $0.01), converted using the active network exchange rate at the bundle's consensus time.
 
 The full `charge` amount is paid to the **submitting endpoint** (the Hiero consensus
 node that submitted the `ClprSubmitBundle` transaction). There is no central treasury;

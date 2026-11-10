@@ -54,6 +54,7 @@ import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
@@ -72,6 +73,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -94,6 +96,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -138,6 +142,9 @@ class ClprSubmitBundleHandlerTest {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private ExchangeRateInfo exchangeRateInfo;
 
     @Mock
     private StoreFactory storeFactory;
@@ -515,6 +522,38 @@ class ClprSubmitBundleHandlerTest {
         assertThat(updated.receivedMessageId()).isEqualTo(5L);
         assertThat(updated.receivedRunningHash()).isEqualTo(runningHashOver(INTERMEDIATE_HASH, newTail));
         verify(handleContext, times(2)).dispatch(any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"5, 20000000", "10, 10000000", "20, 5000000"})
+    void usdProgressRewardUsesConsensusRateOncePerNewMessage(final int centEquiv, final long expectedReward) {
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, 3, INTERMEDIATE_HASH);
+        putConnector();
+        final var newTail = List.of(dataPayload(), dataPayload());
+        final var bundle = bundleEndingAt(6, INTERMEDIATE_HASH, newTail)
+                .copyBuilder()
+                .messages(List.of(dataPayload(), dataPayload(), dataPayload(), dataPayload()))
+                .build();
+        setupHandleContext(bundleTxn(bundle), true);
+        final var usdConfig = HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("clpr.messageExecutionCost", MESSAGE_EXECUTION_COST)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(usdConfig);
+        given(exchangeRateInfo.activeRate(any()))
+                .willReturn(ExchangeRate.newBuilder()
+                        .hbarEquiv(1)
+                        .centEquiv(centEquiv)
+                        .build());
+
+        subject.handle(handleContext);
+
+        verify(exchangeRateInfo).activeRate(Instant.ofEpochSecond(1_700_000_000L));
+        verify(handleContext, times(2)).dispatch(any(DispatchOptions.class));
+        verify(tokenServiceApi, times(2))
+                .transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, MESSAGE_EXECUTION_COST + expectedReward);
+        verify(tokenServiceApi, times(2)).transferFromTo(any(), any(), anyLong());
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(5L);
     }
 
     @Test
@@ -3064,11 +3103,11 @@ class ClprSubmitBundleHandlerTest {
         setupHandleContext(txn, clprEnabled);
         final var config = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", clprEnabled)
-                .withValue("clpr.slashBasePenalty", "10000000")
+                .withValue("clpr.slashBasePenaltyTinycents", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.progressRewardTinybars", String.valueOf(PROGRESS_REWARD))
+                .withValue("clpr.progressRewardTinycents", String.valueOf(PROGRESS_REWARD))
                 .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
                 .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
@@ -3149,14 +3188,18 @@ class ClprSubmitBundleHandlerTest {
     private void setupHandleContext(@NonNull final TransactionBody txn, final boolean enabled) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", enabled)
-                .withValue("clpr.slashBasePenalty", "10000000")
+                .withValue("clpr.slashBasePenaltyTinycents", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.messageExecutionCost", String.valueOf(MESSAGE_EXECUTION_COST))
-                .withValue("clpr.progressRewardTinybars", String.valueOf(PROGRESS_REWARD))
+                .withValue("clpr.progressRewardTinycents", String.valueOf(PROGRESS_REWARD))
                 .withValue("clpr.endpointMisbehaviorPenaltyTinybars", "5000000")
                 .withValue("clpr.endpointPenaltyTinybars", "5000000")
                 .getOrCreateConfig();
+        lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
+        lenient()
+                .when(exchangeRateInfo.activeRate(any()))
+                .thenReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
         lenient().when(handleContext.configuration()).thenReturn(config);

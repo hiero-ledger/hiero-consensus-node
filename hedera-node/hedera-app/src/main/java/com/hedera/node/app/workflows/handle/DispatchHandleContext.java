@@ -624,12 +624,6 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         feeAccumulator.refundFees(payerId, fees, nodeAccountId);
     }
 
-    @NonNull
-    @Override
-    public TransactionCategory transactionCategory() {
-        return transactionCategory;
-    }
-
     @Override
     public TransactionCategory category() {
         // When the DispatchHandleContext is used as a fee charging context, always report

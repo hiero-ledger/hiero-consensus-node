@@ -5,6 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAIL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.tinycentsToTinybars;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
@@ -150,6 +152,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 context.payer());
         final var configuration = context.configuration();
         final var clprConfig = configuration.getConfigData(ClprConfig.class);
+        final var activeRate = context.exchangeRateInfo().activeRate(context.consensusNow());
+        final long progressRewardTinybars =
+                tinycentsToTinybars(clprConfig.progressRewardTinycents(), fromPbj(activeRate));
         // Use EntityIdFactory so shard/realm match this network
         final var systemAdminAccountId = entityIdFactory.newAccountId(
                 configuration.getConfigData(AccountsConfig.class).systemAdmin());
@@ -183,14 +188,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var throttles = ledgerConfig.throttlesOrThrow();
         log.debug(
                 "[ClprSubmitBundle] ledger config conn={} maxSyncBytes={} maxMessagesPerBundle={} "
-                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} progressRewardTinybars={}",
+                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} progressRewardTinycents={}",
                 channelId,
                 throttles.maxSyncBytes(),
                 throttles.maxMessagesPerBundle(),
                 throttles.maxMessagePayloadBytes(),
                 throttles.maxGasPerMessage(),
                 clprConfig.messageExecutionCost(),
-                clprConfig.progressRewardTinybars());
+                clprConfig.progressRewardTinycents());
 
         // Complete node validation before any state mutation or application dispatch. The
         // validator is independent of handling so endpoints can reuse it with locally verified content.
@@ -469,7 +474,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     } else {
                         // Reimburse execution and pay the flat progress reward once for this new data message.
                         final var worstCaseCharge =
-                                Math.addExact(clprConfig.messageExecutionCost(), clprConfig.progressRewardTinybars());
+                                Math.addExact(clprConfig.messageExecutionCost(), progressRewardTinybars);
 
                         // Validate the connector has sufficient balance before dispatching.
                         // Use getContractById to handle both contractNum and evmAddress forms.
@@ -499,7 +504,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     connectorAccount != null,
                                     connectorAccount == null ? null : connectorAccount.tinybarBalance(),
                                     worstCaseCharge);
-                            final var slashResult = ClprSlashingUtils.applySlash(connector, clprConfig, connectorStore);
+                            final var slashResult =
+                                    ClprSlashingUtils.applySlash(connector, clprConfig, connectorStore, activeRate);
                             ClprSlashingUtils.reimburseEndpoint(
                                     slashResult.penaltyAmount(),
                                     context.payer(),
@@ -810,8 +816,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
                         if (replyStatus == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
                                 || replyStatus == ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED) {
-                            final var slashResult =
-                                    ClprSlashingUtils.applySlash(sourceConnector, clprConfig, connectorStore);
+                            final var slashResult = ClprSlashingUtils.applySlash(
+                                    sourceConnector, clprConfig, connectorStore, activeRate);
                             final var tokenServiceApi = storeFactory.serviceApi(TokenServiceApi.class);
                             final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
                             ClprSlashingUtils.reimburseEndpoint(

@@ -209,7 +209,7 @@ public class ClprMessagesSuite {
                         uploadInitCode(ECHO_APP),
                         contractCreate(ECHO_APP),
                         // Fund EchoApplication as the connector contract: must cover
-                        // messageExecutionCost + progressRewardTinybars per DATA message.
+                        // messageExecutionCost plus the rate-converted USD progress reward per DATA message.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, ECHO_APP, ONE_HUNDRED_HBARS)),
                         clprRegisterChannel()
                                 .ownershipCommitment(channelCommitment.toByteArray())

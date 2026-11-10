@@ -10,6 +10,9 @@ import java.time.Duration;
 
 /**
  * Configuration for the CLPR (Cross Ledger Protocol) service.
+ *
+ * <p>Pricing targets follow the
+ * <a href="https://app.notion.com/p/swirldslabs/CLPR-Fee-Proposal-Initial-Draft-3f77c9ab259180cab83ec87e3cc53f99">CLPR fee proposal</a>.
  */
 @ConfigData("clpr")
 public record ClprConfig(
@@ -38,24 +41,27 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "803") @NetworkProperty
         long stakingAccount,
 
-        // First slash of a Connector ($10 at $0.10/ℏ), multiplied by slashMultiplier until slashBanThreshold.
+        // First connector slash ($10), converted at the active consensus exchange rate, then escalated
+        // by slashMultiplier until slashBanThreshold.
         // The submitting endpoint receives each penalty in full, up to the staking account's balance.
-        @ConfigProperty(defaultValue = "10000000000") @NetworkProperty
-        long slashBasePenalty,
+        @ConfigProperty(defaultValue = "100000000000") @Min(0) @NetworkProperty
+        long slashBasePenaltyTinycents,
 
         @ConfigProperty(defaultValue = "2") @NetworkProperty int slashMultiplier,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int slashBanThreshold,
 
-        // Penalty charged to an endpoint whose bundle fails verification
+        // Legacy tinybar penalty for failed bundle verification, retained unchanged by this fee update.
+        // The fee proposal does not specify this amount; its Economic Parameters cover connector bonds,
+        // connector slashing, and the progress reward.
         @ConfigProperty(defaultValue = "5000000") @NetworkProperty
         long endpointMisbehaviorPenaltyTinybars,
 
         @ConfigProperty(defaultValue = "1000000") @NetworkProperty
         long messageExecutionCost,
 
-        // Flat reward per newly dispatched data message ($0.01 at $0.10/ℏ).
-        @ConfigProperty(defaultValue = "10000000") @Min(0) @NetworkProperty
-        long progressRewardTinybars,
+        // Reward per newly dispatched data message ($0.01), converted at the active consensus exchange rate.
+        @ConfigProperty(defaultValue = "100000000") @Min(0) @NetworkProperty
+        long progressRewardTinycents,
         // --- Sync orchestration (CLPR-4.3) ---
         @ConfigProperty(defaultValue = "4") int maxConcurrentSyncs,
         @ConfigProperty(defaultValue = "30") int syncTimeoutSeconds,
@@ -76,7 +82,8 @@ public record ClprConfig(
         // Price of a sendMessage call in tinycents ($0.10), including its gas; the caller attaches the rest as value
         @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
         long sendMessageFeeTinycents,
-        // Message data bytes covered by sendMessageFeeTinycents; each further byte is priced at the STATE_BYTES rate
+        // Fee proposal: Proposed pricing > System contract calls (EVM) > sendMessage, Extras column.
+        // The first 1,024 message-data bytes are included; each further byte pays the STATE_BYTES rate.
         @ConfigProperty(defaultValue = "1024") @NetworkProperty
         int sendMessageIncludedBytes,
 
