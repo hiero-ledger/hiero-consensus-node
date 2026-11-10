@@ -639,7 +639,13 @@ jobs:
       - gcp-production-image
       - jfr-production-image
       - validate
-    if: ${{ github.event.repository.visibility == 'public' && inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+    # The `!cancelled() && !failure()` status checks override the default "skip when a
+    # needed job was skipped" behavior, so the publish jobs must be checked explicitly;
+    # otherwise this job runs with empty registry outputs and docker login falls back to Docker Hub.
+    if: >-
+      ${{ github.event.repository.visibility == 'public' && inputs.dry-run-enabled != true &&
+      needs.gcp-production-image.result != 'skipped' && needs.jfr-production-image.result != 'skipped' &&
+      !cancelled() && !failure() }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
