@@ -85,6 +85,11 @@ public class RecordStreamToBlockAssertionAdapter implements BlockStreamAssertion
         return false;
     }
 
+    @Override
+    public String toString() {
+        return delegate.toString();
+    }
+
     private static RecordStreamItem toRecordStreamItem(@NonNull final SingleTransactionRecord record) {
         return RecordStreamItem.newBuilder()
                 .setTransaction(fromPbj(record.transaction()))

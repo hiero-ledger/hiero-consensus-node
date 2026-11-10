@@ -72,10 +72,23 @@ side-effects.
 - **Lifecycle hook:** `onChannelClosed(channelId)` → orchestrator removes from
   sync schedule.
 
+### `ClprEvictPeerEndpointHandler` — admin endpoint eviction
+
+- Functionality: `CLPR_EVICT_PEER_ENDPOINT`. Body: `ClprEvictPeerEndpointTransactionBody`
+  (`channel_id`, `service_endpoint`).
+- Admin-gated (`PrivilegesVerifier.checkClprAdmin`).
+- Removes every entry matching `service_endpoint` from the channel's cached peer manifest and reseeds the
+  node-local dial cache. Fails with `CLPR_CHANNEL_NOT_FOUND`, `CLPR_INVALID_CHANNEL_STATUS` (closed), or
+  `CLPR_PEER_ENDPOINT_NOT_FOUND`.
+- The manifest version is unchanged, so a later manifest-advancing bundle can list the endpoint again.
+
 ### `ClprRegisterConnectorHandler` / `ClprCompleteConnectorHandler`
 
 - Functionalities: `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`. Spec §6.3.
 - Same commit-reveal shape as channel registration.
+- Register requires a 32-byte `channel_id` identifying an existing channel and a 32-byte
+  `commitment`. A missing channel fails with `CLPR_CHANNEL_NOT_FOUND` before storing the commitment.
+  The channel ID is public metadata; the commitment preimage is verified during reveal.
 - Reveal verifies signature `ECDSA(keccak256(connector_id ‖ 0x…16e))` (Hiero-specific
   binding from spec §6.3 callout).
 - Stake: `complete` requires the connector's `min_locked_stake` (`ClprConfig.minLockedStake`)

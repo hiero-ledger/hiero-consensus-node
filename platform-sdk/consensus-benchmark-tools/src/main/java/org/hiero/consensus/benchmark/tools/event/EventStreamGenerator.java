@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Random;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.crypto.PbjStreamHasher;
@@ -42,7 +43,7 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  *   <li>carries {@link EventShape#transactionsPerEvent()} transactions of random bytes, each of a size drawn from
  *       {@link EventShape#transactionSize()};</li>
  *   <li>is hashed by its creator, and signed with its creator's key if keys are given; otherwise its signature is
- *       empty;</li>
+ *       random bytes of the length of an RSA signature;</li>
  *   <li>is returned as its creator created it, with the origin {@link EventOrigin#RUNTIME}.</li>
  * </ul>
  *
@@ -90,7 +91,8 @@ public final class EventStreamGenerator {
     private EventStreamGenerator() {}
 
     /**
-     * Generates unsigned events: every signature is empty.
+     * Generates unsigned events: every signature is made up of random bytes of the length of an RSA signature, and does
+     * not verify.
      *
      * @param shape  the shape of the events
      * @param roster the creators of the events
@@ -171,6 +173,27 @@ public final class EventStreamGenerator {
         return Collections.unmodifiableList(received);
     }
 
+    /**
+     * Receives an event as another node receives it through gossip: sends it through the streams that the gossip
+     * protocol writes and reads events with, and builds the event from the gossip event that the receiving side parses.
+     */
+    @NonNull
+    public static PlatformEvent receiveUnhashed(@NonNull final PlatformEvent event) {
+        try {
+            final ByteArrayOutputStream sent = new ByteArrayOutputStream();
+            try (final SerializableDataOutputStream out = new SerializableDataOutputStream(sent)) {
+                out.writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
+            }
+            try (final SerializableDataInputStream in =
+                    new SerializableDataInputStream(new ByteArrayInputStream(sent.toByteArray()))) {
+                final GossipEvent gossipEvent = in.readPbjRecord(GossipEvent.PROTOBUF);
+                return new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
+            }
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to send an event through the gossip streams", e);
+        }
+    }
+
     /** Generates the events, signed if there are signers. */
     @NonNull
     private static List<PlatformEvent> generateEvents(
@@ -204,32 +227,11 @@ public final class EventStreamGenerator {
             // The creator hashes and signs the event.
             hasher.hashUnsignedEvent(unsignedEvent);
             final Bytes signature = signers.isEmpty()
-                    ? Bytes.EMPTY
+                    ? madeUpSignature(random)
                     : signers.get(creator).sign(unsignedEvent.getHash().getBytes());
             events.add(new PlatformEvent(unsignedEvent, signature, EventOrigin.RUNTIME));
         }
         return Collections.unmodifiableList(events);
-    }
-
-    /**
-     * Receives an event as another node receives it through gossip: sends it through the streams that the gossip
-     * protocol writes and reads events with, and builds the event from the gossip event that the receiving side parses.
-     */
-    @NonNull
-    private static PlatformEvent receiveUnhashed(@NonNull final PlatformEvent event) {
-        try {
-            final ByteArrayOutputStream sent = new ByteArrayOutputStream();
-            try (final SerializableDataOutputStream out = new SerializableDataOutputStream(sent)) {
-                out.writePbjRecord(event.getGossipEvent(), GossipEvent.PROTOBUF);
-            }
-            try (final SerializableDataInputStream in =
-                    new SerializableDataInputStream(new ByteArrayInputStream(sent.toByteArray()))) {
-                final GossipEvent gossipEvent = in.readPbjRecord(GossipEvent.PROTOBUF);
-                return new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
-            }
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to send an event through the gossip streams", e);
-        }
     }
 
     /**
@@ -256,6 +258,14 @@ public final class EventStreamGenerator {
             parents.add(madeUpParent(otherCreator, random));
         }
         return parents;
+    }
+
+    /** Makes up a signature: random bytes of the length of an RSA signature, which do not verify. */
+    @NonNull
+    private static Bytes madeUpSignature(@NonNull final Random random) {
+        final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
+        random.nextBytes(signature);
+        return Bytes.wrap(signature);
     }
 
     /** Makes up a parent: a random hash of the right length for its birth round. */

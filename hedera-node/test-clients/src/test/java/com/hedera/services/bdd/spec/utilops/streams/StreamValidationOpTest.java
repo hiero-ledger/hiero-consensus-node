@@ -3,11 +3,15 @@ package com.hedera.services.bdd.spec.utilops.streams;
 
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
+import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.blockNodeCopyProblems;
 import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.findCompleteBlockIn;
+import static com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp.joinRethrowingCause;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -20,6 +24,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
+import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.BlockFooter;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -36,9 +42,14 @@ import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.GZIPOutputStream;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -148,7 +159,7 @@ class StreamValidationOpTest {
         // actions and stream/proof I/O. No record stream exists in this fixture.
         try (final var networkActions = mockStatic(CustomSpecAssert.class);
                 final var streamIo = mockStatic(StreamValidationOp.class)) {
-            streamIo.when(() -> StreamValidationOp.readMaybeBlockStreamsFor(spec))
+            streamIo.when(() -> StreamValidationOp.readMaybeBlockStreamsFor(spec, false))
                     .thenReturn(Optional.of(blocks));
             op.submitOp(spec);
         }
@@ -259,6 +270,97 @@ class StreamValidationOpTest {
                                         .build())
                                 .build()))
                 .build();
+    }
+
+    @Test
+    void blockNodeCopyMatchesWhenOnlyTheProofsDiffer() {
+        final var problems = blockNodeCopyProblems(
+                Set.of(1L, 2L),
+                Map.of(1L, signedBlock(1L, ROOT_HASH, 1), 2L, signedBlock(2L, ROOT_HASH, 1)),
+                Map.of(1L, signedBlock(1L, ROOT_HASH, 2), 2L, signedBlock(2L, ROOT_HASH, 2)));
+
+        assertEquals(List.of(), problems);
+    }
+
+    @Test
+    void blockNodeCopyReportsBlocksMissingFromTheBlockNode() {
+        final var problems = blockNodeCopyProblems(
+                Set.of(1L, 2L, 3L),
+                Map.of(
+                        1L, signedBlock(1L, ROOT_HASH, 1),
+                        2L, signedBlock(2L, ROOT_HASH, 1),
+                        3L, signedBlock(3L, ROOT_HASH, 1)),
+                Map.of(1L, signedBlock(1L, ROOT_HASH, 1), 3L, signedBlock(3L, ROOT_HASH, 1)));
+
+        assertEquals(List.of("block 2 is missing from the block node"), problems);
+    }
+
+    @Test
+    void blockNodeCopyReportsTheFirstDifferingItem() {
+        final var problems = blockNodeCopyProblems(
+                Set.of(1L),
+                Map.of(1L, signedBlock(1L, ROOT_HASH, 1)),
+                Map.of(1L, signedBlock(1L, Bytes.wrap(new byte[] {9}), 1)));
+
+        assertEquals(
+                List.of("block 1 differs at item 1 (BLOCK_FOOTER on the block node, BLOCK_FOOTER on disk)"), problems);
+    }
+
+    @Test
+    void blockNodeCopyReportsExtraItems() {
+        final var diskCopy = signedBlock(1L, ROOT_HASH, 1);
+        final var items = new ArrayList<>(diskCopy.items());
+        items.add(
+                2,
+                BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(7L).build())
+                        .build());
+
+        final var problems = blockNodeCopyProblems(Set.of(1L), Map.of(1L, diskCopy), Map.of(1L, new Block(items)));
+
+        assertEquals(List.of("block 1 has 3 items besides proofs on the block node, but 2 on disk"), problems);
+    }
+
+    @Test
+    void blockNodeCopySkipsBlocksWithoutADiskCopy() {
+        final var problems = blockNodeCopyProblems(Set.of(1L), Map.of(), Map.of(1L, signedBlock(1L, ROOT_HASH, 1)));
+
+        assertEquals(List.of(), problems);
+    }
+
+    @Test
+    void backgroundAssertionFailureSurfacesUnwrapped() {
+        final CompletableFuture<Void> read = CompletableFuture.runAsync(() -> Assertions.fail("block 7 is missing"));
+        final var e = assertThrows(AssertionError.class, () -> joinRethrowingCause(read));
+        assertEquals("block 7 is missing", e.getMessage());
+    }
+
+    @Test
+    void backgroundRuntimeFailureSurfacesUnwrapped() {
+        final var cause = new IllegalStateException("block node unreachable");
+        final CompletableFuture<Void> read = CompletableFuture.runAsync(() -> {
+            throw cause;
+        });
+        assertSame(cause, assertThrows(IllegalStateException.class, () -> joinRethrowingCause(read)));
+    }
+
+    // A block whose proof carries the given signature byte, as different nodes' proofs may differ
+    private static Block signedBlock(final long number, final Bytes previousRootHash, final int signature) {
+        return new Block(List.of(
+                BlockItem.newBuilder()
+                        .blockHeader(BlockHeader.newBuilder().number(number).build())
+                        .build(),
+                BlockItem.newBuilder()
+                        .blockFooter(BlockFooter.newBuilder()
+                                .previousBlockRootHash(previousRootHash)
+                                .build())
+                        .build(),
+                BlockItem.newBuilder()
+                        .blockProof(BlockProof.newBuilder()
+                                .block(number)
+                                .signedBlockProof(new TssSignedBlockProof(Bytes.wrap(new byte[] {(byte) signature})))
+                                .build())
+                        .build()));
     }
 
     private static void writeBlockFile(final Path dir, final long blockNumber, final Block block) throws IOException {

@@ -13,7 +13,7 @@ import org.hiero.base.crypto.DigestType;
 
 /**
  * Configuration for the block stream.
- * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
+ * @param streamMode RECORDS writes only the record stream; BOTH adds a preview block stream; BLOCKS writes only blocks
  * @param writerMode if we are writing to a file or gRPC stream
  * @param blockFileDir directory to store block files
  * @param roundsPerBlock the number of rounds per block
@@ -36,12 +36,12 @@ import org.hiero.base.crypto.DigestType;
  * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param enableStateChangeDeltas coordinated emission of top-level replacements and clears in complete block streams
  * @param stateChangeDeltaMinSaving minimum omitted entity bytes after partial metadata overhead
- * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} enables 32-byte
- *                   SHA-256 hashing, {@code SHA_384} (the default) uses 48-byte SHA-384
+ * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} (the default) uses
+ *                   32-byte SHA-256 hashing, {@code SHA_384} uses 48-byte SHA-384
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
-        @ConfigProperty(defaultValue = "BOTH") @NetworkProperty
+        @ConfigProperty(defaultValue = "BLOCKS") @NetworkProperty
         StreamMode streamMode,
 
         @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty
@@ -90,13 +90,13 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "256") @Min(64) @NetworkProperty
         int blockFileBufferGzipSizeKb,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enableCutover,
 
         @ConfigProperty(defaultValue = "SHA_256") @NetworkProperty
         DigestType digestType,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean streamWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "false") @NodeProperty

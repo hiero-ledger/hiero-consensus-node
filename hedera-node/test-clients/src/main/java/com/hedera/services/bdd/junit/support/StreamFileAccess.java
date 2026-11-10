@@ -11,9 +11,12 @@ import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresent
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
 import com.hedera.services.stream.proto.RecordStreamFile;
+import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hedera.services.stream.proto.SidecarFile;
+import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.EOFException;
 import java.io.File;
@@ -81,14 +84,16 @@ public enum StreamFileAccess {
                             .toList());
                 }
             }
+            // The replay runs on another thread alongside live notifications, so serialize its listener's callbacks
+            final var target = listener.replayExistingFiles() ? new SerializedListener(listener) : listener;
             if (listener.replayExistingFiles()) {
                 final var mockAlterationListener = new StreamFileAlterationListener();
-                mockAlterationListener.subscribe(listener);
+                mockAlterationListener.subscribe(target);
                 CompletableFuture.runAsync(() -> maybeExistingFiles.forEach(mockAlterationListener::onFileCreate));
             }
             final var alterationListener =
                     getOrCreateListener(path.toAbsolutePath().normalize().toString());
-            final var unsubscribe = alterationListener.subscribe(listener);
+            final var unsubscribe = alterationListener.subscribe(target);
             // WARNING - replay is only meant for something like @GenesisHapiTest where there is
             // at most one subscriber and a small number of files to replay; use with caution
             return () -> {
@@ -252,5 +257,41 @@ public enum StreamFileAccess {
         } catch (IllegalStateException ignore) {
         }
         return listener;
+    }
+
+    /**
+     * A listener that is never called concurrently, since a replaying listener is fed from two threads.
+     */
+    private static final class SerializedListener implements StreamDataListener {
+        private final StreamDataListener delegate;
+
+        private SerializedListener(@NonNull final StreamDataListener delegate) {
+            this.delegate = requireNonNull(delegate);
+        }
+
+        @Override
+        public boolean replayExistingFiles() {
+            return delegate.replayExistingFiles();
+        }
+
+        @Override
+        public synchronized void onNewBlock(@NonNull final Block block) {
+            delegate.onNewBlock(block);
+        }
+
+        @Override
+        public synchronized void onNewItem(final RecordStreamItem item) {
+            delegate.onNewItem(item);
+        }
+
+        @Override
+        public synchronized void onNewSidecar(final TransactionSidecarRecord sidecar) {
+            delegate.onNewSidecar(sidecar);
+        }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
     }
 }

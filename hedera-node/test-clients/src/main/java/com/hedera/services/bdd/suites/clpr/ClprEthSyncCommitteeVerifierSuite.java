@@ -32,6 +32,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.suites.clpr.EthSyncCommitteeProofs.Preset;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
@@ -48,7 +49,7 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * End-to-end HAPI coverage for the built-in Ethereum sync-committee verifier system contract
- * (EVM address {@code 0x171}): from channel completion via a raw-RLP config payload through a
+ * (EVM address {@code 0x171}): from channel completion via a protobuf config payload through a
  * self-submitted bundle that the verifier proves with SSZ + Merkle-Patricia proofs.
  *
  * <p>The payloads are produced by {@link EthSyncCommitteeProofs}, which re-derives the wire bytes
@@ -83,10 +84,32 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 setupChannelWithEthereumVerifier(crypto, EthSyncCommitteeProofs.configPayload()),
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.bundlePayload(content))
+                        .bundlePayload(EthSyncCommitteeProofs.bundlePayload(crypto.channelId(), content))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
                 // The proven bundle delivered message #1, so receivedMessageId advances 0 -> 1.
+                withOpContext((spec, opLog) -> {
+                    final var conn = readChannelFromState(spec, crypto);
+                    assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
+                })));
+    }
+
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"clpr.verifierGasLimit"})
+    @DisplayName("Eth verifier: minimal-preset (32-member) channel delivers a self-submitted bundle")
+    final Stream<DynamicTest> completesMinimalPresetChannelAndDeliversBundle() {
+        final var crypto = new ClprChannelCrypto();
+        final var content = EthSyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
+
+        return hapiTest(flattened(
+                setupChannelWithEthereumVerifier(crypto, EthSyncCommitteeProofs.configPayload(Preset.MINIMAL)),
+                clprSubmitBundle()
+                        .channelId(crypto.channelId())
+                        .bundlePayload(
+                                EthSyncCommitteeProofs.bundlePayload(Preset.MINIMAL, crypto.channelId(), content))
+                        .endpointNodeId(0L)
+                        .payingWith(GENESIS),
                 withOpContext((spec, opLog) -> {
                     final var conn = readChannelFromState(spec, crypto);
                     assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
@@ -130,7 +153,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 setupChannelWithEthereumVerifier(crypto, EthSyncCommitteeProofs.configPayload()),
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.tamperedBundlePayload(content))
+                        .bundlePayload(EthSyncCommitteeProofs.tamperedBundlePayload(crypto.channelId(), content))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_BUNDLE_VERIFICATION_FAILED)));
@@ -139,12 +162,13 @@ public class ClprEthSyncCommitteeVerifierSuite {
     /**
      * Verifies the full committee-rotation lifecycle end-to-end:
      * <ol>
-     *   <li>A rotation bundle (signed by the initial committee) carries a proven {@code nextCommittee};
-     *       the verifier updates the channel's trust anchor to the new committee and delivers message #1.</li>
+     *   <li>The configured anchor trusts the initial committee for its period and the next committee for the period
+     *       after. A rotation bundle carries a rotation of that next period, signed by the next committee and proving
+     *       the committee after it, and a delivery signed by that committee two periods after the configured one; the
+     *       verifier slides the channel's trust anchor by one period and delivers message #1.</li>
      *   <li>A follow-up bundle signed by the new committee is accepted against the updated trust anchor
      *       and delivers message #2.</li>
      * </ol>
-     *
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
@@ -162,18 +186,23 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 // Step 1: rotation bundle — delivers message #1 and proves nextCommittee.
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.rotationBundlePayload(rotationContent))
+                        .bundlePayload(
+                                EthSyncCommitteeProofs.rotationBundlePayload(crypto.channelId(), rotationContent))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
                 withOpContext((spec, opLog) -> {
                     final var conn = readChannelFromState(spec, crypto);
                     assertEquals(1L, conn.receivedMessageId(), "receivedMessageId should advance to 1");
-                    assertTrue(conn.trustAnchor().length() > 0, "trust anchor should be non-empty after rotation");
+                    assertEquals(
+                            Bytes.wrap(EthSyncCommitteeProofs.trustAnchorIdAfterRotation()),
+                            conn.trustAnchorId(),
+                            "trust anchor id should be the period after the configured one");
                 }),
                 // Step 2: post-rotation bundle — delivers message #2 using the updated trust anchor.
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.postRotationBundlePayload(postRotationContent))
+                        .bundlePayload(EthSyncCommitteeProofs.postRotationBundlePayload(
+                                crypto.channelId(), postRotationContent))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
                 withOpContext((spec, opLog) -> {
@@ -255,7 +284,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 }),
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
-                        .bundlePayload(EthSyncCommitteeProofs.bundlePayloadWithManifest(content, advanceManifest))
+                        .bundlePayload(EthSyncCommitteeProofs.bundlePayloadWithManifest(
+                                crypto.channelId(), content, advanceManifest))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
                 withOpContext((spec, opLog) -> {
@@ -338,7 +368,10 @@ public class ClprEthSyncCommitteeVerifierSuite {
                 assertTrue(conn.trustAnchor().length() > 0, "trust anchor should be seeded");
                 assertEquals(0L, conn.receivedMessageId(), "no inbound messages yet");
             }),
-            clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+            clprRegisterConnector()
+                    .channelId(crypto.channelId())
+                    .commitment(crypto.connectorCommitment())
+                    .payingWith(GENESIS),
             clprCompleteConnector()
                     .connectorId(crypto.connectorId())
                     .publicKey(crypto.publicKey())
