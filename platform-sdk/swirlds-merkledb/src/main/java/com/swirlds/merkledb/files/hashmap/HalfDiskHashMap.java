@@ -156,11 +156,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final @NonNull Path storeDir,
             final String storeName,
             final String legacyStoreName,
-            final boolean preferDiskBasedIndex,
             final @Nullable LongList bucketIndex)
-            throws IOException {
-        requireNonNull(config);
-        this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
+throws IOException {
+requireNonNull(config);
+final boolean preferDiskBasedIndex = config.useDiskIndices();
+this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.
         // Additionally, HDHM resize is initiated, when avg number of keys per bucket exceeds
