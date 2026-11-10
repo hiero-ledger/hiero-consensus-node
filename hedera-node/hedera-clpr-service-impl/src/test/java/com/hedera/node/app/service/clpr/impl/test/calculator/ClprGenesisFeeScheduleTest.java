@@ -33,7 +33,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Pins the CLPR fee proposal's prices in the genesis and network upgrade schedules, so that any drift in a
- * base fee, extra, or node/network exemption is caught.
+ * base fee, extra, free status, or node/network exemption is caught.
  */
 class ClprGenesisFeeScheduleTest {
 
@@ -88,7 +88,8 @@ class ClprGenesisFeeScheduleTest {
             Map.entry(CLPR_CLOSE_CHANNEL, Price.of(0)),
             Map.entry(CLPR_EVICT_PEER_ENDPOINT, Price.of(0)),
             Map.entry(CLPR_UPDATE_LEDGER_CONFIGURATION, Price.of(0)),
-            Map.entry(CLPR_ENDPOINT_PUBLICATION, Price.of(USD)),
+            // Node self-publications must not depend on operator funding.
+            Map.entry(CLPR_ENDPOINT_PUBLICATION, Price.of(0).exemptFromNodeAndNetworkFees()),
             Map.entry(CLPR_GET_LEDGER_CONFIGURATION, Price.of(ONE_CENT).withExtras(Map.of(Extra.GAS, 0))),
             Map.entry(CLPR_GET_ENDPOINT_MANIFEST, Price.of(ONE_CENT).withExtras(Map.of(Extra.GAS, 0))));
 
@@ -111,7 +112,9 @@ class ClprGenesisFeeScheduleTest {
         assertThat(serviceDef.nodeNetworkFeeExempt())
                 .as("nodeNetworkFeeExempt for %s", functionality)
                 .isEqualTo(expected.nodeNetworkExempt());
-        assertThat(serviceDef.free()).as("free for %s", functionality).isFalse();
+        assertThat(serviceDef.free())
+                .as("free for %s", functionality)
+                .isEqualTo(functionality == CLPR_ENDPOINT_PUBLICATION);
     }
 
     private static Stream<Arguments> schedulesAndFunctions() {
