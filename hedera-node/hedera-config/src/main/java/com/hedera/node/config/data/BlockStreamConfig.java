@@ -13,25 +13,33 @@ import org.hiero.base.crypto.DigestType;
 
 /**
  * Configuration for the block stream.
- * @param streamMode Value of RECORDS disables the block stream; BOTH enables it
+ * @param streamMode RECORDS writes only the record stream; BOTH adds a preview block stream; BLOCKS writes only blocks
  * @param writerMode if we are writing to a file or gRPC stream
  * @param blockFileDir directory to store block files
  * @param roundsPerBlock the number of rounds per block
  * @param blockPeriod the block period
  * @param maxBlockSizeBytes the maximum serialized preview block size in bytes before savepoint output is suppressed;
- *                          zero disables the circuit breaker
+ *                          zero disables the circuit breaker in {@code StreamMode.BOTH}
+ * @param maxBlockExecutionSizeBytes the maximum serialized canonical block size in bytes before subsequent
+ *                                   non-exempt submitted transactions are rejected with {@code THROTTLED_AT_CONSENSUS}
+ *                                   and charged normal consensus throttle fees in {@code StreamMode.BLOCKS};
+ *                                   zero disables the budget. Scheduled executions, network protocol transactions and
+ *                                   payers in {@code 1..accounts.lastThrottleExempt} are exempt
+ * @param maxBlockSizeLimitEnabled feature flag for the canonical block execution budget, refreshed at each block start;
+ *                                 does not affect
+ *                                 the preview-mode savepoint-output circuit breaker
  * @param receiptEntriesBatchSize the maximum number of receipts to accumulate in a {@link com.hedera.hapi.node.state.recordcache.TransactionReceiptEntries} wrapper before writing a queue state changes item to the block stream
  * @param maxReadDepth the max allowed depth of nested protobuf messages
  * @param maxReadBytesSize the max size in bytes of protobuf messages to read
  * @param blockFileBufferOuterSizeKb block file writer outer buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
- * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} enables 32-byte
- *                   SHA-256 hashing, {@code SHA_384} (the default) uses 48-byte SHA-384
+ * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} (the default) uses
+ *                   32-byte SHA-256 hashing, {@code SHA_384} uses 48-byte SHA-384
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
-        @ConfigProperty(defaultValue = "BOTH") @NetworkProperty
+        @ConfigProperty(defaultValue = "BLOCKS") @NetworkProperty
         StreamMode streamMode,
 
         @ConfigProperty(defaultValue = "FILE_AND_GRPC") @NodeProperty
@@ -47,6 +55,12 @@ public record BlockStreamConfig(
 
         @ConfigProperty(defaultValue = "20971520") @Min(0) @NetworkProperty
         long maxBlockSizeBytes,
+
+        @ConfigProperty(defaultValue = "104857600") @Min(0) @NetworkProperty
+        long maxBlockExecutionSizeBytes,
+
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean maxBlockSizeLimitEnabled,
 
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty
         int receiptEntriesBatchSize,
@@ -74,13 +88,13 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "256") @Min(64) @NetworkProperty
         int blockFileBufferGzipSizeKb,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enableCutover,
 
         @ConfigProperty(defaultValue = "SHA_256") @NetworkProperty
         DigestType digestType,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean streamWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "false") @NodeProperty

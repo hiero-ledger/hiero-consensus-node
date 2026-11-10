@@ -5,6 +5,8 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
+import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
@@ -50,6 +52,11 @@ public class FakeHintsService implements HintsService {
                 rsaContext,
                 rsaSignings,
                 genesisNetworkSupplier);
+    }
+
+    @Override
+    public @Nullable KeyProvenanceSigner keyProvenanceFor(@NonNull final ReadableHintsStore hintsStore) {
+        return delegate.keyProvenanceFor(hintsStore);
     }
 
     @Override

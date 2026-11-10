@@ -1,0 +1,252 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * An Ethereum beacon-chain sync committee: the member BLS public keys plus
+ * their precomputed aggregate.
+ *
+ * The member count MUST be one of the supported consensus presets: 512
+ * (mainnet) or 32 (minimal).
+ */
+message EthereumPosSyncCommittee {
+    /**
+     * The committee member public keys, in committee order.<br/>
+     * Each key MUST be a 48-byte compressed BLS12-381 G1 point.
+     */
+    repeated bytes pubkeys = 1;
+
+    /**
+     * The aggregate of all member public keys.<br/>
+     * This MUST be a 48-byte compressed BLS12-381 G1 point.
+     */
+    bytes aggregate_pubkey = 2;
+}
+
+/**
+ * A protobuf form of an Ethereum beacon block header,
+ */
+message EthereumPosBeaconBlockHeader {
+    /**
+     * The slot of the block.
+     */
+    uint64 slot = 1;
+
+    /**
+     * The index of the validator that proposed the block.
+     */
+    uint64 proposer_index = 2;
+
+    /**
+     * The 32-byte root of the parent block header.
+     */
+    bytes parent_root = 3;
+
+    /**
+     * The 32-byte root of the beacon state after the block.<br/>
+     * The sync-committee branches fold to this root.
+     */
+    bytes state_root = 4;
+
+    /**
+     * The 32-byte root of the block body.
+     */
+    bytes body_root = 5;
+}
+
+/**
+ * A beacon `SyncAggregate`: the participation bits and the BLS aggregate
+ * signature a sync committee produced over a header's signing root.
+ */
+message EthereumPosSyncAggregate {
+    /**
+     * The SSZ `Bitvector[committee_size]` of signers: 64 bytes for the
+     * mainnet preset, 4 bytes for the minimal preset.<br/>
+     * Bit `i` is bit `i % 8` of byte `i / 8`.
+     */
+    bytes bits = 1;
+
+    /**
+     * The aggregate signature.<br/>
+     * This MUST be a 256-byte EIP-2537 uncompressed BLS12-381 G2 point.
+     */
+    bytes signature = 2;
+}
+
+/**
+ * The ledger configuration payload of an Ethereum proof-of-stake ledger,
+ * as passed to the Ethereum verifier's `verifyConfig`.
+ *
+ * It wraps the platform-neutral `ClprLedgerConfiguration` with a
+ * light-client bootstrap and a signed update. The verifier opens the current
+ * committee under `anchor_header.state_root`, opens the next committee under
+ * `update_header.state_root`, and checks that the current committee signed
+ * `update_header`. It then seeds the trust anchor with the period of
+ * `anchor_header.slot`, both committees and `code_hash`.
+ *
+ * The anchor header itself is not authenticated: the party completing the
+ * channel is trusted to supply the bootstrap and chain-pinning fields of the
+ * intended Ethereum network.
+ */
+message EthereumPosLedgerConfigurationPayload {
+    /**
+     * The current sync committee, of the period of `anchor_header.slot`.<br/>
+     * Its full key set lets the verifier find the non-signers of
+     * `sync_aggregate`.
+     */
+    EthereumPosSyncCommittee sync_committee = 1;
+
+    /**
+     * The platform-neutral CLPR configuration of the source ledger.<br/>
+     * The `service_address` MUST be the 20-byte address of the source
+     * ledger's CLPR service contract.
+     */
+    ClprLedgerConfiguration ledger_configuration = 2;
+
+    /**
+     * The beacon chain genesis validators root.<br/>
+     * This MUST be exactly 32 bytes. It is part of the sync-committee
+     * signing domain.
+     */
+    bytes genesis_validators_root = 3;
+
+    /**
+     * The consensus fork version of the signing domain.<br/>
+     * This MUST be exactly 4 bytes.
+     */
+    bytes fork_version = 4;
+
+    /**
+     * The beacon slot `sync_committee` is current for.<br/>
+     * This MUST equal `anchor_header.slot`.
+     */
+    uint64 slot = 5;
+
+    /**
+     * The light-client bootstrap header.<br/>
+     * `sync_committee` is opened under its `state_root`, and its slot's
+     * sync-committee period becomes the period of the initial trust anchor.
+     */
+    EthereumPosBeaconBlockHeader anchor_header = 6;
+
+    /**
+     * The SSZ branch of `current_sync_committee` under
+     * `anchor_header.state_root`, bottom-up.<br/>
+     * Each sibling MUST be 32 bytes; the depth follows the fork.
+     */
+    repeated bytes current_sync_committee_branch = 7;
+
+    /**
+     * The attested header of a light-client update in the same period as
+     * `anchor_header`, signed by `sync_committee`.<br/>
+     * `next_sync_committee` is opened under its `state_root`.
+     */
+    EthereumPosBeaconBlockHeader update_header = 8;
+
+    /**
+     * The signature of `sync_committee` over `update_header`.
+     */
+    EthereumPosSyncAggregate sync_aggregate = 9;
+
+    /**
+     * The next sync committee, of the period after `anchor_header`'s.
+     */
+    EthereumPosSyncCommittee next_sync_committee = 10;
+
+    /**
+     * The SSZ branch of `next_sync_committee` under
+     * `update_header.state_root`, bottom-up.<br/>
+     * Each sibling MUST be 32 bytes; the depth follows the fork.
+     */
+    repeated bytes next_sync_committee_branch = 11;
+
+    /**
+     * The keccak256 of the code of the source ledger's CLPR service
+     * contract.<br/>
+     * This MUST be exactly 32 bytes. It is pinned in the trust anchor: the
+     * account proof of every later bundle MUST carry this code hash.
+     */
+    bytes code_hash = 12;
+}
+
+/**
+ * A sync committee as an `EthereumPosTrustAnchor` holds it: the SSZ root of
+ * its member keys and its aggregate key. The member keys themselves are not
+ * stored; bundles prove each non-signer's key against `pubkeys_root`.
+ */
+message EthereumPosCommitteeAnchor {
+    /**
+     * The SSZ `hash_tree_root` of the committee's `pubkeys` vector.<br/>
+     * This MUST be exactly 32 bytes.
+     */
+    bytes pubkeys_root = 1;
+
+    /**
+     * The aggregate of all member public keys.<br/>
+     * This MUST be a 48-byte compressed BLS12-381 G1 point.
+     */
+    bytes aggregate_pubkey = 2;
+}
+
+/**
+ * The trust anchor of a channel to an Ethereum proof-of-stake ledger, as the
+ * Hiero Ethereum verifier stores it in `Channel.trust_anchor`.
+ *
+ * It trusts `current` for `period` and `next` for the period after, so a
+ * header signed in either period verifies without a rotation. A rotation
+ * proves the committee of the period after `next` and slides the anchor by
+ * one period. The verifier MUST reject an anchor with unknown fields or a
+ * missing committee.
+ */
+message EthereumPosTrustAnchor {
+    /**
+     * The consensus preset of the channel: 1 for mainnet (512 members,
+     * 8192 slots per period) or 2 for minimal (32 members, 64 slots per
+     * period).<br/>
+     * The verifier MUST reject any other value.
+     */
+    uint32 preset = 1;
+
+    /**
+     * The beacon chain genesis validators root.<br/>
+     * This MUST be exactly 32 bytes. It is part of the sync-committee
+     * signing domain.
+     */
+    bytes genesis_validators_root = 2;
+
+    /**
+     * The consensus fork version of the signing domain.<br/>
+     * This MUST be exactly 4 bytes.
+     */
+    bytes fork_version = 3;
+
+    /**
+     * The sync-committee period `current` signs for.<br/>
+     * The channel's `trust_anchor_id` is this period as 8 big-endian bytes.
+     */
+    uint64 period = 4;
+
+    /**
+     * The committee of `period`.
+     */
+    EthereumPosCommitteeAnchor current = 5;
+
+    /**
+     * The committee of the period after `period`.
+     */
+    EthereumPosCommitteeAnchor next = 6;
+
+    /**
+     * The keccak256 of the code of the source ledger's CLPR service
+     * contract.<br/>
+     * This MUST be exactly 32 bytes. Every account proof MUST carry it.
+     */
+    bytes code_hash = 7;
+}

@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations.GasChargingAction.CHARGE;
+import static com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations.GasChargingAction.REFUND;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TRACKER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
@@ -38,21 +44,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willDoNothing;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
+import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
@@ -62,6 +73,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations.GasChargingEvent;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
@@ -72,24 +84,39 @@ import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
+import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
+import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -525,6 +552,8 @@ class TransactionProcessorTest {
                         contractCreationProcessor,
                         CHARGING_RESULT,
                         null);
+        inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        inOrder.verify(worldUpdater).commit();
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -533,8 +562,6 @@ class TransactionProcessorTest {
                         relayerAccount,
                         context,
                         worldUpdater);
-        inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
-        inOrder.verify(worldUpdater).commit();
         assertEquals(SUCCESS_RESULT.withTxStorageUsage(new TxStorageUsage(List.of(), null)), result);
     }
 
@@ -606,10 +633,10 @@ class TransactionProcessorTest {
                         contractCreationProcessor,
                         NO_ALLOWANCE_CHARGING_RESULT,
                         null);
-        inOrder.verify(gasCharging)
-                .maybeRefundGiven(GAS_LIMIT - SUCCESS_RESULT.gasUsed(), 0, senderAccount, null, context, worldUpdater);
         inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
         inOrder.verify(worldUpdater).commit();
+        inOrder.verify(gasCharging)
+                .maybeRefundGiven(GAS_LIMIT - SUCCESS_RESULT.gasUsed(), 0, senderAccount, null, context, worldUpdater);
         assertEquals(SUCCESS_RESULT.withTxStorageUsage(new TxStorageUsage(List.of(), null)), result);
         verify(senderAccount, never()).incrementNonce();
     }
@@ -684,6 +711,8 @@ class TransactionProcessorTest {
                         contractCreationProcessor,
                         CHARGING_RESULT,
                         null);
+        inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        inOrder.verify(worldUpdater).commit();
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -692,8 +721,6 @@ class TransactionProcessorTest {
                         relayerAccount,
                         context,
                         worldUpdater);
-        inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
-        inOrder.verify(worldUpdater).commit();
         assertEquals(SUCCESS_RESULT.withTxStorageUsage(new TxStorageUsage(List.of(), null)), result);
     }
 
@@ -770,6 +797,8 @@ class TransactionProcessorTest {
                         contractCreationProcessor,
                         CHARGING_RESULT,
                         null);
+        inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        inOrder.verify(worldUpdater).commit();
         inOrder.verify(gasCharging)
                 .maybeRefundGiven(
                         GAS_LIMIT - SUCCESS_RESULT.gasUsed(),
@@ -778,8 +807,6 @@ class TransactionProcessorTest {
                         relayerAccount,
                         context,
                         worldUpdater);
-        inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
-        inOrder.verify(worldUpdater).commit();
         assertEquals(SUCCESS_RESULT.withTxStorageUsage(new TxStorageUsage(List.of(), null)), result);
     }
 
@@ -831,6 +858,231 @@ class TransactionProcessorTest {
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
         assertResourceExhaustion(INSUFFICIENT_BALANCES_FOR_RENEWAL_FEES, result);
+        final var inOrder = inOrder(worldUpdater);
+        inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        inOrder.verify(worldUpdater).commit();
+        inOrder.verify(worldUpdater).revert();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void selfDestructsAreDeletedInAddressOrderRegardlessOfSetIterationOrder(final boolean reverseOrder) {
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        final var transaction = clprDispatchCall(null);
+        givenClprDispatchRunsToCompletion(transaction, context);
+        final var first = Address.fromHexString("0x0000000000000000000000000000000000001001");
+        final var second = Address.fromHexString("0x8000000000000000000000000000000000000000");
+        final var third = Address.fromHexString("0xff00000000000000000000000000000000000000");
+        final var selfDestructs =
+                new LinkedHashSet<>(reverseOrder ? List.of(third, second, first) : List.of(second, first, third));
+        given(initialFrame.getSelfDestructs()).willReturn(selfDestructs);
+
+        subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+
+        final var inOrder = inOrder(worldUpdater);
+        inOrder.verify(worldUpdater).deleteAccount(first);
+        inOrder.verify(worldUpdater).deleteAccount(second);
+        inOrder.verify(worldUpdater).deleteAccount(third);
+        inOrder.verify(worldUpdater).commit();
+        verify(worldUpdater, times(3)).deleteAccount(any());
+    }
+
+    @Test
+    void resourceExhaustionWhileExternalizingSelfDestructsRevertsBeforeCommit() {
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        final var transaction = clprDispatchCall(null);
+        givenClprDispatchRunsToCompletion(transaction, context);
+        final var laterDeletion = Address.fromHexString("0xff00000000000000000000000000000000000000");
+        given(initialFrame.getSelfDestructs()).willReturn(Set.of(laterDeletion, NON_SYSTEM_LONG_ZERO_ADDRESS));
+        willDoNothing().given(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        willThrow(new ResourceExhaustedException(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED))
+                .given(worldUpdater)
+                .deleteAccount(laterDeletion);
+
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+
+        assertResourceExhaustion(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED, result);
+        final var inOrder = inOrder(worldUpdater);
+        inOrder.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        inOrder.verify(worldUpdater).deleteAccount(laterDeletion);
+        inOrder.verify(worldUpdater).revert();
+        verify(worldUpdater, never()).commit();
+    }
+
+    private enum FinalizationOutcome {
+        SUCCESS,
+        EXECUTION_REVERT,
+        DELETION_CAPACITY_EXHAUSTED,
+        COMMIT_CAPACITY_EXHAUSTED,
+        MISSING_BENEFICIARY
+    }
+
+    @ParameterizedTest
+    @EnumSource(FinalizationOutcome.class)
+    void gasRefundsAndRollbackReplayMatchTheFinalResult(final FinalizationOutcome finalization) {
+        // Exercise real charging and rollback replay, so gasUsed cannot disagree with the amount charged.
+        subject = new TransactionProcessor(
+                frameBuilder,
+                frameRunner,
+                new CustomGasCharging((HederaGasCalculator) GAS_CALCULATOR),
+                messageCallProcessor,
+                contractCreationProcessor,
+                featureFlags,
+                GAS_CALCULATOR,
+                null);
+        givenSenderAccount();
+        givenRelayerAccount();
+        givenReceiverAccount();
+        givenAccessTracker(null);
+        given(senderAccount.getAddress()).willReturn(EIP_1014_ADDRESS);
+        given(senderAccount.getNonce()).willReturn(NONCE);
+        given(senderAccount.getBalance()).willReturn(Wei.of(Long.MAX_VALUE / 2));
+        given(relayerAccount.hederaId()).willReturn(RELAYER_ID);
+        given(relayerAccount.getBalance()).willReturn(Wei.of(Long.MAX_VALUE / 2));
+        given(receiverAccount.getAddress()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        final var transaction = wellKnownRelayedHapiCall(0);
+        given(frameBuilder.buildInitialFrameWith(
+                        eq(transaction),
+                        eq(worldUpdater),
+                        eq(context),
+                        eq(config),
+                        eq(opsDurationCounter),
+                        eq(featureFlags),
+                        eq(EIP_1014_ADDRESS),
+                        eq(NON_SYSTEM_LONG_ZERO_ADDRESS),
+                        anyLong(),
+                        eq(GAS_CALCULATOR),
+                        eq(List.of())))
+                .willReturn(initialFrame);
+        final var executionResult = finalization == FinalizationOutcome.EXECUTION_REVERT
+                ? HederaEvmTransactionResult.resourceExhaustionFrom(
+                        SENDER_ID, SUCCESS_RESULT.gasUsed(), NETWORK_GAS_PRICE, CONTRACT_REVERT_EXECUTED)
+                : SUCCESS_RESULT;
+        given(frameRunner.runToCompletion(
+                        eq(transaction.gasLimit()),
+                        eq(SENDER_ID),
+                        eq(initialFrame),
+                        eq(tracer),
+                        eq(messageCallProcessor),
+                        eq(contractCreationProcessor),
+                        any(),
+                        any()))
+                .willReturn(executionResult);
+        final var laterDeletion = Address.fromHexString("0xff00000000000000000000000000000000000000");
+        given(initialFrame.getSelfDestructs()).willReturn(Set.of(laterDeletion, NON_SYSTEM_LONG_ZERO_ADDRESS));
+        final var failsFinalization =
+                finalization != FinalizationOutcome.SUCCESS && finalization != FinalizationOutcome.EXECUTION_REVERT;
+        if (finalization == FinalizationOutcome.DELETION_CAPACITY_EXHAUSTED
+                || finalization == FinalizationOutcome.MISSING_BENEFICIARY) {
+            willDoNothing().given(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        }
+        if (finalization == FinalizationOutcome.DELETION_CAPACITY_EXHAUSTED) {
+            willThrow(new ResourceExhaustedException(MAX_CHILD_RECORDS_EXCEEDED))
+                    .given(worldUpdater)
+                    .deleteAccount(laterDeletion);
+        } else if (finalization == FinalizationOutcome.COMMIT_CAPACITY_EXHAUSTED) {
+            willThrow(new ResourceExhaustedException(MAX_CHILD_RECORDS_EXCEEDED))
+                    .given(worldUpdater)
+                    .commit();
+        } else if (finalization == FinalizationOutcome.MISSING_BENEFICIARY) {
+            willThrow(new HandleException(CONTRACT_EXECUTION_EXCEPTION))
+                    .given(worldUpdater)
+                    .deleteAccount(laterDeletion);
+        }
+        final List<GasChargingEvent> events = new ArrayList<>();
+        doAnswer(invocation -> {
+                    events.add(new GasChargingEvent(
+                            CHARGE, invocation.getArgument(0), invocation.getArgument(1), invocation.getArgument(2)));
+                    return null;
+                })
+                .when(worldUpdater)
+                .collectGasFee(any(), anyLong(), anyBoolean());
+        if (!failsFinalization) {
+            doAnswer(invocation -> {
+                        events.add(new GasChargingEvent(
+                                REFUND, invocation.getArgument(0), invocation.getArgument(1), false));
+                        return null;
+                    })
+                    .when(worldUpdater)
+                    .refundGasFee(any(), anyLong());
+        }
+
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+
+        final var expectedStatus =
+                switch (finalization) {
+                    case SUCCESS -> SUCCESS;
+                    case EXECUTION_REVERT -> CONTRACT_REVERT_EXECUTED;
+                    case MISSING_BENEFICIARY -> CONTRACT_EXECUTION_EXCEPTION;
+                    default -> MAX_CHILD_RECORDS_EXCEEDED;
+                };
+        assertEquals(expectedStatus, result.finalStatus());
+        assertEquals(failsFinalization ? GAS_LIMIT : SUCCESS_RESULT.gasUsed(), result.gasUsed());
+        if (failsFinalization) {
+            verify(worldUpdater, never()).refundGasFee(any(), anyLong());
+            final var ordered = inOrder(worldUpdater);
+            ordered.verify(worldUpdater).deleteAccount(NON_SYSTEM_LONG_ZERO_ADDRESS);
+            ordered.verify(worldUpdater).deleteAccount(laterDeletion);
+            ordered.verify(worldUpdater).revert();
+            if (finalization != FinalizationOutcome.COMMIT_CAPACITY_EXHAUSTED) {
+                verify(worldUpdater, never()).commit();
+            }
+        } else {
+            // Successful finalization refunds the relayer first, including an ordinary EVM revert.
+            final var ordered = inOrder(worldUpdater);
+            ordered.verify(worldUpdater).commit();
+            ordered.verify(worldUpdater).refundGasFee(eq(RELAYER_ID), anyLong());
+            ordered.verify(worldUpdater).refundGasFee(eq(SENDER_ID), anyLong());
+            verify(worldUpdater, never()).revert();
+        }
+        assertGasReplayMatches(result.gasUsed(), failsFinalization, events);
+    }
+
+    private void assertGasReplayMatches(
+            final long gasUsed, final boolean fullGasCharged, final List<GasChargingEvent> events) {
+        // This replay also runs after a successful EVM transaction when its enclosing batch later fails.
+        final var rootUpdater = mock(RootProxyWorldUpdater.class);
+        given(rootUpdater.entityIdFactory()).willReturn(new FakeEntityIdFactoryImpl(0, 0));
+        final var replay = new EthereumTransactionRollbackHandler(mock(CallOutcome.class), events, rootUpdater);
+        final var fees = mock(FeeCharging.Context.class);
+        final var handleContext = mock(HandleContext.class);
+        final var tokenApi = mock(TokenServiceApi.class);
+        final var stores = mock(StoreFactory.class);
+        given(stores.serviceApi(TokenServiceApi.class)).willReturn(tokenApi);
+        given(handleContext.storeFactory()).willReturn(stores);
+        final var replayConfig = mock(Configuration.class);
+        given(replayConfig.getConfigData(EntitiesConfig.class)).willReturn(new EntitiesConfig(0, false, false));
+        given(handleContext.configuration()).willReturn(replayConfig);
+
+        replay.replay(fees, handleContext);
+
+        final var relayerCharge = fullGasCharged ? GAS_LIMIT * (NETWORK_GAS_PRICE - USER_OFFERED_GAS_PRICE) : 0;
+        final var senderCharge = gasUsed * NETWORK_GAS_PRICE - relayerCharge;
+        verify(fees).charge(RELAYER_ID, new Fees(0, relayerCharge, 0), null);
+        verify(fees).charge(SENDER_ID, new Fees(0, senderCharge, 0), null);
+        verifyNoMoreInteractions(fees);
+        verify(tokenApi).incrementSenderNonce(SENDER_ID);
+        verifyNoMoreInteractions(tokenApi);
+    }
+
+    @Test
+    void failedExecutionDoesNotDeleteContractsFromStaleSelfDestructSet() {
+        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        final var transaction = clprDispatchCall(null);
+        final var failedResult = HederaEvmTransactionResult.resourceExhaustionFrom(
+                SENDER_ID, GAS_LIMIT, NETWORK_GAS_PRICE, ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED);
+        givenClprDispatchRunsToCompletion(transaction, context, failedResult);
+        given(initialFrame.getSelfDestructs()).willReturn(Set.of(NON_SYSTEM_LONG_ZERO_ADDRESS));
+
+        final var result =
+                subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
+
+        assertFalse(result.isSuccess());
+        verify(worldUpdater, never()).deleteAccount(any());
+        verify(worldUpdater).commit();
     }
 
     @Test
@@ -1027,6 +1279,13 @@ class TransactionProcessorTest {
 
     private void givenClprDispatchRunsToCompletion(
             @NonNull final HederaEvmTransaction transaction, @NonNull final HederaEvmContext context) {
+        givenClprDispatchRunsToCompletion(transaction, context, SUCCESS_RESULT);
+    }
+
+    private void givenClprDispatchRunsToCompletion(
+            @NonNull final HederaEvmTransaction transaction,
+            @NonNull final HederaEvmContext context,
+            @NonNull final HederaEvmTransactionResult result) {
         // A native CLPR dispatch has no sender account
         given(worldUpdater.getHederaAccount(SENDER_ID)).willReturn(null);
         givenReceiverAccount();
@@ -1054,7 +1313,7 @@ class TransactionProcessorTest {
                         contractCreationProcessor,
                         GasCharges.NONE,
                         null))
-                .willReturn(SUCCESS_RESULT);
+                .willReturn(result);
     }
 
     private static HederaEvmTransaction clprDispatchCall(@Nullable final AccountID relayer) {

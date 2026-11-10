@@ -119,7 +119,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     // (BlockStreamConfig.digestType): the SHA-384 -> SHA-256 cutover flips BOTH together in production (two coupled
     // changes: the DEFAULT_DIGEST_TYPE constant and the blockStream.digestType property), so keying off
     // DEFAULT_DIGEST_TYPE here tracks the state-hash length (48 -> 32) in lockstep with that rollout. The two can also
-    // be set independently for testing (e.g. hapiTestBlockHashingSha256 runs SHA-256 blocks over SHA-384 state); this
+    // be set independently for testing; this
     // field correctly follows the platform/state digest regardless, since it sizes the state-metadata hash, not a
     // block hash.
     private static final int HASH_SIZE = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
@@ -168,6 +168,17 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     @Nullable
     private Bytes ledgerIdFromState;
+
+    /**
+     * Whether the state changes being applied are from the genesis block.
+     */
+    private boolean applyingGenesisBlock;
+
+    /**
+     * Whether the ledger id was already set in the genesis block, as when a network warm-starts from TSS
+     * fixtures in its startup network; such a ledger id is never published in a ledger id publication.
+     */
+    private boolean ledgerIdSetAtGenesis;
 
     @Nullable
     private LedgerIdPublicationTransactionBody ledgerIdPublication;
@@ -286,7 +297,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         // Read TSS config from the node's actual application.properties so that properties written
         // by copyBootstrapAssets() (e.g. from configuration/dev) are respected. Fall back to
         // spec.startupProperties() for anything not explicitly in the file
-        // (e.g. @ConfigProperty annotation defaults such as tss.forceMockSignatures=true).
         final var nodeStartupProperties = inPriorityOrder(
                 new JutilPropertySource(node0.getExternalPath(APPLICATION_PROPERTIES)), spec.startupProperties());
         final boolean isHintsEnabled = nodeStartupProperties.getBoolean("tss.hintsEnabled");
@@ -566,6 +576,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             long firstBlockRound = -1;
             long eventNodeId = -1;
             Timestamp firstConsensusTimestamp = null;
+            applyingGenesisBlock = block.items().getFirst().blockHeaderOrThrow().number() == 0;
             for (final var item : block.items()) {
                 if (firstConsensusTimestamp == null && item.hasBlockHeader()) {
                     firstConsensusTimestamp = item.blockHeaderOrThrow().blockTimestamp();
@@ -726,8 +737,11 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
 
         if (historyLibrary != null) {
-            assertNotNull(ledgerIdPublication, "Ledger id not published despite TSS history enabled");
-            assertEquals(ledgerIdFromState, ledgerIdPublication.ledgerId());
+            if (ledgerIdPublication != null) {
+                assertEquals(ledgerIdFromState, ledgerIdPublication.ledgerId());
+            } else {
+                assertTrue(ledgerIdSetAtGenesis, "Ledger id not published despite TSS history enabled");
+            }
         }
         if (shouldAssertAtLeastOneWraps(assertAtLeastOneWraps) && !observedCompressedWrapsProof) {
             Assertions.fail("Expected at least one verified TSS signature backed by a compressed WRAPS proof");
@@ -1199,6 +1213,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
                     if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerIdFromState = ((ProtoBytes) singleton).value();
+                        ledgerIdSetAtGenesis |= applyingGenesisBlock && ledgerIdFromState.length() > 0;
                     }
                 }
                 case MAP_UPDATE -> {

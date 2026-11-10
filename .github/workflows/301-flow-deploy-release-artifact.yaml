@@ -30,8 +30,11 @@ permissions:
   actions: read
 
 jobs:
+  # A tag push releases only from the public repository. Every other job needs this one, so in a copy
+  # that isn't public a pushed tag starts nothing. A dispatch runs as before.
   prepare-tag-release:
     name: Prepare Release [Tag]
+    if: ${{ github.event_name != 'push' || github.event.repository.visibility == 'public' }}
     runs-on: hl-cn-default-lin-sm
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
@@ -121,6 +124,8 @@ jobs:
       new-version: ${{ needs.prepare-tag-release.outputs.version }}
       trigger-env-deploy: none
       release-profile: ${{ needs.prepare-tag-release.outputs.prerelease == 'true' && 'PrereleaseChannel' || 'MavenCentral' }}
+      # Pre-release tags (rc, alpha, ...) are not published to Maven Central.
+      publish-maven-central: ${{ needs.prepare-tag-release.outputs.prerelease != 'true' }}
       ref: ${{ needs.prepare-tag-release.outputs.commit }}
       ref-name: ${{ needs.prepare-tag-release.outputs.tag }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
