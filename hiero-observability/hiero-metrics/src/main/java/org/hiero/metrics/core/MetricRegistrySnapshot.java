@@ -10,7 +10,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * A snapshot of all metrics in a {@link MetricRegistry} at a specific point in time,
  * allowing iteration over {@link MetricSnapshot}s with consistent repetitive order (new metrics are appended).
  * <p>
- * Every iteration reads a fixed list: metrics added after the iteration started are not returned by it.
+ * Every iteration reads a fixed list: metrics added or removed after the iteration started
+ * are not added to or removed from it.
  */
 public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
 
@@ -69,5 +70,14 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
      */
     void addMetricSnapshot(MetricSnapshot metricSnapshot) {
         snapshots.add(metricSnapshot);
+    }
+
+    /**
+     * Internal method to remove the given metric snapshot from this registry snapshot.
+     * {@link MetricSnapshot} does not override {@code equals}, so it is removed by identity.
+     * Package private method, because it is called by the {@link MetricRegistry} internally during metric removal.
+     */
+    void removeMetricSnapshot(MetricSnapshot metricSnapshot) {
+        snapshots.remove(metricSnapshot);
     }
 }
