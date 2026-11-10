@@ -30,6 +30,8 @@ final class ClprHieroProofCodec {
     private static final int MAX_PATH_SIBLINGS = 64;
     private static final int FORMAT_VERSION = 1;
     private static final int FORMAT_VERSION_FIELD_SIZE = 2;
+    private static final byte HIERO_PROOF_V1_ANCHOR_TYPE = 0x01;
+    private static final int KEY_HASH_LENGTH = 32;
     private static final int COMPACT_SIGNATURE_LENGTH = VK_LENGTH + SIGNATURE_LENGTH;
     private static final int COMPRESSED_WRAPS_LENGTH = 11_368;
     private static final int NATIVE_SIGNATURE_LENGTH = COMPACT_SIGNATURE_LENGTH + COMPRESSED_WRAPS_LENGTH;
@@ -41,6 +43,16 @@ final class ClprHieroProofCodec {
 
     record CompactStateProof(
             @NonNull Bytes verificationKey, @NonNull Bytes payload) {}
+
+    /**
+     * Extracts the hinTS key hash from the HieroProof V1 verifier's opaque anchor ID.
+     * Other IDs select the native proof path.
+     */
+    static @Nullable Bytes compactAnchorHash(@NonNull final Bytes anchorId) {
+        return anchorId.length() == 1 + KEY_HASH_LENGTH && anchorId.getByte(0) == HIERO_PROOF_V1_ANCHOR_TYPE
+                ? anchorId.slice(1, KEY_HASH_LENGTH)
+                : null;
+    }
 
     /**
      * Removes the WRAPS suffix of the block signature while retaining the Merkle paths and their opaque leaf bytes.

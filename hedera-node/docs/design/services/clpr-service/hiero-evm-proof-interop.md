@@ -1,7 +1,7 @@
 # Hiero proof interoperability with an EVM verifier
 
-Complete the destination channel with the compact Solidity Hiero verifier and its signed
-Hiero config and endpoint manifest proofs. From the configured Hiero CLI, retrieve the proofs:
+Retrieve the signed Hiero config and endpoint manifest proofs from the configured
+Hiero CLI to complete the destination channel.
 
 ```sh
 yahcli clpr get-ledger-configuration --proof-path config.pb
@@ -12,19 +12,18 @@ Wait for the endpoint manifest to finalize. Compact both block signatures to the
 aggregate signature, and put each proof in a version 1 envelope with only the state-proof field.
 Both proofs must have the same signing key. Fetch both again if the key rotates between the queries.
 
-Configure the streaming EVM relay with `HieroCompact` for the source's CAIP-2 chain ID.
+Open the destination channel with the compact verifier that advertises
+`0x01 || keccak256(raw hinTS verification key)` as its 33-byte
+`Channel.trustAnchorId`. The verifier uses the 32-byte hash itself as the
+channel's cryptographic anchor. If the channel was opened with the earlier
+draft's raw hash ID, open a test channel with the tagged verifier.
 
-```yaml
-peerProofTypes:
-  "hiero:localnet": HieroCompact
-```
-
-The relay advertises `CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1` in field 5 (`bundle_format`) of its opening
-`ClprBundleRequest` and supplies the destination's committed `trustAnchorId` as
-`current_trust_anchor_id`. The source uses its signed SHA-256 snapshot and the
-adoption records from #28085 to choose a state proof or one witness-only batch.
-The relay submits that payload as received and reports the updated anchor on its
-next poll. A request that omits field 5 selects the native WRAPS-bearing proof.
+The relay copies the full committed `trustAnchorId` into
+`ClprBundleRequest.current_trust_anchor_id`. Hiero recognizes the tagged ID
+and uses the key hash with its signed SHA-256 snapshot to choose a state proof
+or one witness-only batch. The relay needs to decode both forms and submit the
+received envelope as-is. Its next poll reports the ID from the updated channel.
+Requests with an empty or untagged ID select the native WRAPS-bearing proof.
 
 ## Fixture test
 
@@ -56,4 +55,4 @@ The test supplies those inputs at the snapshot boundary and checks both witness 
 native reference consumer. The checked-in `native-hiero-proof-v1.sha256` manifest pins the
 regenerated vectors. Foundry starts the service and verifier in a local test EVM, supplies
 the initial anchor during channel bootstrap, and checks the anchor and message cursor after each
-submission.
+submission. The native rotation test compares the on-chain IDs with those used in the Java requests.

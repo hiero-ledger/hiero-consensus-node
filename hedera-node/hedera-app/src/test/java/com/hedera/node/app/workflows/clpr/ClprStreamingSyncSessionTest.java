@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
-import static com.hedera.hapi.node.state.clpr.ClprBundleFormat.CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -189,16 +188,15 @@ class ClprStreamingSyncSessionTest {
         given(stateProofManager.buildBundleProof(
                         eq(snapshot), eq(CHANNEL_ID), eq(1L), any(), eq(true), anyBoolean(), any()))
                 .willReturn(new ClprStateProofManager.BundleProof(proof, 1, 1));
+        final var anchorHash = keccak256DigestOf(signature.slice(0, VK_LENGTH));
         final var request = request(0)
                 .copyBuilder()
-                .bundleFormat(CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1)
-                .currentTrustAnchorId(keccak256DigestOf(signature.slice(0, VK_LENGTH)))
+                .currentTrustAnchorId(Bytes.fromHex("01").append(anchorHash))
                 .build();
         final var expected =
                 ClprHieroProofCodec.encodeStateProof(ClprHieroProofCodec.compactStateProof(proof), List.of());
 
-        given(stateProofManager.verifyHieroProof(expected, request.currentTrustAnchorId()))
-                .willReturn(true);
+        given(stateProofManager.verifyHieroProof(expected, anchorHash)).willReturn(true);
         mockState(channel(ClprChannelStatus.ACTIVE, 2, 0, 0), () -> {
             final var response = session.onMessage(bytes(payload(CHANNEL_ID, request, null)));
             assertThat(response.bundleResponseOrThrow().bundlePayload()).isEqualTo(expected);

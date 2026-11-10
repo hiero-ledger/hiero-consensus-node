@@ -2,8 +2,6 @@
 package com.hedera.node.app.workflows.clpr;
 
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_256;
-import static com.hedera.hapi.node.state.clpr.ClprBundleFormat.CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1;
-import static com.hedera.hapi.node.state.clpr.ClprBundleFormat.CLPR_BUNDLE_FORMAT_STATE_PROOF;
 import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.ACTIVE;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -123,7 +121,9 @@ class ClprHieroProofInteropTest {
                             List.of(record(certificate, nativeWitness)),
                             null));
             write(output, "native-initial-key.bin", certificate.sourceVerificationKey());
+            write(output, "native-initial-anchor-id.bin", compactAnchorId(certificate.sourceVerificationKey()));
             write(output, "native-final-key.bin", certificate.targetVerificationKey());
+            write(output, "native-final-anchor-id.bin", compactAnchorId(certificate.targetVerificationKey()));
         }
 
         try (final var source =
@@ -194,9 +194,13 @@ class ClprHieroProofInteropTest {
         assertThat(unknown.nextStartingMessageId()).isEqualTo(1);
 
         write(output, "rotations-initial-key.bin", initial);
+        write(output, "rotations-initial-anchor-id.bin", compactAnchorId(initial));
         write(output, "rotations-first-key.bin", afterFirst);
+        write(output, "rotations-first-anchor-id.bin", compactAnchorId(afterFirst));
         write(output, "rotations-second-key.bin", afterSecond);
+        write(output, "rotations-second-anchor-id.bin", compactAnchorId(afterSecond));
         write(output, "rotations-final-key.bin", finalKey);
+        write(output, "rotations-final-anchor-id.bin", compactAnchorId(finalKey));
         write(output, "rotations-first.bin", first);
         write(output, "rotations-second.bin", second);
         write(output, "rotations-state.bin", state);
@@ -232,9 +236,7 @@ class ClprHieroProofInteropTest {
         final var payload = StateProof.PROTOBUF.toBytes(nativeProof);
         given(manager.buildBundleProof(FIXTURE_CHANNEL_ID, 1L, THROTTLES, true, false))
                 .willReturn(new BundleProof(payload, 1, 1));
-        final var request = ClprBundleRequest.newBuilder()
-                .bundleFormat(CLPR_BUNDLE_FORMAT_STATE_PROOF)
-                .build();
+        final var request = ClprBundleRequest.DEFAULT;
         final var channel = channelWithMessageProof(true);
         assertThat(new ClprBundleProducer(manager, channel, null, true).next(false))
                 .isEqualTo(payload);
@@ -313,10 +315,13 @@ class ClprHieroProofInteropTest {
         }
         final var request = ClprBundleRequest.newBuilder()
                 .currentStatus(ACTIVE)
-                .currentTrustAnchorId(keccak256DigestOf(anchorKey))
-                .bundleFormat(CLPR_BUNDLE_FORMAT_HIERO_PROOF_V1)
+                .currentTrustAnchorId(compactAnchorId(anchorKey))
                 .build();
         return new ClprBundleProducer(manager, channelWithMessageProof(messageProof != null), request, true, 2);
+    }
+
+    private static Bytes compactAnchorId(final Bytes verificationKey) {
+        return Bytes.fromHex("01").append(keccak256DigestOf(verificationKey));
     }
 
     private static ClprChannel channelWithMessageProof(final boolean hasMessageProof) {
