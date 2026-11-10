@@ -360,7 +360,7 @@ public class BlockNode {
      * Notifies that this block node has a connection that has been closed. As a result of this, state such as active
      * connection counters will be decremented and the history entry associated with the connection will be updated.
      * Lastly, if the reason the connection was closed requires a cool down, then the cool down timestamp will be
-     * updated.
+     * updated. The cool down also applies to a connection that was closed before it ever became active.
      *
      * @param connection the connection that was closed
      */
@@ -378,6 +378,11 @@ public class BlockNode {
                     endpoint.host(),
                     endpoint.port(),
                     connection.connectionId());
+            // The connection never became active (e.g. it failed to initialize); it still counts against the node.
+            final CloseReason closeReason = connection.closeReason();
+            if (closeReason != null && closeReason.isDeviantCloseReason()) {
+                applyCoolDown(new DeviantConnectionClose(closeReason));
+            }
             return;
         }
 
