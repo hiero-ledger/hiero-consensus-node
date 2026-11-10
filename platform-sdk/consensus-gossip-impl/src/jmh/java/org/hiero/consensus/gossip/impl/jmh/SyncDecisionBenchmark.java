@@ -88,19 +88,18 @@ import org.openjdk.jmh.annotations.Warmup;
  * sees a full non-ancient window.
  *
  * <p>Broadcast runs, as in production, so the duplicate filter holds back the events the node has had for less than the
- * configured {@code sync.*FilterThreshold}. It compares their time received with the synchronizer's clock, which the
- * replay sets to the simulated time of each decision. The clock's {@code nanoTime()} is the real one, which the filter's
- * metric reads.
+ * configured {@code sync.*FilterThreshold}.
  *
  * <p>The simulation delivers every event to every node within one latency, so the filter holds back everything the peer
  * lacks, and every send list is empty. On mainnet, a sync sends 1 to 5 events on average ({@code ev_per_syncS},
  * November 2026). This hardly matters for the cost: in a local A/B, deciding as if broadcast were paused sent 13 to 17
  * events per sync and changed the latency by at most 0.2%.
  *
- * <p>The synchronizer updates the production metrics implementation, {@link DefaultPlatformMetrics}, and the production
- * {@link DefaultIntakeEventCounter}. The metrics are not started: in production, their periodic updaters and snapshots
- * run on other threads. The benchmark runs on one thread; in production, the syncs with all peers share one
- * synchronizer, and events are added on another thread, so lock contention is not measured.
+ * <p>The synchronizer is built with the production metrics implementation {@link DefaultPlatformMetrics},
+ * so that the decision's metric updates are measured, and the intake counter {@link DefaultIntakeEventCounter}. The
+ * metrics are not started: in production, their periodic updaters and snapshots run on other threads. The benchmark
+ * runs on one thread; in production, the syncs with all peers share one synchronizer, and events are added on another
+ * thread, so lock contention is not measured.
  *
  * <p>{@link LatencyProfiler} reports the mean, the percentiles, and the allocation per decision. JMH's primary score is
  * the time of a whole pass, the untimed replay included. Each invocation's setup ends with {@code System.gc()}; a pass
@@ -154,16 +153,16 @@ public class SyncDecisionBenchmark {
     /**
      * One sync with the peer.
      *
-     * @param start the simulated time at which the node starts the sync
-     * @param peerAnswer the simulated time at which the peer takes its tips and answers which of the node's tips it has
-     * @param decision the simulated time at which the node decides which events to send
-     * @param peerTips the hashes of the peer's tips at {@code peerAnswer}
-     * @param peerWindow the peer's event window at {@code peerAnswer}
+     * @param startTime the simulated time at which the node starts the sync
+     * @param peerAnswerTime the simulated time at which the peer takes its tips and says which of the node's tips it has
+     * @param decisionTime the simulated time at which the node decides which events to send
+     * @param peerTips the hashes of the peer's tips at {@code peerAnswerTime}
+     * @param peerWindow the peer's event window at {@code peerAnswerTime}
      */
-    private record Sync(
-            @NonNull Instant start,
-            @NonNull Instant peerAnswer,
-            @NonNull Instant decision,
+    private record ScheduledSync(
+            @NonNull Instant startTime,
+            @NonNull Instant peerAnswerTime,
+            @NonNull Instant decisionTime,
             @NonNull List<Hash> peerTips,
             @NonNull EventWindow peerWindow) {}
 
@@ -174,14 +173,14 @@ public class SyncDecisionBenchmark {
      * @param time the simulated time of the action
      * @param event the event it adds, or null
      * @param window the event window it sets, or null
-     * @param sync the sync it starts or decides, or null
+     * @param scheduledSync the sync it starts or decides, or null
      */
     private record Action(
             @NonNull Kind kind,
             @NonNull Instant time,
             @Nullable PlatformEvent event,
             @Nullable EventWindow window,
-            @Nullable Sync sync) {}
+            @Nullable ScheduledSync scheduledSync) {}
 
     /** The configuration of the node. */
     private Configuration configuration;
@@ -256,25 +255,25 @@ public class SyncDecisionBenchmark {
         final Instant selfEnd = self.steps().getLast().time();
         final Instant peerEnd = peer.steps().getLast().time();
         final List<Instant[]> times = new ArrayList<>();
-        Instant start = firstAncientWindowTime(self);
+        Instant startTime = firstAncientWindowTime(self);
         while (true) {
-            final Instant peerAnswer = start.plus(toPeer);
-            final Instant decision = peerAnswer.plus(fromPeer);
-            if (decision.isAfter(selfEnd) || peerAnswer.isAfter(peerEnd)) {
+            final Instant peerAnswerTime = startTime.plus(toPeer);
+            final Instant decisionTime = peerAnswerTime.plus(fromPeer);
+            if (decisionTime.isAfter(selfEnd) || peerAnswerTime.isAfter(peerEnd)) {
                 break;
             }
-            times.add(new Instant[] {start, peerAnswer, decision});
-            start = decision.plus(pause);
+            times.add(new Instant[] {startTime, peerAnswerTime, decisionTime});
+            startTime = decisionTime.plus(pause);
         }
 
         // replay the peer to find its tips and event window at each answer
-        final List<Sync> syncs = new ArrayList<>(times.size());
+        final List<ScheduledSync> scheduledSyncs = new ArrayList<>(times.size());
         peerReleaseTimes = new HashMap<>();
         final Shadowgraph peerGraph =
                 new Shadowgraph(newMetrics(peer.nodeId()), numNodes, new NoOpIntakeEventCounter());
         for (final Step step : peer.steps()) {
-            while (syncs.size() < times.size() && times.get(syncs.size())[1].isBefore(step.time())) {
-                syncs.add(newSync(times.get(syncs.size()), peerGraph));
+            while (scheduledSyncs.size() < times.size() && times.get(scheduledSyncs.size())[1].isBefore(step.time())) {
+                scheduledSyncs.add(newSync(times.get(scheduledSyncs.size()), peerGraph));
             }
             switch (step) {
                 case Released r -> {
@@ -287,15 +286,15 @@ public class SyncDecisionBenchmark {
                 }
             }
         }
-        while (syncs.size() < times.size()) {
-            syncs.add(newSync(times.get(syncs.size()), peerGraph));
+        while (scheduledSyncs.size() < times.size()) {
+            scheduledSyncs.add(newSync(times.get(scheduledSyncs.size()), peerGraph));
         }
 
         // merge the node's steps with the starts and decisions of the syncs; an action at the time of a step follows it
-        final List<Action> syncActions = new ArrayList<>(2 * syncs.size());
-        for (final Sync sync : syncs) {
-            syncActions.add(new Action(Kind.START_SYNC, sync.start(), null, null, sync));
-            syncActions.add(new Action(Kind.DECIDE, sync.decision(), null, null, sync));
+        final List<Action> syncActions = new ArrayList<>(2 * scheduledSyncs.size());
+        for (final ScheduledSync scheduledSync : scheduledSyncs) {
+            syncActions.add(new Action(Kind.START_SYNC, scheduledSync.startTime(), null, null, scheduledSync));
+            syncActions.add(new Action(Kind.DECIDE, scheduledSync.decisionTime(), null, null, scheduledSync));
         }
         final List<Action> merged = new ArrayList<>();
         int next = 0;
@@ -317,10 +316,10 @@ public class SyncDecisionBenchmark {
     }
 
     /** Returns a sync at the given times, with the peer's tips and event window as they are now. */
-    private static Sync newSync(final Instant[] times, final Shadowgraph peerGraph) {
+    private static ScheduledSync newSync(final Instant[] times, final Shadowgraph peerGraph) {
         final List<Hash> peerTips =
                 peerGraph.getTips().stream().map(ShadowEvent::getBaseHash).toList();
-        return new Sync(times[0], times[1], times[2], peerTips, peerGraph.getEventWindow());
+        return new ScheduledSync(times[0], times[1], times[2], peerTips, peerGraph.getEventWindow());
     }
 
     /** Adds an event to a shadowgraph of the trial setup. */
@@ -407,7 +406,7 @@ public class SyncDecisionBenchmark {
     @TearDown(Level.Invocation)
     public void verifyInvocation() {
         // disabled for now (2026-11-10), as it requires re-pinning after major network changes are done
-        //        final Expected actual = new Expected(decisions, knownAncestors, eventsSent, checksum);
+        //        final Result actual = new Result(decisions, knownAncestors, eventsSent, checksum);
         //        if (!actual.equals(expected())) {
         //            throw new IllegalStateException("Expected %s, but got %s".formatted(expected(), actual));
         //        }
@@ -428,13 +427,13 @@ public class SyncDecisionBenchmark {
      * @param eventsSent the number of events in all send lists
      * @param checksum the checksum over the hashes of these events, in order
      */
-    private record Expected(int decisions, long knownAncestors, long eventsSent, long checksum) {}
+    private record Result(int decisions, long knownAncestors, long eventsSent, long checksum) {}
 
     /** Returns the expected result of an invocation. */
-    private Expected expected() {
+    private Result expected() {
         return switch (numNodes) {
-            case 10 -> new Expected(1593, 2_395_473, 0, 0);
-            case 28 -> new Expected(551, 2_746_929, 0, 0);
+            case 10 -> new Result(1593, 2_395_473, 0, 0);
+            case 28 -> new Result(551, 2_746_929, 0, 0);
             default -> throw new IllegalArgumentException("No expected result for numNodes=" + numNodes);
         };
     }
@@ -452,8 +451,8 @@ public class SyncDecisionBenchmark {
             switch (action.kind()) {
                 case ADD_EVENT -> synchronizer.addEvent(requireNonNull(action.event()));
                 case SET_EVENT_WINDOW -> synchronizer.updateEventWindow(requireNonNull(action.window()));
-                case START_SYNC -> startSync(requireNonNull(action.sync()));
-                case DECIDE -> decide(requireNonNull(action.sync()));
+                case START_SYNC -> startSync(requireNonNull(action.scheduledSync()));
+                case DECIDE -> decide(requireNonNull(action.scheduledSync()));
             }
         }
         recorder.resume();
@@ -461,12 +460,12 @@ public class SyncDecisionBenchmark {
     }
 
     /** Starts a sync, as {@code RpcPeerHandler#sendSyncData} does, and keeps the node's tips that the peer will have. */
-    private void startSync(final Sync sync) {
+    private void startSync(final ScheduledSync scheduledSync) {
         reservation = synchronizer.reserveEventWindow();
         knownSet = new HashSet<>();
         for (final ShadowEvent tip : synchronizer.tips()) {
             final Instant released = peerReleaseTimes.get(tip.getBaseHash());
-            if (released != null && !released.isAfter(sync.peerAnswer())) {
+            if (released != null && !released.isAfter(scheduledSync.peerAnswerTime())) {
                 knownSet.add(tip);
             }
         }
@@ -476,17 +475,17 @@ public class SyncDecisionBenchmark {
      * Adds the peer's tips the node has to the known set, as {@code RpcPeerHandler#sendKnownTips} does, and times the
      * decision which events to send, as {@code RpcPeerHandler#receiveTips} makes it.
      */
-    private void decide(final Sync sync) {
-        for (final ShadowEvent tip : synchronizer.shadows(sync.peerTips())) {
+    private void decide(final ScheduledSync scheduledSync) {
+        for (final ShadowEvent tip : synchronizer.shadows(scheduledSync.peerTips())) {
             if (tip != null) {
                 knownSet.add(tip);
             }
         }
-        time.set(sync.decision());
+        time.set(scheduledSync.decisionTime());
 
         recorder.resume();
         final List<PlatformEvent> sendList =
-                synchronizer.sendList(selfId, knownSet, reservation.getEventWindow(), sync.peerWindow());
+                synchronizer.sendList(selfId, knownSet, reservation.getEventWindow(), scheduledSync.peerWindow());
         recorder.lap();
         recorder.pause();
 
@@ -546,8 +545,12 @@ public class SyncDecisionBenchmark {
     }
 
     /**
-     * A clock at the simulated time of the replay. Its {@link #nanoTime()} is the real clock, which only measures
-     * durations.
+     * The synchronizer's clock.
+     *
+     * <p>This class is a specialized implementation of {@link Time} optimized for this benchmark. It is a hybrid
+     * providing simulated time and real time. We are replaying a recording and have to use simulated time to match
+     * the recording's timestamps. {@code nanoTime} however, uses the real `System.nanoTime()`, because this method
+     * is called by the synchronizer's metrics, and we want to measure its latency.
      */
     private static final class ReplayTime implements Time {
 
