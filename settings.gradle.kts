@@ -1,7 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
+pluginManagement {
+    repositories {
+        mavenLocal()
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
 plugins {
     id("org.hiero.gradle.build") version "0.7.11"
-    id("com.hedera.pbj.pbj-compiler") version "0.15.11" apply false
+    id("com.hedera.pbj.pbj-compiler") version "0.15.14" apply false
+}
+
+@Suppress("UnstableApiUsage")
+dependencyResolutionManagement.repositories {
+    mavenLocal()
 }
 
 javaModules {

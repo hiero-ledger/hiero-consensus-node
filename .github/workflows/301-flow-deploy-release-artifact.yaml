@@ -79,7 +79,9 @@ jobs:
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
+      # TODO: Revert back to using secrets.GITHUB_TOKEN once released to mainnet
+      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
       cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
       central-publishing-username: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
@@ -169,7 +171,9 @@ jobs:
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
+      # TODO: Revert back to using secrets.GITHUB_TOKEN once released to mainnet
+      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       bucket-name: ${{ secrets.RELEASE_ARTIFACT_BUCKET_NAME }}
       cdn-bucket-name: ${{ secrets.CDN_ARTIFACT_BUCKET_NAME }}
       central-publishing-username: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}

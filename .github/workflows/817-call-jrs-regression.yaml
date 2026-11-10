@@ -310,6 +310,33 @@ jobs:
           echo "key-file=${GCP_KEY_FILE}" >> "${GITHUB_OUTPUT}"
           rclone config create gcs "google cloud storage" project_number "${{ secrets.gcp-project-number }}" service_account_file "${GCP_KEY_FILE}"
 
+      # BEGIN TEMPORARY: Checkout PBJ repository and publish to local Maven repository so
+      # that the application code can compile against it.
+      #
+      # TODO: Remove these two steps before publishing to a public registry.
+      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+      - name: Checkout PBJ Repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          token: ${{ secrets.access-token }}
+          path: ${{ github.workspace }}/pbj-releases
+          repository: hashgraph/pbj-releases
+          ref: release/0.15
+          fetch-depth: 0
+
+      - name: Publish PBJ to Local Maven Repository
+        id: publish-pbj
+        env:
+          PBJ_VERSION: 0.15.14
+        working-directory: ${{ github.workspace }}/pbj-releases/pbj-core
+        run: |
+          echo "::group::Configure PBJ Version"
+          ./gradlew clean versionAsSpecified -PnewVersion=${PBJ_VERSION}
+          echo "::endgroup::"
+          echo "::group::Publish PBJ to Local Maven Repository"
+          ./gradlew assemble publishToMavenLocal
+          echo "::endgroup::"
+      # END TEMPORARY
       - name: Gradle Assemble
         id: gradle-build
         working-directory: ${{ github.workspace }}
