@@ -19,6 +19,7 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprEvictPeerEndpointTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -656,6 +657,8 @@ class PrivilegesVerifierTest {
             case CLPR_UPDATE_LEDGER_CONFIGURATION ->
                 txn.setClprUpdateLedgerConfiguration(ClprUpdateLedgerConfigurationTransactionBody.getDefaultInstance());
             case CLPR_CLOSE_CHANNEL -> txn.setClprCloseChannel(ClprCloseChannelTransactionBody.getDefaultInstance());
+            case CLPR_EVICT_PEER_ENDPOINT ->
+                txn.setClprEvictPeerEndpoint(ClprEvictPeerEndpointTransactionBody.getDefaultInstance());
             default -> throw new IllegalArgumentException("Unexpected CLPR operation: " + operation);
         }
 
@@ -688,7 +691,16 @@ class PrivilegesVerifierTest {
                         HederaFunctionality.CLPR_CLOSE_CHANNEL,
                         EXCHANGE_RATES_ADMIN,
                         SystemOpAuthorization.UNAUTHORIZED),
-                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
+                        EXCHANGE_RATES_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {

@@ -254,6 +254,72 @@ public class SingleNodeConsensusResultAssert
         return this;
     }
 
+    /**
+     * Verifies that the consensus ratio of the node is between the given bounds, inclusive. See
+     * {@link SingleNodeConsensusResult#consensusRatio()} for how the ratio is computed. After a
+     * {@link SingleNodeConsensusResult#clear()}, the ratio can exceed {@code 1.0}, so an upper
+     * bound should leave room above it.
+     *
+     * <p>The assertion fails if the result contains no pre-consensus events.
+     *
+     * @param min the smallest allowed ratio
+     * @param max the largest allowed ratio
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeConsensusResultAssert hasConsensusRatioBetween(final double min, final double max) {
+        isNotNull();
+        // Each list is read once, so that the checked ratio and the counts in the message agree
+        final long consensusEvents = actual.consensusRounds().stream()
+                .mapToLong(round -> round.getConsensusEvents().size())
+                .sum();
+        checkRatio("consensus", consensusEvents, actual.preConsensusEvents().size(), min, max);
+        return this;
+    }
+
+    /**
+     * Verifies that the stale ratio of the node is between the given bounds, inclusive. See
+     * {@link SingleNodeConsensusResult#staleRatio()} for how the ratio is computed.
+     *
+     * <p>The assertion fails if the result contains no pre-consensus events.
+     *
+     * @param min the smallest allowed ratio
+     * @param max the largest allowed ratio
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public SingleNodeConsensusResultAssert hasStaleRatioBetween(final double min, final double max) {
+        isNotNull();
+        // Each list is read once, so that the checked ratio and the counts in the message agree
+        checkRatio(
+                "stale",
+                actual.staleEvents().size(),
+                actual.preConsensusEvents().size(),
+                min,
+                max);
+        return this;
+    }
+
+    private void checkRatio(
+            @NonNull final String ratioName,
+            final long events,
+            final int preConsensusEvents,
+            final double min,
+            final double max) {
+        if (preConsensusEvents == 0) {
+            failWithMessage(
+                    "Cannot check the %s ratio of node %s, because its result contains no pre-consensus events.",
+                    ratioName, actual.nodeId());
+        }
+        final double ratio = (double) events / preConsensusEvents;
+        if (ratio < min || ratio > max) {
+            failWithMessage(
+                    "Expected %s ratio of node %s to be between <%s> and <%s> but was <%s> (%d %s events, %d "
+                            + "pre-consensus events)",
+                    ratioName, actual.nodeId(), min, max, ratio, events, ratioName, preConsensusEvents);
+        }
+    }
+
     private void failIfNotAllResultsArrived(@NonNull final String checkName) {
         if (!actual.allResultsArrived()) {
             failWithMessage(

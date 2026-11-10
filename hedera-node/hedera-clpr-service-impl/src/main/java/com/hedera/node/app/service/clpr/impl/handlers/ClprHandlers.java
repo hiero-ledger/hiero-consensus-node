@@ -17,6 +17,7 @@ public class ClprHandlers {
     private final ClprRegisterChannelHandler clprRegisterChannelHandler;
     private final ClprCompleteChannelHandler clprCompleteChannelHandler;
     private final ClprCloseChannelHandler clprCloseChannelHandler;
+    private final ClprEvictPeerEndpointHandler clprEvictPeerEndpointHandler;
     private final ClprSubmitBundleHandler clprSubmitBundleHandler;
     private final ClprRegisterConnectorHandler clprRegisterConnectorHandler;
     private final ClprCompleteConnectorHandler clprCompleteConnectorHandler;
@@ -38,6 +39,7 @@ public class ClprHandlers {
      * @param clprDeregisterConnectorHandler the handler for deregistering connectors
      * @param clprEndpointPublicationHandler the handler for node CLPR endpoint self-publications
      * @param clprGetEndpointManifestHandler the handler for the getEndpointManifest query (spec §6.5)
+     * @param clprEvictPeerEndpointHandler the handler for evicting a peer endpoint from a channel's manifest
      */
     @Inject
     public ClprHandlers(
@@ -51,7 +53,8 @@ public class ClprHandlers {
             @NonNull final ClprCompleteConnectorHandler clprCompleteConnectorHandler,
             @NonNull final ClprDeregisterConnectorHandler clprDeregisterConnectorHandler,
             @NonNull final ClprEndpointPublicationHandler clprEndpointPublicationHandler,
-            @NonNull final ClprGetEndpointManifestHandler clprGetEndpointManifestHandler) {
+            @NonNull final ClprGetEndpointManifestHandler clprGetEndpointManifestHandler,
+            @NonNull final ClprEvictPeerEndpointHandler clprEvictPeerEndpointHandler) {
         this.clprUpdateLedgerConfigurationHandler = Objects.requireNonNull(
                 clprUpdateLedgerConfigurationHandler, "clprUpdateLedgerConfigurationHandler must not be null");
         this.clprGetLedgerConfigurationHandler = Objects.requireNonNull(
@@ -74,6 +77,8 @@ public class ClprHandlers {
                 clprEndpointPublicationHandler, "clprEndpointPublicationHandler must not be null");
         this.clprGetEndpointManifestHandler = Objects.requireNonNull(
                 clprGetEndpointManifestHandler, "clprGetEndpointManifestHandler must not be null");
+        this.clprEvictPeerEndpointHandler =
+                Objects.requireNonNull(clprEvictPeerEndpointHandler, "clprEvictPeerEndpointHandler must not be null");
     }
 
     /**
@@ -173,5 +178,14 @@ public class ClprHandlers {
      */
     public ClprGetEndpointManifestHandler clprGetEndpointManifestHandler() {
         return clprGetEndpointManifestHandler;
+    }
+
+    /**
+     * Gets the handler for evicting a peer endpoint from a channel's cached manifest.
+     *
+     * @return the evict peer endpoint handler
+     */
+    public ClprEvictPeerEndpointHandler clprEvictPeerEndpointHandler() {
+        return clprEvictPeerEndpointHandler;
     }
 }
