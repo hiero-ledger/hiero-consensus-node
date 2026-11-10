@@ -2,703 +2,982 @@
 package com.hedera.node.app.service.clpr.impl.verifier.ethereum;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.PbjTestUtils.appendUnknownField;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.ANCHOR_PERIOD;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.CHANNEL_CONTEXT;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.CHANNEL_ID;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.EMPTY_TRIE_ROOT;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.FORK_VERSION;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.SERVICE_ADDRESS;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.accountLeafProof;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.anchor;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.bitsWithout;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.bundle;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.channelSlots;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.channelSlotsAnd;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.firstSlotOf;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.manifestCommitmentSlot;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.nonSignerEntries;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.signingRoot;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.slotKey;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.storageEntry;
+import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.zeroBranch;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumTestUtils.deterministicBytes;
 import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumTestUtils.foldBranch;
-import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumTestUtils.merkleizeIndependently;
-import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumTestUtils.sha256;
-import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumTestUtils.uint64LeafLittleEndian;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.EthereumPosBeaconBlockHeader;
+import com.hedera.hapi.node.state.clpr.EthereumPosLedgerConfigurationPayload;
+import com.hedera.hapi.node.state.clpr.EthereumPosSyncAggregate;
+import com.hedera.hapi.node.state.clpr.EthereumPosSyncCommittee;
+import com.hedera.hapi.node.state.clpr.EthereumPosTrustAnchor;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
-import com.hedera.node.app.service.clpr.impl.verifier.BlsSignatureVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
+import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.Committee;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.ConfigBuilder;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.DeliveryBuilder;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.RotationBuilder;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.stream.IntStream;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class EthereumSyncCommitteeProofVerifierTest {
 
-    private static final HexFormat HEX = HexFormat.of();
+    private static final SyncCommitteePreset MAINNET = SyncCommitteePreset.MAINNET;
+    private static final SyncCommitteePreset MINIMAL = SyncCommitteePreset.MINIMAL;
 
-    // MiscCryptoUtils.keccak256DigestOf(RLP(empty)) — the canonical empty MPT root
-    private static final byte[] EMPTY_TRIE_ROOT =
-            HEX.parseHex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421");
+    // The committees of periods ANCHOR_PERIOD to ANCHOR_PERIOD + 3.
+    private static final Committee COMMITTEE = Committee.of(MAINNET, 1);
+    private static final Committee NEXT_COMMITTEE = Committee.of(MAINNET, 2);
+    private static final Committee COMMITTEE_AFTER_NEXT = Committee.of(MAINNET, 3);
+    private static final Committee FOURTH_COMMITTEE = Committee.of(MAINNET, 4);
 
-    // Stable 20-byte CLPR service contract address
-    private static final byte[] SERVICE_ADDR = {
-        (byte) 0xAA, (byte) 0xBB, (byte) 0xCC, (byte) 0xDD, (byte) 0xEE,
-        (byte) 0x11, (byte) 0x22, (byte) 0x33, (byte) 0x44, (byte) 0x55,
-        (byte) 0x66, (byte) 0x77, (byte) 0x88, (byte) 0x99, (byte) 0x00,
-        (byte) 0x01, (byte) 0x02, (byte) 0x03, (byte) 0x04, (byte) 0x05
-    };
+    private static final Committee MINIMAL_COMMITTEE = Committee.of(MINIMAL, 5);
+    private static final Committee MINIMAL_NEXT_COMMITTEE = Committee.of(MINIMAL, 6);
+    private static final Committee MINIMAL_COMMITTEE_AFTER_NEXT = Committee.of(MINIMAL, 7);
 
-    private static final int COMMITTEE_SIZE = 512;
-    private static final byte[] GENESIS_VALIDATORS_ROOT = deterministicBytes(32, 0x4B);
-    private static final byte[] FORK_VERSION = {0x05, 0x00, 0x00, 0x00};
+    /** Trusts COMMITTEE for ANCHOR_PERIOD and NEXT_COMMITTEE for the period after. */
+    private static final byte[] TRUST_ANCHOR = anchor(MAINNET, ANCHOR_PERIOD, COMMITTEE, NEXT_COMMITTEE);
 
-    /** Beacon slot the config's initial committee is current for (period 1024 * 8192). */
-    private static final long CONFIG_SLOT = 8_388_608L;
+    private static final byte[] MINIMAL_TRUST_ANCHOR =
+            anchor(MINIMAL, ANCHOR_PERIOD, MINIMAL_COMMITTEE, MINIMAL_NEXT_COMMITTEE);
 
     /**
-     * Deterministic 512-pubkey committee: pubkey[i][j] = i*7 + j (mod 256).
+     * Position of {@code signatureSlot} in the delivery list.
      */
-    private static final byte[][] PUBKEYS = buildPubkeys();
-
-    private static final byte[] AGGREGATE_PUBKEY = deterministicBytes(48, 0x77);
-    private static final SyncCommittee COMMITTEE = new SyncCommittee(PUBKEYS, AGGREGATE_PUBKEY);
-    private static final byte[] TRUST_ANCHOR =
-            TrustAnchor.encode(COMMITTEE, GENESIS_VALIDATORS_ROOT, FORK_VERSION, SERVICE_ADDR);
+    private static final int DELIVERY_INDEX_SIGNATURE_SLOT = 1;
 
     /**
-     * Records its inputs and returns a configurable result.
+     * A {@link BlsSignatureVerifier} that records its inputs and returns a configurable result.
      */
-    private static final class FakeBls implements BlsSignatureVerifier {
+    private static final class RecordingBls implements BlsSignatureVerifier {
 
         boolean result = true;
-        List<byte[]> lastPublicKeys;
+        byte[] lastAggregatePubkey;
+        List<byte[]> lastNonSignerPubkeys;
         byte[] lastMessage;
         byte[] lastSignature;
 
+        /** The key {@link #validatePubkeys} rejects; every other key is valid. */
+        byte[] invalidPubkey;
+
+        final List<byte[]> validatedPubkeys = new ArrayList<>();
+
         @Override
-        public boolean fastAggregateVerify(
-                final List<byte[]> publicKeys, final byte[] message, final byte[] signature) {
-            lastPublicKeys = publicKeys;
+        public boolean verifySyncAggregate(
+                final byte @NonNull [] aggregatePubkey,
+                final @NonNull List<byte[]> nonSignerPubkeys,
+                final byte @NonNull [] message,
+                final byte @NonNull [] signature) {
+            lastAggregatePubkey = aggregatePubkey;
+            lastNonSignerPubkeys = nonSignerPubkeys;
             lastMessage = message;
             lastSignature = signature;
             return result;
         }
-    }
 
-    private static EthereumSyncCommitteeProofVerifier verifier(final FakeBls bls) {
-        return new EthereumSyncCommitteeProofVerifier(bls);
-    }
-
-    /**
-     * RLP-encodes a committee as {@code [pubkeys[], aggregatePubkey]} for hand-built anchors/payloads.
-     */
-    private static byte[] committeeRlp(byte[][] pubkeys, byte[] aggregatePubkey) {
-        List<byte[]> encodedKeys = new ArrayList<>(pubkeys.length);
-        for (byte[] key : pubkeys) {
-            encodedKeys.add(Rlp.encodeBytes(key));
+        @Override
+        public boolean validatePubkeys(final @NonNull List<byte[]> pubkeys) {
+            validatedPubkeys.addAll(pubkeys);
+            return pubkeys.stream().noneMatch(pubkey -> Arrays.equals(pubkey, invalidPubkey));
         }
-        return Rlp.encodeList(List.of(Rlp.encodeList(encodedKeys), Rlp.encodeBytes(aggregatePubkey)));
     }
 
-    /**
-     * Shorthand for {@code new BeaconHeader(...).hashTreeRoot()}.
-     */
-    private static byte[] beaconHeaderRoot(
-            long slot, long proposerIndex, byte[] parentRoot, byte[] stateRoot, byte[] bodyRoot) {
-        return new BeaconHeader(slot, proposerIndex, parentRoot, stateRoot, bodyRoot).hashTreeRoot();
+    private static DeliveryBuilder delivery() {
+        return new DeliveryBuilder(MAINNET, ANCHOR_PERIOD, COMMITTEE);
+    }
+
+    private static VerifiedBundle verify(final byte[] bundlePayload) {
+        return verify(bundlePayload, TRUST_ANCHOR);
+    }
+
+    private static VerifiedBundle verify(final byte[] bundlePayload, final byte[] trustAnchor) {
+        return new EthereumSyncCommitteeProofVerifier(new RecordingBls())
+                .verifyBundle(bundlePayload, trustAnchor, CHANNEL_CONTEXT);
+    }
+
+    private static void assertRejected(final byte[] bundlePayload, final String message) {
+        assertThatThrownBy(() -> verify(bundlePayload))
+                .isInstanceOf(ProofException.class)
+                .hasMessageContaining(message);
     }
 
     @Nested
-    @DisplayName("verifyBundle(...)")
-    class VerifyBundle {
+    @DisplayName("verifyBundle: decoding")
+    class BundleDecoding {
 
-        @Nested
-        class PayloadDecoding {
-
-            @Test
-            void nullPayload_throwsNpe() {
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(null, TRUST_ANCHOR))
-                        .isInstanceOf(NullPointerException.class);
-            }
-
-            @Test
-            void nullTrustAnchor_throwsNpe() {
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(new byte[0], null))
-                        .isInstanceOf(NullPointerException.class);
-            }
-
-            @Test
-            void garbagePayload_throwsProofException() {
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(new byte[] {0x01, 0x02}, TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("not a valid RLP item");
-            }
-
-            @Test
-            void wrongTopLevelItemCount_throwsProofException() {
-                byte[] payload = Rlp.encodeList(List.of(Rlp.encodeBytes(new byte[0])));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("expected top-level RLP list of 9 or 11 items");
-            }
-
-            @Test
-            void beaconHeaderWrongFieldCount_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.attestedHeaderOverride = Rlp.encodeList(List.of(Rlp.encodeUint(1L)));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("attestedHeader is not an RLP list of 5 fields");
-            }
-
-            @Test
-            void bitsWrongLength_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.bits = new byte[63];
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("syncAggregate.bits must be 64 bytes");
-            }
-
-            @Test
-            void signatureWrongLength_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.signature = new byte[95];
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("syncAggregate.signature must be 96 bytes");
-            }
+        @Test
+        @DisplayName("given a null argument, then verifyBundle throws NullPointerException")
+        void givenNullArgument_thenThrowsNullPointerException() {
+            final var verifier = new EthereumSyncCommitteeProofVerifier(new RecordingBls());
+            final byte[] payload = bundle(delivery().build());
+            assertThatThrownBy(() -> verifier.verifyBundle(null, TRUST_ANCHOR, CHANNEL_CONTEXT))
+                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> verifier.verifyBundle(payload, null, CHANNEL_CONTEXT))
+                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> verifier.verifyBundle(payload, TRUST_ANCHOR, null))
+                    .isInstanceOf(NullPointerException.class);
         }
 
-        @Nested
-        class TrustAnchorDecoding {
-
-            @Test
-            void garbageAnchor_throwsProofException() {
-                assertThatThrownBy(() -> verifier(new FakeBls())
-                                .verifyBundle(validPayloadBuilder().build(), new byte[] {0x01, 0x02}))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("trustAnchor is not a valid RLP item");
-            }
-
-            @Test
-            void anchorWrongItemCount_throwsProofException() {
-                byte[] anchor = Rlp.encodeList(List.of(Rlp.encodeBytes(new byte[32])));
-                assertThatThrownBy(() -> verifier(new FakeBls())
-                                .verifyBundle(validPayloadBuilder().build(), anchor))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("trustAnchor is not an RLP list of 4 items");
-            }
-
-            @Test
-            void anchorCommitteeWrongPubkeyCount_throwsProofException() {
-                // First anchor item must be a committee list of 512 pubkeys; a single-key list is rejected.
-                byte[] badCommittee = Rlp.encodeList(
-                        List.of(Rlp.encodeList(List.of(Rlp.encodeBytes(new byte[48]))), Rlp.encodeBytes(new byte[48])));
-                byte[] anchor = Rlp.encodeList(List.of(
-                        badCommittee,
-                        Rlp.encodeBytes(GENESIS_VALIDATORS_ROOT),
-                        Rlp.encodeBytes(FORK_VERSION),
-                        Rlp.encodeBytes(SERVICE_ADDR)));
-                assertThatThrownBy(() -> verifier(new FakeBls())
-                                .verifyBundle(validPayloadBuilder().build(), anchor))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("syncCommittee.pubkeys must be an RLP list of 512 items");
-            }
-
-            @Test
-            void anchorForkVersionWrongLength_throwsProofException() {
-                byte[] anchor = Rlp.encodeList(List.of(
-                        committeeRlp(PUBKEYS, AGGREGATE_PUBKEY),
-                        Rlp.encodeBytes(GENESIS_VALIDATORS_ROOT),
-                        Rlp.encodeBytes(new byte[5]),
-                        Rlp.encodeBytes(SERVICE_ADDR)));
-                assertThatThrownBy(() -> verifier(new FakeBls())
-                                .verifyBundle(validPayloadBuilder().build(), anchor))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("trustAnchor.forkVersion must be 4 bytes");
-            }
-
-            @Test
-            void anchorServiceAddressWrongLength_throwsProofException() {
-                byte[] anchor = Rlp.encodeList(List.of(
-                        committeeRlp(PUBKEYS, AGGREGATE_PUBKEY),
-                        Rlp.encodeBytes(GENESIS_VALIDATORS_ROOT),
-                        Rlp.encodeBytes(FORK_VERSION),
-                        Rlp.encodeBytes(new byte[19])));
-                assertThatThrownBy(() -> verifier(new FakeBls())
-                                .verifyBundle(validPayloadBuilder().build(), anchor))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("trustAnchor.serviceAddress must be 20 bytes");
-            }
+        @Test
+        @DisplayName("given bytes that are not RLP, then verifyBundle rejects the payload")
+        void givenGarbagePayload_thenThrowsProofException() {
+            assertRejected(new byte[] {(byte) 0xFF, 0x01}, "payload is not a valid RLP item");
         }
 
-        @Nested
-        class Participation {
-
-            @Test
-            void participationOneBelowSupermajority_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.bits = firstNBitsSet(341);
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("participation 341/512 is below the 2/3 supermajority");
-            }
-
-            @Test
-            void participationAtSupermajority_passes() {
-                var builder = validPayloadBuilder();
-                builder.bits = firstNBitsSet(342);
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-                assertThat(result).isNotNull();
-            }
+        @Test
+        @DisplayName("given a top-level list of 3 items, then verifyBundle rejects the payload")
+        void givenThreeTopLevelItems_thenThrowsProofException() {
+            final byte[] payload =
+                    Rlp.encodeList(List.of(Rlp.encodeList(List.of()), delivery().build(), Rlp.encodeList(List.of())));
+            assertRejected(payload, "payload [rotations, delivery] to be an RLP list of 2 items, got 3 items");
         }
 
-        @Nested
-        class BlsSignature {
-
-            @Test
-            void blsRejecting_throwsProofException() {
-                FakeBls bls = new FakeBls();
-                bls.result = false;
-                assertThatThrownBy(() ->
-                                verifier(bls).verifyBundle(validPayloadBuilder().build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("BLS signature verification failed");
-            }
-
-            @Test
-            void blsReceivesParticipantPubkeysInCommitteeOrder() {
-                FakeBls bls = new FakeBls();
-                var builder = validPayloadBuilder();
-                builder.bits = firstNBitsSet(342);
-                verifier(bls).verifyBundle(builder.build(), TRUST_ANCHOR);
-
-                assertThat(bls.lastPublicKeys).hasSize(342);
-                for (int i = 0; i < 342; i++) {
-                    assertThat(bls.lastPublicKeys.get(i)).isEqualTo(PUBKEYS[i]);
-                }
-            }
-
-            @Test
-            void blsReceivesIndependentlyComputedSigningRootAndSignature() {
-                FakeBls bls = new FakeBls();
-                var builder = validPayloadBuilder();
-                builder.signature = deterministicBytes(96, 0x61);
-                verifier(bls).verifyBundle(builder.build(), TRUST_ANCHOR);
-
-                // Independently re-derive the signing root with test-local hashing only.
-                byte[][] headerLeaves = {
-                    uint64LeafLittleEndian(builder.slot),
-                    uint64LeafLittleEndian(builder.proposerIndex),
-                    builder.parentRoot,
-                    builder.stateRoot,
-                    builder.bodyRoot(),
-                    new byte[32],
-                    new byte[32],
-                    new byte[32]
-                };
-                byte[] headerRoot = merkleizeIndependently(headerLeaves);
-                byte[] paddedVersion = new byte[32];
-                System.arraycopy(FORK_VERSION, 0, paddedVersion, 0, 4);
-                byte[] forkDataRoot = sha256(paddedVersion, GENESIS_VALIDATORS_ROOT);
-                byte[] domain = new byte[32];
-                domain[0] = 0x07;
-                System.arraycopy(forkDataRoot, 0, domain, 4, 28);
-                byte[] expectedSigningRoot = sha256(headerRoot, domain);
-
-                assertThat(bls.lastMessage).isEqualTo(expectedSigningRoot);
-                assertThat(bls.lastSignature).isEqualTo(builder.signature);
-            }
+        @Test
+        @DisplayName("given a delivery without a signature slot, then verifyBundle rejects the payload")
+        void givenDeliveryWithoutSignatureSlot_thenThrowsProofException() {
+            final List<byte[]> items = deliveryItems(delivery().build());
+            items.remove(DELIVERY_INDEX_SIGNATURE_SLOT);
+            assertRejected(bundle(Rlp.encodeList(items)), "delivery to be an RLP list of 11 items, got 10 items");
         }
 
-        @Nested
-        class ExecutionStateRootBranch {
-
-            @Test
-            void tamperedBodyRoot_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.bodyRootOverride = deterministicBytes(32, 0x2D);
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("execution state root branch does not verify");
-            }
-
-            @Test
-            void executionBranchWrongDepth_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.executionBranch = zeroBranch(8);
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("executionBranch must have 9 nodes");
-            }
+        @Test
+        @DisplayName("given a signature slot longer than 8 bytes, then verifyBundle rejects the payload")
+        void givenSignatureSlotLongerThanEightBytes_thenThrowsProofException() {
+            final List<byte[]> items = deliveryItems(delivery().build());
+            final byte[] nineBytes = new byte[9];
+            nineBytes[0] = 1;
+            items.set(DELIVERY_INDEX_SIGNATURE_SLOT, Rlp.encodeBytes(nineBytes));
+            assertRejected(bundle(Rlp.encodeList(items)), "delivery.signatureSlot is longer than 8 bytes (9)");
         }
 
-        @Nested
-        class NextSyncCommitteeRotation {
-
-            @Test
-            void absentRotationProof_returnsNullNextAnchor() {
-                var result = verifier(new FakeBls())
-                        .verifyBundle(validPayloadBuilder().build(), TRUST_ANCHOR);
-                assertThat(result.nextTrustAnchor()).isNull();
-                assertThat(result.nextTrustAnchorId()).isNull();
-            }
-
-            @Test
-            void validRotationProof_returnsSuccessorAnchor() {
-                // The rotation bundle carries the full next committee; its root is computed and
-                // proven against the attested stateRoot, and the successor anchor embeds it.
-                var nextCommittee = new SyncCommittee(PUBKEYS, deterministicBytes(48, 0x99));
-                byte[] nextRoot = nextCommittee.hashTreeRoot();
-                byte[][] branch = zeroBranch(6);
-                var builder = validPayloadBuilder();
-                builder.nextCommittee = nextCommittee;
-                builder.nextCommitteeBranch = branch;
-                builder.stateRoot = foldBranch(nextRoot, branch, 23); // BeaconState.next_sync_committee leaf index
-
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-
-                byte[] expectedAnchor =
-                        TrustAnchor.encode(nextCommittee, GENESIS_VALIDATORS_ROOT, FORK_VERSION, SERVICE_ADDR);
-                assertThat(result.nextTrustAnchor()).isEqualTo(expectedAnchor);
-                assertThat(result.nextTrustAnchorId())
-                        .isEqualTo(BigInteger.valueOf(builder.slot).toByteArray());
-            }
-
-            @Test
-            void rotationBranchNotMatchingStateRoot_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.nextCommittee = new SyncCommittee(PUBKEYS, deterministicBytes(48, 0x99));
-                builder.nextCommitteeBranch = zeroBranch(6);
-                // stateRoot left at its default — the branch cannot verify against it
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("nextSyncCommittee branch does not verify");
-            }
-
-            @Test
-            void rotationCommitteeWithoutBranch_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.nextCommittee = new SyncCommittee(PUBKEYS, deterministicBytes(48, 0x99));
-                // nextCommitteeBranch left absent
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("must be both present or both absent");
-            }
+        private static List<byte[]> deliveryItems(final byte[] delivery) {
+            return new ArrayList<>(Rlp.decodeOne(delivery).children().stream()
+                    .map(Rlp.Item::raw)
+                    .toList());
         }
 
-        @Nested
-        class AccountAndStorageProof {
-
-            @Test
-            void accountAbsentFromStateTrie_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.executionStateRoot = EMPTY_TRIE_ROOT;
-                builder.accountProofNodes = new byte[0][];
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("contract account is absent from state trie");
+        @Test
+        @DisplayName("given a rotation of 6 items, then verifyBundle rejects the payload")
+        void givenRotationOfSixItems_thenThrowsProofException() {
+            final Rlp.Item rotation =
+                    Rlp.decodeOne(new RotationBuilder(MAINNET, ANCHOR_PERIOD, COMMITTEE, NEXT_COMMITTEE).build());
+            final List<byte[]> sixItems = new ArrayList<>();
+            for (int i = 0; i < 6; i++) {
+                sixItems.add(rotation.children().get(i).raw());
             }
-
-            @Test
-            void wrongStorageProofEntryCount_throwsProofException() {
-                var builder = validPayloadBuilder();
-                builder.storageEntries = List.of(storageEntry(slotKey(0), List.of()));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("storageProof has 1 entries; expected 5");
-            }
-
-            @Test
-            void threeParamStorageEntryRejected() {
-                var builder = validPayloadBuilder();
-                byte[] legacyEntry = Rlp.encodeList(List.of(
-                        Rlp.encodeBytes(new byte[32]), Rlp.encodeBytes(new byte[32]), Rlp.encodeList(List.of())));
-                builder.storageEntries = List.of(legacyEntry, legacyEntry, legacyEntry, legacyEntry, legacyEntry);
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("is not a [key, proof[]] RLP list");
-            }
-
-            @Test
-            void provenManifestVersionSurfacesInQueueMetadata() {
-                // ACK-only bundle: the five Channel slots map positionally. slotKey(4) is the
-                // endpointManifestVersion slot (offset 16) — its PROVEN value surfaces, never a relay claim.
-                byte[] manifestSlotValue = manifestVersionSlotValue(77L);
-                byte[][] storageMpt = buildStorageMptProof(slotKey(4), manifestSlotValue);
-                byte[][] accountMpt = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
-
-                var builder = validPayloadBuilder();
-                builder.executionStateRoot = accountMpt[0];
-                builder.accountProofNodes = new byte[][] {accountMpt[1]};
-                // Entries 0..3 use diverging keys that resolve to absent (all-zero) against the single-leaf trie.
-                List<byte[]> entries = new ArrayList<>();
-                for (int i = 0; i < 5; i++) {
-                    entries.add(storageEntry(slotKey(i), List.of(storageMpt[1])));
-                }
-                builder.storageEntries = entries;
-
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-
-                assertThat(result.queueMetadata().endpointManifestVersion()).isEqualTo(77L);
-                // ACK-only: no message-hash slot, so the last-message running hash is the zero sentinel.
-                assertThat(result.queueMetadata().lastMessageRunningHash()).isEqualTo(new byte[32]);
-                assertThat(result.queueMetadata().nextMessageId()).isZero();
-            }
-
-            @Test
-            void provenMessageRunningHashSurfacesInSixSlotBundle() {
-                // Message-bearing bundle: the five Channel slots {base+1,2,4,5,16} (span 15) plus the
-                // last-message running-hash outlier (sorts last). The outlier proves the running hash; the
-                // Channel slots resolve absent, so the proven manifest version is 0.
-                byte[] runningHash = deterministicBytes(32, 0xAB);
-                final int outlierSlot = 0x50;
-                byte[][] storageMpt = buildStorageMptProof(slotKey(outlierSlot), runningHash);
-                byte[][] accountMpt = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
-
-                var builder = validPayloadBuilder();
-                builder.executionStateRoot = accountMpt[0];
-                builder.accountProofNodes = new byte[][] {accountMpt[1]};
-                final int[] slots = {0x21, 0x22, 0x24, 0x25, 0x30, outlierSlot}; // base=0x20: +{1,2,4,5,16}
-                List<byte[]> entries = new ArrayList<>();
-                for (int s : slots) {
-                    entries.add(storageEntry(slotKey(s), List.of(storageMpt[1])));
-                }
-                builder.storageEntries = entries;
-
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-
-                assertThat(result.queueMetadata().lastMessageRunningHash()).isEqualTo(runningHash);
-                assertThat(result.queueMetadata().endpointManifestVersion()).isZero();
-            }
+            assertRejected(
+                    bundle(List.of(Rlp.encodeList(sixItems)), delivery().build()),
+                    "rotations[0] to be an RLP list of 7 items, got 6 items");
         }
 
-        @Nested
-        class SuccessPath {
-
-            @Test
-            void fullPayloadVerifies_returnsBeaconRootContentAndMetadata() {
-                byte[] content = {0x0A, 0x0B, 0x0C};
-                var builder = validPayloadBuilder();
-                builder.bundleContent = content;
-
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-
-                byte[] expectedBeaconRoot = beaconHeaderRoot(
-                        builder.slot, builder.proposerIndex, builder.parentRoot, builder.stateRoot, builder.bodyRoot());
-                assertThat(result.beaconBlockRoot32()).isEqualTo(expectedBeaconRoot);
-                assertThat(result.bundleContentBytes()).isEqualTo(content);
-                assertThat(result.queueMetadata()).isNotNull();
-                assertThat(result.nextTrustAnchor()).isNull();
-                assertThat(result.newEndpointManifest()).isNull();
-            }
+        @Test
+        @DisplayName("given minimal-preset bits under a mainnet anchor, then verifyBundle rejects the payload")
+        void givenBitsOfAnotherPreset_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.bits = bitsWithout(MINIMAL);
+            builder.nonSignerEntries = List.of();
+            assertRejected(bundle(builder.build()), "delivery.syncAggregate.bits must be 64 bytes, got 4");
         }
 
-        @Nested
-        @DisplayName("endpoint manifest advance (spec §4.9)")
-        class EndpointManifest {
-
-            @Test
-            void bundleWithoutManifestReturnsNullManifest() {
-                var result = verifier(new FakeBls())
-                        .verifyBundle(validPayloadBuilder().build(), TRUST_ANCHOR);
-                assertThat(result.newEndpointManifest()).isNull();
-            }
-
-            @Test
-            void emptyManifestReconstructed() {
-                byte[] bytes = serializeManifest(manifest(1L, 0));
-                var builder = validPayloadBuilder()
-                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-                assertThat(result.newEndpointManifest()).isEqualTo(manifest(1L, 0));
-                assertThat(result.newEndpointManifest().endpoints()).isEmpty();
-            }
-
-            @Test
-            void singleEndpointManifestReconstructed() {
-                byte[] bytes = serializeManifest(manifest(2L, 1));
-                var builder = validPayloadBuilder()
-                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-                assertThat(result.newEndpointManifest()).isEqualTo(manifest(2L, 1));
-            }
-
-            @Test
-            void manyEndpointManifestReconstructed() {
-                byte[] bytes = serializeManifest(manifest(5L, 3));
-                var builder = validPayloadBuilder()
-                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-                assertThat(result.newEndpointManifest().endpoints()).hasSize(3);
-            }
-
-            @Test
-            void commitmentMismatchThrowsProofException() {
-                byte[] bytes = serializeManifest(manifest(1L, 0));
-                var builder = validPayloadBuilder().withManifest(bytes, manifestSlot(), deterministicBytes(32, 0x99));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("does not match the proven commitment");
-            }
-
-            @Test
-            void wrongCommitmentSlotThrowsProofException() {
-                byte[] bytes = serializeManifest(manifest(1L, 0));
-                var builder = validPayloadBuilder()
-                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                // Point the manifest entry at a slot other than the pinned commitment slot.
-                builder.manifestStorageEntry = storageEntry(slotKey(0x13), List.of(new byte[] {0x01}));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("not for the endpoint-manifest commitment slot");
-            }
-
-            @Test
-            void commitmentSlotAbsentFromTrieThrowsProofException() {
-                byte[] bytes = serializeManifest(manifest(1L, 0));
-                // Storage trie proves a different slot, so the commitment slot resolves to absent.
-                var builder = validPayloadBuilder()
-                        .withManifest(bytes, slotKey(0x00), MiscCryptoUtils.keccak256DigestOf(bytes));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("commitment slot absent from the storage trie");
-            }
-
-            @Test
-            void manifestVersionZeroThrowsProofException() {
-                byte[] bytes = serializeManifest(manifest(0L, 0));
-                var builder = validPayloadBuilder()
-                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("version is 0");
-            }
-
-            @Test
-            void emptyManifestBytesTreatedAsNoAdvance() {
-                // Empty (non-null) manifest bytes mean "no manifest advance": the bundle must still verify and
-                // keep its messages, NOT fail with "version is 0" (parseStrict on empty yields version 0).
-                var builder = validPayloadBuilder()
-                        .withManifest(new byte[0], manifestSlot(), MiscCryptoUtils.keccak256DigestOf(new byte[0]));
-                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
-                assertThat(result.newEndpointManifest()).isNull();
-            }
-
-            @Test
-            void serviceAddressMismatchThrowsProofException() {
-                byte[] bytes = serializeManifest(ClprEndpointManifest.newBuilder()
-                        .version(1L)
-                        .serviceAddress(Bytes.wrap(deterministicBytes(20, 0x77)))
-                        .build());
-                var builder = validPayloadBuilder()
-                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("service_address does not match");
-            }
-
-            @Test
-            void unknownFieldInManifestThrowsProofException() {
-                byte[] bytes = appendUnknownField(serializeManifest(manifest(1L, 0)));
-                var builder = validPayloadBuilder()
-                        .withManifest(bytes, manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("not a valid ClprEndpointManifest");
-            }
+        @Test
+        @DisplayName("given a compressed 96-byte signature, then verifyBundle rejects the payload")
+        void givenCompressedSignature_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.signature = new byte[96];
+            assertRejected(bundle(builder.build()), "delivery.syncAggregate.signature must be 256 bytes, got 96");
         }
 
-        @Nested
-        @DisplayName("manifest-only recovery bundle (spec §8.1.4)")
-        class ManifestOnlyBundle {
+        @Test
+        @DisplayName("given a non-signer entry with too few siblings, then verifyBundle rejects the payload")
+        void givenShortNonSignerEntry_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.nonSignerEntries = nonSignerEntries(COMMITTEE, builder.bits).stream()
+                    .map(entry -> Arrays.copyOf(entry, entry.length - 32))
+                    .toList();
+            assertRejected(bundle(builder.build()), "delivery.nonSignerProofs[0] must be 416 bytes, got 384");
+        }
 
-            @Test
-            void manifestOnlyBundleReturnsEmptyContentAndManifest() {
-                byte[] bytes = serializeManifest(manifest(3L, 1));
-                byte[] payload = manifestOnlyPayload(
-                        bytes, manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
+        @Test
+        @DisplayName("given a storage proof of one entry, then verifyBundle rejects the payload")
+        void givenStorageProofOfOneEntry_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.storageEntries = List.of(storageEntry(slotKey(1), new byte[0][]));
+            assertRejected(bundle(builder.build()), "delivery.storageProof has 1 entries");
+        }
 
-                var result = verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR);
+        @Test
+        @DisplayName("given a manifest proof without a preimage, then verifyBundle rejects the payload")
+        void givenManifestProofWithoutPreimage_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.manifestProof = Rlp.encodeList(List.of(storageEntry(manifestCommitmentSlot(), new byte[0][])));
+            assertRejected(bundle(builder.build()), "must be both present or both empty");
+        }
 
-                // No queue state, no message content — only the proven manifest is surfaced.
-                assertThat(result.bundleContentBytes()).isEmpty();
-                assertThat(result.newEndpointManifest()).isEqualTo(manifest(3L, 1));
-                assertThat(result.nextTrustAnchor()).isNull();
-                assertThat(result.nextTrustAnchorId()).isNull();
-                // Absent queue metadata is the all-zero sentinel (nextMessageId == 0), not null.
-                assertThat(result.queueMetadata().nextMessageId()).isZero();
-                assertThat(result.queueMetadata().receivedMessageId()).isZero();
-                assertThat(result.queueMetadata().sentRunningHash()).isEqualTo(new byte[32]);
-                assertThat(result.queueMetadata().receivedRunningHash()).isEqualTo(new byte[32]);
-            }
+        @Test
+        @DisplayName("given a manifest proof of two entries, then verifyBundle rejects the payload")
+        void givenManifestProofOfTwoEntries_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            final byte[] entry = storageEntry(manifestCommitmentSlot(), new byte[0][]);
+            builder.manifestProof = Rlp.encodeList(List.of(entry, entry));
+            builder.manifestPreimage = new byte[] {0x08, 0x01};
+            assertRejected(bundle(builder.build()), "delivery.manifestProof must hold at most one entry, got 2");
+        }
+    }
 
-            @Test
-            void manifestOnlyBundleStillEnforcesBls() {
-                // The recovery bundle drops the queue proof but still authenticates the whole chain.
-                FakeBls bls = new FakeBls();
-                bls.result = false;
-                byte[] bytes = serializeManifest(manifest(3L, 1));
-                byte[] payload = manifestOnlyPayload(
-                        bytes, manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                assertThatThrownBy(() -> verifier(bls).verifyBundle(payload, TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("BLS signature verification failed");
-            }
+    @Nested
+    @DisplayName("verifyBundle: trust anchor and channel context")
+    class AnchorAndContext {
 
-            @Test
-            void manifestOnlyBundleCommitmentMismatchThrows() {
-                byte[] bytes = serializeManifest(manifest(3L, 1));
-                // The proven slot value is not MiscCryptoUtils.keccak256DigestOf(manifestBytes).
-                byte[] payload =
-                        manifestOnlyPayload(bytes, manifestSlot(), manifestSlot(), deterministicBytes(32, 0x99));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("does not match the proven commitment");
-            }
+        @Test
+        @DisplayName("given an anchor cut short, then verifyBundle rejects it")
+        void givenTruncatedAnchor_thenThrowsProofException() {
+            assertThatThrownBy(() ->
+                            verify(bundle(delivery().build()), Arrays.copyOf(TRUST_ANCHOR, TRUST_ANCHOR.length - 1)))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("trustAnchor is not a valid EthereumPosTrustAnchor");
+        }
 
-            @Test
-            void manifestOnlyBundleWrongCommitmentSlotThrows() {
-                byte[] bytes = serializeManifest(manifest(3L, 1));
-                // The storage entry (and the slot it proves) is not the pinned commitment slot (18).
-                byte[] payload = manifestOnlyPayload(
-                        bytes, slotKey(0x13), slotKey(0x13), MiscCryptoUtils.keccak256DigestOf(bytes));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("not for the endpoint-manifest commitment slot");
-            }
+        @Test
+        @DisplayName("given an anchor with an unknown preset code, then verifyBundle rejects it")
+        void givenUnknownPresetCode_thenThrowsProofException() throws ParseException {
+            final byte[] anchor = EthereumPosTrustAnchor.PROTOBUF
+                    .toBytes(EthereumPosTrustAnchor.PROTOBUF
+                            .parse(Bytes.wrap(TRUST_ANCHOR))
+                            .copyBuilder()
+                            .preset(7)
+                            .build())
+                    .toByteArray();
+            assertThatThrownBy(() -> verify(bundle(delivery().build()), anchor))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("unknown sync committee preset code 7");
+        }
 
-            @Test
-            void manifestOnlyBundleVersionZeroThrows() {
-                byte[] bytes = serializeManifest(manifest(0L, 0));
-                byte[] payload = manifestOnlyPayload(
-                        bytes, manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("version is 0");
-            }
+        @Test
+        @DisplayName("given a channel context without the service address, then verifyBundle rejects it")
+        void givenChannelContextWithoutServiceAddress_thenThrowsProofException() {
+            final var verifier = new EthereumSyncCommitteeProofVerifier(new RecordingBls());
+            assertThatThrownBy(() -> verifier.verifyBundle(bundle(delivery().build()), TRUST_ANCHOR, CHANNEL_ID))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("channelContext must be 52 bytes");
+        }
+    }
 
-            @Test
-            void manifestOnlyBundleServiceAddressMismatchThrows() {
-                byte[] bytes = serializeManifest(ClprEndpointManifest.newBuilder()
-                        .version(3L)
-                        .serviceAddress(Bytes.wrap(deterministicBytes(20, 0x77)))
-                        .build());
-                byte[] payload = manifestOnlyPayload(
-                        bytes, manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(bytes));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("service_address does not match");
-            }
+    @Nested
+    @DisplayName("verifyBundle: sync-committee signature")
+    class Signature {
 
-            @Test
-            void emptyBundleWithNoQueueContentOrManifestThrows() {
-                // A bundle with no queue metadata (empty storage proof), no content, and no manifest advance is
-                // empty/meaningless — the verifier rejects it. This is the §8.1.4 invariant: when both queue
-                // metadata and content are absent, the bundle MUST carry a manifest. Decoded as an ordinary
-                // 11-item bundle; there is no distinct manifest-only shape or path.
-                byte[] payload = manifestOnlyPayload(
-                        new byte[0], manifestSlot(), manifestSlot(), MiscCryptoUtils.keccak256DigestOf(new byte[0]));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyBundle(payload, TRUST_ANCHOR))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("no queue metadata, no content, and no endpoint-manifest advance");
-            }
+        @Test
+        @DisplayName("given 341 of 512 participants, then verifyBundle rejects the signature")
+        void givenParticipationBelowSupermajority_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.bits = bitsWithout(MAINNET, IntStream.range(0, 171).toArray());
+            assertRejected(bundle(builder.build()), "participation 341/512 is below the 2/3 supermajority");
+        }
+
+        @Test
+        @DisplayName("given 342 of 512 participants, then verifyBundle accepts the signature")
+        void givenParticipationAtSupermajority_thenVerifies() {
+            final DeliveryBuilder builder = delivery();
+            builder.bits = bitsWithout(MAINNET, IntStream.range(0, 170).toArray());
+            assertThat(verify(bundle(builder.build())).beaconBlockRoot32()).isEqualTo(builder.attestedRoot());
+        }
+
+        @Test
+        @DisplayName("given 21 of 32 participants under a minimal anchor, then verifyBundle rejects the signature")
+        void givenMinimalPresetBelowSupermajority_thenThrowsProofException() {
+            final DeliveryBuilder builder = new DeliveryBuilder(MINIMAL, ANCHOR_PERIOD, MINIMAL_COMMITTEE);
+            builder.bits = bitsWithout(MINIMAL, IntStream.range(0, 11).toArray());
+            assertThatThrownBy(() -> verify(bundle(builder.build()), MINIMAL_TRUST_ANCHOR))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("participation 21/32 is below the 2/3 supermajority");
+        }
+
+        @Test
+        @DisplayName("given 22 of 32 participants under a minimal anchor, then verifyBundle accepts the signature")
+        void givenMinimalPresetAtSupermajority_thenVerifies() {
+            final DeliveryBuilder builder = new DeliveryBuilder(MINIMAL, ANCHOR_PERIOD, MINIMAL_COMMITTEE);
+            builder.bits = bitsWithout(MINIMAL, IntStream.range(0, 10).toArray());
+            final VerifiedBundle verified = verify(bundle(builder.build()), MINIMAL_TRUST_ANCHOR);
+            assertThat(verified.beaconBlockRoot32()).isEqualTo(builder.attestedRoot());
+        }
+
+        @Test
+        @DisplayName("given the BLS check fails, then verifyBundle rejects the signature naming the header, the"
+                + " participation and the fork version")
+        void givenBlsRejects_thenThrowsProofException() {
+            final RecordingBls bls = new RecordingBls();
+            bls.result = false;
+            final var verifier = new EthereumSyncCommitteeProofVerifier(bls);
+            final DeliveryBuilder builder = delivery();
+            final byte[] bundlePayload = bundle(builder.build());
+
+            assertThatThrownBy(() -> verifier.verifyBundle(bundlePayload, TRUST_ANCHOR, CHANNEL_CONTEXT))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("sync aggregate BLS signature verification failed: headerSlot="
+                            + builder.attestedSlot + ", headerRoot=0x"
+                            + HexFormat.of().formatHex(builder.attestedRoot())
+                            + ", participants=510/512, nonSigners=2, forkVersion=0x"
+                            + HexFormat.of().formatHex(FORK_VERSION));
+        }
+
+        @Test
+        @DisplayName("given a valid delivery, then BLS receives the committee aggregate, the non-signers, the signing"
+                + " root and the signature")
+        void givenValidDelivery_thenBlsReceivesAggregateNonSignersSigningRootAndSignature() {
+            final DeliveryBuilder builder = delivery();
+            builder.signature = deterministicBytes(256, 0x5A);
+            final RecordingBls bls = new RecordingBls();
+
+            new EthereumSyncCommitteeProofVerifier(bls)
+                    .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
+
+            assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.uncompressedAggregate);
+            assertThat(bls.lastNonSignerPubkeys)
+                    .containsExactly(COMMITTEE.uncompressedKeys[1], COMMITTEE.uncompressedKeys[2]);
+            assertThat(bls.lastMessage).isEqualTo(signingRoot(builder.attestedRoot()));
+            assertThat(bls.lastSignature).isEqualTo(builder.signature);
+        }
+
+        @Test
+        @DisplayName("given full participation, then BLS receives no non-signers")
+        void givenFullParticipation_thenBlsReceivesNoNonSigners() {
+            final DeliveryBuilder builder = delivery();
+            builder.bits = bitsWithout(MAINNET);
+            final RecordingBls bls = new RecordingBls();
+
+            new EthereumSyncCommitteeProofVerifier(bls)
+                    .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
+
+            assertThat(bls.lastNonSignerPubkeys).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("verifyBundle: signature slot")
+    class SignatureSlot {
+
+        @Test
+        @DisplayName("given a header attested in the last slot of the previous period and signed in the trusted period,"
+                + " then verifyBundle verifies it")
+        void givenHeaderAttestedInPreviousPeriodAndSignedInTrustedPeriod_thenVerifies() {
+            final DeliveryBuilder builder = delivery();
+            builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD);
+            builder.attestedSlot = builder.signatureSlot - 1;
+            builder.finalizedSlot = builder.attestedSlot - 10;
+
+            final VerifiedBundle verified = verify(bundle(builder.build()));
+
+            assertThat(verified.beaconBlockRoot32()).isEqualTo(builder.attestedRoot());
+        }
+
+        @Test
+        @DisplayName("given a header signed in the next period by the next committee, then verifyBundle verifies it"
+                + " without a rotation")
+        void givenHeaderSignedInNextPeriodByNextCommittee_thenVerifiesWithoutRotation() {
+            final DeliveryBuilder builder = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE);
+            final RecordingBls bls = new RecordingBls();
+
+            final VerifiedBundle verified = new EthereumSyncCommitteeProofVerifier(bls)
+                    .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
+
+            assertThat(verified.beaconBlockRoot32()).isEqualTo(builder.attestedRoot());
+            assertThat(verified.nextTrustAnchor()).isNull();
+            assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.uncompressedAggregate);
+        }
+
+        @Test
+        @DisplayName("given a header attested in the last slot of the trusted period and signed in the next, then"
+                + " verifyBundle checks it against the next committee")
+        void givenSignatureSlotInNextPeriod_thenChecksNextCommittee() {
+            final DeliveryBuilder builder = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD, NEXT_COMMITTEE);
+            builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 1);
+            builder.attestedSlot = builder.signatureSlot - 1;
+            final RecordingBls bls = new RecordingBls();
+
+            new EthereumSyncCommitteeProofVerifier(bls)
+                    .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
+
+            assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.uncompressedAggregate);
+        }
+
+        @Test
+        @DisplayName("given a signature in the next period with the current committee's non-signers, then verifyBundle"
+                + " rejects it")
+        void givenNextPeriodSignatureWithCurrentCommitteeNonSigners_thenThrowsProofException() {
+            final DeliveryBuilder builder = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, COMMITTEE);
+            assertRejected(
+                    bundle(builder.build()),
+                    "non-signer pubkey at committee index 1 is not the trusted committee's member at that index");
+        }
+
+        @Test
+        @DisplayName("given a signature slot two periods ahead, then verifyBundle rejects it")
+        void givenSignatureSlotTwoPeriodsAhead_thenThrowsProofException() {
+            final DeliveryBuilder builder = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT);
+            assertRejected(
+                    bundle(builder.build()),
+                    "the trust anchor trusts committees for periods 1000 and 1001, not for period 1002");
+        }
+
+        @Test
+        @DisplayName("given a signature slot in the previous period, then verifyBundle rejects it")
+        void givenSignatureSlotInPreviousPeriod_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD) - 1;
+            builder.attestedSlot = builder.signatureSlot - 1;
+            builder.finalizedSlot = builder.attestedSlot - 10;
+            assertRejected(
+                    bundle(builder.build()),
+                    "the trust anchor trusts committees for periods 1000 and 1001, not for period 999");
+        }
+
+        @ParameterizedTest(name = "signature slot = attested slot - {0}")
+        @ValueSource(longs = {0, 1})
+        @DisplayName("given a signature slot not after the attested slot, then verifyBundle rejects it")
+        void givenSignatureSlotNotAfterAttestedSlot_thenThrowsProofException(final long lag) {
+            final DeliveryBuilder builder = delivery();
+            builder.signatureSlot = builder.attestedSlot - lag;
+            assertRejected(bundle(builder.build()), "is not after the attested header slot");
+        }
+    }
+
+    @Nested
+    @DisplayName("verifyBundle: non-signer proofs")
+    class NonSignerProofs {
+
+        @Test
+        @DisplayName("given fewer proofs than clear bits, then verifyBundle rejects the signature")
+        void givenFewerProofsThanClearBits_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.nonSignerEntries = List.of(COMMITTEE.nonSignerEntry(1));
+            assertRejected(
+                    bundle(builder.build()), "expected 2 non-signer proofs (one per clear participation bit), got 1");
+        }
+
+        @Test
+        @DisplayName("given a forged non-signer key on a genuine branch, then verifyBundle rejects it")
+        void givenForgedNonSignerKey_thenThrowsProofException() {
+            // The q = aggregate − K attack: a relay-chosen key passed as a non-signer must fail membership.
+            final DeliveryBuilder builder = delivery();
+            final byte[] forged = COMMITTEE.nonSignerEntry(1);
+            System.arraycopy(NEXT_COMMITTEE.uncompressedKeys[1], 0, forged, 0, 128);
+            builder.nonSignerEntries = List.of(forged, COMMITTEE.nonSignerEntry(2));
+            assertRejected(
+                    bundle(builder.build()),
+                    "non-signer pubkey at committee index 1 is not the trusted committee's member at that index");
+        }
+
+        @Test
+        @DisplayName("given proofs in descending index order, then verifyBundle rejects them")
+        void givenProofsOutOfOrder_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.nonSignerEntries = List.of(COMMITTEE.nonSignerEntry(2), COMMITTEE.nonSignerEntry(1));
+            assertRejected(bundle(builder.build()), "non-signer pubkey at committee index 1");
+        }
+
+        @Test
+        @DisplayName("given a non-signer key with non-zero padding, then verifyBundle rejects it")
+        void givenNonSignerKeyWithNonZeroPadding_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            final byte[] padded = COMMITTEE.nonSignerEntry(1);
+            padded[0] = 1;
+            builder.nonSignerEntries = List.of(padded, COMMITTEE.nonSignerEntry(2));
+            assertRejected(
+                    bundle(builder.build()), "non-signer pubkey at committee index 1 has non-zero EIP-2537 padding");
+        }
+
+        @Test
+        @DisplayName("given a member's x with an off-curve y of the same sign, then verifyBundle rejects the key")
+        void givenNonSignerKeyOffTheCurve_thenThrowsProofException() {
+            // The key compresses to the member's committed key, so it passes membership unless the curve is checked.
+            final DeliveryBuilder builder = delivery();
+            final byte[] offCurve = COMMITTEE.nonSignerEntry(1);
+            offCurve[127] ^= 1;
+            builder.nonSignerEntries = List.of(offCurve, COMMITTEE.nonSignerEntry(2));
+            assertRejected(
+                    bundle(builder.build()), "non-signer pubkey at committee index 1 is not a point on the curve");
+        }
+    }
+
+    @Nested
+    @DisplayName("verifyBundle: finality")
+    class Finality {
+
+        @Test
+        @DisplayName("given a finalized slot after the attested slot, then verifyBundle rejects it")
+        void givenFinalizedSlotAfterAttestedSlot_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.finalizedSlot = builder.attestedSlot + 1;
+            assertRejected(bundle(builder.build()), "is after the attested header slot");
+        }
+
+        @Test
+        @DisplayName(
+                "given a finality branch that does not fold to the attested state root, then verifyBundle rejects it")
+        void givenWrongFinalityBranch_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.finalityBranchOverride = zeroBranch(9);
+            builder.finalityBranchOverride[0] = deterministicBytes(32, 0x99);
+            assertRejected(
+                    bundle(builder.build()), "finality branch does not verify against the attested header stateRoot");
+        }
+
+        @Test
+        @DisplayName("given a rejected delivery, then the rejection names the anchor and the delivery's slots")
+        void givenRejectedDelivery_thenMessageCarriesBundleContext() {
+            final DeliveryBuilder builder = delivery();
+            builder.finalityBranchOverride = zeroBranch(9);
+            builder.finalityBranchOverride[0] = deterministicBytes(32, 0x99);
+            assertThatThrownBy(() -> verify(bundle(builder.build())))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessage("EthereumSyncCommitteeProofVerifier: bundle rejected (anchorPeriod=" + ANCHOR_PERIOD
+                            + ", preset=MAINNET, rotations=0, signatureSlot=" + (builder.attestedSlot + 1)
+                            + ", attestedSlot=" + builder.attestedSlot
+                            + ", finalizedSlot=" + builder.finalizedSlot
+                            + "): finality branch does not verify against the attested header stateRoot");
+        }
+    }
+
+    @Nested
+    @DisplayName("verifyBundle: execution state")
+    class ExecutionState {
+
+        @Test
+        @DisplayName("given a block header the finalized body does not commit to, then verifyBundle rejects it")
+        void givenUncommittedBlockHeader_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.finalizedBodyRootOverride = deterministicBytes(32, 0x77);
+            assertRejected(bundle(builder.build()), "execution block hash branch does not verify");
+        }
+
+        @Test
+        @DisplayName("given a block header committed only by the attested body, then verifyBundle rejects it")
+        void givenBlockHeaderCommittedOnlyByAttestedBody_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.attestedBodyRoot =
+                    foldBranch(MiscCryptoUtils.keccak256DigestOf(builder.blockHeaderRlp()), zeroBranch(11), 808);
+            builder.finalizedBodyRootOverride = deterministicBytes(32, 0x78);
+            assertRejected(bundle(builder.build()), "execution block hash branch does not verify");
+        }
+
+        @Test
+        @DisplayName("given a block header of three items, then verifyBundle rejects it")
+        void givenBlockHeaderWithoutStateRoot_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.blockHeaderRlpOverride = Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(new byte[32]), Rlp.encodeBytes(new byte[32]), Rlp.encodeBytes(new byte[20])));
+            assertRejected(bundle(builder.build()), "execution block header is not an RLP list with a stateRoot");
+        }
+
+        @Test
+        @DisplayName("given a block header whose state root is 31 bytes, then verifyBundle rejects it")
+        void givenShortStateRoot_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.blockHeaderRlpOverride = Rlp.encodeList(List.of(
+                    Rlp.encodeBytes(new byte[32]),
+                    Rlp.encodeBytes(new byte[32]),
+                    Rlp.encodeBytes(new byte[20]),
+                    Rlp.encodeBytes(new byte[31])));
+            assertRejected(bundle(builder.build()), "execution block header stateRoot is not 32 bytes");
+        }
+    }
+
+    @Nested
+    @DisplayName("verifyBundle: account and Channel slots")
+    class AccountAndStorage {
+
+        @Test
+        @DisplayName("given an account proof for another address, then verifyBundle rejects it")
+        void givenAccountOfAnotherAddress_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            final byte[][] account = accountLeafProof(deterministicBytes(20, 0x11), EMPTY_TRIE_ROOT);
+            builder.executionStateRoot = account[0];
+            builder.accountProofNodes = new byte[][] {account[1]};
+            assertRejected(bundle(builder.build()), "contract account is absent from state trie");
+        }
+
+        @Test
+        @DisplayName("given an account whose code hash is not the pinned one, then verifyBundle rejects it")
+        void givenAccountWithAnotherCodeHash_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery().withAccountCodeHash(deterministicBytes(32, 0xC1));
+            assertRejected(
+                    bundle(builder.build()),
+                    "contract account code hash does not match the code hash pinned in the trust anchor");
+        }
+
+        @Test
+        @DisplayName("given the Channel slots of another channel, then verifyBundle rejects the storage proof")
+        void givenSlotsOfAnotherChannel_thenThrowsProofException() {
+            final DeliveryBuilder builder =
+                    delivery().withStorage(EMPTY_TRIE_ROOT, new byte[0][], channelSlots(deterministicBytes(32, 0x01)));
+            assertRejected(
+                    bundle(builder.build()), "proven storage is missing the channel's STATUS_AND_NEXT_MESSAGE_ID slot");
+        }
+
+        @Test
+        @DisplayName("given a Channel slot proven twice, then verifyBundle rejects the storage proof")
+        void givenDuplicateSlot_thenThrowsProofException() {
+            final byte[][] slots = channelSlots(CHANNEL_ID);
+            final DeliveryBuilder builder =
+                    delivery().withStorage(EMPTY_TRIE_ROOT, new byte[0][], channelSlotsAnd(CHANNEL_ID, slots[2]));
+            assertRejected(bundle(builder.build()), "duplicate proven slot");
+        }
+
+        @Test
+        @DisplayName("given a sixth slot, then its proven value is the last message running hash")
+        void givenSixthSlot_thenItsValueIsTheLastMessageRunningHash() {
+            final byte[] runningHash = deterministicBytes(32, 0xAB);
+            final DeliveryBuilder builder = delivery()
+                    .withSingleSlotStorage(slotKey(0x50), runningHash, channelSlotsAnd(CHANNEL_ID, slotKey(0x50)));
+
+            final ProvenQueueMetadata metadata = verify(bundle(builder.build())).queueMetadata();
+
+            assertThat(metadata.lastMessageRunningHash()).isEqualTo(runningHash);
+            assertThat(metadata.sentRunningHash()).isEqualTo(new byte[32]);
+        }
+
+        @Test
+        @DisplayName("given five slots, then the last message running hash is zero")
+        void givenFiveSlots_thenLastMessageRunningHashIsZero() {
+            assertThat(verify(bundle(delivery().build())).queueMetadata().lastMessageRunningHash())
+                    .isEqualTo(new byte[32]);
+        }
+
+        @Test
+        @DisplayName("given a proven sentRunningHash slot, then the queue metadata carries it")
+        void givenProvenSentRunningHash_thenQueueMetadataCarriesIt() {
+            final byte[] sentRunningHash = deterministicBytes(32, 0xC1);
+            final byte[][] slots = channelSlots(CHANNEL_ID);
+            final DeliveryBuilder builder = delivery().withSingleSlotStorage(slots[2], sentRunningHash, slots);
+
+            assertThat(verify(bundle(builder.build())).queueMetadata().sentRunningHash())
+                    .isEqualTo(sentRunningHash);
+        }
+
+        @Test
+        @DisplayName("given a proven endpointManifestVersion slot, then the queue metadata carries it")
+        void givenProvenManifestVersion_thenQueueMetadataCarriesIt() {
+            final byte[] word = new byte[32];
+            ByteBuffer.wrap(word, 24, 8).putLong(77L);
+            final byte[][] slots = channelSlots(CHANNEL_ID);
+            final DeliveryBuilder builder = delivery().withSingleSlotStorage(slots[4], word, slots);
+
+            assertThat(verify(bundle(builder.build())).queueMetadata().endpointManifestVersion())
+                    .isEqualTo(77L);
+        }
+
+        @Test
+        @DisplayName("given a valid delivery, then verifyBundle returns the attested root and the verbatim content")
+        void givenValidDelivery_thenReturnsAttestedRootAndContent() {
+            final DeliveryBuilder builder = delivery();
+            builder.bundleContent = new byte[] {0x0A, 0x0B, 0x0C};
+
+            final VerifiedBundle verified = verify(bundle(builder.build()));
+
+            assertThat(verified.beaconBlockRoot32()).isEqualTo(builder.attestedRoot());
+            assertThat(verified.bundleContentBytes()).isEqualTo(builder.bundleContent);
+            assertThat(verified.nextTrustAnchor()).isNull();
+            assertThat(verified.nextTrustAnchorId()).isNull();
+            assertThat(verified.newEndpointManifest()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("verifyBundle: committee rotation")
+    class Rotation {
+
+        /** The rotation the default anchor accepts: of period ANCHOR_PERIOD + 1, proving COMMITTEE_AFTER_NEXT. */
+        private static RotationBuilder rotation() {
+            return new RotationBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE, COMMITTEE_AFTER_NEXT);
+        }
+
+        @Test
+        @DisplayName("given one rotation, then verifyBundle returns the anchor one period later")
+        void givenOneRotation_thenReturnsSuccessorAnchorAndId() {
+            final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT).build();
+
+            final VerifiedBundle verified = verify(bundle(List.of(rotation().build()), delivery));
+
+            assertThat(verified.nextTrustAnchor())
+                    .isEqualTo(anchor(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE, COMMITTEE_AFTER_NEXT));
+            assertThat(verified.nextTrustAnchorId())
+                    .isEqualTo(ByteBuffer.allocate(8).putLong(ANCHOR_PERIOD + 1).array());
+        }
+
+        @Test
+        @DisplayName("given one rotation, then a delivery signed by either committee of the new window verifies")
+        void givenOneRotation_thenDeliveryOfNewCurrentPeriodVerifies() {
+            final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE).build();
+
+            final VerifiedBundle verified = verify(bundle(List.of(rotation().build()), delivery));
+
+            assertThat(verified.nextTrustAnchorId())
+                    .isEqualTo(ByteBuffer.allocate(8).putLong(ANCHOR_PERIOD + 1).array());
+        }
+
+        @Test
+        @DisplayName("given two rotations, then verifyBundle advances the anchor two periods")
+        void givenTwoRotations_thenAdvancesTwoPeriods() {
+            final byte[] second =
+                    new RotationBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT, FOURTH_COMMITTEE).build();
+            final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 3, FOURTH_COMMITTEE).build();
+
+            final VerifiedBundle verified = verify(bundle(List.of(rotation().build(), second), delivery));
+
+            assertThat(verified.nextTrustAnchor())
+                    .isEqualTo(anchor(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT, FOURTH_COMMITTEE));
+        }
+
+        @Test
+        @DisplayName("given a minimal-preset rotation, then verifyBundle advances the minimal anchor")
+        void givenMinimalPresetRotation_thenAdvancesMinimalAnchor() {
+            final byte[] rotation = new RotationBuilder(
+                            MINIMAL, ANCHOR_PERIOD + 1, MINIMAL_NEXT_COMMITTEE, MINIMAL_COMMITTEE_AFTER_NEXT)
+                    .build();
+            final byte[] delivery =
+                    new DeliveryBuilder(MINIMAL, ANCHOR_PERIOD + 2, MINIMAL_COMMITTEE_AFTER_NEXT).build();
+
+            final VerifiedBundle verified = verify(bundle(List.of(rotation), delivery), MINIMAL_TRUST_ANCHOR);
+
+            assertThat(verified.nextTrustAnchor())
+                    .isEqualTo(
+                            anchor(MINIMAL, ANCHOR_PERIOD + 1, MINIMAL_NEXT_COMMITTEE, MINIMAL_COMMITTEE_AFTER_NEXT));
+        }
+
+        @Test
+        @DisplayName("given a rotation of the anchor's current period, then verifyBundle rejects it")
+        void givenRotationOfCurrentPeriod_thenThrowsProofException() {
+            final byte[] rotation = new RotationBuilder(MAINNET, ANCHOR_PERIOD, COMMITTEE, NEXT_COMMITTEE).build();
+            assertRejected(
+                    bundle(List.of(rotation), delivery().build()),
+                    "rotation attested header slot 8192040 is in period 1000, expected period 1001");
+        }
+
+        @Test
+        @DisplayName("given a rotation signed by the current committee, then verifyBundle rejects it")
+        void givenRotationSignedByCurrentCommittee_thenThrowsProofException() {
+            final byte[] rotation =
+                    new RotationBuilder(MAINNET, ANCHOR_PERIOD + 1, COMMITTEE, COMMITTEE_AFTER_NEXT).build();
+            assertRejected(
+                    bundle(List.of(rotation), delivery().build()),
+                    "non-signer pubkey at committee index 3 is not the trusted committee's member at that index");
+        }
+
+        @Test
+        @DisplayName("given a rotation whose finalized header is in the previous period, then verifyBundle rejects it")
+        void givenFinalizedHeaderInPreviousPeriod_thenThrowsProofException() {
+            final RotationBuilder rotation = rotation();
+            rotation.finalizedSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 1) - 10;
+            assertRejected(
+                    bundle(List.of(rotation.build()), delivery().build()),
+                    "rotation finalized header slot 8200182 is in period 1000, expected period 1001");
+        }
+
+        @Test
+        @DisplayName("given a next-committee branch that does not fold to the attested state root, then verifyBundle"
+                + " rejects it")
+        void givenWrongNextCommitteeBranch_thenThrowsProofException() {
+            final RotationBuilder rotation = rotation();
+            rotation.nextCommitteeBranchOverride = zeroBranch(11);
+            assertRejected(
+                    bundle(List.of(rotation.build()), delivery().build()),
+                    "next sync committee branch does not verify against the header stateRoot");
+        }
+
+        @Test
+        @DisplayName("given a next committee whose aggregate has non-zero padding, then verifyBundle rejects it")
+        void givenNextAggregateWithNonZeroPadding_thenThrowsProofException() {
+            final RotationBuilder rotation = rotation();
+            rotation.nextAggregate = COMMITTEE_AFTER_NEXT.uncompressedAggregate.clone();
+            rotation.nextAggregate[70] = 1;
+            assertRejected(
+                    bundle(List.of(rotation.build()), delivery().build()),
+                    "nextCommittee.aggregatePubkey has non-zero EIP-2537 padding");
+        }
+
+        @Test
+        @DisplayName("given one rotation, then verifyBundle validates the aggregate of the committee it proves")
+        void givenOneRotation_thenValidatesProvenCommitteeAggregate() {
+            final RecordingBls bls = new RecordingBls();
+            final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT).build();
+
+            new EthereumSyncCommitteeProofVerifier(bls)
+                    .verifyBundle(bundle(List.of(rotation().build()), delivery), TRUST_ANCHOR, CHANNEL_CONTEXT);
+
+            assertThat(bls.validatedPubkeys).containsExactly(COMMITTEE_AFTER_NEXT.uncompressedAggregate);
+        }
+
+        @Test
+        @DisplayName("given a next committee whose aggregate is not a valid public key, then verifyBundle rejects it")
+        void givenNextAggregateNotValidPubkey_thenThrowsProofException() {
+            final RecordingBls bls = new RecordingBls();
+            bls.invalidPubkey = COMMITTEE_AFTER_NEXT.uncompressedAggregate;
+            final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT).build();
+            final var verifier = new EthereumSyncCommitteeProofVerifier(bls);
+
+            assertThatThrownBy(() -> verifier.verifyBundle(
+                            bundle(List.of(rotation().build()), delivery), TRUST_ANCHOR, CHANNEL_CONTEXT))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("next sync committee aggregate pubkey 0x"
+                            + HexFormat.of().formatHex(COMMITTEE_AFTER_NEXT.compressedAggregate)
+                            + " is not a valid BLS public key");
+        }
+
+        @Test
+        @DisplayName("given a delivery after a rotation still in the rotated-out period, then verifyBundle rejects it")
+        void givenDeliveryInRotatedOutPeriod_thenThrowsProofException() {
+            assertRejected(
+                    bundle(List.of(rotation().build()), delivery().build()),
+                    "the trust anchor trusts committees for periods 1001 and 1002, not for period 1000");
+        }
+
+        @Test
+        @DisplayName("given a delivery whose non-signers belong to the rotated-out committee, then verifyBundle rejects"
+                + " it")
+        void givenDeliveryNonSignersOfRotatedOutCommittee_thenThrowsProofException() {
+            final DeliveryBuilder delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT);
+            delivery.nonSignerEntries = nonSignerEntries(COMMITTEE, delivery.bits);
+            assertRejected(
+                    bundle(List.of(rotation().build()), delivery.build()),
+                    "non-signer pubkey at committee index 1 is not the trusted committee's member at that index");
+        }
+    }
+
+    @Nested
+    @DisplayName("verifyBundle: endpoint manifest (spec §4.9)")
+    class EndpointManifest {
+
+        @ParameterizedTest(name = "{0} endpoints")
+        @ValueSource(ints = {0, 1, 3})
+        @DisplayName("given a manifest update, then verifyBundle returns the reconstructed manifest")
+        void givenManifestUpdate_thenReturnsReconstructedManifest(final int endpointCount) {
+            final byte[] preimage = serialize(manifest(2L, endpointCount, SERVICE_ADDRESS));
+            final DeliveryBuilder builder = delivery()
+                    .withManifest(preimage, MiscCryptoUtils.keccak256DigestOf(preimage), manifestCommitmentSlot());
+
+            assertThat(verify(bundle(builder.build())).newEndpointManifest())
+                    .isEqualTo(manifest(2L, endpointCount, SERVICE_ADDRESS));
+        }
+
+        @Test
+        @DisplayName("given a preimage that does not hash to the proven commitment, then verifyBundle rejects it")
+        void givenCommitmentMismatch_thenThrowsProofException() {
+            final byte[] preimage = serialize(manifest(2L, 1, SERVICE_ADDRESS));
+            final DeliveryBuilder builder =
+                    delivery().withManifest(preimage, deterministicBytes(32, 0x42), manifestCommitmentSlot());
+            assertRejected(bundle(builder.build()), "endpoint-manifest preimage does not match the proven commitment");
+        }
+
+        @Test
+        @DisplayName("given a manifest proof for another slot, then verifyBundle rejects it")
+        void givenProofForAnotherSlot_thenThrowsProofException() {
+            final byte[] preimage = serialize(manifest(2L, 1, SERVICE_ADDRESS));
+            final DeliveryBuilder builder =
+                    delivery().withManifest(preimage, MiscCryptoUtils.keccak256DigestOf(preimage), slotKey(0x13));
+            assertRejected(
+                    bundle(builder.build()), "manifest storage proof is not for the endpoint-manifest commitment slot");
+        }
+
+        @Test
+        @DisplayName("given the commitment slot is absent from the storage trie, then verifyBundle rejects it")
+        void givenCommitmentSlotAbsent_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.manifestProof = Rlp.encodeList(List.of(storageEntry(manifestCommitmentSlot(), new byte[0][])));
+            builder.manifestPreimage = serialize(manifest(2L, 1, SERVICE_ADDRESS));
+            assertRejected(bundle(builder.build()), "endpoint-manifest commitment slot absent from the storage trie");
+        }
+
+        @Test
+        @DisplayName("given a manifest of version 0, then verifyBundle rejects it")
+        void givenVersionZero_thenThrowsProofException() {
+            final byte[] preimage = serialize(manifest(0L, 1, SERVICE_ADDRESS));
+            final DeliveryBuilder builder = delivery()
+                    .withManifest(preimage, MiscCryptoUtils.keccak256DigestOf(preimage), manifestCommitmentSlot());
+            assertRejected(bundle(builder.build()), "endpoint-manifest version is 0");
+        }
+
+        @Test
+        @DisplayName("given a manifest for another service address, then verifyBundle rejects it")
+        void givenAnotherServiceAddress_thenThrowsProofException() {
+            final byte[] preimage = serialize(manifest(2L, 1, deterministicBytes(20, 0x12)));
+            final DeliveryBuilder builder = delivery()
+                    .withManifest(preimage, MiscCryptoUtils.keccak256DigestOf(preimage), manifestCommitmentSlot());
+            assertRejected(
+                    bundle(builder.build()),
+                    "endpoint-manifest service_address does not match the channel's service address");
+        }
+
+        @Test
+        @DisplayName("given a manifest with an unknown field, then verifyBundle rejects it")
+        void givenUnknownField_thenThrowsProofException() {
+            final byte[] preimage = appendUnknownField(serialize(manifest(2L, 1, SERVICE_ADDRESS)));
+            final DeliveryBuilder builder = delivery()
+                    .withManifest(preimage, MiscCryptoUtils.keccak256DigestOf(preimage), manifestCommitmentSlot());
+            assertRejected(bundle(builder.build()), "manifest preimage is not a valid ClprEndpointManifest");
+        }
+
+        @Test
+        @DisplayName("given only a manifest update, then verifyBundle returns it with absent queue metadata")
+        void givenManifestOnlyBundle_thenReturnsManifestAndAbsentMetadata() {
+            final byte[] preimage = serialize(manifest(3L, 1, SERVICE_ADDRESS));
+            final DeliveryBuilder builder = delivery()
+                    .withManifest(preimage, MiscCryptoUtils.keccak256DigestOf(preimage), manifestCommitmentSlot());
+            builder.storageEntries = List.of();
+            builder.bundleContent = new byte[0];
+
+            final VerifiedBundle verified = verify(bundle(builder.build()));
+
+            assertThat(verified.newEndpointManifest()).isEqualTo(manifest(3L, 1, SERVICE_ADDRESS));
+            assertThat(verified.queueMetadata().nextMessageId()).isZero();
+            assertThat(verified.bundleContentBytes()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("given no storage proof, no content and no manifest, then verifyBundle rejects the bundle")
+        void givenEmptyBundle_thenThrowsProofException() {
+            final DeliveryBuilder builder = delivery();
+            builder.storageEntries = List.of();
+            builder.bundleContent = new byte[0];
+            assertRejected(
+                    bundle(builder.build()),
+                    "bundle has no queue metadata, no content, and no endpoint-manifest advance");
         }
     }
 
@@ -706,326 +985,298 @@ class EthereumSyncCommitteeProofVerifierTest {
     @DisplayName("verifyConfigPayload(...)")
     class VerifyConfigPayload {
 
-        @Nested
-        class PayloadDecoding {
+        private final RecordingBls bls = new RecordingBls();
 
-            @Test
-            void garbagePayload_throwsProofException() {
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyConfigPayload(new byte[] {0x01, 0x02}))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("configPayload is not a valid RLP item");
-            }
+        private final EthereumSyncCommitteeProofVerifier verifier = new EthereumSyncCommitteeProofVerifier(bls);
 
-            @Test
-            void wrongTopLevelItemCount_throwsProofException() {
-                byte[] payload = Rlp.encodeList(List.of(Rlp.encodeBytes(new byte[0])));
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyConfigPayload(payload))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("expected top-level RLP list of 5 items");
-            }
+        /** A config of ANCHOR_PERIOD: COMMITTEE signs the update proving NEXT_COMMITTEE. */
+        private static ConfigBuilder config() {
+            return new ConfigBuilder(MAINNET, ANCHOR_PERIOD, COMMITTEE, NEXT_COMMITTEE);
         }
 
-        @Nested
-        class LedgerConfiguration {
-
-            @Test
-            void invalidLedgerConfigurationBytes_throwsProofException() {
-                var builder = validConfigBuilder();
-                // 0x08 alone = field 1 wire-type 0 (varint), then EOF → PBJ parse error
-                builder.ledgerConfigBytes = new byte[] {0x08};
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyConfigPayload(builder.build()))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("not a valid ClprLedgerConfiguration");
-            }
-
-            @Test
-            void unknownFieldInLedgerConfig_throwsProofException() {
-                // Spec §1: "Implementations MUST reject messages containing unrecognized fields."
-                // Serialize a valid ClprLedgerConfiguration, append a record for proto field #255
-                // (which the schema doesn't define), and expect the strict parse to reject it.
-                byte[] validLedgerConfig = serializeLedgerConfig(ClprLedgerConfiguration.newBuilder()
-                        .serviceAddress(Bytes.wrap(SERVICE_ADDR))
-                        .build());
-                var builder = validConfigBuilder();
-                builder.ledgerConfigBytes = appendUnknownField(validLedgerConfig);
-
-                assertThatThrownBy(() -> verifier(new FakeBls()).verifyConfigPayload(builder.build()))
-                        .isInstanceOf(ProofException.class)
-                        .hasMessageContaining("not a valid ClprLedgerConfiguration");
-            }
+        private void assertConfigRejected(final byte[] payload, final String message) {
+            assertThatThrownBy(() -> verifier.verifyConfigPayload(payload))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining(message);
         }
 
-        @Nested
-        class SuccessPath {
-
-            @Test
-            void successPath_derivesInitialTrustAnchorFromCommittee() {
-                var result = verifier(new FakeBls())
-                        .verifyConfigPayload(validConfigBuilder().build());
-
-                byte[] expectedAnchor =
-                        TrustAnchor.encode(COMMITTEE, GENESIS_VALIDATORS_ROOT, FORK_VERSION, SERVICE_ADDR);
-                assertThat(result.ledgerConfiguration().initialTrustAnchor().toByteArray())
-                        .isEqualTo(expectedAnchor);
-                assertThat(result.ledgerConfiguration().initialTrustAnchorId().toByteArray())
-                        .isEqualTo(expectedAnchor);
-                assertThat(result.ledgerConfiguration().serviceAddress().toByteArray())
-                        .isEqualTo(SERVICE_ADDR);
-                assertThat(result.slot()).isEqualTo(CONFIG_SLOT);
-            }
-
-            @Test
-            void payloadTrustAnchorFieldsAreIgnored() {
-                // Any initialTrustAnchor / initialTrustAnchorId baked into the ledgerConfiguration
-                // must be overwritten by the anchor derived from the proven sync committee.
-                var builder = validConfigBuilder();
-                builder.ledgerConfigBytes = serializeLedgerConfig(ClprLedgerConfiguration.newBuilder()
-                        .serviceAddress(Bytes.wrap(SERVICE_ADDR))
-                        .initialTrustAnchor(Bytes.wrap(deterministicBytes(20, 0xDE)))
-                        .initialTrustAnchorId(Bytes.wrap(deterministicBytes(32, 0xBE)))
-                        .build());
-
-                var result = verifier(new FakeBls()).verifyConfigPayload(builder.build());
-
-                byte[] expectedAnchor =
-                        TrustAnchor.encode(COMMITTEE, GENESIS_VALIDATORS_ROOT, FORK_VERSION, SERVICE_ADDR);
-                assertThat(result.ledgerConfiguration().initialTrustAnchor().toByteArray())
-                        .isEqualTo(expectedAnchor);
-                assertThat(result.ledgerConfiguration().initialTrustAnchorId().toByteArray())
-                        .isEqualTo(expectedAnchor);
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------------------------
-    // Payload construction
-    // -----------------------------------------------------------------------------------
-
-    /**
-     * Builds a structurally complete payload that passes every verification step with a {@link FakeBls} returning true:
-     * the committee comes from {@link #TRUST_ANCHOR} (not the payload), all bits are set, the execution branch folds to
-     * the header's body root, and the account/storage proofs use single-leaf tries.
-     */
-    private static PayloadBuilder validPayloadBuilder() {
-        return new PayloadBuilder();
-    }
-
-    private static final class PayloadBuilder {
-
-        long slot = 12345;
-        long proposerIndex = 7;
-        byte[] parentRoot = deterministicBytes(32, 0x21);
-        byte[] stateRoot = deterministicBytes(32, 0x22);
-        byte[] bodyRootOverride; // when null, computed from the execution branch fold
-        byte[] bits = allBitsSet();
-        byte[] signature = new byte[96];
-        byte[][] executionBranch = zeroBranch(9);
-        byte[] executionStateRoot;
-        SyncCommittee nextCommittee; // absent when null
-        byte[][] nextCommitteeBranch; // absent when null
-        byte[][] accountProofNodes;
-        List<byte[]> storageEntries;
-        byte[] bundleContent = {0x01, 0x02};
-        byte[] attestedHeaderOverride; // raw RLP override for structural tests
-        byte[] manifestBytes; // null → 9-item bundle; non-null → 11-item (manifest advance)
-        byte[] manifestStorageEntry; // RLP [key, proof[]] for the commitment slot (set with manifestBytes)
-
-        PayloadBuilder() {
-            // Default execution state: account with empty storage in a single-leaf state trie.
-            byte[][] accountMpt = buildAccountMptProof(SERVICE_ADDR, EMPTY_TRIE_ROOT, new byte[32]);
-            executionStateRoot = accountMpt[0];
-            accountProofNodes = new byte[][] {accountMpt[1]};
-            List<byte[]> entries = new ArrayList<>();
-            for (int i = 0; i < 5; i++) {
-                entries.add(storageEntry(slotKey(i), List.of()));
-            }
-            storageEntries = entries;
+        @Test
+        @DisplayName("given bytes that are not the payload protobuf, then verifyConfigPayload rejects them")
+        void givenGarbagePayload_thenThrowsProofException() {
+            assertConfigRejected(
+                    new byte[] {(byte) 0xFF, (byte) 0xFF},
+                    "configPayload is not a valid EthereumPosLedgerConfigurationPayload");
         }
 
-        /**
-         * Turns this into an 11-item bundle carrying an endpoint-manifest advance: proves {@code storedCommitment}
-         * at {@code slotToProve} (and the queue-metadata slots as absent) against a single-leaf storage trie, and
-         * attaches {@code manifestBytes} + its commitment-slot storage proof.
-         */
-        PayloadBuilder withManifest(byte[] manifestBytes, byte[] slotToProve, byte[] storedCommitment) {
-            byte[][] storageMpt = buildStorageMptProof(slotToProve, storedCommitment);
-            byte[][] accountMpt = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
-            this.executionStateRoot = accountMpt[0];
-            this.accountProofNodes = new byte[][] {accountMpt[1]};
-            List<byte[]> entries = new ArrayList<>();
-            for (int i = 0; i < 5; i++) {
-                entries.add(storageEntry(slotKey(i), List.of(storageMpt[1])));
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(
+                strings = {
+                    "sync_committee",
+                    "ledger_configuration",
+                    "anchor_header",
+                    "update_header",
+                    "sync_aggregate",
+                    "next_sync_committee"
+                })
+        @DisplayName("given a config without a required message field, then verifyConfigPayload rejects the payload")
+        void givenMissingMessageField_thenThrowsProofException(final String field) {
+            final var builder = config().build().copyBuilder();
+            switch (field) {
+                case "sync_committee" -> builder.syncCommittee((EthereumPosSyncCommittee) null);
+                case "ledger_configuration" -> builder.ledgerConfiguration((ClprLedgerConfiguration) null);
+                case "anchor_header" -> builder.anchorHeader((EthereumPosBeaconBlockHeader) null);
+                case "update_header" -> builder.updateHeader((EthereumPosBeaconBlockHeader) null);
+                case "sync_aggregate" -> builder.syncAggregate((EthereumPosSyncAggregate) null);
+                default -> builder.nextSyncCommittee((EthereumPosSyncCommittee) null);
             }
-            this.storageEntries = entries;
-            this.manifestBytes = manifestBytes;
-            this.manifestStorageEntry = storageEntry(manifestSlot(), List.of(storageMpt[1]));
-            return this;
+            assertConfigRejected(serialize(builder.build()), "configPayload has no " + field);
         }
 
-        byte[] bodyRoot() {
-            return bodyRootOverride != null
-                    ? bodyRootOverride
-                    : foldBranch(executionStateRoot, executionBranch, 290); // execution_payload.state_root leaf index
-        }
-
-        byte[] build() {
-            byte[] attestedHeader = attestedHeaderOverride != null
-                    ? attestedHeaderOverride
-                    : Rlp.encodeList(List.of(
-                            Rlp.encodeUint(slot),
-                            Rlp.encodeUint(proposerIndex),
-                            Rlp.encodeBytes(parentRoot),
-                            Rlp.encodeBytes(stateRoot),
-                            Rlp.encodeBytes(bodyRoot())));
-
-            byte[] syncAggregate = Rlp.encodeList(List.of(Rlp.encodeBytes(bits), Rlp.encodeBytes(signature)));
-
-            List<byte[]> encodedExecBranch = new ArrayList<>();
-            for (byte[] node : executionBranch) {
-                encodedExecBranch.add(Rlp.encodeBytes(node));
-            }
-
-            byte[] nextCommitteeEncoded = nextCommittee == null
-                    ? Rlp.encodeBytes(new byte[0])
-                    : committeeRlp(nextCommittee.pubkeys(), nextCommittee.aggregatePubkey48());
-            byte[] nextBranchEncoded;
-            if (nextCommitteeBranch == null) {
-                nextBranchEncoded = Rlp.encodeList(List.of());
-            } else {
-                List<byte[]> encodedNextBranch = new ArrayList<>();
-                for (byte[] node : nextCommitteeBranch) {
-                    encodedNextBranch.add(Rlp.encodeBytes(node));
-                }
-                nextBranchEncoded = Rlp.encodeList(encodedNextBranch);
-            }
-
-            List<byte[]> encodedAccountProof = new ArrayList<>();
-            for (byte[] node : accountProofNodes) {
-                encodedAccountProof.add(Rlp.encodeBytes(node));
-            }
-
-            List<byte[]> items = new ArrayList<>(List.of(
-                    attestedHeader,
-                    syncAggregate,
-                    Rlp.encodeBytes(executionStateRoot),
-                    Rlp.encodeList(encodedExecBranch),
-                    nextCommitteeEncoded,
-                    nextBranchEncoded,
-                    Rlp.encodeList(encodedAccountProof),
-                    Rlp.encodeList(storageEntries),
-                    Rlp.encodeBytes(bundleContent)));
-            if (manifestBytes != null) {
-                items.add(Rlp.encodeBytes(manifestBytes));
-                items.add(manifestStorageEntry);
-            }
-            return Rlp.encodeList(items);
-        }
-    }
-
-    /**
-     * Builds a manifest-only recovery bundle (spec §8.1.4): the distinct 7-item shape
-     * {@code [attestedHeader, syncAggregate, executionStateRoot, executionBranch, accountProof,
-     * manifestStorageProof, manifestPreimage]}. It authenticates the chain down to the CLPR account exactly
-     * as a normal bundle (reusing the same single-leaf MPT/SSZ fixtures) but carries no queue proof and no
-     * bundle content. {@code storedCommitment} is the value the storage trie proves at {@code slotToProve};
-     * {@code entryKey} is the slot key the manifest storage entry advertises (equal to {@code slotToProve}
-     * for a well-formed proof, or divergent to exercise the wrong-slot rejection).
-     */
-    private static byte[] manifestOnlyPayload(
-            byte[] manifestBytes, byte[] entryKey, byte[] slotToProve, byte[] storedCommitment) {
-        byte[][] storageMpt = buildStorageMptProof(slotToProve, storedCommitment);
-        byte[][] accountMpt = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
-        byte[] executionStateRoot = accountMpt[0];
-        byte[][] executionBranch = zeroBranch(9);
-
-        long slot = 12345;
-        long proposerIndex = 7;
-        byte[] parentRoot = deterministicBytes(32, 0x21);
-        byte[] stateRoot = deterministicBytes(32, 0x22);
-        byte[] bodyRoot = foldBranch(executionStateRoot, executionBranch, 290); // execution_payload.state_root leaf
-        byte[] attestedHeader = Rlp.encodeList(List.of(
-                Rlp.encodeUint(slot),
-                Rlp.encodeUint(proposerIndex),
-                Rlp.encodeBytes(parentRoot),
-                Rlp.encodeBytes(stateRoot),
-                Rlp.encodeBytes(bodyRoot)));
-
-        byte[] syncAggregate = Rlp.encodeList(List.of(Rlp.encodeBytes(allBitsSet()), Rlp.encodeBytes(new byte[96])));
-
-        List<byte[]> encodedExecBranch = new ArrayList<>();
-        for (byte[] node : executionBranch) {
-            encodedExecBranch.add(Rlp.encodeBytes(node));
-        }
-        byte[] accountProof = Rlp.encodeList(List.of(Rlp.encodeBytes(accountMpt[1])));
-        byte[] manifestStorageEntry = storageEntry(entryKey, List.of(storageMpt[1]));
-
-        // A manifest-only recovery bundle (spec §8.1.4) is a NORMAL 11-item bundle, not a distinct shape: no
-        // rotation (empty committee + empty branch), an EMPTY queue storage proof, EMPTY bundle content, and the
-        // manifest advance (preimage + commitment-slot storage proof). It is decoded and verified as an ordinary
-        // bundle; the verifier reads the empty queue proof as "absent metadata" (nextMessageId == 0 sentinel).
-        return Rlp.encodeList(List.of(
-                attestedHeader,
-                syncAggregate,
-                Rlp.encodeBytes(executionStateRoot),
-                Rlp.encodeList(encodedExecBranch),
-                Rlp.encodeBytes(new byte[0]), // nextCommittee absent
-                Rlp.encodeList(List.of()), // nextCommitteeBranch absent
-                accountProof,
-                Rlp.encodeList(List.of()), // queue storage proof empty
-                Rlp.encodeBytes(new byte[0]), // bundle content empty
-                Rlp.encodeBytes(manifestBytes), // manifest preimage
-                manifestStorageEntry)); // manifest commitment-slot storage proof
-    }
-
-    /**
-     * Builds a self-describing config payload: the initial committee, the chain-pinning fields, and the ledger
-     * configuration. No proof or signature is carried.
-     */
-    private static ConfigPayloadBuilder validConfigBuilder() {
-        return new ConfigPayloadBuilder();
-    }
-
-    private static final class ConfigPayloadBuilder {
-
-        byte[] genesisValidatorsRoot = GENESIS_VALIDATORS_ROOT;
-        byte[] forkVersion = FORK_VERSION;
-        byte[] ledgerConfigBytes;
-        long slot = CONFIG_SLOT;
-
-        ConfigPayloadBuilder() {
-            ledgerConfigBytes = serializeLedgerConfig(ClprLedgerConfiguration.newBuilder()
-                    .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+        @Test
+        @DisplayName("given a committee of 64 members, then verifyConfigPayload rejects the payload")
+        void givenUnsupportedCommitteeSize_thenThrowsProofException() {
+            final var config = config().build();
+            final byte[] payload = serialize(config.copyBuilder()
+                    .syncCommittee(config.syncCommitteeOrThrow()
+                            .copyBuilder()
+                            .pubkeys(config.syncCommitteeOrThrow().pubkeys().subList(0, 64))
+                            .build())
                     .build());
+            assertConfigRejected(payload, "unsupported sync committee size 64");
         }
 
-        byte[] build() {
-            List<byte[]> encodedKeys = new ArrayList<>(COMMITTEE_SIZE);
-            for (byte[] key : PUBKEYS) {
-                encodedKeys.add(Rlp.encodeBytes(key));
-            }
-            byte[] syncCommittee =
-                    Rlp.encodeList(List.of(Rlp.encodeList(encodedKeys), Rlp.encodeBytes(AGGREGATE_PUBKEY)));
+        @Test
+        @DisplayName("given a next committee of another preset's size, then verifyConfigPayload rejects the payload")
+        void givenNextCommitteeOfAnotherSize_thenThrowsProofException() {
+            final var config = config().build();
+            final byte[] payload = serialize(config.copyBuilder()
+                    .nextSyncCommittee(config.nextSyncCommitteeOrThrow()
+                            .copyBuilder()
+                            .pubkeys(config.nextSyncCommitteeOrThrow().pubkeys().subList(0, 32))
+                            .build())
+                    .build());
+            assertConfigRejected(payload, "next_sync_committee has 32 keys; the MAINNET preset expects 512");
+        }
 
-            return Rlp.encodeList(List.of(
-                    Rlp.encodeUint(slot),
-                    syncCommittee,
-                    Rlp.encodeBytes(genesisValidatorsRoot),
-                    Rlp.encodeBytes(forkVersion),
-                    Rlp.encodeBytes(ledgerConfigBytes)));
+        @Test
+        @DisplayName("given an uncompressed member key, then verifyConfigPayload rejects the payload")
+        void givenUncompressedKey_thenThrowsProofException() {
+            final var config = config().build();
+            final List<Bytes> keys =
+                    new ArrayList<>(config.syncCommitteeOrThrow().pubkeys());
+            keys.set(5, Bytes.wrap(COMMITTEE.uncompressedKeys[5]));
+            final byte[] payload = serialize(config.copyBuilder()
+                    .syncCommittee(config.syncCommitteeOrThrow()
+                            .copyBuilder()
+                            .pubkeys(keys)
+                            .build())
+                    .build());
+            assertConfigRejected(payload, "sync_committee.pubkeys[5] must be 48 bytes, got 128");
+        }
+
+        @Test
+        @DisplayName("given a 3-byte fork version, then verifyConfigPayload rejects the payload")
+        void givenShortForkVersion_thenThrowsProofException() {
+            assertConfigRejected(
+                    serialize(config().build()
+                            .copyBuilder()
+                            .forkVersion(Bytes.wrap(new byte[3]))
+                            .build()),
+                    "fork_version must be 4 bytes, got 3");
+        }
+
+        @Test
+        @DisplayName("given a 31-byte genesis validators root, then verifyConfigPayload rejects the payload")
+        void givenShortGenesisValidatorsRoot_thenThrowsProofException() {
+            assertConfigRejected(
+                    serialize(config().build()
+                            .copyBuilder()
+                            .genesisValidatorsRoot(Bytes.wrap(new byte[31]))
+                            .build()),
+                    "genesis_validators_root must be 32 bytes, got 31");
+        }
+
+        @Test
+        @DisplayName("given a 31-byte code hash, then verifyConfigPayload rejects the payload")
+        void givenShortCodeHash_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.codeHash = new byte[31];
+            assertConfigRejected(builder.serialize(), "code_hash must be 32 bytes, got 31");
+        }
+
+        @Test
+        @DisplayName("given a 3-byte service address, then verifyConfigPayload rejects the payload")
+        void givenShortServiceAddress_thenThrowsProofException() {
+            final var config = config().build();
+            final byte[] payload = serialize(config.copyBuilder()
+                    .ledgerConfiguration(config.ledgerConfigurationOrThrow()
+                            .copyBuilder()
+                            .serviceAddress(Bytes.wrap(new byte[3]))
+                            .build())
+                    .build());
+            assertConfigRejected(payload, "ledger_configuration.service_address must be 20 bytes, got 3");
+        }
+
+        @Test
+        @DisplayName("given an unknown field, then verifyConfigPayload rejects the payload")
+        void givenUnknownField_thenThrowsProofException() {
+            assertConfigRejected(
+                    appendUnknownField(config().serialize()),
+                    "configPayload is not a valid EthereumPosLedgerConfigurationPayload");
+        }
+
+        @Test
+        @DisplayName("given a slot other than the anchor header's, then verifyConfigPayload rejects the payload")
+        void givenSlotOtherThanAnchorHeaderSlot_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.slot = builder.anchorSlot + 1;
+            assertConfigRejected(
+                    builder.serialize(), "configPayload slot 8192034 is not the anchor header slot 8192033");
+        }
+
+        @Test
+        @DisplayName("given an update header in the next period, then verifyConfigPayload rejects the payload")
+        void givenUpdateHeaderInNextPeriod_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.updateSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 1) + 1;
+            assertConfigRejected(
+                    builder.serialize(), "update header slot 8200193 is in period 1001, expected period 1000");
+        }
+
+        @Test
+        @DisplayName("given a current-committee branch that does not fold to the anchor state root, then"
+                + " verifyConfigPayload rejects the payload")
+        void givenWrongCurrentCommitteeBranch_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.currentBranchOverride = zeroBranch(11);
+            builder.currentBranchOverride[0] = deterministicBytes(32, 0x99);
+            assertConfigRejected(
+                    builder.serialize(), "current sync committee branch does not verify against the header stateRoot");
+        }
+
+        @Test
+        @DisplayName("given a next-committee branch that does not fold to the update state root, then"
+                + " verifyConfigPayload rejects the payload")
+        void givenWrongNextCommitteeBranch_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.nextBranchOverride = zeroBranch(11);
+            builder.nextBranchOverride[0] = deterministicBytes(32, 0x99);
+            assertConfigRejected(
+                    builder.serialize(), "next sync committee branch does not verify against the header stateRoot");
+        }
+
+        @Test
+        @DisplayName("given 341 of 512 participants in the update signature, then verifyConfigPayload rejects the"
+                + " payload")
+        void givenUpdateParticipationBelowSupermajority_thenThrowsProofException() {
+            final ConfigBuilder builder = config();
+            builder.bits = bitsWithout(MAINNET, IntStream.range(0, 171).toArray());
+            assertConfigRejected(builder.serialize(), "participation 341/512 is below the 2/3 supermajority");
+        }
+
+        @Test
+        @DisplayName("given a valid config, then BLS receives the current aggregate, the decompressed non-signers, the"
+                + " update's signing root and the signature")
+        void givenValidConfig_thenBlsReceivesCurrentCommitteeUpdateSignature() {
+            final ConfigBuilder builder = config();
+            builder.signature = deterministicBytes(256, 0x5B);
+
+            verifier.verifyConfigPayload(builder.serialize());
+
+            assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.uncompressedAggregate);
+            assertThat(bls.lastNonSignerPubkeys)
+                    .containsExactly(COMMITTEE.uncompressedKeys[3], COMMITTEE.uncompressedKeys[17]);
+            assertThat(bls.lastMessage).isEqualTo(signingRoot(builder.updateRoot()));
+            assertThat(bls.lastSignature).isEqualTo(builder.signature);
+        }
+
+        @Test
+        @DisplayName("given a valid config, then verifyConfigPayload validates both committees' aggregates")
+        void givenValidConfig_thenValidatesBothAggregates() {
+            verifier.verifyConfigPayload(config().serialize());
+
+            assertThat(bls.validatedPubkeys)
+                    .containsExactly(COMMITTEE.uncompressedAggregate, NEXT_COMMITTEE.uncompressedAggregate);
+        }
+
+        @Test
+        @DisplayName("given a current committee whose aggregate is not a valid public key, then verifyConfigPayload"
+                + " rejects the payload")
+        void givenCurrentAggregateNotValidPubkey_thenThrowsProofException() {
+            bls.invalidPubkey = COMMITTEE.uncompressedAggregate;
+            assertConfigRejected(
+                    config().serialize(),
+                    "current sync committee aggregate pubkey 0x"
+                            + HexFormat.of().formatHex(COMMITTEE.compressedAggregate)
+                            + " is not a valid BLS public key");
+        }
+
+        @Test
+        @DisplayName("given a next committee whose aggregate is not a valid public key, then verifyConfigPayload"
+                + " rejects the payload")
+        void givenNextAggregateNotValidPubkey_thenThrowsProofException() {
+            bls.invalidPubkey = NEXT_COMMITTEE.uncompressedAggregate;
+            assertConfigRejected(
+                    config().serialize(),
+                    "next sync committee aggregate pubkey 0x"
+                            + HexFormat.of().formatHex(NEXT_COMMITTEE.compressedAggregate)
+                            + " is not a valid BLS public key");
+        }
+
+        @Test
+        @DisplayName("given the BLS check of the update fails, then verifyConfigPayload rejects the payload")
+        void givenUpdateBlsRejects_thenThrowsProofException() {
+            bls.result = false;
+            assertConfigRejected(config().serialize(), "sync aggregate BLS signature verification failed");
+        }
+
+        @Test
+        @DisplayName("given a mainnet config, then verifyConfigPayload derives the anchor of both committees and the"
+                + " code hash")
+        void givenMainnetConfig_thenDerivesAnchorOfBothCommittees() {
+            final ConfigBuilder builder = config();
+
+            final VerifiedConfig verified = verifier.verifyConfigPayload(builder.serialize());
+
+            final ClprLedgerConfiguration ledger = verified.ledgerConfiguration();
+            assertThat(ledger.initialTrustAnchor().toByteArray())
+                    .isEqualTo(anchor(MAINNET, ANCHOR_PERIOD, COMMITTEE, NEXT_COMMITTEE));
+            assertThat(ledger.initialTrustAnchorId().toByteArray())
+                    .isEqualTo(ByteBuffer.allocate(8).putLong(ANCHOR_PERIOD).array());
+            assertThat(ledger.chainId()).isEqualTo("eip155:1");
+            assertThat(ledger.serviceAddress().toByteArray()).isEqualTo(SERVICE_ADDRESS);
+            assertThat(verified.slot()).isEqualTo(builder.anchorSlot);
+        }
+
+        @Test
+        @DisplayName("given a minimal config, then verifyConfigPayload derives a minimal anchor")
+        void givenMinimalConfig_thenDerivesMinimalAnchor() {
+            final ConfigBuilder builder =
+                    new ConfigBuilder(MINIMAL, ANCHOR_PERIOD, MINIMAL_COMMITTEE, MINIMAL_NEXT_COMMITTEE);
+
+            final VerifiedConfig verified = verifier.verifyConfigPayload(builder.serialize());
+
+            assertThat(verified.ledgerConfiguration().initialTrustAnchor().toByteArray())
+                    .isEqualTo(MINIMAL_TRUST_ANCHOR);
+        }
+
+        private static byte[] serialize(final EthereumPosLedgerConfigurationPayload payload) {
+            return EthereumPosLedgerConfigurationPayload.PROTOBUF
+                    .toBytes(payload)
+                    .toByteArray();
         }
     }
 
-    private static byte[] serializeLedgerConfig(ClprLedgerConfiguration config) {
-        return ClprLedgerConfiguration.PROTOBUF.toBytes(config).toByteArray();
-    }
-
-    private static byte[] serializeManifest(ClprEndpointManifest manifest) {
+    private static byte[] serialize(final ClprEndpointManifest manifest) {
         return ClprEndpointManifest.PROTOBUF.toBytes(manifest).toByteArray();
     }
 
-    /** A manifest bound to {@link #SERVICE_ADDR} at the given version with {@code endpointCount} placeholder endpoints. */
-    private static ClprEndpointManifest manifest(long version, int endpointCount) {
-        List<ClprEndpoint> endpoints = new ArrayList<>();
+    /**
+     * A manifest bound to {@code serviceAddress} at {@code version} with {@code endpointCount} placeholder endpoints.
+     */
+    private static ClprEndpointManifest manifest(
+            final long version, final int endpointCount, final byte[] serviceAddress) {
+        final List<ClprEndpoint> endpoints = new ArrayList<>();
         for (int i = 0; i < endpointCount; i++) {
             endpoints.add(ClprEndpoint.newBuilder()
                     .tlsCertificate(Bytes.wrap(deterministicBytes(48, 0x30 + i)))
@@ -1033,120 +1284,8 @@ class EthereumSyncCommitteeProofVerifierTest {
         }
         return ClprEndpointManifest.newBuilder()
                 .version(version)
-                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .serviceAddress(Bytes.wrap(serviceAddress))
                 .endpoints(endpoints)
                 .build();
-    }
-
-    /** The 32-byte commitment slot the verifier pins the manifest proof to (slot 18). */
-    private static byte[] manifestSlot() {
-        return slotKey(0x12);
-    }
-
-    /**
-     * RLP {@code [key, proofNodes[]]} storage-proof entry.
-     */
-    private static byte[] storageEntry(byte[] key32, List<byte[]> proofNodes) {
-        List<byte[]> encodedNodes = new ArrayList<>();
-        for (byte[] node : proofNodes) {
-            encodedNodes.add(Rlp.encodeBytes(node));
-        }
-        return Rlp.encodeList(List.of(Rlp.encodeBytes(key32), Rlp.encodeList(encodedNodes)));
-    }
-
-    private static byte[] slotKey(int index) {
-        byte[] key = new byte[32];
-        key[31] = (byte) index;
-        return key;
-    }
-
-    /** A 32-byte storage word holding a {@code uint64} manifest version LSB-packed (last 8 bytes). */
-    private static byte[] manifestVersionSlotValue(long version) {
-        byte[] slot = new byte[32];
-        for (int i = 0; i < 8; i++) {
-            slot[24 + i] = (byte) (version >>> (8 * (7 - i)));
-        }
-        return slot;
-    }
-
-    // -----------------------------------------------------------------------------------
-    // Committee / bits helpers
-    // -----------------------------------------------------------------------------------
-
-    private static byte[][] buildPubkeys() {
-        byte[][] keys = new byte[COMMITTEE_SIZE][];
-        for (int i = 0; i < COMMITTEE_SIZE; i++) {
-            keys[i] = new byte[48];
-            for (int j = 0; j < 48; j++) {
-                keys[i][j] = (byte) (i * 7 + j);
-            }
-        }
-        return keys;
-    }
-
-    private static byte[] allBitsSet() {
-        byte[] bits = new byte[64];
-        Arrays.fill(bits, (byte) 0xFF);
-        return bits;
-    }
-
-    /**
-     * SSZ Bitvector[512] with the first {@code n} bits set (bit i = bit i%8 of byte i/8).
-     */
-    private static byte[] firstNBitsSet(int n) {
-        byte[] bits = new byte[64];
-        for (int i = 0; i < n; i++) {
-            bits[i / 8] |= (byte) (1 << (i % 8));
-        }
-        return bits;
-    }
-
-    private static byte[][] zeroBranch(int depth) {
-        byte[][] branch = new byte[depth][];
-        for (int i = 0; i < depth; i++) {
-            branch[i] = new byte[32];
-        }
-        return branch;
-    }
-
-    // -----------------------------------------------------------------------------------
-    // MPT fixture helpers (same single-leaf technique as QbftProofVerifierTest)
-    // -----------------------------------------------------------------------------------
-
-    /**
-     * Builds a single-leaf MPT proof for the given contract account.
-     *
-     * @return {@code [stateRoot32, leafNodeRlp]}
-     */
-    private static byte[][] buildAccountMptProof(byte[] contractAddr20, byte[] storageRoot32, byte[] codeHash32) {
-        byte[] accountKey32 = MiscCryptoUtils.keccak256DigestOf(contractAddr20);
-        byte[] accountRlp = Rlp.encodeList(List.of(
-                Rlp.encodeUint(0L), Rlp.encodeUint(0L), Rlp.encodeBytes(storageRoot32), Rlp.encodeBytes(codeHash32)));
-
-        // Hex-prefix for 64-nibble path: flag byte 0x20 (leaf, even) + 32 key bytes
-        byte[] hexPrefix = new byte[33];
-        hexPrefix[0] = 0x20;
-        System.arraycopy(accountKey32, 0, hexPrefix, 1, 32);
-
-        byte[] leafNode = Rlp.encodeList(List.of(Rlp.encodeBytes(hexPrefix), Rlp.encodeBytes(accountRlp)));
-        return new byte[][] {MiscCryptoUtils.keccak256DigestOf(leafNode), leafNode};
-    }
-
-    /**
-     * Builds a single-leaf MPT proof for a storage slot.
-     *
-     * @return {@code [storageRoot32, leafNodeRlp]}
-     */
-    private static byte[][] buildStorageMptProof(byte[] storageSlotKey32, byte[] provenValue32) {
-        byte[] storageKeyHash = MiscCryptoUtils.keccak256DigestOf(storageSlotKey32);
-
-        byte[] hexPrefix = new byte[33];
-        hexPrefix[0] = 0x20;
-        System.arraycopy(storageKeyHash, 0, hexPrefix, 1, 32);
-
-        // The leaf value is Rlp(Rlp(bytes32)); decodeTrieStorageValueAsBytes32 peels one layer.
-        byte[] encodedValue = Rlp.encodeBytes(provenValue32);
-        byte[] leafNode = Rlp.encodeList(List.of(Rlp.encodeBytes(hexPrefix), Rlp.encodeBytes(encodedValue)));
-        return new byte[][] {MiscCryptoUtils.keccak256DigestOf(leafNode), leafNode};
     }
 }

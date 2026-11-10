@@ -400,9 +400,11 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
 
         if (autoRenewId != null) {
             if (!autoRenewId.equals(asAccount("0.0.0"))) {
-                final var autoRenewAccount = mock(Account.class);
-                given(accountStore.getAccountById(autoRenewId)).willReturn(autoRenewAccount);
-                given(autoRenewAccount.key()).willReturn(autoRenewKey);
+                given(accountStore.getAccountById(autoRenewId))
+                        .willReturn(Account.newBuilder()
+                                .accountId(autoRenewId)
+                                .key(autoRenewKey)
+                                .build());
             }
             createTxnBody.autoRenewAccountId(autoRenewId);
         }

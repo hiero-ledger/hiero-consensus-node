@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.network.simulation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDTH;
+import static org.hiero.otter.fixtures.network.simulation.TestRosters.rosterOf;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -61,7 +62,8 @@ class SimulatedNetworkConnectivityTest {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
-        network = new SimulatedNetworkConnectivity(new Random(seed), START, List.of(node0, node1, node2));
+        network = new SimulatedNetworkConnectivity(
+                new Random(seed), START, rosterOf(NODE_0, NODE_1, NODE_2), List.of(node0, node1, node2));
         now = 0;
         network.tick(at(0));
     }
@@ -85,7 +87,8 @@ class SimulatedNetworkConnectivityTest {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
-        network = new SimulatedNetworkConnectivity(new Random(0), START, List.of(node2, node0, node1));
+        network = new SimulatedNetworkConnectivity(
+                new Random(0), START, rosterOf(NODE_0, NODE_1, NODE_2), List.of(node2, node0, node1));
         network.tick(at(0));
         network.setConnections(connections(true));
 
@@ -100,8 +103,39 @@ class SimulatedNetworkConnectivityTest {
     @DisplayName("a node cannot have more than one event receiver")
     void duplicateEventReceiversAreRejected() {
         assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
-                        new Random(0), START, List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
+                        new Random(0),
+                        START,
+                        rosterOf(NODE_0),
+                        List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_0))))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("every node in the roster must have an event receiver")
+    void missingEventReceiversAreRejected() {
+        assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
+                        new Random(0), START, rosterOf(NODE_0, NODE_1), List.of(new RecordingReceiver(NODE_0))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("every event receiver must belong to a node in the roster")
+    void eventReceiversOutsideTheRosterAreRejected() {
+        assertThatThrownBy(() -> new SimulatedNetworkConnectivity(
+                        new Random(0),
+                        START,
+                        rosterOf(NODE_0),
+                        List.of(new RecordingReceiver(NODE_0), new RecordingReceiver(NODE_1))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("connection data must contain every connection or none")
+    void incompleteConnectionDataIsRejected() {
+        final Map<ConnectionKey, ConnectionState> incomplete = connections(true);
+        incomplete.remove(new ConnectionKey(NODE_1, NODE_0));
+
+        assertThatThrownBy(() -> network.setConnections(incomplete)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -371,6 +405,79 @@ class SimulatedNetworkConnectivityTest {
         assertThat(node2.receivedEvents.get(0).getTimeReceived()).isEqualTo(at(251));
         assertThat(node2.receivedEvents.get(1).getSenderId()).isEqualTo(NODE_1);
         assertThat(node2.receivedEvents.get(1).getTimeReceived()).isEqualTo(at(682));
+    }
+
+    @Test
+    @DisplayName("an event submitted again by the same node is delivered once")
+    void repeatedSubmissionIsIgnored() {
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        network.submitEvent(event);
+        tickTo(2);
+        network.submitEvent(event);
+        tickTo(2000);
+
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("every submitting node is scheduled, even for the same event")
+    void sameEventFromDifferentNodesIsScheduledForEach() {
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = submit(NODE_0);
+        forward(event, NODE_1);
+        tickTo(1);
+        tickTo(2000);
+
+        assertThat(forwardedBy(node2, NODE_0)).hasSize(1);
+        assertThat(forwardedBy(node2, NODE_1)).hasSize(1);
+        assertThat(forwardedBy(node0, NODE_1)).hasSize(1);
+        assertThat(forwardedBy(node1, NODE_0)).hasSize(1);
+        assertThat(node0.receivedEvents).hasSize(1);
+        assertThat(node1.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a restarted node is sent the whole event log again")
+    void restartedNodeReceivesLogAgain() {
+        network.setConnections(connections(true));
+
+        submit(NODE_0);
+        submit(NODE_2);
+        tickTo(1);
+        tickTo(2000);
+        assertThat(node1.receivedEvents).hasSize(2);
+        assertThat(node2.receivedEvents).hasSize(1);
+
+        network.resetCursor(NODE_1);
+        tickTo(2001);
+        tickTo(6000);
+
+        assertThat(node1.receivedEvents).hasSize(4);
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node0.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a restarted node is not sent its own events, but is sent the ones submitted after the restart once")
+    void restartedNodeReceivesNewEventsOnce() {
+        network.setConnections(connections(true));
+
+        submit(NODE_1);
+        tickTo(1);
+        tickTo(2000);
+
+        network.resetCursor(NODE_1);
+        submit(NODE_0);
+        tickTo(2001);
+        tickTo(6000);
+
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(node1.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_0);
     }
 
     /**

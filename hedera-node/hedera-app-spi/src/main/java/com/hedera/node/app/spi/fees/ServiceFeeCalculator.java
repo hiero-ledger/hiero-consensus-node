@@ -21,6 +21,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
 import com.hedera.hapi.node.transaction.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Set;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -50,6 +51,29 @@ public interface ServiceFeeCalculator {
     TransactionBody.DataOneOfType getTransactionType();
 
     /**
+     * Returns the extras this calculator may charge through {@link #addExtraFee}. A fee schedule is only usable
+     * if the service fee definition for this calculator's transaction type references every one of them,
+     * since charging an unreferenced extra fails the fee calculation. The default is no extras.
+     *
+     * @return the extras that must be referenced by this calculator's service fee definition
+     */
+    default Set<Extra> requiredExtras() {
+        return Set.of();
+    }
+
+    /**
+     * Returns the extras this calculator charges through {@link #addExtraFee}. This is {@link #requiredExtras()}
+     * except when the calculator charges from another function's service fee definition, in which case it is the
+     * set that definition must reference. Enabled assertions check every charged extra against this set, so an
+     * undeclared extra fails the first test that reaches it.
+     *
+     * @return the extras this calculator may charge
+     */
+    default Set<Extra> chargedExtras() {
+        return requiredExtras();
+    }
+
+    /**
      * Adds an extra fee to the result.
      *
      * @param result the fee result
@@ -64,6 +88,8 @@ public interface ServiceFeeCalculator {
             @NonNull final Extra extra,
             @NonNull FeeSchedule feeSchedule,
             final long amount) {
+        assert chargedExtras().contains(extra)
+                : getClass().getSimpleName() + " charges " + extra + " but does not declare it";
         for (ExtraFeeReference ref : serviceFeeDef.extras()) {
             if (ref.name() == extra) {
                 int included = ref.includedCount();
