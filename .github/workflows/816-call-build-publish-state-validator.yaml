@@ -28,6 +28,12 @@ on:
       gcs-uri:
         description: "GCS URI of the published uber JAR"
         value: ${{ jobs.build-publish.outputs.gcs-uri }}
+    # TODO: Remove the secrets block once released to mainnet
+    # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
 
 permissions:
   contents: read
@@ -77,7 +83,7 @@ jobs:
       - name: Checkout PBJ Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          token: ${{ secrets.access-token }}
+          token: ${{ secrets.access-token || secrets.GH_ACCESS_TOKEN }}
           path: ${{ github.workspace }}/pbj-releases
           repository: hashgraph/pbj-releases
           ref: release/0.15

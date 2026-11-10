@@ -27,6 +27,12 @@ on:
       failure-mode:
         description: "Failure Mode"
         value: ${{ jobs.solo-three-stage-block-stream-cutover.outputs.failure-mode }}
+    # TODO: Remove the secrets block once released to mainnet
+    # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
 
 defaults:
   run:

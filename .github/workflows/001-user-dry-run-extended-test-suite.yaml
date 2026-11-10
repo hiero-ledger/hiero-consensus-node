@@ -213,6 +213,10 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       dry-run-enabled: "true"
+    # TODO: Remove the secrets block once released to mainnet
+    # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
   xts-execution:
     name: Execute XTS

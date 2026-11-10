@@ -191,6 +191,10 @@ jobs:
       custom-job-name: "${{ inputs.custom-job-label }} Solo Three-Stage Block Stream Cutover"
       solo-version: "${{ inputs.cutover-solo-version }}"
       java-version: "${{ inputs.java-version }}"
+    # TODO: Remove the secrets block once released to mainnet
+    # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
 
   set-failure-mode:
     name: Set Failure Mode
