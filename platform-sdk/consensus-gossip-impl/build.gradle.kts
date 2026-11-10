@@ -13,9 +13,9 @@ jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.benchmark.tools")
     requires("org.hiero.consensus.gossip.impl")
-    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.hiero.otter.fixtures")
     requires("jmh.core")
 }
 
@@ -25,9 +25,11 @@ jmh {
 }
 
 benchmarkTracking {
-    // the recording of 32 nodes takes about 10 s per fork; one parameter set is enough for the
-    // smoke run
+    // the recording of 28 nodes takes about 5 minutes per fork on a laptop; one parameter set is
+    // enough for the smoke run
     smokeArgs = listOf("-p", "numNodes=10")
+    // the recording of 10 nodes keeps up to about 3 GB live
+    smokeJvmArgs = "-Xms6g -Xmx6g"
 }
 
 testModuleInfo {

@@ -2,11 +2,12 @@
 package org.hiero.consensus.gossip.impl.jmh;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -17,25 +18,27 @@ import org.hiero.consensus.event.DefaultIntakeEventCounter;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ReservedEventWindow;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowEvent;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.Shadowgraph;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.otter.fixtures.falcon.recording.FalconRecorder;
+import org.hiero.otter.fixtures.falcon.recording.NodeRecording;
+import org.hiero.otter.fixtures.falcon.recording.Recording;
+import org.hiero.otter.fixtures.falcon.recording.RecordingSpec;
+import org.hiero.otter.fixtures.falcon.recording.Step;
+import org.hiero.otter.fixtures.falcon.recording.Step.NewEventWindow;
+import org.hiero.otter.fixtures.falcon.recording.Step.Released;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
-import org.openjdk.jmh.annotations.OperationsPerInvocation;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
@@ -55,16 +58,17 @@ import org.openjdk.jmh.annotations.Warmup;
  * contended: contention between the sync threads and the wiring thread is not measured. Finding the ancestors of
  * events, most of a sync's decision which events to send, is left to the benchmark of that decision.
  *
- * <p>The calls are replayed from a recording made once per trial: the generated events of a network of
- * {@link #numNodes} nodes in the order generated, and after each event the event windows of the rounds it decided,
- * which a {@link TestIntake} computes by running the production consensus engine on copies of the events. After each
- * event the replay makes one sync lookup. The peer's tips are the latest event of each creator up to
- * {@code numNodes / 2} events later, so that, as in a real sync, some of them are not yet in the shadowgraph.
+ * <p>{@link FalconRecorder} simulates a network of {@link #numNodes} nodes once per trial, on the ping times of
+ * mainnet, and records two of its nodes. The benchmark replays what gossip gets on the first of them: the events its
+ * orphan buffer released, its own included, in that order, and between them the event window of each consensus round.
+ * After each event, the replay makes one sync lookup with the second node as the peer. The peer's tips are the newest
+ * event of each creator that it had released at that time. Whether the first node already has them therefore follows
+ * from the simulated network, as in a real sync: it has about half of them.
  *
  * <p>The shadowgraph drops an event when its birth round falls below the expired threshold of the event window, 1000
  * rounds ({@code roundsExpired}) after the event's birth. Until the first events expire, the graph only grows, so each
- * invocation adds the events up to then to a new shadowgraph, outside the measured region. The benchmark methods
- * replay the rest, where the graph keeps a steady size:
+ * invocation adds the events up to then to a new shadowgraph, outside the measured region. Each benchmark method
+ * replays all the rest, where the graph keeps a steady size, and times one kind of call:
  * <ul>
  *   <li>{@link #addEvent()} times every call of {@link Shadowgraph#addEvent(PlatformEvent)};</li>
  *   <li>{@link #updateEventWindow()} times every call of {@link Shadowgraph#updateEventWindow(EventWindow)}, which
@@ -72,91 +76,86 @@ import org.openjdk.jmh.annotations.Warmup;
  *   <li>{@link #syncLookup()} times every sync lookup: {@link Shadowgraph#reserve()}, {@link Shadowgraph#getTips()},
  *   {@link Shadowgraph#shadows(List)}, and closing the reservation.</li>
  * </ul>
- * Each method runs the other steps of the replay paused ({@link LatencyRecorder#pause()}), so they count neither in
+ * Each method runs the other calls of the replay paused ({@link LatencyRecorder#pause()}), so they count neither in
  * its latencies nor in its allocation.
  *
  * <p>Each latency includes one clock read ({@link LatencyRecorder#lap()}). Adding an event and a sync lookup take
  * well under a microsecond, so the clock read is a noticeable part of their latency. On an Apple M4 laptop, one more
- * clock read after each call added 11 to 12 ns: 6% to 7% of {@link #addEvent()}, 2% to 4% of {@link #syncLookup()},
+ * clock read after each call added 11 to 12 ns: 4% to 5% of {@link #addEvent()}, 2% to 5% of {@link #syncLookup()},
  * and under 0.5% of {@link #updateEventWindow()}. It is nearly the same for every call, so it does not hide a
  * regression, but it makes one look slightly smaller.
  *
  * <p>The shadowgraph updates the production metrics implementation, {@link DefaultPlatformMetrics}, and the
- * production {@link DefaultIntakeEventCounter}, which counts the events from each peer. The metrics are not started:
- * in production, their periodic updaters and snapshots run on other threads.
+ * production {@link DefaultIntakeEventCounter}, which counts the events from each peer by the sender they had in the
+ * simulation. The metrics are not started: in production, their periodic updaters and snapshots run on other threads.
  *
- * <p>{@link LatencyProfiler} reports the mean, the percentiles, and the allocation per measured call. JMH's primary
- * score divides the time of the whole pass, paused steps included, by the number of measured calls, so it is not the
- * time per call; {@code latency.mean} is. Each invocation's setup ends with {@code System.gc()}; a pass during which a
- * garbage collection runs is discarded and replaced by the next invocation.
+ * <p>The recording runs the event creator and the consensus code, so a change to them can change the events. The
+ * check of the peer's tips that the lookups find then fails, and the expected number changes in the same pull request.
+ *
+ * <p>{@link LatencyProfiler} reports the mean, the percentiles, and the allocation per timed call. JMH's primary score
+ * is the time of a whole pass, the paused calls included; the number of timed calls per pass differs between the
+ * parameter sets. Each invocation's setup ends with {@code System.gc()}; a pass during which a garbage collection runs
+ * is discarded and replaced by the next invocation. The heap is sized for the recording of 28 nodes, which keeps up to
+ * about 6.7 GB live while it runs: in a local heap sweep, it needed 5 full collections at 8 GB and none at 10 GB.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  */
 @State(Scope.Thread)
 @Fork(
         value = 5,
-        jvmArgsAppend = {"-Xms4g", "-Xmx4g", "-XX:+AlwaysPreTouch"})
+        jvmArgsAppend = {"-Xms10g", "-Xmx10g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 15)
 @Measurement(iterations = 2, time = 15)
 public class ShadowgraphBenchmark {
 
-    /** The seed of the event generator. The same seed produces the same recording. */
+    /** The seed of the recording. The same seed gives the same recording. */
     private static final long SEED = 0;
 
-    /** The maximum number of other parents of a generated event. */
-    private static final int MAX_OTHER_PARENTS = 4;
+    /**
+     * The number of events each recorded node releases from its orphan buffer, its own included, before the recording
+     * ends. It covers the 1000 rounds until the first events expire and about 1000 rounds after them at 28 nodes.
+     */
+    private static final int EVENTS = 350_000;
 
-    /** The number of calls that {@link #addEvent()} measures per invocation. */
-    private static final int ADDED_EVENTS = 100000;
-
-    /** The number of calls that {@link #updateEventWindow()} measures per invocation. */
-    private static final int WINDOW_UPDATES = 1000;
-
-    /** The number of sync lookups that {@link #syncLookup()} measures per invocation. */
-    private static final int SYNC_LOOKUPS = 100000;
-
-    /** The number of nodes in the generated network. */
-    @Param({"10", "32"})
+    /** The number of nodes in the simulated network. */
+    @Param({"10", "28"})
     public int numNodes;
 
-    /** The kinds of steps in the recording. */
+    /** What one call of the replay does. */
     private enum Kind {
+        /** Adds an event to the shadowgraph. */
         ADD_EVENT,
+        /** Sets a new event window. */
         UPDATE_WINDOW,
+        /** Makes the lookups of a sync. */
         SYNC_LOOKUP
     }
 
     /**
-     * One step of the recording.
+     * One call of the replay.
      *
-     * @param kind          the kind of step
+     * @param kind          what the call does
      * @param event         the event to add, for {@link Kind#ADD_EVENT}
      * @param window        the event window to set, for {@link Kind#UPDATE_WINDOW}
      * @param peerTips      the hashes of the peer's tips, for {@link Kind#SYNC_LOOKUP}
-     * @param knownPeerTips the number of the peer's tips in the shadowgraph at this step, for {@link Kind#SYNC_LOOKUP}
+     * @param knownPeerTips the number of the peer's tips in the shadowgraph at this call, for {@link Kind#SYNC_LOOKUP}
      */
-    private record Step(Kind kind, PlatformEvent event, EventWindow window, List<Hash> peerTips, int knownPeerTips) {}
+    private record Call(Kind kind, PlatformEvent event, EventWindow window, List<Hash> peerTips, int knownPeerTips) {}
 
-    /** The configuration of the shadowgraph's metrics. */
+    /** The configuration of the recorded node. */
     private Configuration configuration;
 
-    /** The roster of the generated network. */
+    /** The roster of the simulated network. */
     private RosterWrapper roster;
 
-    /** The recorded steps. */
-    private Step[] steps;
+    /** The ID of the node whose shadowgraph is replayed. */
+    private NodeId nodeId;
 
-    /** The number of steps that each invocation's setup replays: those before the first events expire. */
-    private int fillSteps;
+    /** The calls of the replay, in order. */
+    private Call[] calls;
 
-    /** The number of steps after the fill that {@link #addEvent()} replays: up to its last measured call. */
-    private int addEventSteps;
-
-    /** The number of steps after the fill that {@link #updateEventWindow()} replays: up to its last measured call. */
-    private int updateWindowSteps;
-
-    /** The number of steps after the fill that {@link #syncLookup()} replays: up to its last measured call. */
-    private int syncLookupSteps;
+    /** The number of calls that each invocation's setup makes: those before the first events expire. */
+    private int fillCalls;
 
     /** The executor the metrics require. It stays idle, because the metrics are not started. */
     private ScheduledExecutorService metricsExecutor;
@@ -170,9 +169,6 @@ public class ShadowgraphBenchmark {
     /** The event window set last. */
     private EventWindow currentWindow;
 
-    /** The number of steps after the fill replayed in the invocation. */
-    private int replayedSteps;
-
     /** The number of events added in the invocation after the fill. */
     private int addedEvents;
 
@@ -185,6 +181,9 @@ public class ShadowgraphBenchmark {
     /** The shadow events of the peer's tips returned to the latest sync lookup, null for those not in the graph. */
     private List<ShadowEvent> lookupPeerTips;
 
+    /** The number of the peer's tips that the sync lookups of the invocation found in the shadowgraph. */
+    private long foundPeerTips;
+
     /** The number of sync lookups in the invocation whose result differed from the recording. */
     private int lookupMismatches;
 
@@ -192,116 +191,69 @@ public class ShadowgraphBenchmark {
     private LatencyRecorder recorder;
 
     /**
-     * Records the steps and checks that the recording is the expected one. This method is called once per trial.
+     * Records the network and turns what the first recorded node's gossip gets into the calls of the replay. This
+     * method is called once per trial.
      */
     @Setup(Level.Trial)
-    public void recordSteps() {
-        configuration = new TestConfigBuilder().getOrCreateConfig();
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .seed(SEED)
-                .maxOtherParents(MAX_OTHER_PARENTS)
-                .realSignatures(false)
-                .numNodes(numNodes)
-                .build();
-        roster = generator.getRoster();
-        steps = record(generator).toArray(new Step[0]);
-        fillSteps = firstExpiringWindow();
-        addEventSteps = stepsUpTo(Kind.ADD_EVENT, ADDED_EVENTS);
-        updateWindowSteps = stepsUpTo(Kind.UPDATE_WINDOW, WINDOW_UPDATES);
-        syncLookupSteps = stepsUpTo(Kind.SYNC_LOOKUP, SYNC_LOOKUPS);
-
-        final String summary = summarize();
-        final String expected =
-                switch (numNodes) {
-                    case 10 ->
-                        "254657 steps, 124799 events, 5059 event windows, fill 50590 steps (24794 events),"
-                                + " 736569 known peer tips, last expired threshold 4058, last e80c38ad6d238e0a4b17e76f2337f568";
-                    case 32 ->
-                        "442687 steps, 220342 events, 2003 event windows, fill 222158 steps (110578 events),"
-                                + " 4240491 known peer tips, last expired threshold 1001, last 1ea651e1b362f20123ee4b1fa8722e14";
-                    default -> throw new IllegalArgumentException("No expected recording for numNodes=" + numNodes);
-                };
-        if (!summary.equals(expected)) {
-            throw new IllegalStateException("Expected the recording %s, but got %s".formatted(expected, summary));
-        }
+    public void recordCalls() {
+        final Recording recording = FalconRecorder.record(
+                RecordingSpec.builder(numNodes, SEED, EVENTS).recordedNodes(2).build());
+        final NodeRecording node = recording.nodes().get(0);
+        final NodeRecording peer = recording.nodes().get(1);
+        configuration = node.configuration();
+        roster = recording.roster();
+        nodeId = node.nodeId();
+        calls = buildCalls(node, peer).toArray(new Call[0]);
+        fillCalls = firstExpiringWindow();
         metricsExecutor = Executors.newSingleThreadScheduledExecutor();
     }
 
     /**
-     * Generates events until the part after the fill holds every measured call, and turns them into steps.
+     * Turns the node's released events and event windows into calls, with a sync lookup after each event. The peer's
+     * tips at a lookup are the newest event of each creator that the peer had released by the time of the event.
      *
-     * @param generator the event generator
-     * @return the steps
+     * @param node the node whose shadowgraph is replayed
+     * @param peer the peer it syncs with
+     * @return the calls, in order
      */
-    private List<Step> record(final GeneratorEventGraphSource generator) {
-        final NodeId selfId = roster.nodeIdAtIndex(0);
-        final long genesisExpiredThreshold = EventWindow.getGenesisEventWindow().expiredThreshold();
-        final int lookahead = numNodes / 2;
-        final TestIntake intake = new TestIntake(configuration, roster);
-        final List<PlatformEvent> events = new ArrayList<>();
-        final List<List<EventWindow>> windows = new ArrayList<>();
-        boolean filled = false;
-        int eventsAfterFill = 0;
-        int windowsAfterFill = 0;
-        while (eventsAfterFill <= Math.max(ADDED_EVENTS, SYNC_LOOKUPS) + lookahead
-                || windowsAfterFill < WINDOW_UPDATES) {
-            final PlatformEvent event = generator.next();
-            if (!event.getCreatorId().equals(selfId)) {
-                // in production, events from peers carry the peer that sent them; here, their creator
-                event.setSenderId(event.getCreatorId());
-            }
-            events.add(event);
-            final int roundsBefore = intake.getConsensusRounds().size();
-            intake.addEvent(event.copyGossipedData());
-            final List<ConsensusRound> rounds = intake.getConsensusRounds();
-            final List<EventWindow> decided = new ArrayList<>();
-            for (int i = roundsBefore; i < rounds.size(); i++) {
-                final EventWindow window = rounds.get(i).getEventWindow();
-                filled |= window.expiredThreshold() > genesisExpiredThreshold;
-                if (filled) {
-                    windowsAfterFill++;
-                }
-                decided.add(window);
-            }
-            windows.add(decided);
-            if (filled) {
-                eventsAfterFill++;
+    private static List<Call> buildCalls(final NodeRecording node, final NodeRecording peer) {
+        final List<Released> peerReleases = new ArrayList<>();
+        for (final Step step : peer.steps()) {
+            if (step instanceof final Released released) {
+                peerReleases.add(released);
             }
         }
-
-        final Map<NodeId, Integer> creatorIndex = new HashMap<>();
-        for (int i = 0; i < numNodes; i++) {
-            creatorIndex.put(roster.nodeIdAtIndex(i), i);
-        }
-        final Hash[] peerLatest = new Hash[numNodes];
-        final int[] peerLatestIndex = new int[numNodes];
-        int peerSeen = -1;
-        final List<Step> recording = new ArrayList<>();
-        for (int i = 0; i < events.size(); i++) {
-            recording.add(new Step(Kind.ADD_EVENT, events.get(i), null, null, 0));
-            for (final EventWindow window : windows.get(i)) {
-                recording.add(new Step(Kind.UPDATE_WINDOW, null, window, null, 0));
-            }
-            while (peerSeen < Math.min(i + lookahead, events.size() - 1)) {
-                peerSeen++;
-                final PlatformEvent peerEvent = events.get(peerSeen);
-                final int creator = creatorIndex.get(peerEvent.getCreatorId());
-                peerLatest[creator] = peerEvent.getHash();
-                peerLatestIndex[creator] = peerSeen;
-            }
-            final List<Hash> peerTips = new ArrayList<>(numNodes);
-            int known = 0;
-            for (int creator = 0; creator < numNodes; creator++) {
-                if (peerLatest[creator] != null) {
-                    peerTips.add(peerLatest[creator]);
-                    if (peerLatestIndex[creator] <= i) {
-                        known++;
+        final Map<NodeId, Hash> peerTips = new LinkedHashMap<>();
+        final Set<Hash> releasedByNode = new HashSet<>();
+        int nextPeerRelease = 0;
+        final List<Call> result = new ArrayList<>();
+        for (final Step step : node.steps()) {
+            switch (step) {
+                case Released released -> {
+                    final PlatformEvent event = released.event();
+                    result.add(new Call(Kind.ADD_EVENT, event, null, null, 0));
+                    releasedByNode.add(event.getHash());
+                    while (nextPeerRelease < peerReleases.size()
+                            && !peerReleases.get(nextPeerRelease).time().isAfter(released.time())) {
+                        final PlatformEvent peerEvent =
+                                peerReleases.get(nextPeerRelease++).event();
+                        peerTips.put(peerEvent.getCreatorId(), peerEvent.getHash());
                     }
+                    int known = 0;
+                    for (final Hash tip : peerTips.values()) {
+                        if (releasedByNode.contains(tip)) {
+                            known++;
+                        }
+                    }
+                    result.add(new Call(Kind.SYNC_LOOKUP, null, null, List.copyOf(peerTips.values()), known));
+                }
+                case NewEventWindow window -> result.add(new Call(Kind.UPDATE_WINDOW, null, window.window(), null, 0));
+                default -> {
+                    // received events, creation attempts, and platform status changes do not reach the shadowgraph
                 }
             }
-            recording.add(new Step(Kind.SYNC_LOOKUP, null, null, List.copyOf(peerTips), known));
         }
-        return recording;
+        return result;
     }
 
     /**
@@ -313,33 +265,33 @@ public class ShadowgraphBenchmark {
     }
 
     /**
-     * Creates a new shadowgraph and adds the events and event windows up to the first expiring event window. This
-     * method is called once per invocation.
+     * Creates a new shadowgraph and makes the calls up to the first expiring event window, without the sync lookups.
+     * This method is called once per invocation.
      */
     @Setup(Level.Invocation)
     public void prepareInvocation() {
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
         final DefaultPlatformMetrics metrics = new DefaultPlatformMetrics(
-                roster.nodeIdAtIndex(0),
+                nodeId,
                 new MetricKeyRegistry(),
                 metricsExecutor,
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
         intakeEventCounter = new DefaultIntakeEventCounter(roster);
-        for (final Step step : steps) {
-            if (step.kind() == Kind.ADD_EVENT && step.event().getSenderId() != null) {
-                intakeEventCounter.eventEnteredIntakePipeline(step.event().getSenderId());
+        for (final Call call : calls) {
+            if (call.kind() == Kind.ADD_EVENT && call.event().getSenderId() != null) {
+                intakeEventCounter.eventEnteredIntakePipeline(call.event().getSenderId());
             }
         }
         shadowgraph = new Shadowgraph(metrics, numNodes, intakeEventCounter);
         currentWindow = shadowgraph.getEventWindow();
-        for (int i = 0; i < fillSteps; i++) {
-            if (steps[i].kind() != Kind.SYNC_LOOKUP) {
-                execute(steps[i]);
+        for (int i = 0; i < fillCalls; i++) {
+            if (calls[i].kind() != Kind.SYNC_LOOKUP) {
+                execute(calls[i]);
             }
         }
-        replayedSteps = 0;
         addedEvents = 0;
+        foundPeerTips = 0;
         lookupMismatches = 0;
         recorder = LatencyProfiler.recorder();
 
@@ -349,19 +301,19 @@ public class ShadowgraphBenchmark {
     }
 
     /**
-     * Verifies the invocation: every event was added, every sync lookup found what the recording expects, and the
-     * shadowgraph holds exactly the added events that have not expired. This method is called once per invocation.
+     * Verifies the invocation: every event was added, every sync lookup found what the recording expects, the lookups
+     * found the expected number of the peer's tips, the shadowgraph holds exactly the events that have not expired, and
+     * every event left the intake pipeline. This method is called once per invocation.
      */
     @TearDown(Level.Invocation)
     public void verifyInvocation() {
-        final int end = fillSteps + replayedSteps;
         int expectedAdded = 0;
         EventWindow lastWindow = null;
-        for (int i = 0; i < end; i++) {
-            if (steps[i].kind() == Kind.ADD_EVENT && i >= fillSteps) {
+        for (int i = 0; i < calls.length; i++) {
+            if (calls[i].kind() == Kind.ADD_EVENT && i >= fillCalls) {
                 expectedAdded++;
-            } else if (steps[i].kind() == Kind.UPDATE_WINDOW) {
-                lastWindow = steps[i].window();
+            } else if (calls[i].kind() == Kind.UPDATE_WINDOW) {
+                lastWindow = calls[i].window();
             }
         }
         if (addedEvents != expectedAdded) {
@@ -371,13 +323,17 @@ public class ShadowgraphBenchmark {
         if (lookupMismatches != 0) {
             throw new IllegalStateException("%d sync lookups differed from the recording".formatted(lookupMismatches));
         }
+        if (foundPeerTips != expectedFoundPeerTips()) {
+            throw new IllegalStateException("Expected the sync lookups to find %d of the peer's tips, but they found %d"
+                    .formatted(expectedFoundPeerTips(), foundPeerTips));
+        }
         if (shadowgraph.getEventWindow() != lastWindow) {
             throw new IllegalStateException(
                     "Expected the event window %s, but got %s".formatted(lastWindow, shadowgraph.getEventWindow()));
         }
-        for (int i = 0; i < end; i++) {
-            if (steps[i].kind() == Kind.ADD_EVENT) {
-                final PlatformEvent event = steps[i].event();
+        for (final Call call : calls) {
+            if (call.kind() == Kind.ADD_EVENT) {
+                final PlatformEvent event = call.event();
                 final boolean expected = event.getBirthRound() >= lastWindow.expiredThreshold();
                 if ((shadowgraph.getEvent(event.getHash()) != null) != expected) {
                     throw new IllegalStateException("Expected event %s %s the shadowgraph"
@@ -385,15 +341,10 @@ public class ShadowgraphBenchmark {
                 }
             }
         }
-        // the events after the replay did not leave the intake pipeline; then no peer may have one left
-        for (int i = end; i < steps.length; i++) {
-            if (steps[i].kind() == Kind.ADD_EVENT && steps[i].event().getSenderId() != null) {
-                intakeEventCounter.eventExitedIntakePipeline(steps[i].event().getSenderId());
-            }
-        }
-        for (int i = 0; i < numNodes; i++) {
+        for (int i = 0; i < roster.size(); i++) {
             if (intakeEventCounter.hasUnprocessedEvents(roster.nodeIdAtIndex(i))) {
-                throw new IllegalStateException("Node %d has events left in the intake pipeline".formatted(i));
+                throw new IllegalStateException("Node %d has events left in the intake pipeline"
+                        .formatted(roster.nodeIdAtIndex(i).id()));
             }
         }
         shadowgraph = null;
@@ -402,123 +353,124 @@ public class ShadowgraphBenchmark {
     }
 
     /**
-     * Replays the recording after the fill up to the last measured call of {@link Shadowgraph#addEvent(PlatformEvent)}
-     * and records the latency of each of these calls.
+     * The number of the peer's tips that the sync lookups of one pass find in the shadowgraph. It depends on the
+     * recording, on the expiry of events, and on the lookups.
+     */
+    private long expectedFoundPeerTips() {
+        return switch (numNodes) {
+            case 10 -> 1_547_179;
+            case 28 -> 2_213_188;
+            default -> throw new IllegalArgumentException("No expected peer tips for numNodes=" + numNodes);
+        };
+    }
+
+    /**
+     * Replays the calls after the fill and records the latency of each call of
+     * {@link Shadowgraph#addEvent(PlatformEvent)}.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
-    @OperationsPerInvocation(ADDED_EVENTS)
     public void addEvent() {
-        replay(Kind.ADD_EVENT, addEventSteps);
+        replay(Kind.ADD_EVENT);
     }
 
     /**
-     * Replays the recording after the fill up to the last measured call of
-     * {@link Shadowgraph#updateEventWindow(EventWindow)} and records the latency of each of these calls.
+     * Replays the calls after the fill and records the latency of each call of
+     * {@link Shadowgraph#updateEventWindow(EventWindow)}.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
-    @OperationsPerInvocation(WINDOW_UPDATES)
     public void updateEventWindow() {
-        replay(Kind.UPDATE_WINDOW, updateWindowSteps);
+        replay(Kind.UPDATE_WINDOW);
     }
 
     /**
-     * Replays the recording after the fill up to the last measured sync lookup and records the latency of each sync
-     * lookup.
+     * Replays the calls after the fill and records the latency of each sync lookup.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
-    @OperationsPerInvocation(SYNC_LOOKUPS)
     public void syncLookup() {
-        replay(Kind.SYNC_LOOKUP, syncLookupSteps);
+        replay(Kind.SYNC_LOOKUP);
     }
 
     /**
-     * Replays the steps after the fill, times the steps of the measured kind, and pauses the recorder for the others.
+     * Replays the calls after the fill, times the calls of the measured kind, and pauses the recorder for the others.
      *
-     * @param measured  the kind of step to time
-     * @param stepCount the number of steps to replay
+     * @param measured the kind of call to time
      */
-    private void replay(final Kind measured, final int stepCount) {
+    private void replay(final Kind measured) {
         recorder.startMeasurement();
         recorder.pause();
-        boolean paused = true;
-        for (int i = fillSteps; i < fillSteps + stepCount; i++) {
-            final Step step = steps[i];
-            if (step.kind() == measured) {
-                if (paused) {
+        for (int i = fillCalls; i < calls.length; i++) {
+            final Call call = calls[i];
+            if (call.kind() == measured) {
+                if (recorder.isPaused()) {
                     recorder.resume();
-                    paused = false;
                 }
-                execute(step);
+                execute(call);
                 recorder.lap();
-                // the next step is never a measured one, so the check counts in no latency
-                if (step.kind() == Kind.SYNC_LOOKUP) {
-                    checkLookup(step);
-                }
             } else {
-                if (!paused) {
+                if (!recorder.isPaused()) {
                     recorder.pause();
-                    paused = true;
                 }
-                execute(step);
-                if (step.kind() == Kind.SYNC_LOOKUP) {
-                    checkLookup(step);
-                }
+                execute(call);
+            }
+            // after the lap, and a sync lookup is never followed by another one, so the check counts in no latency
+            if (call.kind() == Kind.SYNC_LOOKUP) {
+                checkLookup(call);
             }
         }
-        if (paused) {
+        if (recorder.isPaused()) {
             recorder.resume();
         }
         recorder.stopMeasurement();
-        replayedSteps = stepCount;
     }
 
-    /** Calls the shadowgraph as the recorded step does. */
-    private void execute(final Step step) {
-        switch (step.kind()) {
+    /** Calls the shadowgraph as the recorded call does. */
+    private void execute(final Call call) {
+        switch (call.kind()) {
             case ADD_EVENT -> {
-                if (shadowgraph.addEvent(step.event())) {
+                if (shadowgraph.addEvent(call.event())) {
                     addedEvents++;
                 }
             }
             case UPDATE_WINDOW -> {
-                shadowgraph.updateEventWindow(step.window());
-                currentWindow = step.window();
+                shadowgraph.updateEventWindow(call.window());
+                currentWindow = call.window();
             }
-            case SYNC_LOOKUP -> lookUpForSync(step);
+            case SYNC_LOOKUP -> lookUpForSync(call);
         }
     }
 
     /**
      * Makes the shadowgraph calls of a sync before its decision which events to send, as
      * {@code RpcPeerHandler#sendSyncData} and {@code RpcPeerHandler#sendKnownTips} do, and keeps the results for
-     * {@link #checkLookup(Step)}.
+     * {@link #checkLookup(Call)}.
      */
-    private void lookUpForSync(final Step step) {
+    private void lookUpForSync(final Call call) {
         try (final ReservedEventWindow reservation = shadowgraph.reserve()) {
             lookupWindow = reservation.getEventWindow();
             lookupTips = shadowgraph.getTips();
-            lookupPeerTips = shadowgraph.shadows(step.peerTips());
+            lookupPeerTips = shadowgraph.shadows(call.peerTips());
         }
     }
 
     /**
-     * Counts a sync lookup whose results differ from the recording. Called after the lookup's latency is recorded, so
-     * that the check is not part of it.
+     * Counts the peer's tips that a sync lookup found, and a lookup whose results differ from the recording. Called
+     * after the lookup's latency is recorded, so that the check is not part of it.
      */
-    private void checkLookup(final Step step) {
+    private void checkLookup(final Call call) {
         int known = 0;
         for (final ShadowEvent peerTip : lookupPeerTips) {
             if (peerTip != null) {
                 known++;
             }
         }
-        if (lookupWindow != currentWindow || lookupTips.size() != numNodes || known != step.knownPeerTips()) {
+        foundPeerTips += known;
+        if (lookupWindow != currentWindow || lookupTips.size() != numNodes || known != call.knownPeerTips()) {
             lookupMismatches++;
         }
     }
@@ -526,59 +478,12 @@ public class ShadowgraphBenchmark {
     /** Returns the index of the first event window that expires events. */
     private int firstExpiringWindow() {
         final long genesisExpiredThreshold = EventWindow.getGenesisEventWindow().expiredThreshold();
-        for (int i = 0; i < steps.length; i++) {
-            if (steps[i].kind() == Kind.UPDATE_WINDOW
-                    && steps[i].window().expiredThreshold() > genesisExpiredThreshold) {
+        for (int i = 0; i < calls.length; i++) {
+            if (calls[i].kind() == Kind.UPDATE_WINDOW
+                    && calls[i].window().expiredThreshold() > genesisExpiredThreshold) {
                 return i;
             }
         }
         throw new IllegalStateException("No event window of the recording expires events");
-    }
-
-    /** Returns the number of steps after the fill up to and including the given occurrence of a kind of step. */
-    private int stepsUpTo(final Kind kind, final int occurrence) {
-        int seen = 0;
-        for (int i = fillSteps; i < steps.length; i++) {
-            if (steps[i].kind() == kind && ++seen == occurrence) {
-                return i + 1 - fillSteps;
-            }
-        }
-        throw new IllegalStateException(
-                "The recording has only %d steps of kind %s after the fill".formatted(seen, kind));
-    }
-
-    /** Summarizes the recording in a line that changes with every change of the recorded steps. */
-    private String summarize() {
-        int events = 0;
-        int windows = 0;
-        int fillEvents = 0;
-        int knownPeerTips = 0;
-        Hash lastEvent = null;
-        EventWindow lastWindow = null;
-        for (int i = 0; i < steps.length; i++) {
-            switch (steps[i].kind()) {
-                case ADD_EVENT -> {
-                    events++;
-                    fillEvents += i < fillSteps ? 1 : 0;
-                    lastEvent = steps[i].event().getHash();
-                }
-                case UPDATE_WINDOW -> {
-                    windows++;
-                    lastWindow = steps[i].window();
-                }
-                case SYNC_LOOKUP -> knownPeerTips += steps[i].knownPeerTips();
-            }
-        }
-        return ("%d steps, %d events, %d event windows, fill %d steps (%d events), %d known peer tips,"
-                        + " last expired threshold %d, last %s")
-                .formatted(
-                        steps.length,
-                        events,
-                        windows,
-                        fillSteps,
-                        fillEvents,
-                        knownPeerTips,
-                        lastWindow.expiredThreshold(),
-                        lastEvent.toHex(16));
     }
 }
