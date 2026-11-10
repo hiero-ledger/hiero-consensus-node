@@ -2,16 +2,16 @@
 package com.hedera.node.app.service.contract.impl.infra;
 
 import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.isAllZeroWord;
+import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
-import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
+import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
@@ -24,6 +24,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
@@ -137,31 +138,26 @@ public class IterableStorageManager {
                         firstKeys.computeIfAbsent(contractId, cid -> contractFirstKeyOf(enhancement, contractId));
 
                 // Only certain access types can change the head slot in a contract's storage linked list
-                final var newFirstContractKey =
-                        switch (StorageAccessType.getAccessType(access)) {
-                            case UNKNOWN, READ_ONLY, UPDATE -> firstContractKey;
-                            // We might be removing the head slot from the existing list
-                            case REMOVAL ->
-                                removeAccessedValue(
-                                        store,
-                                        firstContractKey,
-                                        contractAccesses.contractID(),
-                                        tuweniToPbjBytes(access.key()));
-                            case ZERO_INTO_EMPTY_SLOT -> {
-                                // Ensure a "new" zero isn't put into state, remove from KV state
-                                store.removeSlot(
-                                        new SlotKey(contractAccesses.contractID(), tuweniToPbjBytes(access.key())));
-                                yield firstContractKey;
-                            }
-                            // We always insert the new slot at the head
-                            case INSERTION ->
-                                insertAccessedValue(
-                                        store,
-                                        firstContractKey,
-                                        tuweniToPbjBytes(requireNonNull(access.writtenValue())),
-                                        contractAccesses.contractID(),
-                                        tuweniToPbjBytes(access.key()));
-                        };
+                final var newFirstContractKey = switch (StorageAccessType.getAccessType(access)) {
+                    case UNKNOWN, READ_ONLY, UPDATE -> firstContractKey;
+                    // We might be removing the head slot from the existing list
+                    case REMOVAL ->
+                        removeAccessedValue(
+                                store, firstContractKey, contractAccesses.contractID(), tuweniToPbjBytes(access.key()));
+                    case ZERO_INTO_EMPTY_SLOT -> {
+                        // Ensure a "new" zero isn't put into state, remove from KV state
+                        store.removeSlot(new SlotKey(contractAccesses.contractID(), tuweniToPbjBytes(access.key())));
+                        yield firstContractKey;
+                    }
+                    // We always insert the new slot at the head
+                    case INSERTION ->
+                        insertAccessedValue(
+                                store,
+                                firstContractKey,
+                                tuweniToPbjBytes(requireNonNull(access.writtenValue())),
+                                contractAccesses.contractID(),
+                                tuweniToPbjBytes(access.key()));
+                };
                 firstKeys.put(contractAccesses.contractID(), newFirstContractKey);
             }
         }));
@@ -187,27 +183,29 @@ public class IterableStorageManager {
             store.adjustSlotCount(slotUsageChange);
         }
 
-        // Persist any changes to EVM hook storage slots
-        final var slotKeys = writableEvmHookStore.getModifiedEvmHookSlotKeys();
-        if (!slotKeys.isEmpty()) {
-            HookId hookId = null;
-            List<EvmHookStorageUpdate> updates = new ArrayList<>();
-            for (final var modifiedKey : slotKeys) {
-                hookId = modifiedKey.hookIdOrThrow();
+        // Persist any changes to EVM hook storage slots, per hook; a nested commit or a hook creation in this
+        // scope may have already applied some of them
+        final Map<HookId, List<EvmHookSlotKey>> modifiedKeysByHook = new LinkedHashMap<>();
+        for (final var modifiedKey : writableEvmHookStore.getModifiedEvmHookSlotKeys()) {
+            modifiedKeysByHook
+                    .computeIfAbsent(modifiedKey.hookIdOrThrow(), ignore -> new ArrayList<>())
+                    .add(modifiedKey);
+        }
+        modifiedKeysByHook.forEach((hookId, modifiedKeys) -> {
+            final List<Bytes> keys = new ArrayList<>(modifiedKeys.size());
+            final List<Bytes> values = new ArrayList<>(modifiedKeys.size());
+            for (final var modifiedKey : modifiedKeys) {
                 final var value = writableEvmHookStore.getSlotValue(modifiedKey);
-                final var slot = EvmHookStorageSlot.newBuilder()
-                        .value(isAllZeroWord(requireNonNull(value).value()) ? Bytes.EMPTY : value.value())
-                        .key(modifiedKey.key())
-                        .build();
-                updates.add(EvmHookStorageUpdate.newBuilder().storageSlot(slot).build());
+                keys.add(minimalKey(modifiedKey.key()));
+                values.add(value == null || isAllZeroWord(value.value()) ? Bytes.EMPTY : value.value());
             }
-            final int slotsDelta = writableEvmHookStore.updateStorage(hookId, updates);
+            final int slotsDelta = writableEvmHookStore.persistSlotValues(hookId, keys, values);
             if (slotsDelta != 0) {
                 enhancement
                         .operations()
                         .updateHookStorageSlots(hookId.entityIdOrThrow().accountIdOrThrow(), slotsDelta);
             }
-        }
+        });
     }
 
     /**

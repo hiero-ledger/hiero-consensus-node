@@ -30,6 +30,7 @@ module com.hedera.node.app.service.clpr.impl {
     requires transitive dagger;
     requires transitive java.compiler; // javax.annotation.processing.Generated
     requires transitive javax.inject;
+    requires com.hedera.cryptography.hints;
     requires com.hedera.cryptography.libsodium;
     requires com.hedera.node.app.service.contract;
     requires org.hiero.base.crypto;

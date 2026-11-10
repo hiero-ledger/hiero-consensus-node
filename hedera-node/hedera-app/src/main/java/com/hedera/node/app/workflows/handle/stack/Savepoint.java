@@ -56,6 +56,14 @@ public interface Savepoint extends BuilderSink {
             @NonNull StreamMode streamMode);
 
     /**
+     * Registers an action to run if this savepoint is rolled back. If it commits instead, the action moves to the
+     * parent sink, when that is a savepoint; and is otherwise discarded.
+     *
+     * @param action the action to run on rollback
+     */
+    void onRollback(@NonNull Runnable action);
+
+    /**
      * Tracks the given amount of fees collected into node accounts in this savepoint.
      * @param amount the amount to track
      */
