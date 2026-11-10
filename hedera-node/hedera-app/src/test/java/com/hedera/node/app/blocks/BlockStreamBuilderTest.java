@@ -282,8 +282,9 @@ public class BlockStreamBuilderTest {
     }
 
     private static Stream<Arguments> implicitSlotReadScenarios() {
-        return Stream.of(false, true).flatMap(hookStorage -> Stream.of(ImplicitWriteContext.values())
-                .map(writeContext -> Arguments.of(hookStorage, writeContext)));
+        return Stream.of(false, true)
+                .flatMap(hookStorage -> Stream.of(ImplicitWriteContext.values())
+                        .map(writeContext -> Arguments.of(hookStorage, writeContext)));
     }
 
     private enum ImplicitWriteContext {
@@ -442,8 +443,9 @@ public class BlockStreamBuilderTest {
     }
 
     private static Stream<Arguments> scopedCreatedIdCases() {
-        return Stream.of(false, true).flatMap(ethereum -> Stream.of(false, true)
-                .flatMap(create -> Stream.of(false, true).map(empty -> Arguments.of(ethereum, create, empty))));
+        return Stream.of(false, true)
+                .flatMap(ethereum -> Stream.of(false, true)
+                        .flatMap(create -> Stream.of(false, true).map(empty -> Arguments.of(ethereum, create, empty))));
     }
 
     private BlockStreamBuilder evmOutputBuilder(
