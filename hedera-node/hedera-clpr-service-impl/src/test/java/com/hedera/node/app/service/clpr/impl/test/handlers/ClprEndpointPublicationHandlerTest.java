@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,7 +37,6 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -49,6 +47,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -75,12 +75,6 @@ class ClprEndpointPublicationHandlerTest {
 
     @Mock
     private HandleContext handleContext;
-
-    @Mock
-    private HandleContext.SavepointStack savepointStack;
-
-    @Mock
-    private StreamBuilder streamBuilder;
 
     @Mock
     private PureChecksContext pureChecksContext;
@@ -136,11 +130,25 @@ class ClprEndpointPublicationHandlerTest {
                 .has(responseCode(CLPR_NOT_ENABLED));
     }
 
-    @Test
-    @DisplayName("signed user transactions cannot publish a node's endpoint")
-    void rejectsUserPublication() {
+    @ParameterizedTest
+    @EnumSource(value = HandleContext.TransactionCategory.class, names = "NODE", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("only node dispatches can publish a node's endpoint")
+    void rejectsNonNodePublication(final HandleContext.TransactionCategory category) {
         setupHandleContext(bodyWithEndpoint(), true);
-        given(streamBuilder.category()).willReturn(USER);
+        given(handleContext.transactionCategory()).willReturn(category);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(UNAUTHORIZED));
+        verify(constructionStore, never()).put(any());
+    }
+
+    @Test
+    @DisplayName("a node dispatch cannot use a payer other than its creator")
+    void rejectsNodePublicationWithDifferentPayer() {
+        setupHandleContext(bodyWithEndpoint(), true);
+        given(handleContext.payer())
+                .willReturn(AccountID.newBuilder().accountNum(11L).build());
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -220,9 +228,7 @@ class ClprEndpointPublicationHandlerTest {
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
         lenient().when(creatorInfo.accountId()).thenReturn(PUBLISHER_ACCOUNT);
         lenient().when(handleContext.payer()).thenReturn(PUBLISHER_ACCOUNT);
-        lenient().when(handleContext.savepointStack()).thenReturn(savepointStack);
-        lenient().when(savepointStack.getBaseBuilder(StreamBuilder.class)).thenReturn(streamBuilder);
-        lenient().when(streamBuilder.category()).thenReturn(NODE);
+        lenient().when(handleContext.transactionCategory()).thenReturn(NODE);
         lenient().when(creatorInfo.nodeId()).thenReturn(PUBLISHER_NODE_ID);
         lenient().when(handleContext.consensusNow()).thenReturn(Instant.parse("2026-07-30T12:00:00Z"));
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
