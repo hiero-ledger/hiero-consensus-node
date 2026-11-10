@@ -161,11 +161,17 @@ public class SystemFileUpdates {
             exchangeRateManager.update(FileUtilities.getFileContent(state, fileID), payer, state);
         } else if (fileNum == filesConfig.networkProperties()) {
             final var status = configListParseStatus(FileUtilities.getFileContent(state, fileID));
-            BlockStreamWriterMode currentWriterMode =
-                    configuration.getConfigData(BlockStreamConfig.class).writerMode();
             updateConfig(configuration, ConfigType.NETWORK_PROPERTIES, state);
-            checkForBlockNodeStreamingChange(currentWriterMode, configProvider);
-            throttleServiceManager.refreshThrottleConfiguration();
+            // Rebuilding the configuration-dependent throttles discards their accumulated usage and restarts the
+            // minimum congestion period, so only do it when a setting they are built from actually changed; an update
+            // that leaves those settings alone (including one that rewrites the file with identical contents) must not
+            // reset usage, whether or not it later rolls back.
+            if (ThrottleServiceManager.throttleConfigurationChanged(configuration, configProvider.getConfiguration())) {
+                throttleServiceManager.refreshThrottleConfiguration();
+            }
+            // A block node streaming transition is not applied here; the writer mode this update proposes is only
+            // tentative until the transaction commits. The transition is queued from reconcileBlockNodeStreaming(),
+            // against the committed writer mode.
             return status;
         } else if (fileNum == filesConfig.hapiPermissions()) {
             final var status = configListParseStatus(FileUtilities.getFileContent(state, fileID));
@@ -184,11 +190,11 @@ public class SystemFileUpdates {
      *
      * <p>For the configuration facilities (network properties and HAPI permissions) it also carries a
      * {@link ConfigRecoveryContext} captured before the update applied, so recovery resolves the configuration files
-     * and restores the throttle usage from pre-update values rather than from the in-memory state the rolled-back
-     * update left behind. For the simple-fees facility it carries {@code priorSimpleFees}, the schedule active before
-     * the update, so recovery can restore it when the committed file holds only a partial upload chunk. Both are
-     * auxiliary recovery data, not part of the target's identity, so they are excluded from {@link #equals(Object)}
-     * and {@link #hashCode()}.
+     * from committed ids rather than from the in-memory state the rolled-back update left behind. For the facilities
+     * whose update rebuilds throttles it carries {@code priorThrottleUsage}, the usage captured before the update. For
+     * the simple-fees facility it carries {@code priorSimpleFees}, the schedule active before the update, so recovery
+     * can restore it when the committed file holds only a partial upload chunk. These are auxiliary recovery data, not
+     * part of the target's identity, so they are excluded from {@link #equals(Object)} and {@link #hashCode()}.
      *
      * @param facility the facility that was updated in memory
      * @param fileId the system file backing it
@@ -196,17 +202,26 @@ public class SystemFileUpdates {
      * @param configContext the pre-update configuration recovery context, or null for a non-configuration facility
      * @param priorSimpleFees the simple-fees schedule active before the update, or null for a non-simple-fees facility
      * or when the prior state was the genesis (no schedule)
+     * @param priorThrottleUsage the throttle usage and congestion-level starts captured before the update, for the
+     * facilities whose update rebuilds throttles (network properties and throttle definitions), otherwise null
+     * @param priorWriterMode the block stream writer mode in effect before the update, for a network-properties update,
+     * otherwise null
+     * @param rolledBack whether a dispatch that updated this facility had its savepoint stack rolled back, in which
+     * case recovery runs regardless of whether the committed file contents differ from the applied ones
      */
     public record ResyncTarget(
             @NonNull Facility facility,
             @NonNull FileID fileId,
             @NonNull Bytes appliedContents,
             @Nullable ConfigRecoveryContext configContext,
-            @Nullable FeeSchedule priorSimpleFees) {
+            @Nullable FeeSchedule priorSimpleFees,
+            @Nullable ThrottleServiceManager.PreservedThrottleUsage priorThrottleUsage,
+            @Nullable BlockStreamWriterMode priorWriterMode,
+            boolean rolledBack) {
 
         public ResyncTarget(
                 @NonNull final Facility facility, @NonNull final FileID fileId, @NonNull final Bytes appliedContents) {
-            this(facility, fileId, appliedContents, null, null);
+            this(facility, fileId, appliedContents, null, null, null, null, false);
         }
 
         public ResyncTarget(
@@ -214,7 +229,58 @@ public class SystemFileUpdates {
                 @NonNull final FileID fileId,
                 @NonNull final Bytes appliedContents,
                 @Nullable final ConfigRecoveryContext configContext) {
-            this(facility, fileId, appliedContents, configContext, null);
+            this(facility, fileId, appliedContents, configContext, null, null, null, false);
+        }
+
+        public ResyncTarget(
+                @NonNull final Facility facility,
+                @NonNull final FileID fileId,
+                @NonNull final Bytes appliedContents,
+                @Nullable final ConfigRecoveryContext configContext,
+                @Nullable final FeeSchedule priorSimpleFees) {
+            this(facility, fileId, appliedContents, configContext, priorSimpleFees, null, null, false);
+        }
+
+        /**
+         * Returns a copy of this target carrying the given throttle usage baseline instead of its own, so targets
+         * recovered together can restore the single baseline captured before the first of their updates.
+         *
+         * @param usage the throttle usage baseline to carry
+         * @return the copy
+         */
+        public ResyncTarget withPriorThrottleUsage(
+                @Nullable final ThrottleServiceManager.PreservedThrottleUsage usage) {
+            return usage == priorThrottleUsage
+                    ? this
+                    : new ResyncTarget(
+                            facility,
+                            fileId,
+                            appliedContents,
+                            configContext,
+                            priorSimpleFees,
+                            usage,
+                            priorWriterMode,
+                            rolledBack);
+        }
+
+        /**
+         * Returns a copy of this target marked as updated by a dispatch whose savepoint stack was rolled back, so the
+         * facility must be re-derived from committed state even if the committed file contents equal the applied ones.
+         *
+         * @return the rolled-back copy
+         */
+        public ResyncTarget asRolledBack() {
+            return rolledBack
+                    ? this
+                    : new ResyncTarget(
+                            facility,
+                            fileId,
+                            appliedContents,
+                            configContext,
+                            priorSimpleFees,
+                            priorThrottleUsage,
+                            priorWriterMode,
+                            true);
         }
 
         @Override
@@ -247,18 +313,14 @@ public class SystemFileUpdates {
 
     /**
      * The pre-update state a rolled-back configuration update needs to be recovered from committed state: the committed
-     * file IDs of both configuration files (so recovery reads them even if the update remapped {@code files.*} to other
-     * file numbers), and, for a network-properties update, the throttle usage the update's throttle rebuild discarded.
+     * file IDs of both configuration files, so recovery reads them even if the update remapped {@code files.*} to other
+     * file numbers.
      *
      * @param networkPropertiesId the committed network-properties file ID
      * @param hapiPermissionsId the committed HAPI-permissions file ID
-     * @param throttleUsage the throttle usage captured before the update, or null when the update does not refresh
-     * the throttle configuration (i.e. a HAPI-permissions update)
      */
     public record ConfigRecoveryContext(
-            @NonNull FileID networkPropertiesId,
-            @NonNull FileID hapiPermissionsId,
-            @Nullable ThrottleServiceManager.PreservedThrottleUsage throttleUsage) {}
+            @NonNull FileID networkPropertiesId, @NonNull FileID hapiPermissionsId) {}
 
     /**
      * If the given transaction body would update a process-global facility that must always reflect committed state
@@ -306,42 +368,59 @@ public class SystemFileUpdates {
         } else {
             return Optional.empty();
         }
-        // For a configuration facility, capture the pre-update committed file IDs of both configuration files (so
-        // recovery reads them even if this update remaps files.networkProperties/files.hapiPermissions), and, for a
-        // network-properties update, the throttle usage this update's throttle rebuild is about to discard.
+        // For a configuration facility, capture the pre-update committed file IDs of both configuration files, so
+        // recovery reads them even if this update remaps files.networkProperties/files.hapiPermissions.
         final ConfigRecoveryContext configContext = switch (facility) {
-            case NETWORK_PROPERTIES ->
+            case NETWORK_PROPERTIES, HAPI_PERMISSIONS ->
                 new ConfigRecoveryContext(
                         FileUtilities.createFileID(filesConfig.networkProperties(), configuration),
-                        FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration),
-                        throttleServiceManager.captureThrottleUsage());
-            case HAPI_PERMISSIONS ->
-                new ConfigRecoveryContext(
-                        FileUtilities.createFileID(filesConfig.networkProperties(), configuration),
-                        FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration),
-                        null);
+                        FileUtilities.createFileID(filesConfig.hapiPermissions(), configuration));
             default -> null;
         };
+        // For an update that may rebuild throttles, capture the usage and congestion-level starts the rebuild is about
+        // to discard, so recovery can restore them if the update is rolled back.
+        final ThrottleServiceManager.PreservedThrottleUsage priorThrottleUsage = switch (facility) {
+            case NETWORK_PROPERTIES, THROTTLE_DEFINITIONS -> throttleServiceManager.captureThrottleUsage();
+            default -> null;
+        };
+        // For a network-properties update, capture the writer mode in effect before it, so the block node streaming
+        // transition can be decided against the committed mode once the transaction completes.
+        final BlockStreamWriterMode priorWriterMode = facility == ResyncTarget.Facility.NETWORK_PROPERTIES
+                ? configuration.getConfigData(BlockStreamConfig.class).writerMode()
+                : null;
         // For a simple-fees update, capture the schedule active before it, so recovery can restore it if the committed
         // file turns out to be only a partial upload chunk that cannot be re-derived into a schedule.
         final FeeSchedule priorSimpleFees =
                 facility == ResyncTarget.Facility.SIMPLE_FEES ? feeManager.currentSimpleFeesSchedule() : null;
         return Optional.of(new ResyncTarget(
-                facility, fileID, FileUtilities.getFileContent(state, fileID), configContext, priorSimpleFees));
+                facility,
+                fileID,
+                FileUtilities.getFileContent(state, fileID),
+                configContext,
+                priorSimpleFees,
+                priorThrottleUsage,
+                priorWriterMode,
+                false));
     }
 
     /**
-     * Re-derives the given facility from the given committed state if the committed file contents differ from the
-     * contents the facility was updated from. Must be called on the handle thread, after the transaction's changes
-     * are committed.
+     * Returns whether the given facility must be re-derived from the given state: because the dispatch that updated
+     * it was rolled back, because the committed file contents differ from the contents the facility was updated from,
+     * or (for exchange rates) because the in-memory midnight baseline no longer matches the committed singleton.
      *
-     * @param state the committed state
+     * @param state the state to compare against
      * @param target the facility, backing file and applied contents, as returned by
      * {@link #resyncTarget(State, TransactionBody)}
+     * @return true if {@link #resyncFromState(State, ResyncTarget)} should run for the target
      */
-    public void resyncIfChanged(@NonNull final State state, @NonNull final ResyncTarget target) {
+    public boolean needsResync(@NonNull final State state, @NonNull final ResyncTarget target) {
         requireNonNull(state);
         requireNonNull(target);
+        // The savepoint outcome is the primary signal: a rolled-back dispatch may have left the committed file bytes
+        // unchanged (e.g. an update with identical contents) while still having changed in-memory state.
+        if (target.rolledBack()) {
+            return true;
+        }
         final var fileChanged =
                 !FileUtilities.getFileContent(state, target.fileId()).equals(target.appliedContents());
         // A system-admin (0.0.50) exchange-rate update moves the in-memory midnight baseline without changing the file,
@@ -352,8 +431,63 @@ public class SystemFileUpdates {
         // not change.
         final var midnightBaselineDrifted =
                 target.facility() == ResyncTarget.Facility.EXCHANGE_RATES && midnightBaselineDrifted(state);
-        if (fileChanged || midnightBaselineDrifted) {
+        return fileChanged || midnightBaselineDrifted;
+    }
+
+    /**
+     * Re-derives the given facility from the given state if {@link #needsResync(State, ResyncTarget)} says so. Must
+     * be called on the handle thread once the dispatch's outcome is final.
+     *
+     * @param state the state to re-derive from
+     * @param target the facility, backing file and applied contents, as returned by
+     * {@link #resyncTarget(State, TransactionBody)}
+     */
+    public void resyncIfChanged(@NonNull final State state, @NonNull final ResyncTarget target) {
+        if (needsResync(state, target)) {
             resyncFromState(state, target);
+        }
+    }
+
+    /**
+     * For a network-properties target, queues the block node streaming transition the committed writer mode calls
+     * for, if any; a no-op for other facilities. Must be called once the transaction has committed, so the in-memory
+     * configuration reflects the committed properties.
+     *
+     * @param target the facility target
+     */
+    public void reconcileBlockNodeStreaming(@NonNull final ResyncTarget target) {
+        requireNonNull(target);
+        if (target.facility() == ResyncTarget.Facility.NETWORK_PROPERTIES) {
+            reconcileBlockNodeStreaming(target.priorWriterMode());
+        }
+    }
+
+    /**
+     * Queues a block node streaming transition if the committed writer mode differs from the one in effect before the
+     * network-properties update. Runs only once the transaction's outcome is final, so the in-memory configuration
+     * reflects the committed properties (re-derived by recovery if the update rolled back): a rolled-back writer-mode
+     * change therefore queues nothing, instead of a transition followed by its reversal.
+     *
+     * @param priorWriterMode the writer mode in effect before the update, or null if unknown
+     */
+    private void reconcileBlockNodeStreaming(@Nullable final BlockStreamWriterMode priorWriterMode) {
+        final var committedWriterMode = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .writerMode();
+        if (priorWriterMode == null || priorWriterMode == committedWriterMode) {
+            return;
+        }
+        if (committedWriterMode == BlockStreamWriterMode.FILE) {
+            logger.info(
+                    "Disabling gRPC Block Node streaming as the committed network properties changed writerMode from {} to FILE only",
+                    priorWriterMode);
+            applyBlockNodeStreaming(committedWriterMode);
+        } else if (committedWriterMode == BlockStreamWriterMode.FILE_AND_GRPC) {
+            logger.info(
+                    "Enabling gRPC Block Node streaming as the committed network properties changed writerMode from {} to FILE_AND_GRPC",
+                    priorWriterMode);
+            applyBlockNodeStreaming(committedWriterMode);
         }
     }
 
@@ -404,8 +538,6 @@ public class SystemFileUpdates {
             }
             case NETWORK_PROPERTIES -> {
                 final var configuration = configProvider.getConfiguration();
-                final var currentWriterMode =
-                        configuration.getConfigData(BlockStreamConfig.class).writerMode();
                 final var context = target.configContext();
                 updateConfig(
                         configuration,
@@ -413,11 +545,11 @@ public class SystemFileUpdates {
                         state,
                         networkPropertiesIdOf(context, configuration),
                         hapiPermissionsIdOf(context, configuration));
-                checkForBlockNodeStreamingChange(currentWriterMode, configProvider);
-                if (context != null && context.throttleUsage() != null) {
+                final var priorUsage = target.priorThrottleUsage();
+                if (priorUsage != null) {
                     // Restore the usage captured before the rolled-back update discarded it, rather than preserving the
                     // already-discarded (zeroed) current usage.
-                    throttleServiceManager.refreshThrottleConfigurationRestoring(context.throttleUsage());
+                    throttleServiceManager.refreshThrottleConfigurationRestoring(priorUsage);
                 } else {
                     throttleServiceManager.refreshThrottleConfigurationPreservingUsage();
                 }
@@ -432,10 +564,18 @@ public class SystemFileUpdates {
                         networkPropertiesIdOf(context, configuration),
                         hapiPermissionsIdOf(context, configuration));
             }
-            // Re-reading the committed definitions rebuilds the throttle buckets with reset usage, exactly as a
-            // committed 0.0.123 update does; all nodes do this deterministically, so it does not cause divergence.
-            case THROTTLE_DEFINITIONS ->
-                throttleServiceManager.recreateThrottles(FileUtilities.getFileContent(state, fileID));
+            // Rebuild from the committed definitions when the rolled-back update changed them, and restore the usage
+            // and congestion-level starts captured before the update, so neither rebuild costs accumulated usage; all
+            // nodes do this deterministically, so it does not cause divergence.
+            case THROTTLE_DEFINITIONS -> {
+                final var committedDefinitions = FileUtilities.getFileContent(state, fileID);
+                final var priorUsage = target.priorThrottleUsage();
+                if (priorUsage != null) {
+                    throttleServiceManager.restoreThrottles(committedDefinitions, priorUsage);
+                } else {
+                    throttleServiceManager.recreateThrottles(committedDefinitions);
+                }
+            }
         }
     }
 
@@ -456,39 +596,16 @@ public class SystemFileUpdates {
         }
     }
 
-    private void checkForBlockNodeStreamingChange(
-            BlockStreamWriterMode currentWriterMode, ConfigProviderImpl configProvider) {
-        final var newWriterMode = configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .writerMode();
-        if (currentWriterMode == BlockStreamWriterMode.FILE_AND_GRPC && newWriterMode == BlockStreamWriterMode.FILE) {
-            // We have changed from FILE_AND_GRPC to FILE only
-            logger.info(
-                    "Disabling gRPC Block Node streaming as the network properties have changed writerMode from FILE_AND_GRPC to FILE only");
-            applyCommittedBlockNodeStreaming();
-        } else if (currentWriterMode == BlockStreamWriterMode.FILE
-                && newWriterMode == BlockStreamWriterMode.FILE_AND_GRPC) {
-            logger.info(
-                    "Enabling gRPC Block Node streaming as the network properties have changed writerMode from FILE to FILE_AND_GRPC");
-            applyCommittedBlockNodeStreaming();
-        }
-    }
-
     /**
-     * Reconciles block node streaming to the committed writer mode on a single-threaded executor, reading that mode
-     * when the task runs rather than when it is queued. The handle thread queues these tasks in commit order, and the
-     * executor runs them in that same order, so the last task reads the newest committed mode and sets the final
-     * streaming state. Reading at run time alone is not enough: the committed mode can change between two concurrent
-     * tasks' reads, and without a run order a stale task could finish last and leave streaming out of step with
-     * committed state.
+     * Applies the given committed writer mode to block node streaming on a single-threaded executor. The handle thread
+     * queues these tasks in commit order and the executor runs them in that same order, so the last task applies the
+     * newest committed mode; the mode is passed in rather than read when the task runs, so a task never observes a
+     * tentative configuration.
+     *
+     * @param committedWriterMode the committed writer mode to apply
      */
-    private void applyCommittedBlockNodeStreaming() {
+    private void applyBlockNodeStreaming(@NonNull final BlockStreamWriterMode committedWriterMode) {
         streamingReconciler.execute(() -> {
-            final var committedWriterMode = configProvider
-                    .getConfiguration()
-                    .getConfigData(BlockStreamConfig.class)
-                    .writerMode();
             if (committedWriterMode == BlockStreamWriterMode.FILE_AND_GRPC) {
                 blockNodeConnectionManager.start();
             } else if (committedWriterMode == BlockStreamWriterMode.FILE) {

@@ -9,10 +9,13 @@ import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILE
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.FRONTEND_THROTTLE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -51,8 +54,11 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.state.spi.CommittableWritableStates;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -167,6 +173,157 @@ class ResyncRecoveryReproTest {
                 .isEqualTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
     }
 
+    /**
+     * A valid 0.0.123 update changes the active definitions, so the rebuild it performs discards the accumulated
+     * bucket usage. If the dispatch then rolls back, recovery must not just rebuild from the committed definitions
+     * (that would leave the buckets empty again) but restore the usage captured before the update.
+     */
+    @Test
+    void validThrottleDefinitionsUpdateRolledBackRestoresAccumulatedUsage() {
+        final var fileId = fileIdOf(filesConfig.throttleDefinitions());
+        final var committedDefs = transfersThrottleDefs(10_000);
+        final var updatedDefs = transfersThrottleDefs(20_000);
+        files.put(fileId, File.newBuilder().contents(committedDefs).build());
+        throttleServiceManager.init(state, committedDefs, true);
+        final var usedBefore = 1_000_000_000_000L;
+        final var lastDecision = new Timestamp(1_234_567L, 890);
+        backendThrottle
+                .allActiveThrottles()
+                .getFirst()
+                .resetUsageTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+        backendThrottle.gasLimitThrottle().resetUsageTo(new ThrottleUsageSnapshot(777L, lastDecision));
+
+        // The dispatch applies a valid update with different definitions: the target captures the pre-update usage,
+        // and the rebuild discards it
+        commitFile(fileId, updatedDefs);
+        final var target = subject.resyncTarget(state, fileUpdateTxn(fileId)).orElseThrow();
+        subject.handleTxBody(state, fileUpdateTxn(fileId));
+        assertThat(backendThrottle.allActiveThrottles().getFirst().used())
+                .as("the forward update rebuilt the bucket")
+                .isNotEqualTo(usedBefore);
+
+        // The dispatch is rolled back, restoring the committed file; recovery must restore the pre-update usage
+        commitFile(fileId, committedDefs);
+        subject.resyncIfChanged(state, target);
+
+        assertThat(backendThrottle.allActiveThrottles().getFirst().usageSnapshot())
+                .as("backend bucket usage after recovery of a valid, rolled-back definitions update")
+                .isEqualTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+        assertThat(backendThrottle.gasLimitThrottle().usageSnapshot())
+                .isEqualTo(new ThrottleUsageSnapshot(777L, lastDecision));
+    }
+
+    /**
+     * Two 0.0.123 updates in one transaction, A to B then B to C, where only the second rolls back. Recovery at that
+     * rollback must restore the definitions B and the usage captured just before the second update (B's buckets as
+     * they were), not A's usage into B's buckets.
+     */
+    @Test
+    void partialRollbackRestoresTheBaselineCapturedBeforeTheRolledBackUpdateOnly() {
+        final var fileId = fileIdOf(filesConfig.throttleDefinitions());
+        final var defsA = transfersThrottleDefs(10_000);
+        final var defsB = transfersThrottleDefs(20_000);
+        final var defsC = transfersThrottleDefs(30_000);
+        files.put(fileId, File.newBuilder().contents(defsA).build());
+        throttleServiceManager.init(state, defsA, true);
+        backendThrottle.allActiveThrottles().getFirst().resetUsageTo(new ThrottleUsageSnapshot(111L, null));
+
+        // A to B applies and will stay committed
+        commitFile(fileId, defsB);
+        final var targetB = subject.resyncTarget(state, fileUpdateTxn(fileId)).orElseThrow();
+        subject.handleTxBody(state, fileUpdateTxn(fileId));
+        final var usageUnderB = new ThrottleUsageSnapshot(222L, new Timestamp(1_234_567L, 890));
+        backendThrottle.allActiveThrottles().getFirst().resetUsageTo(usageUnderB);
+        final var capacityUnderB =
+                backendThrottle.allActiveThrottles().getFirst().capacity();
+
+        // B to C applies, then its dispatch rolls back: the file is B again and recovery runs with C's target only
+        commitFile(fileId, defsC);
+        final var targetC = subject.resyncTarget(state, fileUpdateTxn(fileId)).orElseThrow();
+        subject.handleTxBody(state, fileUpdateTxn(fileId));
+        commitFile(fileId, defsB);
+        subject.resyncFromState(state, targetC.asRolledBack());
+
+        assertThat(backendThrottle.allActiveThrottles().getFirst().capacity())
+                .as("definitions B are active again")
+                .isEqualTo(capacityUnderB);
+        assertThat(backendThrottle.allActiveThrottles().getFirst().usageSnapshot())
+                .as("the usage accumulated under B, captured before the rolled-back update, is restored")
+                .isEqualTo(usageUnderB);
+        // The committed A to B update needs no recovery: its applied contents are what the file holds
+        assertThat(subject.needsResync(state, targetB)).isFalse();
+    }
+
+    /**
+     * A 0.0.121 update whose contents equal the committed file changes no throttle setting, so it must not rebuild
+     * the gas throttle; and when it rolls back, recovery (triggered by the savepoint outcome, since the bytes match)
+     * must leave the usage intact as well.
+     */
+    @Test
+    void identicalContentNetworkPropertiesUpdateKeepsGasUsageEvenWhenRolledBack() {
+        final var propertiesId = fileIdOf(filesConfig.networkProperties());
+        final var permissionsId = fileIdOf(filesConfig.hapiPermissions());
+        final var committedProperties = ServicesConfigurationList.PROTOBUF.toBytes(ServicesConfigurationList.DEFAULT);
+        files.put(propertiesId, File.newBuilder().contents(committedProperties).build());
+        files.put(permissionsId, File.newBuilder().contents(committedProperties).build());
+        throttleServiceManager.init(state, transfersThrottleDefs(10_000), true);
+        final var usedBefore = 1_000_000L;
+        final var lastDecision = new Timestamp(1_234_567L, 890);
+        backendThrottle.gasLimitThrottle().resetUsageTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+        final var gasThrottleBefore = backendThrottle.gasLimitThrottle();
+
+        // The update rewrites the file with identical contents
+        final var target =
+                subject.resyncTarget(state, fileUpdateTxn(propertiesId)).orElseThrow();
+        subject.handleTxBody(state, fileUpdateTxn(propertiesId));
+        assertThat(backendThrottle.gasLimitThrottle())
+                .as("no throttle setting changed, so the gas throttle is not rebuilt")
+                .isSameAs(gasThrottleBefore);
+
+        // The dispatch is rolled back; the bytes still match, so only the savepoint outcome can trigger recovery
+        subject.resyncIfChanged(state, target.asRolledBack());
+
+        assertThat(backendThrottle.gasLimitThrottle().usageSnapshot())
+                .isEqualTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+    }
+
+    /**
+     * A captured gas usage above the capacity of the gas throttle current at recovery time (a tentative
+     * network-properties change shrank it) must not fail the recovery of everything else; it is skipped, like an
+     * incompatible bucket snapshot.
+     */
+    @Test
+    void capturedGasUsageAboveTheCurrentCapacityIsSkippedInsteadOfFailingRecovery() {
+        final var fileId = fileIdOf(filesConfig.throttleDefinitions());
+        final var defs = transfersThrottleDefs(10_000);
+        files.put(fileId, File.newBuilder().contents(defs).build());
+        throttleServiceManager.init(state, defs, true);
+        final var capacity = backendThrottle.gasLimitThrottle().capacity();
+        final var usage = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(backendThrottle.allActiveThrottles().getFirst().usageSnapshot()),
+                new ThrottleUsageSnapshot(capacity + 1, null),
+                backendThrottle.opsDurationThrottle().usageSnapshot(),
+                null,
+                null);
+
+        assertThatCode(() -> throttleServiceManager.restoreThrottles(defs, usage))
+                .doesNotThrowAnyException();
+        assertThat(backendThrottle.gasLimitThrottle().used()).isLessThanOrEqualTo(capacity);
+    }
+
+    private static Bytes transfersThrottleDefs(final long milliOpsPerSec) {
+        return ThrottleDefinitions.PROTOBUF.toBytes(ThrottleDefinitions.newBuilder()
+                .throttleBuckets(ThrottleBucket.newBuilder()
+                        .name("Transfers")
+                        .burstPeriodMs(1000)
+                        .throttleGroups(ThrottleGroup.newBuilder()
+                                .milliOpsPerSec(milliOpsPerSec)
+                                .operations(CRYPTO_TRANSFER)
+                                .build())
+                        .build())
+                .build());
+    }
+
     // ---- Derived case: file 0.0.121 ---------------------------------------------------------------------------
 
     /**
@@ -241,6 +398,21 @@ class ResyncRecoveryReproTest {
         final var usedBefore = 1_000_000L;
         final var lastDecision = new Timestamp(1_234_567L, 890);
         backendThrottle.gasLimitThrottle().resetUsageTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+        // The updated properties change a setting the gas throttle is built from, so applying them refreshes the
+        // throttle configuration; like the real provider, the active configuration follows the applied properties
+        final var baseConfig = configProvider.getConfiguration();
+        final var gasChangedConfig = HederaTestConfigBuilder.create()
+                .withValue("contracts.maxGasPerSecBackend", 123_456_789L)
+                .getOrCreateConfig();
+        final var activeConfig = new AtomicReference<Configuration>(baseConfig);
+        when(configProvider.getConfiguration()).thenAnswer(inv -> new VersionedConfigImpl(activeConfig.get(), 1L));
+        doAnswer(inv -> {
+                    final Bytes properties = inv.getArgument(0);
+                    activeConfig.set(updatedProperties.equals(properties) ? gasChangedConfig : baseConfig);
+                    return null;
+                })
+                .when(configProvider)
+                .update(any(), any());
 
         // The dispatch applies the update: the file holds the updated bytes, resyncTarget captures the pre-update
         // usage, and the forward handleTxBody refreshes the throttle configuration and so discards the gas usage
@@ -364,6 +536,15 @@ class ResyncRecoveryReproTest {
         assertThat(feeManager.getGasPriceInTinyCents(CONSENSUS_NOW))
                 .as("active gas price after recovering a rolled-back partial update")
                 .isEqualTo(100L);
+    }
+
+    /** Writes the file through committed writable states, so later reads see it as the state's readable view does. */
+    private void commitFile(final FileID fileId, final Bytes contents) {
+        final var writableStates = state.getWritableStates(FileService.NAME);
+        writableStates
+                .<FileID, File>get(FILES_STATE_ID)
+                .put(fileId, File.newBuilder().fileId(fileId).contents(contents).build());
+        ((CommittableWritableStates) writableStates).commit();
     }
 
     private static TransactionBody fileUpdateTxn(final FileID fileId) {

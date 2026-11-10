@@ -21,7 +21,10 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
 import com.hedera.node.app.throttle.annotations.IngestThrottle;
+import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -32,8 +35,11 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Manages the throttling service for the node.
@@ -41,6 +47,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ThrottleServiceManager {
+    private static final Logger log = LogManager.getLogger(ThrottleServiceManager.class);
     private final ThrottleParser throttleParser;
     private final ThrottleAccumulator ingestThrottle;
     private final ThrottleAccumulator backendThrottle;
@@ -125,29 +132,37 @@ public class ThrottleServiceManager {
     }
 
     /**
-     * A snapshot of the accumulated in-memory gas and ops-duration throttle usage and the congestion-level starts,
-     * captured so recovery can restore them after rebuilding the configuration-dependent throttles.
+     * A snapshot of the accumulated in-memory throttle usage and congestion-level starts: the usage of every backend
+     * HAPI bucket (including high-volume buckets), the gas and ops-duration throttle usage, and the congestion-level
+     * starts. Captured before a dispatched system file update rebuilds any throttles, so recovery can restore exactly
+     * what the update discarded if the dispatch is rolled back.
      *
+     * @param hapiUsage the usage snapshots of the backend HAPI buckets, in {@code allActiveThrottlesIncludingHighVolume}
+     * order
      * @param gasUsage the gas throttle usage snapshot
      * @param opsDurationUsage the ops-duration throttle usage snapshot
      * @param utilizationStarts the entity-utilization congestion-level starts, or null
      * @param gasStarts the gas-throttle-multiplier congestion-level starts, or null
      */
     public record PreservedThrottleUsage(
+            @NonNull List<ThrottleUsageSnapshot> hapiUsage,
             @NonNull ThrottleUsageSnapshot gasUsage,
             @NonNull ThrottleUsageSnapshot opsDurationUsage,
             @Nullable Instant[] utilizationStarts,
             @Nullable Instant[] gasStarts) {}
 
     /**
-     * Captures the accumulated in-memory gas and ops-duration throttle usage and the congestion-level starts. Read-only;
-     * taken before a dispatched network-properties update rebuilds the throttles, so recovery can restore the usage the
-     * update discarded if the dispatch is rolled back.
+     * Captures the accumulated in-memory throttle usage and the congestion-level starts. Read-only; taken before a
+     * dispatched system file update rebuilds the throttles, so recovery can restore the usage the update discarded if
+     * the dispatch is rolled back.
      *
      * @return the captured usage
      */
     public PreservedThrottleUsage captureThrottleUsage() {
         return new PreservedThrottleUsage(
+                backendThrottle.allActiveThrottlesIncludingHighVolume().stream()
+                        .map(DeterministicThrottle::usageSnapshot)
+                        .toList(),
                 backendThrottle.gasLimitThrottle().usageSnapshot(),
                 backendThrottle.opsDurationThrottle().usageSnapshot(),
                 congestionMultipliers.entityUtilizationCongestionStarts(),
@@ -164,8 +179,95 @@ public class ThrottleServiceManager {
      */
     public void refreshThrottleConfigurationRestoring(@NonNull final PreservedThrottleUsage usage) {
         refreshThrottleConfiguration();
-        backendThrottle.gasLimitThrottle().resetUsageTo(usage.gasUsage());
-        backendThrottle.opsDurationThrottle().resetUsageTo(usage.opsDurationUsage());
+        restoreUsage(usage);
+    }
+
+    /**
+     * Restores the throttles to the given committed definitions and the given captured usage. Used by recovery after a
+     * rolled-back throttle-definitions update: if the rolled-back update changed the active definitions, the buckets are
+     * rebuilt from the committed ones, and in every case the usage and congestion-level starts captured before the
+     * update are restored, so neither the rebuild nor the rolled-back update's own rebuild costs any accumulated usage.
+     *
+     * @param committedDefinitions the committed throttle definitions
+     * @param usage the usage captured before the rolled-back update, by {@link #captureThrottleUsage()}
+     * @return the success status of the committed definitions
+     */
+    public ResponseCodeEnum restoreThrottles(
+            @NonNull final Bytes committedDefinitions, @NonNull final PreservedThrottleUsage usage) {
+        final var status = recreateThrottles(committedDefinitions);
+        restoreUsage(usage);
+        return status;
+    }
+
+    /**
+     * Returns whether the configuration settings the configuration-dependent throttles are built from differ between
+     * the two configurations. When they do not, a network-properties update needs no throttle refresh, and skipping
+     * it keeps the accumulated gas, bytes and ops-duration usage and the congestion period intact.
+     *
+     * @param before the configuration before the update
+     * @param after the configuration after the update
+     * @return true if any setting the throttle configuration depends on changed
+     */
+    public static boolean throttleConfigurationChanged(
+            @NonNull final Configuration before, @NonNull final Configuration after) {
+        requireNonNull(before);
+        requireNonNull(after);
+        return !ThrottleSettings.from(before).equals(ThrottleSettings.from(after));
+    }
+
+    /**
+     * The settings that {@link #refreshThrottleConfiguration()} builds the gas, bytes and ops-duration throttles from.
+     * (The congestion multipliers read their own settings when they update, so they need no refresh on a change.)
+     */
+    private record ThrottleSettings(
+            long maxGasPerSec,
+            long maxGasPerSecBackend,
+            boolean throttleByGas,
+            long opsDurationThrottleCapacity,
+            long opsDurationThrottleUnitsFreedPerSecond,
+            boolean throttleByOpsDuration,
+            long maxBytesPerSec,
+            boolean jumboTransactionsEnabled) {
+        static ThrottleSettings from(@NonNull final Configuration configuration) {
+            final var contractsConfig = configuration.getConfigData(ContractsConfig.class);
+            final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);
+            return new ThrottleSettings(
+                    contractsConfig.maxGasPerSec(),
+                    contractsConfig.maxGasPerSecBackend(),
+                    contractsConfig.throttleThrottleByGas(),
+                    contractsConfig.opsDurationThrottleCapacity(),
+                    contractsConfig.opsDurationThrottleUnitsFreedPerSecond(),
+                    contractsConfig.throttleThrottleByOpsDuration(),
+                    jumboConfig.maxBytesPerSec(),
+                    jumboConfig.isEnabled());
+        }
+    }
+
+    private static void resetUsageLeniently(
+            @NonNull final Consumer<ThrottleUsageSnapshot> reset,
+            @NonNull final ThrottleUsageSnapshot snapshot,
+            @NonNull final String name) {
+        try {
+            reset.accept(snapshot);
+        } catch (final RuntimeException e) {
+            log.warn(
+                    "Captured {} throttle usage {} is not compatible with the current throttle, not restoring it",
+                    name,
+                    snapshot,
+                    e);
+        }
+    }
+
+    private void restoreUsage(@NonNull final PreservedThrottleUsage usage) {
+        ThrottleAccumulator.restoreThrottleUsage(
+                ThrottleAccumulator.selectedThrottlesFor(backendThrottle, usage.hapiUsage()),
+                usage.hapiUsage(),
+                ThrottleAccumulator.SnapshotMismatchPolicy.SKIP);
+        // Like the bucket restore above, an incompatible snapshot (e.g. usage above a capacity that a tentative
+        // configuration shrank) is skipped rather than failing the recovery of everything else
+        resetUsageLeniently(backendThrottle.gasLimitThrottle()::resetUsageTo, usage.gasUsage(), "gas");
+        resetUsageLeniently(
+                backendThrottle.opsDurationThrottle()::resetUsageTo, usage.opsDurationUsage(), "ops duration");
         final var utilizationStarts = usage.utilizationStarts();
         if (utilizationStarts != null && utilizationStarts.length > 0) {
             congestionMultipliers.resetUtilizationScaledThrottleMultiplierStarts(utilizationStarts);

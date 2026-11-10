@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_ID;
 import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.THROTTLE_USAGE_SNAPSHOTS_STATE_ID;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
@@ -20,6 +21,7 @@ import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle
 import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
 import com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -219,5 +221,28 @@ class ThrottleServiceManagerTest {
                 .willReturn(writableThrottleSnapshots);
         given(writableStates.<CongestionLevelStarts>getSingleton(CONGESTION_LEVEL_STARTS_STATE_ID))
                 .willReturn(writableLevelStarts);
+    }
+
+    @Test
+    void throttleConfigurationChangedTracksOnlyTheSettingsTheThrottlesAreBuiltFrom() {
+        final var base = HederaTestConfigBuilder.create().getOrCreateConfig();
+        final var sameThrottleSettings = HederaTestConfigBuilder.create()
+                .withValue("tokens.maxPerAccount", 12345)
+                .getOrCreateConfig();
+        final var differentGas = HederaTestConfigBuilder.create()
+                .withValue("contracts.maxGasPerSecBackend", 123_456_789L)
+                .getOrCreateConfig();
+        final var differentBytes = HederaTestConfigBuilder.create()
+                .withValue("jumboTransactions.maxBytesPerSec", 1L)
+                .getOrCreateConfig();
+
+        assertThat(ThrottleServiceManager.throttleConfigurationChanged(base, base))
+                .isFalse();
+        assertThat(ThrottleServiceManager.throttleConfigurationChanged(base, sameThrottleSettings))
+                .isFalse();
+        assertThat(ThrottleServiceManager.throttleConfigurationChanged(base, differentGas))
+                .isTrue();
+        assertThat(ThrottleServiceManager.throttleConfigurationChanged(base, differentBytes))
+                .isTrue();
     }
 }

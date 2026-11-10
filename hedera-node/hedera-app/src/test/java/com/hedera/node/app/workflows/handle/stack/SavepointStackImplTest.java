@@ -1421,4 +1421,20 @@ class SavepointStackImplTest extends StateTestBase {
             return true;
         };
     }
+
+    @Test
+    void parentIsNullForARootStackAndTheEnclosingStackForAChildStack() {
+        final var root = rootStackWith(TransactionID.DEFAULT, 3, 50);
+        final var child = SavepointStackImpl.newChildStack(
+                root, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+        final var grandchild = SavepointStackImpl.newChildStack(
+                child, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+
+        assertThat(root.isRoot()).isTrue();
+        assertThat(root.parent()).isNull();
+        assertThat(child.isRoot()).isFalse();
+        assertThat(child.parent()).isSameAs(root);
+        assertThat(grandchild.parent()).isSameAs(child);
+        assertThat(grandchild.parent().parent()).isSameAs(root);
+    }
 }

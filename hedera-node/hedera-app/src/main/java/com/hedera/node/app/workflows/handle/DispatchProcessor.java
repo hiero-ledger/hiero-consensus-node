@@ -31,6 +31,7 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.DispatchValidator;
@@ -47,10 +48,13 @@ import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.EnumMap;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -83,16 +87,18 @@ public class DispatchProcessor {
     private final AppFeeCharging appFeeCharging;
 
     /**
-     * The system-file facilities that a dispatch within the current transaction updated in memory, each with the file
-     * contents it was last updated from. Once the transaction commits, each facility whose file no longer has those
-     * contents is re-derived from the committed state.
+     * A system-file facility update a dispatch of the current transaction applied in memory, with the file contents
+     * it was updated from and the savepoint stack of that dispatch: a rollback of that stack (or of one enclosing it)
+     * recovers the update right away, and once the transaction commits any facility whose file no longer holds the
+     * applied contents is re-derived from the committed state.
      */
-    private final Map<SystemFileUpdates.ResyncTarget.Facility, SystemFileUpdates.ResyncTarget> pendingFacilityResyncs =
-            new EnumMap<>(SystemFileUpdates.ResyncTarget.Facility.class);
-    /**
-     * Whether a dispatch within the current transaction refreshed the node info in memory, so it must be refreshed
-     * again from the committed state once the transaction commits.
-     */
+    private record PendingResync(
+            @NonNull SystemFileUpdates.ResyncTarget target,
+            @NonNull SavepointStackImpl stack) {}
+
+    // In recording order, so updates recovered together can share the baseline captured before the first of them,
+    // and several updates of one facility in a transaction are evaluated from the earliest to the latest
+    private final List<PendingResync> pendingResyncs = new ArrayList<>();
     private boolean pendingNodeInfoResync;
 
     @Inject
@@ -170,11 +176,21 @@ public class DispatchProcessor {
                 tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails, blockFull);
             }
         }
+        final var isRoot = dispatch.stack().isRoot();
+        if (isRoot) {
+            // The transaction's outcome is final here: a failed root dispatch has already been rolled back, and a
+            // successful one holds its final changes in the stack. Rollbacks this processor performed were recovered
+            // when they happened; this pass catches the ones it did not see (a contract frame reverting around a
+            // completed dispatch) by comparing memory against the stack, before the throttle usage is finalized and
+            // saved, so a restored usage is what gets saved to state. The targets stay pending until the commit, so
+            // an abandoned transaction can still recover them from the state that remains.
+            resyncPendingFacilities(dispatch.stack(), false);
+        }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
         recordFinalizer.finalizeRecord(dispatch);
         dispatch.stack().commitFullStack();
-        if (dispatch.stack().isRoot()) {
-            resyncFromCommittedState(dispatch.stack());
+        if (isRoot) {
+            completeResyncsAfterCommit();
         }
     }
 
@@ -187,47 +203,65 @@ public class DispatchProcessor {
      */
     public void resyncAfterAbandonedTransaction(@NonNull final State state) {
         requireNonNull(state);
-        resyncFromCommittedState(state);
+        try {
+            // Everything the transaction applied is gone with it, so every pending update is treated as rolled back
+            resyncPendingFacilities(state, true);
+        } finally {
+            completeResyncsAfterCommit();
+        }
     }
 
     /**
-     * Re-derives, from the committed state, the in-memory facilities and node info that a dispatch within the
-     * transaction just committed updated, so they always match the committed state.
+     * Re-derives from the given state the pending facilities that need it (all of them if {@code force}, otherwise
+     * those {@link SystemFileUpdates#needsResync(State, SystemFileUpdates.ResyncTarget)} selects) and refreshes the
+     * node info if a {@code NodeUpdate} ran. Leaves the updates pending; {@link #completeResyncsAfterCommit()} clears
+     * them.
      *
-     * @param stack the committed state of the transaction
+     * <p>A facility updated more than once in the transaction is evaluated once, against the latest applied contents;
+     * if it must be re-derived, the recovery baselines come from the first update after the last one the state still
+     * holds, since that is the update whose rollback discarded them.
+     *
+     * @param state the state to re-derive from
+     * @param force whether to re-derive every pending facility regardless of what the state shows
      */
-    private void resyncFromCommittedState(@NonNull final State stack) {
-        Throwable firstFailure = null;
-        for (final var target : pendingFacilityResyncs.values()) {
-            try {
-                systemFileUpdates.resyncIfChanged(stack, target);
-            } catch (final Throwable e) {
-                // One facility failing to re-derive must not leave the others out of step with the committed state;
-                // record the first failure, re-derive the rest, then rethrow so the failure is still surfaced. Attach
-                // any later failure as suppressed so none is silently dropped.
-                logger.error("Failed to re-derive facility {} from committed state", target.facility(), e);
-                if (firstFailure == null) {
-                    firstFailure = e;
-                } else {
-                    firstFailure.addSuppressed(e);
+    private void resyncPendingFacilities(@NonNull final State state, final boolean force) {
+        // Each facility to recover, keyed by the recording position of the update its baselines come from, so the
+        // throttle baseline shared across facilities is the chronologically earliest one selected
+        final Map<Integer, SystemFileUpdates.ResyncTarget> targetsByBaselineOrder = new TreeMap<>();
+        for (final var updates : pendingUpdatesByFacility().values()) {
+            final var latest = updates.getLast();
+            if (!force && !systemFileUpdates.needsResync(state, latest)) {
+                continue;
+            }
+            // The updates up to the last one whose applied contents the state still holds survived; the first update
+            // after that is the one whose rollback discarded the baselines, so recovery restores its baselines. If
+            // none survived (or everything is forced), the first update's baselines are the pre-transaction ones.
+            var baselines = updates.getFirst();
+            if (!force) {
+                for (int i = updates.size() - 1; i >= 0; i--) {
+                    if (!systemFileUpdates.needsResync(state, updates.get(i))) {
+                        baselines = updates.get(Math.min(i + 1, updates.size() - 1));
+                        break;
+                    }
                 }
             }
+            final var target = composed(latest, baselines);
+            targetsByBaselineOrder.put(recordingIndexOf(baselines), force ? target.asRolledBack() : target);
         }
-        pendingFacilityResyncs.clear();
+        final List<SystemFileUpdates.ResyncTarget> targets = new ArrayList<>(targetsByBaselineOrder.values());
+        Throwable firstFailure = recoverTargets(state, targets, null);
         if (pendingNodeInfoResync) {
             try {
-                networkInfo.updateFrom(stack);
+                networkInfo.updateFrom(state);
             } catch (final Throwable e) {
-                // Like a facility failure above, a node-info failure must still leave the pending flag cleared and must
-                // not mask an earlier facility failure; record it (or attach it to the first failure as suppressed).
+                // Like a facility failure, a node-info failure must not mask an earlier facility failure; record it
+                // (or attach it to the first failure as suppressed).
                 logger.error("Failed to re-derive node info from committed state", e);
                 if (firstFailure == null) {
                     firstFailure = e;
                 } else {
                     firstFailure.addSuppressed(e);
                 }
-            } finally {
-                pendingNodeInfoResync = false;
             }
         }
         if (firstFailure != null) {
@@ -238,8 +272,186 @@ public class DispatchProcessor {
     }
 
     /**
+     * Once the transaction has committed: queues any block node streaming transition the committed writer mode calls
+     * for (judged against the mode in effect before the first network-properties update of the transaction), and
+     * clears the pending updates and the node info flag.
+     */
+    private void completeResyncsAfterCommit() {
+        try {
+            for (final var updates : pendingUpdatesByFacility().values()) {
+                systemFileUpdates.reconcileBlockNodeStreaming(updates.getFirst());
+            }
+        } finally {
+            pendingResyncs.clear();
+            pendingNodeInfoResync = false;
+        }
+    }
+
+    /**
+     * Recovers, right away, every pending facility update recorded by the dispatch with the given stack or by a
+     * dispatch nested within it, which has just been rolled back. The rolled-back stack shows the state the dispatch
+     * started from, so each facility is re-derived from it, restoring the throttle usage captured before the first of
+     * these updates; work done later in the transaction then accumulates on top of that. Several rolled-back updates of
+     * one facility are recovered once, from the latest one's file with the earliest one's baselines. A recovered update
+     * is no longer pending, so the root-level pass does not restore it again; a facility whose recovery fails stays
+     * pending with the baselines used here, so the abandonment pass retries with the same ones.
+     *
+     * @param rolledBackStack the stack that was just rolled back
+     */
+    private void recoverRolledBackTargets(@NonNull final SavepointStackImpl rolledBackStack) {
+        // The rolled-back updates, grouped per facility in recording order
+        final Map<SystemFileUpdates.ResyncTarget.Facility, List<PendingResync>> rolledBack = new LinkedHashMap<>();
+        for (final var pending : pendingResyncs) {
+            for (var stack = pending.stack(); stack != null; stack = stack.parent()) {
+                if (stack == rolledBackStack) {
+                    rolledBack
+                            .computeIfAbsent(pending.target().facility(), k -> new ArrayList<>())
+                            .add(pending);
+                    break;
+                }
+            }
+        }
+        // One recovery per facility: the latest rolled-back update's file and the earliest one's baselines
+        final List<SystemFileUpdates.ResyncTarget> targets = new ArrayList<>();
+        for (final var updates : rolledBack.values()) {
+            targets.add(composed(updates.getLast().target(), updates.getFirst().target())
+                    .asRolledBack());
+        }
+        final var shared = withSharedThrottleBaseline(targets);
+        Throwable firstFailure = null;
+        int i = 0;
+        for (final var updates : rolledBack.values()) {
+            final var target = shared.get(i++);
+            try {
+                systemFileUpdates.resyncFromState(rolledBackStack, target);
+                pendingResyncs.removeAll(updates);
+            } catch (final Throwable e) {
+                logger.error("Failed to re-derive facility {} from the rolled-back state", target.facility(), e);
+                // Keep a single pending update for the facility carrying the baselines used here (including the
+                // shared throttle usage), so the abandonment pass retries with the same baselines
+                final var retry = new PendingResync(target, updates.getFirst().stack());
+                pendingResyncs.set(pendingResyncs.indexOf(updates.getFirst()), retry);
+                pendingResyncs.removeAll(updates.subList(1, updates.size()));
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
+            }
+        }
+        if (firstFailure != null) {
+            sneakyRethrow(firstFailure);
+        }
+    }
+
+    /**
+     * Re-derives the given targets from the given state, sharing the throttle usage baseline captured before the
+     * first of them (see {@link #withSharedThrottleBaseline(List)}). One facility failing must not leave the others
+     * out of step; the first failure is returned, with later ones attached as suppressed, for the caller to rethrow.
+     *
+     * @param state the state to re-derive from
+     * @param targets the targets to recover, in the order their updates were recorded
+     * @param firstFailure an earlier failure to attach later ones to, or null
+     * @return the first failure, or null if every target was recovered
+     */
+    @Nullable
+    private Throwable recoverTargets(
+            @NonNull final State state,
+            @NonNull final List<SystemFileUpdates.ResyncTarget> targets,
+            @Nullable Throwable firstFailure) {
+        for (final var target : withSharedThrottleBaseline(targets)) {
+            try {
+                systemFileUpdates.resyncFromState(state, target);
+            } catch (final Throwable e) {
+                logger.error("Failed to re-derive facility {} from committed state", target.facility(), e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                } else {
+                    firstFailure.addSuppressed(e);
+                }
+            }
+        }
+        return firstFailure;
+    }
+
+    /** Returns the position at which the given update was recorded in the transaction. */
+    private int recordingIndexOf(@NonNull final SystemFileUpdates.ResyncTarget update) {
+        for (int i = 0; i < pendingResyncs.size(); i++) {
+            if (pendingResyncs.get(i).target() == update) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("Update " + update + " is not pending");
+    }
+
+    /**
+     * Groups the pending updates by facility, each group in recording order, preserving the order in which the
+     * facilities were first updated.
+     */
+    private Map<SystemFileUpdates.ResyncTarget.Facility, List<SystemFileUpdates.ResyncTarget>>
+            pendingUpdatesByFacility() {
+        final Map<SystemFileUpdates.ResyncTarget.Facility, List<SystemFileUpdates.ResyncTarget>> byFacility =
+                new LinkedHashMap<>();
+        for (final var pending : pendingResyncs) {
+            byFacility
+                    .computeIfAbsent(pending.target().facility(), k -> new ArrayList<>())
+                    .add(pending.target());
+        }
+        return byFacility;
+    }
+
+    /**
+     * Returns a target with the backing file and applied contents of the latest update of a facility and the recovery
+     * baselines (configuration file ids, prior fee schedule, prior throttle usage, prior writer mode) of the given
+     * earlier update.
+     */
+    private static SystemFileUpdates.ResyncTarget composed(
+            @NonNull final SystemFileUpdates.ResyncTarget latest,
+            @NonNull final SystemFileUpdates.ResyncTarget baselines) {
+        return latest == baselines
+                ? latest
+                : new SystemFileUpdates.ResyncTarget(
+                        latest.facility(),
+                        latest.fileId(),
+                        latest.appliedContents(),
+                        baselines.configContext(),
+                        baselines.priorSimpleFees(),
+                        baselines.priorThrottleUsage(),
+                        baselines.priorWriterMode(),
+                        latest.rolledBack() || baselines.rolledBack());
+    }
+
+    /**
+     * Returns the given targets with every throttle usage baseline replaced by the earliest one among them. When two
+     * throttle-affecting updates (network properties and throttle definitions) are recovered together, the later one's
+     * baseline was captured after the earlier one's rebuild had already discarded the usage; restoring it would lose
+     * that history, so all of them restore the baseline captured before the first update.
+     *
+     * @param targets the targets, in the order their updates were recorded
+     * @return the targets sharing the earliest baseline
+     */
+    static List<SystemFileUpdates.ResyncTarget> withSharedThrottleBaseline(
+            @NonNull final List<SystemFileUpdates.ResyncTarget> targets) {
+        ThrottleServiceManager.PreservedThrottleUsage earliest = null;
+        for (final var target : targets) {
+            if (target.priorThrottleUsage() != null) {
+                earliest = target.priorThrottleUsage();
+                break;
+            }
+        }
+        if (earliest == null) {
+            return targets;
+        }
+        final List<SystemFileUpdates.ResyncTarget> shared = new ArrayList<>(targets.size());
+        for (final var target : targets) {
+            shared.add(target.priorThrottleUsage() == null ? target : target.withPriorThrottleUsage(earliest));
+        }
+        return shared;
+    }
+
+    /**
      * Rethrows the given throwable as-is, preserving its exact type and identity, without declaring it. Used to
-     * resurface a resync failure captured across iterations (see {@link #resyncFromCommittedState(State)}), where the
+     * resurface a resync failure captured across iterations (see {@link #resyncPendingFacilities(State, boolean)}), where the
      * failure may be any {@link Throwable} and must not be wrapped or coerced.
      */
     @SuppressWarnings("unchecked")
@@ -293,6 +505,7 @@ public class DispatchProcessor {
             final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
             feeCharging.rollback();
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
+            recoverRolledBackTargets(dispatch.stack());
             chargePayer(dispatch, validation, false);
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
@@ -305,6 +518,7 @@ public class DispatchProcessor {
             }
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
+            recoverRolledBackTargets(dispatch.stack());
             if (functionality == ETHEREUM_TRANSACTION) {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
@@ -319,6 +533,7 @@ public class DispatchProcessor {
             }
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
+            recoverRolledBackTargets(dispatch.stack());
         }
         if (!success && details != null) {
             details.replay(dispatch.handleContext()::dispatch);
@@ -337,18 +552,9 @@ public class DispatchProcessor {
         // transaction completes
         systemFileUpdates
                 .resyncTarget(dispatch.stack(), dispatch.txnInfo().txBody())
-                // Targets accumulate per facility across a transaction's dispatches, cleared when the root commits. A
-                // facility is not expected to be updated twice in one transaction today, but if it were, keep the
-                // first update's recovery context (the true pre-update baseline) and track the latest applied contents.
-                .ifPresent(target -> pendingFacilityResyncs.merge(
-                        target.facility(),
-                        target,
-                        (earliest, latest) -> new SystemFileUpdates.ResyncTarget(
-                                earliest.facility(),
-                                latest.fileId(),
-                                latest.appliedContents(),
-                                earliest.configContext(),
-                                earliest.priorSimpleFees())));
+                // Updates accumulate across a transaction's dispatches, each with the stack that applied it, and are
+                // cleared when the root commits
+                .ifPresent(target -> pendingResyncs.add(new PendingResync(target, dispatch.stack())));
         if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
             pendingNodeInfoResync = true;
         }

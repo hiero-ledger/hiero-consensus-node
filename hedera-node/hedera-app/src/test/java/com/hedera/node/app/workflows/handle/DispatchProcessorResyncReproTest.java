@@ -15,6 +15,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -141,6 +142,7 @@ class DispatchProcessorResyncReproTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(systemFileUpdates.needsResync(any(), any())).thenReturn(true);
         subject = new DispatchProcessor(
                 authorizer,
                 dispatchValidator,
@@ -184,7 +186,7 @@ class DispatchProcessorResyncReproTest {
                 .willReturn(Optional.of(RATES_TARGET), Optional.of(FEES_TARGET));
         doThrow(new IllegalStateException("cannot re-derive the rates"))
                 .when(systemFileUpdates)
-                .resyncIfChanged(stack, RATES_TARGET);
+                .resyncFromState(stack, RATES_TARGET);
 
         subject.processDispatch(dispatch);
         // Whether or not the failure propagates, the handle workflow then re-derives from the remaining state
@@ -198,19 +200,17 @@ class DispatchProcessorResyncReproTest {
             }
         }
 
-        verify(systemFileUpdates, atLeastOnce()).resyncIfChanged(stack, FEES_TARGET);
+        verify(systemFileUpdates, atLeastOnce()).resyncFromState(stack, FEES_TARGET);
     }
 
     @Test
     void multipleUpdatesOfOneFacilityKeepTheEarliestContextAndTheLatestAppliedContents() {
         final var firstContext = new SystemFileUpdates.ConfigRecoveryContext(
                 FileID.newBuilder().fileNum(121).build(),
-                FileID.newBuilder().fileNum(122).build(),
-                null);
+                FileID.newBuilder().fileNum(122).build());
         final var laterContext = new SystemFileUpdates.ConfigRecoveryContext(
                 FileID.newBuilder().fileNum(150).build(),
-                FileID.newBuilder().fileNum(151).build(),
-                null);
+                FileID.newBuilder().fileNum(151).build());
         // The two updates target different file numbers (the first update remapped the backing file) and carry
         // different captured baselines, so the merged target's fields are distinguishable
         final var firstFileId = FileID.newBuilder().fileNum(121).build();
@@ -238,7 +238,7 @@ class DispatchProcessorResyncReproTest {
         subject.processDispatch(dispatch);
 
         final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
-        verify(systemFileUpdates).resyncIfChanged(eq(stack), captor.capture());
+        verify(systemFileUpdates).resyncFromState(eq(stack), captor.capture());
         final var resynced = captor.getValue();
         // The recovery baselines must be the first update's (the true pre-update committed state), not the later
         // update's (captured after the first update had already polluted the in-memory state)
@@ -257,8 +257,8 @@ class DispatchProcessorResyncReproTest {
                 .willReturn(Optional.of(RATES_TARGET), Optional.of(FEES_TARGET));
         final var ratesFailure = new IllegalStateException("cannot re-derive the rates");
         final var feesFailure = new IllegalStateException("cannot re-derive the fees");
-        doThrow(ratesFailure).when(systemFileUpdates).resyncIfChanged(stack, RATES_TARGET);
-        doThrow(feesFailure).when(systemFileUpdates).resyncIfChanged(stack, FEES_TARGET);
+        doThrow(ratesFailure).when(systemFileUpdates).resyncFromState(stack, RATES_TARGET);
+        doThrow(feesFailure).when(systemFileUpdates).resyncFromState(stack, FEES_TARGET);
 
         subject.processDispatch(dispatch);
         // Exchange rates are re-derived first, so that failure is thrown and the fee-schedule failure is suppressed
@@ -279,7 +279,7 @@ class DispatchProcessorResyncReproTest {
                     throw checkedFailure;
                 })
                 .when(systemFileUpdates)
-                .resyncIfChanged(stack, RATES_TARGET);
+                .resyncFromState(stack, RATES_TARGET);
 
         subject.processDispatch(dispatch);
         assertThatThrownBy(() -> subject.processDispatch(dispatch)).isSameAs(checkedFailure);

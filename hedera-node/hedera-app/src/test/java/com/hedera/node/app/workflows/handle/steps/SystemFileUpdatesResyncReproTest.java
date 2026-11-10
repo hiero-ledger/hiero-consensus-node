@@ -5,6 +5,8 @@ import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILE
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,8 +29,10 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.converter.LongPairConverter;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.LongPair;
@@ -166,12 +170,13 @@ class SystemFileUpdatesResyncReproTest {
     }
 
     /**
-     * A rolled-back 0.0.121 update that turned gRPC block streaming off queues a shutdown of the block node
-     * connections; recovery then queues a start. Both run asynchronously with no ordering between them, so if the
-     * start runs first, streaming ends up off although the committed writer mode streams over gRPC.
+     * A 0.0.121 update that switches the writer mode from FILE_AND_GRPC to FILE proposes a shutdown of block node
+     * streaming, but the proposed mode is tentative until the transaction commits. If the update rolls back, the
+     * committed mode is still FILE_AND_GRPC: no transition may be queued at all, in particular not a shutdown that a
+     * recovery-time restart then has to undo.
      */
     @Test
-    void blockNodeStreamingFollowsTheCommittedWriterModeWhateverOrderTheQueuedTransitionsRunIn() {
+    void rolledBackWriterModeChangeQueuesNoStreamingTransition() {
         activeConfig.set(configWith(Map.of("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC.name())));
         final var filesConfig = activeConfig.get().getConfigData(FilesConfig.class);
         final var propertiesId = idFactory.newFileId(filesConfig.networkProperties());
@@ -180,15 +185,52 @@ class SystemFileUpdatesResyncReproTest {
                 configListOf(Map.of("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC.name()));
         final var fileOnlyProperties =
                 configListOf(Map.of("blockStream.writerMode", BlockStreamWriterMode.FILE.name()));
-        final List<String> transitions = new ArrayList<>();
-        doAnswer(inv -> transitions.add("shutdown"))
-                .when(blockNodeConnectionManager)
-                .shutdown();
-        doAnswer(inv -> transitions.add("start"))
-                .when(blockNodeConnectionManager)
-                .start();
+        final List<Runnable> queued = new ArrayList<>();
+        final var queuingSubject = new SystemFileUpdates(
+                configProvider,
+                exchangeRateManager,
+                feeManager,
+                throttleServiceManager,
+                blockNodeConnectionManager,
+                queued::add);
 
-        // Capture the queued reconciliation tasks on the injected executor so the test controls their run order
+        // The update applies in memory: the configuration now tentatively proposes FILE
+        commitFile(propertiesId, fileOnlyProperties);
+        final var target =
+                queuingSubject.resyncTarget(state, fileUpdateOf(propertiesId)).orElseThrow();
+        queuingSubject.handleTxBody(state, fileUpdateOf(propertiesId));
+        assertThat(activeConfig.get().getConfigData(BlockStreamConfig.class).writerMode())
+                .isEqualTo(BlockStreamWriterMode.FILE);
+        assertThat(queued)
+                .as("no transition is queued before the transaction's outcome is known")
+                .isEmpty();
+
+        // The update rolls back; recovery re-derives the committed FILE_AND_GRPC mode and then reconciles streaming
+        commitFile(propertiesId, committedProperties);
+        queuingSubject.resyncIfChanged(state, target.asRolledBack());
+        queuingSubject.reconcileBlockNodeStreaming(target);
+
+        assertThat(activeConfig.get().getConfigData(BlockStreamConfig.class).writerMode())
+                .isEqualTo(BlockStreamWriterMode.FILE_AND_GRPC);
+        assertThat(queued)
+                .as("the committed mode equals the prior mode, so nothing is queued")
+                .isEmpty();
+        verify(blockNodeConnectionManager, never()).shutdown();
+        verify(blockNodeConnectionManager, never()).start();
+    }
+
+    /**
+     * A committed 0.0.121 update that switches the writer mode queues exactly one transition, carrying the committed
+     * mode, after the transaction commits.
+     */
+    @Test
+    void committedWriterModeChangeQueuesOneTransitionWithTheCommittedMode() {
+        activeConfig.set(configWith(Map.of("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC.name())));
+        final var filesConfig = activeConfig.get().getConfigData(FilesConfig.class);
+        final var propertiesId = idFactory.newFileId(filesConfig.networkProperties());
+        commitFile(idFactory.newFileId(filesConfig.hapiPermissions()), Bytes.wrap("permissions"));
+        final var fileOnlyProperties =
+                configListOf(Map.of("blockStream.writerMode", BlockStreamWriterMode.FILE.name()));
         final List<Runnable> queued = new ArrayList<>();
         final var queuingSubject = new SystemFileUpdates(
                 configProvider,
@@ -202,30 +244,15 @@ class SystemFileUpdatesResyncReproTest {
         final var target =
                 queuingSubject.resyncTarget(state, fileUpdateOf(propertiesId)).orElseThrow();
         queuingSubject.handleTxBody(state, fileUpdateOf(propertiesId));
-
-        commitFile(propertiesId, committedProperties);
         queuingSubject.resyncIfChanged(state, target);
-        // The rolled-back update queued one transition and recovery queued the other; without both the test cannot
-        // show the ordering gap, so require two queued tasks before replaying them reversed
-        assertThat(queued).hasSize(2);
+        queuingSubject.reconcileBlockNodeStreaming(target);
 
-        // Replay the tasks reversed, the worst case: each task reads the committed mode at run time, so the outcome
-        // holds even if a later task runs first (the production executor additionally runs them in submission order)
-        for (int k = queued.size() - 1; k >= 0; k--) {
-            queued.get(k).run();
-        }
-        // Each task reconciles to the committed writer mode when it runs, so both resolve to the committed
-        // FILE_AND_GRPC (a start) regardless of the order they run in
-        assertThat(transitions).hasSize(2).containsOnly("start");
-
-        // Streaming was on before the rolled-back update, and the committed writer mode keeps it on
-        boolean streaming = true;
-        for (final var transition : transitions) {
-            streaming = transition.equals("start");
-        }
-        assertThat(streaming)
-                .as("block node streaming must end on, matching the committed FILE_AND_GRPC writer mode")
-                .isTrue();
+        assertThat(queued).hasSize(1);
+        // Even if the in-memory configuration has moved on by the time the task runs, it applies the committed mode
+        activeConfig.set(configWith(Map.of("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC.name())));
+        queued.getFirst().run();
+        verify(blockNodeConnectionManager, times(1)).shutdown();
+        verify(blockNodeConnectionManager, never()).start();
     }
 
     /** Writes the file through committed writable states, so later reads see it as the state's readable view does. */
@@ -278,7 +305,9 @@ class SystemFileUpdatesResyncReproTest {
                 .withConfigDataType(FilesConfig.class)
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(LedgerConfig.class)
-                .withConfigDataType(BlockStreamConfig.class);
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(ContractsConfig.class)
+                .withConfigDataType(JumboTransactionsConfig.class);
         settings.forEach(builder::withValue);
         return builder.getOrCreateConfig();
     }

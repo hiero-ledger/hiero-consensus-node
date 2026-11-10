@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,6 +25,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.file.FileAppendTransactionBody;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -45,17 +47,21 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.converter.LongPairConverter;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -118,6 +124,8 @@ class SystemFileUpdatesTest implements TransactionFactory {
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(ContractsConfig.class)
+                .withConfigDataType(JumboTransactionsConfig.class)
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1L));
         SHARD = config.getConfigData(HederaConfig.class).shard();
@@ -726,101 +734,74 @@ class SystemFileUpdatesTest implements TransactionFactory {
     }
 
     @Test
-    void disablesGrpcStreamingWhenWriterModeChangesFromFileAndGrpcToFile() {
-        // given
-        final var initialConfig = new TestConfigBuilder(false)
-                .withConverter(Bytes.class, new BytesConverter())
-                .withConverter(LongPair.class, new LongPairConverter())
-                .withConfigDataType(FilesConfig.class)
-                .withConfigDataType(HederaConfig.class)
-                .withConfigDataType(LedgerConfig.class)
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC)
-                .getOrCreateConfig();
-        final var updatedConfig = new TestConfigBuilder(false)
-                .withConverter(Bytes.class, new BytesConverter())
-                .withConverter(LongPair.class, new LongPairConverter())
-                .withConfigDataType(FilesConfig.class)
-                .withConfigDataType(HederaConfig.class)
-                .withConfigDataType(LedgerConfig.class)
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE)
-                .getOrCreateConfig();
+    void disablesGrpcStreamingOnlyOnceTheWriterModeChangeToFileIsCommitted() {
+        final var networkPropsId =
+                givenWriterModeUpdate(BlockStreamWriterMode.FILE_AND_GRPC, BlockStreamWriterMode.FILE);
+        final var txBody = fileUpdateOf(networkPropsId);
 
-        when(configProvider.getConfiguration())
-                .thenReturn(new VersionedConfigImpl(initialConfig, 1L))
-                .thenReturn(new VersionedConfigImpl(updatedConfig, 2L));
-
-        final var filesConfig = initialConfig.getConfigData(FilesConfig.class);
-        final var networkPropsId = idFactory.newFileId(filesConfig.networkProperties());
-        final var permissionsId = idFactory.newFileId(filesConfig.hapiPermissions());
-        files.put(networkPropsId, File.newBuilder().contents(FILE_BYTES).build());
-        files.put(permissionsId, File.newBuilder().contents(Bytes.wrap("perms")).build());
-
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(idFactory.newAccountId(50L))
-                        .build())
-                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(networkPropsId))
-                .build();
-
-        // when (reconciliation runs inline via the same-thread executor injected in setUp)
+        final var target = subject.resyncTarget(state, txBody).orElseThrow();
         subject.handleTxBody(state, txBody);
+        // The proposed mode is tentative until the transaction commits, so nothing is applied yet
+        verifyNoInteractions(blockNodeConnectionManager);
 
-        // then
+        // The transaction commits with the applied contents; reconciliation runs inline via the same-thread executor
+        subject.resyncIfChanged(state, target);
+        subject.reconcileBlockNodeStreaming(target);
+
         verify(blockNodeConnectionManager, times(1)).shutdown();
-        verify(throttleServiceManager, times(1)).refreshThrottleConfiguration();
+        verify(blockNodeConnectionManager, never()).start();
+        // Only the writer mode changed, so the throttle configuration is left alone and keeps its usage
+        verify(throttleServiceManager, never()).refreshThrottleConfiguration();
     }
 
     @Test
-    void enablesGrpcStreamingWhenWriterModeChangesFromFileToFileAndGrpc() {
-        // given
-        final var initialConfig = new TestConfigBuilder(false)
-                .withConverter(Bytes.class, new BytesConverter())
-                .withConverter(LongPair.class, new LongPairConverter())
-                .withConfigDataType(FilesConfig.class)
-                .withConfigDataType(HederaConfig.class)
-                .withConfigDataType(LedgerConfig.class)
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE)
-                .getOrCreateConfig();
-        final var updatedConfig = new TestConfigBuilder(false)
-                .withConverter(Bytes.class, new BytesConverter())
-                .withConverter(LongPair.class, new LongPairConverter())
-                .withConfigDataType(FilesConfig.class)
-                .withConfigDataType(HederaConfig.class)
-                .withConfigDataType(LedgerConfig.class)
-                .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC)
-                .getOrCreateConfig();
+    void enablesGrpcStreamingOnlyOnceTheWriterModeChangeToFileAndGrpcIsCommitted() {
+        final var networkPropsId =
+                givenWriterModeUpdate(BlockStreamWriterMode.FILE, BlockStreamWriterMode.FILE_AND_GRPC);
+        final var txBody = fileUpdateOf(networkPropsId);
 
-        when(configProvider.getConfiguration())
-                .thenReturn(new VersionedConfigImpl(initialConfig, 1L))
-                .thenReturn(new VersionedConfigImpl(updatedConfig, 2L));
-
-        final var filesConfig = initialConfig.getConfigData(FilesConfig.class);
-        final var networkPropsId = idFactory.newFileId(filesConfig.networkProperties());
-        final var permissionsId = idFactory.newFileId(filesConfig.hapiPermissions());
-        files.put(networkPropsId, File.newBuilder().contents(FILE_BYTES).build());
-        files.put(permissionsId, File.newBuilder().contents(Bytes.wrap("perms")).build());
-
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(idFactory.newAccountId(50L))
-                        .build())
-                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(networkPropsId))
-                .build();
-
-        // when (reconciliation runs inline via the same-thread executor injected in setUp)
+        final var target = subject.resyncTarget(state, txBody).orElseThrow();
         subject.handleTxBody(state, txBody);
+        verifyNoInteractions(blockNodeConnectionManager);
 
-        // then
+        subject.resyncIfChanged(state, target);
+        subject.reconcileBlockNodeStreaming(target);
+
         verify(blockNodeConnectionManager, times(1)).start();
-        verify(throttleServiceManager, times(1)).refreshThrottleConfiguration();
+        verify(blockNodeConnectionManager, never()).shutdown();
+        verify(throttleServiceManager, never()).refreshThrottleConfiguration();
     }
 
     @Test
-    void streamingReconciliationIsSubmittedToTheInjectedSerializingExecutor() {
+    void rolledBackWriterModeChangeLeavesStreamingUntouched() {
+        final var networkPropsId =
+                givenWriterModeUpdate(BlockStreamWriterMode.FILE_AND_GRPC, BlockStreamWriterMode.FILE);
+        final var txBody = fileUpdateOf(networkPropsId);
+        final var target = subject.resyncTarget(state, txBody).orElseThrow();
+        subject.handleTxBody(state, txBody);
+        assertThat(configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockStreamConfig.class)
+                        .writerMode())
+                .as("the tentative configuration proposes FILE")
+                .isEqualTo(BlockStreamWriterMode.FILE);
+
+        // The dispatch rolls back: the committed file keeps the FILE_AND_GRPC properties, and recovery re-derives the
+        // configuration from it before the streaming transition is decided
+        commitFile(networkPropsId, COMMITTED_PROPERTIES);
+        subject.resyncIfChanged(state, target.asRolledBack());
+
+        assertThat(configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockStreamConfig.class)
+                        .writerMode())
+                .isEqualTo(BlockStreamWriterMode.FILE_AND_GRPC);
+        // Streaming was on before and the committed mode keeps it on, so neither a shutdown nor a restart is queued
+        verifyNoInteractions(blockNodeConnectionManager);
+    }
+
+    @Test
+    void streamingTransitionIsSubmittedToTheInjectedSerializingExecutorWithTheCommittedMode() {
         // A manual executor that captures the reconciliation task instead of running it, so the test can prove the
         // task is routed through the injected executor (which serializes), not fired on the common pool concurrently.
         final var queued = new java.util.ArrayList<Runnable>();
@@ -831,35 +812,121 @@ class SystemFileUpdatesTest implements TransactionFactory {
                 throttleServiceManager,
                 blockNodeConnectionManager,
                 queued::add);
+        final var networkPropsId =
+                givenWriterModeUpdate(BlockStreamWriterMode.FILE_AND_GRPC, BlockStreamWriterMode.FILE);
+        final var txBody = fileUpdateOf(networkPropsId);
 
-        final var initialConfig = streamingConfig(BlockStreamWriterMode.FILE_AND_GRPC);
-        final var updatedConfig = streamingConfig(BlockStreamWriterMode.FILE);
-        when(configProvider.getConfiguration())
-                .thenReturn(new VersionedConfigImpl(initialConfig, 1L))
-                .thenReturn(new VersionedConfigImpl(updatedConfig, 2L));
-
-        final var filesConfig = initialConfig.getConfigData(FilesConfig.class);
-        final var networkPropsId = idFactory.newFileId(filesConfig.networkProperties());
-        final var permissionsId = idFactory.newFileId(filesConfig.hapiPermissions());
-        files.put(networkPropsId, File.newBuilder().contents(FILE_BYTES).build());
-        files.put(permissionsId, File.newBuilder().contents(Bytes.wrap("perms")).build());
-        final var txBody = TransactionBody.newBuilder()
-                .transactionID(TransactionID.newBuilder()
-                        .accountID(idFactory.newAccountId(50L))
-                        .build())
-                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(networkPropsId))
-                .build();
-
+        final var target = manualSubject.resyncTarget(state, txBody).orElseThrow();
         manualSubject.handleTxBody(state, txBody);
+        assertThat(queued)
+                .as("nothing is queued before the transaction commits")
+                .isEmpty();
 
-        // The reconciliation was handed to the injected executor, not run yet.
+        manualSubject.resyncIfChanged(state, target);
+        manualSubject.reconcileBlockNodeStreaming(target);
+        // The transition was handed to the injected executor, not run yet.
         assertThat(queued).hasSize(1);
         verifyNoInteractions(blockNodeConnectionManager);
 
-        // The task reads the committed mode (now FILE) when the executor runs it, and reconciles to it.
-        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(updatedConfig, 2L));
+        // The task carries the committed mode (FILE), so it shuts streaming down even if the in-memory configuration
+        // has moved on by the time it runs.
+        activeConfig.set(streamingConfig(BlockStreamWriterMode.FILE_AND_GRPC));
         queued.getFirst().run();
         verify(blockNodeConnectionManager, times(1)).shutdown();
+        verify(blockNodeConnectionManager, never()).start();
+    }
+
+    @Test
+    void identicalContentNetworkPropertiesUpdateDoesNotRefreshThrottles() {
+        final var networkPropsId = givenWriterModeUpdate(BlockStreamWriterMode.FILE, BlockStreamWriterMode.FILE);
+        commitFile(networkPropsId, COMMITTED_PROPERTIES);
+        final var txBody = fileUpdateOf(networkPropsId);
+
+        final var target = subject.resyncTarget(state, txBody).orElseThrow();
+        subject.handleTxBody(state, txBody);
+        subject.resyncIfChanged(state, target.asRolledBack());
+        subject.reconcileBlockNodeStreaming(target);
+
+        // No throttle setting changed, so neither the update nor its rollback recovery rebuilds the throttles from
+        // scratch; recovery only refreshes while preserving usage
+        verify(throttleServiceManager, never()).refreshThrottleConfiguration();
+        verifyNoInteractions(blockNodeConnectionManager);
+    }
+
+    @Test
+    void rolledBackTargetIsResyncedEvenWhenCommittedContentsMatchAppliedContents() {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.throttleDefinitions());
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        final var target = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS, fileID, FILE_BYTES);
+
+        subject.resyncIfChanged(state, target.asRolledBack());
+
+        verify(throttleServiceManager).recreateThrottles(FILE_BYTES);
+    }
+
+    @Test
+    void throttleDefinitionsRecoveryRestoresTheUsageCapturedBeforeTheUpdate() {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.throttleDefinitions());
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+        final var usage = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(new ThrottleUsageSnapshot(7L, null)),
+                new ThrottleUsageSnapshot(8L, null),
+                new ThrottleUsageSnapshot(9L, null),
+                null,
+                null);
+        when(throttleServiceManager.captureThrottleUsage()).thenReturn(usage);
+
+        final var target = subject.resyncTarget(state, fileUpdateOf(fileID)).orElseThrow();
+        assertThat(target.priorThrottleUsage()).isSameAs(usage);
+        commitFile(fileID, Bytes.wrap("committed"));
+        subject.resyncIfChanged(state, target);
+
+        verify(throttleServiceManager).restoreThrottles(Bytes.wrap("committed"), usage);
+        verify(throttleServiceManager, never()).recreateThrottles(any());
+    }
+
+    /** Writes the file through committed writable states, so later reads see it as the state's readable view does. */
+    private void commitFile(final FileID fileId, final Bytes contents) {
+        final var writableStates = state.getWritableStates(FileService.NAME);
+        writableStates
+                .<FileID, File>get(FILES_STATE_ID)
+                .put(fileId, File.newBuilder().fileId(fileId).contents(contents).build());
+        ((CommittableWritableStates) writableStates).commit();
+    }
+
+    private static final Bytes COMMITTED_PROPERTIES = Bytes.wrap("committed properties");
+    private static final Bytes UPDATED_PROPERTIES = Bytes.wrap("updated properties");
+    private final AtomicReference<Configuration> activeConfig = new AtomicReference<>();
+
+    /**
+     * Sets up a network-properties update: the committed configuration has the given prior writer mode, the file
+     * holds updated properties, and applying any properties through the config provider switches the active
+     * configuration to the writer mode those properties stand for (committed bytes = prior mode, updated bytes =
+     * updated mode), like the real provider deriving its configuration from the file contents.
+     *
+     * @return the network-properties file ID
+     */
+    private FileID givenWriterModeUpdate(
+            final BlockStreamWriterMode priorWriterMode, final BlockStreamWriterMode updatedWriterMode) {
+        activeConfig.set(streamingConfig(priorWriterMode));
+        when(configProvider.getConfiguration()).thenAnswer(inv -> new VersionedConfigImpl(activeConfig.get(), 1L));
+        doAnswer(inv -> {
+                    final Bytes properties = inv.getArgument(0);
+                    activeConfig.set(streamingConfig(
+                            UPDATED_PROPERTIES.equals(properties) ? updatedWriterMode : priorWriterMode));
+                    return null;
+                })
+                .when(configProvider)
+                .update(any(), any());
+        final var filesConfig = activeConfig.get().getConfigData(FilesConfig.class);
+        final var networkPropsId = idFactory.newFileId(filesConfig.networkProperties());
+        final var permissionsId = idFactory.newFileId(filesConfig.hapiPermissions());
+        files.put(networkPropsId, File.newBuilder().contents(UPDATED_PROPERTIES).build());
+        files.put(permissionsId, File.newBuilder().contents(Bytes.wrap("perms")).build());
+        return networkPropsId;
     }
 
     private Configuration streamingConfig(final BlockStreamWriterMode writerMode) {
@@ -870,6 +937,8 @@ class SystemFileUpdatesTest implements TransactionFactory {
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(LedgerConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(ContractsConfig.class)
+                .withConfigDataType(JumboTransactionsConfig.class)
                 .withValue("blockStream.writerMode", writerMode)
                 .getOrCreateConfig();
     }

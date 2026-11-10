@@ -15,6 +15,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FEE_FILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -29,14 +30,17 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -48,6 +52,7 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -66,6 +71,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -79,17 +85,20 @@ import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -197,6 +206,7 @@ class DispatchProcessorTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(systemFileUpdates.needsResync(any(), any())).thenReturn(true);
         subject = new DispatchProcessor(
                 authorizer,
                 dispatchValidator,
@@ -978,10 +988,10 @@ class DispatchProcessorTest {
         given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
 
         subject.processDispatch(dispatch);
-        verify(systemFileUpdates, never()).resyncIfChanged(any(), any());
+        verify(systemFileUpdates, never()).resyncFromState(any(), any());
 
         subject.processDispatch(dispatch);
-        verify(systemFileUpdates).resyncIfChanged(stack, RATES_TARGET);
+        verify(systemFileUpdates).resyncFromState(stack, RATES_TARGET);
     }
 
     @Test
@@ -999,8 +1009,8 @@ class DispatchProcessorTest {
         subject.processDispatch(dispatch);
         subject.processDispatch(dispatch);
 
-        verify(systemFileUpdates).resyncIfChanged(stack, laterRatesTarget);
-        verify(systemFileUpdates, never()).resyncIfChanged(stack, RATES_TARGET);
+        verify(systemFileUpdates).resyncFromState(stack, laterRatesTarget);
+        verify(systemFileUpdates, never()).resyncFromState(stack, RATES_TARGET);
     }
 
     @Test
@@ -1011,7 +1021,7 @@ class DispatchProcessorTest {
 
         subject.processDispatch(dispatch);
 
-        verify(systemFileUpdates).resyncIfChanged(stack, RATES_TARGET);
+        verify(systemFileUpdates).resyncFromState(stack, RATES_TARGET);
     }
 
     @Test
@@ -1035,7 +1045,474 @@ class DispatchProcessorTest {
 
         subject.processDispatch(dispatch);
 
-        verify(systemFileUpdates).resyncIfChanged(stack, RATES_TARGET);
+        // The dispatch was rolled back, so its target is recovered right then from the rolled-back stack, and the
+        // root pass does not consider it again
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates).resyncFromState(eq(stack), captor.capture());
+        assertThat(captor.getValue()).isEqualTo(RATES_TARGET);
+        assertThat(captor.getValue().rolledBack()).isTrue();
+        verify(systemFileUpdates, never()).needsResync(any(), any());
+    }
+
+    @Test
+    void rolledBackDispatchRecoversItsTargetBeforeUsageIsFinalized() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+        given(systemFileUpdates.handleTxBody(stack, TXN_BODY)).willThrow(new HandleException(INVALID_FEE_FILE));
+
+        subject.processDispatch(dispatch);
+
+        final var inOrder = inOrder(systemFileUpdates, stack, dispatchUsageManager);
+        inOrder.verify(stack).rollbackFullStack();
+        inOrder.verify(systemFileUpdates).resyncFromState(eq(stack), any());
+        inOrder.verify(dispatchUsageManager).finalizeAndSaveUsage(dispatch);
+        // Recovered at the rollback, the target is no longer pending for the root pass
+        verify(systemFileUpdates, never()).needsResync(any(), any());
+        verify(recordBuilder).status(INVALID_FEE_FILE);
+    }
+
+    @Test
+    void rolledBackChildDispatchRecoversOnlyItsOwnTargetAndLeavesTheParentsForTheRoot() {
+        final var childStack = mock(SavepointStackImpl.class);
+        final var feesTarget = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.SIMPLE_FEES,
+                FileID.newBuilder().fileNum(113).build(),
+                Bytes.wrap("applied fees"));
+        // The root dispatch records the rates target, then a child dispatch records the fees target and fails
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+        given(dispatch.stack()).willReturn(stack);
+        subject.processDispatch(dispatch);
+        verify(systemFileUpdates, never()).resyncFromState(eq(stack), eq(feesTarget));
+
+        given(dispatch.stack()).willReturn(childStack);
+        given(childStack.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(childStack, TXN_BODY)).willReturn(Optional.of(feesTarget));
+        given(systemFileUpdates.handleTxBody(childStack, TXN_BODY)).willThrow(new HandleException(INVALID_FEE_FILE));
+        subject.processDispatch(dispatch);
+
+        // Only the child's own target is recovered at its rollback, from the child's rolled-back stack
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates).resyncFromState(eq(childStack), captor.capture());
+        assertThat(captor.getValue()).isEqualTo(feesTarget);
+        verify(systemFileUpdates, never()).resyncFromState(eq(childStack), eq(RATES_TARGET));
+    }
+
+    @Test
+    void rolledBackParentRecoversTheTargetsOfItsCommittedChildren() {
+        final var childStack = mock(SavepointStackImpl.class);
+        given(childStack.parent()).willReturn(stack);
+        // A child dispatch records a target and commits into its parent
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.stack()).willReturn(childStack);
+        given(childStack.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(childStack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+        given(systemFileUpdates.handleTxBody(childStack, TXN_BODY)).willReturn(SUCCESS);
+        subject.processDispatch(dispatch);
+        verify(systemFileUpdates, never()).resyncFromState(any(), any());
+
+        // The parent (root) dispatch then fails: the child's target is recovered from the parent's rolled-back stack
+        given(dispatch.stack()).willReturn(stack);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.empty());
+        given(systemFileUpdates.handleTxBody(stack, TXN_BODY)).willThrow(new HandleException(INVALID_FEE_FILE));
+        subject.processDispatch(dispatch);
+
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates).resyncFromState(eq(stack), captor.capture());
+        assertThat(captor.getValue()).isEqualTo(RATES_TARGET);
+        assertThat(captor.getValue().rolledBack()).isTrue();
+    }
+
+    @Test
+    void laterFailedUpdateOfAFacilityRecoversWithItsOwnBaselineAndLeavesTheEarlierCommittedUpdatePending() {
+        final var earlierBaseline = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(1L, null), new ThrottleUsageSnapshot(1L, null), null, null);
+        final var laterBaseline = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(2L, null), new ThrottleUsageSnapshot(2L, null), null, null);
+        final var fileId = FileID.newBuilder().fileNum(123).build();
+        final var earlierUpdate = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                fileId,
+                Bytes.wrap("B"),
+                null,
+                null,
+                earlierBaseline,
+                null,
+                false);
+        final var laterUpdate = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                fileId,
+                Bytes.wrap("C"),
+                null,
+                null,
+                laterBaseline,
+                null,
+                false);
+        final var firstChild = mock(SavepointStackImpl.class);
+        final var secondChild = mock(SavepointStackImpl.class);
+        // A first child dispatch applies A->B and commits
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.stack()).willReturn(firstChild);
+        given(firstChild.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(firstChild, TXN_BODY)).willReturn(Optional.of(earlierUpdate));
+        given(systemFileUpdates.handleTxBody(firstChild, TXN_BODY)).willReturn(SUCCESS);
+        subject.processDispatch(dispatch);
+        // A second child dispatch applies B->C and fails
+        given(dispatch.stack()).willReturn(secondChild);
+        given(secondChild.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(secondChild, TXN_BODY)).willReturn(Optional.of(laterUpdate));
+        given(systemFileUpdates.handleTxBody(secondChild, TXN_BODY)).willThrow(new HandleException(INVALID_FEE_FILE));
+        subject.processDispatch(dispatch);
+
+        // Only B->C is recovered at its rollback, restoring the usage captured before it (B's), not A's
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates).resyncFromState(eq(secondChild), captor.capture());
+        assertThat(captor.getValue()).isEqualTo(laterUpdate);
+        assertThat(captor.getValue().priorThrottleUsage()).isSameAs(laterBaseline);
+
+        // A->B is still pending for the root pass, where it needs no recovery because it committed
+        given(dispatch.stack()).willReturn(stack);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.empty());
+        given(systemFileUpdates.handleTxBody(stack, TXN_BODY)).willReturn(SUCCESS);
+        given(systemFileUpdates.needsResync(stack, earlierUpdate)).willReturn(false);
+        subject.processDispatch(dispatch);
+        verify(systemFileUpdates).needsResync(stack, earlierUpdate);
+        verify(systemFileUpdates, never()).resyncFromState(eq(stack), any());
+    }
+
+    @Test
+    void anUpdateWhoseBoundaryRecoveryFailsStaysPendingForTheAbandonmentPass() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+        given(systemFileUpdates.handleTxBody(stack, TXN_BODY)).willThrow(new HandleException(INVALID_FEE_FILE));
+        final var failure = new IllegalStateException("cannot re-derive yet");
+        doThrow(failure).doNothing().when(systemFileUpdates).resyncFromState(eq(stack), any());
+
+        // The failed boundary recovery surfaces, which abandons the transaction
+        assertThatThrownBy(() -> subject.processDispatch(dispatch)).isSameAs(failure);
+
+        // The abandonment pass still finds the update and recovers it from the state that remains
+        subject.resyncAfterAbandonedTransaction(stack);
+        verify(systemFileUpdates, times(2)).resyncFromState(eq(stack), any());
+    }
+
+    @Test
+    void severalRolledBackUpdatesOfOneFacilityAreRecoveredOnceWithTheEarliestBaselines() {
+        final var fileId = FileID.newBuilder().fileNum(121).build();
+        final var first = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES,
+                fileId,
+                Bytes.wrap("B"),
+                null,
+                null,
+                null,
+                BlockStreamWriterMode.FILE_AND_GRPC,
+                false);
+        final var second = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES,
+                fileId,
+                Bytes.wrap("C"),
+                null,
+                null,
+                null,
+                BlockStreamWriterMode.FILE,
+                false);
+        final var firstChild = mock(SavepointStackImpl.class);
+        final var secondChild = mock(SavepointStackImpl.class);
+        given(firstChild.parent()).willReturn(stack);
+        given(secondChild.parent()).willReturn(stack);
+        // Two child dispatches update the same facility and commit into the root
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.stack()).willReturn(firstChild);
+        given(firstChild.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(firstChild, TXN_BODY)).willReturn(Optional.of(first));
+        given(systemFileUpdates.handleTxBody(firstChild, TXN_BODY)).willReturn(SUCCESS);
+        subject.processDispatch(dispatch);
+        given(dispatch.stack()).willReturn(secondChild);
+        given(secondChild.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(secondChild, TXN_BODY)).willReturn(Optional.of(second));
+        given(systemFileUpdates.handleTxBody(secondChild, TXN_BODY)).willReturn(SUCCESS);
+        subject.processDispatch(dispatch);
+        // The root dispatch then fails, rolling both back
+        given(dispatch.stack()).willReturn(stack);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.empty());
+        given(systemFileUpdates.handleTxBody(stack, TXN_BODY)).willThrow(new HandleException(INVALID_FEE_FILE));
+        subject.processDispatch(dispatch);
+
+        // One recovery: the latest update's file and contents, the earliest update's baselines
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates, times(1)).resyncFromState(eq(stack), captor.capture());
+        assertThat(captor.getValue().appliedContents()).isEqualTo(Bytes.wrap("C"));
+        assertThat(captor.getValue().priorWriterMode()).isEqualTo(BlockStreamWriterMode.FILE_AND_GRPC);
+        assertThat(captor.getValue().rolledBack()).isTrue();
+    }
+
+    @Test
+    void aFacilityWhoseBoundaryRecoveryFailsRetriesWithTheSharedBaseline() {
+        final var earliest = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(1L, null), new ThrottleUsageSnapshot(1L, null), null, null);
+        final var later = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(0L, null), new ThrottleUsageSnapshot(0L, null), null, null);
+        final var definitions = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                FileID.newBuilder().fileNum(123).build(),
+                Bytes.wrap("defs"),
+                null,
+                null,
+                earliest,
+                null,
+                false);
+        final var properties = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES,
+                FileID.newBuilder().fileNum(121).build(),
+                Bytes.wrap("props"),
+                null,
+                null,
+                later,
+                null,
+                false);
+        final var firstChild = mock(SavepointStackImpl.class);
+        final var secondChild = mock(SavepointStackImpl.class);
+        given(firstChild.parent()).willReturn(stack);
+        given(secondChild.parent()).willReturn(stack);
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.stack()).willReturn(firstChild);
+        given(firstChild.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(firstChild, TXN_BODY)).willReturn(Optional.of(definitions));
+        given(systemFileUpdates.handleTxBody(firstChild, TXN_BODY)).willReturn(SUCCESS);
+        subject.processDispatch(dispatch);
+        given(dispatch.stack()).willReturn(secondChild);
+        given(secondChild.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(secondChild, TXN_BODY)).willReturn(Optional.of(properties));
+        given(systemFileUpdates.handleTxBody(secondChild, TXN_BODY)).willReturn(SUCCESS);
+        subject.processDispatch(dispatch);
+        // The root fails; the definitions recover but the properties recovery throws
+        given(dispatch.stack()).willReturn(stack);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.empty());
+        given(systemFileUpdates.handleTxBody(stack, TXN_BODY)).willThrow(new HandleException(INVALID_FEE_FILE));
+        final var failure = new IllegalStateException("properties not recoverable yet");
+        final var failedOnce = new AtomicBoolean();
+        doAnswer(inv -> {
+                    final SystemFileUpdates.ResyncTarget target = inv.getArgument(1);
+                    if (target.facility() == SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES
+                            && failedOnce.compareAndSet(false, true)) {
+                        throw failure;
+                    }
+                    return null;
+                })
+                .when(systemFileUpdates)
+                .resyncFromState(eq(stack), any());
+        assertThatThrownBy(() -> subject.processDispatch(dispatch)).isSameAs(failure);
+
+        subject.resyncAfterAbandonedTransaction(stack);
+
+        // The retry restores the baseline shared at the boundary (the earliest), not the properties update's own
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates, times(3)).resyncFromState(eq(stack), captor.capture());
+        final var retried = captor.getAllValues().getLast();
+        assertThat(retried.facility()).isEqualTo(SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES);
+        assertThat(retried.priorThrottleUsage()).isSameAs(earliest);
+    }
+
+    @Test
+    void rootPassTakesBaselinesFromTheFirstUpdateAfterTheLastSurvivingOne() {
+        final var fileId = FileID.newBuilder().fileNum(123).build();
+        final var baselineB = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(1L, null), new ThrottleUsageSnapshot(1L, null), null, null);
+        final var baselineC = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(2L, null), new ThrottleUsageSnapshot(2L, null), null, null);
+        final var baselineD = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(3L, null), new ThrottleUsageSnapshot(3L, null), null, null);
+        final var updateB = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                fileId,
+                Bytes.wrap("B"),
+                null,
+                null,
+                baselineB,
+                null,
+                false);
+        // Distinct contents, so each update is its own stubbing target (equality ignores the baselines)
+        final var updateC = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                fileId,
+                Bytes.wrap("C"),
+                null,
+                null,
+                baselineC,
+                null,
+                false);
+        final var updateD = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                fileId,
+                Bytes.wrap("D"),
+                null,
+                null,
+                baselineD,
+                null,
+                false);
+        // Three child dispatches update the facility in turn: A->B, B->C and C->D
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(false, false, false, true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY))
+                .willReturn(Optional.of(updateB), Optional.of(updateC), Optional.of(updateD), Optional.empty());
+        subject.processDispatch(dispatch);
+        subject.processDispatch(dispatch);
+        subject.processDispatch(dispatch);
+        // C->D was reverted by a frame the processor did not see: the file holds C, so B and D no longer match
+        // the state but C does
+        // B is never asked once C is found to survive, so its stub is only needed by the rule under test's negation
+        lenient().when(systemFileUpdates.needsResync(stack, updateB)).thenReturn(true);
+        given(systemFileUpdates.needsResync(stack, updateC)).willReturn(false);
+        given(systemFileUpdates.needsResync(stack, updateD)).willReturn(true);
+        subject.processDispatch(dispatch);
+
+        // The baselines are D's (captured when C was active), not B's
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates).resyncFromState(eq(stack), captor.capture());
+        assertThat(captor.getValue().appliedContents()).isEqualTo(Bytes.wrap("D"));
+        assertThat(captor.getValue().priorThrottleUsage()).isSameAs(baselineD);
+    }
+
+    @Test
+    void rootPassSharesTheChronologicallyEarliestSelectedBaselineAcrossFacilities() {
+        final var baselineN1 = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(1L, null), new ThrottleUsageSnapshot(1L, null), null, null);
+        final var baselineT1 = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(2L, null), new ThrottleUsageSnapshot(2L, null), null, null);
+        final var baselineN2 = new ThrottleServiceManager.PreservedThrottleUsage(
+                List.of(), new ThrottleUsageSnapshot(0L, null), new ThrottleUsageSnapshot(0L, null), null, null);
+        final var propertiesId = FileID.newBuilder().fileNum(121).build();
+        final var definitionsId = FileID.newBuilder().fileNum(123).build();
+        final var n1 = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES,
+                propertiesId,
+                Bytes.wrap("N1"),
+                null,
+                null,
+                baselineN1,
+                null,
+                false);
+        final var t1 = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                definitionsId,
+                Bytes.wrap("T1"),
+                null,
+                null,
+                baselineT1,
+                null,
+                false);
+        final var n2 = new SystemFileUpdates.ResyncTarget(
+                SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES,
+                propertiesId,
+                Bytes.wrap("N2"),
+                null,
+                null,
+                baselineN2,
+                null,
+                false);
+        // N1 commits; then a frame the processor does not see applies T1 and N2 and reverts
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(false, false, false, true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY))
+                .willReturn(Optional.of(n1), Optional.of(t1), Optional.of(n2), Optional.empty());
+        subject.processDispatch(dispatch);
+        subject.processDispatch(dispatch);
+        subject.processDispatch(dispatch);
+        given(systemFileUpdates.needsResync(stack, n1)).willReturn(false);
+        given(systemFileUpdates.needsResync(stack, t1)).willReturn(true);
+        given(systemFileUpdates.needsResync(stack, n2)).willReturn(true);
+        subject.processDispatch(dispatch);
+
+        // Both facilities restore T1's baseline, the earliest one captured among the rolled-back updates; N2's was
+        // captured after T1's rebuild had already discarded the usage
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates, times(2)).resyncFromState(eq(stack), captor.capture());
+        assertThat(captor.getAllValues())
+                .extracting(SystemFileUpdates.ResyncTarget::priorThrottleUsage)
+                .containsOnly(baselineT1);
+        assertThat(captor.getAllValues().getFirst().facility())
+                .isEqualTo(SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS);
+    }
+
+    @Test
+    void abandonmentAfterTheRootPassStillRecoversPendingFacilities() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+        // Nothing to recover at the root pass, but the commit fails afterwards
+        given(systemFileUpdates.needsResync(stack, RATES_TARGET)).willReturn(false);
+        doThrow(new IllegalStateException("commit failed")).when(stack).commitFullStack();
+
+        assertThatThrownBy(() -> subject.processDispatch(dispatch)).isInstanceOf(IllegalStateException.class);
+        verify(systemFileUpdates, never()).resyncFromState(any(), any());
+
+        // The abandoned-transaction path still finds the target and recovers it from the state that remains
+        subject.resyncAfterAbandonedTransaction(stack);
+
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates).resyncFromState(eq(stack), captor.capture());
+        assertThat(captor.getValue()).isEqualTo(RATES_TARGET);
+        assertThat(captor.getValue().rolledBack()).isTrue();
+    }
+
+    @Test
+    void committedDispatchLeavesItsPendingTargetNotRolledBack() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+
+        subject.processDispatch(dispatch);
+
+        final var captor = ArgumentCaptor.forClass(SystemFileUpdates.ResyncTarget.class);
+        verify(systemFileUpdates).resyncFromState(eq(stack), captor.capture());
+        assertThat(captor.getValue().rolledBack()).isFalse();
+    }
+
+    @Test
+    void facilitiesAreResyncedBeforeThrottleUsageIsFinalizedAndSaved() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+
+        subject.processDispatch(dispatch);
+
+        // A restored throttle usage must be what gets saved, so recovery has to run before the usage is finalized;
+        // the streaming transition, which needs the committed configuration, is queued only after the commit
+        final var inOrder = inOrder(systemFileUpdates, dispatchUsageManager, stack);
+        inOrder.verify(systemFileUpdates).resyncFromState(eq(stack), any());
+        inOrder.verify(dispatchUsageManager).finalizeAndSaveUsage(dispatch);
+        inOrder.verify(stack).commitFullStack();
+        inOrder.verify(systemFileUpdates).reconcileBlockNodeStreaming(RATES_TARGET);
     }
 
     @Test
@@ -1048,7 +1525,7 @@ class DispatchProcessorTest {
         subject.resyncAfterAbandonedTransaction(stack);
         subject.resyncAfterAbandonedTransaction(stack);
 
-        verify(systemFileUpdates, times(1)).resyncIfChanged(stack, RATES_TARGET);
+        verify(systemFileUpdates, times(1)).resyncFromState(stack, RATES_TARGET);
     }
 
     @Test

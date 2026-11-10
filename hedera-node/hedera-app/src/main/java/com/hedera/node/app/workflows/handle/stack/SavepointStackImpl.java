@@ -844,6 +844,16 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
+     * Returns the stack of the enclosing dispatch this stack was created within, or null if this is a root stack.
+     *
+     * @return the parent stack, or null for a root stack
+     */
+    @Nullable
+    public SavepointStackImpl parent() {
+        return state instanceof SavepointStackImpl parentStack ? parentStack : null;
+    }
+
+    /**
      * Returns the transaction id of the nearest atomic batch inner transaction enclosing this stack, or null if this
      * stack is not being used within a batch inner transaction.
      */
