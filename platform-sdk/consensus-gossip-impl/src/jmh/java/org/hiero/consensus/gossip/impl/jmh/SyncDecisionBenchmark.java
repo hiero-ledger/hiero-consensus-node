@@ -107,13 +107,26 @@ import org.openjdk.jmh.annotations.Warmup;
  * during which a garbage collection runs is discarded and replaced by the next invocation.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
+ *
+ * <h2>Calibration</h2>
+ * <ul>
+ *   <li>Date / commit: 2026-11-09, f70c9b657d</li>
+ *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms6g -Xmx6g -XX:+AlwaysPreTouch</li>
+ *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
+ *   <li>Steady state after: 5 s / 0 s</li>
+ *   <li>Noise (latency.mean, CV): 0.15% / 0.18% per 15 s iteration, 0.68% / 0.46% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.78% / 0.54% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 46 k / 14 k; expected stable: mean, p50, p90, p99 / mean, p50, p90, p99; unmeasured: p99.9, p99.99 / p99.9, p99.99</li>
+ *   <li>Runtime: 2.9 / 6.5 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/42698268544, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/42706379582</li>
+ * </ul>
  */
 @State(Scope.Thread)
 @Fork(
         value = 3,
         jvmArgsAppend = {"-Xms6g", "-Xmx6g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 10)
-@Measurement(iterations = 2, time = 10)
+@Measurement(iterations = 2, time = 15)
 public class SyncDecisionBenchmark {
 
     /** The seed of the recording. The same seed gives the same recording. */
