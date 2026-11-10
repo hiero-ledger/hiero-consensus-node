@@ -72,9 +72,9 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import java.util.List;
@@ -115,6 +115,7 @@ class ClprBundlePrevalidatorTest {
                     .maxMessagesPerBundle(10)
                     .maxMessagePayloadBytes(1024))
             .build();
+    private static final Bytes CHANNEL_KEY = ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(CHANNEL_ID));
     private static final ClprSyncPayload PAYLOAD = ClprSyncPayload.newBuilder()
             .channelId(CHANNEL_ID)
             .bundlePayload(PROOF)
@@ -123,20 +124,14 @@ class ClprBundlePrevalidatorTest {
     @Mock
     private Supplier<AutoCloseableWrapper<State>> stateAccessor;
 
-    @Mock
+    @Mock(extraInterfaces = BinaryState.class)
     private State state;
-
-    @Mock
-    private ReadableKVStateBase<ProtoBytes, ClprChannel> cachedChannels;
 
     @Mock
     private ReadableStates clprStates;
 
     @Mock
     private ReadableStates entityStates;
-
-    @Mock
-    private ReadableKVState<ProtoBytes, ClprChannel> channels;
 
     @Mock
     private ReadableKVState<ClprMessageKey, ClprMessageValue> queue;
@@ -187,15 +182,12 @@ class ClprBundlePrevalidatorTest {
         lenient().when(state.getReadableStates(ClprService.NAME)).thenReturn(clprStates);
         lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(entityStates);
         lenient()
-                .when(clprStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
-                .thenReturn(channels);
-        lenient()
                 .when(clprStates.<ClprMessageKey, ClprMessageValue>get(MESSAGE_QUEUE_STATE_ID))
                 .thenReturn(queue);
         lenient()
                 .when(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
                 .thenReturn(ledgerConfig);
-        lenient().when(channels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(CHANNEL);
+        lenient().when(binaryState().getKv(CHANNELS_STATE_ID, CHANNEL_KEY)).thenReturn(bytesOf(CHANNEL));
         lenient().when(ledgerConfig.get()).thenReturn(LEDGER_CONFIG);
         lenient().when(handlersSupplier.get()).thenReturn(handlers);
         lenient().when(handlers.contractCallLocalHandler()).thenReturn(localHandler);
@@ -238,27 +230,35 @@ class ClprBundlePrevalidatorTest {
         final var advanced = CHANNEL.copyBuilder()
                 .endpointManifestVersion(CHANNEL.endpointManifestVersion() + 1)
                 .build();
-        when(clprStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)).thenReturn(cachedChannels);
-        when(cachedChannels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(CHANNEL, advanced);
+        when(binaryState().getKv(CHANNELS_STATE_ID, CHANNEL_KEY)).thenReturn(bytesOf(CHANNEL), bytesOf(advanced));
         final var content = bundle(List.of(dataPayload()));
         givenLocalReturn(content);
 
         subject.validate(PAYLOAD, configuration);
 
-        // Each read bypasses this round's read cache
-        final var order = inOrder(cachedChannels, localHandler, validator);
-        order.verify(cachedChannels).reset();
-        order.verify(cachedChannels).get(new ProtoBytes(CHANNEL_ID));
+        final var order = inOrder(binaryState(), localHandler, validator);
+        order.verify(binaryState()).getKv(CHANNELS_STATE_ID, CHANNEL_KEY);
         order.verify(localHandler).findResponse(any(), any());
-        order.verify(cachedChannels).reset();
-        order.verify(cachedChannels).get(new ProtoBytes(CHANNEL_ID));
+        order.verify(binaryState()).getKv(CHANNELS_STATE_ID, CHANNEL_KEY);
         order.verify(validator).validate(advanced, content, LEDGER_CONFIG);
         order.verify(validator).validateReplies(eq(advanced), any(), any(ReadableMessageQueueStore.class));
+        // The shared channel read cache is never read or cleared
+        verify(clprStates, never()).get(CHANNELS_STATE_ID);
+    }
+
+    @Test
+    void failsClosedOnUnparseableChannel() {
+        when(binaryState().getKv(CHANNELS_STATE_ID, CHANNEL_KEY)).thenReturn(Bytes.fromHex("ff"));
+
+        assertThatThrownBy(() -> subject.validate(PAYLOAD, configuration)).isInstanceOf(IllegalStateException.class);
+
+        verify(releaseState).run();
+        verifyNoInteractions(verifierFactory, handlersSupplier);
     }
 
     @Test
     void rejectsUnknownChannelAndClosesStateBeforeProofVerification() {
-        when(channels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(null);
+        when(binaryState().getKv(CHANNELS_STATE_ID, CHANNEL_KEY)).thenReturn(null);
 
         assertRejected(PAYLOAD, CLPR_CHANNEL_NOT_FOUND);
 
@@ -271,8 +271,8 @@ class ClprBundlePrevalidatorTest {
             value = ClprChannelStatus.class,
             names = {"CLOSED", "PENDING"})
     void rejectsInadmissibleChannelBeforeProofVerification(final ClprChannelStatus status) {
-        when(channels.get(new ProtoBytes(CHANNEL_ID)))
-                .thenReturn(CHANNEL.copyBuilder().status(status).build());
+        when(binaryState().getKv(CHANNELS_STATE_ID, CHANNEL_KEY))
+                .thenReturn(bytesOf(CHANNEL.copyBuilder().status(status).build()));
 
         assertRejected(PAYLOAD, CLPR_INVALID_CHANNEL_STATUS);
 
@@ -396,6 +396,14 @@ class ClprBundlePrevalidatorTest {
         assertThatThrownBy(() -> subject.validate(payload, configuration))
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(code));
+    }
+
+    private BinaryState binaryState() {
+        return (BinaryState) state;
+    }
+
+    private static Bytes bytesOf(final ClprChannel channel) {
+        return ClprChannel.PROTOBUF.toBytes(channel);
     }
 
     private void givenLocalReturn(final ClprBundleContent content) {

@@ -18,12 +18,11 @@ import com.hedera.hapi.node.contract.ContractCallLocalQuery;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
-import com.hedera.node.app.service.clpr.ClprService;
-import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
@@ -38,11 +37,12 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.query.QueryContextImpl;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.ReadableKVStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -149,7 +149,7 @@ public class ClprBundlePrevalidator {
         try (final var stateWrapper = stateAccessor.get()) {
             final var state = requireNonNull(stateWrapper.get());
             final var stores = new ReadableStoreFactoryImpl(state);
-            final var channel = readAdmissibleChannel(state, stores, payload.channelId());
+            final var channel = readAdmissibleChannel((BinaryState) state, payload.channelId());
             final var ledgerConfig =
                     stores.readableStore(ReadableLedgerConfigurationStore.class).getConfiguration();
             bundleValidator.validatePayloadSize(payload.bundlePayload(), ledgerConfig.throttlesOrThrow());
@@ -170,7 +170,7 @@ public class ClprBundlePrevalidator {
                                 channel.channelId(), content.metadataOrThrow().endpointManifestVersion());
             }
             // Re-read the channel, so its acknowledgement is not older than the queue slots read next
-            final var current = readAdmissibleChannel(state, stores, payload.channelId());
+            final var current = readAdmissibleChannel((BinaryState) state, payload.channelId());
             final var validated = bundleValidator.validate(current, content, ledgerConfig);
             final var replies = bundleValidator.validateReplies(
                     current, validated, stores.readableStore(ReadableMessageQueueStore.class));
@@ -185,42 +185,34 @@ public class ClprBundlePrevalidator {
      * Reads the channel live from the working state and checks that it exists and is neither {@code CLOSED} nor
      * {@code PENDING}.
      *
+     * <p>The read goes straight to the state's map, not through its read cache. That cache lasts until the round ends,
+     * and the handle thread commits to the state without updating it. A channel cached before the handle thread applied
+     * an acknowledgement would then be read with its old {@code acked_message_id}, while the queue slots that
+     * acknowledgement deleted are read live as missing, and {@link ClprBundleValidator#validateReplies} would report
+     * {@code CLPR_INTERNAL_STATE_CORRUPTION}. A live channel read only asks for queue slots past its current
+     * acknowledgement, so stale cached slots are never consulted. The cache is not cleared instead, because other
+     * threads read through the same cache and a concurrent clear can make their reads miss a channel that exists.
+     *
      * @param state the working state
-     * @param stores read-only stores over {@code state}
      * @param channelId the channel to read
      * @return the channel as it is now
      * @throws PreCheckException with {@code CLPR_CHANNEL_NOT_FOUND} or {@code CLPR_INVALID_CHANNEL_STATUS}
      */
     @NonNull
-    private static ClprChannel readAdmissibleChannel(
-            @NonNull final State state, @NonNull final ReadableStoreFactory stores, @NonNull final Bytes channelId)
+    private static ClprChannel readAdmissibleChannel(@NonNull final BinaryState state, @NonNull final Bytes channelId)
             throws PreCheckException {
-        resetCachedChannelReads(state);
-        final var channel = stores.readableStore(ReadableChannelStore.class).getChannel(channelId);
-        validateTruePreCheck(channel != null, CLPR_CHANNEL_NOT_FOUND);
+        final var bytes = state.getKv(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(channelId)));
+        validateTruePreCheck(bytes != null, CLPR_CHANNEL_NOT_FOUND);
+        final ClprChannel channel;
+        try {
+            channel = ClprChannel.PROTOBUF.parse(bytes);
+        } catch (final ParseException e) {
+            throw new IllegalStateException("Unparseable CLPR channel " + channelId, e);
+        }
         validateTruePreCheck(
                 channel.status() != ClprChannelStatus.CLOSED && channel.status() != ClprChannelStatus.PENDING,
                 CLPR_INVALID_CHANNEL_STATUS);
         return channel;
-    }
-
-    /**
-     * Clears the working state's cached channel reads, so the next channel read comes from the live state.
-     *
-     * <p>The working state caches each value it reads until the round ends, and the handle thread commits to the state
-     * without updating that cache. A channel cached before the handle thread applied an acknowledgement would then be
-     * read with its old {@code acked_message_id}, while the queue slots that acknowledgement deleted are read live as
-     * missing, and {@link ClprBundleValidator#validateReplies} would report {@code CLPR_INTERNAL_STATE_CORRUPTION}.
-     * A live channel read only asks for queue slots past its current acknowledgement, so stale cached slots are never
-     * consulted.
-     *
-     * @param state the working state
-     */
-    private static void resetCachedChannelReads(@NonNull final State state) {
-        if (state.getReadableStates(ClprService.NAME).get(CHANNELS_STATE_ID)
-                instanceof ReadableKVStateBase<?, ?> channels) {
-            channels.reset();
-        }
     }
 
     /**
