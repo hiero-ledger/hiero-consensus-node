@@ -15,6 +15,11 @@ import java.util.Objects;
  * item accessors.</p>
  */
 public final class Rlp {
+    // CLPR proof envelopes and embedded trie nodes use shallow nesting. The root item has depth zero.
+    static final int MAX_NESTING_DEPTH = 8;
+
+    private static final int MIN_LONG_PAYLOAD_LENGTH = 56;
+
     private Rlp() {}
 
     public static byte[] encodeUint(long value) {
@@ -66,26 +71,28 @@ public final class Rlp {
     }
 
     public static Item decodeOne(byte[] encoded) {
-        DecodeResult result = decode(Objects.requireNonNull(encoded, "encoded"), 0);
-        if (result.nextOffset() != encoded.length) {
-            final int consumed = result.nextOffset();
-            final int trailing = encoded.length - consumed;
+        // All items share this private snapshot and copy their bytes on access.
+        final byte[] input = Objects.requireNonNull(encoded, "encoded").clone();
+        final Item item = decode(input, 0, input.length, 0);
+        if (item.rawEnd != input.length) {
+            final int consumed = item.rawEnd;
+            final int trailing = input.length - consumed;
             final int dumpStart = Math.max(0, consumed - 8);
-            final int dumpEnd = Math.min(encoded.length, consumed + 32);
+            final int dumpEnd = consumed + Math.min(trailing, 32);
             final StringBuilder window = new StringBuilder();
             for (int i = dumpStart; i < dumpEnd; i++) {
                 if (i == consumed) window.append('|');
-                window.append(String.format("%02x", encoded[i] & 0xff));
+                window.append(String.format("%02x", input[i] & 0xff));
             }
             final StringBuilder headHex = new StringBuilder();
-            for (int i = 0; i < Math.min(16, encoded.length); i++) {
-                headHex.append(String.format("%02x", encoded[i] & 0xff));
+            for (int i = 0; i < Math.min(16, input.length); i++) {
+                headHex.append(String.format("%02x", input[i] & 0xff));
             }
             throw new IllegalArgumentException(String.format(
                     "trailing bytes after RLP item (len=%d, consumed=%d, trailing=%d, head=%s, window-around-boundary=%s)",
-                    encoded.length, consumed, trailing, headHex, window));
+                    input.length, consumed, trailing, headHex, window));
         }
-        return result.item();
+        return item;
     }
 
     public static byte[] decodeTrieStorageValueAsBytes32(byte[] storageValueRlp) {
@@ -98,7 +105,7 @@ public final class Rlp {
     }
 
     private static byte[] encodeLength(int len, int offset) {
-        if (len < 56) return new byte[] {(byte) (offset + len)};
+        if (len < MIN_LONG_PAYLOAD_LENGTH) return new byte[] {(byte) (offset + len)};
         int tmp = len;
         int lenOfLen = 0;
         while (tmp > 0) {
@@ -114,112 +121,134 @@ public final class Rlp {
         return out;
     }
 
-    private static DecodeResult decode(byte[] input, int offset) {
-        if (offset >= input.length) throw new IllegalArgumentException("RLP offset out of bounds");
+    private static Item decode(byte[] input, int offset, int limit, int depth) {
+        if (depth > MAX_NESTING_DEPTH) {
+            throw new IllegalArgumentException("RLP nesting exceeds maximum depth " + MAX_NESTING_DEPTH);
+        }
+        if (offset >= limit) throw new IllegalArgumentException("RLP offset out of bounds");
         int prefix = input[offset] & 0xff;
         if (prefix < 0x80) {
-            byte[] raw = new byte[] {input[offset]};
-            return new DecodeResult(new Item(false, raw, raw, List.of()), offset + 1);
+            return new Item(false, input, offset, offset, offset + 1, List.of());
         }
         if (prefix <= 0xb7) {
             int len = prefix - 0x80;
             int start = offset + 1;
-            checkRange(input, start, len, "RLP short string");
-            return new DecodeResult(
-                    new Item(
-                            false,
-                            Arrays.copyOfRange(input, offset, start + len),
-                            Arrays.copyOfRange(input, start, start + len),
-                            List.of()),
-                    start + len);
+            checkRange(start, len, limit, "RLP short string");
+            if (len == 1 && (input[start] & 0xff) < 0x80) {
+                throw new IllegalArgumentException("non-canonical RLP single byte");
+            }
+            return new Item(false, input, offset, start, start + len, List.of());
         }
         if (prefix <= 0xbf) {
             int lenOfLen = prefix - 0xb7;
-            int len = readRlpLength(input, offset + 1, lenOfLen);
+            int len = readRlpLength(input, offset + 1, lenOfLen, limit);
             int start = offset + 1 + lenOfLen;
-            checkRange(input, start, len, "RLP long string");
-            return new DecodeResult(
-                    new Item(
-                            false,
-                            Arrays.copyOfRange(input, offset, start + len),
-                            Arrays.copyOfRange(input, start, start + len),
-                            List.of()),
-                    start + len);
+            checkRange(start, len, limit, "RLP long string");
+            return new Item(false, input, offset, start, start + len, List.of());
         }
         if (prefix <= 0xf7) {
             int len = prefix - 0xc0;
-            return decodeList(input, offset, offset + 1, len);
+            return decodeList(input, offset, offset + 1, len, limit, depth);
         }
         int lenOfLen = prefix - 0xf7;
-        int len = readRlpLength(input, offset + 1, lenOfLen);
+        int len = readRlpLength(input, offset + 1, lenOfLen, limit);
         int start = offset + 1 + lenOfLen;
-        return decodeList(input, offset, start, len);
+        return decodeList(input, offset, start, len, limit, depth);
     }
 
-    private static DecodeResult decodeList(byte[] input, int rawStart, int payloadStart, int payloadLen) {
-        checkRange(input, payloadStart, payloadLen, "RLP list");
+    private static Item decodeList(byte[] input, int rawStart, int payloadStart, int payloadLen, int limit, int depth) {
+        checkRange(payloadStart, payloadLen, limit, "RLP list");
         int end = payloadStart + payloadLen;
         List<Item> children = new ArrayList<>();
         int p = payloadStart;
         while (p < end) {
-            DecodeResult child = decode(input, p);
-            children.add(child.item());
-            p = child.nextOffset();
+            Item child = decode(input, p, end, depth + 1);
+            children.add(child);
+            p = child.rawEnd;
         }
-        if (p != end) throw new IllegalArgumentException("RLP list length mismatch");
-        return new DecodeResult(
-                new Item(true, Arrays.copyOfRange(input, rawStart, end), null, List.copyOf(children)), end);
+        return new Item(true, input, rawStart, payloadStart, end, children);
     }
 
-    private static int readRlpLength(byte[] input, int offset, int lenOfLen) {
-        if (lenOfLen <= 0 || lenOfLen > 4) throw new IllegalArgumentException("unsupported RLP length-of-length");
-        checkRange(input, offset, lenOfLen, "RLP length");
+    private static int readRlpLength(byte[] input, int offset, int lenOfLen, int limit) {
+        if (lenOfLen > Integer.BYTES) throw new IllegalArgumentException("unsupported RLP length-of-length");
+        checkRange(offset, lenOfLen, limit, "RLP length");
         if (input[offset] == 0) throw new IllegalArgumentException("non-canonical RLP length");
-        int len = 0;
+        long len = 0;
         for (int i = 0; i < lenOfLen; i++) len = (len << 8) | (input[offset + i] & 0xff);
-        return len;
+        if (len < MIN_LONG_PAYLOAD_LENGTH) throw new IllegalArgumentException("non-canonical RLP length");
+        if (len > Integer.MAX_VALUE) throw new IllegalArgumentException("RLP length exceeds integer range");
+        return (int) len;
     }
 
-    private static void checkRange(byte[] data, int offset, int len, String name) {
-        if (len < 0 || offset < 0 || offset > data.length || data.length - offset < len) {
+    private static void checkRange(int offset, int len, int limit, String name) {
+        if (len > limit - offset) {
             throw new IllegalArgumentException("unexpected end while reading " + name);
         }
     }
 
-    private record DecodeResult(Item item, int nextOffset) {}
+    public static final class Item {
+        private final boolean isList;
+        private final byte[] raw;
+        private final byte[] bytes;
+        private final int rawStart;
+        private final int rawEnd;
+        private final int bytesStart;
+        private final int bytesEnd;
+        private final List<Item> children;
 
-    public record Item(boolean isList, byte[] raw, byte[] bytes, List<Item> children) {
-        public Item {
-            raw = Objects.requireNonNull(raw, "raw").clone();
-            bytes = bytes == null ? null : bytes.clone();
-            children = List.copyOf(Objects.requireNonNull(children, "children"));
+        public Item(boolean isList, byte[] raw, byte[] bytes, List<Item> children) {
+            this.isList = isList;
+            this.raw = Objects.requireNonNull(raw, "raw").clone();
+            this.bytes = bytes == null ? null : bytes.clone();
+            this.rawStart = 0;
+            this.rawEnd = raw.length;
+            this.bytesStart = 0;
+            this.bytesEnd = bytes == null ? 0 : bytes.length;
+            this.children = List.copyOf(Objects.requireNonNull(children, "children"));
         }
 
-        @Override
+        private Item(boolean isList, byte[] input, int rawStart, int payloadStart, int end, List<Item> children) {
+            this.isList = isList;
+            this.raw = input;
+            this.bytes = isList ? null : input;
+            this.rawStart = rawStart;
+            this.rawEnd = end;
+            this.bytesStart = payloadStart;
+            this.bytesEnd = end;
+            this.children = List.copyOf(children);
+        }
+
+        public boolean isList() {
+            return isList;
+        }
+
         public byte[] raw() {
-            return raw.clone();
+            return Arrays.copyOfRange(raw, rawStart, rawEnd);
         }
 
-        @Override
         public byte[] bytes() {
-            return bytes == null ? null : bytes.clone();
+            return bytes == null ? null : Arrays.copyOfRange(bytes, bytesStart, bytesEnd);
+        }
+
+        public List<Item> children() {
+            return children;
         }
 
         public boolean isEmptyString() {
-            return !isList && bytes.length == 0;
+            return !isList && bytes != null && bytesStart == bytesEnd;
         }
 
         public byte[] asBytes() {
             if (isList) throw new IllegalArgumentException("expected RLP string, got list");
-            return bytes.clone();
+            return Arrays.copyOfRange(bytes, bytesStart, bytesEnd);
         }
 
         public byte[] asNodeReference() {
-            return isList ? raw.clone() : bytes.clone();
+            return isList ? raw() : asBytes();
         }
 
         public byte[] rawBytes() {
-            return raw.clone();
+            return raw();
         }
     }
 }
