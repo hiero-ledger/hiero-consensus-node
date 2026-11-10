@@ -335,9 +335,28 @@ class MerkleDbCompactionCoordinatorTest {
         final IOException thrown = assertThrows(IOException.class, () -> coordinator.pauseCompactionAndRun(() -> {}));
 
         assertSame(firstFailure, thrown);
-        assertEquals(List.of(secondFailure), List.of(thrown.getSuppressed()));
         verify(first).resumeCompaction();
         verify(second).resumeCompaction();
+    }
+
+    @Test
+    void testPauseCompactionAndRunResumesAllCompactorsWhenResumesThrowSameError() throws IOException {
+        // The JVM may throw the same preallocated OutOfMemoryError instance more than once
+        final OutOfMemoryError error = new OutOfMemoryError("resume failed");
+        final DataFileCompactor first = mock(DataFileCompactor.class);
+        doThrow(error).when(first).resumeCompaction();
+        final DataFileCompactor second = mock(DataFileCompactor.class);
+        doThrow(error).when(second).resumeCompaction();
+        final DataFileCompactor third = mock(DataFileCompactor.class);
+        addActiveCompactors(first, second, third);
+
+        final OutOfMemoryError thrown =
+                assertThrows(OutOfMemoryError.class, () -> coordinator.pauseCompactionAndRun(() -> {}));
+
+        assertSame(error, thrown);
+        verify(first).resumeCompaction();
+        verify(second).resumeCompaction();
+        verify(third).resumeCompaction();
     }
 
     @Test
@@ -358,7 +377,6 @@ class MerkleDbCompactionCoordinatorTest {
                 }));
 
         assertSame(actionFailure, thrown);
-        assertEquals(List.of(firstFailure, secondFailure), List.of(thrown.getSuppressed()));
         verify(first).resumeCompaction();
         verify(second).resumeCompaction();
     }

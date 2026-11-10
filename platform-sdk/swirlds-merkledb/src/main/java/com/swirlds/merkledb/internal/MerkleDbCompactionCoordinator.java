@@ -151,21 +151,21 @@ class MerkleDbCompactionCoordinator {
         compactionEnabled.set(true);
     }
 
-    /**
-     * Pauses compaction of all active data file compactors while running the provided action. Compaction may not stop
-     * immediately, but as soon as the compaction process needs to update data source state (which is critical for
-     * snapshots, e.g. update an index), it will be blocked until the action completes.
-     *
-     * <p>Scanner tasks are not paused because they are read-only. Compaction tasks that have been
-     * submitted but have not yet created a compactor (still queued) are also unaffected — they will encounter the lock
-     * when they start writing.
-     *
-     * <p>Every paused compactor is resumed on the calling thread, even if the action or resuming
-     * another compactor fails. Otherwise, a compactor would keep its lock forever. The first failure
-     * is rethrown, and the action's failure takes precedence. Later failures are added to it as suppressed.
-     *
-     * @param action action to run while compaction is paused
-     */
+    ///
+    /// Pauses compaction of all active data file compactors while running the provided action. Compaction may not stop
+    /// immediately, but as soon as the compaction process needs to update data source state (which is critical for
+    /// snapshots, e.g. update an index), it will be blocked until the action completes.
+    ///
+    /// Scanner tasks are not paused because they are read-only. Compaction tasks that have been
+    /// submitted but have not yet created a compactor (still queued) are also unaffected — they will encounter the lock
+    /// when they start writing.
+    ///
+    /// Every paused compactor is resumed on the calling thread, even if the action or resuming
+    /// another compactor fails. Otherwise, a compactor would keep its lock forever. Only the first
+    /// failure is rethrown, and the action's failure takes precedence.
+    ///
+    /// @param action action to run while compaction is paused
+    ///
     synchronized void pauseCompactionAndRun(final @NonNull IORunnable action) throws IOException {
         final List<DataFileCompactor> pausedCompactors = new ArrayList<>(compactorsByName.size());
         Throwable failure = null;
@@ -184,10 +184,9 @@ class MerkleDbCompactionCoordinator {
             try {
                 compactor.resumeCompaction();
             } catch (final Throwable t) {
+                // Keep resuming the other compactors. Only the first failure is rethrown
                 if (failure == null) {
                     failure = t;
-                } else {
-                    failure.addSuppressed(t);
                 }
             }
         }
@@ -196,9 +195,9 @@ class MerkleDbCompactionCoordinator {
         }
     }
 
-    /**
-     * Rethrows a failure caught in {@link #pauseCompactionAndRun(IORunnable)} as is.
-     */
+    ///
+    /// Rethrows a failure caught in [#pauseCompactionAndRun(IORunnable)] as is.
+    ///
     private static void rethrow(final @NonNull Throwable failure) throws IOException {
         if (failure instanceof IOException e) {
             throw e;
