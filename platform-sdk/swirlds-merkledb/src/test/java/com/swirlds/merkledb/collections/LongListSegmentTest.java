@@ -104,7 +104,7 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
             // Drop a few chunks on the left, so the copy starts with null chunks
             source.updateValidRange(1_234, 2_999);
 
-            try (final LongListSegment copy = new LongListSegment(source, Runnable::run)) {
+            try (final LongListSegment copy = source.copy(Runnable::run)) {
                 assertEquals(source.size(), copy.size());
                 assertEquals(source.getMinValidIndex(), copy.getMinValidIndex());
                 assertEquals(source.getMaxValidIndex(), copy.getMaxValidIndex());
@@ -126,7 +126,7 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
         for (int i = 0; i < 1_000; i++) {
             source.put(i, i + 1);
         }
-        try (final LongListSegment copy = new LongListSegment(source, Runnable::run)) {
+        try (final LongListSegment copy = source.copy(Runnable::run)) {
             // Changes to the copy aren't visible in the source
             copy.put(5, 42);
             assertEquals(6, source.get(5));
@@ -154,7 +154,7 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
             // Drop a few chunks on the left, so the copy starts with null chunks
             source.updateValidRange(1_234, 49_999);
 
-            try (final LongListSegment copy = new LongListSegment(source, pool)) {
+            try (final LongListSegment copy = source.copy(pool)) {
                 assertEquals(source.size(), copy.size());
                 assertEquals(source.getMinValidIndex(), copy.getMinValidIndex());
                 assertEquals(source.getMaxValidIndex(), copy.getMaxValidIndex());
@@ -186,7 +186,7 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
                 task.run();
             };
             final RejectedExecutionException e =
-                    assertThrows(RejectedExecutionException.class, () -> new LongListSegment(source, executor));
+                    assertThrows(RejectedExecutionException.class, () -> source.copy(executor));
             assertEquals("Test", e.getMessage());
             // The source is intact
             for (int i = 0; i < 3_000; i++) {
@@ -222,7 +222,7 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
             };
             final CompletableFuture<Throwable> failure = CompletableFuture.supplyAsync(() -> {
                 try {
-                    new LongListSegment(source, executor).close();
+                    source.copy(executor).close();
                     return null;
                 } catch (final RuntimeException | Error e) {
                     return e;
@@ -247,7 +247,7 @@ class LongListSegmentTest extends AbstractLongListTest<LongListSegment> {
     @DisplayName("A copy of an empty list is empty")
     void copyOfEmptyList() {
         try (final LongListSegment source = new LongListSegment(100, 10_000, 10);
-                final LongListSegment copy = new LongListSegment(source, Runnable::run)) {
+                final LongListSegment copy = source.copy(Runnable::run)) {
             assertEquals(0, copy.size());
             assertEquals(-1, copy.getMinValidIndex());
             assertEquals(-1, copy.getMaxValidIndex());

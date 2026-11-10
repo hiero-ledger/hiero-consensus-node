@@ -130,17 +130,22 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         loadFromFile(file);
     }
 
-    /// Create a copy of the given list in memory, with the same chunk size, capacity, reserved buffer
-    /// size, size and valid range. Every non-empty chunk of the source is copied into a new chunk by a
-    /// separate task run on the given executor, so the copy doesn't share memory with the source, and
-    /// either list can be changed or closed independently. The constructor returns, once all tasks are
-    /// complete.
+    /// {@inheritDoc}
     ///
-    /// The source must not be modified while it's copied. It may be read concurrently.
+    /// The copy is in memory and has the same chunk size and reserved buffer size. Every non-empty
+    /// chunk is copied into a new chunk by a separate task run on the given executor. This method
+    /// returns, once all tasks are complete.
+    @NonNull
+    @Override
+    public LongListSegment copy(@NonNull final Executor executor) {
+        return new LongListSegment(this, executor);
+    }
+
+    /// Creates a copy of the given list, see [#copy(Executor)].
     ///
     /// @param source the list to copy
     /// @param executor the executor to copy chunks on
-    public LongListSegment(@NonNull final LongListSegment source, @NonNull final Executor executor) {
+    private LongListSegment(@NonNull final LongListSegment source, @NonNull final Executor executor) {
         super(source.longsPerChunk, source.capacity, source.reservedBufferSize);
         requireNonNull(executor);
         final List<CompletableFuture<Void>> tasks = new ArrayList<>();

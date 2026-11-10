@@ -1079,14 +1079,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         }
     }
 
-    /// Copies an in-memory index. Chunks are copied in parallel on [#flushPool]. Indexes are copied
+    /// Copies an in-memory index. Its parts are copied in parallel on [#flushPool]. Indexes are copied
     /// while the virtual pipeline is paused, so no flush competes for the pool. The copy is joined on a
     /// snapshot executor thread, not on a pool thread. Not private, as tests observe the copies.
     LongList copyIndex(final LongList index) {
-        if (!(index instanceof LongListSegment segment)) {
-            throw new IllegalStateException("Only in-memory indexes can be copied, but got " + index);
-        }
-        return new LongListSegment(segment, flushPool);
+        return index.copy(flushPool);
     }
 
     /// Indexes copied in memory by [#copy(Path, boolean)]. They are set one by one, as they are copied,
