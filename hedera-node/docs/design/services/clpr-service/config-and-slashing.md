@@ -209,6 +209,8 @@ compensation (`messageExecutionCost + messageExecutionCost * endpointMarginPerce
 The worst-case reimbursement is debited before the callback and unused reimbursement
 is returned afterward. Response callbacks reimburse actual gas without the DATA flat
 compensation; absent or underfunded source connectors skip best-effort delivery.
+Callbacks rejected by consensus throttling before execution incur no gas charge,
+so their entire gas reimbursement is returned to the connector.
 
 The full sum of verifier and callback gas grants is capped by
 `contracts.maxGasPerTransaction`. Remaining callback payloads share the available gas,

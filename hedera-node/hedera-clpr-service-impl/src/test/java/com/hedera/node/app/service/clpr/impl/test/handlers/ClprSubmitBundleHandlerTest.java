@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -87,6 +88,7 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -829,6 +831,59 @@ class ClprSubmitBundleHandlerTest {
         assertThat(captor.getValue().throttling()).isEqualTo(HandleContext.ConsensusThrottling.ON);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "false, THROTTLED_AT_CONSENSUS",
+        "true, THROTTLED_AT_CONSENSUS",
+        "false, CONSENSUS_GAS_EXHAUSTED",
+        "true, CONSENSUS_GAS_EXHAUSTED"
+    })
+    void preExecutionThrottleRefundsAllCallbackGas(final boolean response, final ResponseCodeEnum status) {
+        putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+        if (response) putOutboundDataMessage(1);
+        final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+        putConnector();
+        pricedGasContext();
+        given(dispatchResult.status()).willReturn(status);
+        given(dispatchResult.hasContractResult()).willReturn(false);
+
+        final long initialBalance = 10_000_000L;
+        final var balances = new HashMap<AccountID, Long>();
+        balances.put(PAYER_ID, initialBalance);
+        balances.put(CONNECTOR_CONTRACT_ACCOUNT, initialBalance);
+        given(handleContext.tryToCharge(any(), anyLong())).willAnswer(invocation -> {
+            balances.merge(invocation.getArgument(0), -invocation.getArgument(1, Long.class), Long::sum);
+            return true;
+        });
+        doAnswer(invocation -> {
+                    balances.merge(invocation.getArgument(0), invocation.getArgument(1), Long::sum);
+                    return null;
+                })
+                .when(handleContext)
+                .refundHandlerCharge(any(), anyLong());
+        doAnswer(invocation -> {
+                    final long amount = invocation.getArgument(2);
+                    balances.merge(invocation.getArgument(0), -amount, Long::sum);
+                    balances.merge(invocation.getArgument(1), amount, Long::sum);
+                    return null;
+                })
+                .when(tokenServiceApi)
+                .transferFromTo(any(), any(), anyLong());
+
+        subject.handle(handleContext);
+
+        verify(handleContext).dispatch(any(DispatchOptions.class));
+        verify(handleContext).tryToCharge(PAYER_ID, 2000L);
+        verify(handleContext).refundHandlerCharge(PAYER_ID, 2000L);
+        final long nonGasCharge = response ? 0 : WORST_CASE_CHARGE;
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, nonGasCharge + 800);
+        verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 800L);
+        // DATA keeps its flat endpoint compensation; neither party has any net gas charge.
+        assertThat(balances.get(PAYER_ID)).isEqualTo(initialBalance + nonGasCharge);
+        assertThat(balances.get(CONNECTOR_CONTRACT_ACCOUNT)).isEqualTo(initialBalance - nonGasCharge);
+    }
+
     @Test
     void sharesTotalGasAcrossBothCallbacksEvenWhenBilledGasIsRefunded() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
@@ -887,7 +942,7 @@ class ClprSubmitBundleHandlerTest {
                         .hbarEquiv(1)
                         .centEquiv(1)
                         .build());
-        given(dispatchResult.getGasUsedForContractTxn()).willReturn(100L);
+        lenient().when(dispatchResult.getGasUsedForContractTxn()).thenReturn(100L);
     }
 
     @Nested

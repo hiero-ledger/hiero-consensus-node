@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -35,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class ClprGasAccountingTest {
     private static final AccountID PARENT = account(1001);
@@ -152,6 +155,39 @@ class ClprGasAccountingTest {
         assertThat(subject.availableApplicationGas(1)).isZero();
         subject.refundUnusedGas();
         verify(context, never()).refundHandlerCharge(any(), anyLong());
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ResponseCodeEnum.class,
+            names = {"THROTTLED_AT_CONSENSUS", "CONSENSUS_GAS_EXHAUSTED"})
+    void preExecutionThrottleBillsNoGas(final ResponseCodeEnum status) {
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepay(CONNECTOR_A, 400)).isTrue();
+        final var result = mock(StreamBuilder.class);
+        given(result.status()).willReturn(status);
+
+        assertThat(subject.settle(CONNECTOR_A, 400, result)).isZero();
+        subject.refundUnusedGas();
+
+        verify(context).refundHandlerCharge(PARENT, TOTAL_GAS * GAS_PRICE);
+        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ResponseCodeEnum.class,
+            names = {"THROTTLED_AT_CONSENSUS", "CONSENSUS_GAS_EXHAUSTED"})
+    void throttleStatusWithContractResultStillBillsRecordedGas(final ResponseCodeEnum status) {
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepay(CONNECTOR_A, 400)).isTrue();
+        final var result = gasResult(40);
+        given(result.status()).willReturn(status);
+
+        assertThat(subject.settle(CONNECTOR_A, 400, result)).isEqualTo(40 * GAS_PRICE);
+        subject.refundUnusedGas();
+
+        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - 40 * GAS_PRICE);
     }
 
     @Test

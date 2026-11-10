@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.clpr.impl;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_ACCOUNTING;
 
@@ -125,11 +127,18 @@ public final class ClprGasAccounting {
         return prepaid;
     }
 
-    /** Refunds unused gas; an absent result consumes the full reservation to prevent unbilled work. */
+    /** Refunds unused gas; only known pre-execution throttles are free when no contract result exists. */
     public long settle(@NonNull final AccountID payer, final long gasLimit, @Nullable final StreamBuilder result) {
-        final long gasUsed = result != null && result.hasContractResult()
-                ? Math.clamp(result.getGasUsedForContractTxn(), 0, gasLimit)
-                : gasLimit;
+        final long gasUsed;
+        if (result != null && result.hasContractResult()) {
+            gasUsed = Math.clamp(result.getGasUsedForContractTxn(), 0, gasLimit);
+        } else if (result != null
+                && (result.status() == THROTTLED_AT_CONSENSUS || result.status() == CONSENSUS_GAS_EXHAUSTED)) {
+            gasUsed = 0;
+        } else {
+            // An unknown missing result still consumes the full reservation to prevent unbilled work.
+            gasUsed = gasLimit;
+        }
         // Consume every granted gas unit for capacity, independently of billed EVM refunds.
         final long actualFee = costForGas(gasUsed);
         spentFee = Math.addExact(spentFee, actualFee);
