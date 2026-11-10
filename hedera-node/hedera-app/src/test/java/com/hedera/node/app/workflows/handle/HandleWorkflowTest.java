@@ -1698,7 +1698,8 @@ class HandleWorkflowTest {
             throws Exception {
         givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("accounts.lastThrottleExempt", "37"));
         given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
-        final var dispatch = givenScheduledDispatch();
+        final var dispatch =
+                givenScheduledDispatch(exempt ? ResponseCodeEnum.SUCCESS : ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
 
         invokeExecuteScheduled(scheduledPaidBy(payerNum));
 
@@ -1709,20 +1710,35 @@ class HandleWorkflowTest {
             verify(dispatchProcessor).processDispatch(dispatch, null, true);
             verify(dispatchProcessor, never()).processDispatch(any());
         }
-        // Scheduled executions are not submitted parents, so they never feed the submitted-transaction diagnostics
+        // Scheduled executions feed their own diagnostics, never the submitted-transaction ones
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), !exempt);
         verify(blockStreamManager, never()).recordSubmittedTransaction(any(), anyBoolean());
+    }
+
+    @Test
+    void fullBlockDoesNotCountScheduleThatFailedBeforeBudgetRejection() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        // The payer could not cover the fees, so the dispatch fails before reaching the block-full rejection
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE);
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch, null, true);
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), false);
     }
 
     @Test
     void dueScheduleWithNonExemptPayerExecutesBeforeBlockIsFull() throws Exception {
         givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
         given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(false);
-        final var dispatch = givenScheduledDispatch();
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.SUCCESS);
 
         invokeExecuteScheduled(scheduledPaidBy(1001L));
 
         verify(dispatchProcessor).processDispatch(dispatch);
         verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), false);
     }
 
     @ParameterizedTest
@@ -1733,12 +1749,13 @@ class HandleWorkflowTest {
         givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList());
         // Only StreamMode.BLOCKS enforces the budget, even if the manager were to report a full block
         lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
-        final var dispatch = givenScheduledDispatch();
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.SUCCESS);
 
         invokeExecuteScheduled(scheduledPaidBy(1001L));
 
         verify(dispatchProcessor).processDispatch(dispatch);
         verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        verify(blockStreamManager, never()).recordScheduledTransaction(any(), anyBoolean());
     }
 
     private static ExecutableTxn<StreamBuilder> scheduledPaidBy(final long payerNum) {
@@ -1751,10 +1768,14 @@ class HandleWorkflowTest {
                 builder -> {});
     }
 
-    private Dispatch givenScheduledDispatch() {
+    private Dispatch givenScheduledDispatch(@NonNull final ResponseCodeEnum finalStatus) {
         final var scheduledTxn = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
         given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
                 .willReturn(scheduledTxn);
+        // The status the (mocked) dispatch processor would have left on the base builder
+        final var baseBuilder = mock(StreamBuilder.class);
+        lenient().when(baseBuilder.status()).thenReturn(finalStatus);
+        given(scheduledTxn.initBaseBuilder(any(), any(), any())).willReturn(baseBuilder);
         final var dispatch = mock(Dispatch.class);
         given(parentTxnFactory.createDispatch(eq(scheduledTxn), any(), any(), any()))
                 .willReturn(dispatch);

@@ -949,6 +949,13 @@ public class HandleWorkflow {
      * Returns whether the given due schedule must be rejected with {@code THROTTLED_AT_CONSENSUS} instead of executed,
      * because the {@code StreamMode.BLOCKS} block execution budget is spent and the schedule's payer is not in
      * {@code 1..accounts.lastThrottleExempt}.
+     * <p>
+     * This applies only to schedules executed at expiry ({@code wait_for_expiry=true}). A schedule with {@code
+     * wait_for_expiry=false} executes as a child of the {@code ScheduleCreate} or {@code ScheduleSign} that supplies
+     * its last required signature, so it inherits that transaction's budget decision from
+     * {@link #isExecutionBudgetExempt(ParentTxn)} (the submitter's exemption, not the schedule payer's). In a full
+     * block, a {@code ScheduleSign} from an exempt account can therefore still execute a schedule whose payer is not
+     * exempt; a {@code ScheduleSign} from a non-exempt account is rejected without consuming the schedule.
      */
     private boolean isRejectedForBlockBudget(@NonNull final ExecutableTxn<? extends StreamBuilder> executableTxn) {
         return streamMode == BLOCKS
@@ -1061,7 +1068,8 @@ public class HandleWorkflow {
             stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
             // Once the block is full, a due schedule whose payer is not throttle-exempt is rejected just like a
             // submitted transaction; it is still consumed, so a later block never retries it
-            if (isRejectedForBlockBudget(executableTxn)) {
+            final boolean blockFull = isRejectedForBlockBudget(executableTxn);
+            if (blockFull) {
                 dispatchProcessor.processDispatch(dispatch, null, true);
             } else {
                 dispatchProcessor.processDispatch(dispatch);
@@ -1070,6 +1078,11 @@ public class HandleWorkflow {
             final var handleOutput = scheduledTxn
                     .stack()
                     .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
+            if (streamMode == BLOCKS) {
+                blockStreamManager.recordScheduledTransaction(
+                        handleOutput.blockRecordSourceOrThrow().blockItems(),
+                        blockFull && baseBuilder.status() == THROTTLED_AT_CONSENSUS);
+            }
             recordCache.addRecordSource(
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),

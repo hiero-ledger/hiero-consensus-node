@@ -303,6 +303,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Counter maxBlockSizeThrottleTripsCounter;
     private final Counter maxBlockSizeThrottleRejectionsCounter;
     private final Counter maxBlockSizeThrottleRejectedBytesCounter;
+    private final Counter maxBlockSizeThrottleScheduledRejectionsCounter;
+    private final Counter maxBlockSizeThrottleScheduledRejectedBytesCounter;
     private final Counter signedTxnsInSizeLimitedBlocksCounter;
     private final LongGauge bytesAtMaxBlockSizeCutoffGauge;
 
@@ -369,8 +371,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                 + " the canonical block had reached the max block size limit"));
         maxBlockSizeThrottleRejectedBytesCounter =
                 metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleRejectedBytes")
-                        .withDescription("Serialized bytes of block items written for transactions rejected because the"
-                                + " canonical block had reached the max block size limit"));
+                        .withDescription("Serialized bytes of block items written for submitted transactions rejected"
+                                + " because the canonical block had reached the max block size limit"));
+        maxBlockSizeThrottleScheduledRejectionsCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numMaxBlockSizeThrottleScheduledRejections")
+                        .withDescription("Number of due scheduled transactions rejected with THROTTLED_AT_CONSENSUS"
+                                + " because the canonical block had reached the max block size limit; each rejected"
+                                + " schedule is consumed and never retried"));
+        maxBlockSizeThrottleScheduledRejectedBytesCounter =
+                metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleScheduledRejectedBytes")
+                        .withDescription("Serialized bytes of block items written for due scheduled transactions"
+                                + " rejected because the canonical block had reached the max block size limit"));
         signedTxnsInSizeLimitedBlocksCounter =
                 metrics.getOrCreate(new Counter.Config("block", "numSignedTxnsInSizeLimitedBlocks")
                         .withDescription("Number of signed transactions written to canonical blocks with the max block"
@@ -1234,15 +1245,34 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void recordSubmittedTransaction(@NonNull final List<BlockItem> items, final boolean rejectedForBlockSize) {
-        if (!maxBlockSizeThrottleEnabled) {
+        recordBlockSizeRejection(
+                items,
+                rejectedForBlockSize,
+                maxBlockSizeThrottleRejectionsCounter,
+                maxBlockSizeThrottleRejectedBytesCounter);
+    }
+
+    @Override
+    public void recordScheduledTransaction(@NonNull final List<BlockItem> items, final boolean rejectedForBlockSize) {
+        recordBlockSizeRejection(
+                items,
+                rejectedForBlockSize,
+                maxBlockSizeThrottleScheduledRejectionsCounter,
+                maxBlockSizeThrottleScheduledRejectedBytesCounter);
+    }
+
+    private void recordBlockSizeRejection(
+            @NonNull final List<BlockItem> items,
+            final boolean rejectedForBlockSize,
+            @NonNull final Counter rejectionsCounter,
+            @NonNull final Counter rejectedBytesCounter) {
+        if (!maxBlockSizeThrottleEnabled || !rejectedForBlockSize) {
             return;
         }
-        if (rejectedForBlockSize) {
-            maxBlockSizeThrottleRejectionsCounter.increment();
-            final long rejectedBytes = serializedBlockSize(items);
-            if (rejectedBytes > 0) {
-                maxBlockSizeThrottleRejectedBytesCounter.add(rejectedBytes);
-            }
+        rejectionsCounter.increment();
+        final long rejectedBytes = serializedBlockSize(items);
+        if (rejectedBytes > 0) {
+            rejectedBytesCounter.add(rejectedBytes);
         }
     }
 
