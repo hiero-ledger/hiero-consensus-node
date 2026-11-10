@@ -87,11 +87,12 @@ class VirtualMapStateChangeReplayTest extends MerkleTestBase {
                     storedAccount.copyBuilder().tinybarBalance(2).build(),
                     storedConstruction.copyBuilder().graceExtensionsUsed(1).build());
             final var updates = serialized(listener.getStateChanges());
-            assertThat(updates).allSatisfy(change -> assertThat(
-                            change.hasMapUpdate()
-                                    ? change.mapUpdateOrThrow().partial()
-                                    : change.singletonUpdateOrThrow().partial())
-                    .isEqualTo(deltasEnabled));
+            assertThat(updates)
+                    .allSatisfy(change -> assertThat(
+                                    change.hasMapUpdate()
+                                            ? change.mapUpdateOrThrow().partial()
+                                            : change.singletonUpdateOrThrow().partial())
+                            .isEqualTo(deltasEnabled));
             apply(replay, updates);
 
             // Freezing each map makes its root hash available while retaining a mutable fork for lifecycle cleanup.

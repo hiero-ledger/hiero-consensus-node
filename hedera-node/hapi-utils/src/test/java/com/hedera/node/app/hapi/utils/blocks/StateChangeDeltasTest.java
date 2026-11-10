@@ -223,26 +223,25 @@ class StateChangeDeltasTest {
     }
 
     static void set(DynamicMessage.Builder builder, FieldDescriptor field, int seed, int depth) {
-        final Object value =
-                switch (field.getJavaType()) {
-                    case INT -> seed;
-                    case LONG -> (long) seed;
-                    case FLOAT -> (float) seed;
-                    case DOUBLE -> (double) seed;
-                    case BOOLEAN -> seed % 2 == 1;
-                    case STRING -> "value-" + seed;
-                    case BYTE_STRING -> ByteString.copyFromUtf8("bytes-" + seed);
-                    case ENUM ->
-                        field.getEnumType()
-                                .getValues()
-                                .get(seed % field.getEnumType().getValues().size());
-                    case MESSAGE -> {
-                        final var child = DynamicMessage.newBuilder(field.getMessageType());
-                        if (depth > 0)
-                            for (var nested : field.getMessageType().getFields()) set(child, nested, seed, depth - 1);
-                        yield child.build();
-                    }
-                };
+        final Object value = switch (field.getJavaType()) {
+            case INT -> seed;
+            case LONG -> (long) seed;
+            case FLOAT -> (float) seed;
+            case DOUBLE -> (double) seed;
+            case BOOLEAN -> seed % 2 == 1;
+            case STRING -> "value-" + seed;
+            case BYTE_STRING -> ByteString.copyFromUtf8("bytes-" + seed);
+            case ENUM ->
+                field.getEnumType()
+                        .getValues()
+                        .get(seed % field.getEnumType().getValues().size());
+            case MESSAGE -> {
+                final var child = DynamicMessage.newBuilder(field.getMessageType());
+                if (depth > 0)
+                    for (var nested : field.getMessageType().getFields()) set(child, nested, seed, depth - 1);
+                yield child.build();
+            }
+        };
         if (field.isRepeated()) builder.setField(field, seed == 0 ? List.of() : List.of(value, value));
         else builder.setField(field, value);
     }

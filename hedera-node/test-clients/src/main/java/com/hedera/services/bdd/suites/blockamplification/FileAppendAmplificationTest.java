@@ -74,10 +74,13 @@ public class FileAppendAmplificationTest {
                 growFileWithExemptAppends(ATTACK_FILE, FILE_TARGET_BYTES),
                 // Move into a fresh block (the budget resets at block start) before the attacker acts
                 sleepForSeconds(11),
-                floodAssertingBudgetRejection("fileAppend-normal", ATTACK_ATTEMPTS, () -> fileAppend(ATTACK_FILE)
-                        .content(payload(APPEND_CHUNK_BYTES))
-                        .payingWith(ATTACKER)
-                        .noLogging()));
+                floodAssertingBudgetRejection(
+                        "fileAppend-normal",
+                        ATTACK_ATTEMPTS,
+                        () -> fileAppend(ATTACK_FILE)
+                                .content(payload(APPEND_CHUNK_BYTES))
+                                .payingWith(ATTACKER)
+                                .noLogging()));
     }
 
     @HapiTest
@@ -104,10 +107,13 @@ public class FileAppendAmplificationTest {
                 fileCreate(ATTACK_FILE).contents(payload(APPEND_CHUNK_BYTES)).payingWith(GENESIS),
                 growFileWithExemptAppends(ATTACK_FILE, FILE_TARGET_BYTES),
                 sleepForSeconds(11),
-                floodAssertingBudgetRejection("fileAppend-highVolume", ATTACK_ATTEMPTS, () -> fileAppend(ATTACK_FILE)
-                        .content(payload(APPEND_CHUNK_BYTES))
-                        .payingWith(ATTACKER)
-                        .withHighVolume()
-                        .noLogging()));
+                floodAssertingBudgetRejection(
+                        "fileAppend-highVolume",
+                        ATTACK_ATTEMPTS,
+                        () -> fileAppend(ATTACK_FILE)
+                                .content(payload(APPEND_CHUNK_BYTES))
+                                .payingWith(ATTACKER)
+                                .withHighVolume()
+                                .noLogging()));
     }
 }

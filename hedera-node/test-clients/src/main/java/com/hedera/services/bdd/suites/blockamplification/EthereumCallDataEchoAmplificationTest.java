@@ -116,9 +116,11 @@ public class EthereumCallDataEchoAmplificationTest {
                         .hasKnownStatusFrom(
                                 CONTRACT_REVERT_EXECUTED, INSUFFICIENT_GAS, SUCCESS, THROTTLED_AT_CONSENSUS),
                 // The block is now full; cheap follow-up transfers are rejected
-                floodAssertingBudgetRejection("ethEchoFollowOn", FOLLOW_ON_ATTEMPTS, () -> cryptoTransfer(
-                                tinyBarsFromTo(ATTACKER, FUNDING, 1L))
-                        .payingWith(ATTACKER)
-                        .noLogging()));
+                floodAssertingBudgetRejection(
+                        "ethEchoFollowOn",
+                        FOLLOW_ON_ATTEMPTS,
+                        () -> cryptoTransfer(tinyBarsFromTo(ATTACKER, FUNDING, 1L))
+                                .payingWith(ATTACKER)
+                                .noLogging()));
     }
 }

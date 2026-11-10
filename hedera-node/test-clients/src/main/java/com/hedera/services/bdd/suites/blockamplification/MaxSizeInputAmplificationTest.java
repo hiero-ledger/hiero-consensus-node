@@ -72,9 +72,12 @@ public class MaxSizeInputAmplificationTest {
                 cryptoCreate(ATTACKER).balance(ONE_MILLION_HBARS),
                 createTopic(TOPIC).payingWith(GENESIS),
                 sleepForSeconds(11),
-                floodAssertingBudgetRejection("maxSizeInput", ATTACK_ATTEMPTS, () -> submitMessageTo(TOPIC)
-                        .message(ByteString.copyFrom(payload(MESSAGE_BYTES)))
-                        .payingWith(ATTACKER)
-                        .noLogging()));
+                floodAssertingBudgetRejection(
+                        "maxSizeInput",
+                        ATTACK_ATTEMPTS,
+                        () -> submitMessageTo(TOPIC)
+                                .message(ByteString.copyFrom(payload(MESSAGE_BYTES)))
+                                .payingWith(ATTACKER)
+                                .noLogging()));
     }
 }

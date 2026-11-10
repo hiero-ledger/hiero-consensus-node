@@ -22,23 +22,23 @@ Classes carry `@OrderedInIsolation` so their methods each get a fresh network.
 
 ## Vectors (all classes pass; 23 methods total)
 
-| # | Class | Methods | Measured single-transaction crossing (from a run) |
-|---|---|---|---|
-| 1 | `PrngAmplificationTest` | prng (0x169 child-record copy) | one call copied **60,416 B** into child records, over a 64 KiB budget |
-| 2 | `EvmOutputAmplificationTest` | return, revert, logs | one call added **262,177 B** of result data over 64 KiB |
-| 3 | `FileAppendAmplificationTest` | normal, high-volume | one append re-emitted **65,653 B** (whole file) over 48 KiB |
-| 4 | `HtsChildCallDataAmplificationTest` | hts (0x167 child-record copy) | crossed a 32 KiB budget via copied `call_data` |
-| 5 | `ApprovedSpendAmplificationTest` | approvedSpend (owner never signs) | one debit re-emitted **2,874 B** (owner's whole list) over 8 KiB |
-| 6 | `AtomicBatchAmplificationTest` | batch (packs output past the gate) | one batch added **524,321 B** over 64 KiB |
-| 7 | `AllowanceAmplificationTest` | normal, high-volume | one approval re-emitted **2,874 B** (whole allowance list) over 8 KiB |
-| 8 | `MaxSizeInputAmplificationTest` | maxSizeInput (input bytes) | ~5 KiB signed-txn bytes each over a 32 KiB budget |
-| 9 | `NftAmplificationTest` | transfer, serial-approval, mint(HV) | NFT relinks/mints crossed an 8 KiB budget |
-| 10 | `EthereumCallDataEchoAmplificationTest` | ethEcho (bug-bounty-95044) | one reverting eth tx echoed **100,417 B** of call data over 64 KiB |
-| 11 | `EvmOutputAmplificationTest` (logs) | logs | LOG data in the result, past the 256 KiB trace limiter |
-| 12 | `BudgetRejectedContractCallTest` | free-rejection deterrent gap | rejected calls charged ≥10× less than the executed call |
-| 13 | `ScheduleCreateAmplificationTest` | normal, high-volume | stored inner body floods a 16 KiB budget |
-| 14 | `TopicTokenListAmplificationTest` | topic, token | whole-entity re-emit floods a 4 KiB budget |
-| 15 | `ScheduleSignAmplificationTest` | scheduleSign (signatories) | growing signatories re-emit floods a 4 KiB budget |
+| #  |                  Class                  |               Methods               |           Measured single-transaction crossing (from a run)           |
+|----|-----------------------------------------|-------------------------------------|-----------------------------------------------------------------------|
+| 1  | `PrngAmplificationTest`                 | prng (0x169 child-record copy)      | one call copied **60,416 B** into child records, over a 64 KiB budget |
+| 2  | `EvmOutputAmplificationTest`            | return, revert, logs                | one call added **262,177 B** of result data over 64 KiB               |
+| 3  | `FileAppendAmplificationTest`           | normal, high-volume                 | one append re-emitted **65,653 B** (whole file) over 48 KiB           |
+| 4  | `HtsChildCallDataAmplificationTest`     | hts (0x167 child-record copy)       | crossed a 32 KiB budget via copied `call_data`                        |
+| 5  | `ApprovedSpendAmplificationTest`        | approvedSpend (owner never signs)   | one debit re-emitted **2,874 B** (owner's whole list) over 8 KiB      |
+| 6  | `AtomicBatchAmplificationTest`          | batch (packs output past the gate)  | one batch added **524,321 B** over 64 KiB                             |
+| 7  | `AllowanceAmplificationTest`            | normal, high-volume                 | one approval re-emitted **2,874 B** (whole allowance list) over 8 KiB |
+| 8  | `MaxSizeInputAmplificationTest`         | maxSizeInput (input bytes)          | ~5 KiB signed-txn bytes each over a 32 KiB budget                     |
+| 9  | `NftAmplificationTest`                  | transfer, serial-approval, mint(HV) | NFT relinks/mints crossed an 8 KiB budget                             |
+| 10 | `EthereumCallDataEchoAmplificationTest` | ethEcho (bug-bounty-95044)          | one reverting eth tx echoed **100,417 B** of call data over 64 KiB    |
+| 11 | `EvmOutputAmplificationTest` (logs)     | logs                                | LOG data in the result, past the 256 KiB trace limiter                |
+| 12 | `BudgetRejectedContractCallTest`        | free-rejection deterrent gap        | rejected calls charged ≥10× less than the executed call               |
+| 13 | `ScheduleCreateAmplificationTest`       | normal, high-volume                 | stored inner body floods a 16 KiB budget                              |
+| 14 | `TopicTokenListAmplificationTest`       | topic, token                        | whole-entity re-emit floods a 4 KiB budget                            |
+| 15 | `ScheduleSignAmplificationTest`         | scheduleSign (signatories)          | growing signatories re-emit floods a 4 KiB budget                     |
 
 **Not civilian-reachable (no exploit PoC):** Node certificate and CLPR-singleton re-emits are node- or
 governance-gated — a normal user cannot trigger them, so there is no amplification to demonstrate; the existing

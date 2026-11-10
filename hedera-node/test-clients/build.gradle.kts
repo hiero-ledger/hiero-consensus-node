@@ -333,25 +333,6 @@ val preCutoverTaskOverrides =
         "hapiTestNodeStaking" to "tss.forceMockSignatures=false",
         "hapiTestClprMultinetwork" to "tss.forceMockSignatures=false",
     )
-// -PhapiTestConfigProfile=testnet (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks with the
-// cutover values below instead of the production defaults (used by XTS 829)
-val hapiTestConfigProfile =
-    providers
-        .gradleProperty("hapiTestConfigProfile")
-        .orElse(providers.environmentVariable("HAPI_TEST_CONFIG_PROFILE"))
-        .getOrElse("")
-// The cutover block stream and TSS values (planned for testnet; FUTURE: the production defaults)
-val cutoverConfigValues =
-    mapOf(
-        "blockStream.streamMode" to "BLOCKS",
-        // Explicit so XTS exercises partial state changes regardless of the production default
-        "blockStream.enableStateChangeDeltas" to "true",
-        "blockStream.writerMode" to "GRPC",
-        "blockStream.enableCutover" to "true",
-        "blockStream.streamWrappedRecordBlocks" to "false",
-        "blockStream.buffer.isBufferPersistenceEnabled" to "true",
-        "tss.forceMockSignatures" to "false",
-    )
 val profileOverrides: Map<String, String> =
     when (hapiTestConfigProfile) {
         "" -> emptyMap()

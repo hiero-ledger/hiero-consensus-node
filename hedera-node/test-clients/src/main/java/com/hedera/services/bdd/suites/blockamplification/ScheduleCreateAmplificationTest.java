@@ -102,10 +102,13 @@ public class ScheduleCreateAmplificationTest {
                 cryptoCreate(ATTACKER).balance(ONE_MILLION_HBARS),
                 cryptoCreate(RECEIVER).balance(ONE_MILLION_HBARS),
                 sleepForSeconds(11),
-                floodAssertingBudgetRejection("scheduleCreate-highVolume", ATTACK_ATTEMPTS, i -> scheduleCreate(
-                                "amplScheduleHv" + i, cryptoTransfer(tinyBarsFromTo(RECEIVER, FUNDING, 1L + i)))
-                        .payingWith(ATTACKER)
-                        .withHighVolume()
-                        .noLogging()));
+                floodAssertingBudgetRejection(
+                        "scheduleCreate-highVolume",
+                        ATTACK_ATTEMPTS,
+                        i -> scheduleCreate(
+                                        "amplScheduleHv" + i, cryptoTransfer(tinyBarsFromTo(RECEIVER, FUNDING, 1L + i)))
+                                .payingWith(ATTACKER)
+                                .withHighVolume()
+                                .noLogging()));
     }
 }

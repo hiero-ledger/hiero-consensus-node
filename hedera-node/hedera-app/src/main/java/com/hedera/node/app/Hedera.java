@@ -596,10 +596,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         hintsService =
                 hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig, genesisNetworkSupplier);
-        utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> requireNonNull(daggerApp)
-                .transactionChecker()
-                .parseSignedAndCheck(txnBytes)
-                .txBody());
+        utilServiceImpl = new UtilServiceImpl(
+                appContext,
+                (txnBytes, config) -> requireNonNull(daggerApp)
+                        .transactionChecker()
+                        .parseSignedAndCheck(txnBytes)
+                        .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
         clprServiceImpl = new ClprServiceImpl();

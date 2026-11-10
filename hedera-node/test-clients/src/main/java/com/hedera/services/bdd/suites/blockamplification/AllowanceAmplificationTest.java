@@ -104,7 +104,9 @@ public class AllowanceAmplificationTest {
                 buildCryptoAllowanceList(ATTACKER, SPENDER_PREFIX, LIST_SIZE, PER_ALLOWANCE),
                 sleepForSeconds(11),
                 floodAssertingBudgetRejection(
-                        "approveAllowance-highVolume", ATTACK_ATTEMPTS, i -> cryptoApproveAllowance()
+                        "approveAllowance-highVolume",
+                        ATTACK_ATTEMPTS,
+                        i -> cryptoApproveAllowance()
                                 .addCryptoAllowance(ATTACKER, SPENDER_PREFIX + "0", PER_ALLOWANCE + 1L + i)
                                 .payingWith(ATTACKER)
                                 .withHighVolume()

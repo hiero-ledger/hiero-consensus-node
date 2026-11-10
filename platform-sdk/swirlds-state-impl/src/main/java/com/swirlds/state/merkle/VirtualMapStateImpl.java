@@ -594,8 +594,9 @@ public class VirtualMapStateImpl implements VirtualMapState {
         @Override
         public void commit() {
             // Ensure all commits always happen in lexicographic order by state ID
-            kvInstances.keySet().stream().sorted().forEach(stateId -> ((WritableKVStateBase) kvInstances.get(stateId))
-                    .commit());
+            kvInstances.keySet().stream()
+                    .sorted()
+                    .forEach(stateId -> ((WritableKVStateBase) kvInstances.get(stateId)).commit());
             singletonInstances.keySet().stream()
                     .sorted()
                     .forEach(stateId -> ((WritableSingletonStateBase) singletonInstances.get(stateId)).commit());

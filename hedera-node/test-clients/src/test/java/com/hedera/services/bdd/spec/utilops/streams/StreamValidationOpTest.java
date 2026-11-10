@@ -159,7 +159,7 @@ class StreamValidationOpTest {
         // actions and stream/proof I/O. No record stream exists in this fixture.
         try (final var networkActions = mockStatic(CustomSpecAssert.class);
                 final var streamIo = mockStatic(StreamValidationOp.class)) {
-            streamIo.when(() -> StreamValidationOp.readMaybeBlockStreamsFor(spec))
+            streamIo.when(() -> StreamValidationOp.readMaybeBlockStreamsFor(spec, false))
                     .thenReturn(Optional.of(blocks));
             op.submitOp(spec);
         }

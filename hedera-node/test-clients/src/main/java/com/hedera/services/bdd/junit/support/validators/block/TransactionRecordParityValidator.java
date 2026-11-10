@@ -120,10 +120,11 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final long realm = 12L;
         // Set to non-null node0 data/ path if e.g. triaging a mismatch in streams downloaded from CI
         final Path customNode0Data = null;
-        final var node0Data = Optional.ofNullable(customNode0Data).orElseGet(() -> Paths.get("hedera-node/test-clients")
-                .resolve(workingDirFor(0, "hapi").resolve("data"))
-                .toAbsolutePath()
-                .normalize());
+        final var node0Data = Optional.ofNullable(customNode0Data)
+                .orElseGet(() -> Paths.get("hedera-node/test-clients")
+                        .resolve(workingDirFor(0, "hapi").resolve("data"))
+                        .toAbsolutePath()
+                        .normalize());
         final var blocksLoc = node0Data
                 .resolve("blockStreams/block-" + shard + "." + realm + ".3")
                 .toAbsolutePath()
