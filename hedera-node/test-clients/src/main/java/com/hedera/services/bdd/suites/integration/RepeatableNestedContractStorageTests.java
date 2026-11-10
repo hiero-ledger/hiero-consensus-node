@@ -79,6 +79,7 @@ import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
@@ -133,6 +134,8 @@ public class RepeatableNestedContractStorageTests {
     // Makes a call and returns its result, so a call that reverts does not revert the caller
     private static final String MAKE_CALLS = "MakeCalls";
     private static final Function MAKE_CALL_WITHOUT_AMOUNT = new Function("makeCallWithoutAmount(address,bytes)");
+    // Creates one contract
+    private static final Function DEPLOY_PARENT_CONTRACT = new Function("deployParentContract()");
     private static final long HOOK_WITH_STORAGE_ID = 7L;
     private static final Bytes HOOK_SLOT_KEY = Bytes.wrap(new byte[] {1});
     private static final Bytes HOOK_SLOT_VALUE = Bytes.wrap(new byte[] {7});
@@ -681,6 +684,64 @@ public class RepeatableNestedContractStorageTests {
                                 .contractCreateResult(resultWith().error(revertReason(CONSENSUS_GAS_EXHAUSTED)))));
     }
 
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            overrides = {"contracts.enforceCreationThrottle"},
+            throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
+    final Stream<DynamicTest> rolledBackNestedCreationDoesNotFailTheOuterCall() {
+        final var rolledBackId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                uploadInitCode(MAKE_CALLS),
+                contractCreate(MAKE_CALLS).gas(400_000L),
+                cryptoCreate(CREATIONS_PAYER).balance(ONE_HUNDRED_HBARS).keyShape(KeyShape.CONTRACT.signedWith(WRITER)),
+                scheduledWriterCreation("rolledBack", rolledBackId),
+                overriding("contracts.enforceCreationThrottle", "true"),
+                // The rolled-back creation gives back the throttle's only unit, so the outer call can still check
+                // the throttle without creations, like any execution that creates nothing
+                sourcingContextual(spec -> writerCallingThroughMakeCalls(
+                                spec,
+                                authorizingThroughMakeCalls(
+                                        mirrorAddrWith(spec.registry().getContractId(WRITER)),
+                                        rolledBackId.get(),
+                                        true))
+                        .hasKnownStatus(SUCCESS)),
+                getScheduleInfo("rolledBack").isNotExecuted());
+    }
+
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW,
+            overrides = {"contracts.enforceCreationThrottle"},
+            throttles = ONE_TPS_CRYPTO_CREATE_THROTTLES)
+    final Stream<DynamicTest> ownCreationAfterRolledBackNestedCreationIsAdmitted() {
+        final var factory = "NoncesExternalization";
+        final var rolledBackId = new AtomicReference<ScheduleID>();
+        return hapiTest(
+                writerCreated(),
+                uploadInitCode(MAKE_CALLS, factory),
+                contractCreate(MAKE_CALLS).gas(400_000L),
+                contractCreate(factory).gas(1_000_000L),
+                cryptoCreate(CREATIONS_PAYER).balance(ONE_HUNDRED_HBARS).keyShape(KeyShape.CONTRACT.signedWith(WRITER)),
+                scheduledWriterCreation("rolledBack", rolledBackId),
+                overriding("contracts.enforceCreationThrottle", "true"),
+                // The rolled-back creation gives back the throttle's only unit before the outer call creates its own
+                // contract, with no consensus-throttled dispatch in between to reset the throttle
+                sourcingContextual(spec -> writerCallingThroughMakeCalls(
+                                spec,
+                                authorizingThroughMakeCalls(
+                                        mirrorAddrWith(spec.registry().getContractId(WRITER)),
+                                        rolledBackId.get(),
+                                        true),
+                                creatingThroughMakeCalls(
+                                        mirrorAddrWith(spec.registry().getContractId(factory))))
+                        .via("ownCreationOuter")
+                        .hasKnownStatus(SUCCESS)),
+                getTxnRecord("ownCreationOuter")
+                        .hasPriority(
+                                recordWith().contractCallResult(resultWith().createdContractIdsCount(1))),
+                getScheduleInfo("rolledBack").isNotExecuted());
+    }
+
     @RepeatableHapiTest({NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> executionNestedInHookExecutionUpdatesStorageCounts() {
         final var slotsBefore = new AtomicLong();
@@ -903,6 +964,34 @@ public class RepeatableNestedContractStorageTests {
                 .encodeCallWithArgs(authorizingArgs(List.of(scheduleId), NO_WRITE, NO_WRITE, revertAfter))
                 .array();
         return MAKE_CALL_WITHOUT_AMOUNT.encodeCallWithArgs(writer, authorizing).array();
+    }
+
+    /**
+     * Encodes a {@link #MAKE_CALLS} call that has the given {@code NoncesExternalization} factory create one contract.
+     */
+    private static byte[] creatingThroughMakeCalls(@NonNull final Address factory) {
+        return MAKE_CALL_WITHOUT_AMOUNT
+                .encodeCallWithArgs(
+                        factory, DEPLOY_PARENT_CONTRACT.encodeCallWithArgs().array())
+                .array();
+    }
+
+    /**
+     * Calls {@link #WRITER} to make the given {@link #MAKE_CALLS} calls, so a call that reverts does not revert the
+     * outer call.
+     */
+    private static HapiContractCall writerCallingThroughMakeCalls(
+            @NonNull final HapiSpec spec, @NonNull final byte[]... calls) {
+        return writerCall("setCallSet", new Object[] {
+                    BigInteger.ZERO,
+                    BigInteger.ZERO,
+                    mirrorAddrWith(spec.registry().getContractId(MAKE_CALLS)),
+                    calls,
+                    BigInteger.ZERO,
+                    BigInteger.ZERO,
+                    false
+                })
+                .gas(5_000_000L);
     }
 
     /**

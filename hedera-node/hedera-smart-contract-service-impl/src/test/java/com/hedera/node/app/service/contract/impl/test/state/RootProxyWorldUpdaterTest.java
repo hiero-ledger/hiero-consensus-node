@@ -9,6 +9,8 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.T
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -53,6 +55,7 @@ import org.hyperledger.besu.datatypes.Wei;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.BDDMockito;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -105,6 +108,9 @@ class RootProxyWorldUpdaterTest {
 
     @Mock
     private StorageAccountingScope storageAccountingScope;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
 
     private Enhancement enhancement;
     private RootProxyWorldUpdater subject;
@@ -264,11 +270,61 @@ class RootProxyWorldUpdaterTest {
         givenOwnCreationOf(CALLED_CONTRACT_ID);
         givenCreatedContractsWithNoStorageChanges(nestedCreation, CALLED_CONTRACT_ID);
         given(context.throttleAdviser()).willReturn(throttleAdviser);
+        given(context.savepointStack()).willReturn(savepointStack);
 
         subject.commit();
 
         BDDMockito.then(throttleAdviser).should().shouldThrottleNOfUnscaled(1, CRYPTO_CREATE);
         assertEquals(List.of(nestedCreation, CALLED_CONTRACT_ID), subject.getCreatedContractIds());
+    }
+
+    @Test
+    void nestedExecutionGivesBackItsClaimIfRolledBackBeforeTheOwnerCommits() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOwnCreationOf(CALLED_CONTRACT_ID);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+        given(context.savepointStack()).willReturn(savepointStack);
+        final var giveBack = ArgumentCaptor.forClass(Runnable.class);
+
+        subject.commit();
+
+        BDDMockito.then(savepointStack).should().onRollback(giveBack.capture());
+        BDDMockito.then(throttleAdviser).should(never()).leakCapacityForNOfUnscaled(anyInt(), any());
+        giveBack.getValue().run();
+        BDDMockito.then(throttleAdviser).should().leakCapacityForNOfUnscaled(1, CRYPTO_CREATE);
+    }
+
+    @Test
+    void nestedExecutionKeepsItsClaimIfRolledBackAfterTheOwnerCommits() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOwnCreationOf(CALLED_CONTRACT_ID);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+        given(context.savepointStack()).willReturn(savepointStack);
+        final var giveBack = ArgumentCaptor.forClass(Runnable.class);
+
+        subject.commit();
+
+        BDDMockito.then(savepointStack).should().onRollback(giveBack.capture());
+        given(storageAccountingScope.ownerHasCommitted()).willReturn(true);
+        giveBack.getValue().run();
+        BDDMockito.then(throttleAdviser).should(never()).leakCapacityForNOfUnscaled(anyInt(), any());
+    }
+
+    @Test
+    void ownerClaimIsFinalAndMarksItsCommit() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOwnCreationOf(CALLED_CONTRACT_ID);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(storageAccountingScope.isOwner()).willReturn(true);
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+
+        subject.commit();
+
+        BDDMockito.then(throttleAdviser).should().shouldThrottleNOfUnscaled(1, CRYPTO_CREATE);
+        BDDMockito.then(context).should(never()).savepointStack();
+        BDDMockito.then(storageAccountingScope).should().markCommitted();
     }
 
     @Test
@@ -281,6 +337,9 @@ class RootProxyWorldUpdaterTest {
 
         final var e = assertThrows(ResourceExhaustedException.class, subject::commit);
         assertEquals(CONSENSUS_GAS_EXHAUSTED, e.getStatus());
+        // Nothing was claimed, so there is nothing to give back
+        BDDMockito.then(context).should(never()).savepointStack();
+        BDDMockito.then(storageAccountingScope).should(never()).markCommitted();
     }
 
     @Test

@@ -16,6 +16,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperatio
 import com.hedera.node.app.service.contract.impl.infra.IterableStorageManager;
 import com.hedera.node.app.service.contract.impl.infra.RentCalculator;
 import com.hedera.node.app.service.contract.impl.infra.StorageSizeValidator;
+import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
 import com.hedera.node.config.data.ContractsConfig;
@@ -116,9 +117,13 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
                     .count();
             // Like a top-level execution, the owner still checks without creations, unless only nested ones remain
             if (ownCreations > 0 || (storageAccountingScope.isOwner() && createdContractIds.isEmpty())) {
+                final var throttleAdviser = context.throttleAdviser();
                 final var creationCapacityIsAvailable =
-                        !context.throttleAdviser().shouldThrottleNOfUnscaled(ownCreations, CRYPTO_CREATE);
+                        !throttleAdviser.shouldThrottleNOfUnscaled(ownCreations, CRYPTO_CREATE);
                 validateResource(creationCapacityIsAvailable, CONSENSUS_GAS_EXHAUSTED);
+                if (!storageAccountingScope.isOwner()) {
+                    giveBackIfRolledBackBeforeOwnerCommits(ownCreations, throttleAdviser);
+                }
             }
         }
 
@@ -130,6 +135,25 @@ public class RootProxyWorldUpdater extends ProxyWorldUpdater {
         super.commit();
         // Be sure not to externalize contract ids or nonces without a successful commit
         committed = true;
+        storageAccountingScope.markCommitted();
+    }
+
+    /**
+     * Gives back the creation throttle capacity just claimed for the given creations of a nested execution if they
+     * are rolled back before the owner of its scope commits. Until then, an enclosing frame or dispatch can still
+     * roll them back; and that only restores the throttle usage saved in state, not the throttle itself.
+     *
+     * @param creations the number of creations the capacity was claimed for
+     * @param throttleAdviser the throttle adviser the capacity was claimed from
+     */
+    private void giveBackIfRolledBackBeforeOwnerCommits(
+            final int creations, @NonNull final ThrottleAdviser throttleAdviser) {
+        context.savepointStack().onRollback(() -> {
+            // Once the owner commits, these creations count like its own, which a later rollback keeps claimed too
+            if (!storageAccountingScope.ownerHasCommitted()) {
+                throttleAdviser.leakCapacityForNOfUnscaled(creations, CRYPTO_CREATE);
+            }
+        });
     }
 
     @Override
