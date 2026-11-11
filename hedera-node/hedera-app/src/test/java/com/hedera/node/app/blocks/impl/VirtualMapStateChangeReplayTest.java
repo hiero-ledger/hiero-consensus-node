@@ -10,7 +10,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.state.WrappedState;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -31,7 +31,7 @@ class VirtualMapStateChangeReplayTest extends MerkleTestBase {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void initializedSingletonAndMapChangesReproduceTheVirtualMapRoot(final boolean deltasEnabled) {
+    void initializedSingletonAndMapChangesReproduceTheVirtualMapRoot(final boolean partialsEnabled) {
         final var producer = createTestState(FILE_SYSTEM_MANAGER);
         final var replay = createTestState(FILE_SYSTEM_MANAGER);
         VirtualMap producerFork = null;
@@ -41,7 +41,7 @@ class VirtualMapStateChangeReplayTest extends MerkleTestBase {
             initialize(replay);
             final var listener = new ImmediateStateChangeListener();
             producer.registerCommitListener(listener);
-            listener.beginBlock(deltasEnabled, 0);
+            listener.beginBlock(partialsEnabled, 0);
             // Handle-time setup inserts the singleton in a separate transaction before ordinary map changes.
             final var setup = new WrappedState(producer);
             setup.getWritableStates(CLPR_SERVICE)
@@ -75,7 +75,7 @@ class VirtualMapStateChangeReplayTest extends MerkleTestBase {
 
             // A later block uses values read back through real storage, not the producer's original objects.
             listener.reset(null);
-            listener.beginBlock(deltasEnabled, 0);
+            listener.beginBlock(partialsEnabled, 0);
             final var storedAccount = producer.getReadableStates(TOKEN_SERVICE)
                     .<AccountID, Account>get(ACCOUNTS)
                     .get(KEY);
@@ -92,7 +92,7 @@ class VirtualMapStateChangeReplayTest extends MerkleTestBase {
                                     change.hasMapUpdate()
                                             ? change.mapUpdateOrThrow().partial()
                                             : change.singletonUpdateOrThrow().partial())
-                            .isEqualTo(deltasEnabled));
+                            .isEqualTo(partialsEnabled));
             apply(replay, updates);
 
             // Freezing each map makes its root hash available while retaining a mutable fork for lifecycle cleanup.
@@ -154,24 +154,24 @@ class VirtualMapStateChangeReplayTest extends MerkleTestBase {
         for (final var change : changes) {
             if (change.hasMapUpdate()) {
                 final var update = change.mapUpdateOrThrow();
-                final var type = StateChangeDeltas.mapType(
+                final var type = StateChangePartials.mapType(
                         update.valueOrThrow().valueChoice().kind().protoOrdinal());
                 final var key = AccountID.PROTOBUF.toBytes(update.keyOrThrow().accountIdKeyOrThrow());
                 state.updateKv(
                         change.stateId(),
                         key,
-                        StateChangeDeltas.applyBytes(
+                        StateChangePartials.applyBytes(
                                 update.partial() ? state.getKv(change.stateId(), key) : null,
                                 type.bytes(update.valueOrThrow().valueChoice().value()),
                                 update.partial(),
                                 update.clearedFields()));
             } else {
                 final var update = change.singletonUpdateOrThrow();
-                final var type =
-                        StateChangeDeltas.singletonType(update.newValue().kind().protoOrdinal());
+                final var type = StateChangePartials.singletonType(
+                        update.newValue().kind().protoOrdinal());
                 state.updateSingleton(
                         change.stateId(),
-                        StateChangeDeltas.applyBytes(
+                        StateChangePartials.applyBytes(
                                 update.partial() ? state.getSingleton(change.stateId()) : null,
                                 type.bytes(update.newValue().value()),
                                 update.partial(),

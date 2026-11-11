@@ -164,7 +164,7 @@ public final class BinaryStateChangeParser {
         }
         binaryState.updateSingleton(
                 stateId,
-                StateChangeDeltas.applyBytes(
+                StateChangePartials.applyBytes(
                         partial ? binaryState.getSingleton(stateId) : null, rawValue, partial, clearedFields));
     }
 
@@ -221,7 +221,7 @@ public final class BinaryStateChangeParser {
         binaryState.updateKv(
                 stateId,
                 rawKey,
-                StateChangeDeltas.applyBytes(
+                StateChangePartials.applyBytes(
                         partial ? binaryState.getKv(stateId, rawKey) : null, rawValue, partial, clearedFields));
     }
 

@@ -8,7 +8,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.*;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -34,7 +34,7 @@ class SidecarWatcherTest {
                 .value(MapChangeValue.newBuilder().accountValue(after))
                 .build();
         final int stateId = StateIdentifier.STATE_ID_ACCOUNTS.protoOrdinal();
-        final var delta = StateChangeDeltas.encodeMap(stateId, before, next);
+        final var delta = StateChangePartials.encodeMap(stateId, before, next);
         assertThat(delta.partial()).isTrue();
         final var baseline = block(0, stateId, full);
         final var suffix = block(1, stateId, delta);

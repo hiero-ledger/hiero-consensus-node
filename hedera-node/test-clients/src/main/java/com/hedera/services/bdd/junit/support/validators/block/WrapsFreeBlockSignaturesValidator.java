@@ -44,7 +44,7 @@ import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.blocks.BinaryStateChangeParser;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.pbj.runtime.ParseException;
@@ -766,7 +766,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                         final var partyKey = new PartyKey(key.partyId(), key.numParties(), key.crsId());
                         // A partial update only carries the changed fields of the key set
                         final var value = (HintsKeySet)
-                                StateChangeDeltas.applyMap(stateChange.stateId(), hintsKeySets.get(partyKey), update);
+                                StateChangePartials.applyMap(stateChange.stateId(), hintsKeySets.get(partyKey), update);
                         hintsKeySets.put(partyKey, value);
                         maybePreprocessInputsChanged = true;
                     }

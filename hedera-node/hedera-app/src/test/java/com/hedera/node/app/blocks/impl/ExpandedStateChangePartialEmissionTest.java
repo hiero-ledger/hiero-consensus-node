@@ -9,14 +9,14 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.primitives.ProtoString;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 
-class ExpandedStateChangeDeltaEmissionTest {
+class ExpandedStateChangePartialEmissionTest {
     @Test
     void formerlyUnlistedNodeAndBlockInfoUseTheUniversalRule() {
         final var prior = Node.newBuilder()
@@ -31,7 +31,7 @@ class ExpandedStateChangeDeltaEmissionTest {
         maps.mapUpdateChange(1, new com.hedera.hapi.node.state.common.EntityNumber(1), prior, next);
         final var update = maps.getKvStateChanges().getFirst().mapUpdateOrThrow();
         assertThat(update.partial()).isTrue();
-        assertThat(StateChangeDeltas.applyMap(1, prior, update)).isEqualTo(next);
+        assertThat(StateChangePartials.applyMap(1, prior, update)).isEqualTo(next);
         final var singletons = new BoundaryStateChangeListener(
                 new StoreMetricsServiceImpl(new NoOpMetrics()), HederaTestConfigBuilder::createConfig);
         singletons.beginBlock(true);
@@ -41,7 +41,7 @@ class ExpandedStateChangeDeltaEmissionTest {
         singletons.singletonUpdateChange(3, oldInfo, newInfo);
         final var singleton = singletons.allStateChanges().getFirst().singletonUpdateOrThrow();
         assertThat(singleton.partial()).isTrue();
-        assertThat(StateChangeDeltas.applySingleton(3, oldInfo, singleton)).isEqualTo(newInfo);
+        assertThat(StateChangePartials.applySingleton(3, oldInfo, singleton)).isEqualTo(newInfo);
     }
 
     @Test
@@ -62,7 +62,7 @@ class ExpandedStateChangeDeltaEmissionTest {
             final var update = listener.getKvStateChanges().getFirst().mapUpdateOrThrow();
             assertThat(update.partial()).isEqualTo(threshold == 64);
             assertThat(update.valueOrThrow().fileValueOrThrow().contents()).isEqualTo(next.contents());
-            assertThat(StateChangeDeltas.applyMap(6, prior, update)).isEqualTo(next);
+            assertThat(StateChangePartials.applyMap(6, prior, update)).isEqualTo(next);
         }
     }
 
@@ -75,6 +75,6 @@ class ExpandedStateChangeDeltaEmissionTest {
         final var update = listener.getKvStateChanges().getFirst().mapUpdateOrThrow();
         assertThat(update.partial()).isFalse();
         assertThat(update.valueOrThrow().protoStringValue()).isEqualTo(value.value());
-        assertThat(StateChangeDeltas.applyMap(9999, value, update)).isEqualTo(value);
+        assertThat(StateChangePartials.applyMap(9999, value, update)).isEqualTo(value);
     }
 }

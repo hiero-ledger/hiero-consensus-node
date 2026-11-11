@@ -66,7 +66,7 @@ class BinaryStateChangeParserTest {
     void everyMapAndSingletonPayloadReplaysThroughTheBinaryStateApi() {
         for (var kind : MapChangeValue.ValueChoiceOneOfType.values()) {
             if (kind.protoOrdinal() <= 0) continue;
-            final var type = StateChangeDeltas.mapType(kind.protoOrdinal());
+            final var type = StateChangePartials.mapType(kind.protoOrdinal());
             final var value = type.wireValue(type.defaultValue());
             final var state = mock(BinaryState.class);
             when(state.getKv(ID, Bytes.EMPTY)).thenReturn(Bytes.EMPTY);
@@ -80,7 +80,7 @@ class BinaryStateChangeParserTest {
         }
         for (var kind : SingletonUpdateChange.NewValueOneOfType.values()) {
             if (kind.protoOrdinal() <= 0) continue;
-            final var type = StateChangeDeltas.singletonType(kind.protoOrdinal());
+            final var type = StateChangePartials.singletonType(kind.protoOrdinal());
             final var state = mock(BinaryState.class);
             when(state.getSingleton(ID)).thenReturn(Bytes.EMPTY);
             final var update =
@@ -107,7 +107,7 @@ class BinaryStateChangeParserTest {
                 .key(KEY)
                 .value(MapChangeValue.newBuilder().accountValue(next))
                 .build();
-        final var partial = StateChangeDeltas.encodeMap(ID, old, full);
+        final var partial = StateChangePartials.encodeMap(ID, old, full);
         assertThat(partial.partial()).isTrue();
         assertThat(partial.clearedFields()).containsExactly(5, 11);
         final var state = mock(BinaryState.class);
@@ -158,7 +158,7 @@ class BinaryStateChangeParserTest {
     }
 
     @Test
-    void encoderGeneratedBalanceDeltaPreservesUnchangedAccountFields() {
+    void encoderGeneratedBalancePartialPreservesUnchangedAccountFields() {
         final var before = Account.newBuilder()
                 .accountId(AccountID.newBuilder().accountNum(7).build())
                 .key(Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build())
@@ -166,7 +166,7 @@ class BinaryStateChangeParserTest {
                 .tinybarBalance(10)
                 .build();
         final var after = before.copyBuilder().tinybarBalance(11).build();
-        final var delta = StateChangeDeltas.encodeMap(
+        final var delta = StateChangePartials.encodeMap(
                 ID,
                 before,
                 MapUpdateChange.newBuilder()
@@ -189,7 +189,7 @@ class BinaryStateChangeParserTest {
         final var after = before.copyBuilder()
                 .firstConsTimeOfCurrentBlock((Timestamp) null)
                 .build();
-        final var delta = StateChangeDeltas.encodeSingleton(
+        final var delta = StateChangePartials.encodeSingleton(
                 ID,
                 before,
                 SingletonUpdateChange.newBuilder().blockInfoValue(after).build());
@@ -230,7 +230,7 @@ class BinaryStateChangeParserTest {
     }
 
     @Test
-    void legacyTokenRelationshipKeysStillNormalizeBeforeDeltaReads() {
+    void legacyTokenRelationshipKeysStillNormalizeBeforePartialReads() {
         final int stateId = StateIdentifier.STATE_ID_TOKEN_RELS.protoOrdinal();
         final var account = AccountID.newBuilder().accountNum(7).build();
         final var token = TokenID.newBuilder().tokenNum(8).build();

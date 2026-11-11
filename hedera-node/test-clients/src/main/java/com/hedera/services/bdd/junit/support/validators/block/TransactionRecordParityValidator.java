@@ -182,8 +182,8 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
             allBlocks = blocks;
         }
         final var valueReconstructor = new com.hedera.node.app.hapi.utils.blocks.StateChangeReconstructor();
-        final boolean reconstructValues =
-                allBlocks.stream().anyMatch(com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas::hasPartialUpdates);
+        final boolean reconstructValues = allBlocks.stream()
+                .anyMatch(com.hedera.node.app.hapi.utils.blocks.StateChangePartials::hasPartialUpdates);
         final var baseTranslator = requireNonNull(translator).getBaseTranslator();
         final var rfTranslator =
                 new BlockTransactionalUnitTranslator(baseTranslator.getShard(), baseTranslator.getRealm());

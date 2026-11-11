@@ -30,7 +30,7 @@ import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
@@ -68,29 +68,29 @@ public class BoundaryStateChangeListener implements StateChangeListener {
 
     private final Map<Integer, Object> singletonBaselines = new LinkedHashMap<>();
 
-    private int deltaMinSaving = StateChangeDeltas.DEFAULT_MIN_SAVING;
-    private boolean deltasEnabled;
+    private int partialMinSaving = StateChangePartials.DEFAULT_MIN_SAVING;
+    private boolean partialsEnabled;
 
     /** Fixes encoding mode for this block. Migration listeners remain disabled. */
-    public void beginBlock(final boolean enableDeltas) {
-        beginBlock(enableDeltas, StateChangeDeltas.DEFAULT_MIN_SAVING);
+    public void beginBlock(final boolean enablePartials) {
+        beginBlock(enablePartials, StateChangePartials.DEFAULT_MIN_SAVING);
     }
 
-    public void beginBlock(final boolean enableDeltas, final int minSaving) {
+    public void beginBlock(final boolean enablePartials, final int minSaving) {
         if (minSaving < 0) throw new IllegalArgumentException("Minimum saving must be nonnegative");
-        deltaMinSaving = minSaving;
-        deltasEnabled = enableDeltas;
+        partialMinSaving = minSaving;
+        partialsEnabled = enablePartials;
         singletonBaselines.clear();
     }
 
     @Override
     public boolean requiresPreviousValue() {
-        return deltasEnabled;
+        return partialsEnabled;
     }
 
     @Override
     public boolean requiresPreviousValue(final int stateId) {
-        return deltasEnabled && !ImmediateStateChangeListener.isImmediateSingleton(stateId);
+        return partialsEnabled && !ImmediateStateChangeListener.isImmediateSingleton(stateId);
     }
 
     @Override
@@ -184,12 +184,12 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         for (final var entry : singletonUpdates.entrySet()) {
             final var full = entry.getValue();
             // Keep provenance until diff selection, then retain only the selected wire payload.
-            final var wireUpdate = StateChangeDeltas.encodeSingletonOrFull(
+            final var wireUpdate = StateChangePartials.encodeSingletonOrFull(
                     entry.getKey(),
                     singletonBaselines.get(entry.getKey()),
                     full.singletonUpdateOrThrow(),
-                    allowPartial && deltasEnabled,
-                    deltaMinSaving);
+                    allowPartial && partialsEnabled,
+                    partialMinSaving);
             allStateChanges.add(CopyBuilderTracking.untracked(
                     full.copyBuilder().singletonUpdate(wireUpdate).build()));
         }

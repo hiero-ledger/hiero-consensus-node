@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.hapi.utils.blocks.StateChangeReconstructor;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.BlockNodeReader;
@@ -431,7 +431,7 @@ public class SidecarWatcher {
 
     /** Expands partial state changes for translation, failing if a complete baseline is unavailable. */
     List<Block> withFullStateValues(@NonNull final List<Block> blocks) {
-        if (blocks.stream().noneMatch(StateChangeDeltas::hasPartialUpdates)) {
+        if (blocks.stream().noneMatch(StateChangePartials::hasPartialUpdates)) {
             return blocks;
         }
         final var reconstructor = new StateChangeReconstructor();

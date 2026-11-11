@@ -28,12 +28,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /** Universal top-level replacements and explicit clears. No recursive patches or appends. */
-public final class StateChangeDeltas {
-    private static final Logger log = LogManager.getLogger(StateChangeDeltas.class);
+public final class StateChangePartials {
+    private static final Logger log = LogManager.getLogger(StateChangePartials.class);
 
     public static final int DEFAULT_MIN_SAVING = 64;
 
-    private StateChangeDeltas() {}
+    private StateChangePartials() {}
 
     /** A sparse value and its clear list. The private PBJ mask is used only for size selection. */
     public static final class Delta<T> {
@@ -255,9 +255,9 @@ public final class StateChangeDeltas {
      * inputs fail the same way on every node, which keeps the stream deterministic.
      */
     public static MapUpdateChange encodeMapOrFull(
-            int stateId, @Nullable Object prior, MapUpdateChange full, boolean deltasEnabled, int minSaving) {
+            int stateId, @Nullable Object prior, MapUpdateChange full, boolean partialsEnabled, int minSaving) {
         var change = full;
-        if (deltasEnabled) {
+        if (partialsEnabled) {
             try {
                 change = encodeMap(stateId, prior, full, minSaving);
             } catch (RuntimeException e) {
@@ -276,9 +276,9 @@ public final class StateChangeDeltas {
 
     /** Singleton counterpart of {@link #encodeMapOrFull}. */
     public static SingletonUpdateChange encodeSingletonOrFull(
-            int stateId, @Nullable Object prior, SingletonUpdateChange full, boolean deltasEnabled, int minSaving) {
+            int stateId, @Nullable Object prior, SingletonUpdateChange full, boolean partialsEnabled, int minSaving) {
         var change = full;
-        if (deltasEnabled) {
+        if (partialsEnabled) {
             try {
                 change = encodeSingleton(stateId, prior, full, minSaving);
             } catch (RuntimeException e) {
@@ -348,7 +348,7 @@ public final class StateChangeDeltas {
                                         && change.singletonUpdateOrThrow().partial()));
     }
 
-    public static void validateBlockDeltas(Block block) {
+    public static void validateBlockPartials(Block block) {
         for (var item : block.items()) {
             if (!item.hasStateChanges()) continue;
             for (var change : item.stateChangesOrThrow().stateChanges()) {

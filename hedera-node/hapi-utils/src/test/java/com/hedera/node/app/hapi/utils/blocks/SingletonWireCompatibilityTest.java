@@ -49,7 +49,7 @@ class SingletonWireCompatibilityTest {
             assertThat(decoded.partial()).isFalse();
             assertThat(decoded.clearedFields()).isEmpty();
             assertThat(SingletonUpdateChange.PROTOBUF.toBytes(decoded)).isEqualTo(historical);
-            final var type = StateChangeDeltas.singletonType(i + 1);
+            final var type = StateChangePartials.singletonType(i + 1);
             final var fresh = new SingletonUpdateChange(
                     false, List.of(), new OneOf<>(historicalKinds.get(i), type.wireValue(type.defaultValue())));
             assertThat(SingletonUpdateChange.PROTOBUF.toBytes(fresh)).isEqualTo(historical);

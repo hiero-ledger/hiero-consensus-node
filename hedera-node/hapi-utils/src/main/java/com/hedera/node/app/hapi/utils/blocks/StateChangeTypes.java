@@ -60,7 +60,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas.ValueType;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials.ValueType;
 import com.hedera.pbj.runtime.Codec;
 import java.util.List;
 import java.util.Map;

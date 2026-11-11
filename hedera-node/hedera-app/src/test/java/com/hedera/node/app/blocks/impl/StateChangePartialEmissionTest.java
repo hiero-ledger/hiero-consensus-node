@@ -19,7 +19,7 @@ import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -31,7 +31,7 @@ import java.util.Map;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 
-class StateChangeDeltaEmissionTest {
+class StateChangePartialEmissionTest {
 
     @Test
     void stringStateWithoutDiffApisEmitsASerializableFullValue() throws Exception {
@@ -48,14 +48,14 @@ class StateChangeDeltaEmissionTest {
     }
 
     @Test
-    void generatedCodecEnablesMapDeltas() {
+    void generatedCodecEnablesMapPartials() {
         final var listener = new ImmediateStateChangeListener();
         listener.beginBlock(true, 0);
         assertThat(listener.requiresPreviousValue(ACCOUNTS)).isTrue();
         listener.mapUpdateChange(ACCOUNTS, KEY, A, B);
         final var update = listener.getKvStateChanges().getFirst().mapUpdateOrThrow();
         assertThat(update.partial()).isTrue();
-        assertThat(StateChangeDeltas.applyMap(ACCOUNTS, A, update)).isEqualTo(B);
+        assertThat(StateChangePartials.applyMap(ACCOUNTS, A, update)).isEqualTo(B);
     }
 
     @Test
@@ -70,12 +70,12 @@ class StateChangeDeltaEmissionTest {
         listener.mapUpdateChange(ACCOUNTS, KEY, root, first);
         final var firstUpdate = listener.getKvStateChanges().getFirst().mapUpdateOrThrow();
         assertThat(firstUpdate.partial()).isTrue();
-        assertThat(StateChangeDeltas.applyMap(ACCOUNTS, root, firstUpdate)).isEqualTo(first);
+        assertThat(StateChangePartials.applyMap(ACCOUNTS, root, firstUpdate)).isEqualTo(first);
         listener.resetKvStateChanges(null);
         listener.mapUpdateChange(ACCOUNTS, KEY, storedFirst, second);
         final var secondUpdate = listener.getKvStateChanges().getFirst().mapUpdateOrThrow();
         assertThat(secondUpdate.partial()).isTrue();
-        assertThat(StateChangeDeltas.applyMap(ACCOUNTS, storedFirst, secondUpdate))
+        assertThat(StateChangePartials.applyMap(ACCOUNTS, storedFirst, secondUpdate))
                 .isEqualTo(second);
         assertThat(storedFirst).isEqualTo(first).isNotSameAs(first);
     }
@@ -125,7 +125,7 @@ class StateChangeDeltaEmissionTest {
                     .isSameAs(update);
             assertThat(update.valueOrThrow().accountValueOrThrow().$copyBuilderOrigin())
                     .isNull();
-            replay = StateChangeDeltas.applyMap(ACCOUNTS, replay, update);
+            replay = StateChangePartials.applyMap(ACCOUNTS, replay, update);
         }
         assertThat(replay).isEqualTo(cleared);
         assertThat(listener.getKvStateChanges().getLast().mapUpdateOrThrow().clearedFields())
@@ -136,7 +136,7 @@ class StateChangeDeltaEmissionTest {
         assertThat(noop.partial()).isTrue();
         assertThat(noop.identical()).isFalse();
         assertThat(noop.valueOrThrow().accountValueOrThrow()).isEqualTo(Account.DEFAULT);
-        assertThat(StateChangeDeltas.applyMap(ACCOUNTS, cleared, noop)).isEqualTo(cleared);
+        assertThat(StateChangePartials.applyMap(ACCOUNTS, cleared, noop)).isEqualTo(cleared);
     }
 
     @Test
@@ -176,20 +176,20 @@ class StateChangeDeltaEmissionTest {
         listener.beginBlock(true);
         listener.mapUpdateChange(ACCOUNTS, KEY, A, B);
         final var initial = listener.getKvStateChanges().getFirst().mapUpdateOrThrow();
-        assertThat(StateChangeDeltas.applyMap(ACCOUNTS, A, initial)).isEqualTo(B);
+        assertThat(StateChangePartials.applyMap(ACCOUNTS, A, initial)).isEqualTo(B);
         listener.reset(null);
         listener.mapDeleteChange(ACCOUNTS, KEY);
         listener.mapUpdateChange(ACCOUNTS, KEY, null, C);
         assertThat(listener.getKvStateChanges().getFirst().hasMapDelete()).isTrue();
         final var recreated = listener.getKvStateChanges().get(1).mapUpdateOrThrow();
         assertThat(recreated.partial()).isFalse();
-        assertThat(StateChangeDeltas.applyMap(ACCOUNTS, null, recreated)).isEqualTo(C);
+        assertThat(StateChangePartials.applyMap(ACCOUNTS, null, recreated)).isEqualTo(C);
         listener.beginBlock(true);
         listener.reset(null);
         listener.mapUpdateChange(ACCOUNTS, KEY, C, A);
         final var nextBlock = listener.getKvStateChanges().getFirst().mapUpdateOrThrow();
         assertThat(nextBlock.partial()).isTrue();
-        assertThat(StateChangeDeltas.applyMap(ACCOUNTS, C, nextBlock)).isEqualTo(A);
+        assertThat(StateChangePartials.applyMap(ACCOUNTS, C, nextBlock)).isEqualTo(A);
     }
 
     @Test
@@ -199,7 +199,7 @@ class StateChangeDeltaEmissionTest {
         listener.mapUpdateChange(ACCOUNTS, KEY, C);
         final var update = listener.getKvStateChanges().getFirst().mapUpdateOrThrow();
         assertThat(update.partial()).isFalse();
-        assertThat(StateChangeDeltas.applyMap(ACCOUNTS, null, update)).isEqualTo(C);
+        assertThat(StateChangePartials.applyMap(ACCOUNTS, null, update)).isEqualTo(C);
     }
 
     @Test
@@ -222,14 +222,14 @@ class StateChangeDeltaEmissionTest {
         final var changes = listener.allStateChanges();
         final var update = changes.getFirst().singletonUpdateOrThrow();
         assertThat(update.partial()).isTrue();
-        assertThat(StateChangeDeltas.applySingleton(stateId, a, update)).isEqualTo(c);
+        assertThat(StateChangePartials.applySingleton(stateId, a, update)).isEqualTo(c);
         listener.stateChangesEmitted(changes);
         listener.singletonUpdateChange(stateId, c, a);
         listener.singletonUpdateChange(stateId, a, c);
         final var noop = listener.allStateChanges().getFirst().singletonUpdateOrThrow();
         assertThat(noop.partial()).isTrue();
         assertThat(noop.throttleUsageSnapshotsValueOrThrow()).isEqualTo(ThrottleUsageSnapshots.DEFAULT);
-        assertThat(StateChangeDeltas.applySingleton(stateId, c, noop)).isEqualTo(c);
+        assertThat(StateChangePartials.applySingleton(stateId, c, noop)).isEqualTo(c);
     }
 
     @Test
@@ -318,7 +318,7 @@ class StateChangeDeltaEmissionTest {
         listener.singletonUpdateChange(ENTITY_COUNTS, second, third);
         final var pending = listener.allStateChanges().getFirst().singletonUpdateOrThrow();
         assertThat(pending.partial()).isFalse();
-        assertThat(StateChangeDeltas.applySingleton(ENTITY_COUNTS, null, pending))
+        assertThat(StateChangePartials.applySingleton(ENTITY_COUNTS, null, pending))
                 .isEqualTo(third);
         listener.reset();
 
@@ -428,7 +428,7 @@ class StateChangeDeltaEmissionTest {
     @Test
     void nodeRestartedAtTheBlockBoundaryEmitsTheSameBytes() {
         final var running = boundaryListener();
-        // This node streamed the previous block with deltas enabled
+        // This node streamed the previous block with partials enabled
         running.beginBlock(true, 0);
         running.singletonUpdateChange(
                 ENTITY_COUNTS, COUNTS, COUNTS.copyBuilder().numFiles(1_000_001).build());
@@ -495,14 +495,14 @@ class StateChangeDeltaEmissionTest {
             final var stateId = change.stateId();
             reader.put(
                     stateId,
-                    StateChangeDeltas.applySingleton(stateId, reader.get(stateId), change.singletonUpdateOrThrow()));
+                    StateChangePartials.applySingleton(stateId, reader.get(stateId), change.singletonUpdateOrThrow()));
         }
     }
 
     private static Object replaySingletons(final Object prior, final List<StateChange> changes) {
         Object value = prior;
         for (final var change : changes) {
-            value = StateChangeDeltas.applySingleton(change.stateId(), value, change.singletonUpdateOrThrow());
+            value = StateChangePartials.applySingleton(change.stateId(), value, change.singletonUpdateOrThrow());
         }
         return value;
     }

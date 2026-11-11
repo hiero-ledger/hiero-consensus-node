@@ -5,7 +5,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -445,7 +445,7 @@ public final class OutputRecordCompare {
                 case SINGLETON_UPDATE -> {
                     final var update = sc.singletonUpdateOrThrow();
                     final var kind = update.newValue().kind();
-                    final var value = StateChangeDeltas.singletonType(kind.protoOrdinal())
+                    final var value = StateChangePartials.singletonType(kind.protoOrdinal())
                             .bytes(update.newValue().value());
                     final var effect = ValueEffect.compose(
                             singletonFinal.get(id), kind, value, update.partial(), update.clearedFields());
@@ -454,7 +454,7 @@ public final class OutputRecordCompare {
                 case MAP_UPDATE -> {
                     final var mu = sc.mapUpdateOrThrow();
                     final var kind = mu.valueOrThrow().valueChoice().kind();
-                    final var value = StateChangeDeltas.mapType(kind.protoOrdinal())
+                    final var value = StateChangePartials.mapType(kind.protoOrdinal())
                             .bytes(mu.valueOrThrow().valueChoice().value());
                     final var entries = mapNet.computeIfAbsent(id, k -> new HashMap<>());
                     final var effect = ValueEffect.compose(
@@ -485,7 +485,7 @@ public final class OutputRecordCompare {
     private record ValueEffect(Object kind, boolean partial, Bytes value, List<Integer> clearedFields) {
         static Object compose(Object preceding, Object kind, Bytes value, boolean partial, List<Integer> cleared) {
             // Validate framing, clears and replace/clear overlap even without a known baseline.
-            final var replacements = StateChangeDeltas.applyBytes(Bytes.EMPTY, value, partial, cleared);
+            final var replacements = StateChangePartials.applyBytes(Bytes.EMPTY, value, partial, cleared);
             if (!partial) return new ValueEffect(kind, false, replacements, List.of());
             if (preceding == Marker.DELETED) {
                 throw new IllegalArgumentException("Partial update after deletion requires a full value");
@@ -496,7 +496,7 @@ public final class OutputRecordCompare {
             }
             if (value.length() == 0 && cleared.isEmpty()) return prior;
             final var merged =
-                    StateChangeDeltas.applyBytes(prior == null ? Bytes.EMPTY : prior.value, value, true, cleared);
+                    StateChangePartials.applyBytes(prior == null ? Bytes.EMPTY : prior.value, value, true, cleared);
             final boolean needsBaseline = prior == null || prior.partial;
             final var pendingClears = new TreeSet<Integer>();
             if (needsBaseline) {

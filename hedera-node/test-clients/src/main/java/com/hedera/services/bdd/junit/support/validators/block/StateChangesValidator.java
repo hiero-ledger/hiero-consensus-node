@@ -48,7 +48,7 @@ import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -1327,7 +1327,7 @@ public class StateChangesValidator implements BlockStreamValidator {
      */
     static <T> T applyPartial(
             final Codec<T> codec, @Nullable final T prior, final T partial, final List<Integer> clearedFields) {
-        final var merged = StateChangeDeltas.applyBytes(
+        final var merged = StateChangePartials.applyBytes(
                 prior == null ? null : codec.toBytes(prior), codec.toBytes(partial), true, clearedFields);
         try {
             return codec.parse(merged);

@@ -15,33 +15,34 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class ExpandedStateChangeDeltasTest {
+class ExpandedStateChangePartialsTest {
     @Test
     void everyPayloadAlternativeHasAnAdapterWithoutAStateIdAllowlist() {
         for (var kind : MapChangeValue.ValueChoiceOneOfType.values()) {
             if (kind.protoOrdinal() <= 0) continue;
-            var type = StateChangeDeltas.mapType(kind.protoOrdinal());
+            var type = StateChangePartials.mapType(kind.protoOrdinal());
             assertThat(type).as(kind.name()).isNotNull();
             var value = type.defaultValue();
             var full = MapUpdateChange.newBuilder()
                     .key(MapChangeKey.newBuilder().accountIdKey(AccountID.DEFAULT))
                     .value(new MapChangeValue(new OneOf<>(kind, type.wireValue(value))))
                     .build();
-            assertThat(StateChangeDeltas.encodeMap(9999, null, full).partial()).isFalse();
-            assertThat(StateChangeDeltas.applyMap(
+            assertThat(StateChangePartials.encodeMap(9999, null, full).partial())
+                    .isFalse();
+            assertThat(StateChangePartials.applyMap(
                             9999, value, full.copyBuilder().partial(true).build()))
                     .isEqualTo(value);
         }
         for (var kind : SingletonUpdateChange.NewValueOneOfType.values()) {
             if (kind.protoOrdinal() <= 0) continue;
-            var type = StateChangeDeltas.singletonType(kind.protoOrdinal());
+            var type = StateChangePartials.singletonType(kind.protoOrdinal());
             assertThat(type).as(kind.name()).isNotNull();
             var value = type.defaultValue();
             var full = new SingletonUpdateChange(false, List.of(), new OneOf<>(kind, type.wireValue(value)));
-            assertThat(StateChangeDeltas.encodeSingleton(9999, null, full).partial())
+            assertThat(StateChangePartials.encodeSingleton(9999, null, full).partial())
                     .isFalse();
             var partial = new SingletonUpdateChange(true, List.of(), full.newValue());
-            assertThat(StateChangeDeltas.applySingleton(9999, value, partial)).isEqualTo(value);
+            assertThat(StateChangePartials.applySingleton(9999, value, partial)).isEqualTo(value);
         }
     }
 
@@ -50,8 +51,8 @@ class ExpandedStateChangeDeltasTest {
         final var before =
                 Account.newBuilder().memo("m".repeat(100)).tinybarBalance(1).build();
         final var next = before.copyBuilder().tinybarBalance(2).build();
-        final var full = StateChangeDeltasTest.full(before);
-        final var partial = StateChangeDeltas.encodeMap(2, before, StateChangeDeltasTest.full(next));
+        final var full = StateChangePartialsTest.full(before);
+        final var partial = StateChangePartials.encodeMap(2, before, StateChangePartialsTest.full(next));
         final var reconstructor = new StateChangeReconstructor();
         reconstructor.fullValuesForTranslation(block(full));
         final var original = block(partial);
@@ -139,13 +140,13 @@ class ExpandedStateChangeDeltasTest {
 
     @Test
     void fullAndPartialHistoriesRemainRecognizableWithoutHeaderVersion() {
-        final var full = StateChangeDeltasTest.full(Account.DEFAULT);
-        assertThat(StateChangeDeltas.hasPartialUpdates(block(full))).isFalse();
-        assertThat(StateChangeDeltas.hasPartialUpdates(
+        final var full = StateChangePartialsTest.full(Account.DEFAULT);
+        assertThat(StateChangePartials.hasPartialUpdates(block(full))).isFalse();
+        assertThat(StateChangePartials.hasPartialUpdates(
                         block(full.copyBuilder().partial(true).build())))
                 .isTrue();
-        StateChangeDeltas.validateBlockDeltas(block(full));
-        assertThatThrownBy(() -> StateChangeDeltas.validateBlockDeltas(
+        StateChangePartials.validateBlockPartials(block(full));
+        assertThatThrownBy(() -> StateChangePartials.validateBlockPartials(
                         block(full.copyBuilder().clearedFields(5).build())))
                 .isInstanceOf(IllegalArgumentException.class);
     }

@@ -11,7 +11,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -52,7 +52,7 @@ class SingletonStateChangeEmissionTest {
         final var full =
                 SingletonUpdateChange.newBuilder().blockInfoValue(UPDATED).build();
         final var expectedUpdate =
-                enabled && allowPartial ? StateChangeDeltas.encodeSingleton(BLOCKS, INITIAL, full, minSaving) : full;
+                enabled && allowPartial ? StateChangePartials.encodeSingleton(BLOCKS, INITIAL, full, minSaving) : full;
         final var expected = StateChange.newBuilder()
                 .stateId(BLOCKS)
                 .singletonUpdate(expectedUpdate)
@@ -66,7 +66,7 @@ class SingletonStateChangeEmissionTest {
         assertThat(com.hedera.pbj.runtime.CopyBuilderTracked.untracked(update)).isSameAs(update);
         assertThat(update.blockInfoValueOrThrow().$copyBuilderOrigin()).isNull();
         assertThat(StateChange.PROTOBUF.toBytes(emitted)).isEqualTo(StateChange.PROTOBUF.toBytes(expected));
-        assertThat(StateChangeDeltas.applySingleton(BLOCKS, INITIAL, update)).isEqualTo(UPDATED);
+        assertThat(StateChangePartials.applySingleton(BLOCKS, INITIAL, update)).isEqualTo(UPDATED);
         assertThat(listener.allStateChanges(allowPartial)).isEqualTo(changes);
         // Diff selection must not strip or modify the handler's tracked input.
         assertThat(UPDATED.$copyBuilderOrigin()).isSameAs(INITIAL);
@@ -81,7 +81,7 @@ class SingletonStateChangeEmissionTest {
         final var first = listener.allStateChanges();
         final var firstUpdate = first.getFirst().singletonUpdateOrThrow();
         assertThat(firstUpdate.partial()).isTrue();
-        Object replay = StateChangeDeltas.applySingleton(BLOCKS, INITIAL, firstUpdate);
+        Object replay = StateChangePartials.applySingleton(BLOCKS, INITIAL, firstUpdate);
         listener.stateChangesEmitted(first);
         assertThat(listener.allStateChanges()).isEmpty();
 
@@ -89,7 +89,7 @@ class SingletonStateChangeEmissionTest {
         final var second = listener.allStateChanges();
         final var secondUpdate = second.getFirst().singletonUpdateOrThrow();
         assertThat(secondUpdate.partial()).isTrue();
-        replay = StateChangeDeltas.applySingleton(BLOCKS, replay, secondUpdate);
+        replay = StateChangePartials.applySingleton(BLOCKS, replay, secondUpdate);
         assertThat(replay).isEqualTo(INITIAL);
         listener.stateChangesEmitted(second);
         assertThat(listener.allStateChanges()).isEmpty();
@@ -105,7 +105,7 @@ class SingletonStateChangeEmissionTest {
         final var update = listener.allStateChanges().getFirst().singletonUpdateOrThrow();
         assertThat(update.partial()).isTrue();
         assertThat(update.blockInfoValueOrThrow()).isEqualTo(BlockInfo.DEFAULT);
-        assertThat(StateChangeDeltas.applySingleton(BLOCKS, INITIAL, update)).isEqualTo(INITIAL);
+        assertThat(StateChangePartials.applySingleton(BLOCKS, INITIAL, update)).isEqualTo(INITIAL);
     }
 
     @Test
@@ -124,7 +124,7 @@ class SingletonStateChangeEmissionTest {
         final var pending = listener.allStateChanges();
         assertThat(pending).hasSize(1);
         assertThat(pending.getFirst().stateId()).isEqualTo(BLOCKS);
-        assertThat(StateChangeDeltas.applySingleton(
+        assertThat(StateChangePartials.applySingleton(
                         BLOCKS, INITIAL, pending.getFirst().singletonUpdateOrThrow()))
                 .isEqualTo(UPDATED);
 
@@ -132,7 +132,7 @@ class SingletonStateChangeEmissionTest {
         listener.singletonUpdateChange(BLOCKS, UPDATED, latest);
         final var finalUpdate = listener.allStateChanges().getFirst().singletonUpdateOrThrow();
         assertThat(finalUpdate.partial()).isTrue();
-        assertThat(StateChangeDeltas.applySingleton(BLOCKS, INITIAL, finalUpdate))
+        assertThat(StateChangePartials.applySingleton(BLOCKS, INITIAL, finalUpdate))
                 .isEqualTo(latest);
     }
 
@@ -144,7 +144,7 @@ class SingletonStateChangeEmissionTest {
                 ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID, ClprEndpointManifestConstruction.DEFAULT);
         final var finalChanges = listener.allStateChanges();
         assertThat(finalChanges).hasSize(1);
-        assertThat(StateChangeDeltas.applySingleton(
+        assertThat(StateChangePartials.applySingleton(
                         BLOCKS, INITIAL, finalChanges.getFirst().singletonUpdateOrThrow()))
                 .isEqualTo(UPDATED);
     }
@@ -158,13 +158,13 @@ class SingletonStateChangeEmissionTest {
         final var changes = listener.allStateChanges();
         final var update = changes.getFirst().singletonUpdateOrThrow();
         assertThat(update.partial()).isFalse();
-        assertThat(StateChangeDeltas.applySingleton(BLOCKS, INITIAL, update)).isEqualTo(latest);
+        assertThat(StateChangePartials.applySingleton(BLOCKS, INITIAL, update)).isEqualTo(latest);
         listener.stateChangesEmitted(changes);
 
         listener.singletonUpdateChange(BLOCKS, latest, INITIAL);
         final var next = listener.allStateChanges().getFirst().singletonUpdateOrThrow();
         assertThat(next.partial()).isTrue();
-        assertThat(StateChangeDeltas.applySingleton(BLOCKS, latest, next)).isEqualTo(INITIAL);
+        assertThat(StateChangePartials.applySingleton(BLOCKS, latest, next)).isEqualTo(INITIAL);
     }
 
     @Test
@@ -184,7 +184,7 @@ class SingletonStateChangeEmissionTest {
                 .isTrue();
         final var checkpoint = listener.allStateChanges(false);
         assertThat(checkpoint.getFirst().singletonUpdateOrThrow().partial()).isFalse();
-        assertThat(StateChangeDeltas.applySingleton(
+        assertThat(StateChangePartials.applySingleton(
                         stateId, initial, checkpoint.getFirst().singletonUpdateOrThrow()))
                 .isEqualTo(next);
         listener.stateChangesEmitted(checkpoint);
@@ -192,6 +192,6 @@ class SingletonStateChangeEmissionTest {
 
         listener.singletonUpdateChange(stateId, next, initial);
         final var update = listener.allStateChanges().getFirst().singletonUpdateOrThrow();
-        assertThat(StateChangeDeltas.applySingleton(stateId, next, update)).isEqualTo(initial);
+        assertThat(StateChangePartials.applySingleton(stateId, next, update)).isEqualTo(initial);
     }
 }

@@ -78,7 +78,7 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -103,23 +103,23 @@ public class ImmediateStateChangeListener implements StateChangeListener {
 
     private final List<StateChange> queueStateChanges = new ArrayList<>();
 
-    private int deltaMinSaving = StateChangeDeltas.DEFAULT_MIN_SAVING;
-    private boolean deltasEnabled;
+    private int partialMinSaving = StateChangePartials.DEFAULT_MIN_SAVING;
+    private boolean partialsEnabled;
 
     /** Starts a block with a fixed network-selected encoding mode. */
-    public void beginBlock(final boolean enableDeltas) {
-        beginBlock(enableDeltas, StateChangeDeltas.DEFAULT_MIN_SAVING);
+    public void beginBlock(final boolean enablePartials) {
+        beginBlock(enablePartials, StateChangePartials.DEFAULT_MIN_SAVING);
     }
 
-    public void beginBlock(final boolean enableDeltas, final int minSaving) {
+    public void beginBlock(final boolean enablePartials, final int minSaving) {
         if (minSaving < 0) throw new IllegalArgumentException("Minimum saving must be nonnegative");
-        deltaMinSaving = minSaving;
-        deltasEnabled = enableDeltas;
+        partialMinSaving = minSaving;
+        partialsEnabled = enablePartials;
     }
 
     @Override
     public boolean requiresPreviousValue() {
-        return deltasEnabled;
+        return partialsEnabled;
     }
 
     @Nullable
@@ -145,8 +145,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             return;
         }
         final var full = new SingletonUpdateChange(false, List.of(), singletonUpdateChangeValueFor(value));
-        final var wireChange =
-                StateChangeDeltas.encodeSingletonOrFull(stateId, previousValue, full, deltasEnabled, deltaMinSaving);
+        final var wireChange = StateChangePartials.encodeSingletonOrFull(
+                stateId, previousValue, full, partialsEnabled, partialMinSaving);
         singletonStateChanges.add(StateChange.newBuilder()
                 .stateId(stateId)
                 .singletonUpdate(wireChange)
@@ -213,8 +213,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
                 .build();
         final var stateChange = StateChange.newBuilder()
                 .stateId(stateId)
-                .mapUpdate(
-                        StateChangeDeltas.encodeMapOrFull(stateId, previousValue, full, deltasEnabled, deltaMinSaving))
+                .mapUpdate(StateChangePartials.encodeMapOrFull(
+                        stateId, previousValue, full, partialsEnabled, partialMinSaving))
                 .build();
         kvStateChanges.add(stateChange);
     }

@@ -20,7 +20,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
@@ -56,8 +56,8 @@ class ClprConstructionFirstInsertionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void firstInsertionIsCapturedBeforeALaterTransactionInsertsAnAccount(final boolean deltasEnabled) {
-        final var harness = new Harness(deltasEnabled);
+    void firstInsertionIsCapturedBeforeALaterTransactionInsertsAnAccount(final boolean partialsEnabled) {
+        final var harness = new Harness(partialsEnabled);
         assertThat(harness.storedConstruction.get()).isNull();
         final var preceding = harness.root.createIrreversiblePrecedingBuilder();
         initialize(preceding, HederaFunctionality.NODE_STAKE_UPDATE, 1);
@@ -82,8 +82,8 @@ class ClprConstructionFirstInsertionTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void initializedSingletonChangesFollowMapChanges(final boolean deltasEnabled) {
-        final var harness = new Harness(deltasEnabled);
+    void initializedSingletonChangesFollowMapChanges(final boolean partialsEnabled) {
+        final var harness = new Harness(partialsEnabled);
         harness.storedConstruction.set(ClprEndpointManifestConstruction.DEFAULT);
         harness.putConstruction(harness.root, INITIAL);
         harness.putAccount(harness.root);
@@ -111,7 +111,7 @@ class ClprConstructionFirstInsertionTest {
         assertThat(harness.boundary.allStateChanges()).isEmpty();
         final var update = harness.outputChanges().getLast().singletonUpdateOrThrow();
         assertThat(update.partial()).isTrue();
-        assertThat(StateChangeDeltas.applySingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID, INITIAL, update))
+        assertThat(StateChangePartials.applySingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID, INITIAL, update))
                 .isEqualTo(updated);
     }
 
@@ -169,9 +169,9 @@ class ClprConstructionFirstInsertionTest {
         private final List<String> physicalInsertions = new ArrayList<>();
         private final SavepointStackImpl root;
 
-        private Harness(final boolean deltasEnabled) {
-            immediate.beginBlock(deltasEnabled);
-            boundary.beginBlock(deltasEnabled);
+        private Harness(final boolean partialsEnabled) {
+            immediate.beginBlock(partialsEnabled);
+            boundary.beginBlock(partialsEnabled);
             final var construction = new FunctionWritableSingletonState<>(
                     ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
                     "ENDPOINT_MANIFEST_CONSTRUCTION",

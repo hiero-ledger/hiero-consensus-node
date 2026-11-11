@@ -15,7 +15,7 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -124,7 +124,7 @@ class FullStateValuesTest {
     }
 
     @Test
-    void replaysArchivedPrefixBeforeActiveDeltasEvenWhenCutoverResetsBlockNumbers() throws Exception {
+    void replaysArchivedPrefixBeforeActivePartialsEvenWhenCutoverResetsBlockNumbers() throws Exception {
         final var active = Files.createDirectories(dir.resolve("blockStreams/block-0.0.3"));
         final var archive = Files.createDirectories(dir.resolve("blockStreams-preview-archive/block-0.0.3"));
         written(archive, block(0, full(FIRST)));
@@ -199,7 +199,7 @@ class FullStateValuesTest {
     }
 
     static MapUpdateChange partial(final Account prior, final Account next) {
-        final var update = StateChangeDeltas.encodeMap(ACCOUNTS, prior, full(next));
+        final var update = StateChangePartials.encodeMap(ACCOUNTS, prior, full(next));
         assertThat(update.partial()).isTrue();
         return update;
     }

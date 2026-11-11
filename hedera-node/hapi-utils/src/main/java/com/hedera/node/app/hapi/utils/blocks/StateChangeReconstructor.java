@@ -31,7 +31,7 @@ public final class StateChangeReconstructor {
      * its original proofs MUST NOT be checked against these bytes. Always verify the original block.
      */
     public Block fullValuesForTranslation(final Block block) {
-        StateChangeDeltas.validateBlockDeltas(block);
+        StateChangePartials.validateBlockPartials(block);
         final var items = new ArrayList<BlockItem>(block.items().size());
         for (final var item : block.items()) {
             items.add(
@@ -53,14 +53,15 @@ public final class StateChangeReconstructor {
                 final var update = change.mapUpdateOrThrow();
                 final var choice = update.valueOrThrow().valueChoice();
                 final var entry = new Entry(change.stateId(), update.keyOrThrow());
-                if (update.partial() || StateChangeDeltas.mapType(choice.kind().protoOrdinal()) != null) {
-                    final var value = StateChangeDeltas.applyMap(change.stateId(), maps.get(entry), update);
+                if (update.partial()
+                        || StateChangePartials.mapType(choice.kind().protoOrdinal()) != null) {
+                    final var value = StateChangePartials.applyMap(change.stateId(), maps.get(entry), update);
                     maps.put(entry, value);
                     full = change.copyBuilder()
                             .mapUpdate(update.copyBuilder()
                                     .value(new MapChangeValue(new OneOf<>(
                                             choice.kind(),
-                                            StateChangeDeltas.mapType(
+                                            StateChangePartials.mapType(
                                                             choice.kind().protoOrdinal())
                                                     .wireValue(value))))
                                     .partial(false)
@@ -75,7 +76,7 @@ public final class StateChangeReconstructor {
             } else if (change.hasSingletonUpdate()) {
                 final var update = change.singletonUpdateOrThrow();
                 if (update.partial()
-                        || StateChangeDeltas.singletonType(
+                        || StateChangePartials.singletonType(
                                         update.newValue().kind().protoOrdinal())
                                 != null) {
                     final var reconstructed =
@@ -97,12 +98,12 @@ public final class StateChangeReconstructor {
     /** Applies PBJ replay and preserves the block-stream value kind for extraction or translation. */
     static SingletonUpdateChange reconstructSingletonUpdate(
             final int stateId, @Nullable final Object prior, final SingletonUpdateChange update) {
-        final var value = StateChangeDeltas.applySingleton(stateId, prior, update);
+        final var value = StateChangePartials.applySingleton(stateId, prior, update);
         if (!update.partial()) {
             return update;
         }
         final var type =
-                StateChangeDeltas.singletonType(update.newValue().kind().protoOrdinal());
+                StateChangePartials.singletonType(update.newValue().kind().protoOrdinal());
         return new SingletonUpdateChange(
                 false,
                 List.of(),

@@ -13,21 +13,21 @@ import org.junit.jupiter.api.Test;
 class BlockStreamConfigTest {
 
     @Test
-    void deltasAreOffByDefaultAndOnlyEnabledForCompleteBlockStreams() {
+    void partialsAreOffByDefaultAndOnlyEnabledForCompleteBlockStreams() {
         for (final var mode : StreamMode.values()) {
             final var defaults = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                     .withValue("blockStream.streamMode", mode.name())
                     .getOrCreateConfig()
                     .getConfigData(BlockStreamConfig.class);
             assertThat(defaults.stateChangePartialsEnabled()).isFalse();
-            assertThat(defaults.stateChangeDeltaMinSaving()).isEqualTo(64);
+            assertThat(defaults.stateChangePartialMinSaving()).isEqualTo(64);
             final var enabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                     .withValue("blockStream.streamMode", mode.name())
                     .withValue("blockStream.enableStateChangePartials", true)
-                    .withValue("blockStream.stateChangeDeltaMinSaving", 32)
+                    .withValue("blockStream.stateChangePartialMinSaving", 32)
                     .getOrCreateConfig()
                     .getConfigData(BlockStreamConfig.class);
-            assertThat(enabled.stateChangeDeltaMinSaving()).isEqualTo(32);
+            assertThat(enabled.stateChangePartialMinSaving()).isEqualTo(32);
             assertThat(enabled.stateChangePartialsEnabled()).isEqualTo(mode == StreamMode.BLOCKS);
             final var disabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                     .withValue("blockStream.streamMode", mode.name())

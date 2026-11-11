@@ -9,7 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.pbj.runtime.CopyBuilderTracked;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.stream.LongStream;
@@ -18,7 +18,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class ImmediateSingletonDeltaEmissionTest {
+class ImmediateSingletonPartialEmissionTest {
     static Stream<Arguments> singletonUpdates() {
         final var configuration = ClprLedgerConfiguration.newBuilder()
                 .chainId("chain".repeat(100))
@@ -72,7 +72,7 @@ class ImmediateSingletonDeltaEmissionTest {
             assertThat(update.partial()).isEqualTo(i != 0);
             final Object wireValue = update.newValue().value();
             assertThat(CopyBuilderTracked.untracked(wireValue)).isSameAs(wireValue);
-            replay = StateChangeDeltas.applySingleton(stateId, replay, update);
+            replay = StateChangePartials.applySingleton(stateId, replay, update);
             assertThat(replay).isEqualTo(i == 1 ? next : prior);
         }
         immediate.resetSingletonStateChanges();
@@ -88,7 +88,8 @@ class ImmediateSingletonDeltaEmissionTest {
             immediate.singletonUpdateChange(stateId, prior, next);
             final var update = immediate.getSingletonStateChanges().getFirst().singletonUpdateOrThrow();
             assertThat(update.partial()).isFalse();
-            assertThat(StateChangeDeltas.applySingleton(stateId, prior, update)).isEqualTo(next);
+            assertThat(StateChangePartials.applySingleton(stateId, prior, update))
+                    .isEqualTo(next);
         }
     }
 }

@@ -11,8 +11,8 @@ import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountCryptoAllowance;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas.ValueType;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials.ValueType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.CopyBuilderTracking;
 import java.io.ByteArrayOutputStream;
@@ -85,7 +85,7 @@ public class StateChangeStrategyBenchmark {
         final var random = new Random(76234);
         final var owner = AccountID.newBuilder().accountNum(1234).build();
         if (fixture.startsWith("FILE_")) {
-            type = StateChangeDeltas.valueType(File.DEFAULT);
+            type = StateChangePartials.valueType(File.DEFAULT);
             final var bytes = randomBytes(random, 1024 * 1024);
             final var before = File.newBuilder()
                     .fileId(FileID.newBuilder().fileNum(1234))
@@ -117,7 +117,7 @@ public class StateChangeStrategyBenchmark {
                             .value(MapChangeValue.newBuilder().fileValue((File) next)))
                     .build();
         } else if (fixture.equals("THROTTLE_LIST")) {
-            type = StateChangeDeltas.valueType(ThrottleUsageSnapshots.DEFAULT);
+            type = StateChangePartials.valueType(ThrottleUsageSnapshots.DEFAULT);
             final var list = new ArrayList<ThrottleUsageSnapshot>();
             for (int i = 0; i < 128; i++)
                 list.add(new ThrottleUsageSnapshot(
@@ -138,7 +138,7 @@ public class StateChangeStrategyBenchmark {
                     .build();
         } else if (fixture.equals("TOPIC_LARGE_KEYS_SUBMIT")) {
             // A message submission changes only the sequence number and running hash; the role keys are unchanged.
-            type = StateChangeDeltas.valueType(Topic.DEFAULT);
+            type = StateChangePartials.valueType(Topic.DEFAULT);
             final var topicId = TopicID.newBuilder().topicNum(1234).build();
             final var before = Topic.newBuilder()
                     .topicId(topicId)
@@ -165,7 +165,7 @@ public class StateChangeStrategyBenchmark {
                             .value(MapChangeValue.newBuilder().topicValue((Topic) next)))
                     .build();
         } else if (fixture.equals("SLOT_UPDATE")) {
-            type = StateChangeDeltas.valueType(SlotValue.DEFAULT);
+            type = StateChangePartials.valueType(SlotValue.DEFAULT);
             final var before = new SlotValue(
                     Bytes.wrap(randomBytes(random, 32)),
                     Bytes.wrap(randomBytes(random, 32)),
@@ -182,7 +182,7 @@ public class StateChangeStrategyBenchmark {
                             .value(MapChangeValue.newBuilder().slotValueValue((SlotValue) next)))
                     .build();
         } else {
-            type = StateChangeDeltas.valueType(Account.DEFAULT);
+            type = StateChangePartials.valueType(Account.DEFAULT);
             var before = Account.newBuilder()
                     .accountId(owner)
                     .tinybarBalance(1_000_000)
@@ -271,11 +271,11 @@ public class StateChangeStrategyBenchmark {
         final Bytes rebuilt;
         if (encoded.hasMapUpdate()) {
             final var u = encoded.mapUpdateOrThrow();
-            rebuilt = StateChangeDeltas.applyBytes(
+            rebuilt = StateChangePartials.applyBytes(
                     priorBytes, type.bytes(u.valueOrThrow().valueChoice().value()), u.partial(), u.clearedFields());
         } else {
             final var u = encoded.singletonUpdateOrThrow();
-            rebuilt = StateChangeDeltas.applyBytes(
+            rebuilt = StateChangePartials.applyBytes(
                     priorBytes, type.bytes(u.newValue().value()), u.partial(), u.clearedFields());
         }
         if (!rebuilt.equals(nextBytes)) throw new IllegalStateException("Byte replay mismatch: " + fixture);
@@ -286,10 +286,10 @@ public class StateChangeStrategyBenchmark {
         final var baseline = priorMode.equals("READ") ? type.parse(priorBytes) : prior;
         return full.hasMapUpdate()
                 ? full.copyBuilder()
-                        .mapUpdate(StateChangeDeltas.encodeMap(full.stateId(), baseline, full.mapUpdateOrThrow()))
+                        .mapUpdate(StateChangePartials.encodeMap(full.stateId(), baseline, full.mapUpdateOrThrow()))
                         .build()
                 : full.copyBuilder()
-                        .singletonUpdate(StateChangeDeltas.encodeSingleton(
+                        .singletonUpdate(StateChangePartials.encodeSingleton(
                                 full.stateId(), baseline, full.singletonUpdateOrThrow()))
                         .build();
     }
@@ -306,8 +306,8 @@ public class StateChangeStrategyBenchmark {
     public Object replayObject() throws Exception {
         final var change = StateChange.PROTOBUF.parse(encodedChangeBytes);
         return change.hasMapUpdate()
-                ? StateChangeDeltas.applyMap(change.stateId(), prior, change.mapUpdateOrThrow())
-                : StateChangeDeltas.applySingleton(change.stateId(), prior, change.singletonUpdateOrThrow());
+                ? StateChangePartials.applyMap(change.stateId(), prior, change.mapUpdateOrThrow())
+                : StateChangePartials.applySingleton(change.stateId(), prior, change.singletonUpdateOrThrow());
     }
 
     private static BlockItem item(final StateChange change) {

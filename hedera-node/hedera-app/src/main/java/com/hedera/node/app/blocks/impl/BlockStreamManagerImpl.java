@@ -703,9 +703,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final boolean hasReplayBaseline = pendingWork != GENESIS_WORK;
             final boolean stateChangePartialsEnabled =
                     hasReplayBaseline && blockStreamConfig.stateChangePartialsEnabled();
-            final int deltaMinSaving = blockStreamConfig.stateChangeDeltaMinSaving();
-            immediateStateChangeListener.beginBlock(stateChangePartialsEnabled, deltaMinSaving);
-            boundaryStateChangeListener.beginBlock(stateChangePartialsEnabled, deltaMinSaving);
+            final int partialMinSaving = blockStreamConfig.stateChangePartialMinSaving();
+            immediateStateChangeListener.beginBlock(stateChangePartialsEnabled, partialMinSaving);
+            boundaryStateChangeListener.beginBlock(stateChangePartialsEnabled, partialMinSaving);
 
             lifecycle.onOpenBlock(state);
 

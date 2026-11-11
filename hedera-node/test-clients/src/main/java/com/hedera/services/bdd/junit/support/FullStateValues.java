@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.hapi.utils.blocks.StateChangeReconstructor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -78,7 +78,7 @@ public final class FullStateValues {
         requireNonNull(earlierBlocks);
         requireNonNull(block);
         if (failure != null) throw failure;
-        if (reconstructor == null && !StateChangeDeltas.hasPartialUpdates(block)) {
+        if (reconstructor == null && !StateChangePartials.hasPartialUpdates(block)) {
             return block;
         }
         try {

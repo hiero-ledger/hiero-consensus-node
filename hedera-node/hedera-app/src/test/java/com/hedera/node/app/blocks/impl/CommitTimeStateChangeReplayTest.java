@@ -19,7 +19,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
@@ -169,7 +169,7 @@ class CommitTimeStateChangeReplayTest {
                     if (!change.hasMapUpdate()) continue;
                     final var update = change.mapUpdateOrThrow();
                     assertThat(update.partial()).isTrue();
-                    replay = StateChangeDeltas.applyMap(STATE_ID, replay, update);
+                    replay = StateChangePartials.applyMap(STATE_ID, replay, update);
                     updates++;
                 }
             }

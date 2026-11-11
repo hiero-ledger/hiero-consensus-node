@@ -21,7 +21,7 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas.ValueType;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials.ValueType;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.CopyBuilderTracked;
 import com.hedera.pbj.runtime.DiffCodec;
@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
-class StateChangeDeltasTest {
+class StateChangePartialsTest {
     @Test
     void catalogBackedBlockStateValuesHaveDiffCapabilityAndUnrelatedModelsHaveNone() {
         for (var type : types().toList()) {
@@ -67,7 +67,7 @@ class StateChangeDeltasTest {
         final var next = prior.copyBuilder().tinybarBalance(2).build();
         final var adapter = new ValueType("account", Account.class, plain);
         assertThat(adapter.canDiff(next)).isFalse();
-        final var delta = StateChangeDeltas.diff(prior, next);
+        final var delta = StateChangePartials.diff(prior, next);
         assertThat(adapter.applyPartial(prior, delta.value(), delta.clearedFields()))
                 .isEqualTo(next);
     }
@@ -76,23 +76,23 @@ class StateChangeDeltasTest {
     void protoStringWithoutDiffApisKeepsFullOutputAndCanReplayIncomingPartials() {
         final var prior = new com.hedera.hapi.node.state.primitives.ProtoString("old".repeat(100));
         final var next = new com.hedera.hapi.node.state.primitives.ProtoString("new");
-        assertThat(StateChangeDeltas.diff(prior, next)).isNull();
+        assertThat(StateChangePartials.diff(prior, next)).isNull();
         final var map = MapUpdateChange.newBuilder()
                 .key(MapChangeKey.newBuilder().protoStringKey("key"))
                 .value(MapChangeValue.newBuilder().protoStringValue(next.value()))
                 .build();
-        assertThat(StateChangeDeltas.encodeMap(0, prior, map, 0)).isSameAs(map);
+        assertThat(StateChangePartials.encodeMap(0, prior, map, 0)).isSameAs(map);
         assertThat(MapUpdateChange.PROTOBUF.toBytes(map)).isNotNull();
         final var singleton = com.hedera.hapi.block.stream.output.SingletonUpdateChange.newBuilder()
                 .stringValue(next.value())
                 .build();
-        assertThat(StateChangeDeltas.encodeSingleton(0, prior, singleton, 0)).isSameAs(singleton);
+        assertThat(StateChangePartials.encodeSingleton(0, prior, singleton, 0)).isSameAs(singleton);
         assertThat(com.hedera.hapi.block.stream.output.SingletonUpdateChange.PROTOBUF.toBytes(singleton))
                 .isNotNull();
         final var cleared = com.hedera.hapi.node.state.primitives.ProtoString.DEFAULT;
         assertThat(StateChangeTypes.PROTO_STRING.applyPartial(prior, cleared, List.of(1)))
                 .isEqualTo(cleared);
-        assertThat(StateChangeDeltas.applyBytes(
+        assertThat(StateChangePartials.applyBytes(
                         StateChangeTypes.PROTO_STRING.bytes(prior), Bytes.EMPTY, true, List.of(1)))
                 .isEqualTo(Bytes.EMPTY);
     }
@@ -111,17 +111,17 @@ class StateChangeDeltasTest {
 
     static Stream<ValueType> types() {
         // ProtoString is a wire adapter only, outside the registered state-value catalog.
-        return StateChangeDeltas.valueTypes().stream().filter(type -> type != StateChangeTypes.PROTO_STRING);
+        return StateChangePartials.valueTypes().stream().filter(type -> type != StateChangeTypes.PROTO_STRING);
     }
 
     static Descriptor descriptor(ValueType type) {
         for (var field : com.hedera.hapi.block.stream.output.protoc.MapChangeValue.getDescriptor()
                 .getFields()) {
-            if (StateChangeDeltas.mapType(field.getNumber()) == type) return field.getMessageType();
+            if (StateChangePartials.mapType(field.getNumber()) == type) return field.getMessageType();
         }
         for (var field : com.hedera.hapi.block.stream.output.protoc.SingletonUpdateChange.getDescriptor()
                 .getFields()) {
-            if (field.getContainingOneof() != null && StateChangeDeltas.singletonType(field.getNumber()) == type)
+            if (field.getContainingOneof() != null && StateChangePartials.singletonType(field.getNumber()) == type)
                 return field.getMessageType();
         }
         throw new AssertionError(type);
@@ -181,10 +181,10 @@ class StateChangeDeltasTest {
     private static void roundTrip(ValueType type, DynamicMessage prior, DynamicMessage next) throws Exception {
         final var old = type.parse(Bytes.wrap(prior.toByteArray()));
         final var value = type.parse(Bytes.wrap(next.toByteArray()));
-        final var delta = StateChangeDeltas.diff(old, value);
+        final var delta = StateChangePartials.diff(old, value);
         assertThat(delta).as(type.name()).isNotNull();
         final var sparse = type.bytes(delta.value());
-        assertThat(StateChangeDeltas.applyBytes(type.bytes(old), sparse, true, delta.clearedFields()))
+        assertThat(StateChangePartials.applyBytes(type.bytes(old), sparse, true, delta.clearedFields()))
                 .as(type.name())
                 .isEqualTo(type.bytes(value));
         final var descriptor = descriptor(type);
@@ -205,17 +205,17 @@ class StateChangeDeltasTest {
                 List.of(SingletonUpdateChangeSchema.PARTIAL, SingletonUpdateChangeSchema.CLEARED_FIELDS))) {
             final var partialField = fields.get(0);
             final var clearedField = fields.get(1);
-            long overhead = StateChangeDeltas.varintSize((long) partialField.number() << 3) + 1;
+            long overhead = StateChangePartials.varintSize((long) partialField.number() << 3) + 1;
             if (!delta.clearedFields().isEmpty()) {
                 long length = delta.clearedFields().stream()
-                        .mapToLong(StateChangeDeltas::varintSize)
+                        .mapToLong(StateChangePartials::varintSize)
                         .sum();
-                overhead += StateChangeDeltas.varintSize(((long) clearedField.number() << 3) | 2)
-                        + StateChangeDeltas.varintSize(length)
+                overhead += StateChangePartials.varintSize(((long) clearedField.number() << 3) | 2)
+                        + StateChangePartials.varintSize(length)
                         + length;
             }
             for (int min : List.of(0, 1, 32, 64, 128, 4096)) {
-                assertThat(StateChangeDeltas.worthPartial(type, value, delta, min, partialField, clearedField))
+                assertThat(StateChangePartials.worthPartial(type, value, delta, min, partialField, clearedField))
                         .as("%s threshold %s", type.name(), min)
                         .isEqualTo(omitted >= min + overhead);
             }
@@ -251,13 +251,13 @@ class StateChangeDeltasTest {
         final var before =
                 Account.newBuilder().tinybarBalance(1).memo("m".repeat(64)).build();
         final var next = before.copyBuilder().tinybarBalance(2).build();
-        assertThat(StateChangeDeltas.encodeMap(9999, before, full(next), 64).partial())
+        assertThat(StateChangePartials.encodeMap(9999, before, full(next), 64).partial())
                 .isTrue(); // 66 - 2
-        assertThat(StateChangeDeltas.encodeMap(9999, before, full(next), 65).partial())
+        assertThat(StateChangePartials.encodeMap(9999, before, full(next), 65).partial())
                 .isFalse();
-        assertThat(StateChangeDeltas.encodeMap(9999, null, full(next), 0).partial())
+        assertThat(StateChangePartials.encodeMap(9999, null, full(next), 0).partial())
                 .isFalse();
-        assertThatThrownBy(() -> StateChangeDeltas.encodeMap(2, before, full(next), -1))
+        assertThatThrownBy(() -> StateChangePartials.encodeMap(2, before, full(next), -1))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -272,19 +272,20 @@ class StateChangeDeltasTest {
         final var builder =
                 middle.copyBuilder().tinybarBalance(1).memo("changed").stakedAccountId(AccountID.DEFAULT);
         final var next = builder.build();
-        final var type = StateChangeDeltas.valueType(root);
+        final var type = StateChangePartials.valueType(root);
         final var parsedNext = (Account) type.parse(type.bytes(next));
-        final var fromBuilder = StateChangeDeltas.diff(root, next);
-        final var fallback = StateChangeDeltas.diff(root, parsedNext);
+        final var fromBuilder = StateChangePartials.diff(root, next);
+        final var fallback = StateChangePartials.diff(root, parsedNext);
         assertThat(fromBuilder).isEqualTo(fallback);
         assertThat(((Account) fromBuilder.value()).tinybarBalance()).isZero(); // Restored setter is omitted.
         assertThat(fromBuilder.clearedFields()).doesNotContain(5);
-        assertThat(MapUpdateChange.PROTOBUF.toBytes(StateChangeDeltas.encodeMap(2, root, full(next), 0)))
-                .isEqualTo(MapUpdateChange.PROTOBUF.toBytes(StateChangeDeltas.encodeMap(2, root, full(parsedNext), 0)));
+        assertThat(MapUpdateChange.PROTOBUF.toBytes(StateChangePartials.encodeMap(2, root, full(next), 0)))
+                .isEqualTo(
+                        MapUpdateChange.PROTOBUF.toBytes(StateChangePartials.encodeMap(2, root, full(parsedNext), 0)));
         builder.clearStakedId();
         final var cleared = builder.build();
-        assertThat(StateChangeDeltas.diff(root, cleared))
-                .isEqualTo(StateChangeDeltas.diff(root, type.parse(type.bytes(cleared))));
+        assertThat(StateChangePartials.diff(root, cleared))
+                .isEqualTo(StateChangePartials.diff(root, type.parse(type.bytes(cleared))));
     }
 
     @Test
@@ -301,19 +302,20 @@ class StateChangeDeltasTest {
                 .stakedAccountId(AccountID.DEFAULT)
                 .build();
         final var latest = root.copyBuilder().expirationSecond(100).build();
-        final var expected = StateChangeDeltas.diff(root, next);
-        final var expectedBytes = MapUpdateChange.PROTOBUF.toBytes(StateChangeDeltas.encodeMap(2, root, full(next), 0));
-        final var expectedFromLatest = StateChangeDeltas.diff(latest, next);
+        final var expected = StateChangePartials.diff(root, next);
+        final var expectedBytes =
+                MapUpdateChange.PROTOBUF.toBytes(StateChangePartials.encodeMap(2, root, full(next), 0));
+        final var expectedFromLatest = StateChangePartials.diff(latest, next);
         assertThat(CopyBuilderTracking.hasOrigin(next, root)).isTrue();
         assertThat(CopyBuilderTracking.hasOrigin(next, latest)).isFalse();
         assertThat(next.$copyBuilderFieldChanged(5)).isTrue();
         assertThat(next.$copyBuilderFieldChanged(4)).isFalse();
-        assertThat(StateChangeDeltas.diff(root, next.$untracked())).isEqualTo(expected);
-        assertThat(MapUpdateChange.PROTOBUF.toBytes(StateChangeDeltas.encodeMap(2, root, full(next), 0)))
+        assertThat(StateChangePartials.diff(root, next.$untracked())).isEqualTo(expected);
+        assertThat(MapUpdateChange.PROTOBUF.toBytes(StateChangePartials.encodeMap(2, root, full(next), 0)))
                 .isEqualTo(expectedBytes);
         // Expiration is absent from the candidate set, but the different prior forces comparison.
-        assertThat(StateChangeDeltas.diff(latest, next)).isEqualTo(expectedFromLatest);
-        assertThat(StateChangeDeltas.diff(latest, next.$untracked())).isEqualTo(expectedFromLatest);
+        assertThat(StateChangePartials.diff(latest, next)).isEqualTo(expectedFromLatest);
+        assertThat(StateChangePartials.diff(latest, next.$untracked())).isEqualTo(expectedFromLatest);
     }
 
     @Test
@@ -322,10 +324,10 @@ class StateChangeDeltasTest {
                 Account.newBuilder().tinybarBalance(1).memo("m".repeat(100)).build();
         final var latest = root.copyBuilder().tinybarBalance(2).build();
         final var staleNext = root.copyBuilder().memo("new").build();
-        final var delta = StateChangeDeltas.diff(latest, staleNext);
+        final var delta = StateChangePartials.diff(latest, staleNext);
         assertThat(((Account) delta.value()).tinybarBalance()).isEqualTo(1);
-        final var type = StateChangeDeltas.valueType(root);
-        assertThat(StateChangeDeltas.diff(type.parse(type.bytes(latest)), staleNext))
+        final var type = StateChangePartials.valueType(root);
+        assertThat(StateChangePartials.diff(type.parse(type.bytes(latest)), staleNext))
                 .isEqualTo(delta);
     }
 
@@ -333,21 +335,21 @@ class StateChangeDeltasTest {
     void unknownFieldsRetainFullValuesAndNumericEnumOrdinalsRoundTrip() {
         final var known =
                 Account.newBuilder().memo("m".repeat(100)).tinybarBalance(1).build();
-        final var type = StateChangeDeltas.valueType(known);
+        final var type = StateChangePartials.valueType(known);
         final var unknown = type.parse(Bytes.fromHex(type.bytes(known).toHex() + "a00601"));
-        assertThat(StateChangeDeltas.diff(known, unknown)).isNull();
-        assertThat(StateChangeDeltas.diff(unknown, known)).isNull();
-        assertThat(StateChangeDeltas.encodeMap(2, unknown, full(known)).partial())
+        assertThat(StateChangePartials.diff(known, unknown)).isNull();
+        assertThat(StateChangePartials.diff(unknown, known)).isNull();
+        assertThat(StateChangePartials.encodeMap(2, unknown, full(known)).partial())
                 .isFalse();
         final var fullUnknown = full((Account) unknown);
-        assertThat(StateChangeDeltas.encodeMap(2, known, fullUnknown)).isSameAs(fullUnknown);
+        assertThat(StateChangePartials.encodeMap(2, known, fullUnknown)).isSameAs(fullUnknown);
         final var unknownEnum =
                 Token.newBuilder().tokenType(TokenType.UNRECOGNIZED).build();
-        final var tokenType = StateChangeDeltas.valueType(unknownEnum);
+        final var tokenType = StateChangePartials.valueType(unknownEnum);
         for (var values : List.of(List.of(Token.DEFAULT, unknownEnum), List.of(unknownEnum, Token.DEFAULT))) {
-            final var delta = StateChangeDeltas.diff(values.getFirst(), values.getLast());
+            final var delta = StateChangePartials.diff(values.getFirst(), values.getLast());
             assertThat(delta).isNotNull();
-            assertThat(StateChangeDeltas.applyBytes(
+            assertThat(StateChangePartials.applyBytes(
                             tokenType.bytes(values.getFirst()),
                             tokenType.bytes(delta.value()),
                             true,
@@ -360,7 +362,7 @@ class StateChangeDeltasTest {
 
     @Test
     void signedAndUnsignedScalarExtremesRoundTrip() throws Exception {
-        for (var type : StateChangeDeltas.valueTypes()) {
+        for (var type : StateChangePartials.valueTypes()) {
             final var descriptor = descriptor(type);
             for (var field : descriptor.getFields()) {
                 if (field.getJavaType() != FieldDescriptor.JavaType.INT
@@ -394,7 +396,7 @@ class StateChangeDeltasTest {
         final var newFile = oldFile.copyBuilder()
                 .contents(Bytes.wrap("a".repeat(1024) + "b"))
                 .build();
-        final var fileDelta = StateChangeDeltas.diff(oldFile, newFile);
+        final var fileDelta = StateChangePartials.diff(oldFile, newFile);
         assertThat(((File) fileDelta.value()).contents()).isEqualTo(newFile.contents());
         final var prior = Account.newBuilder()
                 .key(Key.newBuilder().ed25519(Bytes.wrap("old")))
@@ -403,7 +405,7 @@ class StateChangeDeltasTest {
         final var next = prior.copyBuilder()
                 .key(Key.newBuilder().ecdsaSecp256k1(Bytes.wrap("new")))
                 .build();
-        final var delta = StateChangeDeltas.diff(prior, next);
+        final var delta = StateChangePartials.diff(prior, next);
         assertThat(((Account) delta.value()).key()).isEqualTo(next.key());
         assertThat(delta.clearedFields()).isEmpty();
     }
@@ -415,20 +417,20 @@ class StateChangeDeltasTest {
                 .tinybarBalance(1)
                 .stakedNodeId(7)
                 .build();
-        final var type = StateChangeDeltas.valueType(prior);
+        final var type = StateChangePartials.valueType(prior);
         final var balance =
                 Account.PROTOBUF.toBytes(Account.newBuilder().tinybarBalance(2).build());
-        assertThatThrownBy(() -> StateChangeDeltas.applyBytes(null, balance, true, List.of()))
+        assertThatThrownBy(() -> StateChangePartials.applyBytes(null, balance, true, List.of()))
                 .isInstanceOf(IllegalArgumentException.class);
         for (var clears : List.of(List.of(5, 5), List.of(6, 5), List.of(0), List.of(536870912), List.of(5))) {
-            assertThatThrownBy(() -> StateChangeDeltas.applyBytes(type.bytes(prior), balance, true, clears))
+            assertThatThrownBy(() -> StateChangePartials.applyBytes(type.bytes(prior), balance, true, clears))
                     .isInstanceOf(IllegalArgumentException.class);
         }
-        assertThatThrownBy(() -> StateChangeDeltas.applyBytes(null, balance, false, List.of(5)))
+        assertThatThrownBy(() -> StateChangePartials.applyBytes(null, balance, false, List.of(5)))
                 .isInstanceOf(IllegalArgumentException.class);
         for (String bytes : List.of("baffff", "32026b", "808000", "00", "10010801", "0b")) {
             assertThatThrownBy(() ->
-                            StateChangeDeltas.applyBytes(type.bytes(prior), Bytes.fromHex(bytes), true, List.of()))
+                            StateChangePartials.applyBytes(type.bytes(prior), Bytes.fromHex(bytes), true, List.of()))
                     .isInstanceOf(RuntimeException.class);
         }
     }
@@ -439,10 +441,10 @@ class StateChangeDeltasTest {
         // and add the entire repeated run for future field 99.
         final var prior = Bytes.fromHex("08011201611801a00601");
         final var partial = Bytes.fromHex("1201629a0601789a060179");
-        assertThat(StateChangeDeltas.applyBytes(prior, partial, true, List.of(3)))
+        assertThat(StateChangePartials.applyBytes(prior, partial, true, List.of(3)))
                 .isEqualTo(Bytes.fromHex("08011201629a0601789a060179a00601"));
         // An absent field can be cleared without knowing whether the current schema declares it.
-        assertThat(StateChangeDeltas.applyBytes(prior, Bytes.EMPTY, true, List.of(999)))
+        assertThat(StateChangePartials.applyBytes(prior, Bytes.EMPTY, true, List.of(999)))
                 .isEqualTo(prior);
     }
 
@@ -450,10 +452,10 @@ class StateChangeDeltasTest {
     void oneofSwitchClearsOldAlternativeForByteAndObjectReplay() {
         final var prior = Account.newBuilder().memo("keep").stakedNodeId(7).build();
         final var next = prior.copyBuilder().stakedAccountId(AccountID.DEFAULT).build();
-        final var delta = StateChangeDeltas.diff(prior, next);
+        final var delta = StateChangePartials.diff(prior, next);
         assertThat(delta.clearedFields()).containsExactly(11);
-        final var type = StateChangeDeltas.valueType(prior);
-        assertThat(StateChangeDeltas.applyBytes(
+        final var type = StateChangePartials.valueType(prior);
+        assertThat(StateChangePartials.applyBytes(
                         type.bytes(prior), type.bytes(delta.value()), true, delta.clearedFields()))
                 .isEqualTo(type.bytes(next));
         final var update = full((Account) delta.value())
@@ -461,11 +463,11 @@ class StateChangeDeltasTest {
                 .partial(true)
                 .clearedFields(delta.clearedFields())
                 .build();
-        assertThat(StateChangeDeltas.applyMap(2, prior, update)).isEqualTo(next);
-        assertThatThrownBy(() -> StateChangeDeltas.applyMap(
+        assertThat(StateChangePartials.applyMap(2, prior, update)).isEqualTo(next);
+        assertThatThrownBy(() -> StateChangePartials.applyMap(
                         2, prior, update.copyBuilder().clearedFields(List.of()).build()))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThat(StateChangeDeltas.applyBytes(type.bytes(next), Bytes.EMPTY, true, List.of(11)))
+        assertThat(StateChangePartials.applyBytes(type.bytes(next), Bytes.EMPTY, true, List.of(11)))
                 .isEqualTo(type.bytes(next)); // Clearing an absent alternative is idempotent.
         assertThat(type.applyPartial(next, Account.DEFAULT, List.of(11))).isEqualTo(next);
     }
