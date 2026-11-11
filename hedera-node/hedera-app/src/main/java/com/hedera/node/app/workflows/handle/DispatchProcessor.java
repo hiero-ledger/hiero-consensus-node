@@ -130,6 +130,14 @@ public class DispatchProcessor {
      */
     public void processDispatch(
             @NonNull final Dispatch dispatch, @Nullable final Details hollowAccountCompletionsDetails) {
+        processDispatch(dispatch, hollowAccountCompletionsDetails, false);
+    }
+
+    /** Processes a submitted transaction using normal fee charging, with an optional block-capacity rejection. */
+    public void processDispatch(
+            @NonNull final Dispatch dispatch,
+            @Nullable final Details hollowAccountCompletionsDetails,
+            final boolean blockFull) {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
@@ -143,7 +151,7 @@ public class DispatchProcessor {
         } else {
             final var fees = chargePayer(dispatch, validation, false);
             if (!alreadyFailed(dispatch, validation)) {
-                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails);
+                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails, blockFull);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -166,10 +174,14 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final Fees fees,
-            @Nullable final HollowAccountCompletions.Details details) {
+            @Nullable final HollowAccountCompletions.Details details,
+            final boolean blockFull) {
         final var functionality = dispatch.txnInfo().functionality();
         boolean success = false;
         try {
+            if (blockFull) {
+                throw ThrottleException.newNativeThrottleException();
+            }
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
             dispatch.streamBuilder().status(SUCCESS);
@@ -380,9 +392,9 @@ public class DispatchProcessor {
             if (isClprSubmitBundle(dispatch)) {
                 logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
-                                + "requiredKeys={} hollowAccounts={}",
+                                + "requiredKeyRequirements={} hollowAccounts={}",
                         dispatch.txnInfo().transactionID(),
-                        dispatch.requiredKeys().size(),
+                        dispatch.requiredKeyRequirements().size(),
                         dispatch.hollowAccounts().size());
             }
             dispatch.streamBuilder().status(INVALID_SIGNATURE);
@@ -436,8 +448,8 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private boolean failsSignatureVerification(@NonNull final Dispatch dispatch) {
-        for (final var key : dispatch.requiredKeys()) {
-            final var verification = dispatch.keyVerifier().verificationFor(key);
+        for (final var requirement : dispatch.requiredKeyRequirements()) {
+            final var verification = dispatch.keyVerifier().verificationFor(requirement);
             if (verification.failed()) {
                 return true;
             }

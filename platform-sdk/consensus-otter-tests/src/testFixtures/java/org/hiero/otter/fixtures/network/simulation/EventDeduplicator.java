@@ -5,14 +5,14 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.List;
 import java.util.function.Function;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.sequence.map.ConcurrentSequenceMap;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 
@@ -31,8 +31,11 @@ import org.hiero.consensus.model.sequence.map.SequenceMap;
  * together before. A descriptor seen with a signature that has not accompanied it before is a distinct event rather
  * than a duplicate.
  *
- * <p>This class is not safe to use from more than one thread. The set of submissions held against a descriptor is a
- * plain {@link HashSet}, and {@link SequenceMap#computeIfAbsent} reports a lost insertion race the same way it reports a
+ * <p>One entry is kept per descriptor and signature, with the submitters recorded as a bit set indexed by rank, which
+ * is the index of the submitter in the roster.
+ *
+ * <p>This class is not safe to use from more than one thread. The entries held against a descriptor are a plain
+ * {@link ArrayList} and {@link BitSet}s, and {@link SequenceMap#computeIfAbsent} reports a lost insertion race the same way it reports a
  * sequence number that has fallen outside the window, which would be read here as a duplicate. Both callers reach it
  * only from the single-threaded phase of a tick, after the nodes that submit events have stopped running.
  */
@@ -42,7 +45,7 @@ public class EventDeduplicator {
      * Avoid the creation of lambdas for {@link SequenceMap#computeIfAbsent} by reusing this lambda.
      */
     @NonNull
-    private static final Function<EventDescriptorWrapper, Set<Submission>> NEW_HASH_SET = ignored -> new HashSet<>();
+    private static final Function<EventDescriptorWrapper, List<SignedEvent>> NEW_LIST = ignored -> new ArrayList<>(1);
 
     /**
      * The number of birth rounds tracked at once. The map expands beyond this as birth rounds climb.
@@ -50,18 +53,19 @@ public class EventDeduplicator {
     private static final int INITIAL_CAPACITY = 1024;
 
     /**
-     * A single offer of an event to the network, identified by the node that made it and the signature it carried.
+     * An event as identified by its signature, together with the nodes that have submitted it. Normally a descriptor
+     * carries a single signature.
      *
-     * @param submitter the node that submitted the event
-     * @param signature the signature the event carried
+     * @param signature  the signature the event carried
+     * @param submitters the ranks of the nodes that have submitted the event with this signature
      */
-    private record Submission(
-            @NonNull NodeId submitter, @NonNull Bytes signature) {}
+    private record SignedEvent(
+            @NonNull Bytes signature, @NonNull BitSet submitters) {}
 
     /**
-     * A map from event descriptor to the submissions that have been observed for that descriptor.
+     * A map from event descriptor to the signed events that have been observed for that descriptor.
      */
-    private final SequenceMap<EventDescriptorWrapper, Set<Submission>> observedEvents = new ConcurrentSequenceMap<>(
+    private final SequenceMap<EventDescriptorWrapper, List<SignedEvent>> observedEvents = new ConcurrentSequenceMap<>(
             ConsensusConstants.ROUND_FIRST, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
 
     /**
@@ -84,21 +88,35 @@ public class EventDeduplicator {
      * <p>Events that are expired for every node in the network are reported as unique without being recorded. The map
      * no longer tracks birth rounds that old, so there is no way to tell whether such an event has been seen before.
      *
-     * @param event the event to check, with its sender set to the node submitting it
+     * @param event     the event to check
+     * @param submitter the rank of the node submitting the event
      * @return {@code true} if the event is unique and was recorded, or is too old to be checked
      */
-    public boolean addIfUnique(@NonNull final PlatformEvent event) {
+    public boolean addIfUnique(@NonNull final PlatformEvent event, final int submitter) {
         if (event.getBirthRound() < oldestEventWindow.expiredThreshold()) {
             return true;
         }
 
-        final Set<Submission> submissions = observedEvents.computeIfAbsent(event.getDescriptor(), NEW_HASH_SET);
-        if (submissions == null) {
+        final List<SignedEvent> signedEvents = observedEvents.computeIfAbsent(event.getDescriptor(), NEW_LIST);
+        if (signedEvents == null) {
             // The window shifted past this event's birth round after the check above
             return true;
         }
 
-        return submissions.add(new Submission(event.getSenderId(), event.getSignature()));
+        final Bytes signature = event.getSignature();
+        for (final SignedEvent signedEvent : signedEvents) {
+            if (signedEvent.signature().equals(signature)) {
+                if (signedEvent.submitters().get(submitter)) {
+                    return false;
+                }
+                signedEvent.submitters().set(submitter);
+                return true;
+            }
+        }
+        final BitSet submitters = new BitSet();
+        submitters.set(submitter);
+        signedEvents.add(new SignedEvent(signature, submitters));
+        return true;
     }
 
     /**

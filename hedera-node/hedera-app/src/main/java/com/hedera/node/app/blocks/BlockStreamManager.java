@@ -12,6 +12,7 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -232,11 +233,33 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     void writeSavepointItems(@NonNull List<BlockItem> items, @NonNull Instant lastUsedConsensusTime);
 
     /**
-     * Returns whether savepoint-stack block output is suppressed for the current block.
+     * Returns whether savepoint-stack block output is suppressed for the current block. This only ever engages in
+     * {@code StreamMode.BOTH} (preview block stream); see {@link #hasReachedMaxBlockSize()} for the analogous,
+     * independent signal used in {@code StreamMode.BLOCKS} (canonical block stream), which never suppresses output.
      *
      * @return whether savepoint-stack block output is suppressed
      */
     boolean isSavepointOutputSuppressed();
+
+    /**
+     * Returns whether the current block has already reached its configured maximum serialized size, in {@code
+     * StreamMode.BLOCKS} (canonical block stream). Unlike {@link #isSavepointOutputSuppressed()}, reaching this
+     * limit never suppresses any block-stream output — every dispatch that already completed is recorded normally.
+     * Callers (namely {@code HandleWorkflow}) are expected to reject further non-exempt submitted transactions with
+     * {@code THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging once this returns {@code true},
+     * rather than let them run. Scheduled executions, migration root hash votes, hints/CRS, history proof and CLPR
+     * endpoint publication transactions, and payers in {@code 1..accounts.lastThrottleExempt} are exempt. Always
+     * {@code false} in any other stream mode.
+     *
+     * @return whether the current block has reached its configured maximum size, in {@code StreamMode.BLOCKS}
+     */
+    boolean hasReachedMaxBlockSize();
+
+    /**
+     * Records diagnostic counts for a submitted parent's output before it is written. Scheduled executions
+     * and child transactions are not submitted parents. Rejection bytes include the complete output batch.
+     */
+    default void recordSubmittedTransaction(@NonNull List<BlockItem> items, boolean rejectedForBlockSize) {}
 
     /**
      * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that
@@ -257,6 +280,17 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @param timeout the maximum time to wait for the open/pending blocks to be flushed to disk
      */
     void awaitFatalShutdown(@NonNull Duration timeout);
+
+    /**
+     * Returns the contents files ({@code .open.gz} for the open block, {@code .pnd.gz} for pending blocks) that the
+     * triage flush wrote to local disk after a catastrophic failure, for staging by the ISS-block capture pipeline.
+     * Empty until a triage flush has run (and on nodes that never flushed). Safe to read after
+     * {@link #awaitFatalShutdown(Duration)} returns.
+     *
+     * @return the flushed triage block-contents files, oldest pending blocks first then the open block
+     */
+    @NonNull
+    List<Path> flushedTriageBlockFiles();
 
     /**
      * Returns a future that completes when all currently pending blocks awaiting proofs have been fully signed.

@@ -180,7 +180,10 @@ public class ClprSubmitBundleSuite {
                         .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                         .payingWith(GENESIS),
                 // §6.3 connector commit-reveal
-                clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+                clprRegisterConnector()
+                        .channelId(crypto.channelId())
+                        .commitment(crypto.connectorCommitment())
+                        .payingWith(GENESIS),
                 clprCompleteConnector()
                         .connectorId(crypto.connectorId())
                         .publicKey(crypto.publicKey())
@@ -309,7 +312,10 @@ public class ClprSubmitBundleSuite {
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                         .payingWith(GENESIS),
-                clprRegisterConnector().commitment(crypto.connectorCommitment()).payingWith(GENESIS),
+                clprRegisterConnector()
+                        .channelId(crypto.channelId())
+                        .commitment(crypto.connectorCommitment())
+                        .payingWith(GENESIS),
                 clprCompleteConnector()
                         .connectorId(crypto.connectorId())
                         .publicKey(crypto.publicKey())

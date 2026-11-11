@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.hip904.UnlimitedAutoAssociationSuite.UNLIMITED_AUTO_ASSOCIATION_SLOTS;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCreate;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractDelete;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoUpdate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleCreate;
@@ -363,8 +364,8 @@ public class NaturalDispatchOrderingTest {
     private static VisibleItemsValidator removableChildValidator() {
         return (spec, records) -> {
             final var nestedCreations = requireNonNull(records.get("nestedCreations"), "nestedCreations not found");
-            assertItemsMatch(nestedCreations, 0, ContractCall, ContractCreate, ContractCreate);
-            assertStatuses(nestedCreations, SUCCESS, SUCCESS, SUCCESS);
+            assertItemsMatch(nestedCreations, 0, ContractCall, ContractCreate, ContractCreate, ContractDelete);
+            assertStatuses(nestedCreations, SUCCESS, SUCCESS, SUCCESS, SUCCESS);
             final var revertedCreations =
                     requireNonNull(records.get("revertedCreations"), "revertedCreations not found");
             assertItemsMatch(revertedCreations, 0, ContractCall);

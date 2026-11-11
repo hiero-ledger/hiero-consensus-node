@@ -40,6 +40,7 @@ import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCloseChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteConnector;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprDeregisterConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprEvictPeerEndpoint;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterConnector;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprSubmitBundle;
@@ -249,6 +250,10 @@ public class TxnVerbs {
 
     public static HapiClprCloseChannel clprCloseChannel() {
         return new HapiClprCloseChannel();
+    }
+
+    public static HapiClprEvictPeerEndpoint clprEvictPeerEndpoint() {
+        return new HapiClprEvictPeerEndpoint();
     }
 
     public static HapiClprRegisterConnector clprRegisterConnector() {

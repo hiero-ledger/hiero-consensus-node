@@ -4,10 +4,16 @@ package com.hedera.node.app.workflows.handle.dispatch;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
@@ -32,26 +38,36 @@ import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
+import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.InsufficientNetworkFeeException;
 import com.hedera.node.app.spi.workflows.InsufficientNonFeeDebitsException;
 import com.hedera.node.app.spi.workflows.InsufficientServiceFeeException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -60,12 +76,16 @@ import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
+import com.hedera.node.app.workflows.prehandle.FakeSignatureVerificationFuture;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.NodeId;
@@ -110,6 +130,9 @@ class DispatchValidatorTest {
     @Mock
     private ReadableAccountStore readableAccountStore;
 
+    @Mock
+    private HandleContext handleContext;
+
     private DispatchValidator subject;
 
     @BeforeEach
@@ -153,6 +176,22 @@ class DispatchValidatorTest {
     }
 
     @Test
+    void hollowUserWithoutAliasSigIsCreatorError() {
+        givenCreatorInfo();
+        givenUserDispatch();
+        given(dispatch.txnInfo()).willReturn(TXN_INFO);
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        givenPayer(payer -> payer.tinybarBalance(1L).alias(HOLLOW_ALIAS).key(IMMUTABILITY_SENTINEL_KEY));
+        given(dispatch.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(HOLLOW_ALIAS)).willReturn(FAILED_VERIFICATION);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE), report);
+        verifyNoInteractions(solvencyPreCheck);
+    }
+
+    @Test
     void invalidPayerSigIsCreatorError() {
         givenCreatorInfo();
         givenUserDispatch();
@@ -190,15 +229,16 @@ class DispatchValidatorTest {
     }
 
     @Test
-    void hollowUserDoesNotRequireSig() throws PreCheckException {
+    void hollowUserWithValidAliasSigIsAccepted() throws PreCheckException {
         givenCreatorInfo();
         givenUserDispatch();
         givenNonDuplicate();
         givenSolvencyCheckSetup();
         given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
-        final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L)
-                .alias(Bytes.fromHex("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd"))
-                .key(IMMUTABILITY_SENTINEL_KEY));
+        final var payerAccount =
+                givenPayer(payer -> payer.tinybarBalance(1L).alias(HOLLOW_ALIAS).key(IMMUTABILITY_SENTINEL_KEY));
+        given(dispatch.keyVerifier()).willReturn(keyVerifier);
+        given(keyVerifier.verificationFor(HOLLOW_ALIAS)).willReturn(PASSED_VERIFICATION);
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
 
         final var report = subject.validateFeeChargingScenario(dispatch);
@@ -554,6 +594,331 @@ class DispatchValidatorTest {
         assertThrows(IllegalStateException.class, () -> subject.validateFeeChargingScenario(dispatch));
     }
 
+    @Test
+    void batchInnerDueDiligencePreHandleIsCreatorError() {
+        givenBatchDispatch(innerPreHandle(NODE_DUE_DILIGENCE_FAILURE, INVALID_ACCOUNT_AMOUNTS, GOOD_INNER_SIG));
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_ACCOUNT_AMOUNTS), report);
+        verifyNoInteractions(solvencyPreCheck);
+    }
+
+    @Test
+    void batchInnerPastItsTimeBoxIsCreatorError() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        // The batch itself is within its timebox, only the inner is not
+        lenient()
+                .doNothing()
+                .when(transactionChecker)
+                .checkTimeBox(BATCH_TXN_BODY, CONSENSUS_NOW, TransactionChecker.RequireMinValidLifetimeBuffer.NO);
+        doThrow(new PreCheckException(INVALID_TRANSACTION_DURATION))
+                .when(transactionChecker)
+                .checkTimeBox(INNER_TXN_BODY, CONSENSUS_NOW, TransactionChecker.RequireMinValidLifetimeBuffer.NO);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_TRANSACTION_DURATION), report);
+    }
+
+    @Test
+    void batchInnerWithMissingPayerIsCreatorError() {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        given(readableAccountStore.getAccountById(INNER_PAYER_ID)).willReturn(null);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, PAYER_ACCOUNT_NOT_FOUND), report);
+    }
+
+    @Test
+    void batchInnerWithDeletedPayerIsCreatorError() {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        givenInnerPayer(payer -> payer.deleted(true));
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, PAYER_ACCOUNT_DELETED), report);
+    }
+
+    @Test
+    void batchInnerWithInvalidPayerSigIsCreatorError() {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, BAD_INNER_SIG));
+        givenInnerPayer(payer -> payer.tinybarBalance(123L));
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_SIGNATURE), report);
+    }
+
+    @Test
+    void batchInnerDuplicatedBySameNodeIsCreatorError() {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        givenInnerPayer(payer -> payer.tinybarBalance(123L));
+        given(recordCache.hasDuplicate(INNER_TXN_BODY.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
+                .willReturn(HederaRecordCache.DuplicateCheckResult.SAME_NODE);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, DUPLICATE_TRANSACTION), report);
+    }
+
+    @Test
+    void batchInnerWhosePayerCannotAffordItsNetworkFeeIsCreatorError() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(1L));
+        givenInnerNonDuplicate();
+        // A payer that cannot cover even the network fee is a node error, as for a top-level transaction
+        doThrow(new InsufficientNetworkFeeException(INSUFFICIENT_PAYER_BALANCE, INNER_FEES.totalFee()))
+                .when(solvencyPreCheck)
+                .checkSolvency(
+                        INNER_TXN_BODY,
+                        INNER_PAYER_ID,
+                        INNER_TXN_INFO.functionality(),
+                        innerPayer,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
+                        NOT_INGEST,
+                        CHECK_OFFERED_FEE);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_PAYER_BALANCE), report);
+    }
+
+    @Test
+    void batchInnerWhosePayerCannotAffordItsNodeFeeIsLeftToItsOwnDispatch() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(5L));
+        givenInnerNonDuplicate();
+        given(dispatch.fees()).willReturn(FEES);
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        final var batchPayer = givenPayer(payer -> payer.tinybarBalance(123L));
+        // A payer that covers the network fee but not the node fee is a payer error, charged by the inner's own
+        // dispatch as a top-level transaction would be; the batch is not the node's fault
+        doThrow(new InsufficientServiceFeeException(INSUFFICIENT_PAYER_BALANCE, INNER_FEES.totalFee()))
+                .when(solvencyPreCheck)
+                .checkSolvency(
+                        INNER_TXN_BODY,
+                        INNER_PAYER_ID,
+                        INNER_TXN_INFO.functionality(),
+                        innerPayer,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
+                        NOT_INGEST,
+                        CHECK_OFFERED_FEE);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(CREATOR_ACCOUNT_ID, batchPayer), report);
+    }
+
+    @Test
+    void batchInnerOfferingLessThanItsTotalFeesIsCreatorError() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(123L));
+        givenInnerNonDuplicate();
+        // An offered fee that covers the network fee but not the total is reported as a payer error by the
+        // solvency check, but the inner's own dispatch never checks the offered fee, so it stays the node's error
+        doThrow(new InsufficientServiceFeeException(INSUFFICIENT_TX_FEE, INNER_FEES.totalFee()))
+                .when(solvencyPreCheck)
+                .checkSolvency(
+                        INNER_TXN_BODY,
+                        INNER_PAYER_ID,
+                        INNER_TXN_INFO.functionality(),
+                        innerPayer,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
+                        NOT_INGEST,
+                        CHECK_OFFERED_FEE);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_TX_FEE), report);
+    }
+
+    @Test
+    void batchInnerOfferingLessThanItsFeesIsCreatorError() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(123L));
+        givenInnerNonDuplicate();
+        // Ingest checks the offered fee of each inner as it does for a top-level transaction, so the same
+        // check must fail the batch here
+        doThrow(new InsufficientNetworkFeeException(INSUFFICIENT_TX_FEE, INNER_FEES.totalFee()))
+                .when(solvencyPreCheck)
+                .checkSolvency(
+                        INNER_TXN_BODY,
+                        INNER_PAYER_ID,
+                        INNER_TXN_INFO.functionality(),
+                        innerPayer,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
+                        NOT_INGEST,
+                        CHECK_OFFERED_FEE);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_TX_FEE), report);
+    }
+
+    @Test
+    void batchWithValidInnersIsValidatedAsItsOwnPayerAllows() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        final var innerPayer = givenInnerPayer(payer -> payer.tinybarBalance(123L));
+        givenInnerNonDuplicate();
+        given(dispatch.fees()).willReturn(FEES);
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        final var batchPayer = givenPayer(payer -> payer.tinybarBalance(123L));
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(CREATOR_ACCOUNT_ID, batchPayer), report);
+        verify(solvencyPreCheck)
+                .checkSolvency(
+                        INNER_TXN_BODY,
+                        INNER_PAYER_ID,
+                        INNER_TXN_INFO.functionality(),
+                        innerPayer,
+                        // Ingest checks the offered fee and balance without the service component
+                        INNER_FEES.withoutServiceComponent(),
+                        NOT_INGEST,
+                        CHECK_OFFERED_FEE);
+    }
+
+    @Test
+    void batchDuplicatedByOtherNodeIsPayerErrorWithoutCheckingItsInners() throws PreCheckException {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        given(recordCache.hasDuplicate(BATCH_TXN_BODY.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
+                .willReturn(HederaRecordCache.DuplicateCheckResult.OTHER_NODE);
+        given(dispatch.fees()).willReturn(FEES);
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        final var batchPayer = givenPayer(payer -> payer.tinybarBalance(123L));
+        // The inner's payer is gone (would be PAYER_ACCOUNT_NOT_FOUND), but a duplicate batch never runs its inners,
+        // so this is still the batch payer's duplicate to pay for, not a creator error that would charge every node
+        // the batch was re-sent through
+        lenient().when(readableAccountStore.getAccountById(INNER_PAYER_ID)).thenReturn(null);
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(
+                newPayerError(CREATOR_ACCOUNT_ID, batchPayer, DUPLICATE_TRANSACTION, CAN_PAY_SERVICE_FEE, DUPLICATE),
+                report);
+        verify(readableAccountStore, never()).getAccountById(INNER_PAYER_ID);
+        verify(handleContext, never())
+                .dispatchComputeFees(any(), any(), any(ComputeDispatchFeesAsTopLevel.class), any());
+    }
+
+    @Test
+    void batchInnerWhoseFeesCannotBeComputedIsCreatorError() {
+        givenBatchDispatch(innerPreHandle(SO_FAR_SO_GOOD, OK, GOOD_INNER_SIG));
+        givenInnerPayer(payer -> payer.tinybarBalance(123L));
+        givenInnerNonDuplicate();
+        given(handleContext.dispatchComputeFees(
+                        INNER_TXN_BODY, INNER_PAYER_ID, ComputeDispatchFeesAsTopLevel.YES, INNER_SIG_MAP))
+                .willThrow(new HandleException(INVALID_TRANSACTION_BODY));
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_TRANSACTION_BODY), report);
+    }
+
+    @Test
+    void batchCreatorErrorTakesPrecedenceOverItsInners() {
+        givenCreatorInfo();
+        lenient().when(dispatch.txnInfo()).thenReturn(BATCH_TXN_INFO);
+        given(dispatch.preHandleResult())
+                .willReturn(batchPreHandle(
+                        NODE_DUE_DILIGENCE_FAILURE,
+                        INVALID_PAYER_SIGNATURE,
+                        innerPreHandle(NODE_DUE_DILIGENCE_FAILURE, INVALID_ACCOUNT_AMOUNTS, GOOD_INNER_SIG)));
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_SIGNATURE), report);
+    }
+
+    private void givenBatchDispatch(@NonNull final PreHandleResult... innerResults) {
+        givenCreatorInfo();
+        givenUserDispatch();
+        given(dispatch.txnInfo()).willReturn(BATCH_TXN_INFO);
+        given(dispatch.preHandleResult()).willReturn(batchPreHandle(SO_FAR_SO_GOOD, OK, innerResults));
+        given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
+        lenient().when(dispatch.readableStoreFactory()).thenReturn(storeFactory);
+        lenient().when(storeFactory.readableStore(ReadableAccountStore.class)).thenReturn(readableAccountStore);
+        lenient().when(dispatch.config()).thenReturn(HederaTestConfigBuilder.createConfig());
+        lenient().when(dispatch.handleContext()).thenReturn(handleContext);
+        lenient()
+                .when(handleContext.dispatchComputeFees(
+                        INNER_TXN_BODY, INNER_PAYER_ID, ComputeDispatchFeesAsTopLevel.YES, INNER_SIG_MAP))
+                .thenReturn(INNER_FEES);
+        lenient().when(creatorInfo.nodeId()).thenReturn(CREATOR_NODE_ID.id());
+        // The batch's own payer, signature and duplicate checks pass, so that its inners are checked
+        lenient().when(dispatch.payerId()).thenReturn(PAYER_ACCOUNT_ID);
+        lenient()
+                .when(readableAccountStore.getAccountById(PAYER_ACCOUNT_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ACCOUNT_ID)
+                        .key(Key.DEFAULT)
+                        .tinybarBalance(123L)
+                        .build());
+        lenient().when(dispatch.keyVerifier()).thenReturn(keyVerifier);
+        lenient()
+                .when(keyVerifier.verificationFor(KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT)))
+                .thenReturn(PASSED_VERIFICATION);
+        lenient()
+                .when(recordCache.hasDuplicate(BATCH_TXN_BODY.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
+                .thenReturn(HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE);
+    }
+
+    private Account givenInnerPayer(@NonNull final Consumer<Account.Builder> spec) {
+        final var payer = Account.newBuilder().accountId(INNER_PAYER_ID).key(INNER_PAYER_KEY);
+        spec.accept(payer);
+        final var payerAccount = payer.build();
+        given(readableAccountStore.getAccountById(INNER_PAYER_ID)).willReturn(payerAccount);
+        return payerAccount;
+    }
+
+    private void givenInnerNonDuplicate() {
+        given(recordCache.hasDuplicate(INNER_TXN_BODY.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
+                .willReturn(HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE);
+    }
+
+    private static PreHandleResult innerPreHandle(
+            @NonNull final PreHandleResult.Status status,
+            @NonNull final ResponseCodeEnum responseCode,
+            @NonNull final Map<Key, SignatureVerificationFuture> verificationResults) {
+        return new PreHandleResult(
+                INNER_PAYER_ID,
+                INNER_PAYER_KEY,
+                status,
+                responseCode,
+                INNER_TXN_INFO,
+                Collections.emptySet(),
+                Collections.emptySet(),
+                Collections.emptySet(),
+                verificationResults,
+                null,
+                0);
+    }
+
+    private static PreHandleResult batchPreHandle(
+            @NonNull final PreHandleResult.Status status,
+            @NonNull final ResponseCodeEnum responseCode,
+            @NonNull final PreHandleResult... innerResults) {
+        return new PreHandleResult(
+                PAYER_ACCOUNT_ID,
+                Key.DEFAULT,
+                status,
+                responseCode,
+                BATCH_TXN_INFO,
+                Collections.emptySet(),
+                Collections.emptySet(),
+                Collections.emptySet(),
+                Collections.emptyMap(),
+                new ArrayList<>(List.of(innerResults)),
+                0);
+    }
+
     private void givenMissingPayer() {
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.readableStoreFactory()).willReturn(storeFactory);
@@ -566,8 +931,12 @@ class DispatchValidatorTest {
     }
 
     private void givenNonDuplicate() {
+        givenNonDuplicate(TXN_BODY);
+    }
+
+    private void givenNonDuplicate(@NonNull final TransactionBody body) {
         given(creatorInfo.nodeId()).willReturn(CREATOR_NODE_ID.id());
-        given(recordCache.hasDuplicate(TXN_BODY.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
+        given(recordCache.hasDuplicate(body.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
                 .willReturn(HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE);
     }
 
@@ -585,12 +954,14 @@ class DispatchValidatorTest {
 
     private void givenValidPayerSig() {
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(PASSED_VERIFICATION);
+        given(keyVerifier.verificationFor(KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT)))
+                .willReturn(PASSED_VERIFICATION);
     }
 
     private void givenInvalidPayerSig() {
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(FAILED_VERIFICATION);
+        given(keyVerifier.verificationFor(KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT)))
+                .willReturn(FAILED_VERIFICATION);
     }
 
     private void givenChildDispatch() {
@@ -632,6 +1003,8 @@ class DispatchValidatorTest {
         given(readableAccountStore.getAccountById(payerId)).willReturn(payerAccount);
         return payerAccount;
     }
+
+    private static final Bytes HOLLOW_ALIAS = Bytes.fromHex("abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd");
 
     private static final PreHandleResult INVALID_PAYER_SIG_PREHANDLE = new PreHandleResult(
             null,
@@ -683,6 +1056,48 @@ class DispatchValidatorTest {
             null);
 
     private static final Fees FEES = new Fees(1L, 2L, 3L);
+
+    private static final AccountID INNER_PAYER_ID =
+            AccountID.newBuilder().accountNum(5_678).build();
+    private static final Key INNER_PAYER_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("0123456789012345678901234567890123456789012345678901234567890123"))
+            .build();
+    private static final TransactionBody INNER_TXN_BODY = TransactionBody.newBuilder()
+            .transactionID(TransactionID.newBuilder().accountID(INNER_PAYER_ID).build())
+            .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
+            .build();
+    private static final SignatureMap INNER_SIG_MAP = SignatureMap.newBuilder()
+            .sigPair(SignaturePair.newBuilder()
+                    .pubKeyPrefix(INNER_PAYER_KEY.ed25519OrThrow())
+                    .ed25519(Bytes.EMPTY)
+                    .build())
+            .build();
+    private static final TransactionInfo INNER_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT,
+            INNER_TXN_BODY,
+            INNER_SIG_MAP,
+            Bytes.EMPTY,
+            HederaFunctionality.CRYPTO_TRANSFER,
+            null);
+    private static final Fees INNER_FEES = new Fees(4L, 5L, 6L);
+    private static final Map<Key, SignatureVerificationFuture> GOOD_INNER_SIG =
+            Map.of(INNER_PAYER_KEY, FakeSignatureVerificationFuture.goodFuture(INNER_PAYER_KEY));
+    private static final Map<Key, SignatureVerificationFuture> BAD_INNER_SIG =
+            Map.of(INNER_PAYER_KEY, FakeSignatureVerificationFuture.badFuture(INNER_PAYER_KEY));
+    private static final TransactionBody BATCH_TXN_BODY = TransactionBody.newBuilder()
+            .transactionID(
+                    TransactionID.newBuilder().accountID(PAYER_ACCOUNT_ID).build())
+            .atomicBatch(AtomicBatchTransactionBody.newBuilder()
+                    .transactions(Bytes.EMPTY)
+                    .build())
+            .build();
+    private static final TransactionInfo BATCH_TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT,
+            BATCH_TXN_BODY,
+            SignatureMap.DEFAULT,
+            Bytes.EMPTY,
+            HederaFunctionality.ATOMIC_BATCH,
+            null);
 
     private static final SignatureVerification PASSED_VERIFICATION =
             new SignatureVerificationImpl(Key.DEFAULT, Bytes.EMPTY, true);

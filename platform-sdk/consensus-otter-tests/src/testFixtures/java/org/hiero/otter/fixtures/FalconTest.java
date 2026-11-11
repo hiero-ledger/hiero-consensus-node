@@ -24,7 +24,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  * <p>A Falcon test can be parameterized by declaring an argument source directly on the test method. The whole sweep
  * then runs once for every argument set, and {@link #repetitions()}, {@link #failureThreshold()}, {@link #randomSeed()}
  * and the system property {@code falcon.repetitions} apply to each argument set separately. The display name of every
- * repetition shows its argument set and its seed. The following argument sources are supported:
+ * repetition shows the test method, its argument set and its seed. The following argument sources are supported:
  * <ul>
  *     <li>{@link MethodSource} naming static factory methods without parameters in the test class. An empty name
  *     refers to the factory method with the same name as the test method. A factory method may return a stream, an

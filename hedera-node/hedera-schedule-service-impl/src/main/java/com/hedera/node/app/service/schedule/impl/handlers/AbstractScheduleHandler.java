@@ -98,6 +98,19 @@ public abstract class AbstractScheduleHandler {
     @NonNull
     protected TransactionKeys getRequiredKeys(@NonNull final Schedule schedule, @NonNull final TransactionKeysFn fn)
             throws PreCheckException {
+        return getRequiredKeys(schedule, fn, null);
+    }
+
+    /**
+     * Gets a schedule's signing requirements, allowing a hollow payer that the enclosing transaction will complete.
+     * This allowance is only for pre-handle. Handle must check the requirements again against current state.
+     */
+    @NonNull
+    protected TransactionKeys getRequiredKeys(
+            @NonNull final Schedule schedule,
+            @NonNull final TransactionKeysFn fn,
+            @Nullable final AccountID payerToBeCompleted)
+            throws PreCheckException {
         requireNonNull(schedule);
         requireNonNull(fn);
         final var body = childAsOrdinary(schedule);
@@ -106,8 +119,9 @@ public abstract class AbstractScheduleHandler {
                 .accountIDOrThrow();
         final var payerId = schedule.payerAccountIdOrElse(creatorId);
         final var transactionKeys = fn.apply(body, payerId);
-        // We do not currently support scheduling transactions that would need to complete hollow accounts
-        if (!transactionKeys.requiredHollowAccounts().isEmpty()) {
+        // A scheduled transaction cannot complete any remaining hollow accounts itself.
+        if (transactionKeys.requiredHollowAccounts().stream()
+                .anyMatch(account -> payerToBeCompleted == null || !payerToBeCompleted.equals(account.accountId()))) {
             throw new PreCheckException(UNRESOLVABLE_REQUIRED_SIGNERS);
         }
         return transactionKeys;
@@ -309,11 +323,12 @@ public abstract class AbstractScheduleHandler {
         });
         return key -> switch (key.key().kind()) {
             case ED25519, ECDSA_SECP256K1 -> cryptoSigs.contains(key);
-                // A contract id key is only activated by direct authorization
+            // A contract id key is only activated by direct authorization
             case CONTRACT_ID -> isAuthorized(key.contractIDOrThrow(), accountStore, contractIdSigs, emptySet());
-                // The more permissive "delegatable" key is activated by either type of authorization
-            case DELEGATABLE_CONTRACT_ID -> isAuthorized(
-                    key.delegatableContractIdOrThrow(), accountStore, delegatableContractIdSigs, contractIdSigs);
+            // The more permissive "delegatable" key is activated by either type of authorization
+            case DELEGATABLE_CONTRACT_ID ->
+                isAuthorized(
+                        key.delegatableContractIdOrThrow(), accountStore, delegatableContractIdSigs, contractIdSigs);
             default -> false;
         };
     }
@@ -377,13 +392,13 @@ public abstract class AbstractScheduleHandler {
                     signatories.add(key);
                 }
             }
-            case KEY_LIST -> key.keyListOrThrow()
-                    .keys()
-                    .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow()
-                    .keysOrThrow()
-                    .keys()
-                    .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
+            case KEY_LIST ->
+                key.keyListOrThrow().keys().forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow()
+                        .keysOrThrow()
+                        .keys()
+                        .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
         }
     }
 
