@@ -37,10 +37,10 @@ consensus stops making progress.
 
 - The hashgraph contains at least two judges of the same round (call them `J1` and `J2`) such that `J1` is an ancestor
   of `J2` along a chain of events created during that round.
-- At least one non-judge event `A` exists on the ancestry chain strictly between `J1` and `J2` — `J1` is an ancestor of
-  `A`, `A` is an ancestor of `J2`, and `A` is not a judge.
+- At least one non-judge event `MID` exists on the ancestry chain strictly between `J1` and `J2` — `J1` is an ancestor
+  of `MID`, `MID` is an ancestor of `J2`, and `MID` is not a judge.
 - The next round is being prepared under a roster `R_new` that differs from the roster `R_old` under which the
-  just-decided round was computed. The new roster's witness weighting differs such that `A` strongly sees a
+  just-decided round was computed. The new roster's witness weighting differs such that `MID` strongly sees a
   supermajority of the just-decided round's witnesses under `R_new` even though it did not under `R_old`.
 - The per-round metadata-clearing step exempts all judges of the just-decided round from clearing (the pre-fix
   behavior).
@@ -54,17 +54,17 @@ the saved state and the PCES events that fed it — and watched each transition 
 the halt.
 
 1. Round `N` reaches consensus under `R_old`. The set of round-`N` judges is fixed; `J1` and `J2` are both judges, and
-   `J1` is an ancestor of `J2`. The non-judge event `A` sits on the ancestry chain between them, with
-   `roundCreated(A) = N` and `roundCreated(J2) = N`.
+   `J1` is an ancestor of `J2`. The non-judge event `MID` sits on the ancestry chain between them, with
+   `roundCreated(MID) = N` and `roundCreated(J2) = N`.
 2. Round `N+1` is prepared, possibly under `R_new`. The platform clears the metadata of every eligible non-terminal
    event so that `roundCreated` can be recalculated under the new roster.
-3. Under the pre-fix carve-out, both `J1` and `J2` are exempt from clearing — they retain `roundCreated = N`. `A` is not
-   a judge, so its metadata is cleared and its `roundCreated` is set back to undefined.
-4. Recalculation re-derives `roundCreated(A)` under `R_new`. Because `R_new` weights witnesses differently, `A` now
-   strongly sees a supermajority of round-`N` witnesses that it did not strongly see under `R_old`. `A` is therefore
-   assigned `roundCreated(A) = N+1`.
-5. `J2` is a descendant of `A`, but `J2` was exempt from clearing and still carries `roundCreated(J2) = N`. The state
-   now has `roundCreated(A) = N+1 > roundCreated(J2) = N` with `A` an ancestor of `J2`. INV-001 is violated.
+3. Under the pre-fix carve-out, both `J1` and `J2` are exempt from clearing — they retain `roundCreated = N`. `MID` is
+   not a judge, so its metadata is cleared and its `roundCreated` is set back to undefined.
+4. Recalculation re-derives `roundCreated(MID)` under `R_new`. Because `R_new` weights witnesses differently, `MID` now
+   strongly sees a supermajority of round-`N` witnesses that it did not strongly see under `R_old`. `MID` is therefore
+   assigned `roundCreated(MID) = N+1`.
+5. `J2` is a descendant of `MID`, but `J2` was exempt from clearing and still carries `roundCreated(J2) = N`. The state
+   now has `roundCreated(MID) = N+1 > roundCreated(J2) = N` with `MID` an ancestor of `J2`. INV-001 is violated.
 6. Round-`(N+1)` witness search and fame election rely on the monotonicity property. With the invariant broken, no new
    round reaches consensus. The network halts. (observed — the JRS address-book/roster-change integration test failed at
    this step)
@@ -96,9 +96,9 @@ catalogued here — the JRS run output was not preserved against this entry.
   added without anyone making the connection. INV-001 now captures it explicitly so a future carve-out has something
   concrete to be checked against.
 - **Roster changes loosen the assumption that yesterday's round numbers will be reproduced today.** The
-  pre-roster-change algorithm could rely on `A` keeping its old `roundCreated` because witnesses and supermajorities did
-  not change between rounds. Once the roster is allowed to change, any non-terminal event's round becomes contingent on
-  the next roster, and only descendants that are themselves recalculated can be made consistent with that.
+  pre-roster-change algorithm could rely on `MID` keeping its old `roundCreated` because witnesses and supermajorities
+  did not change between rounds. Once the roster is allowed to change, any non-terminal event's round becomes contingent
+  on the next roster, and only descendants that are themselves recalculated can be made consistent with that.
 - **No invariant check existed on the recalculation step.** Nothing asserted
   `roundCreated(child) >= roundCreated(parent)` after the per-round metadata reset, so a violation could exist for
   arbitrarily long before manifesting as a stall.
@@ -125,7 +125,7 @@ differs.
 
 ## Verification
 
-`test-reproduced`. The test in `related.tests` constructs the J1 → A → J2 shape, drives the roster change, and asserts
+`test-reproduced`. The test in `related.tests` constructs the J1 → MID → J2 shape, drives the roster change, and asserts
 INV-001 across the replay. Restoring the pre-fix carve-out makes it fail with the inversion in **Sequence** step 5.
 
 The scenario was observed before it was reproduced. The bug halted at least one JRS integration test in the subset that

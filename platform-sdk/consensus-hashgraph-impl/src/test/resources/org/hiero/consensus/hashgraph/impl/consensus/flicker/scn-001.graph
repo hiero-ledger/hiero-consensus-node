@@ -9,7 +9,7 @@
 #
 #      |          |      c3 (J2)        |      layer 5 - c's first round-2 event, so a round-2 witness
 #      |          |          |          |
-#      |      b4 (mid)       |          |      layer 4 - round 2 under 'initial', round 3 under 'after'
+#      |      b4 (mid)       |          |      layer 4 - round 2 under 'old', round 3 under 'new'
 #      |          |          |          |
 #     a3         b3          |         d3      layer 3 - round 2, none of them witnesses
 #      |          |          |          |
@@ -24,8 +24,8 @@
 kb SCN-001
 anchor 2
 
-roster initial  a=1 b=1 c=1 d=1
-roster after    a=4 b=1 c=1 d=4
+roster old  a=1 b=1 c=1 d=1
+roster new  a=4 b=1 c=1 d=4
 
 #  name  self  other-parents
 
@@ -48,8 +48,8 @@ roster after    a=4 b=1 c=1 d=4
    d2    d1    a1,b1,c1
    c2    c1    a1
 
-# layer 3 - round 2, none of them witnesses. b3 takes no other-parent, which is what keeps b2
-#           reachable from b4 through b alone, and therefore never strongly seen
+# layer 3 - round 2, none of them witnesses. b2 is never strongly seen from b4: a3 and d3 take
+#           only a2 and d2, so no a or d event below b4 descends from b2
    a3    a2    d2
    b3    b2    -
    d3    d2    a2
@@ -60,7 +60,8 @@ roster after    a=4 b=1 c=1 d=4
 # layer 5 - c's first round-2 event, and a descendant of b4
    c3    c2    b4
 
-# layers 6+ - closure: every node takes every other node's latest event, until round 2 decides
+# layers 6+ - closure: each event takes the other three creators' latest events from before its
+#             layer, until round 2 decides
    a4    a3    b4,c3,d3
    b5    b4    a3,c3,d3
    c4    c3    a3,b4,d3

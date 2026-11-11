@@ -5,7 +5,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerGraph;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.GraphFiles;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
 
@@ -13,38 +12,42 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  * The SCN-001 graph: two same-round judges on one ancestry chain, with a non-judge strictly between them.
  *
  * <p>
- * The shape is {@code scn-001.graph}, drawn as columns in a comment at its head. Here is why it has that shape.
+ * The shape is in {@code scn-001.graph}, a resource beside this class, drawn as columns in a comment at its head. Here
+ * is why it has that shape.
  *
  * <p>
- * <b>The chain.</b> {@code b2 -> b3 -> b4(mid) -> c3}: three self-parent steps up b's column, then one other-parent
- * edge across to c. {@code b2} and {@code c3} are both round-2 judges and {@code b2} is therefore an ancestor of
- * {@code c3}; {@code mid} sits strictly between them and is not a judge, because {@code b2} is already b's round-2
+ * <b>The chain.</b> {@code b2 -> b3 -> b4(mid) -> c3}: two self-parent steps up b's column, then one other-parent
+ * edge across to c. {@code b2} and {@code c3} are both round-2 judges, and the chain makes {@code b2} an ancestor of
+ * {@code c3}. {@code mid} sits strictly between them and is not a judge, because {@code b2} is already b's round-2
  * witness. That is SCN-001's Setup precondition, exactly.
  *
  * <p>
  * <b>Why c is starved.</b> {@code J2} has to be a round-2 witness that <i>descends from</i> {@code mid}. A witness is
- * its creator's first event in a round, so c must reach round 2 for the first time above {@code mid}. {@code c2}
- * therefore takes only {@code a1}, leaving it seeing the round-1 witnesses through two creators and short of the
- * three-of-four supermajority. Note this is forced, not decorative: by INV-001 any descendant of a round-2 witness is
- * itself at least round 2, so c cannot both supply an intermediate below {@code mid} and stay unpromoted.
+ * its creator's first event in a round, so c's first round-2 event must come after {@code mid}, and {@code c2} must
+ * stay in round 1. Its only other-parent is {@code a1}. Of the round-1 witnesses, it strongly sees only {@code b0}
+ * and {@code d0}; it reaches {@code a0} and {@code c0} only through a and c events. {@code b0} and {@code d0} weigh 2
+ * of 4, short of a supermajority, so {@code c2} stays in round 1. That is also why {@code c2} must not descend from
+ * {@code a2}, {@code b2} or {@code d2}: by INV-001, any event that descends from a round-2 witness is itself at
+ * least round 2.
  *
  * <p>
- * <b>The flip.</b> Under {@code after}, {@code mid}'s recalculated round must rise from 2 to 3. Two conditions have to
- * hold at once, and they pull in opposite directions:
+ * <b>The flip.</b> Under {@code new}, {@code mid}'s recalculated round must rise from 2 to 3. Two conditions must
+ * hold:
  * <ul>
- *     <li>{@code mid} strongly sees {@code a2} and {@code d2} through creators {A, B, D} — weight 3 of 4 under
- *         {@code initial} and 9 of 10 under {@code after}, so the strongly-seeing relation survives both weightings.</li>
- *     <li>The <i>seen set</i> {@code {a2, d2}} carries weight 2 of 4 under {@code initial} (below the 2.67 threshold, so
- *         {@code mid} stays in round 2) and 8 of 10 under {@code after} (above 6.67, so it is promoted).</li>
+ *     <li>{@code mid} strongly sees {@code a2} and {@code d2} under both rosters: it reaches them through creators a,
+ *         b and d, which weigh 3 of 4 under {@code old} and 9 of 10 under {@code new}.</li>
+ *     <li>{@code a2} and {@code d2} together weigh less than a supermajority under {@code old} (2 of 4, below the 2.67
+ *         threshold, so {@code mid} stays in round 2) and more under {@code new} (8 of 10, above 6.67, so it is
+ *         promoted).</li>
  * </ul>
  * {@code mid} never strongly sees {@code b2}: the only events between them are b's own, so that path is worth one
- * creator under either roster. That is what keeps the seen set small enough to be sub-supermajority under
- * {@code initial}.
+ * creator under either roster. That is what keeps the round-2 witnesses {@code mid} strongly sees below a
+ * supermajority under {@code old}.
  */
 public final class Scn001Graph {
 
     /** The file the shape lives in: rows, both rosters, and the anchor round. */
-    public static final String FILE = "scn-001.graph";
+    private static final String FILE = "scn-001.graph";
 
     private static final FlickerGraph GRAPH = GraphFiles.load(FILE);
 
@@ -62,25 +65,19 @@ public final class Scn001Graph {
 
     private Scn001Graph() {}
 
-    /** @return the parsed fixture, header and all */
-    @NonNull
-    public static FlickerGraph graph() {
-        return GRAPH;
-    }
-
     /**
-     * @return the file's {@code initial} block: the four nodes at equal weight, which round {@link #ANCHOR_ROUND} is
+     * @return the file's {@code old} block: the four nodes at equal weight, which round {@link #ANCHOR_ROUND} is
      *     decided under
      */
     @NonNull
     public static RosterWrapper rosterOld() {
-        return GRAPH.roster("initial").toRosterWrapper();
+        return GRAPH.roster("old").toRosterWrapper();
     }
 
-    /** @return the file's {@code after} block: the same nodes, reweighted so that {@link #MID} is promoted */
+    /** @return the file's {@code new} block: the same nodes, reweighted so that {@link #MID} is promoted */
     @NonNull
     public static RosterWrapper rosterNew() {
-        return GRAPH.roster("after").toRosterWrapper();
+        return GRAPH.roster("new").toRosterWrapper();
     }
 
     /**
