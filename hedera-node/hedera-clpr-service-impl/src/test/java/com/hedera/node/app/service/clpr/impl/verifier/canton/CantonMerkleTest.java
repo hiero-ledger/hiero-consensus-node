@@ -11,9 +11,7 @@ import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tests for {@link CantonMerkle}, a port of {@code ClprCantonMerkle.sol}.
- *
- * <p><b>Provenance of vectors.</b> The PR this ports has no isolated per-function Merkle vectors, so:
+ * <b>Provenance of vectors.</b> The PR this ports has no isolated per-function Merkle vectors, so:
  * <ul>
  *   <li>Real bytes: {@code update-multihash} (a real {@code 0x1220 || digest} multihash) and the real
  *       verdict {@code typedContent} are used as inputs / cross-checks.</li>

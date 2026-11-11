@@ -13,7 +13,7 @@ import java.util.List;
  * consensus verification must accept exactly what the reference accepts. Malformed input throws
  * {@code InvalidPayloadShape}.
  *
- * <p>The same algorithm is embedded privately in {@link CantonVerdictVerifier} (Task 6); this class is the
+ * <p>The same algorithm is embedded privately in {@link CantonVerdictVerifier}; this class is the
  * shared form used by the opening code.
  */
 final class CantonRlp {

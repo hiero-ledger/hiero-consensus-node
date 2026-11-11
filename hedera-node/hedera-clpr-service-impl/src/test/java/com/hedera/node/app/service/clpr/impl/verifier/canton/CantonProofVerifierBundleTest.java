@@ -422,7 +422,7 @@ class CantonProofVerifierBundleTest {
                 .isInstanceOf(HandleException.class);
     }
 
-    // ── bundle assembly (port of CantonProofBuilder.sol) ─────────────────────
+    // ── bundle assembly ─────────────────────
 
     private static ClprBundleContent verify(final Bundle b) {
         return CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), CHANNEL_CONTEXT, NO_LOOKUP);

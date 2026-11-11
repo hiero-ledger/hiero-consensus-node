@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 
@@ -10,9 +11,8 @@ import java.util.Objects;
  * {@code error} of the reference Solidity verifier; every one maps to
  * {@link ResponseCodeEnum#CLPR_BUNDLE_VERIFICATION_FAILED}.
  *
- * <p>Like {@link com.hedera.node.app.service.clpr.impl.verifier.ProofException}, this is thrown internally
- * and must be translated by CLPR handlers to their public failure surface. New factories are added here as
- * later verifier components need them.
+ * <p>Like {@link ProofException}, this is thrown internally and must be translated by CLPR handlers
+ * to their public failure surface. New factories are added here as later verifier components need them.
  */
 public final class CantonProofException extends RuntimeException {
     private static final String VERIFIER = "CantonVerifier";

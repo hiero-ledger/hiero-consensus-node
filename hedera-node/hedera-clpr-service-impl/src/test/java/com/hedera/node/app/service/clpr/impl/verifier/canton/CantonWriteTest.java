@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test;
  * ({@code ViewParticipantData{3: CreatedContract{1: Versioned{2: FatContractInstance{3: template_id,
  * 4: create_arg, 5: signatories}}}, 6: ActionDescription, 7/8: rollback}}, the same contract layout as the real
  * {@code created-event-blob}). The {@code Channel} record carries the nine fields the verifier reads at the
- * documented positions (the rest are filler). Message payloads are REAL {@code ClprMessagePayload} protobuf
+ * documented positions (the rest are filler). Message payloads are REAL {@code ClprMessagePayload}s protobuf-
  * encoded by PBJ.
  */
 class CantonWriteTest {

@@ -9,8 +9,7 @@ import java.util.Objects;
 
 /**
  * Checks a Canton mediator verdict: a fresh approval of a transaction view on the expected synchronizer, signed by
- * a threshold of distinct members of the mediator set. Port of {@code verifyVerdict}/{@code _check} of the
- * reference {@code CantonVerdictVerifier.sol} (without bundle rotations or LSU handling).
+ * a threshold of distinct members of the mediator set. Currently does not implement bundle rotations or LSU handling.
  *
  * <p>Signatures are RLP {@code [[keyFingerprint(32), signature, delegation], …]} with every {@code delegation}
  * empty. Entries with an unknown fingerprint or a member already counted are skipped; a known key whose signature

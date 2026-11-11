@@ -218,8 +218,7 @@ public final class CantonProofVerifier implements ClprVerifier {
         final byte[] app = current.app().getBytes(StandardCharsets.UTF_8);
 
         final List<byte[]> payloads = payloads(fields.get(6));
-        final WriteResult write = readWrite(
-                opened.vpd(), opened.vpdIsV32(), createdIndex(fields.get(2)), service, app);
+        final WriteResult write = readWrite(opened.vpd(), opened.vpdIsV32(), createdIndex(fields.get(2)), service, app);
         // A required confirmer re-runs the whole view with the pinned package, so the app's approval covers the
         // running hash of the write, which binds every payload.
         if (!CantonProto.isRequiredConfirmer(opened.vcd(), app)) {
@@ -643,7 +642,9 @@ public final class CantonProofVerifier implements ClprVerifier {
         final List<Range> fields = CantonProto.recordFields(vpd, contract.createArg());
         if (fields.size() < minFields
                 || !CantonProto.equals(
-                        vpd, CantonProto.stringValue(vpd, fields.getFirst(), CantonProto.VALUE_PARTY), service.operator())
+                        vpd,
+                        CantonProto.stringValue(vpd, fields.getFirst(), CantonProto.VALUE_PARTY),
+                        service.operator())
                 || !CantonProto.equals(
                         vpd,
                         CantonProto.stringValue(vpd, fields.get(channelField), CantonProto.VALUE_TEXT),

@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /**
  * Canton's purpose-prefixed SHA-256 hashing: Merkle leaves, inner nodes, and the verdict signing input.
- * Port of {@code ClprCantonMerkle.sol}; every byte of the encoding must match the Solidity exactly.
+ * Every byte of the encoding must match the Solidity exactly.
  *
  * <p>Every hash input starts with a 4-byte big-endian purpose. A child digest enters an inner node as its
  * 34-byte multihash {@code 0x1220 || digest}.

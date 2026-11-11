@@ -10,9 +10,7 @@ import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tests for {@link CantonAnchor}, a port of {@code ClprCantonAnchor.sol}.
- *
- * <p><b>Provenance of vectors.</b> The PR has no isolated anchor blob (anchors are built inside Forge flows
+ * <b>Provenance of vectors.</b> The PR has no isolated anchor blob (anchors are built inside Forge flows
  * via {@code abi.encode}). The two hex vectors below were produced by Foundry's Solidity ABI encoder:
  * {@code cast abi-encode "f(string,uint64,uint32,bytes32,bytes32,bytes32,string,uint64,uint32,string)" ...}
  * (cast 1.7.1), whose top-level head/tail layout is identical to {@code abi.encode(...)} of the same ten values.

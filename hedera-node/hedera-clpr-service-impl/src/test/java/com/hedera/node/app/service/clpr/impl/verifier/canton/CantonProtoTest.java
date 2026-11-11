@@ -22,7 +22,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
- * Tests for {@link CantonProto}, a hand-rolled strict port of {@code ClprCantonProto.sol}.
+ * Tests for {@link CantonProto}.
  *
  * <p><b>Provenance of vectors.</b>
  * <ul>
@@ -325,7 +325,7 @@ class CantonProtoTest {
         assertFalse(CantonProto.equals(b, new Range(0, 5), "world".getBytes(StandardCharsets.UTF_8)));
     }
 
-    // ── Strict-parse negatives (Review Focus #1) ─────────────────────────────
+    // ── Strict-parse negatives ─────────────────────────────
 
     @Nested
     class StrictParsing {

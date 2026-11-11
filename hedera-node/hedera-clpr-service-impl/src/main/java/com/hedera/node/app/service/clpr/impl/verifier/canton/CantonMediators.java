@@ -13,8 +13,6 @@ import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 /**
  * The packed mediator set of a Canton trust anchor, and the signature check of a mediator verdict.
- * A verbatim Java port of {@code ClprCantonMediators.sol} — the packed-set offset walk, the key
- * lookup, and the per-key-spec signature dispatch all follow the reference byte-for-byte.
  *
  * <p>Packed layout (all multi-byte integers big-endian):
  * <pre>

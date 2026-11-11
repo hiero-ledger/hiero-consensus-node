@@ -8,9 +8,8 @@ import java.util.List;
 
 /**
  * Strict in-place protobuf readers for the Canton structures a CLPR proof opens: the mediator verdict, the
- * Merkle-tree leaves of a transaction view, the contracts inside them, and Daml-LF values. Hand-rolled port
- * of {@code ClprCantonProto.sol}; every parse decision must match the Solidity byte for byte, because a
- * parse divergence is a consensus-safety bug.
+ * Merkle-tree leaves of a transaction view, the contracts inside them, and Daml-LF values. Every parse
+ * decision must match the Solidity byte for byte, because a parse divergence is a consensus-safety bug.
  *
  * <p>Readers work in place on {@link Range} {@code (start, end)} windows of one {@code byte[]}; only
  * {@link #copy}, {@link #hexValue} and the {@code record} exit points allocate. A range is always inside the

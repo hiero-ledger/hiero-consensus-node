@@ -287,7 +287,7 @@ class CantonVerdictVerifierTest {
         assertError("MediatorQuorumNotMet", () -> verify(sigs(e0, e0), set));
     }
 
-    // ------------------------------- Review Focus #4: skip vs hard-reject
+    // ------------------------------- skip vs hard-reject
 
     @Test
     void paddingUnknownAndDuplicateEntriesAreSkippedButQuorumStillPasses() {

@@ -9,7 +9,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * The trust anchor of a Canton channel. Port of {@code ClprCantonAnchor.sol}.
+ * The trust anchor of a Canton channel.
  *
  * <p>Wire format is Solidity's {@code abi.encode(string, uint64, uint32, bytes32, bytes32, bytes32, string,
  * uint64, uint32, string)}: a 10-word head (static values inline, each {@code string} a word holding its

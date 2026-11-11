@@ -17,11 +17,10 @@ import org.junit.jupiter.api.Test;
  * Tests for {@link CantonProofVerifier#openTree}.
  *
  * <h2>Fixture provenance (binding ruling)</h2>
- * The upstream reference has no monolithic opening fixture: {@code CantonProofBuilder.sol} (pr-556) builds
- * openings at test time, and the LocalNet bundle's transaction views are encrypted
- * ({@code 3_merkle_path_from_root_to_create_node: NOT YET EXTRACTABLE}), so no REAL opening can be derived from
- * {@code localnet-example-proof-bundle.json}. Every opening here is therefore <b>CONSTRUCTED</b>: {@link Builder}
- * ports the opening construction of {@code CantonProofBuilder.sol} ({@code _openingWithMetadataVersion},
+ * The upstream reference has no monolithic opening fixture: it builds openings at test time, and the LocalNet
+ * bundle's transaction views are encrypted ({@code 3_merkle_path_from_root_to_create_node: NOT YET EXTRACTABLE}),
+ * so no REAL opening can be derived from {@code localnet-example-proof-bundle.json}. Every opening here is
+ * therefore <b>CONSTRUCTED</b>: {@link Builder} ports the opening construction:  ({@code _openingWithMetadataVersion},
  * {@code _openingWithSubviews}, {@code _openingBelowWorkflow}, {@code _rootViewPath}, {@code _step},
  * {@code _leafRlp}, {@code _versioned}, {@code _commonMetadata}). The root is computed bottom-up from the tree
  * shape (never through the verifier's fold) and each test self-checks the round trip: the verifier's rebuilt root
@@ -32,7 +31,9 @@ import org.junit.jupiter.api.Test;
  *   <li>CONSTRUCTED (as in the Solidity builder): salts (SHA-256 of the leaf data here, keccak256 there; a salt is
  *       an opaque hash input), the placeholder submitter/participant-metadata hashes and the workflow siblings.
  * </ul>
- * Not byte-identical to a Solidity-run output (no forge run was done); structure and hash inputs are the same.
+ *
+ * <p><b>Note:</b> Not byte-identical to a Solidity-run output (no forge run was done); structure and hash inputs
+ * are the same.
  */
 class CantonOpeningTest {
 
@@ -61,7 +62,7 @@ class CantonOpeningTest {
 
     // ---- accepted shapes --------------------------------------------------------------------------------------
 
-    /** CONSTRUCTED (_opening / _rootViewPath): root view, path [[[],[]]], one-child MerkleSeq. Review Focus #3(a). */
+    /** CONSTRUCTED (_opening / _rootViewPath): root view, path [[[],[]]], one-child MerkleSeq.*/
     @Test
     void rootViewOneChildSeqRebuildsToRoot() {
         final var b = new Builder();
@@ -80,7 +81,7 @@ class CantonOpeningTest {
                 .isTrue();
     }
 
-    /** CONSTRUCTED (_openingWithSubviews): workflow view with its subviews as a single hash. Review Focus #3(b). */
+    /** CONSTRUCTED (_openingWithSubviews): workflow view with its subviews as a single hash. */
     @Test
     void viewWithSubviewsHashRebuildsToRoot() {
         final var op = new Builder().withSubviews(sha("the issuer's subviews"));
@@ -285,7 +286,7 @@ class CantonOpeningTest {
                 .isEqualTo("InvalidPayloadShape");
     }
 
-    // ---- builder: port of CantonProofBuilder.sol --------------------------------------------------------------
+    // ---- builder --------------------------------------------------------------
 
     record Opening(byte[] rlp, byte[] root) {}
 

@@ -9,7 +9,7 @@ import java.util.HexFormat;
 
 /**
  * Loads real Canton test vectors from {@code /canton/fixtures}. Raw bytes live in {@code <name>.hex} files
- * (a single hex string, no prefix); see the README beside them for provenance.
+ * (a single hex string, no prefix).
  */
 public final class CantonFixtures {
     private static final String BASE = "/canton/fixtures/";
