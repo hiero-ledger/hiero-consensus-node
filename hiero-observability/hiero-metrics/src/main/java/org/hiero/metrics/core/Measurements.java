@@ -4,6 +4,7 @@ package org.hiero.metrics.core;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,6 +29,9 @@ import java.util.function.Predicate;
  * @param <M> the type of the measurements
  */
 public final class Measurements<M> {
+
+    private static final Comparator<MeasurementSnapshot> BY_LABEL_VALUES =
+            (first, second) -> LabelValues.compare(first.getDynamicLabelValues(), second.getDynamicLabelValues());
 
     private final ConcurrentHashMap<LabelValues, Entry<M>> entries = new ConcurrentHashMap<>();
 
@@ -140,15 +144,16 @@ public final class Measurements<M> {
     }
 
     /**
-     * Returns the snapshots of the current measurements in a new mutable list, if measurements were added or removed
-     * since the last call, creating the snapshots of measurements collected for the first time.
+     * Returns the snapshots of the current measurements sorted by their dynamic label values, if measurements were
+     * added or removed since the last call, creating the snapshots of measurements collected for the first time.
      * Package private, because it is called only by the metric snapshot during export, one export at a time.
      * <p>
-     * Measurements may be added and removed during the call, so the list may contain two snapshots for label values
-     * removed and added again meanwhile. Both changes mark the measurements again, so the next call returns them.
+     * The list holds one snapshot per label values. Measurements may be added and removed during the call, so for
+     * label values removed and added again meanwhile, it may hold the snapshot of the removed measurement. The new
+     * measurement marks the measurements again, so the next call returns its snapshot instead.
      * If creating a snapshot fails, the measurements stay marked, so the next call collects them again.
      *
-     * @return the snapshots, or {@code null} if nothing changed since the last call
+     * @return the sorted, unmodifiable snapshots, or {@code null} if nothing changed since the last call
      */
     @Nullable
     List<MeasurementSnapshot> snapshotsIfChanged() {
@@ -166,7 +171,8 @@ public final class Measurements<M> {
             markChanged();
             throw e;
         }
-        return snapshots;
+        // label values removed and added again during the iteration may be collected twice: the later one is kept
+        return SnapshotLists.sortKeepingLastOfEqual(snapshots, BY_LABEL_VALUES);
     }
 
     private void markChanged() {

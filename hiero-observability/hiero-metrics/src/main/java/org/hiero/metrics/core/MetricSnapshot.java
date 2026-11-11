@@ -3,7 +3,6 @@ package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
@@ -17,9 +16,6 @@ import java.util.List;
  * snapshots, which later updates do not change, but later updates do overwrite the values of the snapshots in it.
  */
 public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSnapshot> {
-
-    private static final Comparator<MeasurementSnapshot> BY_LABEL_VALUES =
-            (first, second) -> LabelValues.compare(first.getDynamicLabelValues(), second.getDynamicLabelValues());
 
     private final Metric<?> metric;
     private final Measurements<?> measurements;
@@ -41,8 +37,7 @@ public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSna
      */
     void update() {
         final List<MeasurementSnapshot> changed = measurements.snapshotsIfChanged();
-        final List<MeasurementSnapshot> current =
-                changed == null ? measurementSnapshots : SnapshotLists.sortKeepingLastOfEqual(changed, BY_LABEL_VALUES);
+        final List<MeasurementSnapshot> current = changed == null ? measurementSnapshots : changed;
         try {
             for (MeasurementSnapshot measurementSnapshot : current) {
                 measurementSnapshot.update();

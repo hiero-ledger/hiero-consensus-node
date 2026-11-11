@@ -76,8 +76,7 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
     synchronized MetricRegistrySnapshot update() {
         timestamp = System.currentTimeMillis();
         final List<MetricSnapshot> changed = snapshotsIfChanged();
-        final List<MetricSnapshot> current =
-                changed == null ? snapshots : SnapshotLists.sortKeepingLastOfEqual(changed, BY_NAME);
+        final List<MetricSnapshot> current = changed == null ? snapshots : changed;
         try {
             for (MetricSnapshot snapshot : current) {
                 snapshot.update();
@@ -93,9 +92,12 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
     }
 
     /**
-     * Collects the snapshots of all metrics, if metrics were registered or removed since the last call.
+     * Collects the snapshots of all metrics sorted by name, if metrics were registered or removed since the last call.
+     * The list holds one snapshot per name. For a name removed and registered again during the call, it may hold the
+     * snapshot of the removed metric. The new registration marks the metrics again, so the next call returns its
+     * snapshot instead.
      *
-     * @return the snapshots of all metrics in iteration order, or {@code null} if nothing changed
+     * @return the sorted, unmodifiable snapshots, or {@code null} if nothing changed since the last call
      */
     @Nullable
     private List<MetricSnapshot> snapshotsIfChanged() {
@@ -108,7 +110,8 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
         for (Metric<?> metric : metrics) {
             collected.add(metric.snapshot());
         }
-        return collected;
+        // names removed and registered again during the iteration may be collected twice: the later one is kept
+        return SnapshotLists.sortKeepingLastOfEqual(collected, BY_NAME);
     }
 
     /**
