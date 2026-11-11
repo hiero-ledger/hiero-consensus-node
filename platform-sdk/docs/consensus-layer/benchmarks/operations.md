@@ -189,7 +189,7 @@ run.
 - **The commit comes from CI, not from the jar.** The task that builds the jar ignores `git.properties` when it checks
   whether its inputs changed. It does not rebuild the jar when only the commit changes, so the commit inside a jar can
   be old.
-- **The dashboard takes the choices in its benchmark and parameter drop-downs from the data,** so a new benchmark needs 
+- **The dashboard takes the choices in its benchmark and parameter drop-downs from the data,** so a new benchmark needs
   no change to it. It lives in the dashboards repository; its data sources are variables.
 - **Loki rejects queries longer than 30 days by default** (`max_query_length`). A logs panel on a dashboard with a
   longer time range needs its own 30-day range.
