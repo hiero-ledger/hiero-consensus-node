@@ -162,15 +162,18 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     /**
      * A bundle whose SSZ and Merkle-Patricia proofs all verify, but whose sync-aggregate signature is over the signing
-     * root of another beacon block. Only the node's BLS signature verifier can reject it, so this guards the
-     * production wiring against an accept-all signature verifier.
+     * root of another beacon block, so only the node's BLS signature verifier can reject it. This guards the production
+     * wiring against an accept-all signature verifier.
+     *
+     * <p>{@code CLPR_BUNDLE_VERIFICATION_FAILED} is returned by many checks, so the same bundle signed over the correct
+     * root is then submitted on the same channel and must be accepted. The two payloads differ only in the signed root,
+     * which pins the first rejection to the BLS check.
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"clpr.verifierGasLimit"})
-    @DisplayName(
-            "given a bundle with valid proofs signed over another signing root, then CLPR_BUNDLE_VERIFICATION_FAILED")
-    final Stream<DynamicTest> givenSignatureOverAnotherSigningRoot_thenBundleVerificationFails() {
+    @DisplayName("Eth verifier: bundle signed over another signing root → CLPR_BUNDLE_VERIFICATION_FAILED")
+    final Stream<DynamicTest> rejectsBundleSignedOverWrongSigningRoot() {
         final var crypto = new ClprChannelCrypto();
         final var content = SyncCommitteeProofs.singleMessageBundleContent(firstMessage(crypto));
 
@@ -187,6 +190,18 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     assertThat(conn.receivedMessageId())
                             .as("the rejected bundle must not deliver message #1")
                             .isZero();
+                }),
+                // The same bundle signed over the correct root passes, so only the signature caused the rejection.
+                clprSubmitBundle()
+                        .channelId(crypto.channelId())
+                        .bundlePayload(SyncCommitteeProofs.bundlePayload(crypto.channelId(), content))
+                        .endpointNodeId(0L)
+                        .payingWith(GENESIS),
+                withOpContext((spec, opLog) -> {
+                    final var conn = readChannelFromState(spec, crypto);
+                    assertThat(conn.receivedMessageId())
+                            .as("the correctly signed bundle must deliver message #1")
+                            .isEqualTo(1L);
                 })));
     }
 
