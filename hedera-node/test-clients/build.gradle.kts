@@ -147,7 +147,7 @@ tasks.register<JavaExec>("runTestClient") {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|CLPR|MULTINETWORK|WRAPS|CUTOVER|NODE_STAKING)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|ISS_GRPC|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|CLPR|MULTINETWORK|WRAPS|CUTOVER|NODE_STAKING)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -166,6 +166,7 @@ val prCheckTags =
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
+        "hapiTestIssGrpc" to "ISS_GRPC",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to miscTags,
         "hapiTestGenesisSubProcess" to "GENESIS_SUBPROCESS",
@@ -192,6 +193,7 @@ val prRemoteCheckTags =
             it.key in
                 listOf(
                     "hapiTestIss",
+                    "hapiTestIssGrpc",
                     "hapiTestRestart",
                     "hapiTestPreCutover",
                     "hapiTestNodeStaking",
@@ -231,6 +233,7 @@ val prCheckStartPorts =
         "hapiTestGenesisSubProcess" to "30000",
         "hapiTestNodeStaking" to "30200",
         "hapiTestTimeConsumingSerial" to "30400",
+        "hapiTestIssGrpc" to "30600",
     )
 val prCheckPropOverrides =
     mapOf(
@@ -346,6 +349,7 @@ val profileExemptTasks =
         "hapiTestCutover",
         "hapiTestPreCutover",
         "hapiTestBlockNodeCommunication",
+        "hapiTestIssGrpc",
     )
 
 fun profileAppliesTo(name: String, remote: Boolean) =
@@ -388,7 +392,12 @@ val prCheckPlatformOverrides =
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 // We don't want to run stream or log validation for these tasks
 val prCheckWithoutStreamAndLogValidation =
-    setOf("hapiTestIss", "hapiTestBlockNodeCommunication", "hapiTestGenesisSubProcess") + clprTasks
+    setOf(
+        "hapiTestIss",
+        "hapiTestIssGrpc",
+        "hapiTestBlockNodeCommunication",
+        "hapiTestGenesisSubProcess",
+    ) + clprTasks
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     mapOf(
@@ -481,7 +490,7 @@ fun registerTestSubprocess(name: String, ciTagExpression: String) {
         name,
         ciTagExpression,
         "none()|!(EMBEDDED|REPEATABLE)",
-        ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS",
+        ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC",
         ciDefaultTagsWithoutStreamAndLogValidation = ")&!(EMBEDDED|REPEATABLE",
         excludeTags = "CONCURRENT_SUBPROCESS_VALIDATION",
         junitParallelMode = "same_thread",
@@ -505,8 +514,8 @@ fun registerTestSubprocessConcurrent(name: String, ciTagExpression: String) {
     tasks.registerHapiTest(
         name,
         ciTagExpression,
-        "none()|!(EMBEDDED|REPEATABLE|ISS)",
-        ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS",
+        "none()|!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC)",
+        ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC",
         ciDefaultTagsWithoutStreamAndLogValidation = ")&!(EMBEDDED|REPEATABLE",
         excludeTags = "SERIAL&!CONCURRENT_SUBPROCESS_VALIDATION",
         junitParallelMode = "concurrent",
@@ -539,8 +548,9 @@ fun registerTestEmbedded(name: String, ciTagExpression: String) {
     tasks.registerHapiTest(
         name,
         ciTagExpression,
-        "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|CLPR|MULTINETWORK)",
-        ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|CLPR|MULTINETWORK",
+        "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|ISS_GRPC|CLPR|MULTINETWORK)",
+        ciDefaultTags =
+            "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ISS_GRPC|CLPR|MULTINETWORK",
         // Tell our launcher to target a concurrent embedded network
         embeddedMode = "concurrent",
         junitParallelMode = "same_thread",
@@ -558,9 +568,9 @@ fun registerTestRepeatable(name: String, ciTagExpression: String) {
     tasks.registerHapiTest(
         name,
         ciTagExpression,
-        "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS|MULTINETWORK)",
+        "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS|ISS_GRPC|MULTINETWORK)",
         ciDefaultTags =
-            "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|EMBEDDED|MULTINETWORK",
+            "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ISS_GRPC|EMBEDDED|MULTINETWORK",
         embeddedMode = "repeatable",
         pinFileWriterAndMockSignatures = true,
     )
