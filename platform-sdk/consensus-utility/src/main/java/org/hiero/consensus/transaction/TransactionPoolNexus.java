@@ -137,7 +137,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      *                                              transactions
      * @param metrics                               the metrics to use
      * @param time                                  the time source for timestamping transactions and for drop times
-     * @param droppedTransactionsListener           told the number of application transactions dropped past their drop
+     * @param droppedTransactionsListener           a consumer of the number of application transactions dropped past their drop
      *                                              time, whenever an event build drops any; it runs while this pool's
      *                                              lock is held and after the event's transactions have left the queue,
      *                                              so it must be quick, must not throw and must not call back into the
