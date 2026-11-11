@@ -467,7 +467,8 @@ class TopToBottomTraversalOrderPrefetchTest {
             order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
 
             assertEquals(
-                    "activeChunks=1, queuedInternals=16, cleanPaths=0, someDirtyPaths=0",
+                    "activeChunks=1, queuedInternals=16, cleanPaths=0, someDirtyPaths=0, idleMillis=0, "
+                            + "chunkEntryIdleMillis=0",
                     order.getStatus(),
                     "Chunk 1 is seeded with 16 internals (31–46)");
         }
@@ -488,8 +489,10 @@ class TopToBottomTraversalOrderPrefetchTest {
             // Leaf 1023 has no known parent status: stall, chunk 2 is pre-fetched with 16 internals (47–62)
             assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
 
+            // The stall above started an idle interval, which isn't over and isn't included yet
             assertEquals(
-                    "activeChunks=2, queuedInternals=24, cleanPaths=1, someDirtyPaths=1",
+                    "activeChunks=2, queuedInternals=24, cleanPaths=1, someDirtyPaths=1, idleMillis=0, "
+                            + "chunkEntryIdleMillis=0",
                     order.getStatus(),
                     "Status must include both the current chunk and the pre-fetched one");
         }

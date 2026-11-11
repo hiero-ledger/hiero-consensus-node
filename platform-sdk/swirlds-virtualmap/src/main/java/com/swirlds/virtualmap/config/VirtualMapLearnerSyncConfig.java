@@ -7,6 +7,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.validation.ConfigViolation;
 import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Max;
+import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
 import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -56,6 +57,14 @@ import java.time.Duration;
  *                                               leaves waiting for hashing or flushing, when leaves are received faster
  *                                               than they are hashed, for example when hashing threads are blocked on
  *                                               flusher backpressure. Each leaf takes a few hundred bytes of heap.
+ * @param chunkHeight                            The number of ranks between a chunk root and the last leaf rank in the
+ *                                               {@code pullTopToBottom} traversal. The tree has about
+ *                                               {@code 2^(lastLeafRank - chunkHeight)} chunks, for example 512 at 3B
+ *                                               leaves with the default 23. A taller chunk means fewer chunk
+ *                                               transitions, but more internals seeded per chunk and more clean and
+ *                                               dirty paths kept per chunk until its leaves are processed. Values of
+ *                                               {@code lastLeafRank - 1} and more all give the smallest possible
+ *                                               number of chunks, two, both rooted at rank 1.
  */
 // spotless:off
 @ConfigData("reconnect.learner")
@@ -67,7 +76,8 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "10000") @Positive @Max(1073741824) int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
         @ConfigProperty(defaultValue = "2000000") @Positive int flushInterval,
-        @ConfigProperty(defaultValue = "4000000") @Positive @ConstraintMethod("validateLeafBacklogThrottleThreshold") int leafBacklogThrottleThreshold) {
+        @ConfigProperty(defaultValue = "4000000") @Positive @ConstraintMethod("validateLeafBacklogThrottleThreshold") int leafBacklogThrottleThreshold,
+        @ConfigProperty(defaultValue = "23") @Min(4) @Max(40) int chunkHeight) {
 // spotless:on
 
     private static final String LEAF_BACKLOG_THROTTLE_THRESHOLD = "reconnect.learner.leafBacklogThrottleThreshold";

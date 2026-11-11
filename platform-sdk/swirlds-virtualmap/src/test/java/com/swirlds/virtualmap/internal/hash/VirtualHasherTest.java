@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
@@ -455,6 +456,54 @@ class VirtualHasherTest extends VirtualHasherTestBase {
             assertEquals(expected, future.get(10, TimeUnit.SECONDS), "Expected equals");
         } finally {
             iterator.close();
+            hasher.shutdown();
+        }
+    }
+
+    @Test
+    @DisplayName("Status counts hashing tasks that are created but not started yet")
+    void pendingTasksInStatus() throws Exception {
+        final int chunkHeight = 3;
+        final long firstLeafPath = 801;
+        final long lastLeafPath = firstLeafPath * 2;
+        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, chunkHeight);
+        final Hash expected = hashTree(ds);
+        final List<VirtualLeafBytes> leaves = invalidateNodes(
+                ds, LongStream.range(firstLeafPath, lastLeafPath + 1).boxed());
+
+        final CountDownLatch listenerBlocked = new CountDownLatch(1);
+        final CountDownLatch releaseListener = new CountDownLatch(1);
+        final VirtualHashListener listener = new VirtualHashListener() {
+            @Override
+            public void onHashChunkHashed(final VirtualHashChunk chunk) {
+                listenerBlocked.countDown();
+                try {
+                    releaseListener.await();
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+                synchronized (ds) {
+                    ds.updateHashChunk(chunk);
+                }
+            }
+        };
+
+        final VirtualHasher hasher = new VirtualHasher(DEFAULT_VIRTUAL_MAP_CONFIG);
+        try {
+            final CompletableFuture<Hash> future = hasher.hashAsync(
+                    chunkHeight, ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener);
+            assertTrue(listenerBlocked.await(10, TimeUnit.SECONDS), "Listener isn't called");
+            // At least the root task can't start, while a chunk below it is stuck in the listener
+            assertTrue(hasher.getPendingChunkTasks() >= 1, hasher.getStatus());
+
+            releaseListener.countDown();
+            assertEquals(expected, future.get(10, TimeUnit.SECONDS), "Expected equals");
+            assertEquals(0, hasher.getPendingLeafTasks(), hasher.getStatus());
+            assertEquals(0, hasher.getPendingChunkTasks(), hasher.getStatus());
+            assertTrue(hasher.getStatus().startsWith("pendingLeafTasks=0, pendingChunkTasks=0, queuedTasks="));
+        } finally {
+            releaseListener.countDown();
             hasher.shutdown();
         }
     }

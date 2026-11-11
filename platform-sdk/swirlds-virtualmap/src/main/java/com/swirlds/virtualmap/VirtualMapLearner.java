@@ -320,6 +320,14 @@ public final class VirtualMapLearner {
     }
 
     /**
+     * @return a short human-readable summary of hashing tasks in memory, for reconnect status logs
+     */
+    @NonNull
+    public String getHasherStatus() {
+        return hasher.getStatus();
+    }
+
+    /**
      * Deletes an old leaf, if the new leaf node is in the same path position and leaf keys are different.
      *
      * @param newLeaf new leaf to be checked if

@@ -20,6 +20,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -1803,11 +1804,13 @@ class TopToBottomTraversalOrderTest {
             }
 
             // 2 chunks x 16 seeds at rank 5 (5 ranks above the leaves), each drilled down to 8
-            // grand-children at rank 8 (2 ranks above the leaves)
-            assertEquals(
-                    "chunks=2, outOfRangeLeaves=0, staleInternals=0; leaf rank 10: leaves=1024, cleanLeaves=1024, "
-                            + "internals by distance to leaf rank (total/clean)=[5=32/0, 2=256/0]",
-                    order.getStatistics());
+            // grand-children at rank 8 (2 ranks above the leaves). Idle times follow, they depend on timing
+            final String stats = order.getStatistics();
+            assertTrue(
+                    stats.startsWith("chunks=2, outOfRangeLeaves=0, staleInternals=0; leaf rank 10: leaves=1024, "
+                            + "cleanLeaves=1024, internals by distance to leaf rank (total/clean)=[5=32/0, 2=256/0]; "
+                            + "maxActiveChunks="),
+                    stats);
         }
 
         @Test
@@ -1862,6 +1865,112 @@ class TopToBottomTraversalOrderTest {
                     stats.contains("leaf rank 26: leaves=0, cleanLeaves=0, "
                             + "internals by distance to leaf rank (total/clean)=[11="),
                     stats);
+        }
+
+        @Test
+        @DisplayName("14.6 — Idle time is split into chunk entry and mid-chunk stalls")
+        void idleTime() {
+            final AtomicLong clock = new AtomicLong(TimeUnit.MILLISECONDS.toNanos(1));
+            final var order = new TopToBottomTraversalOrder(TopToBottomTraversalOrder.DEFAULT_CHUNK_HEIGHT, clock::get);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+            assertEquals(16, drainInternals(order).size(), "Chunk 1 seeds");
+
+            // Chunk entry: no leaf of chunk 1 is resolved yet. Stalls and pre-fetches chunk 2
+            clock.set(TimeUnit.MILLISECONDS.toNanos(100));
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+            clock.set(TimeUnit.MILLISECONDS.toNanos(150));
+            // Chunk 2 seeds end the idle interval
+            assertEquals(16, drainInternals(order).size(), "Chunk 2 seeds");
+
+            // Path 31 is clean, so leaves 1023–1054 are skipped. Leaf 1055 is unknown: a mid-chunk stall
+            order.nodeReceived(31L, true);
+            clock.set(TimeUnit.MILLISECONDS.toNanos(200));
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+            assertEquals(INVALID_PATH, order.getNextInternalPathToSend(), "Nothing to send");
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend());
+            // Path 32 is dirty: its drill-down children end the idle interval
+            clock.set(TimeUnit.MILLISECONDS.toNanos(260));
+            order.nodeReceived(32L, false);
+            assertEquals(263L, order.getNextInternalPathToSend());
+
+            final String stats = order.getStatistics();
+            assertTrue(
+                    stats.endsWith("; maxActiveChunks=2, promotionsWithoutPrefetch=0, idleMillis=110, "
+                            + "chunkEntryIdleMillis=50, idleIntervals=2"),
+                    stats);
+            assertTrue(order.getStatus().endsWith(", idleMillis=110, chunkEntryIdleMillis=50"), order.getStatus());
+        }
+
+        @Test
+        @DisplayName("14.7 — A chunk promoted without a pre-fetched chunk is counted")
+        void promotionWithoutPrefetch() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            // All internals are answered at once, so the leaf phase never stalls and chunk 2 isn't pre-fetched
+            driveAllClean(order);
+
+            final String stats = order.getStatistics();
+            assertTrue(stats.contains("; maxActiveChunks=1, promotionsWithoutPrefetch=1, "), stats);
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // Group 14b — Chunk height
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("Group 14b — Chunk height")
+    class ChunkHeightTests {
+
+        @Test
+        @DisplayName("14b.1 — A smaller chunk height gives more, smaller chunks")
+        void smallerChunkHeight() {
+            // Rank-10 leaves, chunk height 5: chunk roots at rank 5, 32 chunks. Each is seeded with
+            // 2^seedRankOffset(5) = 8 internals at rank 8, 2 ranks above the leaves
+            assertEquals(3, TopToBottomTraversalOrder.seedRankOffset(5));
+            final var order = new TopToBottomTraversalOrder(5);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            assertTrue(driveAllClean(order).isEmpty(), "All leaves are under clean internals");
+
+            final String stats = order.getStatistics();
+            assertTrue(stats.startsWith("chunks=32, "), stats);
+            assertTrue(stats.contains("internals by distance to leaf rank (total/clean)=[2=256/256]"), stats);
+        }
+
+        @Test
+        @DisplayName("14b.2 — A smaller chunk height sends every dirty leaf once, in order")
+        void smallerChunkHeightAllDirty() {
+            final var order = new TopToBottomTraversalOrder(TopToBottomTraversalOrder.MIN_CHUNK_HEIGHT);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            final List<Long> leaves = driveAllDirty(order);
+
+            assertEquals(1024, leaves.size());
+            for (int i = 0; i < leaves.size(); i++) {
+                assertEquals(CHUNK_FIRST + i, leaves.get(i));
+            }
+            assertTrue(order.getStatistics().startsWith("chunks=64, "), order.getStatistics());
+        }
+
+        @Test
+        @DisplayName("14b.3 — A chunk height above the tree height gives two chunks rooted at rank 1")
+        void chunkHeightAboveTreeHeight() {
+            final var order = new TopToBottomTraversalOrder(40);
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            driveAllClean(order);
+
+            assertTrue(order.getStatistics().startsWith("chunks=2, "), order.getStatistics());
+        }
+
+        @Test
+        @DisplayName("14b.4 — A chunk height below the minimum is rejected")
+        void chunkHeightTooSmall() {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> new TopToBottomTraversalOrder(TopToBottomTraversalOrder.MIN_CHUNK_HEIGHT - 1));
         }
     }
 
@@ -1952,7 +2061,7 @@ class TopToBottomTraversalOrderTest {
             assertEquals(last - first + 1, leaves.size(), "All leaves must be sent in a fully dirty tree");
             final String stats = order.getStatistics();
             final String rank11 = stats.substring(stats.indexOf("leaf rank 11"), stats.indexOf("; leaf rank 10"));
-            final String rank10 = stats.substring(stats.indexOf("leaf rank 10"));
+            final String rank10 = stats.substring(stats.indexOf("leaf rank 10"), stats.indexOf("; maxActiveChunks"));
             assertTrue(rank11.matches("leaf rank 11: leaves=954, cleanLeaves=0, .*\\[5=\\d+/0, 2=\\d+/0]"), stats);
             assertTrue(rank10.matches("leaf rank 10: leaves=547, cleanLeaves=0, .*\\[5=\\d+/0, 2=\\d+/0]"), stats);
         }

@@ -26,6 +26,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -80,6 +81,17 @@ public final class VirtualHasher {
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
     /**
+     * Leaf and chunk hashing tasks of the current or the last {@link #hash} call, which are created but not
+     * started yet. They include tasks waiting for inputs and tasks waiting for a hashing thread. Used for status
+     * logs only: they show if tasks, and the leaves they hold, pile up in memory when hashing falls behind the
+     * dirty leaf feed, for example when hashing threads are blocked in the listener. Reset when a hash call
+     * starts, since tasks of a failed call may never run.
+     */
+    private final LongAdder pendingLeafTasks = new LongAdder();
+
+    private final LongAdder pendingChunkTasks = new LongAdder();
+
+    /**
      * @param virtualMapConfig platform configuration for VirtualMap
      */
     public VirtualHasher(final @NonNull VirtualMapConfig virtualMapConfig) {
@@ -98,6 +110,27 @@ public final class VirtualHasher {
     public void shutdown() {
         shutdown.set(true);
         hashingPool.shutdown();
+    }
+
+    /**
+     * @return a short summary of hashing tasks in memory, for status logs: leaf and chunk tasks created but not
+     *     started yet, tasks queued in the hashing pool, and hashing threads that are running tasks or blocked in
+     *     them
+     */
+    @NonNull
+    public String getStatus() {
+        return "pendingLeafTasks=" + getPendingLeafTasks()
+                + ", pendingChunkTasks=" + getPendingChunkTasks()
+                + ", queuedTasks=" + (hashingPool.getQueuedTaskCount() + hashingPool.getQueuedSubmissionCount())
+                + ", activeThreads=" + hashingPool.getActiveThreadCount();
+    }
+
+    long getPendingLeafTasks() {
+        return pendingLeafTasks.sum();
+    }
+
+    long getPendingChunkTasks() {
+        return pendingChunkTasks.sum();
     }
 
     // A task that can supply hashes to other tasks. There are two hash producer task
@@ -152,6 +185,7 @@ public final class VirtualHasher {
 
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
             super(pool, 1 + (1 << height));
+            pendingChunkTasks.increment();
             this.path = path;
             this.height = height;
             this.ins = new byte[1 << height][];
@@ -208,6 +242,7 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
+            pendingChunkTasks.decrement();
             int len = 1 << height;
             final long chunkPath;
             final int taskRank = MerklePathUtils.getRank(path);
@@ -318,6 +353,7 @@ public final class VirtualHasher {
 
         LeafHashTask(final ForkJoinPool pool, final long path, @NonNull final VirtualLeafBytes<?> leaf) {
             super(pool, 1); // dependency: output task
+            pendingLeafTasks.increment();
             this.path = path;
             assert leaf != null;
             assert path == leaf.path();
@@ -326,6 +362,7 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
+            pendingLeafTasks.decrement();
             final WritableMessageDigest wmd = getWritableMessageDigest();
             out.setHash(path, MerkleHasher.leafNodeHashBytes(leaf, wmd));
             return true;
@@ -471,6 +508,10 @@ public final class VirtualHasher {
                     /* noop */
                 }
                 : listener;
+        // Tasks of a previous failed call may never run
+        pendingLeafTasks.reset();
+        pendingChunkTasks.reset();
+
         // Let the listener know we have started hashing.
         this.listener.onHashingStarted(firstLeafPath, lastLeafPath);
 

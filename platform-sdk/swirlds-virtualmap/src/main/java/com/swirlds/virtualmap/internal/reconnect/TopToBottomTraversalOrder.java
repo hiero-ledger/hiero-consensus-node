@@ -11,8 +11,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.LongSupplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -45,7 +48,9 @@ import org.apache.logging.log4j.Logger;
  * the chunk, which contains the last leaf. Each chunk maintains its own set of
  * accumulated clean and dirty nodes (see {@link ChunkState}). Since chunk subtrees
  * are disjoint, these sets are scoped to a single chunk and discarded once the chunk's
- * leaves are fully processed, ensuring that memory usage stays bounded.
+ * leaves are fully processed, ensuring that memory usage stays bounded. The chunk height,
+ * the number of ranks between the chunk root rank and the last leaf rank, is configurable
+ * (see {@code reconnect.learner.chunkHeight}).
  *
  * <p>One more optimization is effective processing of the beginning or the end of
  * the leaf path range. If the range is [N, 2N] on the learner, and [N+X, 2N+2X] on
@@ -63,11 +68,17 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
     /**
      * Default chunk height. If the tree is large enough, the chunk root rank is the last
-     * leaf rank minus DEFAULT_CHUNK_HEIGHT. Chunks that cover leaves at the first leaf
-     * rank are one rank smaller. If the tree is less than DEFAULT_CHUNK_HEIGHT ranks,
+     * leaf rank minus the chunk height. Chunks that cover leaves at the first leaf
+     * rank are one rank smaller. If the tree is less than the chunk height ranks,
      * the chunk root rank is 1, and chunk heights are adjusted accordingly.
      */
-    private static final int DEFAULT_CHUNK_HEIGHT = 23;
+    public static final int DEFAULT_CHUNK_HEIGHT = 23;
+
+    /**
+     * The smallest supported chunk height. Chunks at the first leaf rank are one rank smaller, and
+     * {@link #seedRankOffset(int)} needs at least 3 ranks.
+     */
+    public static final int MIN_CHUNK_HEIGHT = 4;
 
     /**
      * The distance between the lowest checked internal rank and the chunk leaf rank. A dirty internal
@@ -173,6 +184,76 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
     /** The number of chunks created, including pre-fetched chunks. */
     private final LongAdder chunks = new LongAdder();
+
+    /** The number of chunks in {@link #activeChunks}, to track {@link #maxActiveChunks} cheaply. */
+    private final AtomicInteger activeChunkCount = new AtomicInteger();
+
+    /** The largest number of active chunks, the current one plus pre-fetched ones, at any time. */
+    private final AtomicInteger maxActiveChunks = new AtomicInteger();
+
+    /**
+     * Chunk promotions that found no pre-fetched chunk, so the next chunk was only seeded when the
+     * previous one completed.
+     */
+    private final LongAdder promotionsWithoutPrefetch = new LongAdder();
+
+    // Idle time: the time when this traversal had nothing to send. It starts when
+    // getNextLeafPathToSend() returns PATH_NOT_AVAILABLE_YET, which the learner only calls when there
+    // are no internals to send either, and ends when any path is returned. Senders are blocked by the
+    // output stream rather than idle when the wire is full, so this is the most that any change of the
+    // traversal shape, like the chunk height, can save.
+
+    /** The start of the current idle interval, from {@link #nanoClock}, or 0 if not idle. */
+    private final AtomicLong idleSinceNanos = new AtomicLong();
+
+    /**
+     * Whether the current idle interval started at a chunk entry: no leaf of the current chunk had been
+     * resolved yet, sent or skipped as clean. Set right after {@link #idleSinceNanos}, so an interval that
+     * ends at the same moment may be counted as the wrong kind. That's rare and only affects the split.
+     */
+    private volatile boolean idleAtChunkEntry;
+
+    /** Total idle time. */
+    private final LongAdder idleNanos = new LongAdder();
+
+    /** Idle time at chunk entries, a part of {@link #idleNanos}. */
+    private final LongAdder chunkEntryIdleNanos = new LongAdder();
+
+    /** The number of idle intervals. */
+    private final LongAdder idleIntervals = new LongAdder();
+
+    /** The first leaf path in the old leaf range of the current chunk, to tell chunk entry stalls. */
+    private volatile long currentChunkFirstLeafPath;
+
+    /** Chunk height, see {@link #DEFAULT_CHUNK_HEIGHT}. */
+    private final int chunkHeight;
+
+    /** Clock for idle time, {@link System#nanoTime()} except in tests. */
+    private final LongSupplier nanoClock;
+
+    /** Creates a traversal order with the {@link #DEFAULT_CHUNK_HEIGHT default chunk height}. */
+    public TopToBottomTraversalOrder() {
+        this(DEFAULT_CHUNK_HEIGHT);
+    }
+
+    /**
+     * Creates a traversal order with the given chunk height.
+     *
+     * @param chunkHeight the number of ranks between a chunk root and the last leaf rank, at least
+     *     {@link #MIN_CHUNK_HEIGHT}
+     */
+    public TopToBottomTraversalOrder(final int chunkHeight) {
+        this(chunkHeight, System::nanoTime);
+    }
+
+    TopToBottomTraversalOrder(final int chunkHeight, final LongSupplier nanoClock) {
+        if (chunkHeight < MIN_CHUNK_HEIGHT) {
+            throw new IllegalArgumentException(
+                    "Chunk height must be at least " + MIN_CHUNK_HEIGHT + ", got " + chunkHeight);
+        }
+        this.chunkHeight = chunkHeight;
+        this.nanoClock = nanoClock;
+    }
 
     // ═══════════════════════════════════════════════════════════════════════
     // Per-chunk state
@@ -348,23 +429,25 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         if (firstLeafRank < 10) {
             simpleMode = true;
         } else {
-            chunkRootRank = Math.max(1, lastLeafRank - DEFAULT_CHUNK_HEIGHT);
+            chunkRootRank = Math.max(1, lastLeafRank - chunkHeight);
             final long startingLeaf = Math.max(firstLeafPath, oldFirstLeafPath);
+            currentChunkFirstLeafPath = startingLeaf;
             final int chunkLastRank = MerklePathUtils.getRank(startingLeaf);
             final long chunkRootPath = MerklePathUtils.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
-            activeChunks.addLast(new ChunkState(chunkRootPath, chunkLastRank, oldFirstLeafPath, oldLastLeafPath));
+            addActiveChunk(new ChunkState(chunkRootPath, chunkLastRank, oldFirstLeafPath, oldLastLeafPath));
             chunks.increment();
 
             // Tree geometry. Together with traversal statistics (see getStatistics()), it's enough to
             // estimate the dirty leaf fraction and how many requests were spent at every rank
             logger.info(
                     RECONNECT.getMarker(),
-                    "Pull start: learner leaves=[{}, {}], teacher leaves=[{}, {}], chunk root rank={}, "
-                            + "bottom gap={}, seed ranks: {} (leaf rank {} chunks), {} (leaf rank {} chunks)",
+                    "Pull start: learner leaves=[{}, {}], teacher leaves=[{}, {}], chunk height={}, chunk root "
+                            + "rank={}, bottom gap={}, seed ranks: {} (leaf rank {} chunks), {} (leaf rank {} chunks)",
                     oldFirstLeafPath,
                     oldLastLeafPath,
                     firstLeafPath,
                     lastLeafPath,
+                    chunkHeight,
                     chunkRootRank,
                     BOTTOM_GAP,
                     chunkRootRank + seedRankOffset(firstLeafRank - chunkRootRank),
@@ -379,7 +462,10 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      *
      * <p>Example: {@code chunks=64, outOfRangeLeaves=6020576, staleInternals=0; leaf rank 29:
      * leaves=192910932, cleanLeaves=158307125, internals by distance to leaf rank (total/clean)=[11=..., 8=...,
-     * 5=..., 2=...]; leaf rank 28: ...}. Leaf rank statistics are reported for the last leaf rank first.
+     * 5=..., 2=...]; leaf rank 28: ...; maxActiveChunks=37, promotionsWithoutPrefetch=2, idleMillis=1234,
+     * chunkEntryIdleMillis=56, idleIntervals=789}. Leaf rank statistics are reported for the last leaf rank first.
+     * Idle time is the time when this traversal had nothing to send. Chunk entry idle time is a part of it, spent
+     * before any leaf of the current chunk was resolved.
      */
     @Override
     public String getStatistics() {
@@ -396,6 +482,10 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             sb.append("; ");
             firstLeafRankStats.appendTo(sb, firstLeafRank);
         }
+        sb.append("; maxActiveChunks=").append(maxActiveChunks.get());
+        sb.append(", promotionsWithoutPrefetch=").append(promotionsWithoutPrefetch.sum());
+        appendIdleTimes(sb);
+        sb.append(", idleIntervals=").append(idleIntervals.sum());
         return sb.toString();
     }
 
@@ -404,9 +494,10 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      *
      * <p>Reports the number of active chunks (the current chunk plus pre-fetched ones) and the total sizes of
      * their state, which is kept until each chunk's leaves are processed: internals not sent yet, clean
-     * internals, and dirty internals near the leaf rank. Example: {@code activeChunks=3, queuedInternals=120,
-     * cleanPaths=5321, someDirtyPaths=874}. Counting queued internals takes time proportional to their number,
-     * the other sizes are cheap.
+     * internals, and dirty internals near the leaf rank. Then the idle time so far, see {@link #getStatistics()}.
+     * Example: {@code activeChunks=3, queuedInternals=120, cleanPaths=5321, someDirtyPaths=874, idleMillis=1234,
+     * chunkEntryIdleMillis=56}. Counting queued internals takes time proportional to their number, the other
+     * sizes are cheap.
      */
     @Override
     public String getStatus() {
@@ -423,10 +514,67 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             cleanPathCount += chunk.cleanPaths.size();
             someDirtyPathCount += chunk.someDirtyPaths.size();
         }
-        return "activeChunks=" + chunkCount
-                + ", queuedInternals=" + queuedInternals
-                + ", cleanPaths=" + cleanPathCount
-                + ", someDirtyPaths=" + someDirtyPathCount;
+        final StringBuilder sb = new StringBuilder();
+        sb.append("activeChunks=").append(chunkCount);
+        sb.append(", queuedInternals=").append(queuedInternals);
+        sb.append(", cleanPaths=").append(cleanPathCount);
+        sb.append(", someDirtyPaths=").append(someDirtyPathCount);
+        appendIdleTimes(sb);
+        return sb.toString();
+    }
+
+    /** Appends the idle times. The current idle interval, if any, isn't included till it ends. */
+    private void appendIdleTimes(final StringBuilder sb) {
+        sb.append(", idleMillis=").append(TimeUnit.NANOSECONDS.toMillis(idleNanos.sum()));
+        sb.append(", chunkEntryIdleMillis=").append(TimeUnit.NANOSECONDS.toMillis(chunkEntryIdleNanos.sum()));
+    }
+
+    /**
+     * Starts an idle interval, unless one is already running.
+     *
+     * @param atChunkEntry whether no leaf of the current chunk has been resolved yet
+     */
+    private void beginIdle(final boolean atChunkEntry) {
+        if (idleSinceNanos.get() != 0) {
+            return;
+        }
+        final long now = nanoClock.getAsLong();
+        // 0 means not idle
+        if (idleSinceNanos.compareAndSet(0, (now == 0) ? 1 : now)) {
+            idleAtChunkEntry = atChunkEntry;
+        }
+    }
+
+    /**
+     * Ends the current idle interval, if any, because a path is returned to send, or there is nothing left
+     * to send. Called for every path returned, so it's a single volatile read when not idle.
+     *
+     * @param path the path to return
+     * @return the given path
+     */
+    private long endIdle(final long path) {
+        if (idleSinceNanos.get() != 0) {
+            final long since = idleSinceNanos.getAndSet(0);
+            if (since != 0) {
+                final long idle = Math.max(0, nanoClock.getAsLong() - since);
+                idleNanos.add(idle);
+                if (idleAtChunkEntry) {
+                    chunkEntryIdleNanos.add(idle);
+                }
+                idleIntervals.increment();
+            }
+        }
+        return path;
+    }
+
+    private void addActiveChunk(final ChunkState chunk) {
+        activeChunks.addLast(chunk);
+        maxActiveChunks.accumulateAndGet(activeChunkCount.incrementAndGet(), Math::max);
+    }
+
+    private void removeCurrentChunk() {
+        activeChunks.pollFirst();
+        activeChunkCount.decrementAndGet();
     }
 
     private LeafRankStats statsForLeafRank(final int leafRank) {
@@ -563,7 +711,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         if (current != null) {
             final Long internal = current.internals.poll();
             if (internal != null) {
-                return internal;
+                return endIdle(internal);
             }
         }
         // Pre-fetched chunks' internals: returned only while the current chunk's leaf phase is
@@ -578,7 +726,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         for (final ChunkState chunk : activeChunks) {
             final Long internal = chunk.internals.poll();
             if (internal != null) {
-                return internal;
+                return endIdle(internal);
             }
         }
         // Proceed to leaves
@@ -590,7 +738,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         long leafPath = currentLeafPath.get();
         if (leafPath > lastLeafPath) {
             // Processing is over, this method must return INVALID_PATH
-            return MerklePathUtils.INVALID_PATH;
+            return endIdle(MerklePathUtils.INVALID_PATH);
         }
         if (simpleMode) {
             currentLeafPath.set(leafPath + 1);
@@ -599,7 +747,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         if ((leafPath < oldFirstLeafPath) || (leafPath > oldLastLeafPath)) {
             // Leaves before or after the old path range are all known to be dirty
             currentLeafPath.set(leafPath + 1);
-            return leafPath;
+            return endIdle(leafPath);
         }
         final ChunkState chunk = activeChunks.peekFirst();
         assert chunk != null : "activeChunks must not be empty outside simpleMode";
@@ -617,25 +765,28 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             // recognized as stale by findOwningChunk (returns null → discarded) rather than
             // triggering its "no owning chunk" IllegalStateException. Response reordering under
             // load makes such late arrivals routine, not exceptional.
-            activeChunks.pollFirst();
+            removeCurrentChunk();
 
             leafPath = chunk.chunkLastLeafPath + 1;
             if (leafPath > lastLeafPath) {
                 // This was the last chunk. Advance past the end so the next call terminates at the
                 // top-of-method guard (the deque is now empty).
                 currentLeafPath.set(leafPath);
-                return MerklePathUtils.INVALID_PATH;
+                return endIdle(MerklePathUtils.INVALID_PATH);
             }
             // Current chunk complete; its leaf stall (if any) is over.
             currentChunkStalled = false;
             if (activeChunks.isEmpty()) {
                 // No pre-fetched chunk available — compute the next one.
+                promotionsWithoutPrefetch.increment();
                 final ChunkState next = computeNextChunk(chunk);
                 assert next != null : "computeNextChunk returned null despite leafPath <= lastLeafPath";
-                activeChunks.addLast(next);
+                addActiveChunk(next);
             }
+            currentChunkFirstLeafPath = leafPath;
             currentLeafPath.set(leafPath);
             // Proceed to internal nodes of the new chunk
+            beginIdle(true);
             return PATH_NOT_AVAILABLE_YET;
         }
         // leafPath is not clean: either dirty (a parent is in someDirtyPaths) or unknown.
@@ -645,12 +796,13 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             currentChunkStalled = true;
             seedNextPrefetchChunk();
             currentLeafPath.set(leafPath);
+            beginIdle(leafPath == currentChunkFirstLeafPath);
             return PATH_NOT_AVAILABLE_YET;
         }
         // Leaf has a dirty parent — send it. End any active stall.
         currentChunkStalled = false;
         currentLeafPath.set(leafPath + 1);
-        return leafPath;
+        return endIdle(leafPath);
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -730,7 +882,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         }
         final ChunkState prefetched = computeNextChunk(lastInDeque);
         if (prefetched != null) {
-            activeChunks.addLast(prefetched);
+            addActiveChunk(prefetched);
         }
     }
 

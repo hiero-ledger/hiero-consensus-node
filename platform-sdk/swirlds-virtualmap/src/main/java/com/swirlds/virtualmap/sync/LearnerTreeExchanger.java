@@ -10,6 +10,10 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryPoolMXBean;
+import java.lang.management.MemoryType;
+import java.lang.management.MemoryUsage;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
@@ -325,7 +329,7 @@ public final class LearnerTreeExchanger {
                     "Learner leaf pipeline: appliedLeaves={}, leafBacklog={} (throttle threshold {}), "
                             + "responsesWaiting={}, "
                             + "applyMillis={}, parkedMillis={}, waitingForPath={}, waitingMillis={}, "
-                            + "hashingBuffer={}, chunk status: {}, flusher: {}",
+                            + "hashingBuffer={}, chunk status: {}, flusher: {}, hasher: {}, heap: {}",
                     appliedLeaves,
                     leafBacklog.sum(),
                     leafBacklogThrottleThreshold,
@@ -336,8 +340,35 @@ public final class LearnerTreeExchanger {
                     (headPath == null) ? 0 : TimeUnit.NANOSECONDS.toMillis(now - headWaitStart),
                     vmapLearner.getHashingBufferSize(),
                     traversalOrder.getStatus(),
-                    vmapLearner.getFlusherStatus());
+                    vmapLearner.getFlusherStatus(),
+                    vmapLearner.getHasherStatus(),
+                    heapStatus());
         }
+    }
+
+    /**
+     * Heap usage for the reconnect status log. Besides the current usage, which includes garbage, reports the
+     * usage after the last collection of every heap pool, which is close to the live set and shows if anything
+     * accumulates in memory. Depending on the collector, a pool may be collected rarely, then its after-collection
+     * usage is stale.
+     */
+    private static String heapStatus() {
+        final MemoryUsage heap = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
+        long usedAfterLastGc = 0;
+        for (final MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
+            if (pool.getType() == MemoryType.HEAP) {
+                final MemoryUsage collectionUsage = pool.getCollectionUsage();
+                if (collectionUsage != null) {
+                    usedAfterLastGc += collectionUsage.getUsed();
+                }
+            }
+        }
+        return "usedMiB=" + toMiB(heap.getUsed()) + ", usedAfterLastGcMiB=" + toMiB(usedAfterLastGc) + ", maxMiB="
+                + toMiB(heap.getMax());
+    }
+
+    private static long toMiB(final long bytes) {
+        return (bytes < 0) ? bytes : bytes >> 20;
     }
 
     private void handleResponse(final PullVirtualTreeResponse response) {
