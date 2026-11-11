@@ -24,22 +24,33 @@ TARGET_ROUND=211422945
 JAR=./hedera-state-validator-0.77.jar
 BLOCK_STREAM_DIR="${BLOCK_STREAM_DIR:-gs://hedera-preview-testnet-streams/block-preview/previewnet-2026-07-22T22:19/0/0}"
 #for local setup: BLOCK_STREAM_DIR=state-validator-blocks-253689003-to-254469719-rna26-s0"
-BILLING_PROJECT-hedera-regression
+BILLING_PROJECT=hedera-regression
 SNAPSHOT_BUCKET=gs://preview-testnet-backup/previewnet-node00
-BLOCK_OUTPUT_DIR=/opt/hgcapp/blockStreams/block-0.0.3
 NODE_ID=0
 OUT=./out
+# Optional: which state(s) step 5 compares with the expected snapshot — replayed, applied or both (default)
+COMPARE=both
 
 ```
+
+The replay's block output directory is discovered automatically under `${OUT}/replay/blockstream`; it is no
+longer configurable via `BLOCK_OUTPUT_DIR`.
 
 3. Run `./validate-replay.sh`
 
 The script will execute the following steps:
 1. Download state snapshots from GCP (skipped if already present locally)
 2. Reconstruct PCES files from block stream (blocks-to-pces)
-3. Replay PCES through a real platform node (replay-pces)
-4. Apply resulting blocks back to the origin state (apply-blocks)
-5. Diff the resulting state against the expected state (diff)
+3. Replay PCES through a real platform node (replay-pces). Output goes to `${OUT}/replay`, which is deleted
+   first, along with `${OUT}/resulting_state`.
+4. Apply resulting blocks back to the origin state (apply-blocks). Output goes to `${OUT}/resulting_state`,
+   which is deleted first.
+5. Diff the expected state against:
+   - `replayed`: the state the replay reached, `${OUT}/replay/<target round>`. Report in `${OUT}/diff-replayed`.
+   - `applied`: the origin state with the replayed blocks applied, `${OUT}/resulting_state`. Report in
+     `${OUT}/diff-applied`.
+
+   Both run by default and are reported separately. The run fails if either differs.
 
 ## Replay transactions with Solo setup
 

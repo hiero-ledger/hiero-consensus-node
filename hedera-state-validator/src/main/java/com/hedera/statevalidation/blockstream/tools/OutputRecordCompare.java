@@ -2,6 +2,7 @@
 package com.hedera.statevalidation.blockstream.tools;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
@@ -9,6 +10,7 @@ import com.hedera.statevalidation.blockstream.tools.BlockRoundExtractor.RoundCon
 import com.hedera.statevalidation.blockstream.tools.BlockRoundExtractor.TxRecord;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +36,10 @@ import java.util.concurrent.Future;
 /// writes (BlockStreamService / PlatformState / RunningHashes) can be told apart from real execution
 /// divergence (e.g. ContractService STORAGE).
 ///
+/// In range mode, blocks are paired by block number. Before comparing transactions, each pair's round spans are
+/// compared; if the two streams closed the block at different rounds, a BOUNDARY divergence is reported with both
+/// spans and block timestamps (all later blocks are shifted, so per-transaction comparison would be misleading).
+///
 /// Usage (single round):
 ///   java -cp ./hedera-state-validator-<ver>.jar com.hedera.statevalidation.blockstream.tools.OutputRecordCompare
 /// --original <dir> --reminted <dir> --round 253747721 [--ignore-states a,b,c]
@@ -41,6 +47,9 @@ import java.util.concurrent.Future;
 ///   ... com.hedera.statevalidation.blockstream.tools.OutputRecordCompare --original <dir> --reminted <dir>
 /// --from-round N --to-round N \
 ///        [--ignore-states a,b,c] [--threads N] [--window N]
+/// Usage (compare consensus events - which events reached consensus in which round, see EventSetCompare):
+///   ... com.hedera.statevalidation.blockstream.tools.OutputRecordCompare --original <dir> --reminted <dir>
+/// --events --from-round N --to-round N
 ///
 public final class OutputRecordCompare {
 
@@ -60,6 +69,7 @@ public final class OutputRecordCompare {
         Set<String> ignoreServices = Set.of();
         String dumpTx = null;
         boolean all = false;
+        boolean events = false;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--original" -> originalDir = Path.of(args[++i]);
@@ -72,6 +82,7 @@ public final class OutputRecordCompare {
                 case "--ignore-states" -> ignoreServices = Set.of(args[++i].split(","));
                 case "--dump-tx" -> dumpTx = args[++i];
                 case "--all" -> all = true;
+                case "--events" -> events = true;
                 default -> {}
             }
         }
@@ -86,6 +97,16 @@ public final class OutputRecordCompare {
         }
         if (window < 1) {
             window = threads * 8;
+        }
+
+        // Events mode: compare the consensus event sets (and each event's round and order) over a round range.
+        if (events) {
+            if (fromRound == Long.MIN_VALUE || toRound == Long.MAX_VALUE) {
+                System.err.println("--events requires --from-round N --to-round N");
+                System.exit(2);
+            }
+            EventSetCompare.run(originalDir, remintedDir, fromRound, toRound);
+            return;
         }
 
         if (round != Long.MIN_VALUE) {
@@ -200,6 +221,22 @@ public final class OutputRecordCompare {
         final TreeSet<Long> rounds = new TreeSet<>(BlockRoundExtractor.roundsIn(oBlock, fromRound, toRound));
         rounds.addAll(BlockRoundExtractor.roundsIn(rBlock, fromRound, toRound));
 
+        // Block boundary check: blocks are paired by number, so if the two streams close the same-numbered block
+        // at different rounds, every later block is shifted and per-round comparisons below would report
+        // misleading TXCOUNT/STATE differences (or miss them for rounds with no transactions). Report the
+        // boundary shift itself, with both spans and block timestamps, so the cause is visible directly.
+        final List<Long> oBlockRounds = BlockRoundExtractor.roundsIn(oBlock, Long.MIN_VALUE, Long.MAX_VALUE);
+        final List<Long> rBlockRounds = BlockRoundExtractor.roundsIn(rBlock, Long.MIN_VALUE, Long.MAX_VALUE);
+        if (!rounds.isEmpty() && !oBlockRounds.equals(rBlockRounds)) {
+            return new BlockDivergence(
+                    blockNum,
+                    firstDifferingRound(oBlockRounds, rBlockRounds),
+                    "block boundary",
+                    "BOUNDARY(original " + describeSpan(oBlock, oBlockRounds) + " vs reminted "
+                            + describeSpan(rBlock, rBlockRounds) + ")",
+                    "");
+        }
+
         for (final long rd : rounds) {
             final RoundContent o = BlockRoundExtractor.extract(oBlock, rd);
             final RoundContent r = BlockRoundExtractor.extract(rBlock, rd);
@@ -265,6 +302,34 @@ public final class OutputRecordCompare {
             kinds.add("OUTPUT");
         }
         return kinds;
+    }
+
+    /** Returns the first round present in one list but not at the same position in the other. */
+    private static long firstDifferingRound(final List<Long> a, final List<Long> b) {
+        final int n = Math.min(a.size(), b.size());
+        for (int i = 0; i < n; i++) {
+            if (!a.get(i).equals(b.get(i))) {
+                return Math.min(a.get(i), b.get(i));
+            }
+        }
+        // One list is a prefix of the other: the first extra round is where they differ.
+        return a.size() > n ? a.get(n) : b.get(n);
+    }
+
+    /** Describes a block's round span and header timestamp, e.g. {@code [5, 10] (6) @ 2026-10-08T13:35:02Z}. */
+    private static String describeSpan(final Block block, final List<Long> rounds) {
+        String timestamp = "?";
+        for (final BlockItem item : block.items()) {
+            if (item.hasBlockHeader() && item.blockHeader().hasBlockTimestamp()) {
+                final var ts = item.blockHeader().blockTimestamp();
+                timestamp = Instant.ofEpochSecond(ts.seconds(), ts.nanos()).toString();
+                break;
+            }
+        }
+        if (rounds.isEmpty()) {
+            return "[] @ " + timestamp;
+        }
+        return "[" + rounds.getFirst() + ", " + rounds.getLast() + "] (" + rounds.size() + ") @ " + timestamp;
     }
 
     /** Reports every divergent transaction in one round, matching transactions by position. */

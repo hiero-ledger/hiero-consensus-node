@@ -9,8 +9,10 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresh
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.Hedera;
 import com.hedera.node.app.ServicesMain;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.ReplayPcesCommand;
+import com.hedera.statevalidation.util.SnapshotChecks;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -45,6 +47,7 @@ import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.orphan.StaleParentSet;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
@@ -85,6 +88,9 @@ import org.hiero.consensus.state.snapshot.StateToDiskReason;
 public final class ReplayPcesWorkflow {
 
     private static final Logger log = LogManager.getLogger(ReplayPcesWorkflow.class);
+
+    /** Number of directory levels (YYYY/MM/DD) between the PCES root and the leaf holding the .pces files. */
+    private static final int PCES_LEAF_DEPTH = 3;
 
     private ReplayPcesWorkflow() {}
 
@@ -131,6 +137,16 @@ public final class ReplayPcesWorkflow {
         final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
+
+        // --- Point the orphan buffer at the stale-parents.txt sidecar written by blocks-to-pces ---
+        // blocks-to-pces writes .pces files into a date-stamped leaf (<pces-root>/YYYY/MM/DD) and the sidecar at the
+        // root of the tree, so the root is three levels above the leaf. The orphan buffer reads this property when the
+        // event intake module is built; without the sidecar it would wait forever for parents that never arrive.
+        Path pcesRoot = pcesDir.toAbsolutePath();
+        for (int i = 0; i < PCES_LEAF_DEPTH && pcesRoot.getParent() != null; i++) {
+            pcesRoot = pcesRoot.getParent();
+        }
+        System.setProperty(StaleParentSet.PCES_REPLAY_DIR_PROPERTY, pcesRoot.toString());
 
         // --- Place the PCES files where the PcesFileTracker will scan them, before the platform is built ---
         stagePcesFiles(pcesDir, platformConfig, fileSystemManager, selfId);
@@ -250,7 +266,11 @@ public final class ReplayPcesWorkflow {
             // written from the signing callback, which flushPrimaryPipeline() does NOT wait for. Before we write
             // the state and destroy the platform, wait until every complete block file has its .mf marker and no
             // pending-proof (.pnd.json) files remain, so the block-stream output is valid for comparison.
-            awaitBlockFinalization(outDir.resolve("blockStreams"), BLOCK_FINALIZE_TIMEOUT);
+            // Use the directory the block writer actually writes to (it may be overridden with -D), not an assumed one:
+            // a missing directory reads as "nothing pending" and would silently skip this wait.
+            final Path blockStreamsDir = Path.of(
+                    platformConfig.getConfigData(BlockStreamConfig.class).blockFileDir());
+            awaitBlockFinalization(blockStreamsDir, BLOCK_FINALIZE_TIMEOUT);
 
             // --- Write the exact final replayed state, synchronously, to the output directory ---
             final long resultRound = writeFinalState(
@@ -326,6 +346,8 @@ public final class ReplayPcesWorkflow {
 
             final Path destination = outDir.resolve(Long.toString(round));
             log.info("Writing final replayed state for round {} to {}", round, destination);
+            // Read before writing: the writer releases the reservation.
+            final String stateLabel = capturedState.get().getState().getRoot().getLabel();
 
             // writeSignedStateToDisk atomically creates the exact destination directory; `destination` already
             // includes the selected round (<out>/<round>).
@@ -337,6 +359,7 @@ public final class ReplayPcesWorkflow {
                     StateToDiskReason.PCES_RECOVERY_COMPLETE,
                     capturedState,
                     stateLifecycleManager);
+            SnapshotChecks.requireStateData(destination, stateLabel);
 
             log.info("Final replayed state for round {} written to {}", round, destination);
             return round;
@@ -455,8 +478,12 @@ public final class ReplayPcesWorkflow {
      * Returns a description of the first block file that is not yet finalized (a .blk/.blk.gz without a
      * sibling .mf, or a leftover .pnd.json), or empty if all blocks are finalized. Searches the
      * node-scoped subdirectory tree under blockStreamsDir.
+     *
+     * <p>Zero-size block files are ignored: when the PCES input runs out, the block that was opened for the
+     * next round (past the target, in the decision margin) is left empty and never receives a proof. It holds
+     * no items, and {@code validate-replay.sh} deletes zero-size block files before apply-blocks.
      */
-    private static Optional<String> firstUnfinalized(@NonNull final Path blockStreamsDir) {
+    static Optional<String> firstUnfinalized(@NonNull final Path blockStreamsDir) {
         if (!Files.isDirectory(blockStreamsDir)) {
             // No block output dir at all -> nothing was produced to finalize. This is itself suspicious for a
             // normal replay; treat as "nothing pending" ONLY if no blocks were expected. If blocks were
@@ -470,6 +497,9 @@ public final class ReplayPcesWorkflow {
                     .filter(name -> {
                         if (name.endsWith(".pnd.json") || name.endsWith(".pnd.gz") || name.endsWith(".pnd")) {
                             return true;
+                        }
+                        if ((name.endsWith(".blk.gz") || name.endsWith(".blk")) && isEmptyFile(Path.of(name))) {
+                            return false;
                         }
                         if (name.endsWith(".blk.gz")) {
                             return !Files.exists(
@@ -485,6 +515,15 @@ public final class ReplayPcesWorkflow {
             // Do NOT treat a scan failure as success. Surface it so the command fails rather than reporting a
             // possibly-incomplete block stream as valid.
             throw new UncheckedIOException("Failed scanning block output for finalization under " + blockStreamsDir, e);
+        }
+    }
+
+    /** @return true if the file is empty; false if it has content or its size cannot be read (stays pending) */
+    private static boolean isEmptyFile(@NonNull final Path file) {
+        try {
+            return Files.size(file) == 0;
+        } catch (final IOException e) {
+            return false;
         }
     }
 }
