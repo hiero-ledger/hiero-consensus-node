@@ -17,6 +17,7 @@ import static com.swirlds.virtualmap.MerklePathUtils.isLeft;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
@@ -49,6 +50,8 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -60,6 +63,8 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileUtils;
@@ -288,7 +293,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
     private final VirtualMapStatistics statistics;
 
-    private final AtomicLong warmupLeafPath = new AtomicLong();
+//    private final AtomicLong warmupLeafPath = new AtomicLong();
+
+    private final ExecutorService leafPrefetchExecutor;
 
     /**
      * This reference is used to assert that there is only one thread modifying the VM at a time.
@@ -337,7 +344,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
         this.pipeline.registerCopy(this);
 
-        warmupLeafPath.set(metadata.getFirstLeafPath());
+//        warmupLeafPath.set(metadata.getFirstLeafPath());
+        leafPrefetchExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
+                .setThreadNameProvider(
+                        CompositeThreadNameProvider.createNumbered("VirtualMap", "leaf-prefetch"))
+                .setExceptionHandler((_, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
+                .buildFactory());
     }
 
     /**
@@ -364,7 +376,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.pipeline = source.pipeline;
         this.pipeline.registerCopy(this);
 
-        warmupLeafPath.set(metadata.getFirstLeafPath());
+//        warmupLeafPath.set(metadata.getFirstLeafPath());
+        this.leafPrefetchExecutor = source.leafPrefetchExecutor;
     }
 
     /**
@@ -410,7 +423,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         this.pipeline = new VirtualPipeline(virtualMapConfig, LABEL);
         this.pipeline.registerCopy(this);
 
-        warmupLeafPath.set(metadata.getFirstLeafPath());
+//        warmupLeafPath.set(metadata.getFirstLeafPath());
+        leafPrefetchExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
+                .setThreadNameProvider(
+                        CompositeThreadNameProvider.createNumbered("VirtualMap", "leaf-prefetch"))
+                .setExceptionHandler((_, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
+                .buildFactory());
     }
 
     /**
@@ -1380,9 +1398,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      */
     public void warm(@NonNull final Bytes key) {
         if (records.findLeafRecord(key) == null) {
-            final long p = warmupLeafPath.getAndIncrement();
-//            if (metadata.isLeaf(p)) {
-                records.findLeafRecord(p);
+//            final long p = warmupLeafPath.getAndIncrement();
+//            final long firstLeafPath = metadata.getFirstLeafPath();
+//            if ((p >= firstLeafPath) && (p - firstLeafPath < 1024)) {
+//                records.findLeafRecord(p);
+//            } else {
+//                warmupLeafPath.decrementAndGet();
 //            }
         }
     }
@@ -1406,6 +1427,11 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             @Nullable final Bytes valueBytes) {
         throwIfImmutable();
         assert !isHashed() : "Cannot modify already hashed node";
+
+        final long currentFirstLeafPath = metadata.getFirstLeafPath();
+        leafPrefetchExecutor.submit(() -> {
+            records.findLeafRecord(currentFirstLeafPath + 8);
+        });
 
         // We're going to imagine what happens to the leaf and the tree without
         // actually bringing into existence any nodes. Virtual Virtual!! SUPER LAZY FTW!!
