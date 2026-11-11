@@ -267,7 +267,7 @@
       "title": "Other workloads during the measurement",
       "description": "CPUs that other workloads on the node used during the published attempt's measurement. Above the line (0.5 CPU, the driver's --max-load), the result is loaded, and its latency is not published.",
       "datasource": { "type": "prometheus", "uid": "${metrics}" },
-      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 19 },
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 19 },
       "interval": "1h",
       "targets": [
         {
@@ -302,7 +302,7 @@
       "title": "Attempts per result",
       "description": "How many attempts the nightly job needed to find a quiet slot; the maximum means no attempt was quiet.",
       "datasource": { "type": "prometheus", "uid": "${metrics}" },
-      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 19 },
+      "gridPos": { "h": 7, "w": 6, "x": 6, "y": 19 },
       "interval": "1h",
       "targets": [
         {
@@ -331,12 +331,41 @@
       "title": "Passes discarded for GC",
       "description": "measured.gc.discardedPasses: passes dropped because a collection hit the measured calls. Above zero, the heap is getting tight; when every pass is discarded, the latency results are missing.",
       "datasource": { "type": "prometheus", "uid": "${metrics}" },
-      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 19 },
+      "gridPos": { "h": 7, "w": 6, "x": 12, "y": 19 },
       "interval": "1h",
       "targets": [
         {
           "refId": "A",
           "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_gc_discarded_passes{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}[$__interval]))",
+          "legendFormat": "discarded passes"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": { "mode": "fixed", "fixedColor": "#8e8e8e" },
+          "custom": { "drawStyle": "points", "pointSize": 8, "spanNulls": true, "axisSoftMax": 1 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Passes discarded for saturation",
+      "description": "measured.saturation.discardedPasses, pipeline benchmarks only, from quiet results: passes dropped because the pipeline did not keep up with its inputs. Above zero, the speedup is too close to the pipeline's capacity; when every pass is discarded, the latency results are missing.",
+      "datasource": { "type": "prometheus", "uid": "${metrics}" },
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 19 },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_saturation_discarded_passes{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}[$__interval]))",
           "legendFormat": "discarded passes"
         }
       ],
