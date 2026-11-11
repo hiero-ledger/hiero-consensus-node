@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.clpr;
+package com.hedera.services.bdd.suites.clpr.ethereum;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -8,7 +8,7 @@ import com.esaulpaugh.headlong.rlp.RLPItem;
 import com.esaulpaugh.headlong.rlp.RLPList;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
-import com.hedera.services.bdd.suites.clpr.EthSyncCommitteeProofs.Preset;
+import com.hedera.services.bdd.suites.clpr.ethereum.SyncCommitteeProofs.Preset;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
@@ -22,12 +22,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Round-trips {@link EthSyncCommitteeProofs} output through an <em>independent</em> RLP + Merkle-Patricia
+ * Round-trips {@link SyncCommitteeProofs} output through an <em>independent</em> RLP + Merkle-Patricia
  * reader, so a structural bug in the generator is caught here rather than only inside a slow embedded
  * HAPI run. The reader deliberately re-implements the trie walk and slot decoding from scratch rather
  * than reusing the (module-private) production verifier.
  */
-class EthSyncCommitteeProofsTest {
+class SyncCommitteeProofsTest {
 
     private static final RLPDecoder RLP = RLPDecoder.RLP_STRICT;
 
@@ -42,7 +42,7 @@ class EthSyncCommitteeProofsTest {
     void givenEachPreset_thenConfigPayloadCarriesBootstrapAndUpdateOfPresetSize() throws Exception {
         for (final Preset preset : Preset.values()) {
             final var payload =
-                    EthereumPosLedgerConfigurationPayload.parseFrom(EthSyncCommitteeProofs.configPayload(preset));
+                    EthereumPosLedgerConfigurationPayload.parseFrom(SyncCommitteeProofs.configPayload(preset));
 
             assertThat(payload.getSyncCommittee().getPubkeysList())
                     .hasSize(preset.committeeSize)
@@ -58,15 +58,15 @@ class EthSyncCommitteeProofsTest {
             assertThat(payload.getGenesisValidatorsRoot().size()).isEqualTo(32);
             assertThat(payload.getForkVersion().size()).isEqualTo(4);
             assertThat(payload.getLedgerConfiguration().getServiceAddress().toByteArray())
-                    .isEqualTo(EthSyncCommitteeProofs.SERVICE_ADDRESS);
+                    .isEqualTo(SyncCommitteeProofs.SERVICE_ADDRESS);
         }
     }
 
     @Test
     @DisplayName("given a rotation bundle, then it carries one 7-item rotation and an 11-item delivery")
     void givenRotationBundle_thenCarriesOneRotationAndDelivery() {
-        final var content = EthSyncCommitteeProofs.singleMessageBundleContent(message());
-        final List<RLPItem> items = topList(EthSyncCommitteeProofs.rotationBundlePayload(CHANNEL_ID, content))
+        final var content = SyncCommitteeProofs.singleMessageBundleContent(message());
+        final List<RLPItem> items = topList(SyncCommitteeProofs.rotationBundlePayload(CHANNEL_ID, content))
                 .elements();
 
         final List<RLPItem> rotations = items.get(0).asRLPList().elements();
@@ -85,9 +85,9 @@ class EthSyncCommitteeProofsTest {
     @DisplayName("given a bundle, then its storage proofs of the derived Channel slots round-trip to the embedded"
             + " metadata")
     void givenBundle_thenStorageProofsRoundTripToEmbeddedMetadata() {
-        final var content = EthSyncCommitteeProofs.singleMessageBundleContent(message());
-        final List<RLPItem> items = topList(EthSyncCommitteeProofs.bundlePayload(CHANNEL_ID, content))
-                .elements();
+        final var content = SyncCommitteeProofs.singleMessageBundleContent(message());
+        final List<RLPItem> items =
+                topList(SyncCommitteeProofs.bundlePayload(CHANNEL_ID, content)).elements();
         assertThat(items).hasSize(2);
         assertThat(items.get(0).asRLPList().elements()).isEmpty();
         final List<RLPItem> delivery = items.get(1).asRLPList().elements();
@@ -115,7 +115,7 @@ class EthSyncCommitteeProofsTest {
         final byte[] accountValue = walk(
                 executionStateRoot,
                 rawList(delivery.get(6)),
-                MiscCryptoUtils.keccak256DigestOf(EthSyncCommitteeProofs.SERVICE_ADDRESS));
+                MiscCryptoUtils.keccak256DigestOf(SyncCommitteeProofs.SERVICE_ADDRESS));
         assertThat(accountValue).as("account must be present in state trie").isNotNull();
         final byte[] storageRoot = topList(accountValue).elements().get(2).data();
 

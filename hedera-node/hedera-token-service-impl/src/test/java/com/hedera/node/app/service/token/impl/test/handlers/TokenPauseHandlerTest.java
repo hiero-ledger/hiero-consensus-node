@@ -79,6 +79,8 @@ class TokenPauseHandlerTest extends TokenHandlerTestBase {
         given(accountStore.getAccountById(AccountID.newBuilder().accountNum(3L).build()))
                 .willReturn(account);
         given(account.key()).willReturn(payerKey);
+        given(account.accountIdOrThrow())
+                .willReturn(AccountID.newBuilder().accountNum(3L).build());
 
         subject = new TokenPauseHandler();
         givenValidTxn();
