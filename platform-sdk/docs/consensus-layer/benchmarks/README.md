@@ -32,7 +32,7 @@ calibration.md   007 calibration workflow on the benchmark machine: the probe, t
 operations.md    the module applies org.hiero.gradle.feature.benchmark-tracking and names the benchmark
                  pull requests:       812 smoke run  →  jmhSmoke
                  every night:         905 nightly run  →  jmhTracked  →  run_benchmarks.py --manifest
-                                      →  publish_results.py  →  Mimir and Loki  →  grafana-dashboard.json
+                                      →  publish_results.py  →  Mimir and Loki  →  Grafana dashboard
                                       →  alert (not set up yet)
 ```
 
