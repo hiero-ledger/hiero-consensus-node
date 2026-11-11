@@ -19,17 +19,14 @@ import java.nio.file.Path;
 /**
  * A {@link LongList} that stores its contents off-heap via {@link MemorySegment}s backed by
  * shared {@link Arena}s. Each chunk is an independently-allocated memory segment, so the
- * "chunk" containing the value for any given index is found using modular arithmetic,
- * identical to {@link LongListOffHeap}.
+ * "chunk" containing the value for any given index is found using modular arithmetic.
  *
- * <p>This implementation replaces the {@code sun.misc.Unsafe}-based access pattern used by
- * {@link LongListOffHeap} with the standard {@link java.lang.foreign} API (JDK 22+). Each
+ * <p>This implementation uses the standard {@link java.lang.foreign} API (JDK 22+). Each
  * chunk owns a {@link Arena#ofShared() shared arena} that allows concurrent access from any
  * thread and supports deterministic deallocation when the chunk is no longer needed.
  *
  * <p>Memory access uses a {@link VarHandle} obtained from {@link ValueLayout#JAVA_LONG},
- * providing volatile reads, volatile writes, and compare-and-set operations with the same
- * memory-ordering guarantees as the {@code Unsafe} equivalents.
+ * providing volatile reads, volatile writes, and compare-and-set operations.
  *
  * <p>To reduce memory consumption, use {@link LongList#updateValidRange(long, long)} which
  * discards memory chunks for indices outside the valid range, accounting for the
@@ -44,7 +41,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * A VarHandle for performing volatile long reads, volatile writes, and CAS operations
      * on a {@link MemorySegment}. Coordinates are {@code (MemorySegment, long)} where the
      * long is the byte offset. {@link ValueLayout#JAVA_LONG} uses LITTLE_ENDIAN byte order by
-     * default, matching the behavior of the Unsafe-based off-heap implementation.
+     * default.
      */
     private static final VarHandle LONG_HANDLE = ValueLayout.JAVA_LONG.varHandle();
 
@@ -240,9 +237,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * acceptable because {@code partialChunkCleanup} is called from
      * {@link LongList#updateValidRange}, which has already moved the valid-range
      * boundaries; any stale value a reader sees is for an index that is no longer valid,
-     * and the reader's own valid-range check will discard it. This is consistent with
-     * the behavior of {@link LongListOffHeap}, which uses non-volatile
-     * {@code MemoryUtils.setMemory} for the same operation.
+     * and the reader's own valid-range check will discard it.
      *
      * <p>If the chunk's arena has been closed concurrently (e.g. by {@link #close()}
      * racing with an in-flight {@link LongList#updateValidRange}), the cleanup is

@@ -31,7 +31,7 @@ import java.util.stream.StreamSupport;
  * Common parent class for long list implementations. It takes care of loading a snapshot from disk,
  * chunk management and other common functionality.
  *
- * @param <C> a type that represents a chunk (byte buffer, array or long that represents an offset of the chunk)
+ * @param <C> a type that represents a chunk (memory segment, or long that represents an offset of the chunk)
  */
 public abstract class AbstractLongList<C> implements LongList {
 
@@ -272,7 +272,7 @@ public abstract class AbstractLongList<C> implements LongList {
      * @param chunkIndex the index of the chunk to store the read data
      * @param startIndex the starting index (inclusive) within the chunk
      * @param endIndex the ending index (exclusive) within the chunk
-     * @return a chunk (byte buffer, array or long that represents an offset of the chunk)
+     * @return a chunk (memory segment, or long that represents an offset of the chunk)
      * @throws IOException if there is an error reading the file
      */
     protected abstract C readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex)
@@ -578,7 +578,7 @@ public abstract class AbstractLongList<C> implements LongList {
      *
      * @param newIndex the index of the new item we would like to add to storage
      */
-    protected C createOrGetChunk(final long newIndex) {
+    private C createOrGetChunk(final long newIndex) {
         size.getAndUpdate(oldSize -> newIndex >= oldSize ? (newIndex + 1) : oldSize);
         final int chunkIndex = toIntExact(newIndex / longsPerChunk);
         final C result = chunkList.get(chunkIndex);
@@ -691,9 +691,7 @@ public abstract class AbstractLongList<C> implements LongList {
      *
      * @param chunk the chunk to clean up
      */
-    protected void closeChunk(@NonNull final C chunk) {
-        // to be overridden
-    }
+    protected abstract void closeChunk(@NonNull final C chunk);
 
     /**
      * @param totalNumberOfElements total number of elements in the list

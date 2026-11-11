@@ -9,11 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Provides specialized or ad hoc tests for certain edge cases in {@link LongList} implementations.
@@ -23,10 +20,11 @@ import org.junit.jupiter.params.provider.MethodSource;
  */
 class LongListAdHocTest extends AbstractFileManagerAwareTest {
 
-    @ParameterizedTest
-    @MethodSource("provideLongLists")
-    void test4089(final AbstractLongList<?> list) {
-        try (list) {
+    @Test
+    void test4089() {
+        final int longsPerChunk = 32;
+        final int capacity = longsPerChunk * 4096;
+        try (final LongList list = new LongListSegment(longsPerChunk, capacity, longsPerChunk / 4)) {
             list.updateValidRange(0, list.capacity() - 1);
             // Issue #4089: ArrayIndexOutOfBoundsException from VirtualMap.put()
             final long maxLongs = list.capacity();
@@ -47,15 +45,6 @@ class LongListAdHocTest extends AbstractFileManagerAwareTest {
                 }
             });
         }
-    }
-
-    static Stream<LongList> provideLongLists() {
-        final int longsPerChunk = 32;
-        final int capacity = longsPerChunk * 4096;
-        return Stream.of(
-                new LongListHeap(longsPerChunk, capacity, 0),
-                new LongListOffHeap(longsPerChunk, capacity, longsPerChunk / 4),
-                new LongListSegment(longsPerChunk, capacity, longsPerChunk / 4));
     }
 
     // Tests https://github.com/hashgraph/hedera-services/issues/16860

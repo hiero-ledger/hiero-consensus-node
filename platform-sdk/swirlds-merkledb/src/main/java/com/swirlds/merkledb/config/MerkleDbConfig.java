@@ -24,7 +24,7 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      This config is also used by virtual hasher to create hashing tasks, so they are mostly aligned
  *      with hash chunks on disk.
  * @param longListChunkSize
- *      Number of longs to store in a single chunk in long lists (heap, off-heap, disk).
+ *      Number of longs to store in a single chunk in long lists (disk).
  * @param longListReservedBufferSize
  *      Length of a reserved buffer in long lists. Value in bytes.
  * @param gcRateThreshold

@@ -2,8 +2,6 @@
 package com.swirlds.benchmark;
 
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListHeap;
-import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
@@ -19,10 +17,10 @@ import org.openjdk.jmh.annotations.Level;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
-import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 @State(Scope.Thread)
@@ -38,17 +36,10 @@ public class LongListBenchmark {
     private LongList list;
     private int nextIndex = INITIAL_DATA_SIZE;
 
-    @Param({"LongListHeap", "LongListOffHeap", "LongListSegment"})
-    public String listImpl;
-
     @Setup(Level.Trial)
     public void setup() {
         random = new Random(1234);
-        list = switch (listImpl) {
-            default -> new LongListHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
-            case "LongListOffHeap" -> new LongListOffHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
-            case "LongListSegment" -> new LongListSegment(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
-        };
+        list = new LongListSegment(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
         // fill with some data
         for (int i = 0; i < INITIAL_DATA_SIZE; i++) {
             list.put(i, i + 1);
@@ -56,6 +47,11 @@ public class LongListBenchmark {
         // print memory usage
         System.out.printf("Memory for initial %,d accounts:\n", INITIAL_DATA_SIZE);
         printMemoryUsage();
+    }
+
+    @TearDown(Level.Trial)
+    public void tearDown() {
+        list.close();
     }
 
     @Setup(Level.Invocation)
