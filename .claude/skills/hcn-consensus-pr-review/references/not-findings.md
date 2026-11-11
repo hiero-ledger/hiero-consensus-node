@@ -44,10 +44,11 @@ Drop a finding when:
 - it has no concrete consequence or failure scenario
 - the skill hasn't read the code it describes
 - it depends on how the code is called, and the skill hasn't checked the callers
+- it depends on a guess about why the change was made ([SKILL.md](../SKILL.md), step 2)
 
 If the concern is real but can't be verified, raise it as a question that says what would need to be true.
 
 ## Preference
 
 "I would have done it differently" isn't a finding unless it names a concrete cost. See [structure.md](structure.md),
-topic 10. Author mode shows these as optional suggestions; reviewer mode drops them.
+topic 11. Author mode shows these as optional suggestions; reviewer mode drops them.

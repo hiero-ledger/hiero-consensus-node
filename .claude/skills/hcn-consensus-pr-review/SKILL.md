@@ -41,7 +41,29 @@ Read these before reviewing. Each decides what is a finding, a question, or neit
 - **Reviewer mode:** `gh pr view <n>` (description, linked issues) and `gh pr diff <n>`.
 - List the changed files. Set aside out-of-scope files ([not-findings.md](references/not-findings.md)).
 
-### 2. Run the lenses
+### 2. Establish the purpose
+
+Before any lens runs, write one or two plain sentences that say:
+
+- what the change is for: the problem it solves or what it enables
+- why it is done this way, if the approach isn't the obvious one
+
+Use the PR description, the linked issue and the commit messages. Check whether the PR is part of a stack: a base
+branch other than `main`, or a description that mentions earlier or later PRs. The context may be in one of those.
+
+If you can't write those sentences from what is there, stop. Don't run the lenses and don't guess. A human reviewer
+would stop here and ask the author, and so does the skill. Report only that the purpose isn't clear and what is
+missing, as in [output.md](references/output.md#purpose-unclear). Continue when the user gives the missing context. In
+author mode, ask the author directly.
+
+The two readers still don't see the purpose. Their guesses are checked against it in step 4.
+
+**Example:** #28195, first review. The description says the PR adds a saturation check to `PipelineTimer`, but not
+why the limit is a rate per second of the pass. The skill guessed what the check should measure and raised questions on
+that guess, such as question 5. The reviewer passed them to the author. Both found them confusing, and the skill then
+dropped them. One question to the author about how the limit was chosen would have been enough.
+
+### 3. Run the lenses
 
 Each lens reads its reference file and returns candidate findings and questions, with `file:line`.
 
@@ -60,12 +82,17 @@ knowing the context.
 **Cost:** for a large diff, run the lenses as parallel subagents. For a small one, a few files and no new API, run them
 inline. The two readers always run as subagents, so they stay without context.
 
-### 3. Verify
+### 4. Verify
 
 Check every candidate against the code before keeping it. Drop it if it fails any test in
 [not-findings.md](references/not-findings.md#unverified-claims). Merge duplicates that two lenses found.
 
-### 4. Report
+Compare each reader's guess at the purpose with step 2, as in
+[clarity-and-naming.md](references/clarity-and-naming.md#checking-the-readers-guess). Drop any candidate, from any
+lens, that depends on a guess about why the change was made. If a candidate can't be judged without knowing why, the
+purpose is unclear: go back to step 2.
+
+### 5. Report
 
 Classify and lay out the report as in [output.md](references/output.md). When the user asks to expand a finding, give
 its evidence, reasoning and a suggested fix.

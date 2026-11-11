@@ -10,6 +10,10 @@ in this PR, or in a follow-up PR or ticket if another push isn't worth a CI cycl
 
 Two subagents read the PR without its context. Each has a different blind spot, so the skill uses both.
 
+Neither is told the purpose of the change. They stand in for an engineer who opens the file later, without the PR
+description, the ticket or the rest of a stack. Code that only makes sense once the purpose is known is what they are
+there to catch.
+
 ### API cold reader
 
 **Reads:** only the names, signatures and javadoc of non-private types, methods and fields that are either:
@@ -42,6 +46,18 @@ This reader covers PRs that only modify existing code. It catches what the API c
 
 - inline comments that are unclear, narrate the change, or refer to things outside the repo (topics 1, 3, 7)
 - private names and local variables (topic 9)
+
+### Checking the reader's guess
+
+Each reader starts by writing, in one sentence, what it thinks the changed code is for. The skill compares that
+sentence with the purpose from step 2 of the skill:
+
+- **Right:** the reader's findings go through the normal checks.
+- **Wrong, and the code should have said:** one finding. It names the class javadoc or name that should say what the
+  code is for, and quotes the reader's guess. Every other finding from that reader that depends on the wrong guess is
+  dropped.
+- **Wrong, because the context doesn't belong in the code:** no finding. Example: the code that uses the new class is in
+  the next PR of the stack. The reader's findings that depend on the wrong guess are still dropped.
 
 ## Topics
 

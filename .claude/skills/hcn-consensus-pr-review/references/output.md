@@ -75,7 +75,7 @@ Leave out empty groups.
 In this order:
 
 1. **Orientation:**
-   - what the PR does, in at most three lines
+   - what the PR is for: the purpose sentences from step 2 of the skill
    - the order in which to read the files, most important first
 2. **Blocks merge**
 3. **Clarity and naming**
@@ -86,6 +86,23 @@ In this order:
 
 Phrase each finding as something the reviewer could ask the author. The reviewer decides what to raise and writes
 their own comments. No optional suggestions in reviewer mode.
+
+## Purpose unclear
+
+When the skill stops at step 2, the report is only this:
+
+```
+Review stopped: why this change is made, or made this way, isn't clear from the description, the linked issue or the commits.
+
+Questions for the author:
+1. The description says what the saturation check is for, but not how its limit was chosen. Why is it a
+   rate per second of the pass, and why 1%?
+```
+
+This is what #28195's first review should have asked before raising questions about the limit.
+
+One to three questions, each about something the description, the issue or the commits would normally say. No
+findings, no orientation and no follow-up block.
 
 ## Follow-up block
 
