@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -33,6 +34,7 @@ import java.util.List;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
@@ -125,13 +127,13 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("Submission of the transaction to the platform is a success")
         void submittingToPlatformSucceeds() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
-            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
 
             // When we submit bytes
             submissionManager.submit(txBody, bytes, false);
 
-            // Then the platform actually receives the bytes
-            verify(transactionPool).submitApplicationTransaction(bytes);
+            // Then the platform actually receives the bytes, with no drop time since the body has no valid duration
+            verify(transactionPool).submitApplicationTransaction(bytes, null);
             // And the metrics keeping track of errors submitting are NOT touched
             verify(platformTxnRejections, never()).cycle();
             // And the deduplication cache is updated
@@ -142,7 +144,7 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("If the platform fails to onConsensusRound the bytes, a PreCheckException is thrown")
         void testSubmittingToPlatformFails() {
             // Given a platform that will **fail** in taking bytes
-            when(transactionPool.submitApplicationTransaction(any())).thenReturn(false);
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(false);
 
             // When we submit bytes, then we fail by exception
             assertThatThrownBy(() -> submissionManager.submit(txBody, bytes, false))
@@ -159,7 +161,7 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("Submitting the same transaction twice in close succession rejects the duplicate")
         void testSubmittingDuplicateTransactionsCloseTogether() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
-            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
             when(deduplicationCache.contains(txBody.transactionIDOrThrow()))
                     .thenReturn(false)
                     .thenReturn(true);
@@ -230,14 +232,14 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("Successfully submits atomic batch with valid inner transactions")
         void testAtomicBatchSuccess() throws PreCheckException {
             // Given a platform that will succeed in taking bytes
-            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
             when(deduplicationCache.contains(any())).thenReturn(false);
 
             // When we submit a transaction with an atomic batch
             submissionManager.submit(txBodyWithBatch, mainBytes, false);
 
             // Then the platform receives the main bytes
-            verify(transactionPool).submitApplicationTransaction(mainBytes);
+            verify(transactionPool).submitApplicationTransaction(mainBytes, null);
 
             // And the deduplication cache is updated for the main transaction
             verify(deduplicationCache).add(txBodyWithBatch.transactionIDOrThrow());
@@ -249,8 +251,7 @@ final class SubmissionManagerTest extends AppTestBase {
         @Test
         @DisplayName("Handles parse exception from invalid batch transaction")
         void testAtomicBatchWithParseException() throws Exception {
-            // Given a platform that will succeed in taking bytes
-            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
+            // Given a transaction not yet submitted
             when(deduplicationCache.contains(any())).thenReturn(false);
 
             // Create a batch with an invalid transaction
@@ -272,14 +273,11 @@ final class SubmissionManagerTest extends AppTestBase {
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION);
 
-            // Then the platform received the main bytes
-            verify(transactionPool).submitApplicationTransaction(mainBytes);
+            // Then the inner transactions are parsed before submitting, so the platform never receives the bytes
+            verify(transactionPool, never()).submitApplicationTransaction(any(), any());
 
-            // And the deduplication cache was updated for the main transaction
-            verify(deduplicationCache).add(txBodyWithInvalidBatch.transactionIDOrThrow());
-
-            // And for the valid transactions in the batch (but parsing stopped at the invalid one)
-            verify(deduplicationCache, times(3)).add(any());
+            // And the deduplication cache is not updated
+            verify(deduplicationCache, never()).add(any());
         }
 
         @Test
@@ -296,14 +294,14 @@ final class SubmissionManagerTest extends AppTestBase {
                     .build();
 
             // Given a platform that will succeed in taking bytes
-            when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
             when(deduplicationCache.contains(any())).thenReturn(false);
 
             // When we submit a transaction with an empty atomic batch
             submissionManager.submit(txBodyWithEmptyBatch, mainBytes, false);
 
             // Then the platform receives the main bytes
-            verify(transactionPool).submitApplicationTransaction(mainBytes);
+            verify(transactionPool).submitApplicationTransaction(mainBytes, null);
 
             // And the deduplication cache is updated for the main transaction only
             verify(deduplicationCache).add(txBodyWithEmptyBatch.transactionIDOrThrow());
@@ -389,6 +387,161 @@ final class SubmissionManagerTest extends AppTestBase {
 
             // And the deduplication cache is updated, confirming the transaction was accepted
             verify(deduplicationCache).add(txBody.transactionIDOrThrow());
+        }
+    }
+
+    @Nested
+    @DisplayName("Tests for the time after which the pool drops a transaction")
+    class DropTimeTest extends AppTestBase {
+        private static final Instant VALID_START = Instant.parse("2026-11-10T22:19:06.690Z");
+
+        @Mock
+        private Metrics mockedMetrics;
+
+        @Mock
+        private SpeedometerMetric platformTxnRejections;
+
+        private final Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3});
+
+        @BeforeEach
+        void setup() {
+            when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
+        }
+
+        @Test
+        @DisplayName("A transaction is dropped once past its expiry plus the default 30s margin")
+        void dropTimeIsExpiryPlusDefaultMargin() throws PreCheckException {
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
+            final var submissionManager =
+                    new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+
+            submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
+
+            verify(transactionPool).submitApplicationTransaction(bytes, VALID_START.plusSeconds(150));
+        }
+
+        @Test
+        @DisplayName("The margin past expiry is configurable")
+        void dropTimeUsesConfiguredMargin() throws PreCheckException {
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
+            final var submissionManager = new SubmissionManager(
+                    transactionPool,
+                    deduplicationCache,
+                    configWith("hedera.transaction.expiredPoolDropMarginSecs", 5),
+                    mockedMetrics);
+
+            submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
+
+            verify(transactionPool).submitApplicationTransaction(bytes, VALID_START.plusSeconds(125));
+        }
+
+        @Test
+        @DisplayName("A transaction gets no drop time when dropping is disabled")
+        void noDropTimeWhenDisabled() throws PreCheckException {
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
+            final var submissionManager = new SubmissionManager(
+                    transactionPool,
+                    deduplicationCache,
+                    configWith("hedera.transaction.dropExpiredFromPool", false),
+                    mockedMetrics);
+
+            submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
+
+            verify(transactionPool).submitApplicationTransaction(bytes, null);
+        }
+
+        @Test
+        @DisplayName("An atomic batch is dropped by the earliest expiry of its outer and inner transactions")
+        void batchUsesEarliestExpiry() throws PreCheckException {
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
+            final var submissionManager =
+                    new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+            final var innerWithoutDuration = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(asTimestamp(VALID_START.minusSeconds(100)))
+                            .build())
+                    .build();
+            final var batch = bodyValidFor(VALID_START, 120)
+                    .copyBuilder()
+                    .atomicBatch(AtomicBatchTransactionBody.newBuilder()
+                            .transactions(List.of(
+                                    // Expires at VALID_START + 70, the earliest
+                                    signed(bodyValidFor(VALID_START.minusSeconds(50), 120)),
+                                    signed(bodyValidFor(VALID_START, 180)),
+                                    // Says nothing about its expiry, so it is ignored
+                                    signed(innerWithoutDuration)))
+                            .build())
+                    .build();
+
+            submissionManager.submit(batch, bytes, false);
+
+            verify(transactionPool).submitApplicationTransaction(bytes, VALID_START.plusSeconds(100));
+            verify(deduplicationCache, times(4)).add(any());
+        }
+
+        @Test
+        @DisplayName("Priority transactions are submitted without a drop time")
+        void priorityTransactionsGetNoDropTime() throws PreCheckException {
+            final var submissionManager =
+                    new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+
+            submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, true);
+
+            verify(transactionPool).submitPriorityTransaction(bytes);
+            verify(transactionPool, never()).submitApplicationTransaction(any(), any());
+        }
+
+        @Test
+        @DisplayName("A real pool keeps a transaction up to its drop time, then drops it")
+        void realPoolDropsTransactionPastItsDropTime() throws PreCheckException {
+            final var time = new FakeTime(VALID_START, Duration.ZERO);
+            final List<Integer> drops = new ArrayList<>();
+            final var pool = new TransactionPoolNexus(
+                    new TransactionLimits(6_144, 245_760),
+                    100_000,
+                    TransactionPoolNexus.DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION,
+                    new NoOpMetrics(),
+                    time,
+                    dropped -> drops.add(dropped));
+            pool.updatePlatformStatus(PlatformStatus.ACTIVE);
+            final var submissionManager = new SubmissionManager(pool, deduplicationCache, config, mockedMetrics);
+            final var expired = Bytes.wrap(new byte[] {1});
+            final var stillValid = Bytes.wrap(new byte[] {2});
+            submissionManager.submit(bodyValidFor(VALID_START, 120), expired, false);
+            submissionManager.submit(bodyValidFor(VALID_START.plusSeconds(10), 120), stillValid, false);
+
+            // The first is 5s past its drop time (expiry + 30s), the second 5s before its own
+            time.tick(Duration.ofSeconds(155));
+
+            assertEquals(
+                    List.of(stillValid),
+                    pool.getTransactionsForEvent().stream()
+                            .map(TimestampedTransaction::transaction)
+                            .toList());
+            assertEquals(List.of(1), drops);
+        }
+
+        private TransactionBody bodyValidFor(final Instant validStart, final long seconds) {
+            return TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(asTimestamp(validStart))
+                            .build())
+                    .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
+                            .seconds(seconds)
+                            .build())
+                    .build();
+        }
+
+        private Bytes signed(final TransactionBody body) {
+            return Bytes.wrap(asByteArray(SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, body))
+                    .build()));
+        }
+
+        private ConfigProvider configWith(final String name, final Object value) {
+            final var configuration =
+                    HederaTestConfigBuilder.create().withValue(name, value).getOrCreateConfig();
+            return () -> new VersionedConfigImpl(configuration, 1);
         }
     }
 }

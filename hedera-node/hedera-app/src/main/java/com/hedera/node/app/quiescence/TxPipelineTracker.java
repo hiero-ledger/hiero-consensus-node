@@ -76,4 +76,14 @@ public class TxPipelineTracker {
             }
         }
     }
+
+    /**
+     * Called when user transactions this node submitted were dropped from the transaction pool, so will never land.
+     * Every user transaction is relevant to quiescence, so each counts like one that landed.
+     *
+     * @param count the number of dropped transactions
+     */
+    public void countDropped(final int count) {
+        inFlightCount.accumulateAndGet(-count, (prev, next) -> Math.max(0, prev + next));
+    }
 }

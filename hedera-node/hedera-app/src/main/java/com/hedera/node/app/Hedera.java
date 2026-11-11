@@ -164,6 +164,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
@@ -238,6 +239,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private static final java.time.Duration SHUTDOWN_TIMEOUT = java.time.Duration.ofSeconds(10);
 
     private static final java.time.Duration PENDING_TXNS_RETRY_BACKOFF = java.time.Duration.ofMillis(100);
+
+    private static final java.time.Duration DROPPED_TXNS_LOG_PERIOD = java.time.Duration.ofMinutes(1);
 
     /**
      * The application name from the platform's perspective. This is currently locked in at the old main class name and
@@ -358,6 +361,10 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private final TransactionLimits transactionLimits;
     /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
+    /** Expired user transactions dropped from the transaction pool since they were last logged */
+    private long droppedTxnsToLog = 0;
+    /** The earliest time dropped user transactions may be logged again */
+    private Instant nextDroppedTxnsLog = Instant.MIN;
 
     /** Saves pending user transactions at a freeze; null if disabled. */
     @Nullable
@@ -596,10 +603,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         hintsService =
                 hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig, genesisNetworkSupplier);
-        utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> requireNonNull(daggerApp)
-                .transactionChecker()
-                .parseSignedAndCheck(txnBytes)
-                .txBody());
+        utilServiceImpl = new UtilServiceImpl(
+                appContext,
+                (txnBytes, config) -> requireNonNull(daggerApp)
+                        .transactionChecker()
+                        .parseSignedAndCheck(txnBytes)
+                        .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
         clprServiceImpl = new ClprServiceImpl();
@@ -619,7 +628,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 java.time.Duration.ofSeconds(
                         bootstrapConfig.getConfigData(HederaConfig.class).maximumPermissibleUnhealthySeconds()),
                 metrics,
-                instantSource);
+                instantSource,
+                dropped -> onExpiredTransactionsDropped(dropped, instantSource.instant()));
 
         final var hederaConfig = bootstrapConfig.getConfigData(HederaConfig.class);
         if (hederaConfig.pendingTransactionsPersistenceEnabled()) {
@@ -1399,6 +1409,27 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
+    }
+
+    /**
+     * Called by the transaction pool, while it holds its lock, with the number of user transactions it dropped because
+     * they had expired before an event was built for them. They will never land in an event, so quiescence must stop
+     * waiting for them. Logs the drops at most once per {@link #DROPPED_TXNS_LOG_PERIOD}.
+     *
+     * @param count the number of dropped transactions
+     * @param now the current time
+     */
+    void onExpiredTransactionsDropped(final int count, @NonNull final Instant now) {
+        final var app = daggerApp;
+        if (app != null) {
+            app.txPipelineTracker().countDropped(count);
+        }
+        droppedTxnsToLog += count;
+        if (!now.isBefore(nextDroppedTxnsLog)) {
+            logger.info("Dropped {} expired user transactions from the transaction pool", droppedTxnsToLog);
+            droppedTxnsToLog = 0;
+            nextDroppedTxnsLog = now.plus(DROPPED_TXNS_LOG_PERIOD);
+        }
     }
 
     /**

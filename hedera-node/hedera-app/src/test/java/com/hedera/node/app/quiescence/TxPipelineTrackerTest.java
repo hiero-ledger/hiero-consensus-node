@@ -358,6 +358,43 @@ class TxPipelineTrackerTest {
         }
     }
 
+    @Nested
+    @DisplayName("countDropped Tests")
+    class CountDroppedTests {
+        @Test
+        @DisplayName("Decrements inFlight count by the number dropped")
+        void decrementsInFlightCountByNumberDropped() {
+            tracker.incrementInFlight();
+            tracker.incrementInFlight();
+            tracker.incrementInFlight();
+
+            tracker.countDropped(2);
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not decrement inFlight count below zero")
+        void doesNotDecrementInFlightCountBelowZero() {
+            tracker.incrementInFlight();
+
+            tracker.countDropped(3);
+
+            assertEquals(0, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not touch preFlight count")
+        void doesNotTouchPreFlightCount() {
+            tracker.incrementPreFlight();
+            tracker.incrementInFlight();
+
+            tracker.countDropped(5);
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
+        }
+    }
+
     // Helper methods to create test objects
     private TransactionBody createRelevantTransactionBody() {
         return TransactionBody.newBuilder()

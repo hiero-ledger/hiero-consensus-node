@@ -11,12 +11,17 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.StatsConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.consensus.metrics.SpeedometerMetric;
@@ -122,6 +127,8 @@ public class SubmissionManager {
             if (submittedTxns.contains(txId)) {
                 throw new PreCheckException(DUPLICATE_TRANSACTION);
             }
+            // Parsed before submitting, since an expired inner transaction makes the whole batch fail at consensus
+            final var innerBodies = innerBodiesOf(txBody);
 
             // This call to submit to the platform should almost always work. Maybe under extreme load it will fail,
             // or while the system is being shut down. In any event, the user will receive an error code indicating
@@ -132,33 +139,89 @@ public class SubmissionManager {
                 transactionPool.submitPriorityTransaction(serializedSignedTx);
                 success = true;
             } else {
-                success = transactionPool.submitApplicationTransaction(serializedSignedTx);
+                success = transactionPool.submitApplicationTransaction(
+                        serializedSignedTx, dropAfter(txBody, innerBodies));
             }
             if (success) {
                 submittedTxns.add(txId);
-
-                if (txBody.hasAtomicBatch()
-                        && !txBody.atomicBatchOrThrow().transactions().isEmpty()) {
-                    final var transactions = txBody.atomicBatchOrThrow().transactions();
-                    for (final Bytes buffer : transactions) {
-                        try {
-                            final var signedTransaction =
-                                    SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
-                            final var body = TransactionBody.PROTOBUF.parseStrict(
-                                    signedTransaction.bodyBytes().toReadableSequentialData());
-                            final var innerTxnId = body.transactionIDOrThrow();
-                            submittedTxns.add(innerTxnId);
-                        } catch (ParseException e) {
-                            // This should never happen. All inner batch transactions should be validated by the
-                            // IngestChecker before they get submitted here.
-                            throw new PreCheckException(INVALID_TRANSACTION);
-                        }
-                    }
+                for (final var innerBody : innerBodies) {
+                    submittedTxns.add(innerBody.transactionIDOrThrow());
                 }
             } else {
                 platformTxnRejections.cycle();
                 throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
             }
         }
+    }
+
+    /**
+     * Parses the inner transaction bodies of an atomic batch.
+     *
+     * @param txBody the transaction body
+     * @return the inner transaction bodies, or an empty list if the transaction is not an atomic batch
+     * @throws PreCheckException if an inner transaction cannot be parsed
+     */
+    private static List<TransactionBody> innerBodiesOf(@NonNull final TransactionBody txBody) throws PreCheckException {
+        if (!txBody.hasAtomicBatch()) {
+            return List.of();
+        }
+        final var transactions = txBody.atomicBatchOrThrow().transactions();
+        final List<TransactionBody> innerBodies = new ArrayList<>(transactions.size());
+        for (final Bytes buffer : transactions) {
+            try {
+                final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
+                innerBodies.add(TransactionBody.PROTOBUF.parseStrict(
+                        signedTransaction.bodyBytes().toReadableSequentialData()));
+            } catch (ParseException e) {
+                // This should never happen. All inner batch transactions should be validated by the
+                // IngestChecker before they get submitted here.
+                throw new PreCheckException(INVALID_TRANSACTION);
+            }
+        }
+        return innerBodies;
+    }
+
+    /**
+     * Returns the time after which the transaction pool drops this transaction instead of putting it in an event: the
+     * earliest expiry of the transaction and its inner transactions, plus the configured margin. Past that time it
+     * could only fail at consensus, charging this node.
+     *
+     * @param txBody the transaction body
+     * @param innerBodies the inner transaction bodies, if the transaction is an atomic batch
+     * @return the drop time, or null if the transaction is never to be dropped
+     */
+    @Nullable
+    private Instant dropAfter(@NonNull final TransactionBody txBody, @NonNull final List<TransactionBody> innerBodies) {
+        final var hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+        if (!hederaConfig.transactionDropExpiredFromPool()) {
+            return null;
+        }
+        Instant earliestExpiry = expiryOf(txBody);
+        for (final var innerBody : innerBodies) {
+            final var innerExpiry = expiryOf(innerBody);
+            if (innerExpiry != null && (earliestExpiry == null || innerExpiry.isBefore(earliestExpiry))) {
+                earliestExpiry = innerExpiry;
+            }
+        }
+        return earliestExpiry == null
+                ? null
+                : earliestExpiry.plusSeconds(hederaConfig.transactionExpiredPoolDropMarginSecs());
+    }
+
+    /**
+     * Returns the time after which consensus rejects the transaction as expired, or null if its body does not say.
+     *
+     * @param body the transaction body
+     * @return the expiry, or null if the body has no valid start or valid duration
+     */
+    @Nullable
+    private static Instant expiryOf(@NonNull final TransactionBody body) {
+        final var txnId = body.transactionID();
+        if (txnId == null || !txnId.hasTransactionValidStart() || !body.hasTransactionValidDuration()) {
+            return null;
+        }
+        final var validStart = txnId.transactionValidStartOrThrow();
+        return Instant.ofEpochSecond(validStart.seconds(), validStart.nanos())
+                .plusSeconds(body.transactionValidDurationOrThrow().seconds());
     }
 }
