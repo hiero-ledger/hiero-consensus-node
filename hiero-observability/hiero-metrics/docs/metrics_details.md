@@ -30,8 +30,10 @@ If no dynamic labels are defined for the metric, then it will have a single meas
 
 The base `Metric` keeps the measurements of both in a [Measurements](../src/main/java/org/hiero/metrics/core/Measurements.java) container,
 which it creates in its constructor and subclasses access by `measurements()`.
-Subclasses only implement `createMeasurementSnapshot(...)`: the container creates the snapshot of each measurement together with it
-and marks the measurements as changed when they are added or removed, so a metric implementation never manages snapshots itself.
+Subclasses only implement `createMeasurementSnapshot(...)`: the container marks the measurements as changed when they are added or removed,
+and the export creates the snapshot of each measurement the first time it collects it, so a metric implementation never manages snapshots itself.
+Application threads adding measurements therefore never create snapshots or read measurement values for export:
+value suppliers of an `ObservableGauge` and export getters of a `GaugeAdapter` are called only by exports.
 
 ### Metric Types
 
@@ -112,7 +114,7 @@ To be discovered by SPI mechanism implementations of `MetricsExporterFactory` sh
 Snapshots provided to exporter contain all registered metrics in the registry with their measurements and values at the moment of snapshot.
 Snapshots internally are reusable objects and values are updated during each registry snapshot, which is **synchronous** operation.
 Registering or removing a metric and adding or removing a measurement only marks the snapshot as changed, so application threads never copy or lock snapshot lists.
-The snapshot supplier rebuilds the changed lists from the registered metrics and their measurements, and then updates the values.
+The snapshot supplier rebuilds the changed lists from the registered metrics and their measurements, creating the snapshots of new measurements, and then updates the values.
 Metrics are sorted by name, and measurements of a metric by their dynamic label values in label name order.
 This order is deterministic, but how label values are compared is not specified and may change, for example to order numeric values by number.
 The writer iterates exactly the metrics and measurements collected by the supplier, as long as the exporter finishes writing a snapshot before calling the supplier again; a change made after the supplier ran is picked up by the next export.

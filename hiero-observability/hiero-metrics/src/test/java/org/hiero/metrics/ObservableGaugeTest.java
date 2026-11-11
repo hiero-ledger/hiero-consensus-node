@@ -132,21 +132,44 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
     }
 
     @Test
-    void testObserveWithThrowingSupplierDoesNotReserveLabelValues() {
+    void testThrowingSupplierFailsExportsUntilRemoved() {
         ObservableGauge gauge =
                 emptyMetricBuilder().addDynamicLabelNames("label").build();
 
-        assertThatThrownBy(() -> gauge.observe(
-                        () -> {
-                            throw new IllegalStateException("source closed");
-                        },
-                        "label",
-                        "a"))
-                .isInstanceOf(IllegalStateException.class);
-        assertThat(exportedLabels(gauge)).isEmpty();
+        // observe does not call the supplier, so it does not reject one that throws
+        gauge.observe(
+                () -> {
+                    throw new IllegalStateException("source closed");
+                },
+                "label",
+                "a");
 
+        assertThatThrownBy(() -> exportedLabels(gauge))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("source closed");
+        assertThatThrownBy(() -> exportedLabels(gauge))
+                .as("every export fails until the supplier is removed")
+                .isInstanceOf(IllegalStateException.class);
+
+        assertThat(gauge.removeIf(labelValues -> "a".equals(labelValues.get("label"))))
+                .isEqualTo(1);
+        assertThat(exportedLabels(gauge)).isEmpty();
         gauge.observe(() -> 1L, "label", "a");
         assertThat(exportedLabels(gauge)).containsExactly("[a]");
+    }
+
+    @Test
+    void testSupplierIsCalledOnlyByExports() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        AtomicInteger calls = new AtomicInteger();
+
+        gauge.observe(() -> (long) calls.incrementAndGet(), "label", "a");
+        assertThat(calls).as("not called by observe").hasValue(0);
+
+        new MetricSnapshotVerifier(gauge).add(1L, "label", "a").verify();
+        new MetricSnapshotVerifier(gauge).add(2L, "label", "a").verify();
+        assertThat(calls).as("called once by each export").hasValue(2);
     }
 
     @Test
@@ -156,10 +179,13 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
         AtomicInteger removedCalls = new AtomicInteger();
         gauge.observe(() -> (long) removedCalls.incrementAndGet(), "label", "a");
         gauge.observe(() -> 2L, "label", "b");
+        // exported once, so the snapshot of the last export holds the supplier when it is removed
+        exportedSnapshotOf(gauge);
 
         assertThat(gauge.removeIf(labelValues -> "a".equals(labelValues.get("label"))))
                 .isEqualTo(1);
         final int callsAtRemoval = removedCalls.get();
+        assertThat(callsAtRemoval).as("called by the export before removal").isEqualTo(1);
 
         new MetricSnapshotVerifier(gauge).add(2L, "label", "b").verify();
         assertThat(removedCalls).as("removed supplier is not called").hasValue(callsAtRemoval);
@@ -172,8 +198,8 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
         AtomicInteger calls = new AtomicInteger();
         gauge.observe(
                 () -> {
-                    // the first call creates the snapshot, the second one is made by the export
-                    if (calls.incrementAndGet() == 2) {
+                    // the first call is made by the first export
+                    if (calls.incrementAndGet() == 1) {
                         gauge.observe(() -> 2L, "label", "b");
                     }
                     return 1L;
@@ -195,8 +221,8 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
         gauge.observe(() -> 2L, "label", "b");
         gauge.observe(
                 () -> {
-                    // the first call creates the snapshot, the second one is made by the export
-                    if (calls.incrementAndGet() == 2) {
+                    // the first call is made by the first export
+                    if (calls.incrementAndGet() == 1) {
                         gauge.removeIf(labelValues -> "b".equals(labelValues.get("label")));
                     }
                     return 1L;
@@ -208,28 +234,6 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
                 .as("removed after the export rebuilt the list")
                 .containsExactly("[a]", "[b]");
         assertThat(exportedLabels(gauge)).containsExactly("[a]");
-    }
-
-    @Test
-    void testObserveWithThrowingSupplierAddsNothing() {
-        ObservableGauge gauge =
-                emptyMetricBuilder().addDynamicLabelNames("label").build();
-
-        // the snapshot of an exported gauge calls the supplier when it is created
-        assertThatThrownBy(() -> gauge.observe(
-                        () -> {
-                            throw new IllegalStateException("source closed");
-                        },
-                        "label",
-                        "a"))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("source closed");
-        assertThat(exportedLabels(gauge)).as("failed observe adds nothing").isEmpty();
-
-        gauge.observe(() -> 1L, "label", "a");
-        assertThat(exportedLabels(gauge))
-                .as("label values of a failed observe can be observed again")
-                .containsExactly("[a]");
     }
 
     @Test
@@ -247,7 +251,9 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
                 .register(registry);
         gauge.observe(supplier, "label", "b");
 
-        assertThat(calls).as("no snapshot is created without an exporter").hasValue(0);
+        assertThat(calls)
+                .as("only exports call suppliers, and there is no exporter")
+                .hasValue(0);
         MetricSnapshotVerifier.verifMetricHasNoSnapshot(gauge);
     }
 

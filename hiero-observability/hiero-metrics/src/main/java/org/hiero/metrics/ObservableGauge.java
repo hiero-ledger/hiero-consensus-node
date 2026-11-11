@@ -12,7 +12,6 @@ import org.hiero.metrics.core.DoubleMeasurementSnapshot;
 import org.hiero.metrics.core.LabelValues;
 import org.hiero.metrics.core.LongMeasurementSnapshot;
 import org.hiero.metrics.core.MeasurementSnapshot;
-import org.hiero.metrics.core.Measurements;
 import org.hiero.metrics.core.Metric;
 import org.hiero.metrics.core.MetricKey;
 import org.hiero.metrics.core.MetricType;
@@ -25,6 +24,9 @@ import org.hiero.metrics.core.MetricType;
  * {@link Builder#observe(LongSupplier, String...)}, {@link Builder#observe(DoubleSupplier, String...)}
  * or could be added later after metric creation using {@link #observe(LongSupplier, String...)}
  * or {@link #observe(DoubleSupplier, String...)}.
+ * <p>
+ * Value suppliers are called only by exports, never by {@code observe}, so a supplier that throws is not rejected
+ * when it is observed: it fails every export, until it is removed.
  * <p>
  * Observed value suppliers with dynamic labels can be removed using {@link #removeIf(Predicate)},
  * and their label values can be observed again afterwards. An export already in progress may call a removed supplier
@@ -93,9 +95,7 @@ public final class ObservableGauge extends Metric<Object> {
         Objects.requireNonNull(valueSupplier, "value supplier must not be null");
 
         final LabelValues labelValues = createLabelValues(labelNamesAndValues);
-        final Measurements<Object> observed = measurements();
-        // putIfAbsent creates the snapshot, which calls the supplier, so duplicates are checked before and after it
-        if (observed.get(labelValues) != null || !observed.putIfAbsent(labelValues, valueSupplier)) {
+        if (!measurements().putIfAbsent(labelValues, valueSupplier)) {
             throw duplicateLabelValues(labelValues);
         }
     }

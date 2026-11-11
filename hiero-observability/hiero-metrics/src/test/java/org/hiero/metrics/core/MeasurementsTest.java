@@ -27,11 +27,22 @@ class MeasurementsTest {
 
         assertThat(existing).isSameAs(created);
         assertThat(metric.measurements().get(labels("a"))).isSameAs(created);
-        assertThat(metric.snapshotsCreated).as("one snapshot per measurement").hasValue(1);
+        assertThat(metric.snapshotsCreated)
+                .as("snapshots are created by exports")
+                .hasValue(0);
         assertThat(exportedLabels(snapshot, false))
                 .as("not exported before update")
                 .isEmpty();
         assertThat(exportedLabels(snapshot, true)).containsExactly("a");
+        assertThat(metric.snapshotsCreated)
+                .as("created by the first export collecting it")
+                .hasValue(1);
+
+        metric.measurements().computeIfAbsent(labels("b"), _ -> new AtomicLong(3));
+        assertThat(exportedLabels(snapshot, true)).containsExactly("a", "b");
+        assertThat(metric.snapshotsCreated)
+                .as("rebuild reuses the snapshot of a")
+                .hasValue(2);
     }
 
     @Test
@@ -69,9 +80,11 @@ class MeasurementsTest {
 
         assertThat(results).allSatisfy(result -> assertThat(result).isSameAs(results[0]));
         assertThat(factoryCalls).as("measurement created once").hasValue(1);
-        assertThat(metric.snapshotsCreated).as("snapshot created once").hasValue(1);
         // every thread that did not find the measurement marks the measurements, the creating one always among them
         assertThat(exportedLabels(snapshot, true)).containsExactly("a");
+        assertThat(metric.snapshotsCreated)
+                .as("snapshot created once, by the export")
+                .hasValue(1);
     }
 
     @Test
@@ -84,10 +97,10 @@ class MeasurementsTest {
                 .isFalse();
 
         assertThat(metric.measurements().get(labels("a"))).isSameAs(first);
-        assertThat(metric.snapshotsCreated)
-                .as("snapshot is created before adding, outside the lock, even if not added")
-                .hasValue(2);
         assertThat(exportedLabels(metric.snapshot(), true)).containsExactly("a");
+        assertThat(metric.snapshotsCreated)
+                .as("only the added measurement gets a snapshot, created by the export")
+                .hasValue(1);
         assertThat(((LongMeasurementSnapshot) metric.snapshot().iterator().next()).get())
                 .as("exported snapshot is the one of the added measurement")
                 .isEqualTo(1);
@@ -172,10 +185,10 @@ class MeasurementsTest {
     }
 
     @Test
-    void testRemoveIfDoesNotRemoveEqualMeasurementAddedAgainWhenNotExported() {
-        // not exported, so entries have no snapshots and differ only by their measurements, which are equal by value
-        Measurements<ValueMeasurement> measurements = new Measurements<>(false, (_, _) -> {
-            throw new AssertionError("snapshots are not created for a metric that is not exported");
+    void testRemoveIfDoesNotRemoveEqualMeasurementAddedAgainBeforeExport() {
+        // no export ran, so entries have no snapshots and differ only by their measurements, which are equal by value
+        Measurements<ValueMeasurement> measurements = new Measurements<>((_, _) -> {
+            throw new AssertionError("snapshots are created only by exports");
         });
         measurements.putIfAbsent(labels("a"), new ValueMeasurement(1));
         ValueMeasurement addedAgain = new ValueMeasurement(1);
@@ -191,6 +204,27 @@ class MeasurementsTest {
                 .as("entries must be compared by identity, not by their measurements")
                 .isZero();
         assertThat(measurements.get(labels("a"))).isSameAs(addedAgain);
+    }
+
+    @Test
+    void testFailedSnapshotCreationIsRetriedByNextExport() {
+        AtomicInteger factoryCalls = new AtomicInteger();
+        Measurements<AtomicLong> measurements = new Measurements<>((measurement, labelValues) -> {
+            if (factoryCalls.incrementAndGet() == 1) {
+                throw new IllegalStateException("snapshot creation failed");
+            }
+            return new LongMeasurementSnapshot(labelValues, measurement::get);
+        });
+        measurements.putIfAbsent(labels("a"), new AtomicLong());
+
+        assertThatThrownBy(measurements::snapshotsIfChanged)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("snapshot creation failed");
+
+        assertThat(measurements.snapshotsIfChanged())
+                .as("the failed export leaves the measurements marked")
+                .hasSize(1);
+        assertThat(measurements.snapshotsIfChanged()).as("nothing changed").isNull();
     }
 
     @Test

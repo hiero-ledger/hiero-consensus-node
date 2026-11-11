@@ -47,12 +47,17 @@ public class MetricSnapshotVerifier {
     }
 
     public MetricSnapshotVerifier add(double value, String... labelNamesAndValues) {
-        expectations.add(new DoubleMeasurementSnapshot(new LabelValues(labelNamesAndValues), () -> value));
-        return this;
+        return addExpectation(new DoubleMeasurementSnapshot(new LabelValues(labelNamesAndValues), () -> value));
     }
 
     public MetricSnapshotVerifier add(long value, String... labelNamesAndValues) {
-        expectations.add(new LongMeasurementSnapshot(new LabelValues(labelNamesAndValues), () -> value));
+        return addExpectation(new LongMeasurementSnapshot(new LabelValues(labelNamesAndValues), () -> value));
+    }
+
+    private MetricSnapshotVerifier addExpectation(MeasurementSnapshot expectation) {
+        // a snapshot reads its value only when updated
+        expectation.update();
+        expectations.add(expectation);
         return this;
     }
 

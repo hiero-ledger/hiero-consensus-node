@@ -59,8 +59,8 @@ public abstract class Metric<M> implements MetricInfo {
         staticLabels = builder.staticLabels.values().stream().sorted().toList();
         dynamicLabelNames = builder.dynamicLabelNames.stream().sorted().toList();
 
-        // the snapshot factory is called only when a measurement is added, not during this constructor
-        measurements = new Measurements<>(builder.snapshotable, this::createMeasurementSnapshot);
+        // the snapshot factory is called only by exports, after this metric is constructed and registered
+        measurements = new Measurements<>(this::createMeasurementSnapshot);
         if (builder.snapshotable) {
             snapshot = new MetricSnapshot(this, measurements);
         } else {
@@ -177,11 +177,9 @@ public abstract class Metric<M> implements MetricInfo {
     /**
      * Creates the snapshot of the given measurement with its dynamic label values for export.
      * <p>
-     * Called only if this metric is exported, once for each measurement added to {@link #measurements()}.
-     * {@link Measurements#computeIfAbsent} calls it under the map bin lock, only for the measurement it creates.
-     * {@link Measurements#putIfAbsent} calls it before adding, without a lock, so it is also called for a measurement
-     * that is not added because one with the same label values already exists.
-     * A subclass adding measurements in its constructor must initialize the state this method reads before adding them.
+     * Called only if this metric is exported, once per measurement in {@link #measurements()}, by the first export
+     * that collects the measurement. It is never called by the thread adding the measurement or under a lock of the
+     * measurements map. The created snapshot must not read the measurement value: the export updates it right after.
      *
      * @param measurement the measurement to create the snapshot for
      * @param labelValues the dynamic label values of the measurement

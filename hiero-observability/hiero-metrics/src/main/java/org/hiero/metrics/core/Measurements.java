@@ -19,19 +19,17 @@ import java.util.function.Predicate;
  * which keeps the snapshots exported for the measurements in sync with them.
  * <p>
  * The {@link Metric} constructor creates the container, and subclasses keep all their measurements in it,
- * accessing it by {@link Metric#measurements()}. Adding a measurement creates its snapshot together with it,
- * if the metric is exported, and adding or removing measurements marks them as changed, so the next export rebuilds
- * the metric snapshot from this container. A measurement of a metric with no dynamic labels is kept under empty
- * label values.
+ * accessing it by {@link Metric#measurements()}. Adding or removing measurements only changes the map and marks
+ * the measurements as changed, so the next export rebuilds the metric snapshot from this container.
+ * The export creates the snapshot of a measurement the first time it collects it, so application threads never
+ * create snapshots or call the code reading measurement values, and a metric that is not exported has no snapshots.
+ * A measurement of a metric with no dynamic labels is kept under empty label values.
  *
  * @param <M> the type of the measurements
  */
 public final class Measurements<M> {
 
     private final ConcurrentHashMap<LabelValues, Entry<M>> entries = new ConcurrentHashMap<>();
-
-    // false if the metric is not exported, so no snapshots are created
-    private final boolean exported;
 
     private final BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory;
 
@@ -41,10 +39,7 @@ public final class Measurements<M> {
     /**
      * Package private, because it is created only by the {@link Metric} constructor.
      */
-    Measurements(
-            boolean exported,
-            @NonNull BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory) {
-        this.exported = exported;
+    Measurements(@NonNull BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory) {
         this.snapshotFactory = Objects.requireNonNull(snapshotFactory, "snapshot factory must not be null");
     }
 
@@ -63,8 +58,8 @@ public final class Measurements<M> {
     /**
      * Returns the measurement with the given label values, creating it with the given factory if there is none.
      * <p>
-     * The lookup of an existing measurement is lock-free. A new measurement and its snapshot are created under
-     * the lock of the map bin, so they are created once per label values, and a failed creation adds no measurement.
+     * The lookup of an existing measurement is lock-free. A new measurement is created under the lock of the map bin,
+     * so it is created once per label values, and a failed creation adds no measurement.
      *
      * @param labelValues the dynamic label values of the measurement, must not be {@code null}
      * @param factory     creates the measurement for the given label values, must not return {@code null}
@@ -78,7 +73,7 @@ public final class Measurements<M> {
         if (existing != null) {
             return existing.measurement;
         }
-        final Entry<M> entry = entries.computeIfAbsent(labelValues, key -> newEntry(key, factory.apply(key)));
+        final Entry<M> entry = entries.computeIfAbsent(labelValues, key -> new Entry<>(key, factory.apply(key)));
         // Marked after computeIfAbsent returns, when the measurement is visible to the export rebuilding the snapshot.
         // Also marked if another thread created the measurement concurrently, between the lookup above and
         // computeIfAbsent. That mark is redundant, because the creating thread marks after its own computeIfAbsent,
@@ -91,10 +86,6 @@ public final class Measurements<M> {
 
     /**
      * Adds the given measurement, if there is no measurement with the given label values.
-     * <p>
-     * The snapshot of the measurement is created before adding it, without holding any lock, so it is created
-     * even if the measurement is not added. Callers creating snapshots that read values from user code
-     * should check for an existing measurement with {@link #get(LabelValues)} first.
      *
      * @param labelValues the dynamic label values of the measurement, must not be {@code null}
      * @param measurement the measurement to add, must not be {@code null}
@@ -102,11 +93,7 @@ public final class Measurements<M> {
      * with the given label values
      */
     public boolean putIfAbsent(@NonNull LabelValues labelValues, @NonNull M measurement) {
-        // Not computeIfAbsent: creating the snapshot may call user code, for example an observed value supplier,
-        // which must not run under the map bin lock. There it would block other writers to the bin, and changing
-        // this container from it could fail with a recursive update. A snapshot is wasted only when another thread
-        // adds the same label values concurrently and this call returns false.
-        if (entries.putIfAbsent(labelValues, newEntry(labelValues, measurement)) != null) {
+        if (entries.putIfAbsent(labelValues, new Entry<>(labelValues, measurement)) != null) {
             return false;
         }
         // marked after putIfAbsent returns, when the measurement is visible to the export rebuilding the snapshot
@@ -154,11 +141,12 @@ public final class Measurements<M> {
 
     /**
      * Returns the snapshots of the current measurements in a new mutable list, if measurements were added or removed
-     * since the last call. Package private, because it is called only by the metric snapshot during export,
-     * and only if the metric is exported, so every measurement has a snapshot.
+     * since the last call, creating the snapshots of measurements collected for the first time.
+     * Package private, because it is called only by the metric snapshot during export, one export at a time.
      * <p>
      * Measurements may be added and removed during the call, so the list may contain two snapshots for label values
      * removed and added again meanwhile. Both changes mark the measurements again, so the next call returns them.
+     * If creating a snapshot fails, the measurements stay marked, so the next call collects them again.
      *
      * @return the snapshots, or {@code null} if nothing changed since the last call
      */
@@ -170,20 +158,15 @@ public final class Measurements<M> {
             return null;
         }
         final List<MeasurementSnapshot> snapshots = new ArrayList<>(entries.size());
-        for (Entry<M> entry : entries.values()) {
-            snapshots.add(entry.snapshot);
+        try {
+            for (Entry<M> entry : entries.values()) {
+                snapshots.add(entry.snapshot(snapshotFactory));
+            }
+        } catch (RuntimeException | Error e) {
+            markChanged();
+            throw e;
         }
         return snapshots;
-    }
-
-    private Entry<M> newEntry(LabelValues labelValues, M measurement) {
-        Objects.requireNonNull(measurement, "measurement must not be null");
-        if (!exported) {
-            return new Entry<>(measurement, null);
-        }
-        final MeasurementSnapshot snapshot = Objects.requireNonNull(
-                snapshotFactory.apply(measurement, labelValues), "measurement snapshot must not be null");
-        return new Entry<>(measurement, snapshot);
     }
 
     private void markChanged() {
@@ -191,22 +174,33 @@ public final class Measurements<M> {
     }
 
     /**
-     * A measurement with its snapshot, created once together, because creating a snapshot reads the measurement value.
+     * A measurement with its label values and its snapshot, which the first export collecting the entry creates.
      * <p>
      * Not a record: {@link ConcurrentHashMap#remove(Object, Object)} in {@link #removeIf(Predicate)} compares entries
-     * with {@code equals}, which must stay identity based. A record would compare the measurements, and snapshots are
-     * {@code null} if the metric is not exported, so a stale removal could remove a measurement with equal value
-     * added again for the same label values.
+     * with {@code equals}, which must stay identity based. A record would compare the measurements, so a stale removal
+     * could remove a measurement with equal value added again for the same label values.
      */
     private static final class Entry<M> {
+        private final LabelValues labelValues;
         private final M measurement;
 
+        // Read and written only by exports, which MetricRegistrySnapshot.update() runs one at a time,
+        // so it needs no synchronization of its own.
         @Nullable
-        private final MeasurementSnapshot snapshot;
+        private MeasurementSnapshot snapshot;
 
-        private Entry(M measurement, @Nullable MeasurementSnapshot snapshot) {
-            this.measurement = measurement;
-            this.snapshot = snapshot;
+        private Entry(LabelValues labelValues, M measurement) {
+            this.labelValues = labelValues;
+            this.measurement = Objects.requireNonNull(measurement, "measurement must not be null");
+        }
+
+        private MeasurementSnapshot snapshot(
+                BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory) {
+            if (snapshot == null) {
+                snapshot = Objects.requireNonNull(
+                        snapshotFactory.apply(measurement, labelValues), "measurement snapshot must not be null");
+            }
+            return snapshot;
         }
     }
 }

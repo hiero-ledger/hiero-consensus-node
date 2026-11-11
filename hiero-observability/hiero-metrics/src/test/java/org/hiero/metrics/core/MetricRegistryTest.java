@@ -502,8 +502,8 @@ public class MetricRegistryTest {
         AtomicInteger calls = new AtomicInteger();
         ObservableGauge.builder("metric_a")
                 .observe(() -> {
-                    // the first call creates the snapshot, the second one is made by the export
-                    if (calls.incrementAndGet() == 2) {
+                    // the first call is made by the first export
+                    if (calls.incrementAndGet() == 1) {
                         registry.register(LongCounter.builder("metric_b"));
                     }
                     return 1L;
