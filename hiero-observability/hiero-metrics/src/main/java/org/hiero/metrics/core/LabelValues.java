@@ -66,6 +66,28 @@ public final class LabelValues {
         throw new IllegalArgumentException("Unknown label name: " + labelName);
     }
 
+    /**
+     * Compares label values of the same metric, value by value in the sorted order of the dynamic label names,
+     * comparing values as strings, so {@code "10"} comes before {@code "2"}.
+     * The result is meaningful only for label values of the same metric, which have the same label names,
+     * because label names are not compared.
+     * <p>
+     * Package private, because it is used only to sort measurement snapshots of a metric snapshot.
+     * This class is not {@link Comparable} on purpose: a natural ordering would make this string order public API,
+     * so changing it later, for example to order numeric values by number, would break users, and it would invite
+     * sorting label values of different metrics, for which this order has no meaning.
+     */
+    static int compare(@NonNull LabelValues first, @NonNull LabelValues second) {
+        final int size = Math.min(first.size(), second.size());
+        for (int i = 0; i < size; i++) {
+            final int result = first.get(i).compareTo(second.get(i));
+            if (result != 0) {
+                return result;
+            }
+        }
+        return Integer.compare(first.size(), second.size());
+    }
+
     @Override
     public boolean equals(Object other) {
         if (other instanceof LabelValues that) {

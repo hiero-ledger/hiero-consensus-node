@@ -82,6 +82,7 @@ public final class LongAccumulatorGauge extends SettableMetric<LongSupplier, Lon
         return new Measurement(operator, initializer);
     }
 
+    @NonNull
     @Override
     protected MeasurementSnapshot createMeasurementSnapshot(
             @NonNull Measurement measurement, @NonNull LabelValues labelValues) {

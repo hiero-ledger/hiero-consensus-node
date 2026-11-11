@@ -3,7 +3,6 @@ package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 /**
@@ -13,7 +12,9 @@ import java.util.function.Predicate;
  * Subclasses must implement the creation of measurements based on initializer
  * and measurement snapshots based on measurement with it's associated label values.
  * All measurements are created lazily, whenever new combination of dynamic label values are requested.
- * Measurements with dynamic labels can be removed using {@link #removeIf(Predicate)}.
+ * Measurements with dynamic labels can be removed using {@link #removeIf(Predicate)}. The next
+ * {@code getOrCreateLabeled} call with the label values of a removed measurement creates a new measurement
+ * from the initializer.
  * <p>
  * Clients should pay attention the dynamic label values cardinality, as high cardinality can lead to
  * higher costs for metrics backends. <b>Do not use</b> labels with values having unbounded cardinality,
@@ -22,23 +23,19 @@ import java.util.function.Predicate;
  * @param <I> The type of the measurement initializer.
  * @param <M> The type of the measurement associated with this metric.
  */
-public abstract class SettableMetric<I, M> extends Metric {
+public abstract class SettableMetric<I, M> extends Metric<M> {
 
     private final I defaultInitializer;
+    private final boolean labeled;
 
+    // cached measurement with no labels, which can't be removed, so the cached reference never goes stale
     private volatile M noLabelsMeasurement;
-    private final ConcurrentHashMap<LabelValues, M> measurements;
 
     protected SettableMetric(SettableMetric.Builder<I, ?, ?> builder) {
         super(builder);
 
         defaultInitializer = builder.defaultInitializer;
-
-        if (dynamicLabelNames().isEmpty()) {
-            measurements = null;
-        } else {
-            measurements = new ConcurrentHashMap<>();
-        }
+        labeled = !dynamicLabelNames().isEmpty();
     }
 
     /**
@@ -49,19 +46,13 @@ public abstract class SettableMetric<I, M> extends Metric {
      */
     @NonNull
     public final M getOrCreateNotLabeled() {
-        if (measurements != null) {
+        if (labeled) {
             throw new IllegalStateException("This metric has dynamic labels, so you must call getOrCreateLabeled()");
         }
-        // lazy init of no labels measurement
+        // lazy init of no labels measurement; concurrent callers get the single one created by the container
         M localRef = noLabelsMeasurement;
         if (localRef == null) {
-            synchronized (this) {
-                localRef = noLabelsMeasurement;
-                if (localRef == null) {
-                    noLabelsMeasurement =
-                            localRef = createMeasurementAndSnapshot(LabelValues.EMPTY, defaultInitializer);
-                }
-            }
+            noLabelsMeasurement = localRef = getOrCreate(LabelValues.EMPTY, defaultInitializer);
         }
         return localRef;
     }
@@ -102,33 +93,12 @@ public abstract class SettableMetric<I, M> extends Metric {
      */
     @NonNull
     public final M getOrCreateLabeled(@NonNull I initializer, @NonNull String... namesAndValues) {
-        if (measurements == null) {
+        if (!labeled) {
             throw new IllegalStateException(
                     "This metric has no dynamic labels, so you must call getOrCreateNotLabeled()");
         }
         Objects.requireNonNull(initializer, "custom measurement initializer must not be null");
         return getOrCreate(createLabelValues(namesAndValues), initializer);
-    }
-
-    /**
-     * Removes all measurements whose dynamic label values match the given filter, so they are not exported anymore.
-     * Use {@link LabelValues#get(String)} to match by label name, for example
-     * {@code metric.removeIf(labelValues -> "3".equals(labelValues.get("node")))}.
-     * <p>
-     * The filter is called for the label values of each existing measurement without holding any lock.
-     * Measurements created concurrently with this call may or may not be removed.
-     * <p>
-     * The next {@code getOrCreateLabeled} call with the same label values creates a new measurement from the initializer.
-     * References to removed measurements held by callers remain usable, but their updates are not exported anymore,
-     * so callers caching measurements must drop them on removal.
-     *
-     * @param filter returns {@code true} for label values of measurements to remove, must not be {@code null}
-     * @return the number of removed measurements
-     * @throws IllegalStateException if metric has no dynamic labels specified during creation
-     * @throws NullPointerException  if the filter is {@code null}
-     */
-    public final int removeIf(@NonNull Predicate<LabelValues> filter) {
-        return removeMeasurements(measurements, filter);
     }
 
     /**
@@ -140,16 +110,6 @@ public abstract class SettableMetric<I, M> extends Metric {
     protected abstract M createMeasurement(@NonNull I initializer);
 
     /**
-     * Create a measurement snapshot for the given measurement and label values.
-     *
-     * @param measurement the measurement to create snapshot for
-     * @param labelValues the label values associated with the measurement
-     * @return the created measurement snapshot
-     */
-    protected abstract MeasurementSnapshot createMeasurementSnapshot(
-            @NonNull M measurement, @NonNull LabelValues labelValues);
-
-    /**
      * Reset the given measurement to its initial state.
      *
      * @param measurement the measurement to reset
@@ -158,30 +118,17 @@ public abstract class SettableMetric<I, M> extends Metric {
 
     @Override
     protected final void reset() {
-        if (dynamicLabelNames().isEmpty()) {
-            if (noLabelsMeasurement != null) {
-                reset(noLabelsMeasurement);
-            }
-        } else {
-            measurements.values().forEach(this::reset);
-        }
+        measurements().forEach(this::reset);
     }
 
     private M getOrCreate(LabelValues labelValues, I initializer) {
-        // lock-free lookup first: computeIfAbsent may lock the map bin even when the key exists
+        final Measurements<M> measurements = measurements();
+        // Hot path: an existing measurement is returned by this lock-free lookup without allocation.
         final M existing = measurements.get(labelValues);
         if (existing != null) {
             return existing;
         }
-        // the snapshot is added inside computeIfAbsent, so the map entry and its snapshot change together per key
-        // and a failed snapshot creation leaves no measurement in the map
-        return measurements.computeIfAbsent(labelValues, key -> createMeasurementAndSnapshot(key, initializer));
-    }
-
-    private M createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {
-        final M measurement = createMeasurement(initializer);
-        addMeasurementSnapshot(createMeasurementSnapshot(measurement, labelValues));
-        return measurement;
+        return measurements.computeIfAbsent(labelValues, _ -> createMeasurement(initializer));
     }
 
     /**

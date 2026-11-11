@@ -38,11 +38,11 @@ public class MetricSnapshotVerifier {
         return -1;
     };
 
-    final Metric metric;
+    final Metric<?> metric;
     private final List<MeasurementSnapshot> expectations = new ArrayList<>();
     private boolean snapshotsAnyOrder = false;
 
-    public MetricSnapshotVerifier(Metric metric) {
+    public MetricSnapshotVerifier(Metric<?> metric) {
         this.metric = metric;
     }
 
@@ -88,7 +88,7 @@ public class MetricSnapshotVerifier {
         }
     }
 
-    public static void verifMetricHasNoSnapshot(Metric metric) {
+    public static void verifMetricHasNoSnapshot(Metric<?> metric) {
         assertThat(metric.snapshot())
                 .as("Snapshot should be null for metric " + metric.name())
                 .isNull();

@@ -14,7 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public abstract class MetricBaseTest<M extends Metric, B extends Metric.Builder<B, M>> {
+public abstract class MetricBaseTest<M extends Metric<?>, B extends Metric.Builder<B, M>> {
 
     protected static final String DEFAULT_NAME = "test_metric";
 
@@ -32,6 +32,15 @@ public abstract class MetricBaseTest<M extends Metric, B extends Metric.Builder<
 
     protected MetricSnapshot snapshotOf(M metric) {
         return metric.snapshot();
+    }
+
+    /**
+     * @return the metric snapshot rebuilt and updated, as an export does
+     */
+    protected MetricSnapshot exportedSnapshotOf(M metric) {
+        MetricSnapshot snapshot = metric.snapshot();
+        snapshot.update();
+        return snapshot;
     }
 
     /**

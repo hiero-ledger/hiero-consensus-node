@@ -17,6 +17,7 @@ import org.hiero.metrics.core.Label;
 import org.hiero.metrics.core.MeasurementSnapshot;
 import org.hiero.metrics.core.MetricBaseTest;
 import org.hiero.metrics.core.MetricKey;
+import org.hiero.metrics.core.MetricSnapshot;
 import org.hiero.metrics.core.MetricSnapshotVerifier;
 import org.hiero.metrics.core.MetricType;
 import org.junit.jupiter.api.Nested;
@@ -35,17 +36,30 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
     }
 
     @Test
-    void testIterationStartedBeforeObserveSeesFixedList() {
+    void testSnapshotChangesOnlyOnUpdate() {
         ObservableGauge gauge =
                 emptyMetricBuilder().addDynamicLabelNames("label").build();
         gauge.observe(() -> 1L, "label", "a");
 
-        Iterator<MeasurementSnapshot> export = snapshotOf(gauge).iterator();
+        Iterator<MeasurementSnapshot> export = exportedSnapshotOf(gauge).iterator();
         gauge.observe(() -> 2L, "label", "b");
+        assertThat(labels(snapshotOf(gauge))).as("not visible before update").containsExactly("[a]");
 
+        assertThat(exportedLabels(gauge)).containsExactly("[a]", "[b]");
         List<String> seen = new ArrayList<>();
         export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
-        assertThat(seen).containsExactly("[a]");
+        assertThat(seen).as("started iteration is not affected").containsExactly("[a]");
+    }
+
+    @Test
+    void testSnapshotIsSortedByLabelValues() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        gauge.observe(() -> 1L, "label", "b");
+        gauge.observe(() -> 2.0, "label", "a");
+        gauge.observe(() -> 3L, "label", "c");
+
+        assertThat(exportedLabels(gauge)).containsExactly("[a]", "[b]", "[c]");
     }
 
     @Test
@@ -63,7 +77,7 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
                 .isZero();
         assertThat(exportedLabels(gauge)).containsExactly("[1,a]");
 
-        // removed labels can be observed again and are appended
+        // removed labels can be observed again
         gauge.observe(() -> 4L, "node", "3", "type", "a");
         assertThat(exportedLabels(gauge)).containsExactly("[1,a]", "[3,a]");
     }
@@ -75,7 +89,7 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
         gauge.observe(() -> 1L, "label", "a");
         gauge.observe(() -> 2L, "label", "b");
 
-        Iterator<MeasurementSnapshot> export = snapshotOf(gauge).iterator();
+        Iterator<MeasurementSnapshot> export = exportedSnapshotOf(gauge).iterator();
         gauge.removeIf(labelValues -> "a".equals(labelValues.get("label")));
 
         List<String> seen = new ArrayList<>();
@@ -151,6 +165,51 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
     }
 
     @Test
+    void testObserveDuringExportIsExportedByNextExport() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        AtomicInteger calls = new AtomicInteger();
+        gauge.observe(
+                () -> {
+                    // the first call creates the snapshot, the second one is made by the export
+                    if (calls.incrementAndGet() == 2) {
+                        gauge.observe(() -> 2L, "label", "b");
+                    }
+                    return 1L;
+                },
+                "label",
+                "a");
+
+        assertThat(exportedLabels(gauge))
+                .as("observed after the export rebuilt the list")
+                .containsExactly("[a]");
+        assertThat(exportedLabels(gauge)).containsExactly("[a]", "[b]");
+    }
+
+    @Test
+    void testRemoveIfDuringExportIsExportedByNextExport() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        AtomicInteger calls = new AtomicInteger();
+        gauge.observe(() -> 2L, "label", "b");
+        gauge.observe(
+                () -> {
+                    // the first call creates the snapshot, the second one is made by the export
+                    if (calls.incrementAndGet() == 2) {
+                        gauge.removeIf(labelValues -> "b".equals(labelValues.get("label")));
+                    }
+                    return 1L;
+                },
+                "label",
+                "a");
+
+        assertThat(exportedLabels(gauge))
+                .as("removed after the export rebuilt the list")
+                .containsExactly("[a]", "[b]");
+        assertThat(exportedLabels(gauge)).containsExactly("[a]");
+    }
+
+    @Test
     void testRemoveIfCallsFilterWithoutLock() {
         ObservableGauge gauge =
                 emptyMetricBuilder().addDynamicLabelNames("label").build();
@@ -177,7 +236,8 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
         final int iterations = 20_000;
         final int labelsCount = 5;
 
-        // a broken lock duplicates snapshots only until the next removal, so every export is checked
+        // an export rebuilt during concurrent changes may iterate a supplier removed and observed again twice,
+        // so every export is checked for duplicates
         ThreadUtils.runConcurrentAndCheck(
                 threadCount,
                 Duration.ofSeconds(10),
@@ -210,8 +270,12 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
     }
 
     private List<String> exportedLabels(ObservableGauge gauge) {
+        return labels(exportedSnapshotOf(gauge));
+    }
+
+    private static List<String> labels(MetricSnapshot snapshot) {
         List<String> labels = new ArrayList<>();
-        snapshotOf(gauge).forEach(s -> labels.add(s.getDynamicLabelValues().toString()));
+        snapshot.forEach(s -> labels.add(s.getDynamicLabelValues().toString()));
         return labels;
     }
 

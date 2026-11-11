@@ -20,16 +20,55 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
         extends MetricBaseTest<M, B> {
 
     @Test
-    void testIterationStartedBeforeAddSeesFixedList() {
+    void testSnapshotChangesOnlyOnUpdate() {
         M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+        MetricSnapshot snapshot = metric.snapshot();
         metric.getOrCreateLabeled("label", "a");
+        snapshot.update();
 
-        Iterator<MeasurementSnapshot> export = metric.snapshot().iterator();
+        Iterator<MeasurementSnapshot> export = snapshot.iterator();
         metric.getOrCreateLabeled("label", "b");
+        assertThat(labels(snapshot)).as("not visible before update").containsExactly("[a]");
 
+        snapshot.update();
         List<String> seen = new ArrayList<>();
         export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
-        assertThat(seen).containsExactly("[a]");
+        assertThat(seen).as("started iteration is not affected").containsExactly("[a]");
+        assertThat(labels(snapshot)).containsExactly("[a]", "[b]");
+    }
+
+    @Test
+    void testSnapshotIsSortedByLabelValues() {
+        M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+        metric.getOrCreateLabeled("label", "b");
+        metric.getOrCreateLabeled("label", "2");
+        metric.getOrCreateLabeled("label", "a");
+        metric.getOrCreateLabeled("label", "10");
+
+        assertThat(exportedLabels(metric))
+                .as("values are compared as strings")
+                .containsExactly("[10]", "[2]", "[a]", "[b]");
+    }
+
+    @Test
+    void testSnapshotIsSortedByLabelNamesAndThenValues() {
+        M metric = emptyMetricBuilder().addDynamicLabelNames("type", "node").build();
+        metric.getOrCreateLabeled("type", "a", "node", "2");
+        metric.getOrCreateLabeled("type", "b", "node", "1");
+        metric.getOrCreateLabeled("node", "1", "type", "a");
+
+        assertThat(exportedLabels(metric)).containsExactly("[1,a]", "[1,b]", "[2,a]");
+    }
+
+    @Test
+    void testMeasurementSnapshotIsReusedWhenSnapshotIsRebuilt() {
+        M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+        metric.getOrCreateLabeled("label", "b");
+        MeasurementSnapshot created = exported(metric).getFirst();
+
+        metric.getOrCreateLabeled("label", "a");
+
+        assertThat(exported(metric)).hasSize(2).last().isSameAs(created);
     }
 
     /**
@@ -238,7 +277,7 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                 assertThat(results[i]).isNotNull();
                 assertThat(results[i]).isSameAs(results[0]);
             }
-            assertThat(metric.snapshot()).hasSize(1);
+            assertThat(exported(metric)).hasSize(1);
         }
 
         @Test
@@ -258,7 +297,7 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                 assertThat(results[i]).isNotNull();
                 assertThat(results[i]).isSameAs(results[0]);
             }
-            assertThat(metric.snapshot()).hasSize(1);
+            assertThat(exported(metric)).hasSize(1);
         }
 
         @Test
@@ -271,9 +310,7 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                     Duration.ofMillis(300),
                     threadIdx -> () -> metric.getOrCreateLabeled("label", "v" + threadIdx));
 
-            List<String> seen = new ArrayList<>();
-            metric.snapshot().forEach(s -> seen.add(s.getDynamicLabelValues().toString()));
-            assertThat(seen)
+            assertThat(exportedLabels(metric))
                     .containsExactlyInAnyOrderElementsOf(IntStream.range(0, threadCount)
                             .mapToObj(i -> "[v" + i + "]")
                             .toList());
@@ -318,7 +355,7 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                     .as("nothing left to remove")
                     .isZero();
             assertThat(metric.getOrCreateLabeled("node", "1", "type", "a")).isSameAs(kept);
-            assertThat(labels(metric.snapshot())).containsExactly("[1,a]");
+            assertThat(exportedLabels(metric)).containsExactly("[1,a]");
         }
 
         @Test
@@ -332,15 +369,17 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
         }
 
         @Test
-        void testSnapshotDropsRemovedAndAppendsCreatedAgain() {
+        void testSnapshotDropsRemovedAndSortsCreatedAgain() {
             M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
             MetricSnapshot snapshot = metric.snapshot();
             metric.getOrCreateLabeled("label", "a");
             metric.getOrCreateLabeled("label", "b");
+            snapshot.update();
 
             Iterator<MeasurementSnapshot> export = snapshot.iterator();
             metric.removeIf(labelValues -> "a".equals(labelValues.get("label")));
             metric.getOrCreateLabeled("label", "c");
+            snapshot.update();
 
             List<String> seen = new ArrayList<>();
             export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
@@ -348,7 +387,8 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
             assertThat(labels(snapshot)).containsExactly("[b]", "[c]");
 
             metric.getOrCreateLabeled("label", "a");
-            assertThat(labels(snapshot)).containsExactly("[b]", "[c]", "[a]");
+            snapshot.update();
+            assertThat(labels(snapshot)).containsExactly("[a]", "[b]", "[c]");
         }
 
         @Test
@@ -377,7 +417,8 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
             final int iterations = 20_000;
             final int labelsCount = 5;
 
-            // a broken lock duplicates snapshots only until the next removal, so every export is checked
+            // an export rebuilt during concurrent changes may iterate a measurement removed and created again twice,
+            // so every export is checked for duplicates
             ThreadUtils.runConcurrentAndCheck(
                     threadCount,
                     Duration.ofSeconds(10),
@@ -398,20 +439,33 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                                 .doesNotHaveDuplicates();
                     });
 
-            List<String> exported = labels(snapshot);
+            List<String> exported = exportedLabels(metric);
             assertThat(exported).doesNotHaveDuplicates();
             assertThat(metric.removeIf(_ -> true))
                     .as("exported measurements are the existing ones")
                     .isEqualTo(exported.size());
-            assertThat(snapshot)
+            assertThat(exportedLabels(metric))
                     .as("no removed measurement left in the snapshot")
                     .isEmpty();
         }
+    }
 
-        private static List<String> labels(MetricSnapshot snapshot) {
-            List<String> labels = new ArrayList<>();
-            snapshot.forEach(s -> labels.add(s.getDynamicLabelValues().toString()));
-            return labels;
-        }
+    private static List<MeasurementSnapshot> exported(Metric<?> metric) {
+        MetricSnapshot snapshot = metric.snapshot();
+        snapshot.update();
+        List<MeasurementSnapshot> exported = new ArrayList<>();
+        snapshot.forEach(exported::add);
+        return exported;
+    }
+
+    private static List<String> exportedLabels(Metric<?> metric) {
+        metric.snapshot().update();
+        return labels(metric.snapshot());
+    }
+
+    private static List<String> labels(MetricSnapshot snapshot) {
+        List<String> labels = new ArrayList<>();
+        snapshot.forEach(s -> labels.add(s.getDynamicLabelValues().toString()));
+        return labels;
     }
 }
