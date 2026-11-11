@@ -36,7 +36,8 @@ import org.openjdk.jmh.annotations.Warmup;
  *       item, which caps the pipeline at 5,000 items/s, get the items at half that rate. Every latency is at least the
  *       sum of both times: {@code latency.min} is at least {@code 2 × STAGE_NANOS}.</li>
  *   <li>{@code saturated}: the same pipeline gets the items at 1.1 times its capacity, so its latency grows by about
- *       10% of the elapsed time. Every pass must fail the timer's saturation check; the pass is then not recorded.</li>
+ *       10% of the elapsed time. Every pass must fail the timer's saturation check, so that the profiler reports no
+ *       latencies and counts the passes in {@code measured.saturation.discardedPasses}.</li>
  * </ul>
  *
  * <p>Profile it with {@code -prof jfr} and {@code jfr-components.sh}: the timer's busy-waiting shows as "timer:
@@ -78,9 +79,6 @@ public class PipelineTimerBenchmark {
     /** The output of the direct pipeline. */
     private Consumer<Object> output;
 
-    /** Whether the latest pass failed the saturation check. */
-    private boolean failedDueToSaturation;
-
     @Setup(Level.Trial)
     public void setUpTrial() {
         exceptions = new UncaughtExceptionCollector();
@@ -116,12 +114,7 @@ public class PipelineTimerBenchmark {
 
     @Benchmark
     public void replay() {
-        failedDueToSaturation = false;
-        try {
-            timer.replay();
-        } catch (final PipelineSaturatedException e) {
-            failedDueToSaturation = true;
-        }
+        timer.replay();
     }
 
     @TearDown(Level.Invocation)
@@ -131,7 +124,7 @@ public class PipelineTimerBenchmark {
             throw new IllegalStateException("Expected " + items + " arrivals, but got " + timer.arrivals());
         }
         final boolean expectSaturated = pipeline.equals("saturated");
-        if (failedDueToSaturation != expectSaturated) {
+        if (timer.saturated() != expectSaturated) {
             throw new IllegalStateException(
                     "Expected a pass that " + (expectSaturated ? "fails" : "passes") + " the saturation check");
         }

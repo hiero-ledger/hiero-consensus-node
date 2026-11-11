@@ -74,7 +74,10 @@ class PipelineTimerTest {
         timer.replay();
 
         assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
-        assertThat(results()).containsEntry("latency.samples", (double) ITEMS.size());
+        assertThat(timer.saturated()).isFalse();
+        assertThat(results())
+                .containsEntry("latency.samples", (double) ITEMS.size())
+                .containsEntry("measured.saturation.discardedPasses", 0.0);
     }
 
     @Test
@@ -357,7 +360,29 @@ class PipelineTimerTest {
     }
 
     @Test
-    void aPipelineThatFallsBehindFailsThePassAndIsNotRecorded() {
+    void aPassWithAGarbageCollectionIsDiscarded() {
+        final AtomicInteger entered = new AtomicInteger();
+        final PipelineTimer timer = builder(ITEMS)
+                .entryPoint(Item.class, item -> item, item -> {
+                    if (entered.getAndIncrement() == 0) {
+                        System.gc();
+                    }
+                    output.accept(item);
+                })
+                .build();
+
+        timer.prepare();
+        timer.replay();
+
+        assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
+        assertThat(results())
+                .doesNotContainKey("latency.samples")
+                .containsEntry("measured.gc.discardedPasses", 1.0)
+                .containsEntry("measured.saturation.discardedPasses", 0.0);
+    }
+
+    @Test
+    void aPipelineThatFallsBehindIsDiscardedAndCounted() {
         // one thread that needs 300 µs per item gets one every 200 µs: the latency grows by half the elapsed time
         final ExecutorService worker = Executors.newSingleThreadExecutor();
         try {
@@ -378,11 +403,13 @@ class PipelineTimerTest {
                     .build();
 
             timer.prepare();
-            assertThatThrownBy(timer::replay)
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageStartingWith("The pipeline did not keep up");
+            timer.replay();
+
+            assertThat(timer.saturated()).isTrue();
             assertThat(timer.arrivals()).isEqualTo(ITEMS.size());
-            assertThat(results()).doesNotContainKey("latency.samples");
+            assertThat(results())
+                    .doesNotContainKey("latency.samples")
+                    .containsEntry("measured.saturation.discardedPasses", 1.0);
         } finally {
             worker.shutdownNow();
         }

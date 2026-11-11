@@ -20,8 +20,8 @@ follows, `LatencyHistogramBenchmark` and `PipelineTimerBenchmark` in `src/jmh` i
 - `histogram` — records the latency of every measured call and reports its percentiles to JMH.
 - `pipeline` — times inputs through a pipeline of components on several threads, such as the
   event intake. `PipelineTimer` replays timed inputs (the steps Falcon records, or `Item`) at
-  their due times, records each one's latency until it reaches the pipeline's output, and fails a
-  pass in which the pipeline did not keep up. `UncaughtExceptionCollector` fails a benchmark when
+  their due times, records each one's latency until it reaches the pipeline's output, and discards
+  a pass in which the pipeline did not keep up. `UncaughtExceptionCollector` fails a benchmark when
   a pipeline thread throws.
 - `event` — benchmark inputs. `EventStreamGenerator` generates independent events, hashed and
   optionally signed by their creators, for the benchmarks that process one event at a time, and

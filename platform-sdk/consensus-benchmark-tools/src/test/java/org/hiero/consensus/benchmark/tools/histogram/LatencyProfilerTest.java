@@ -12,7 +12,8 @@ import org.openjdk.jmh.results.Result;
 
 /**
  * Checks that {@link LatencyProfiler} reports a percentile only if the iteration recorded at least 100 calls above it,
- * and names the skipped percentiles in {@link LatencyProfiler#SKIPPED}.
+ * and names the skipped percentiles in {@link LatencyProfiler#SKIPPED}, and that it reports the passes of a
+ * {@link PipelineRecorder}.
  */
 class LatencyProfilerTest {
 
@@ -23,7 +24,33 @@ class LatencyProfilerTest {
         assertThat(results)
                 .containsKeys(
                         "latency.p50", "latency.p90", "latency.p99", "latency.p99.9", "latency.p99.99", "latency.max")
-                .doesNotContainKey(LatencyProfiler.SKIPPED);
+                .doesNotContainKeys(LatencyProfiler.SKIPPED, "measured.saturation.discardedPasses");
+    }
+
+    @Test
+    void reportsThePassesOfThePipelineRecorderAndBothCounters() {
+        final LatencyProfiler profiler = new LatencyProfiler();
+        profiler.beforeIteration(null, null);
+        final PipelineRecorder recorder = LatencyProfiler.pipelineRecorder();
+        assertThat(LatencyProfiler.pipelineRecorder()).isSameAs(recorder);
+        recorder.startPass();
+        recorder.record(1_000);
+        recorder.record(3_000);
+        recorder.endPass();
+        recorder.startPass();
+        recorder.record(9_000);
+        recorder.endPass();
+        recorder.discardSaturatedPass();
+        final Map<String, Double> results = scores(profiler.afterIteration(null, null, null));
+
+        assertThat(recorder.gcDiscardedPasses())
+                .as("a garbage collection discarded a pass")
+                .isZero();
+        assertThat(results)
+                .containsEntry("latency.samples", 2.0)
+                .containsEntry("latency.mean", 2_000.0)
+                .containsEntry("measured.gc.discardedPasses", 0.0)
+                .containsEntry("measured.saturation.discardedPasses", 1.0);
     }
 
     @Test
@@ -64,5 +91,12 @@ class LatencyProfilerTest {
                 .as("a garbage collection discarded the pass")
                 .isZero();
         return results.stream().collect(Collectors.toMap(Result::getLabel, Function.identity()));
+    }
+
+    /** Returns the numeric results by label. */
+    private static Map<String, Double> scores(final List<? extends Result<?>> results) {
+        return results.stream()
+                .filter(result -> !Double.isNaN(result.getScore()))
+                .collect(Collectors.toMap(Result::getLabel, Result::getScore));
     }
 }

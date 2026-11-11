@@ -3,10 +3,8 @@ package org.hiero.consensus.benchmark.tools.pipeline;
 
 import static java.util.Objects.requireNonNull;
 
-import com.sun.management.ThreadMXBean;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.lang.management.ManagementFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -21,9 +19,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import org.hiero.consensus.benchmark.tools.histogram.LatencyHistogram;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
 import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
+import org.hiero.consensus.benchmark.tools.histogram.PipelineRecorder;
 import org.hiero.consensus.wiring.framework.wires.SolderType;
 import org.hiero.consensus.wiring.framework.wires.input.InputWire;
 import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
@@ -75,8 +73,9 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * }
  * }</pre>
  *
- * <p>Run the benchmark with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}. The timer adds
- * every pass to the profiler's recorder, which reports the latencies as {@code latency.*}.
+ * <p>Run the benchmark with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}. The timer
+ * records every pass with the profiler's {@link PipelineRecorder}, and the profiler reports the latencies as
+ * {@code latency.*}.
  *
  * <h2>Inputs</h2>
  *
@@ -102,11 +101,10 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *   <li>{@link #replay()}, the benchmark method: hands each input to its entry point at its due time, on the calling
  *       thread, busy-waiting until then. The latency counts from the due time, so an entry point that holds the timer
  *       up counts. After the last input, it runs the drain, for example the pipeline's {@code flush()}.</li>
- *   <li>Once the drain returns, {@code replay()} puts the latency of every counted value that arrived during the pass
- *       into the pass's histogram. Values that never arrived are skipped; {@link #arrivals()} returns how many did, for
- *       the benchmark's exact check.</li>
- *   <li>If the pipeline did not keep up, {@code replay()} throws (see below). Otherwise it adds the pass to
- *       {@link LatencyProfiler#recorder()}.</li>
+ *   <li>Once the drain returns, {@code replay()} records the latency of every counted value that arrived during the
+ *       pass with {@link LatencyProfiler#pipelineRecorder()}. Values that never arrived are skipped;
+ *       {@link #arrivals()} returns how many did, for the benchmark's exact check.</li>
+ *   <li>If the pipeline did not keep up, {@code replay()} discards the pass (see below).</li>
  * </ol>
  *
  * <h2>Saturation</h2>
@@ -116,7 +114,9 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * a fraction ε faster than the pipeline's capacity, the latency grows by ε seconds per second of the pass. The timer
  * compares the median latency of the inputs due in the last quarter of the pass with that of the first quarter, and
  * divides the difference by the time between the quarters' centers. If that growth exceeds
- * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} throws: lower the speedup. A pass with fewer than
+ * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} discards the pass, which the profiler counts in
+ * {@code measured.saturation.discardedPasses}, and {@link #saturated()} returns true. Passes discarded regularly mean
+ * that the speedup is too high. A pass with fewer than
  * {@value #MIN_LATENCIES_PER_QUARTER} latencies in either quarter is not judged. Below capacity, the event intake and
  * the self-check {@code PipelineTimerBenchmark} grew by less than 0.13%, even in passes with short bursts. Above
  * capacity, the self-check's growth matched its overload.
@@ -127,25 +127,22 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *
  * <h2>Allocation and garbage collection</h2>
  *
- * <p>A pipeline allocates on its own threads, so the timer counts the bytes all threads of the JVM allocate during the
- * pass ({@code com.sun.management.ThreadMXBean#getTotalThreadAllocatedBytes}). {@code LatencyProfiler} reports them per
- * counted value as {@code alloc.norm}. Unlike a pass of {@link LatencyRecorder#startMeasurement()}, a pass with a
- * garbage collection is not discarded: collections stop every pipeline thread, as in production, so they count as
- * latency.
+ * <p>A pipeline allocates on its own threads, so {@link PipelineRecorder} counts the bytes all threads of the JVM
+ * allocate during the pass, and {@code LatencyProfiler} reports them per counted value as {@code alloc.norm}. A pass
+ * during which a garbage collection ran is discarded, as with {@link LatencyRecorder}.
  *
  * <h2>Threads</h2>
  *
- * <p>{@code prepare()}, {@code replay()}, and {@code arrivals()} run on the benchmark thread. The exit point runs on
- * the pipeline's threads, any number of them at once: it reads the clock, looks up the value's position in a map that
- * {@code prepare()} filled, and writes the time into an {@link AtomicLongArray}, without allocating.
+ * <p>{@code prepare()}, {@code replay()}, {@code arrivals()}, and {@code saturated()} run on the benchmark thread, and
+ * a pipeline benchmark has only one (see {@link PipelineRecorder}). The handler of the configured pipeline exit is
+ * called on the pipeline's threads, possibly by several at the same time: the handler reads the clock, looks up the
+ * value's position in a map that {@code prepare()} filled, and writes the time into an {@link AtomicLongArray},
+ * without allocating.
  */
 public final class PipelineTimer {
 
     /** The arrival time of a value that has not arrived. */
     private static final long NOT_ARRIVED = Long.MIN_VALUE;
-
-    /** Measures the bytes allocated by all threads. */
-    private static final ThreadMXBean THREAD_MX_BEAN = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
     /**
      * The largest growth of the latency, in seconds per second of the pass, of a pipeline that keeps up (see the class
@@ -180,21 +177,21 @@ public final class PipelineTimer {
     /** Receives the values at the exit point. */
     private final Output output;
 
-    /** The latencies of the latest pass. */
-    private final LatencyHistogram pass = LatencyRecorder.newHistogram();
-
     /** The latency of each replayed input in the latest pass, or -1 for one that does not count or did not arrive. */
     private final long[] passLatencies;
 
     /** The recorder of the current iteration, or {@code null} before the first {@link #prepare()}. */
     @Nullable
-    private LatencyRecorder recorder;
+    private PipelineRecorder recorder;
 
     /** Whether {@link #prepare()} ran since the latest pass. */
     private boolean prepared;
 
     /** The counted values that arrived in the latest pass, or -1 before the first pass. */
     private int arrivals = -1;
+
+    /** Whether the latest pass failed the saturation check. */
+    private boolean saturated;
 
     @SuppressWarnings("unchecked")
     private PipelineTimer(
@@ -253,25 +250,26 @@ public final class PipelineTimer {
             passValues[i] = value;
             output.arrivalNanos.setPlain(i, NOT_ARRIVED);
         }
-        recorder = LatencyProfiler.recorder();
+        recorder = LatencyProfiler.pipelineRecorder();
         prepared = true;
     }
 
     /**
-     * Replays the inputs prepared by {@link #prepare()} into the pipeline at their due times, runs the drain, and adds
-     * the latencies of the counted values to the profiler's recorder.
+     * Replays the inputs prepared by {@link #prepare()} into the pipeline at their due times, runs the drain, and
+     * records the latencies of the counted values with the profiler's {@link PipelineRecorder}. Discards the pass if
+     * the pipeline did not keep up (see the class description).
      *
-     * @throws IllegalStateException if {@link #prepare()} did not run since the latest pass, if the exit point saw a
-     * value that did not enter in this pass, or a counted value twice, or if the pipeline did not keep up (see the
-     * class description); the pass is not recorded then
+     * @throws IllegalStateException if {@link #prepare()} did not run since the latest pass, or if the exit point saw a
+     * value that did not enter in this pass, or a counted value twice
      */
     public void replay() {
         if (!prepared) {
             throw new IllegalStateException("prepare() must run before every pass");
         }
         prepared = false;
-        final long allocatedBefore = THREAD_MX_BEAN.getTotalThreadAllocatedBytes();
+        final PipelineRecorder passRecorder = requireNonNull(recorder);
         output.replaying = true;
+        passRecorder.startPass();
         final long start = System.nanoTime();
         try {
             for (int i = 0; i < passValues.length; i++) {
@@ -285,36 +283,31 @@ public final class PipelineTimer {
         } finally {
             output.replaying = false;
         }
-        final long allocatedBytes = THREAD_MX_BEAN.getTotalThreadAllocatedBytes() - allocatedBefore;
         // the pass's copies can be collected before the next pass
         output.positions.clear();
         Arrays.fill(passValues, null);
         output.throwIfErrors();
 
-        pass.reset();
         int arrived = 0;
         for (int i = 0; i < passValues.length; i++) {
             final long arrival = output.arrivalNanos.get(i);
             if (counted[i] && arrival != NOT_ARRIVED) {
                 final long latency = arrival - (start + dueNanos[i]);
-                pass.record(latency);
+                passRecorder.record(latency);
                 passLatencies[i] = latency;
                 arrived++;
             } else {
                 passLatencies[i] = -1;
             }
         }
+        // before the saturation check, which allocates
+        passRecorder.endPass();
         arrivals = arrived;
 
-        final double growth = latencyGrowth(dueNanos, passLatencies);
-        if (growth > MAX_LATENCY_GROWTH) {
-            throw new PipelineSaturatedException(String.format(
-                    "The pipeline did not keep up: its latency grew by %.2f%% of the elapsed time, more than the %.0f%%"
-                            + " of a pipeline that keeps up; lower the speedup",
-                    growth * 100,
-                    MAX_LATENCY_GROWTH * 100));
+        saturated = latencyGrowth(dueNanos, passLatencies) > MAX_LATENCY_GROWTH;
+        if (saturated) {
+            passRecorder.discardSaturatedPass();
         }
-        requireNonNull(recorder).recordPass(pass, allocatedBytes);
     }
 
     /**
@@ -369,6 +362,19 @@ public final class PipelineTimer {
             throw new IllegalStateException("No pass has run");
         }
         return arrivals;
+    }
+
+    /**
+     * Returns whether the latest pass failed the saturation check, so that {@link #replay()} discarded it.
+     *
+     * @return true if the pipeline did not keep up in the latest pass
+     * @throws IllegalStateException if no pass has run
+     */
+    public boolean saturated() {
+        if (arrivals < 0) {
+            throw new IllegalStateException("No pass has run");
+        }
+        return saturated;
     }
 
     /** Hands a value to the pipeline. */
