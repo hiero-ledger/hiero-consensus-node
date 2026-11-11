@@ -152,7 +152,6 @@ class SimpleFeeScheduleCoverageTest {
                 UNAVAILABLE_GOSSIP,
                 () -> config,
                 () -> nodeInfo,
-                () -> NO_OP_METRICS,
                 new AppScheduleThrottleFactory(
                         () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,

@@ -46,6 +46,7 @@ module org.hiero.consensus.pcli {
     requires org.hiero.consensus.transaction.handling;
     requires org.hiero.consensus.utility;
     requires org.hiero.consensus.wiring.framework;
+    requires org.hiero.metrics;
     requires info.picocli;
     requires io.github.classgraph;
     requires org.apache.logging.log4j;

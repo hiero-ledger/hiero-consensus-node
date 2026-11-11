@@ -13,6 +13,7 @@ mainModuleInfo {
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
     runtimeOnly("org.hiero.consensus.pcli")
+    runtimeOnly("org.hiero.metrics.openmetrics.httpserver")
     runtimeOnly("com.sun.jna")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")

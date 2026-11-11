@@ -110,6 +110,7 @@ open module com.hedera.node.test.clients {
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
+    requires org.hiero.metrics;
     requires com.swirlds.metrics.api;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;

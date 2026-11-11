@@ -58,6 +58,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.metrics.core.MetricRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -103,6 +104,7 @@ final class HederaTest {
                 HederaTestConfigBuilder.createConfig(),
                 new FileSystemManager(),
                 TestUtils.metrics(),
+                MetricRegistry.builder().build(),
                 Time.getCurrent());
 
         app = mock(HederaInjectionComponent.class, RETURNS_DEEP_STUBS);

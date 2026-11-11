@@ -22,10 +22,12 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.metrics.core.MetricRegistry;
 
 public record ConsensusLayerInputs(
         @NonNull Configuration configuration,
         @NonNull Metrics metrics,
+        @NonNull MetricRegistry metricRegistry,
         @NonNull Time time,
         @NonNull ConsensusLayerRosterInputs rosterInputs,
         @NonNull KeysAndCerts keysAndCerts,

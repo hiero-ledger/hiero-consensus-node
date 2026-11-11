@@ -3,6 +3,8 @@ package org.hiero.sloth.fixtures.container;
 
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.EVENT_STREAM_DIRECTORY;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.METRICS_EXPORT_DIRECTORY;
+import static org.hiero.sloth.fixtures.container.utils.ContainerConstants.METRICS_EXPORT_DIRECTORY_PROPERTY;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,6 +45,10 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
         super(lifecycleSupplier, overrideProperties);
         this.overrideProperties.withConfigValue(
                 EventConfig_.EVENTS_LOG_DIR, Path.of(CONTAINER_APP_WORKING_DIR, EVENT_STREAM_DIRECTORY));
+        // The container image carries the new metrics framework's file exporter, whose `directory` property
+        // has no default: leaving it unset makes Configuration.build() throw and the node fails to start.
+        this.overrideProperties.withConfigValue(
+                METRICS_EXPORT_DIRECTORY_PROPERTY, Path.of(CONTAINER_APP_WORKING_DIR, METRICS_EXPORT_DIRECTORY));
     }
 
     /**

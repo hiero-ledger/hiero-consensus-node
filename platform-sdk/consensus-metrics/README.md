@@ -17,7 +17,7 @@ The JMH benchmarks in `src/jmh` follow the
 
 May depend on:
 - `consensus-model`
-- `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
+- `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`, `hiero-metrics`
 
 Must not depend on:
 - Any functional-api, functional-impl, or self-contained functional module

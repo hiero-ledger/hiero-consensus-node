@@ -84,6 +84,7 @@ import javax.inject.Named;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.metrics.core.MetricRegistry;
 
 /**
  * The infrastructure used to implement the platform contract for a Hedera Services node.
@@ -252,6 +253,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder metrics(Metrics metrics);
+
+        @BindsInstance
+        Builder metricRegistry(MetricRegistry metricRegistry);
 
         @BindsInstance
         Builder boundaryStateChangeListener(BoundaryStateChangeListener boundaryStateChangeListener);
