@@ -390,14 +390,14 @@ public class AddressBookTestBase {
     }
 
     protected void mockAccountLookup(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
-        final var account = mock(Account.class);
-        given(account.key()).willReturn(key);
+        final var account =
+                Account.newBuilder().accountId(contextPayerId).key(key).build();
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
     }
 
     protected void mockAccountKeyOrThrow(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
-        final var account = mock(Account.class);
-        given(account.keyOrThrow()).willReturn(key);
+        final var account =
+                Account.newBuilder().accountId(contextPayerId).key(key).build();
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
     }
 

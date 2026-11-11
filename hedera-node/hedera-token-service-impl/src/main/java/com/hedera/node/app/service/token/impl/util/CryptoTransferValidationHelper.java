@@ -20,6 +20,7 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -59,7 +60,7 @@ public class CryptoTransferValidationHelper {
                 throw new PreCheckException(INVALID_ACCOUNT_ID);
             }
         } else if (!nftTransfer.isApproval()) {
-            meta.requireKey(key);
+            meta.requireKeyRequirement(KeyRequirement.forAccount(senderAccount.accountIdOrThrow(), key));
         }
     }
 
@@ -99,11 +100,19 @@ public class CryptoTransferValidationHelper {
         } else if (!hasReceiverHook) {
             if (receiverAccount.receiverSigRequired()) {
                 if (receiverKeyCheck == RECEIVER_KEY_IS_OPTIONAL) {
-                    meta.optionalKey(receiverKey);
+                    if (receiverKey == null) {
+                        throw new PreCheckException(INVALID_ACCOUNT_ID);
+                    }
+                    meta.optionalKeyRequirement(
+                            KeyRequirement.forAccount(receiverAccount.accountIdOrThrow(), receiverKey));
                 } else {
                     // If receiverSigRequired is set, and if there is no key on the receiver's account, then fail with
                     // INVALID_TRANSFER_ACCOUNT_ID. Otherwise, add the key.
-                    meta.requireKeyOrThrow(receiverKey, INVALID_TRANSFER_ACCOUNT_ID);
+                    if (!isValid(receiverKey)) {
+                        throw new PreCheckException(INVALID_TRANSFER_ACCOUNT_ID);
+                    }
+                    meta.requireKeyRequirement(
+                            KeyRequirement.forAccount(receiverAccount.accountIdOrThrow(), receiverKey));
                 }
             } else if (tokenMeta.hasRoyaltyWithFallback()) {
                 // For airdrops, we don't support tokens with royalties with fallback

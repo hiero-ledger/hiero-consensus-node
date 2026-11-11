@@ -3,6 +3,8 @@ package com.hedera.node.app.workflows.prehandle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.workflows.prehandle.PreHandleContextImpl.projectNonPayerKeys;
+import static com.hedera.node.app.workflows.prehandle.PreHandleContextImpl.projectRequiredKeys;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.NODE_DUE_DILIGENCE_FAILURE;
 import static java.util.Objects.requireNonNull;
 
@@ -11,12 +13,14 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.signature.SignatureVerificationFuture;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.TransactionInfo;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,8 +40,8 @@ import java.util.concurrent.Future;
  * @param responseCode {@link ResponseCodeEnum} to the transaction as determined during pre-handle. Will always be set.
  * @param txInfo Information about the transaction that is being handled. If the transaction was not parseable, then
  *               this will be null, and an appropriate error status will be set.
- * @param requiredKeys The set of cryptographic keys that are required to be present.
- * @param optionalKeys The set of cryptographic keys that are optional to be present.
+ * @param requiredKeyRequirements Required authorization requirements, preserving their originating identities.
+ * @param optionalKeyRequirements Optional authorization requirements, preserving their originating identities.
  * @param hollowAccounts The set of required hollow accounts to be finalized
  * @param verificationResults A map of {@link Future<SignatureVerificationFuture>} yielding the
  *                            {@link SignatureVerificationFuture} for a given cryptographic key. Ony cryptographic keys
@@ -51,8 +55,8 @@ public record PreHandleResult(
         @NonNull Status status,
         @NonNull ResponseCodeEnum responseCode,
         @Nullable TransactionInfo txInfo,
-        @Nullable Set<Key> requiredKeys,
-        @Nullable Set<Key> optionalKeys,
+        @Nullable Set<KeyRequirement> requiredKeyRequirements,
+        @Nullable Set<KeyRequirement> optionalKeyRequirements,
         @Nullable Set<Account> hollowAccounts,
         @Nullable Map<Key, SignatureVerificationFuture> verificationResults,
         @Nullable List<PreHandleResult> innerResults,
@@ -61,7 +65,8 @@ public record PreHandleResult(
     /**
      * Returns whether this result's verification results are valid for the given context. This is <b>only</b>
      * true if all keys linked to the transaction are exactly the same as those determined to be necessary
-     * in the given context.
+     * in the given context. These futures are cryptographic evidence only, not authorization decisions.
+     * The caller must always use the newly collected requirements even when it reuses these futures.
      *
      * <p>Any change at all in a linked key means we must re-compute the verification results.
      *
@@ -101,11 +106,17 @@ public record PreHandleResult(
     }
 
     public @NonNull Set<Key> getRequiredKeys() {
-        return requiredKeys == null ? Collections.emptySet() : requiredKeys;
+        return projectRequiredKeys(getRequiredKeyRequirements(), payer, payerKey);
     }
 
     public @NonNull Set<Key> getOptionalKeys() {
-        return optionalKeys == null ? Collections.emptySet() : optionalKeys;
+        return optionalKeyRequirements == null
+                ? Collections.emptySet()
+                : projectNonPayerKeys(optionalKeyRequirements, payerKey, null);
+    }
+
+    public @NonNull Set<KeyRequirement> getRequiredKeyRequirements() {
+        return requiredKeyRequirements == null ? Collections.emptySet() : requiredKeyRequirements;
     }
 
     public @NonNull Key getPayerKey() {
@@ -147,6 +158,16 @@ public record PreHandleResult(
     public PreHandleResult {
         requireNonNull(status);
         requireNonNull(responseCode);
+        // Snapshot requirements and hollow accounts in their original order. The hollow account order
+        // determines the order of synthetic CryptoUpdate dispatches during finalization.
+        requiredKeyRequirements = requiredKeyRequirements == null
+                ? null
+                : Collections.unmodifiableSet(new LinkedHashSet<>(requiredKeyRequirements));
+        optionalKeyRequirements = optionalKeyRequirements == null
+                ? null
+                : Collections.unmodifiableSet(new LinkedHashSet<>(optionalKeyRequirements));
+        hollowAccounts =
+                hollowAccounts == null ? null : Collections.unmodifiableSet(new LinkedHashSet<>(hollowAccounts));
     }
 
     /**
@@ -212,8 +233,8 @@ public record PreHandleResult(
             @Nullable final Key payerKey,
             @NonNull final ResponseCodeEnum responseCode,
             @NonNull final TransactionInfo txInfo,
-            @Nullable Set<Key> requiredKeys,
-            @Nullable Set<Key> optionalKeys,
+            @Nullable Set<KeyRequirement> requiredKeyRequirements,
+            @Nullable Set<KeyRequirement> optionalKeyRequirements,
             @Nullable Set<Account> hollowAccounts,
             @Nullable Map<Key, SignatureVerificationFuture> verificationResults) {
         return new PreHandleResult(
@@ -222,8 +243,8 @@ public record PreHandleResult(
                 Status.PRE_HANDLE_FAILURE,
                 responseCode,
                 txInfo,
-                requiredKeys,
-                optionalKeys,
+                requiredKeyRequirements,
+                optionalKeyRequirements,
                 hollowAccounts,
                 verificationResults,
                 null,

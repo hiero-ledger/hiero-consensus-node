@@ -4,8 +4,10 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.util.HapiUtils.EMPTY_KEY_LIST;
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaWith;
@@ -133,6 +135,27 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
                 .when(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong()))
                 .thenReturn(OK);
         lenient().when(preHandleStores.readableStore(ReadableTokenStore.class)).thenReturn(writableTokenStore);
+    }
+
+    @ParameterizedTest
+    @EnumSource(Kind.class)
+    void hollowReceiverSignatureRequirementKeepsLegacyRejection(final Kind kind) throws PreCheckException {
+        final var hollowId = AccountID.newBuilder().accountNum(2002).build();
+        final var hollow = tokenReceiverAccount
+                .copyBuilder()
+                .accountId(hollowId)
+                .key(EMPTY_KEY_LIST)
+                .alias(EVM_ALIAS)
+                .receiverSigRequired(true)
+                .build();
+        writableAccountStore.put(hollow);
+        givenTxn(operation(kind, ownerId, hollowId), payerId);
+        final var pre = preHandleContext();
+
+        assertThatThrownBy(() -> subject.preHandle(pre))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSFER_ACCOUNT_ID));
+        assertThat(pre.requiredHollowAccounts()).doesNotContain(hollow);
     }
 
     static Stream<Arguments> existingForms() {

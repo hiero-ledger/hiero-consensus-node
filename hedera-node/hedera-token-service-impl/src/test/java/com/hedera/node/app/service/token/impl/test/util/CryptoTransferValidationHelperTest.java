@@ -1,0 +1,143 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.node.app.service.token.impl.test.util;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_OPTIONAL;
+import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED;
+import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
+import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
+import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.NftTransfer;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class CryptoTransferValidationHelperTest {
+    private static final AccountID SENDER_ID =
+            AccountID.newBuilder().accountNum(1234L).build();
+    private static final AccountID RECEIVER_ID =
+            AccountID.newBuilder().accountNum(5678L).build();
+    private static final Key SENDER_KEY = Key.newBuilder()
+            .ed25519(Bytes.wrap("01234567890123456789012345678901"))
+            .build();
+    private static final NftTransfer PLAIN_TRANSFER = NftTransfer.newBuilder()
+            .senderAccountID(SENDER_ID)
+            .receiverAccountID(RECEIVER_ID)
+            .serialNumber(1L)
+            .build();
+
+    @Mock
+    private PreHandleContext meta;
+
+    @Mock
+    private ReadableAccountStore accountStore;
+
+    @Test
+    void senderWithoutHookMustSign() throws PreCheckException {
+        given(accountStore.getAliasedAccountById(SENDER_ID)).willReturn(senderWithKey(SENDER_KEY));
+
+        checkSender(SENDER_ID, PLAIN_TRANSFER, meta, accountStore);
+
+        verify(meta).requireKeyRequirement(KeyRequirement.forAccount(SENDER_ID, SENDER_KEY));
+    }
+
+    @Test
+    void hollowReceiverWithRequiredSignatureKeepsLegacyRejection() {
+        final var receiver = hollowSender()
+                .copyBuilder()
+                .accountId(RECEIVER_ID)
+                .receiverSigRequired(true)
+                .build();
+        given(accountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(receiver);
+        given(meta.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
+
+        assertThatThrownBy(() -> checkReceiver(
+                        RECEIVER_ID,
+                        SENDER_ID,
+                        PLAIN_TRANSFER,
+                        meta,
+                        null,
+                        null,
+                        accountStore,
+                        RECEIVER_KEY_IS_REQUIRED))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_TRANSFER_ACCOUNT_ID));
+        verify(meta, never()).requireSignatureForHollowAccount(receiver);
+    }
+
+    @Test
+    void requiredReceiverSignatureIsAccountScoped() throws PreCheckException {
+        given(accountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(receiverRequiringSignature(SENDER_KEY));
+        given(meta.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
+
+        checkReceiver(RECEIVER_ID, SENDER_ID, PLAIN_TRANSFER, meta, null, null, accountStore, RECEIVER_KEY_IS_REQUIRED);
+
+        verify(meta).requireKeyRequirement(KeyRequirement.forAccount(RECEIVER_ID, SENDER_KEY));
+    }
+
+    @Test
+    void optionalReceiverSignatureIsAccountScoped() throws PreCheckException {
+        given(accountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(receiverRequiringSignature(SENDER_KEY));
+        given(meta.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
+
+        checkReceiver(RECEIVER_ID, SENDER_ID, PLAIN_TRANSFER, meta, null, null, accountStore, RECEIVER_KEY_IS_OPTIONAL);
+
+        verify(meta).optionalKeyRequirement(KeyRequirement.forAccount(RECEIVER_ID, SENDER_KEY));
+    }
+
+    @Test
+    void optionalReceiverSignatureWithoutKeyIsRejected() {
+        given(accountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(receiverRequiringSignature(null));
+        given(meta.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
+
+        assertThatThrownBy(() -> checkReceiver(
+                        RECEIVER_ID,
+                        SENDER_ID,
+                        PLAIN_TRANSFER,
+                        meta,
+                        null,
+                        null,
+                        accountStore,
+                        RECEIVER_KEY_IS_OPTIONAL))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_ACCOUNT_ID));
+    }
+
+    private static Account receiverRequiringSignature(final Key key) {
+        return Account.newBuilder()
+                .accountId(RECEIVER_ID)
+                .key(key)
+                .receiverSigRequired(true)
+                .build();
+    }
+
+    private static Account senderWithKey(final Key key) {
+        return Account.newBuilder().accountId(SENDER_ID).key(key).build();
+    }
+
+    private static Account immutableSender() {
+        return senderWithKey(IMMUTABILITY_SENTINEL_KEY);
+    }
+
+    private static Account hollowSender() {
+        return immutableSender().copyBuilder().alias(Bytes.wrap(new byte[20])).build();
+    }
+}

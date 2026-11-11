@@ -25,6 +25,7 @@ import com.hedera.hapi.node.transaction.PendingAirdropRecord;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -222,7 +223,9 @@ public class AirdropHandlerHelper {
             @Nullable final TokenRelation tokenRelation) {
         // Check if the receiver has signed the transaction. If not, it should result in a pending airdrop
         if (receiver.receiverSigRequired()) {
-            var sigVerification = context.keyVerifier().verificationFor(requireNonNull(receiver.key()));
+            var sigVerification = context.keyVerifier()
+                    .verificationFor(
+                            KeyRequirement.forAccount(receiver.accountIdOrThrow(), requireNonNull(receiver.key())));
             if (sigVerification.failed()) {
                 return true;
             }
