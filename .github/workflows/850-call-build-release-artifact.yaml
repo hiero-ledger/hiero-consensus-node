@@ -761,7 +761,7 @@ jobs:
       create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
       - validate
-    if: ${{ inputs.release-profile != 'none' }}
+    if: ${{ github.event.repository.visibility == 'public' && inputs.release-profile != 'none' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner

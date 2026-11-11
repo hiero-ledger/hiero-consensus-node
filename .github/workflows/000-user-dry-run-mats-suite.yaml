@@ -94,7 +94,9 @@ jobs:
       java-distribution: "temurin"
       custom-job-label: "${{ inputs.custom-job-label || 'MATS (dry-run):' }}"
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
+      # TODO: Revert back to using secrets.GITHUB_TOKEN once released to mainnet
+      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}

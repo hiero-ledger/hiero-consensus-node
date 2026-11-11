@@ -103,6 +103,7 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - prepare-tag-release
+    if: ${{ github.event.repository.visibility == 'public' && needs.prepare-tag-release.result == 'success' && needs.prepare-tag-release.outputs.prerelease == 'false' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4

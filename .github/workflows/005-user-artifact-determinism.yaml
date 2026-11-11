@@ -66,7 +66,9 @@ jobs:
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       java-version: ${{ inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}
     secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
+      # TODO: Revert back to using secrets.GITHUB_TOKEN once released to mainnet
+      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+      github-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
@@ -81,6 +83,8 @@ jobs:
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       java-version: ${{ inputs.java-version || needs.extract-jdk-version.outputs.jdk-version }}
     secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
+      # TODO: Revert back to using secrets.GITHUB_TOKEN once released to mainnet
+      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
+      github-token: ${{ secrets.GH_ACCESS_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
