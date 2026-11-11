@@ -69,6 +69,15 @@ tasks.test {
         )
         .withPropertyName("networkThrottles")
         .withPathSensitivity(PathSensitivity.RELATIVE)
+
+    inputs
+        .files(
+            listOf("mainnet", "testnet", "previewnet").map {
+                "../configuration/$it/upgrade/simpleFeesSchedules.json"
+            },
+        )
+        .withPropertyName("networkFeeSchedules")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 jmhModuleInfo {

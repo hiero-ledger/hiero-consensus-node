@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FEE_FILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.fees.FakeGenesisState.NO_OP_METRICS;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
@@ -11,6 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
@@ -47,7 +51,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** Pins the shipped genesis simple fee schedule to the fee calculators the services register. */
+/** Pins the shipped simple fee schedules to the fee calculators the services register. */
 @ExtendWith(MockitoExtension.class)
 class SimpleFeeScheduleCoverageTest {
     /**
@@ -83,9 +87,29 @@ class SimpleFeeScheduleCoverageTest {
         assertEquals(SUCCESS, feeManager.updateSimpleFees(genesisBytes, true));
     }
 
+    @Test
+    void rejectsScheduleMissingClprPrice() throws ParseException {
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        final var feeManager = realFeeManager(config);
+        final var genesisBytes = new V0490FileSchema().genesisSimpleFeesSchedules(config);
+        final var genesis = FeeSchedule.PROTOBUF.parseStrict(genesisBytes);
+        final var incomplete = genesis.copyBuilder()
+                .services(genesis.services().stream()
+                        .map(service -> service.copyBuilder()
+                                .schedule(service.schedule().stream()
+                                        .filter(definition -> definition.name() != CLPR_SUBMIT_BUNDLE)
+                                        .toList())
+                                .build())
+                        .toList())
+                .build();
+
+        assertThat(feeManager.unpricedFunctions(incomplete)).containsExactly(CLPR_SUBMIT_BUNDLE);
+        assertEquals(INVALID_FEE_FILE, feeManager.updateSimpleFees(FeeSchedule.PROTOBUF.toBytes(incomplete), true));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"mainnet", "testnet", "previewnet"})
-    void shippedUpgradeSchedulesProvideEveryExtraTheCalculatorsCharge(final String network) throws Exception {
+    void shippedUpgradeSchedulesPriceEveryRegisteredTypeAndRequiredExtra(final String network) throws Exception {
         final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
         final var feeManager = realFeeManager(config);
         final var json =
@@ -95,8 +119,8 @@ class SimpleFeeScheduleCoverageTest {
 
         assertThat(feeManager.unpricedFunctions(schedule)).isEmpty();
         assertThat(feeManager.missingExtras(schedule)).isEmpty();
-        // The two checks above only prove the per-function/per-extra coverage this PR adds; they say nothing about
-        // whether every referenced extra is actually defined (isValid's own job). Driving the schedule through the
+        // The two checks above prove per-function/per-extra coverage; they say nothing about whether every
+        // referenced extra is actually defined (isValid's own job). Driving the schedule through the
         // real, strict update path proves the shipped file is accepted end to end, not just by these two helpers.
         assertEquals(SUCCESS, feeManager.updateSimpleFees(FeeSchedule.PROTOBUF.toBytes(schedule), true));
     }
@@ -158,6 +182,8 @@ class SimpleFeeScheduleCoverageTest {
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
         final List<RpcService> services = List.of(
+                new AddressBookServiceImpl(),
+                new ClprServiceImpl(),
                 new ConsensusServiceImpl(),
                 new ContractServiceImpl(appContext, NO_OP_METRICS),
                 new FileServiceImpl(),
