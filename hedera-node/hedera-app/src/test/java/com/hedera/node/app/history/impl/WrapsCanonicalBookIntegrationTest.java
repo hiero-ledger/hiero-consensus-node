@@ -126,6 +126,49 @@ class WrapsCanonicalBookIntegrationTest {
                 secondDayKey.toByteArray()));
     }
 
+    @Test
+    void repairedCoverageWithDifferentHintsAndSchnorrAvailabilitySupportsItsSuccessor() throws Exception {
+        final var keys = new TreeMap<Long, SchnorrKeys>();
+        for (final long nodeId : List.of(0L, 3L, 4L, 5L, 6L)) {
+            keys.put(nodeId, library.newSchnorrKeyPair());
+        }
+        final var originalWeights = weights(1, 1, 1, 1, 1, 1, 1);
+        final var hintsAuthority = participatingWeights(originalWeights, Set.of(0L, 1L, 2L, 3L, 4L));
+        final var canonicalBook = book(originalWeights, keys);
+        final var genesisKey = verificationKey();
+        final var ledgerId = Bytes.wrap(library.computeWrapsMessage(canonicalBook, genesisKey.toByteArray()));
+
+        // The controller regression requires node 0's real key to replace its identity publication before assembly.
+        // The hinTS and Schnorr sets now each cover 5/7 weight, but their membership is deliberately different.
+        final var genesis = prove(
+                10, null, canonicalBook, hintsAuthority, originalWeights, keys, genesisKey, Set.of(3L, 4L, 5L), null);
+        assertTrue(library.verifyCompressedProof(
+                genesis.chainOfTrustProofOrThrow().wrapsProofOrThrow().toByteArray(),
+                ledgerId.toByteArray(),
+                genesisKey.toByteArray()));
+
+        // A different frozen set must be available for the successor: only 0, 3 and 4 have both authorities.
+        final var restored = roundTrip(genesis);
+        final var successorSigners = Set.of(0L, 3L, 4L);
+        assertTrue(new WrapsSigningQuorum(HistoryProofAddressBooks.targetBook(restored), hintsAuthority, true)
+                .isSatisfiedBy(successorSigners));
+        final var successorKey = verificationKey();
+        final var successor = prove(
+                11,
+                restored,
+                HistoryProofAddressBooks.targetBook(restored),
+                hintsAuthority,
+                originalWeights,
+                keys,
+                successorKey,
+                successorSigners,
+                ledgerId);
+        assertTrue(library.verifyCompressedProof(
+                successor.chainOfTrustProofOrThrow().wrapsProofOrThrow().toByteArray(),
+                ledgerId.toByteArray(),
+                successorKey.toByteArray()));
+    }
+
     private HistoryProof prove(
             final long constructionId,
             final HistoryProof sourceProof,

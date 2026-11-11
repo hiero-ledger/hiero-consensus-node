@@ -5,12 +5,14 @@ import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.tss.TssBlockHashSigner.usesChainOfTrustProof;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toSet;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
@@ -211,6 +213,14 @@ public class ProofControllers {
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
+            // Publisher readiness follows platform membership, not the sparse hinTS source authority.
+            // A joining target node cannot publish until platform adoption; an existing platform member
+            // can publish even if it did not contribute to the current hinTS scheme.
+            final var expectedProofKeyPublishers =
+                    requireNonNull(activeRosters.currentRoster()).rosterEntries().stream()
+                            .map(RosterEntry::nodeId)
+                            .filter(weights.targetNodeIds()::contains)
+                            .collect(toSet());
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
             final var wrapsMessagePublications =
                     historyStore.getWrapsMessagePublications(construction.constructionId(), weights.sourceNodeIds());
@@ -250,7 +260,8 @@ public class ProofControllers {
                     sourceProof,
                     historyProofMetrics,
                     tssConfig,
-                    provenanceSigner);
+                    provenanceSigner,
+                    expectedProofKeyPublishers);
         }
     }
 

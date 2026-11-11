@@ -217,6 +217,16 @@ message HistoryProofConstruction {
    * its grace period ended.
    */
   repeated uint64 wraps_excluded_node_ids = 14;
+
+  /**
+   * The WRAPS signing and book-selection protocol under which this attempt was
+   * created. Version zero identifies legacy attempts whose transcript and votes
+   * may have used hinTS-derived book positions or different source authority.
+   * An unfinished attempt from another protocol is replaced with a fresh
+   * construction id before any transcript or vote is replayed. Completed proofs
+   * retain their original version and committed trust root.
+   */
+  uint32 wraps_protocol_version = 15;
 }
 
 /**
