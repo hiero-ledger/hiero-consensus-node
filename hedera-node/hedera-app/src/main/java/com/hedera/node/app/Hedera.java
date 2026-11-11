@@ -1422,6 +1422,9 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
+        // Logs drops held back by the once-a-minute limit even if no more come; done before taking any transactions
+        // out of the pool, so it can never lose them
+        logDroppedTransactions(0, appContext.instantSource().instant());
         return transactionPool.getTransactionsForEvent();
     }
 
@@ -1429,17 +1432,28 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      * Called by the transaction pool, while it holds its lock, with the number of user transactions it dropped because
      * they had expired before an event was built for them. They will never land in an event, so quiescence must stop
      * waiting for them. Logs the drops at most once per {@link #DROPPED_TXNS_LOG_PERIOD}.
+     * <p>
+     * Never throws: the pool calls this after taking the event's transactions out of its queue, so an exception would
+     * lose them.
      *
      * @param count the number of dropped transactions
      * @param now the current time
      */
     void onExpiredTransactionsDropped(final int count, @NonNull final Instant now) {
-        final var app = daggerApp;
-        if (app != null) {
-            app.txPipelineTracker().countDropped(count);
+        try {
+            final var app = daggerApp;
+            if (app != null) {
+                app.txPipelineTracker().countDropped(count);
+            }
+            logDroppedTransactions(count, now);
+        } catch (RuntimeException e) {
+            logger.error("Failed to account for {} expired transactions dropped from the transaction pool", count, e);
         }
-        droppedTxnsToLog += count;
-        if (!now.isBefore(nextDroppedTxnsLog)) {
+    }
+
+    private synchronized void logDroppedTransactions(final int newlyDropped, @NonNull final Instant now) {
+        droppedTxnsToLog += newlyDropped;
+        if (droppedTxnsToLog > 0 && !now.isBefore(nextDroppedTxnsLog)) {
             logger.info("Dropped {} expired user transactions from the transaction pool", droppedTxnsToLog);
             droppedTxnsToLog = 0;
             nextDroppedTxnsLog = now.plus(DROPPED_TXNS_LOG_PERIOD);

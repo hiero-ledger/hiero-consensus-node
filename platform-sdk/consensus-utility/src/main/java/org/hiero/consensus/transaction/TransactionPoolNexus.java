@@ -97,7 +97,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     private final InstantSource time;
 
     /**
-     * Told the number of application transactions dropped past their drop time whenever an event is built.
+     * Told the number of application transactions dropped past their drop time, whenever an event build drops any.
      */
     private final IntConsumer droppedTransactionsListener;
 
@@ -138,8 +138,10 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      * @param metrics                               the metrics to use
      * @param time                                  the time source for timestamping transactions and for drop times
      * @param droppedTransactionsListener           told the number of application transactions dropped past their drop
-     *                                              time each time an event is built; it is called while holding this
-     *                                              pool's lock, so it must be quick and must not call back into the pool
+     *                                              time, whenever an event build drops any; it runs while this pool's
+     *                                              lock is held and after the event's transactions have left the queue,
+     *                                              so it must be quick, must not throw and must not call back into the
+     *                                              pool
      */
     public TransactionPoolNexus(
             @NonNull final TransactionLimits transactionLimits,
