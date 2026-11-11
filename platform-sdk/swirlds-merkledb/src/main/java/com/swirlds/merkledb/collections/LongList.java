@@ -2,9 +2,11 @@
 package com.swirlds.merkledb.collections;
 
 import com.swirlds.merkledb.files.DataFileCommon;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.Executor;
 import java.util.stream.LongStream;
 
 /**
@@ -137,6 +139,21 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
      * @return max valid index
      */
     long getMaxValidIndex();
+
+    /// Creates a copy of this list, with the same contents, capacity and valid range. The copy doesn't
+    /// share any resources with this list, so either list can be changed or closed independently. The
+    /// list must not be modified while it's copied. It may be read concurrently.
+    ///
+    /// Only in-memory lists can be copied. Other lists throw [UnsupportedOperationException].
+    ///
+    /// @param executor the executor to run copy tasks on, an implementation may copy parts of the list
+    ///     in parallel
+    /// @return the copy
+    /// @throws UnsupportedOperationException if this list can't be copied
+    @NonNull
+    default LongList copy(@NonNull final Executor executor) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " can't be copied");
+    }
 
     /** {@inheritDoc} */
     @Override
