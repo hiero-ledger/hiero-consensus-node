@@ -196,8 +196,9 @@ public class HashChunkIntegrityValidator implements HashChunkValidator {
      */
     private void processCachedHashChunks() {
         final LongList index = vds.getIdToDiskLocationHashChunks();
-        final int cacheThreshold =
-                ConfigUtils.getConfiguration().getConfigData(MerkleDbConfig.class).hashChunkCacheThreshold();
+        final int cacheThreshold = ConfigUtils.getConfiguration()
+                .getConfigData(MerkleDbConfig.class)
+                .hashChunkCacheThreshold();
         final long maxCachedChunkId = Math.min(index.size(), cacheThreshold);
         long cachedCount = 0;
         for (long chunkId = 0; chunkId < maxCachedChunkId; chunkId++) {

@@ -142,8 +142,8 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
             if (path >= firstLeafPath) {
                 hashes[path] = MerkleHasher.leafNodeHashBytes(reader.apply(path), digestWriter);
             } else {
-                hashes[path] = MerkleHasher.internalNodeHashBytes(
-                        hashes[2 * path + 1], hashes[2 * path + 2], digestWriter);
+                hashes[path] =
+                        MerkleHasher.internalNodeHashBytes(hashes[2 * path + 1], hashes[2 * path + 2], digestWriter);
             }
         }
         final ForkJoinPool pool = new ForkJoinPool(4);

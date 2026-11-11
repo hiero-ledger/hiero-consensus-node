@@ -51,7 +51,9 @@ final class EventCutoverDetector {
      * @param eventBirthRounds the distinct birth rounds of the block's events, sorted ascending
      */
     record BlockEvidence(
-            long maxSha384ParentBirthRound, long minSha256ParentBirthRound, @NonNull long[] eventBirthRounds) {}
+            long maxSha384ParentBirthRound,
+            long minSha256ParentBirthRound,
+            @NonNull long[] eventBirthRounds) {}
 
     private EventCutoverDetector() {}
 
@@ -92,7 +94,9 @@ final class EventCutoverDetector {
             }
         }
         return new BlockEvidence(
-                maxSha384, minSha256, eventBirthRounds.build().distinct().sorted().toArray());
+                maxSha384,
+                minSha256,
+                eventBirthRounds.build().distinct().sorted().toArray());
     }
 
     /**
@@ -143,9 +147,7 @@ final class EventCutoverDetector {
                     "Cannot determine the event hash cutover: it lies between birth rounds %d and %d, and events "
                             + "with birth rounds %s in this range are never referenced across blocks, so their "
                             + "digest type (SHA-384 or SHA-256) is unknown",
-                    ambiguousFrom,
-                    minSha256,
-                    Arrays.toString(ambiguousBirthRounds)));
+                    ambiguousFrom, minSha256, Arrays.toString(ambiguousBirthRounds)));
         }
         return minSha256;
     }
