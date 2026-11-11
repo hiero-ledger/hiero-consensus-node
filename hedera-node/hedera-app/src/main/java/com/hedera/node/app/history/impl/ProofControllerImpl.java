@@ -260,8 +260,10 @@ public class ProofControllerImpl implements ProofController {
             });
             selectTargetProofKeys();
             this.prover = createProver(tssConfig);
-            wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
-                    .replayWrapsSigningMessage(constructionId(), publication));
+            wrapsMessagePublications.stream()
+                    .sorted()
+                    .forEach(publication ->
+                            requireNonNull(prover).replayWrapsSigningMessage(constructionId(), publication));
         }
     }
 
@@ -375,8 +377,12 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
-        // The prover can exclude a sender while handling transactions, so read the exclusions from state
+        // Assembly can choose the end of the current round as its key cutoff, before that round's
+        // transactions finish publishing keys. Signing must wait until those selections are final.
+        // The prover can exclude a sender while handling transactions, so read the exclusions from state.
         if (construction.hasTargetProof()
+                || (construction.hasProofKeyCutoffTime()
+                        && !publication.receiptTime().isAfter(asInstant(construction.proofKeyCutoffTimeOrThrow())))
                 || targetMetadata == null
                 || (!construction.hasAssemblyStartTime() && !construction.hasWrapsSigningState())
                 || writableHistoryStore
@@ -399,6 +405,11 @@ public class ProofControllerImpl implements ProofController {
         requireNonNull(now);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
+        // A precomputed proof cannot finish assembly while keys from its cutoff round can still arrive.
+        // This guard applies only to new votes; persisted votes are replayed separately by the constructor.
+        if (construction.hasProofKeyCutoffTime() && !now.isAfter(asInstant(construction.proofKeyCutoffTimeOrThrow()))) {
+            return;
+        }
         if (votes.containsKey(nodeId)) {
             log.info(
                     "Skipping already-counted vote from node{} for construction #{}",
@@ -657,6 +668,12 @@ public class ProofControllerImpl implements ProofController {
                 log.info("INVALID proof of unexpected target proof keys for construction #{}", constructionId());
                 return false;
             }
+            if (!proof.targetNodeWeights().equals(HistoryProofAddressBooks.weightsFrom(weights.targetNodeWeights()))) {
+                log.info(
+                        "INVALID proof of unexpected canonical target membership for construction #{}",
+                        constructionId());
+                return false;
+            }
             final var compressedProof = vote.compressedProofOrEmpty();
             final boolean valid = historyLibrary.verifyCompressedProof(
                     compressedProof, ledgerId.toByteArray(), metadata.toByteArray());
@@ -758,9 +775,20 @@ public class ProofControllerImpl implements ProofController {
         }
         final var withMissing = new TreeSet<>(excludedNodeIds);
         withMissing.addAll(missingNodeIds);
-        return WrapsHistoryProver.canCompleteR1Without(withMissing, weights, sourceProofKeys())
-                ? withMissing
-                : excludedNodeIds;
+        try {
+            final var sourceBook = groundsChainOfTrust(construction)
+                    ? targetAddressBook()
+                    : HistoryProofAddressBooks.targetBook(requireNonNull(sourceProof));
+            final var quorum = new WrapsSigningQuorum(
+                    sourceBook,
+                    groundsChainOfTrust(construction) ? weights.targetNodeWeights() : weights.sourceNodeWeights(),
+                    keyProvenanceBinding != null);
+            return quorum.canCompleteWithout(withMissing) ? withMissing : excludedNodeIds;
+        } catch (IllegalArgumentException e) {
+            // The prover deterministically rejects an unavailable or malformed canonical snapshot; it cannot
+            // establish that excluding another node preserves feasibility in that generation.
+            return excludedNodeIds;
+        }
     }
 
     /**
@@ -772,7 +800,7 @@ public class ProofControllerImpl implements ProofController {
     private boolean shouldAssemble(@NonNull final Instant now) {
         // If every active node in the target roster has published a proof key,
         // assemble the new history now; there is nothing else to wait for
-        if (targetProofKeys.size() == weights.numTargetNodesInSource()) {
+        if (targetProofKeys.size() == weights.targetNodeWeights().size()) {
             log.info("All target nodes have published proof keys for construction #{}", construction.constructionId());
             return true;
         }
@@ -877,9 +905,11 @@ public class ProofControllerImpl implements ProofController {
      * Returns the target address book, with the sentinel key for each target node without a proof key.
      */
     private AddressBook targetAddressBook() {
-        return AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
-                .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
-                .toByteArray());
+        return AddressBook.from(
+                weights.targetNodeWeights(),
+                nodeId -> targetProofKeys
+                        .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                        .toByteArray());
     }
 
     /**
@@ -896,7 +926,7 @@ public class ProofControllerImpl implements ProofController {
                 selfId,
                 tssConfig,
                 schnorrKeyPair,
-                sourceProof,
+                groundsChainOfTrust(construction) ? null : sourceProof,
                 weights,
                 sourceProofKeys(),
                 executor,
@@ -908,9 +938,12 @@ public class ProofControllerImpl implements ProofController {
      * Returns the proof keys of the source nodes, which sign the target history.
      */
     private Map<Long, Bytes> sourceProofKeys() {
-        return sourceProof == null
+        return sourceProof == null || groundsChainOfTrust(construction)
                 ? targetProofKeys
-                : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
+                // The canonical snapshot validator rejects duplicate IDs deterministically in advance(), rather
+                // than allowing malformed imported state to throw while this controller is being constructed.
+                : sourceProof.targetProofKeys().stream()
+                        .collect(toMap(ProofKey::nodeId, ProofKey::key, (first, ignored) -> first));
     }
 
     private HistoryProofMetrics.Stage currentStage(@Nullable final Bytes metadata) {

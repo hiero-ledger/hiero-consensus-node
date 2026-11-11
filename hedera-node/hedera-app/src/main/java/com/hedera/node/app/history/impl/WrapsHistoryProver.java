@@ -12,7 +12,6 @@ import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MPC_PHASES;
-import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -80,6 +79,11 @@ public class WrapsHistoryProver implements HistoryProver {
     public static final String WRAPS_NOT_READY_FAILURE_PREFIX = "WRAPS library is not ready";
     public static final String NOT_WRAPS_EXTENSIBLE_FAILURE_PREFIX = "Source proof is not WRAPS-extensible";
     public static final String ADDRESS_BOOK_TOO_LARGE_FAILURE_PREFIX = "Address book too large for a WRAPS proof";
+    public static final String INVALID_SOURCE_BOOK_FAILURE_PREFIX = "Invalid canonical WRAPS source book";
+    public static final String INSUFFICIENT_SIGNERS_FAILURE_PREFIX =
+            "Eligible source nodes cannot meet WRAPS signing quorums";
+    public static final String INVALID_FROZEN_SIGNERS_FAILURE_PREFIX =
+            "Frozen R1 set cannot meet WRAPS signing quorums";
     private static final String PROVENANCE_AGGREGATION_UNAVAILABLE =
             "Cannot aggregate the frozen R1 set's hinTS key provenance";
 
@@ -339,6 +343,7 @@ public class WrapsHistoryProver implements HistoryProver {
         this.provenanceBinding = provenanceBinding;
         this.selfId = selfId;
         this.sourceProof = sourceProof;
+        this.foldsOntoSourceProof = sourceProof != null;
         this.wrapsMessageGracePeriod = requireNonNull(wrapsMessageGracePeriod);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.weights = requireNonNull(weights);
@@ -370,12 +375,6 @@ public class WrapsHistoryProver implements HistoryProver {
                         || !provenanceBinding.targetVerificationKey().equals(targetMetadata))) {
             return new Outcome.Failed("Key provenance does not match this history construction's target key");
         }
-        final int largestBookSize = Math.max(
-                weights.sourceNodeWeights().size(), weights.targetNodeWeights().size());
-        if (largestBookSize > MAX_ADDRESS_BOOK_SIZE) {
-            return new Outcome.Failed(ADDRESS_BOOK_TOO_LARGE_FAILURE_PREFIX + " (" + largestBookSize
-                    + " nodes, but a WRAPS proof covers at most " + MAX_ADDRESS_BOOK_SIZE + ")");
-        }
         if (ledgerId == null && sourceProof != null) {
             return new Outcome.Failed("Only genesis WRAPS proofs are allowed to not have a ledger id");
         }
@@ -387,6 +386,32 @@ public class WrapsHistoryProver implements HistoryProver {
                     NOT_WRAPS_EXTENSIBLE_FAILURE_PREFIX + ", so cannot extend its chain of trust to a new roster");
         }
         foldsOntoSourceProof = !groundsChainOfTrust;
+        final int largestBookSize = Math.max(
+                foldsOntoSourceProof
+                        ? requireNonNull(sourceProof).targetNodeWeights().size()
+                        : 0,
+                weights.targetNodeWeights().size());
+        if (largestBookSize > MAX_ADDRESS_BOOK_SIZE) {
+            return new Outcome.Failed(ADDRESS_BOOK_TOO_LARGE_FAILURE_PREFIX + " (" + largestBookSize
+                    + " nodes, but a WRAPS proof covers at most " + MAX_ADDRESS_BOOK_SIZE + ")");
+        }
+        final WrapsSigningQuorum quorum;
+        try {
+            ensureWrapsMessage(targetProofKeys, targetMetadata);
+            final var sourceBook = sourceBook();
+            if (foldsOntoSourceProof
+                    && (!requireNonNull(sourceProof).hasTargetHistory()
+                            || !Bytes.wrap(historyLibrary.hashAddressBook(sourceBook))
+                                    .equals(sourceProof.targetHistoryOrThrow().addressBookHash()))) {
+                return new Outcome.Failed(INVALID_SOURCE_BOOK_FAILURE_PREFIX + ": predecessor commitment differs");
+            }
+            quorum = signingQuorum();
+        } catch (IllegalArgumentException e) {
+            return new Outcome.Failed(INVALID_SOURCE_BOOK_FAILURE_PREFIX + ": " + e.getMessage());
+        }
+        if (!quorum.canCompleteWithout(Set.copyOf(construction.wrapsExcludedNodeIds()))) {
+            return new Outcome.Failed(INSUFFICIENT_SIGNERS_FAILURE_PREFIX);
+        }
         final var state = construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT);
         if (state.phase() != AGGREGATE
                 && state.hasGracePeriodEndTime()
@@ -408,7 +433,10 @@ public class WrapsHistoryProver implements HistoryProver {
         } else {
             // Every node must agree on whether the aggregate is usable, so this check cannot wait for canSubmit
             if (state.phase() == AGGREGATE && aggregateSignature == null) {
-                ensureWrapsMessage(targetProofKeys, targetMetadata);
+                if (!quorum.isSatisfiedBy(
+                        phaseMessages.getOrDefault(R1, emptySortedMap()).keySet())) {
+                    return new Outcome.Failed(INVALID_FROZEN_SIGNERS_FAILURE_PREFIX);
+                }
                 aggregateSignature = verifiedAggregateSignature();
                 if (aggregateSignature == null) {
                     return new Outcome.Failed(
@@ -437,24 +465,13 @@ public class WrapsHistoryProver implements HistoryProver {
      * complete R1. (The prover ignores WRAPS messages from nodes without a proof key, so their weight cannot help.)
      *
      * @param excludedNodeIds the ids of the excluded nodes
-     * @param weights the roster transition weights
-     * @param sourceProofKeys the proof keys of the source nodes
+     * @param quorum the frozen canonical WRAPS and hinTS signing requirements
      * @return whether the other source nodes can complete R1
      */
     public static boolean canCompleteR1Without(
-            @NonNull final Set<Long> excludedNodeIds,
-            @NonNull final RosterTransitionWeights weights,
-            @NonNull final Map<Long, Bytes> sourceProofKeys) {
+            @NonNull final Set<Long> excludedNodeIds, @NonNull final WrapsSigningQuorum quorum) {
         requireNonNull(excludedNodeIds);
-        requireNonNull(weights);
-        requireNonNull(sourceProofKeys);
-        final long remainingWeight = weights.sourceNodeWeights().entrySet().stream()
-                .filter(entry -> !excludedNodeIds.contains(entry.getKey())
-                        && !MISSING_SCHNORR_KEY.equals(
-                                sourceProofKeys.getOrDefault(entry.getKey(), MISSING_SCHNORR_KEY)))
-                .mapToLong(Map.Entry::getValue)
-                .sum();
-        return remainingWeight >= moreThanHalfOfTotal(weights.sourceNodeWeights());
+        return requireNonNull(quorum).canCompleteWithout(excludedNodeIds);
     }
 
     @Override
@@ -544,10 +561,14 @@ public class WrapsHistoryProver implements HistoryProver {
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
             @Nullable final WritableHistoryStore writableHistoryStore) {
-        // Only source nodes sign; and if a node did not publish its Schnorr key in time to make it into
-        // the source roster, we ignore any WRAPS message it publishes later after coming online
-        if (!weights.sourceNodeWeights().containsKey(publication.nodeId())
-                || MISSING_SCHNORR_KEY.equals(proofKeys.getOrDefault(publication.nodeId(), MISSING_SCHNORR_KEY))) {
+        final WrapsSigningQuorum quorum;
+        try {
+            quorum = signingQuorum();
+        } catch (IllegalArgumentException e) {
+            // advance() records the same deterministic book failure on active and inactive nodes.
+            return false;
+        }
+        if (!quorum.isEligibleSigner(publication.nodeId())) {
             return false;
         }
         // Reject already-closed phases and duplicates before any native verification. Only a rotation's
@@ -585,7 +606,7 @@ public class WrapsHistoryProver implements HistoryProver {
             final var excludedNodeIds = new HashSet<>(
                     writableHistoryStore.getConstructionOrThrow(constructionId).wrapsExcludedNodeIds());
             excludedNodeIds.add(nodeId);
-            final boolean excluded = canCompleteR1Without(excludedNodeIds, weights, proofKeys);
+            final boolean excluded = quorum.canCompleteWithout(excludedNodeIds);
             if (excluded) {
                 writableHistoryStore.excludeFromWrapsSigning(constructionId, Set.of(nodeId));
             }
@@ -597,7 +618,7 @@ public class WrapsHistoryProver implements HistoryProver {
                     excluded ? ", ignoring its later messages" : "");
             return false;
         }
-        final var transition = machine.onNext(publication, wrapsPhase, weights, wrapsMessageGracePeriod, phaseMessages);
+        final var transition = machine.onNext(publication, wrapsPhase, quorum, wrapsMessageGracePeriod, phaseMessages);
         log.info(
                 "Received {} message from node{} for construction #{} in phase={}) -> {} (new phase={})",
                 publication.phase(),
@@ -638,7 +659,7 @@ public class WrapsHistoryProver implements HistoryProver {
         // of knowledge; so the sender's seat holds its key from the source proof
         final var book = new AddressBook(
                 new long[] {1L, 1L},
-                new byte[][] {proofKeys.get(nodeId).toByteArray(), CHECK_KEYS.publicKey()},
+                new byte[][] {sourceKeyOf(nodeId).toByteArray(), CHECK_KEYS.publicKey()},
                 new long[] {0L, 1L});
         return switch (phase) {
             case R1 ->
@@ -687,8 +708,9 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final Map<Long, Bytes> targetProofKeys, @NonNull final Bytes targetMetadata) {
         if (wrapsMessage == null) {
             // Avoid caching a partial derived state if one of these computations throws.
-            final var computedTargetAddressBook =
-                    AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
+            final var computedTargetAddressBook = AddressBook.from(
+                    weights.targetNodeWeights(),
+                    nodeId -> targetProofKeys
                             .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
                             .toByteArray());
             final var computedWrapsMessage =
@@ -722,9 +744,32 @@ public class WrapsHistoryProver implements HistoryProver {
     }
 
     private AddressBook sourceBook() {
+        if (foldsOntoSourceProof) {
+            return HistoryProofAddressBooks.targetBook(requireNonNull(sourceProof));
+        }
+        if (targetAddressBook != null) {
+            return targetAddressBook;
+        }
         return AddressBook.from(
-                weights.sourceNodeWeights(),
+                weights.targetNodeWeights(),
                 nodeId -> proofKeys.getOrDefault(nodeId, MISSING_SCHNORR_KEY).toByteArray());
+    }
+
+    private WrapsSigningQuorum signingQuorum() {
+        return new WrapsSigningQuorum(
+                sourceBook(),
+                foldsOntoSourceProof ? weights.sourceNodeWeights() : weights.targetNodeWeights(),
+                provenanceBinding != null);
+    }
+
+    private Bytes sourceKeyOf(final long nodeId) {
+        final var book = sourceBook();
+        for (int i = 0; i < book.nodeIds().length; i++) {
+            if (book.nodeIds()[i] == nodeId) {
+                return Bytes.wrap(book.publicKeys()[i]);
+            }
+        }
+        return MISSING_SCHNORR_KEY;
     }
 
     /**
@@ -740,16 +785,19 @@ public class WrapsHistoryProver implements HistoryProver {
         if (shouldSkipAfterCancellation(constructionId, phase)) {
             return;
         }
+        if (phase == R1 && !signingQuorum().isEligibleSigner(selfId)) {
+            return;
+        }
         // The library only computes an R3 share for this node's key in the source proof, so with any other key
         // this node's R1 message could only hold up the attempt
-        if (phase == R1 && !schnorrKeyPair.publicKey().equals(proofKeys.get(selfId))) {
-            if (proofKeys.containsKey(selfId) && !ownKeyMismatchLogged) {
+        if (phase == R1 && !schnorrKeyPair.publicKey().equals(sourceKeyOf(selfId))) {
+            if (!MISSING_SCHNORR_KEY.equals(sourceKeyOf(selfId)) && !ownKeyMismatchLogged) {
                 log.error(
                         "Not signing construction #{}, since this node's Schnorr key {} is not its key {} in the"
                                 + " source proof",
                         constructionId,
                         schnorrKeyPair.publicKey(),
-                        proofKeys.get(selfId));
+                        sourceKeyOf(selfId));
                 ownKeyMismatchLogged = true;
             }
             return;
@@ -935,6 +983,8 @@ public class WrapsHistoryProver implements HistoryProver {
                                 case ProofPhaseOutput proofOutput -> {
                                     final var proof = HistoryProof.newBuilder()
                                             .targetProofKeys(proofKeyList)
+                                            .targetNodeWeights(
+                                                    HistoryProofAddressBooks.weightsFrom(weights.targetNodeWeights()))
                                             .targetHistory(new History(Bytes.wrap(targetBookHash), targetMetadata))
                                             .chainOfTrustProof(ChainOfTrustProof.newBuilder()
                                                     .wrapsProof(Bytes.wrap(proofOutput.compressed())))
@@ -955,9 +1005,12 @@ public class WrapsHistoryProver implements HistoryProver {
                                                 noopOutput.reason());
                                         phaseNeedingRetry = AGGREGATE;
                                     } else {
-                                        log.info(
-                                                "Skipping publication of {} output: {}",
+                                        // A native prover failure is local, not a consensus verdict. Keep the
+                                        // decision pending so a valid peer proof can still trigger a congruent vote.
+                                        log.error(
+                                                "Skipping publication of {} output for construction #{}: {}",
                                                 AGGREGATE,
+                                                constructionId,
                                                 noopOutput.reason());
                                     }
                                 }

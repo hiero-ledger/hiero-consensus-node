@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -21,6 +22,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SplittableRandom;
@@ -360,26 +362,267 @@ class HistoryLibraryImplTest {
         assertFalse(subject.verifyCompressedProof(incrementalProof.compressed(), otherLedgerId, targetVerificationKey));
     }
 
+    @Test
+    void genesisProofRejectsShiftedSubsetSignerPositions() {
+        final var network = TestNetwork.withWeights(10L, 10L, 10L, 10L, 10L, 10L, 10L);
+        final var canonicalBook = network.bookWithoutKeys(Set.of(3L, 4L));
+        final var participantBook = network.subBook(0L, 1L, 2L, 5L, 6L);
+        final var verificationKey = randomBytes(VK_LENGTH);
+        final var message = subject.computeWrapsMessage(canonicalBook, verificationKey);
+        final var signers = Set.of(0L, 1L, 5L);
+
+        // Node 5 occupies subset position 3, which selects the sentinel for node 3 in the canonical book.
+        final var signature = network.sign(message, signers, participantBook);
+
+        assertFalse(verifiesAgainst(message, signature, canonicalBook));
+        assertNull(subject.constructGenesisWrapsProof(
+                subject.hashAddressBook(canonicalBook), verificationKey, signature, signers, canonicalBook));
+    }
+
+    @Test
+    void genesisProofCanSurviveSubsetMismatchForLeadingSigners() {
+        final var network = TestNetwork.withWeights(10L, 10L, 10L, 10L, 10L, 10L, 10L);
+        final var canonicalBook = network.bookWithoutKeys(Set.of(3L, 4L));
+        final var participantBook = network.subBook(0L, 1L, 2L, 5L, 6L);
+        final var verificationKey = randomBytes(VK_LENGTH);
+        final var message = subject.computeWrapsMessage(canonicalBook, verificationKey);
+        final var signers = Set.of(0L, 1L, 2L);
+
+        // Every selected position is unchanged, and three signers exceed half the five non-sentinel seats.
+        final var signature = network.sign(message, signers, participantBook);
+
+        assertTrue(verifiesAgainst(message, signature, canonicalBook));
+        final var proof = subject.constructGenesisWrapsProof(
+                subject.hashAddressBook(canonicalBook), verificationKey, signature, signers, canonicalBook);
+        assertNotNull(proof);
+        assertTrue(subject.verifyCompressedProof(proof.compressed(), message, verificationKey));
+    }
+
+    @Test
+    void canonicalBookNeedsFourSignersWhenAllSevenSchnorrKeysArePresent() {
+        final var network = TestNetwork.withWeights(10L, 10L, 10L, 10L, 10L, 10L, 10L);
+        final var canonicalBook = network.addressBook();
+        final var participantBook = network.subBook(0L, 1L, 2L, 5L, 6L);
+        final var verificationKey = randomBytes(VK_LENGTH);
+        final var message = subject.computeWrapsMessage(canonicalBook, verificationKey);
+        final var earlySigners = Set.of(0L, 1L, 2L);
+
+        // These positions agree in both books, isolating the native quorum from the index mismatch.
+        final var insufficientSignature = network.sign(message, earlySigners, participantBook);
+        assertFalse(verifiesAgainst(message, insufficientSignature, canonicalBook));
+        assertNull(subject.constructGenesisWrapsProof(
+                subject.hashAddressBook(canonicalBook),
+                verificationKey,
+                insufficientSignature,
+                earlySigners,
+                canonicalBook));
+
+        // A fourth hinTS-eligible participant can complete a proof once R1 waits for the canonical quorum.
+        final var sufficientSigners = Set.of(0L, 1L, 2L, 5L);
+        final var signature = network.sign(message, sufficientSigners, canonicalBook);
+        final var proof = subject.constructGenesisWrapsProof(
+                subject.hashAddressBook(canonicalBook), verificationKey, signature, sufficientSigners, canonicalBook);
+        assertNotNull(proof);
+        assertTrue(subject.verifyCompressedProof(proof.compressed(), message, verificationKey));
+    }
+
+    @Test
+    void sentinelListedWeightsAffectCommitmentButNotSigningQuorum() {
+        final var network = TestNetwork.withWeights(1L, 1L, 1L, 1_000L, 1_000L, 1L, 1L);
+        final var canonicalBook = network.bookWithoutKeys(Set.of(3L, 4L));
+        final var zeroedWeights = canonicalBook.weights().clone();
+        zeroedWeights[3] = 0;
+        zeroedWeights[4] = 0;
+        final var zeroedSentinelBook =
+                new HistoryLibrary.AddressBook(zeroedWeights, canonicalBook.publicKeys(), canonicalBook.nodeIds());
+
+        assertFalse(Arrays.equals(subject.hashAddressBook(canonicalBook), subject.hashAddressBook(zeroedSentinelBook)));
+
+        final var verificationKey = randomBytes(VK_LENGTH);
+        final var message = subject.computeWrapsMessage(canonicalBook, verificationKey);
+        final var signers = Set.of(0L, 1L, 2L);
+        final var signature = network.sign(message, signers, canonicalBook);
+        assertTrue(verifiesAgainst(message, signature, canonicalBook));
+
+        // The native protocol rejects selecting a sentinel seat, regardless of its listed weight.
+        final var entropy = randomBytes(32);
+        final var privateKey = network.keys().getFirst().privateKey();
+        final var r1 = subject.runWrapsPhaseR1(entropy, message, privateKey);
+        final var otherR1 = subject.runWrapsPhaseR1(randomBytes(32), message, privateKey);
+        assertNotNull(r1);
+        assertNotNull(otherR1);
+        assertNull(subject.runWrapsPhaseR2(
+                entropy, message, new byte[][] {r1, otherR1}, privateKey, canonicalBook, Set.of(0L, 3L)));
+    }
+
+    @Test
+    void identityPointWithDifferentProofOfKnowledgeKeepsNativeQuorumAndCommitment() {
+        final var network = TestNetwork.withWeights(1L, 1L, 1L, 1_000L);
+        final var canonicalBook = network.bookWithoutKeys(Set.of(3L));
+        final var differentAttestation = HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray();
+        differentAttestation[differentAttestation.length - 1] = 1;
+        final var historicalKeys = canonicalBook.publicKeys().clone();
+        historicalKeys[3] = differentAttestation;
+        final var historicalBook =
+                new HistoryLibrary.AddressBook(canonicalBook.weights(), historicalKeys, canonicalBook.nodeIds());
+
+        assertTrue(HistoryLibrary.isIdentityKey(differentAttestation));
+        assertTrue(HistoryLibrary.isIdentityKey(Bytes.wrap(differentAttestation)));
+        assertTrue(HistoryLibrary.isIdentityKey(HistoryLibrary.MISSING_SCHNORR_KEY));
+        assertFalse(HistoryLibrary.isIdentityKey(network.keys().getFirst().publicKey()));
+        assertFalse(HistoryLibrary.isIdentityKey(new byte[] {1}));
+        assertFalse(HistoryLibrary.isIdentityKey(Bytes.EMPTY));
+        // Only the public point, not its proof of knowledge, is in the native commitment.
+        assertArrayEquals(subject.hashAddressBook(canonicalBook), subject.hashAddressBook(historicalBook));
+
+        final var sourceAuthority = new TreeMap<>(Map.of(0L, 1L, 1L, 1L, 2L, 1L, 3L, 1_000L));
+        final var quorum = new WrapsSigningQuorum(historicalBook, sourceAuthority, false);
+        final var signers = Set.of(0L, 1L);
+        assertTrue(quorum.isSatisfiedBy(signers));
+        assertFalse(quorum.isEligibleSigner(3L));
+        assertTrue(quorum.canCompleteWithout(Set.of(2L, 3L)));
+        final var verificationKey = randomBytes(VK_LENGTH);
+        final var message = subject.computeWrapsMessage(historicalBook, verificationKey);
+        final var signature = network.sign(message, signers, historicalBook);
+        assertTrue(verifiesAgainst(message, signature, historicalBook));
+        final var proof = subject.constructGenesisWrapsProof(
+                subject.hashAddressBook(historicalBook), verificationKey, signature, signers, historicalBook);
+        assertNotNull(proof);
+        assertTrue(subject.verifyCompressedProof(proof.compressed(), message, verificationKey));
+    }
+
+    @Test
+    void canonicalSentinelBookSupportsGenesisAndIncrementalProofsWithNonContiguousNodeIds() {
+        final var network = TestNetwork.withNodeIds(
+                new long[] {2L, 7L, 11L, 19L, 23L, 41L, 80L}, 10L, 10L, 10L, 10L, 10L, 10L, 10L);
+        final var canonicalBook = network.bookWithoutKeys(Set.of(19L, 23L));
+        final var genesisVerificationKey = randomBytes(VK_LENGTH);
+        final var ledgerId = subject.computeWrapsMessage(canonicalBook, genesisVerificationKey);
+        final var signers = Set.of(2L, 41L, 80L);
+        final var genesisSignature = network.sign(ledgerId, signers, canonicalBook);
+        final var genesisProof = subject.constructGenesisWrapsProof(
+                subject.hashAddressBook(canonicalBook),
+                genesisVerificationKey,
+                genesisSignature,
+                signers,
+                canonicalBook);
+        assertNotNull(genesisProof);
+        assertTrue(subject.verifyCompressedProof(genesisProof.compressed(), ledgerId, genesisVerificationKey));
+
+        final var target = TestNetwork.withNodeIds(new long[] {2L, 41L, 90L}, 12L, 30L, 40L);
+        final var targetVerificationKey = randomBytes(VK_LENGTH);
+        final var message = subject.computeWrapsMessage(target.addressBook(), targetVerificationKey);
+        final var signature = network.sign(message, signers, canonicalBook);
+        final var incrementalProof = subject.constructIncrementalWrapsProof(
+                ledgerId,
+                genesisProof.uncompressed(),
+                canonicalBook,
+                target.addressBook(),
+                targetVerificationKey,
+                signature,
+                signers);
+        assertNotNull(incrementalProof);
+        assertTrue(subject.verifyCompressedProof(incrementalProof.compressed(), ledgerId, targetVerificationKey));
+    }
+
+    @Test
+    void incrementalProofRejectsTrailingOmissionsEvenWhenSignerPositionsAndAggregateRemainValid() {
+        final var network = TestNetwork.withWeights(10L, 10L, 10L, 10L, 10L, 10L, 10L);
+        final var canonicalBook = network.bookWithoutKeys(Set.of(5L, 6L));
+        final var participantBook = network.subBook(0L, 1L, 2L, 3L, 4L);
+        final var genesisVerificationKey = randomBytes(VK_LENGTH);
+        final var ledgerId = subject.computeWrapsMessage(canonicalBook, genesisVerificationKey);
+        final var signers = Set.of(0L, 1L, 2L);
+        final var genesisSignature = network.sign(ledgerId, signers, canonicalBook);
+        final var genesisProof = subject.constructGenesisWrapsProof(
+                subject.hashAddressBook(canonicalBook),
+                genesisVerificationKey,
+                genesisSignature,
+                signers,
+                canonicalBook);
+        assertNotNull(genesisProof);
+        assertTrue(subject.verifyCompressedProof(genesisProof.compressed(), ledgerId, genesisVerificationKey));
+
+        final var target = TestNetwork.withWeights(12L, 30L, 40L);
+        final var targetVerificationKey = randomBytes(VK_LENGTH);
+        final var message = subject.computeWrapsMessage(target.addressBook(), targetVerificationKey);
+        final var signature = network.sign(message, signers, participantBook);
+
+        // Neither signer positions nor the effective native quorum changed, but the full commitment did.
+        assertTrue(verifiesAgainst(message, signature, canonicalBook));
+        assertFalse(Arrays.equals(subject.hashAddressBook(canonicalBook), subject.hashAddressBook(participantBook)));
+        assertNull(subject.constructIncrementalWrapsProof(
+                ledgerId,
+                genesisProof.uncompressed(),
+                participantBook,
+                target.addressBook(),
+                targetVerificationKey,
+                signature,
+                signers));
+
+        final var incrementalProof = subject.constructIncrementalWrapsProof(
+                ledgerId,
+                genesisProof.uncompressed(),
+                canonicalBook,
+                target.addressBook(),
+                targetVerificationKey,
+                signature,
+                signers);
+        assertNotNull(incrementalProof);
+        assertTrue(subject.verifyCompressedProof(incrementalProof.compressed(), ledgerId, targetVerificationKey));
+    }
+
+    private boolean verifiesAgainst(
+            final byte[] message, final byte[] signature, final HistoryLibrary.AddressBook addressBook) {
+        return subject.verifyAggregateSignature(
+                message, addressBook.nodeIds(), addressBook.publicKeys(), addressBook.weights(), signature);
+    }
+
     /**
-     * A network of nodes with Schnorr keys and the given weights, indexed by node id from zero.
+     * A network of nodes with Schnorr keys and weights at the corresponding address-book positions.
      */
     private record TestNetwork(List<SchnorrKeys> keys, HistoryLibrary.AddressBook addressBook) {
         static TestNetwork withWeights(final long... weights) {
+            return withNodeIds(IntStream.range(0, weights.length).asLongStream().toArray(), weights);
+        }
+
+        static TestNetwork withNodeIds(final long[] nodeIds, final long... weights) {
+            assertEquals(weights.length, nodeIds.length);
             final var library = new HistoryLibraryImpl();
             final var keys = Arrays.stream(weights)
                     .mapToObj(ignore -> library.newSchnorrKeyPair())
                     .toList();
             final var addressBook = new HistoryLibrary.AddressBook(
-                    weights,
-                    keys.stream().map(SchnorrKeys::publicKey).toArray(byte[][]::new),
-                    IntStream.range(0, weights.length).asLongStream().toArray());
+                    weights, keys.stream().map(SchnorrKeys::publicKey).toArray(byte[][]::new), nodeIds.clone());
             return new TestNetwork(keys, addressBook);
+        }
+
+        HistoryLibrary.AddressBook bookWithoutKeys(final Set<Long> absentNodeIds) {
+            final var publicKeys = addressBook.publicKeys().clone();
+            absentNodeIds.forEach(
+                    nodeId -> publicKeys[indexOf(nodeId)] = HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray());
+            return new HistoryLibrary.AddressBook(addressBook.weights(), publicKeys, addressBook.nodeIds());
+        }
+
+        HistoryLibrary.AddressBook subBook(final long... nodeIds) {
+            return new HistoryLibrary.AddressBook(
+                    Arrays.stream(nodeIds)
+                            .map(nodeId -> addressBook.weights()[indexOf(nodeId)])
+                            .toArray(),
+                    Arrays.stream(nodeIds)
+                            .mapToObj(nodeId -> addressBook.publicKeys()[indexOf(nodeId)])
+                            .toArray(byte[][]::new),
+                    nodeIds.clone());
         }
 
         /**
          * Runs the WRAPS signing protocol among the given signers to produce an aggregate signature on the message.
          */
         byte[] sign(final byte[] message, final Set<Long> signers) {
+            return sign(message, signers, addressBook);
+        }
+
+        byte[] sign(final byte[] message, final Set<Long> signers, final HistoryLibrary.AddressBook signingBook) {
             final var library = new HistoryLibraryImpl();
             final var sortedSigners = signers.stream().sorted().toList();
             final var entropies =
@@ -393,7 +636,7 @@ class HistoryLibraryImplTest {
                             message,
                             r1Messages,
                             privateKeyOf(sortedSigners, i),
-                            addressBook,
+                            signingBook,
                             signers))
                     .toArray(byte[][]::new);
             final var r3Messages = IntStream.range(0, sortedSigners.size())
@@ -403,19 +646,25 @@ class HistoryLibraryImplTest {
                             r1Messages,
                             r2Messages,
                             privateKeyOf(sortedSigners, i),
-                            addressBook,
+                            signingBook,
                             signers))
                     .toArray(byte[][]::new);
             final var signature =
-                    library.runAggregationPhase(message, r1Messages, r2Messages, r3Messages, addressBook, signers);
+                    library.runAggregationPhase(message, r1Messages, r2Messages, r3Messages, signingBook, signers);
             assertNotNull(signature);
             assertTrue(library.verifyAggregateSignature(
-                    message, addressBook.nodeIds(), addressBook.publicKeys(), addressBook.weights(), signature));
+                    message, signingBook.nodeIds(), signingBook.publicKeys(), signingBook.weights(), signature));
             return signature;
         }
 
         private byte[] privateKeyOf(final List<Long> sortedSigners, final int i) {
-            return keys.get(sortedSigners.get(i).intValue()).privateKey();
+            return keys.get(indexOf(sortedSigners.get(i))).privateKey();
+        }
+
+        private int indexOf(final long nodeId) {
+            final int index = Arrays.binarySearch(addressBook.nodeIds(), nodeId);
+            assertTrue(index >= 0, "Unknown node id " + nodeId);
+            return index;
         }
     }
 

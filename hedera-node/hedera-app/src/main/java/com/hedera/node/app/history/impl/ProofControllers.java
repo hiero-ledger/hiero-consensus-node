@@ -121,9 +121,9 @@ public class ProofControllers {
         requireNonNull(construction);
         requireNonNull(historyStore);
         requireNonNull(activeProofConstruction);
-        // A controller created from state takes its source weights from the hinTS construction active now, so a
-        // controller created before that construction had a scheme must be replaced to agree with it
-        final var sourceWeights = maybeWeightsFrom(activeHintsConstruction);
+        // Incremental authority follows the adopted hinTS generation, which may have newer stake weights than
+        // the platform roster. A grounding construction instead signs with its own complete target book.
+        final var sourceWeights = groundsChainOfTrust(construction) ? null : maybeWeightsFrom(activeHintsConstruction);
         if (currentConstructionId() != construction.constructionId()
                 || !Objects.equals(controllerBinding, construction.keyProvenance())
                 || !Objects.equals(sourceWeights, controllerSourceWeights)) {
@@ -193,7 +193,9 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction activeProofConstruction,
             @NonNull final TssConfig tssConfig,
             @Nullable final KeyProvenanceSigner sourceSigner) {
-        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
+        final boolean grounding = groundsChainOfTrust(construction);
+        final var weights =
+                activeRosters.transitionWeights(grounding ? null : maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
@@ -203,7 +205,7 @@ public class ProofControllers {
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
-            final var sourceProof = activeProofConstruction.targetProof();
+            final var sourceProof = grounding ? null : activeProofConstruction.targetProof();
             final var provenanceSigner = construction.hasKeyProvenance() ? sourceSigner : null;
             final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
                     s,

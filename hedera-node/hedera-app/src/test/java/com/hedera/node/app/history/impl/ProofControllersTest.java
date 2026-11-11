@@ -294,8 +294,8 @@ class ProofControllersTest {
     }
 
     @Test
-    void replacesControllerOnceTheActiveHintsConstructionHasAScheme() {
-        // At genesis the history construction can start before the hinTS scheme exists, using roster weights
+    void replacesIncrementalControllerOnceTheActiveHintsConstructionHasAScheme() {
+        // Incremental authority switches from the platform fallback to the adopted hinTS generation.
         given(activeRosters.transitionWeights(null)).willReturn(weights);
         final var partyWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L));
         final var partyWeightedWeights = mock(RosterTransitionWeights.class);
@@ -309,21 +309,21 @@ class ProofControllersTest {
 
         final var first = subject.getOrCreateFor(
                 activeRosters,
-                ONE_CONSTRUCTION,
+                constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null),
                 historyStore,
                 HintsConstruction.DEFAULT,
                 HistoryProofConstruction.DEFAULT,
                 tssConfig);
         final var second = subject.getOrCreateFor(
                 activeRosters,
-                ONE_CONSTRUCTION,
+                constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null),
                 historyStore,
                 hintsWithScheme,
                 HistoryProofConstruction.DEFAULT,
                 tssConfig);
         final var third = subject.getOrCreateFor(
                 activeRosters,
-                ONE_CONSTRUCTION,
+                constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null),
                 historyStore,
                 hintsWithScheme,
                 HistoryProofConstruction.DEFAULT,
@@ -333,6 +333,44 @@ class ProofControllersTest {
         assertNotSame(first, second);
         assertSame(second, third);
         verify(activeRosters).transitionWeights(partyWeights);
+    }
+
+    @Test
+    void genesisUsesFullRosterAndKeepsItsControllerWhenSparseHintsSchemeArrives() {
+        final var fullNodeIds = new TreeSet<>(Set.of(1L, 2L, 3L));
+        final var partyWeights = new TreeMap<>(Map.of(1L, 7L, 2L, 9L));
+        final var sparseScheme = HintsConstruction.newBuilder()
+                .hintsScheme(
+                        HintsScheme.newBuilder().nodePartyIds(new NodePartyId(1L, 1, 7L), new NodePartyId(2L, 2, 9L)))
+                .build();
+        final var genesis = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(weights.sourceNodeIds()).willReturn(fullNodeIds);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+
+        final var beforeHints = subject.getOrCreateFor(
+                activeRosters,
+                genesis,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+        final var afterHints = subject.getOrCreateFor(
+                activeRosters,
+                genesis,
+                historyStore,
+                sparseScheme,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+
+        assertInstanceOf(ProofControllerImpl.class, afterHints);
+        assertSame(beforeHints, afterHints);
+        verify(activeRosters).transitionWeights(null);
+        verify(activeRosters, never()).transitionWeights(partyWeights);
+        verify(historyStore).getWrapsMessagePublications(1L, fullNodeIds);
+        verify(historyStore).getVotes(1L, fullNodeIds);
     }
 
     @Test

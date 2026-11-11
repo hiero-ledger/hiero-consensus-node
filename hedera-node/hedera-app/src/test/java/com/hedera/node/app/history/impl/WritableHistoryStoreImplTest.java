@@ -14,6 +14,7 @@ import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTST
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -66,7 +67,9 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
@@ -295,7 +298,7 @@ class WritableHistoryStoreImplTest {
 
         final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
         final var proof = new HistoryProof(
-                List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY, Bytes.EMPTY);
+                List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY, Bytes.EMPTY, List.of());
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
@@ -737,11 +740,15 @@ class WritableHistoryStoreImplTest {
 
     @Test
     void rebindingCompletedTargetPreservesProofAndSourceIdentity() {
+        final var frozenProof = HistoryProof.newBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(0L, 10L, 1L, 20L))))
+                .targetProofKeys(new ProofKey(0L, Bytes.wrap("historical-key")))
+                .build();
         final var active = HistoryProofConstruction.newBuilder()
                 .constructionId(123L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(B_ROSTER_HASH)
-                .targetProof(HistoryProof.DEFAULT)
+                .targetProof(frozenProof)
                 .build();
         final var next =
                 HistoryProofConstruction.newBuilder().constructionId(124L).build();
@@ -757,6 +764,72 @@ class WritableHistoryStoreImplTest {
         setConstructions(incomplete, next);
         assertFalse(subject.rebindActiveTargetRosterHash(B_ROSTER_HASH, C_ROSTER_HASH));
         assertEquals(incomplete, subject.getActiveConstruction());
+    }
+
+    @Test
+    void canonicalBooksSurviveDailyCandidateReplacementAndRestartWithoutPlatformAdoption() throws Exception {
+        final var firstProof = HistoryProof.newBuilder()
+                .targetNodeWeights(
+                        HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(0L, 10L, 1L, 20L, 2L, 30L))))
+                .targetProofKeys(new ProofKey(0L, Bytes.wrap("first-key")))
+                .build();
+        final var firstGeneration = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .targetProof(firstProof)
+                .build();
+        setConstructions(firstGeneration, HistoryProofConstruction.DEFAULT);
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        // The platform stays on A while daily candidates B, C, and D replace one another.
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
+        given(activeRosters.findRelatedRoster(C_ROSTER_HASH)).willReturn(C_ROSTER);
+
+        final var secondGeneration = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false);
+        assertEquals(firstProof, subject.getActiveConstruction().targetProofOrThrow());
+        assertNull(activeRosters.findRelatedRoster(B_ROSTER_HASH));
+        assertArrayEquals(
+                new long[] {10L, 20L, 30L},
+                HistoryProofAddressBooks.targetBook(
+                                subject.getActiveConstruction().targetProofOrThrow())
+                        .weights());
+
+        final var secondProof = HistoryProof.newBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(1L, 21L, 2L, 31L))))
+                .targetProofKeys(new ProofKey(1L, Bytes.wrap("second-key")))
+                .build();
+        subject.completeProof(secondGeneration.constructionId(), secondProof);
+        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH));
+        final var thirdRosterHash = Bytes.wrap("D");
+        given(activeRosters.targetRosterHash()).willReturn(thirdRosterHash);
+        given(activeRosters.findRelatedRoster(thirdRosterHash)).willReturn(C_ROSTER);
+        given(activeRosters.findRelatedRoster(C_ROSTER_HASH)).willReturn(null);
+        assertNull(activeRosters.findRelatedRoster(C_ROSTER_HASH));
+        subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW.plusSeconds(86_400), TSS_CONFIG, false);
+        // A later corrected/publication key cannot change the previously committed selected key or sentinel.
+        subject.setProofKey(1L, Bytes.wrap("later-corrected-key"), CONSENSUS_NOW.plusSeconds(86_401));
+        subject.setProofKey(2L, Bytes.wrap("later-key-for-sentinel-seat"), CONSENSUS_NOW.plusSeconds(86_401));
+        commit(_ -> {});
+        final var restarted = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        final var restoredProof = HistoryProof.PROTOBUF.parse(
+                HistoryProof.PROTOBUF.toBytes(restarted.getActiveConstruction().targetProofOrThrow()));
+
+        assertEquals(secondProof, restoredProof);
+        assertArrayEquals(
+                new long[] {1L, 2L},
+                HistoryProofAddressBooks.targetBook(restoredProof).nodeIds());
+        assertArrayEquals(
+                new long[] {21L, 31L},
+                HistoryProofAddressBooks.targetBook(restoredProof).weights());
+        assertArrayEquals(
+                Bytes.wrap("second-key").toByteArray(),
+                HistoryProofAddressBooks.targetBook(restoredProof).publicKeys()[0]);
+        assertArrayEquals(
+                HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(),
+                HistoryProofAddressBooks.targetBook(restoredProof).publicKeys()[1]);
+        assertEquals(A_ROSTER_HASH, restarted.getActiveConstruction().sourceRosterHash());
+        assertEquals(thirdRosterHash, restarted.getNextConstruction().targetRosterHash());
     }
 
     private void commit(@NonNull final Consumer<WritableStates> mutation) {

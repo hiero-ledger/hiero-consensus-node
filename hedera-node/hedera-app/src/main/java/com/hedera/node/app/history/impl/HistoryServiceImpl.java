@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.node.app.history.HistoryService.isCompleted;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
@@ -141,6 +142,9 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(historyStore);
         requireNonNull(now);
         requireNonNull(tssConfig);
+        // Recovery must also run between transitions, before a later stake-period transaction can
+        // replace the candidate that still holds this generation's complete weighted membership.
+        preserveLegacyActiveBook(activeRosters, historyStore);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 if (targetHintsConstructionId > 0) {
@@ -208,6 +212,41 @@ public class HistoryServiceImpl implements HistoryService {
             case HANDOFF -> {
                 // No-op
             }
+        }
+    }
+
+    /**
+     * Durably recovers a pre-snapshot active generation while its original roster still exists. Keeping only
+     * a controller-local reconstruction would lose the book if the next candidate replacement pruned the
+     * roster and the node restarted before completing the successor proof.
+     */
+    private void preserveLegacyActiveBook(
+            @NonNull final ActiveRosters activeRosters, @NonNull final WritableHistoryStore historyStore) {
+        final var active = historyStore.getActiveConstruction();
+        if (active == null || !active.hasTargetProof()) {
+            return;
+        }
+        final var proof = active.targetProofOrThrow();
+        if (!isWrapsExtensible(proof) || !proof.targetNodeWeights().isEmpty()) {
+            return;
+        }
+        // The platform source and the active hinTS subset need not describe this TSS generation.
+        // Only its own retained target roster is a candidate for commitment-checked recovery.
+        final var roster = activeRosters.findRelatedRoster(active.targetRosterHash());
+        if (roster == null) {
+            return;
+        }
+        try {
+            final var enriched = HistoryProofAddressBooks.withTargetWeights(
+                    proof, ActiveRosters.weightsFrom(roster), component.library());
+            historyStore.completeProof(active.constructionId(), enriched);
+        } catch (IllegalArgumentException e) {
+            // Preserve the existing trust root. The prover will deterministically refuse extension if
+            // no verified canonical snapshot is available; it must not guess another generation's book.
+            logger.warn(
+                    "Cannot recover canonical WRAPS book for construction #{}: {}",
+                    active.constructionId(),
+                    e.getMessage());
         }
     }
 
