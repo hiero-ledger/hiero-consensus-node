@@ -17,6 +17,7 @@ import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
+import org.hiero.consensus.event.intake.config.PcesReplayIntakeConfig;
 import org.hiero.consensus.event.intake.impl.branching.BranchDetector;
 import org.hiero.consensus.event.intake.impl.branching.BranchReporter;
 import org.hiero.consensus.event.intake.impl.branching.DefaultBranchDetector;
@@ -37,6 +38,7 @@ import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.orphan.StaleParentSet;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -210,10 +212,13 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventValidatorWiring.bind(internalEventValidator);
         final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
         eventDeduplicatorWiring.bind(eventDeduplicator);
+        final boolean allowUnsigned =
+                configuration.getConfigData(PcesReplayIntakeConfig.class).allowUnsignedPcesEvents();
         final EventSignatureValidator eventSignatureValidator = new DefaultEventSignatureValidator(
-                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
+                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter, allowUnsigned);
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
-        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
+        final OrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(metrics, intakeEventCounter, StaleParentSet.loadForReplay());
         orphanBufferWiring.bind(orphanBuffer);
         final BranchDetector branchDetector = new DefaultBranchDetector(activeRoster);
         branchDetectorWiring.bind(branchDetector);

@@ -61,6 +61,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
             new ConcurrentHashMap<>();
 
     private final Function<PublicKey, BytesSignatureVerifier> verifierFactory;
+    private final boolean allowUnsignedPcesEvents;
     private volatile RosterWrapperHistory rosterHistory;
 
     /**
@@ -139,7 +140,45 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
             @NonNull final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker pipelineTracker) {
+        this(
+                metrics,
+                time,
+                eventHasher,
+                eventFieldValidator,
+                verifierFactory,
+                rosterHistory,
+                intakeEventCounter,
+                pipelineTracker,
+                false);
+    }
 
+    /**
+     * Constructor.
+     *
+     * @param metrics                 the metrics system
+     * @param time                    the time source
+     * @param eventHasher             hashes events
+     * @param eventFieldValidator     validates event fields
+     * @param verifierFactory         creates a {@link BytesSignatureVerifier} for a given public key
+     * @param rosterHistory           the complete roster history
+     * @param intakeEventCounter      tracks event counts in the intake pipeline
+     * @param pipelineTracker         optional tracker for per-stage event delay metrics
+     * @param allowUnsignedPcesEvents if true, events read from storage with an empty signature skip signature
+     *                                verification (test-only; used to replay events reconstructed from the block
+     *                                stream)
+     */
+    public ConcurrentEventIntakeProcessor(
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final EventHasher eventHasher,
+            @NonNull final EventFieldValidator eventFieldValidator,
+            @NonNull final Function<PublicKey, BytesSignatureVerifier> verifierFactory,
+            @NonNull final RosterWrapperHistory rosterHistory,
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @Nullable final EventPipelineTracker pipelineTracker,
+            final boolean allowUnsignedPcesEvents) {
+
+        this.allowUnsignedPcesEvents = allowUnsignedPcesEvents;
         this.eventHasher = requireNonNull(eventHasher);
         this.eventFieldValidator = requireNonNull(eventFieldValidator);
         this.verifierFactory = requireNonNull(verifierFactory);
@@ -208,7 +247,14 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
         // 4. Verify signature (RUNTIME events are trusted — we just created and signed them)
         try {
             if (event.getOrigin() != EventOrigin.RUNTIME) {
-                if (!isSignatureValid(event)) {
+                // Unsigned events reconstructed from the block stream have an empty signature. When
+                // allowUnsignedPcesEvents is enabled, accept them without verification: trust derives from the block
+                // proof, not the per-event signature.
+                if (allowUnsignedPcesEvents
+                        && event.getOrigin() == EventOrigin.STORAGE
+                        && event.getSignature().length() == 0) {
+                    // Skip signature verification.
+                } else if (!isSignatureValid(event)) {
                     intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());
                     sigValidationFailedAccumulator.update(1);
                     rateLimitedLogger.error(

@@ -82,9 +82,9 @@ public record PcesConfig(
         @ConfigProperty(defaultValue = "preconsensus-events")
         Path databaseDirectory,
 
-        @ConfigProperty(defaultValue = "true") boolean copyRecentStreamToStateSnapshots,
+        @ConfigProperty(defaultValue = "false") boolean copyRecentStreamToStateSnapshots,
         @ConfigProperty(defaultValue = "true") boolean compactLastFileOnStartup,
-        @ConfigProperty(defaultValue = "false") boolean forceIgnorePcesSignatures,
+        @ConfigProperty(defaultValue = "true") boolean forceIgnorePcesSignatures,
         @ConfigProperty(defaultValue = "1ms") Duration replayHealthThreshold,
         @ConfigProperty(defaultValue = "true") boolean limitReplayFrequency,
         @ConfigProperty(defaultValue = "5000") int maxEventReplayFrequency,

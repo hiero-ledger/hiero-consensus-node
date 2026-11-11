@@ -15,9 +15,15 @@ import com.swirlds.config.api.ConfigProperty;
  *                         and never have their transactions handled.
  * @param roundsExpired    Events this many rounds old are expired, and can be deleted from memory
  * @param coinFreq         a coin round happens every coinFreq rounds during an election (every other one is all true)
+ * @param bypassFutureEventBufferDuringPcesReplay if true, the consensus engine feeds events straight through while the
+ *                         platform is replaying the PCES instead of holding them in the future event buffer. This is
+ *                         needed when replaying events reconstructed from the block stream, where the buffer's
+ *                         pending-consensus-round gate can deadlock consensus. Note: This is a TEST ONLY setting. It
+ *                         must never be enabled in production.
  */
 @ConfigData("consensus")
 public record ConsensusConfig(
         @ConfigProperty(defaultValue = "26") int roundsNonAncient,
         @ConfigProperty(defaultValue = "1000") int roundsExpired,
-        @ConfigProperty(defaultValue = "12") int coinFreq) {}
+        @ConfigProperty(defaultValue = "12") int coinFreq,
+        @ConfigProperty(defaultValue = "true") boolean bypassFutureEventBufferDuringPcesReplay) {}

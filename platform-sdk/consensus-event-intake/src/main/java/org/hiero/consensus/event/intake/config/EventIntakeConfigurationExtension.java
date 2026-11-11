@@ -16,7 +16,7 @@ public class EventIntakeConfigurationExtension implements ConfigurationExtension
      */
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(EventIntakeWiringConfig.class);
+        return Set.of(EventIntakeWiringConfig.class, PcesReplayIntakeConfig.class);
     }
 
     /**
