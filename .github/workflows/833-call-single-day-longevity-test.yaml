@@ -746,11 +746,11 @@ jobs:
           export NLG_IP=$(awk '{print $2}' NLGip.txt)
 
           apply() {
-            pod=$1
-            target=$2
+            pod=${1}
+            target=${2}
             shift;shift
-            kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" debug "$pod" -it --image=nicolaka/netshoot --profile=netadmin --target $target \
-            -- sh -c " \
+            kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" debug "${pod}" -it --image=nicolaka/netshoot --profile=netadmin --target ${target} \
+            -- bash -c " \
               tc qdisc del dev eth0 root; \
               tc qdisc add dev eth0 root handle 1: htb default 12 r2q 1000; \
               tc class add dev eth0 parent 1: classid 1:1 htb rate 1gbit; \
@@ -758,7 +758,7 @@ jobs:
               tc class add dev eth0 parent 1:1 classid 1:12 htb rate 1gbit; \
               tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip src ${NLG_IP}/32 flowid 1:12; \
               tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip dst ${NLG_IP}/32 flowid 1:12; \
-              if [ \"$target\" = \"block-node-server\" ]; then netem=\"${{ env.FROM_BN_NETEM }}\"; else netem=\"${{ env.FROM_CN_NETEM }}\"; fi
+              if [[ \"${target}\" = \"block-node-server\" ]]; then netem=\"${{ env.FROM_BN_NETEM }}\"; else netem=\"${{ env.FROM_CN_NETEM }}\"; fi
               tc qdisc add dev eth0 parent 1:11 handle 11: netem \${netem}; \
               for ip in $*; do tc filter add dev eth0 protocol ip parent 1:0 prio 3 u32 match ip dst \${ip}/32 flowid 1:11; done; \
               tc qdisc show dev eth0; \
@@ -768,19 +768,19 @@ jobs:
           #Set
           for pod in `awk '{print $1}' ips.txt`
           do
-            echo "Setting pod $pod"
-            myIP=`grep -F "$pod" ips.txt | awk '{print $2}'`
+            echo "Setting pod ${pod}"
+            myIP=`grep -F "${pod}" ips.txt | awk '{print $2}'`
 
             target="block-node-server"
-            echo $pod | grep "network-node" >/dev/null
+            echo ${pod} | grep "network-node" >/dev/null
 
             if [ $? -eq 0 ]
             then
               target="root-container"
             fi
 
-            list_of_ips=`grep -v -F "$myIP" ips.txt | awk '{print $2}' | perl -pne '~s/\n/ /g'`
-            apply $pod $target "$list_of_ips"
+            list_of_ips=`grep -v -F "${myIP}" ips.txt | awk '{print $2}' | perl -pne '~s/\n/ /g'`
+            apply ${pod} ${target} "${list_of_ips}"
           done
 
       - name: Start Longevity test
