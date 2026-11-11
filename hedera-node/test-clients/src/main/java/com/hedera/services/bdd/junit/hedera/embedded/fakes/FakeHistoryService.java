@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
@@ -103,6 +104,11 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public void setLatestHistoryProof(@NonNull HistoryProof historyProof) {
         delegate.setLatestHistoryProof(historyProof);
+    }
+
+    @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        delegate.publishKeyWitness(verificationKey, witness);
     }
 
     @Override
