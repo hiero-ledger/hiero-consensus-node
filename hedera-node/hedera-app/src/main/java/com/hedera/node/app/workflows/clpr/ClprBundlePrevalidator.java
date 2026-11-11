@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -22,12 +21,9 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
-import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
-import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
-import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.spi.records.RecordCache;
@@ -42,7 +38,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.ReadableKVStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -119,12 +114,13 @@ public class ClprBundlePrevalidator {
      * <p>The checks run in this order, and the first failure is reported: CLPR is enabled; the channel id is 32 bytes;
      * the channel exists and is neither {@code CLOSED} nor {@code PENDING}; the raw payload fits
      * {@code max_sync_bytes}; the proof verifies; the successor trust-anchor invariant holds;
-     * {@link ClprBundleValidator#validate} passes; and {@link ClprBundleValidator#validateReplies} passes without an
-     * ordering violation.
+     * and {@link ClprBundleValidator#prevalidate} passes.
      *
-     * <p>The channel is read live twice: once to verify the proof, and again right before the bundle's progress and
-     * replies are checked against it and the outbound queue. Verification takes long enough for the handle thread to
-     * apply an acknowledgement in between, which would leave the first read behind the queue.
+     * <p>This runs on the working state while the handle thread changes it, so the channel read here can be older than
+     * the state consensus applies the bundle to. Only checks that an older channel cannot turn from a rejection into an
+     * acceptance are applied (see {@link ClprBundleValidator#prevalidate}), so a valid bundle is never dropped for this
+     * ledger's stale view. The rest, including the replies against the outbound queue, is left to consensus, which
+     * checks them on consistent state.
      *
      * <p>As at consensus, once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
      * endpoint-manifest version is recorded, even if a later check rejects the bundle. Idle peers send pure
@@ -134,9 +130,8 @@ public class ClprBundlePrevalidator {
      * @param payload the inbound sync payload
      * @param configuration the node configuration
      * @throws PreCheckException with the response code consensus handling reports for the same failure, including
-     *     {@code CLPR_NO_PROGRESS} for a bundle that is valid but changes nothing. A reply ordering violation, which
-     *     consensus handles by pausing the channel, is reported as {@code CLPR_BUNDLE_VERIFICATION_FAILED}. Other
-     *     unexpected failures propagate as runtime exceptions, which callers must treat as a rejection.
+     *     {@code CLPR_NO_PROGRESS} for a bundle that is valid but changes nothing. Other unexpected failures propagate
+     *     as runtime exceptions, which callers must treat as a rejection.
      */
     public void validate(@NonNull final ClprSyncPayload payload, @NonNull final Configuration configuration)
             throws PreCheckException {
@@ -148,7 +143,11 @@ public class ClprBundlePrevalidator {
         try (final var stateWrapper = stateAccessor.get()) {
             final var state = requireNonNull(stateWrapper.get());
             final var stores = new ReadableStoreFactoryImpl(state);
-            final var channel = readAdmissibleChannel(state, stores, payload.channelId());
+            final var channel = stores.readableStore(ReadableChannelStore.class).getChannel(payload.channelId());
+            validateTruePreCheck(channel != null, CLPR_CHANNEL_NOT_FOUND);
+            validateTruePreCheck(
+                    channel.status() != ClprChannelStatus.CLOSED && channel.status() != ClprChannelStatus.PENDING,
+                    CLPR_INVALID_CHANNEL_STATUS);
             final var ledgerConfig =
                     stores.readableStore(ReadableLedgerConfigurationStore.class).getConfiguration();
             bundleValidator.validatePayloadSize(payload.bundlePayload(), ledgerConfig.throttlesOrThrow());
@@ -168,57 +167,9 @@ public class ClprBundlePrevalidator {
                         .recordPeerObservedManifestVersion(
                                 channel.channelId(), content.metadataOrThrow().endpointManifestVersion());
             }
-            // Re-read the channel, so its acknowledgement is not older than the queue slots read next
-            final var current = readAdmissibleChannel(state, stores, payload.channelId());
-            final var validated = bundleValidator.validate(current, content, ledgerConfig);
-            final var replies = bundleValidator.validateReplies(
-                    current, validated, stores.readableStore(ReadableMessageQueueStore.class));
-            validateTruePreCheck(
-                    !(replies instanceof ReplyValidation.OrderingViolated), CLPR_BUNDLE_VERIFICATION_FAILED);
+            bundleValidator.prevalidate(channel, content, ledgerConfig);
         } catch (final HandleException e) {
             throw new PreCheckException(e.getStatus());
-        }
-    }
-
-    /**
-     * Reads the channel live from the working state and checks that it exists and is neither {@code CLOSED} nor
-     * {@code PENDING}.
-     *
-     * @param state the working state
-     * @param stores read-only stores over {@code state}
-     * @param channelId the channel to read
-     * @return the channel as it is now
-     * @throws PreCheckException with {@code CLPR_CHANNEL_NOT_FOUND} or {@code CLPR_INVALID_CHANNEL_STATUS}
-     */
-    @NonNull
-    private static ClprChannel readAdmissibleChannel(
-            @NonNull final State state, @NonNull final ReadableStoreFactory stores, @NonNull final Bytes channelId)
-            throws PreCheckException {
-        resetCachedChannelReads(state);
-        final var channel = stores.readableStore(ReadableChannelStore.class).getChannel(channelId);
-        validateTruePreCheck(channel != null, CLPR_CHANNEL_NOT_FOUND);
-        validateTruePreCheck(
-                channel.status() != ClprChannelStatus.CLOSED && channel.status() != ClprChannelStatus.PENDING,
-                CLPR_INVALID_CHANNEL_STATUS);
-        return channel;
-    }
-
-    /**
-     * Clears the working state's cached channel reads, so the next channel read comes from the live state.
-     *
-     * <p>The working state caches each value it reads until the round ends, and the handle thread commits to the state
-     * without updating that cache. A channel cached before the handle thread applied an acknowledgement would then be
-     * read with its old {@code acked_message_id}, while the queue slots that acknowledgement deleted are read live as
-     * missing, and {@link ClprBundleValidator#validateReplies} would report {@code CLPR_INTERNAL_STATE_CORRUPTION}.
-     * A live channel read only asks for queue slots past its current acknowledgement, so stale cached slots are never
-     * consulted.
-     *
-     * @param state the working state
-     */
-    private static void resetCachedChannelReads(@NonNull final State state) {
-        if (state.getReadableStates(ClprService.NAME).get(CHANNELS_STATE_ID)
-                instanceof ReadableKVStateBase<?, ?> channels) {
-            channels.reset();
         }
     }
 

@@ -44,7 +44,6 @@ import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
-import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_AND_NETWORK_BASE_FEE;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_PEER_ENDPOINT_NOT_FOUND;
@@ -463,21 +462,19 @@ public class ClprEnabledSuite {
     @DisplayName("Endpoint manifest lifecycle")
     class ManifestTests {
         @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
-        @DisplayName("A node publication is admitted at consensus and pays its scheduled fee")
+        @DisplayName("A node publication is admitted at consensus without fee funding")
         final Stream<DynamicTest> publicationIsAdmittedAtConsensus() {
             return hapiTest(withOpContext((spec, opLog) -> {
                 final var node = spec.getNetworkNodes().getFirst();
                 final var payer = node.getAccountId();
-                allRunFor(
-                        spec,
-                        cryptoTransfer(tinyBarsFromTo(GENESIS, "" + payer.accountNumOrThrow(), ONE_HUNDRED_HBARS)));
                 final var embedded = spec.embeddedHederaOrThrow();
                 final var txnId = new TransactionID(asTimestamp(embedded.now()), payer, false, 0);
                 final var publication = TransactionBody.newBuilder()
                         .transactionID(txnId)
                         .nodeAccountID(payer)
                         .transactionValidDuration(new Duration(120L))
-                        .transactionFee(ONE_HUNDRED_HBARS)
+                        // Protocol publications waive node, network, and service fees.
+                        .transactionFee(0L)
                         .clprEndpointPublication(
                                 com.hedera.hapi.services.auxiliary.clpr.ClprEndpointPublicationTransactionBody
                                         .newBuilder()
@@ -509,14 +506,7 @@ public class ClprEnabledSuite {
                             spec,
                             getTxnRecord(txnId).assertingNothingAboutHashes().exposingTo(record -> {
                                 assertEquals(SUCCESS, record.getReceipt().getStatus());
-                                final var rate =
-                                        record.getReceipt().getExchangeRate().getCurrentRate();
-                                final double feeUsd = (double) record.getTransactionFee()
-                                        / ONE_HBAR
-                                        * rate.getCentEquiv()
-                                        / rate.getHbarEquiv()
-                                        / 100;
-                                assertEquals(1.0 + NODE_AND_NETWORK_BASE_FEE, feeUsd, 0.0000001);
+                                assertEquals(0L, record.getTransactionFee());
                             }));
                     assertTrue(
                             construction(spec).gatheredPublications().stream()
