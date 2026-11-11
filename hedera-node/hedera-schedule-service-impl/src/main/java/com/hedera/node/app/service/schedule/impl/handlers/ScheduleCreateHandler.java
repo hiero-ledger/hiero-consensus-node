@@ -29,6 +29,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
@@ -47,6 +48,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -124,14 +126,16 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
             mustExist(payer, ACCOUNT_ID_DOES_NOT_EXIST);
         }
         final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
+        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
+        final var filesConfig = config.getConfigData(FilesConfig.class);
         validateTruePreCheck(
-                isAllowedFunction(op.scheduledTransactionBodyOrThrow(), schedulingConfig),
+                isAllowedFunction(
+                        op.scheduledTransactionBodyOrThrow(), schedulingConfig, ledgerConfig, filesConfig),
                 SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
         // If an admin key is present, it must sign
         if (op.hasAdminKey()) {
             context.requireKey(op.adminKeyOrThrow());
         }
-        final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final long defaultLifetime = ledgerConfig.scheduleTxExpiryTimeSecs();
         final var schedule = createProvisionalSchedule(
                 body, instantSource.instant(), defaultLifetime, schedulingConfig.longTermEnabled());
@@ -160,6 +164,7 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var schedulingConfig = context.configuration().getConfigData(SchedulingConfig.class);
         final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
+        final var filesConfig = context.configuration().getConfigData(FilesConfig.class);
         final var consensusNow = context.consensusNow();
         final var defaultLifetime = ledgerConfig.scheduleTxExpiryTimeSecs();
         final var provisionalSchedule =
@@ -168,7 +173,11 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
         final var expiryValidity = checkExpiry(consensusNow, then, ledgerConfig, schedulingConfig);
         validateTrue(expiryValidity == OK, expiryValidity);
         validateTrue(
-                isAllowedFunction(provisionalSchedule.scheduledTransactionOrThrow(), schedulingConfig),
+                isAllowedFunction(
+                        provisionalSchedule.scheduledTransactionOrThrow(),
+                        schedulingConfig,
+                        ledgerConfig,
+                        filesConfig),
                 SCHEDULED_TRANSACTION_NOT_IN_WHITELIST);
         context.attributeValidator().validateMemo(provisionalSchedule.memo());
         context.attributeValidator()
@@ -311,9 +320,43 @@ public class ScheduleCreateHandler extends AbstractScheduleHandler implements Tr
     }
 
     private boolean isAllowedFunction(
-            @NonNull final SchedulableTransactionBody body, @NonNull final SchedulingConfig config) {
+            @NonNull final SchedulableTransactionBody body,
+            @NonNull final SchedulingConfig config,
+            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final FilesConfig filesConfig) {
         final var scheduledFunctionality = functionalityForType(body.data().kind());
-        return config.whitelist().functionalitySet().contains(scheduledFunctionality);
+        if (!config.whitelist().functionalitySet().contains(scheduledFunctionality)) {
+            return false;
+        }
+        return !isPrivilegedFileOperation(body, ledgerConfig, filesConfig);
+    }
+
+    private boolean isPrivilegedFileOperation(
+            @NonNull final SchedulableTransactionBody body,
+            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final FilesConfig filesConfig) {
+        if (body.hasFileUpdate()) {
+            return isPrivileged(body.fileUpdateOrThrow().fileID(), ledgerConfig, filesConfig);
+        }
+        if (body.hasFileAppend()) {
+            return isPrivileged(body.fileAppendOrThrow().fileID(), ledgerConfig, filesConfig);
+        }
+        if (body.hasFileDelete()) {
+            return isPrivileged(body.fileDeleteOrThrow().fileID(), ledgerConfig, filesConfig);
+        }
+        return false;
+    }
+
+    private boolean isPrivileged(
+            @Nullable final FileID fileId,
+            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final FilesConfig filesConfig) {
+        if (fileId == null) {
+            return false;
+        }
+        final long fileNum = fileId.fileNum();
+        return (fileNum >= 1 && fileNum <= ledgerConfig.numReservedSystemEntities())
+                || filesConfig.softwareUpdateRange().containsInclusive(fileNum);
     }
 
     private HederaFunctionality functionOf(@NonNull final Schedule schedule) {

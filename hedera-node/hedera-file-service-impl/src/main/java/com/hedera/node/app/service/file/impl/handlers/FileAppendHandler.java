@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.isMut
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.preValidate;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateContent;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
@@ -19,13 +20,16 @@ import com.hedera.node.app.service.file.FileSignatureWaivers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
+import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -98,14 +102,27 @@ public class FileAppendHandler implements TransactionHandler {
         final var target = fileAppend.fileID();
         final var data = fileAppend.contents();
         final var fileServiceConfig = handleContext.configuration().getConfigData(FilesConfig.class);
+        final var ledgerConfig = handleContext.configuration().getConfigData(LedgerConfig.class);
 
         if (target == null) { // should never happen, this is checked in pureChecks
             throw new HandleException(INVALID_FILE_ID);
         }
 
-        // the update file always will be for the node, not a particular ledger that's why we just compare the num
-        if (target.fileNum() >= fileServiceConfig.softwareUpdateRange().left()
-                && target.fileNum() <= fileServiceConfig.softwareUpdateRange().right()) {
+        final long fileNum = target.fileNum();
+        final boolean isUpgradeFile = fileServiceConfig.softwareUpdateRange().containsInclusive(fileNum);
+        final boolean isSystemFile =
+                (fileNum >= 1 && fileNum <= ledgerConfig.numReservedSystemEntities()) || isUpgradeFile;
+
+        if (isSystemFile) {
+            final var category = handleContext
+                    .savepointStack()
+                    .getBaseBuilder(StreamBuilder.class)
+                    .category();
+            validateTrue(category == USER, UNAUTHORIZED);
+            validateTrue(handleContext.hasPrivilegedAuthorization() == SystemPrivilege.AUTHORIZED, UNAUTHORIZED);
+        }
+
+        if (isUpgradeFile) {
             handleAppendUpgradeFile(fileAppend, handleContext);
             return;
         }

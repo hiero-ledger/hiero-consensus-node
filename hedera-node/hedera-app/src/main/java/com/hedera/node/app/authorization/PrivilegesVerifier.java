@@ -154,7 +154,8 @@ public class PrivilegesVerifier {
     }
 
     private SystemPrivilege checkFileChange(@NonNull final AccountID accountID, final long entityNum) {
-        if (!isSystemEntity(entityNum)) {
+        final boolean isUpgradeFile = filesConfig.softwareUpdateRange().containsInclusive(entityNum);
+        if (!isSystemEntity(entityNum) && !isUpgradeFile) {
             return UNNECESSARY;
         }
         if (entityNum == filesConfig.addressBook() || entityNum == filesConfig.nodeDetails()) {
@@ -167,8 +168,7 @@ public class PrivilegesVerifier {
             return hasFeeSchedulePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.exchangeRates()) {
             return hasExchangeRatePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
-        } else if (filesConfig.softwareUpdateRange().left() <= entityNum
-                && entityNum <= filesConfig.softwareUpdateRange().right()) {
+        } else if (isUpgradeFile) {
             return hasSoftwareUpdatePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.throttleDefinitions()) {
             return hasAddressBookPrivilege(accountID) || hasExchangeRatePrivilege(accountID)

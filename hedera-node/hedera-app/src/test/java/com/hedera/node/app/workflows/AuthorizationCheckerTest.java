@@ -127,4 +127,52 @@ class AuthorizationCheckerTest {
         assertThat(subject.failureFor(PAYER_ID, functionality, TX_BODY)).isNull();
         verify(authorizer, never()).hasPrivilegedAuthorization(PAYER_ID, functionality, TX_BODY);
     }
+
+    // --- InnerTransaction handling ---
+
+    @Test
+    void innerPrivilegedFileOpIsRejectedEvenIfAuthorized() {
+        given(authorizer.hasPrivilegedAuthorization(PAYER_ID, FILE_UPDATE, TX_BODY))
+                .willReturn(SystemPrivilege.AUTHORIZED);
+
+        assertThat(subject.failureFor(PAYER_ID, FILE_UPDATE, TX_BODY, InnerTransaction.YES))
+                .isEqualTo(AUTHORIZATION_FAILED);
+        assertThatThrownBy(() -> subject.enforce(PAYER_ID, FILE_UPDATE, TX_BODY, InnerTransaction.YES))
+                .isInstanceOf(PreCheckException.class)
+                .hasFieldOrPropertyWithValue("responseCode", AUTHORIZATION_FAILED);
+    }
+
+    @Test
+    void innerPrivilegedFileOpIsRejectedIfUnauthorized() {
+        given(authorizer.hasPrivilegedAuthorization(PAYER_ID, FILE_UPDATE, TX_BODY))
+                .willReturn(SystemPrivilege.UNAUTHORIZED);
+
+        assertThat(subject.failureFor(PAYER_ID, FILE_UPDATE, TX_BODY, InnerTransaction.YES))
+                .isEqualTo(AUTHORIZATION_FAILED);
+        assertThatThrownBy(() -> subject.enforce(PAYER_ID, FILE_UPDATE, TX_BODY, InnerTransaction.YES))
+                .isInstanceOf(PreCheckException.class)
+                .hasFieldOrPropertyWithValue("responseCode", AUTHORIZATION_FAILED);
+    }
+
+    @Test
+    void innerNormalUserFileOpIsAllowed() {
+        given(authorizer.hasPrivilegedAuthorization(PAYER_ID, FILE_UPDATE, TX_BODY))
+                .willReturn(SystemPrivilege.UNNECESSARY);
+
+        assertThat(subject.failureFor(PAYER_ID, FILE_UPDATE, TX_BODY, InnerTransaction.YES))
+                .isNull();
+        assertThatCode(() -> subject.enforce(PAYER_ID, FILE_UPDATE, TX_BODY, InnerTransaction.YES))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void topLevelPrivilegedFileOpWithAuthorizedPayerIsAllowed() {
+        given(authorizer.hasPrivilegedAuthorization(PAYER_ID, FILE_UPDATE, TX_BODY))
+                .willReturn(SystemPrivilege.AUTHORIZED);
+
+        assertThat(subject.failureFor(PAYER_ID, FILE_UPDATE, TX_BODY, InnerTransaction.NO))
+                .isNull();
+        assertThatCode(() -> subject.enforce(PAYER_ID, FILE_UPDATE, TX_BODY, InnerTransaction.NO))
+                .doesNotThrowAnyException();
+    }
 }

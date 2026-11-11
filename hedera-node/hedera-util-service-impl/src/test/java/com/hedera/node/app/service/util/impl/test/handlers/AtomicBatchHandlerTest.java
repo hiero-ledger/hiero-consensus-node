@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -42,6 +43,9 @@ import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.hapi.node.file.FileAppendTransactionBody;
+import com.hedera.hapi.node.file.FileDeleteTransactionBody;
+import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
@@ -231,6 +235,113 @@ class AtomicBatchHandlerTest {
     void failsOnInnerFreezeTx() throws PreCheckException {
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
                 .freeze(FreezeTransactionBody.DEFAULT)
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    @Test
+    void failsOnInnerFileUpdateForSystemFile() throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileUpdate(FileUpdateTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(112).build())
+                        .build())
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    @Test
+    void failsOnInnerFileAppendForSystemFile() throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileAppend(FileAppendTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(112).build())
+                        .build())
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    @Test
+    void failsOnInnerFileUpdateForUpgradeFile() throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileUpdate(FileUpdateTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(150).build())
+                        .build())
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    @Test
+    void failsOnInnerFileAppendForUpgradeFile() throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileAppend(FileAppendTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(150).build())
+                        .build())
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        final var msg = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(BATCH_TRANSACTION_IN_BLACKLIST, msg.responseCode());
+    }
+
+    @Test
+    void allowsInnerFileUpdateForUserFile() throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileUpdate(FileUpdateTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(1001).build())
+                        .build())
+                .batchKey(SIMPLE_KEY_A)
+                .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
+                .build();
+        final var innerTxn = innerTxnFrom("123");
+        final var bytes = transactionsToBytes(innerTxn);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(preHandleContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody);
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+    }
+
+    @Test
+    void failsOnInnerFileDeleteForSystemFile() throws PreCheckException {
+        final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .fileDelete(FileDeleteTransactionBody.newBuilder()
+                        .fileID(FileID.newBuilder().fileNum(112).build())
+                        .build())
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();

@@ -204,12 +204,8 @@ class AtomicProtectedFilesUpdateSuite {
                                 .overridingProps(Map.of(property, expected))
                                 .payingWith(specialAccount)
                                 .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                validateAndCleanUpOps(
-                        propertyFileValidationOp(specialAccount, specialFile, property, expected),
-                        specialAccount,
-                        specialFile,
-                        isFree)));
+                        .payingWith(BATCH_OPERATOR)
+                        .hasPrecheck(AUTHORIZATION_FAILED)));
     }
 
     private HapiSpecOperation propertyFileValidationOp(
