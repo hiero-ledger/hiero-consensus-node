@@ -252,9 +252,10 @@ hash, and endpoint-manifest version. Message-bearing bundles also prove the last
 running hash.
 
 All three built-in EVM bundle verifiers receive the local Channel record's
-`channelContext = channelId32 || peerServiceAddress20`. The service address must match
-the trusted anchor's service address, whose account or Sei store key is authenticated by
-the state proof. Queue slot keys must equal `keccak256(channelId32 || uint256(15))`
+`channelContext = channelId32 || peerServiceAddress20`. The QBFT and Sei verifiers require
+the service address to match the trusted anchor's service address. Ethereum uses the
+service address stored in the channel context. The state proof authenticates that
+service account or Sei store key. Queue slot keys must equal `keccak256(channelId32 || uint256(15))`
 plus the exact field offsets `{1,2,4,5,16}`. The optional last-message hash key must equal
 `keccak256(uint256(nextMessageId - 1) || keccak256(channelId32 || uint256(1))) + 1`,
 using the proven next-message ID. Proof order is irrelevant; duplicate, missing, and

@@ -4,16 +4,20 @@ package com.hedera.node.app.service.contract.impl.test.state;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asLongZeroAddress;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.node.app.service.contract.impl.exec.StorageAccountingScope;
@@ -27,6 +31,7 @@ import com.hedera.node.app.service.contract.impl.infra.RentCalculator;
 import com.hedera.node.app.service.contract.impl.infra.StorageSizeValidator;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.RentFactors;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
@@ -46,9 +51,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.datatypes.Wei;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.BDDMockito;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -101,6 +108,9 @@ class RootProxyWorldUpdaterTest {
 
     @Mock
     private StorageAccountingScope storageAccountingScope;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
 
     private Enhancement enhancement;
     private RootProxyWorldUpdater subject;
@@ -155,7 +165,6 @@ class RootProxyWorldUpdaterTest {
         final var mockChangedKeys = Set.of(new SlotKey(A_CONTRACT_ID, Bytes.wrap("123")));
         // Four keys being added and three removed in pending changes
         final var slotsUsedAfterCommit = slotsUsedBeforeCommit + 4 - 3;
-        given(storageAccountingScope.isOwner()).willReturn(true);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(slotsUsedBeforeCommit);
@@ -203,7 +212,6 @@ class RootProxyWorldUpdaterTest {
         final var persistenceChanges = List.of(new StorageAccesses(
                 A_CONTRACT_ID, List.of(StorageAccess.newWrite(A_KEY_BEING_ADDED, UInt256.ONE, UInt256.ONE))));
         final var traceUsage = new TxStorageUsage(scopeChanges, Set.of());
-        given(storageAccountingScope.isOwner()).willReturn(true);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getTxStorageUsage(true)).willReturn(traceUsage);
@@ -234,12 +242,11 @@ class RootProxyWorldUpdaterTest {
         final var slotsUsedBeforeCommit = 10L;
         final var oneInsertion = List.of(new StorageAccesses(
                 A_CONTRACT_ID, List.of(new StorageAccess(A_KEY_BEING_ADDED, UInt256.ZERO, UInt256.ONE))));
-        // Not the scope owner, so the commit only validates
-        given(storageAccountingScope.isOwner()).willReturn(false);
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getKvStateSize()).willReturn(slotsUsedBeforeCommit);
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(oneInsertion, Set.of()));
+        given(evmFrameState.getRentFactorsFor(A_CONTRACT_ID)).willReturn(new RentFactors(0, 0));
         given(hederaOperations.getStore()).willReturn(store);
         given(storageManager.getPersistenceChanges(enhancement, oneInsertion, store))
                 .willReturn(oneInsertion);
@@ -257,52 +264,105 @@ class RootProxyWorldUpdaterTest {
     }
 
     @Test
-    void nestedExecutionValidatesButLeavesRentAndPersistenceToScopeOwner() {
-        given(storageAccountingScope.isOwner()).willReturn(false);
-        given(context.dispatchMetadata())
-                .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
-        given(evmFrameState.getKvStateSize()).willReturn(123L);
-        given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(pendingChanges(), Set.of()));
-        given(hederaOperations.getStore()).willReturn(store);
-        given(storageManager.getPersistenceChanges(enhancement, pendingChanges(), store))
-                .willReturn(pendingChanges());
-        // Lenient, since a nested commit must not ask for rent factors
-        BDDMockito.lenient()
-                .when(evmFrameState.getRentFactorsFor(A_CONTRACT_ID))
-                .thenReturn(new RentFactors(0, 0));
-        given(hederaOperations.summarizeContractChanges())
-                .willReturn(new ContractChangeSummary(new ArrayList<>(), new ArrayList<>()));
+    void throttlesOnlyItsOwnCreationsAmongThoseInItsScope() {
+        final var nestedCreation = ContractID.newBuilder().contractNum(345L).build();
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOwnCreationOf(CALLED_CONTRACT_ID);
+        givenCreatedContractsWithNoStorageChanges(nestedCreation, CALLED_CONTRACT_ID);
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+        given(context.savepointStack()).willReturn(savepointStack);
 
         subject.commit();
 
-        // Four pending insertions and three pending removals
-        BDDMockito.then(storageSizeValidator).should().assertValid(124L, hederaNativeOperations, expectedSizeChanges());
-        BDDMockito.then(rentCalculator).shouldHaveNoInteractions();
-        // The nested commit only reconciles its changes for validation, and never persists them
-        BDDMockito.then(storageManager).should().getPersistenceChanges(enhancement, pendingChanges(), store);
-        BDDMockito.then(storageManager).shouldHaveNoMoreInteractions();
-        BDDMockito.then(hederaOperations).should().commit();
+        BDDMockito.then(throttleAdviser).should().shouldThrottleNOfUnscaled(1, CRYPTO_CREATE);
+        assertEquals(List.of(nestedCreation, CALLED_CONTRACT_ID), subject.getCreatedContractIds());
     }
 
     @Test
-    void scopeOwnerThrottlesCreatedContracts() {
+    void nestedExecutionGivesBackItsClaimIfRolledBackBeforeTheOwnerCommits() {
         givenSubjectWith(creationThrottleConfig(), enhancement);
-        givenOneCreatedContractWithNoStorageChanges();
+        givenOwnCreationOf(CALLED_CONTRACT_ID);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+        given(context.savepointStack()).willReturn(savepointStack);
+        final var giveBack = ArgumentCaptor.forClass(Runnable.class);
+
+        subject.commit();
+
+        BDDMockito.then(savepointStack).should().onRollback(giveBack.capture());
+        BDDMockito.then(throttleAdviser).should(never()).leakCapacityForNOfUnscaled(anyInt(), any());
+        giveBack.getValue().run();
+        BDDMockito.then(throttleAdviser).should().leakCapacityForNOfUnscaled(1, CRYPTO_CREATE);
+    }
+
+    @Test
+    void nestedExecutionKeepsItsClaimIfRolledBackAfterTheOwnerCommits() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOwnCreationOf(CALLED_CONTRACT_ID);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+        given(context.savepointStack()).willReturn(savepointStack);
+        final var giveBack = ArgumentCaptor.forClass(Runnable.class);
+
+        subject.commit();
+
+        BDDMockito.then(savepointStack).should().onRollback(giveBack.capture());
+        given(storageAccountingScope.ownerHasCommitted()).willReturn(true);
+        giveBack.getValue().run();
+        BDDMockito.then(throttleAdviser).should(never()).leakCapacityForNOfUnscaled(anyInt(), any());
+    }
+
+    @Test
+    void ownerClaimIsFinalAndMarksItsCommit() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOwnCreationOf(CALLED_CONTRACT_ID);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
         given(storageAccountingScope.isOwner()).willReturn(true);
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+
+        subject.commit();
+
+        BDDMockito.then(throttleAdviser).should().shouldThrottleNOfUnscaled(1, CRYPTO_CREATE);
+        BDDMockito.then(context).should(never()).savepointStack();
+        BDDMockito.then(storageAccountingScope).should().markCommitted();
+    }
+
+    @Test
+    void deniedOwnCreationsFailTheCommit() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenOwnCreationOf(CALLED_CONTRACT_ID);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
         given(context.throttleAdviser()).willReturn(throttleAdviser);
         given(throttleAdviser.shouldThrottleNOfUnscaled(1, CRYPTO_CREATE)).willReturn(true);
 
         final var e = assertThrows(ResourceExhaustedException.class, subject::commit);
         assertEquals(CONSENSUS_GAS_EXHAUSTED, e.getStatus());
+        // Nothing was claimed, so there is nothing to give back
+        BDDMockito.then(context).should(never()).savepointStack();
+        BDDMockito.then(storageAccountingScope).should(never()).markCommitted();
     }
 
     @Test
-    void nestedExecutionLeavesCreationThrottleToScopeOwner() {
+    void ownCreationRolledBackBeforeCommitIsNotThrottled() {
         givenSubjectWith(creationThrottleConfig(), enhancement);
-        givenOneCreatedContractWithNoStorageChanges();
-        given(storageAccountingScope.isOwner()).willReturn(false);
-        // Lenient, since a nested commit must not consult the throttle
-        BDDMockito.lenient().when(context.throttleAdviser()).thenReturn(throttleAdviser);
+        final var child = subject.updater();
+        givenNextCreationIn(child, CALLED_CONTRACT_ID);
+        child.revert();
+        child.commit();
+        // The rolled-back number was reused by a nested execution, which throttled it at its own commit
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(storageAccountingScope.isOwner()).willReturn(true);
+
+        subject.commit();
+
+        BDDMockito.then(context).should(never()).throttleAdviser();
+    }
+
+    @Test
+    void ownerSkipsTheThrottleWhenOnlyCreationsOfNestedExecutionsRemain() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenCreatedContractsWithNoStorageChanges(CALLED_CONTRACT_ID);
+        given(storageAccountingScope.isOwner()).willReturn(true);
 
         subject.commit();
 
@@ -310,12 +370,48 @@ class RootProxyWorldUpdaterTest {
         assertEquals(List.of(CALLED_CONTRACT_ID), subject.getCreatedContractIds());
     }
 
-    private void givenOneCreatedContractWithNoStorageChanges() {
+    @Test
+    void ownerWithoutCreationsStillChecksTheThrottle() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenCreatedContractsWithNoStorageChanges();
+        given(storageAccountingScope.isOwner()).willReturn(true);
+        given(context.throttleAdviser()).willReturn(throttleAdviser);
+
+        subject.commit();
+
+        BDDMockito.then(throttleAdviser).should().shouldThrottleNOfUnscaled(0, CRYPTO_CREATE);
+    }
+
+    @Test
+    void nestedExecutionWithoutOwnCreationsSkipsTheThrottle() {
+        givenSubjectWith(creationThrottleConfig(), enhancement);
+        givenCreatedContractsWithNoStorageChanges();
+        given(storageAccountingScope.isOwner()).willReturn(false);
+
+        subject.commit();
+
+        BDDMockito.then(context).should(never()).throttleAdviser();
+    }
+
+    private void givenOwnCreationOf(@NonNull final ContractID contractId) {
+        givenNextCreationIn(subject, contractId);
+    }
+
+    private void givenNextCreationIn(@NonNull final ProxyWorldUpdater updater, @NonNull final ContractID contractId) {
+        final long number = contractId.contractNumOrThrow();
+        given(hederaOperations.peekNextEntityNumber()).willReturn(number);
+        given(hederaOperations.contractCreationLimit()).willReturn(Long.MAX_VALUE);
+        given(hederaOperations.accountCreationLimit()).willReturn(Long.MAX_VALUE);
+        updater.setupTopLevelCreate(ContractCreateTransactionBody.DEFAULT);
+        updater.createAccount(asLongZeroAddress(number), 1, Wei.ZERO);
+    }
+
+    private void givenCreatedContractsWithNoStorageChanges(@NonNull final ContractID... createdIds) {
         given(context.dispatchMetadata())
                 .willReturn(new HandleContext.DispatchMetadata(EXPLICIT_WRITE_TRACING, Boolean.FALSE));
         given(evmFrameState.getTxStorageUsage(true)).willReturn(new TxStorageUsage(List.of(), Set.of()));
         given(hederaOperations.summarizeContractChanges())
-                .willReturn(new ContractChangeSummary(new ArrayList<>(List.of(CALLED_CONTRACT_ID)), new ArrayList<>()));
+                .willReturn(new ContractChangeSummary(new ArrayList<>(List.of(createdIds)), new ArrayList<>()));
     }
 
     private static Configuration creationThrottleConfig() {

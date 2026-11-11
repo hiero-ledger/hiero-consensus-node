@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.clpr;
+package com.hedera.services.bdd.suites.clpr.ethereum;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,64 +11,129 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.NativeBlsSignatureVerifier;
+import com.hedera.services.bdd.suites.clpr.ethereum.SyncCommitteeProofs.Preset;
 import com.hederahashgraph.api.proto.java.ClprBundleContent;
 import com.hederahashgraph.api.proto.java.ClprChannelStatus;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
+import com.hederahashgraph.api.proto.java.ClprQueueMetadata;
+import com.hederahashgraph.api.proto.java.EthereumPosLedgerConfigurationPayload;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
- * Round-trips {@link EthSyncCommitteeProofs} output through an <em>independent</em> RLP + Merkle-Patricia
+ * Round-trips {@link SyncCommitteeProofs} output through an <em>independent</em> RLP + Merkle-Patricia
  * reader, so a structural bug in the generator is caught here rather than only inside a slow embedded
  * HAPI run. The reader deliberately re-implements the trie walk and slot decoding from scratch rather
  * than reusing the (module-private) production verifier.
  */
-class EthSyncCommitteeProofsTest {
+class SyncCommitteeProofsTest {
 
     private static final RLPDecoder RLP = RLPDecoder.RLP_STRICT;
 
+    private static final byte[] CHANNEL_ID =
+            HexFormat.of().parseHex("3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd");
+
+    /** {@code keccak256(CHANNEL_ID ‖ uint256(15)) + 1}, computed with foundry's {@code cast}. */
+    private static final String FIRST_CHANNEL_SLOT = "44637163277d9a932c1ffaff31b12f7a1ef43c674d0f3387a8f8e6864b1628f4";
+
     @Test
-    void configPayloadHasExpectedTopLevelShape() {
-        final RLPList payload = topList(EthSyncCommitteeProofs.configPayload());
-        final List<RLPItem> items = payload.elements();
-        // [slot, syncCommittee, genesisValidatorsRoot, forkVersion, ledgerConfigBytes]
-        assertThat(items).hasSize(5);
-        final List<RLPItem> committee = items.get(1).asRLPList().elements();
-        assertThat(committee).hasSize(2);
-        assertThat(committee.get(0).asRLPList().elements()).hasSize(EthSyncCommitteeProofs.COMMITTEE_SIZE);
-        assertThat(items.get(3).data()).hasSize(4); // forkVersion
+    @DisplayName("given each preset, then configPayload carries a bootstrap and an update of that preset's size")
+    void givenEachPreset_thenConfigPayloadCarriesBootstrapAndUpdateOfPresetSize() throws Exception {
+        for (final Preset preset : Preset.values()) {
+            final var payload =
+                    EthereumPosLedgerConfigurationPayload.parseFrom(SyncCommitteeProofs.configPayload(preset));
+
+            assertThat(payload.getSyncCommittee().getPubkeysList())
+                    .hasSize(preset.committeeSize)
+                    .allSatisfy(key -> assertThat(key.size()).isEqualTo(48));
+            assertThat(payload.getSyncCommittee().getAggregatePubkey().size()).isEqualTo(48);
+            assertThat(payload.getNextSyncCommittee().getPubkeysList()).hasSize(preset.committeeSize);
+            assertThat(payload.getAnchorHeader().getSlot()).isEqualTo(payload.getSlot());
+            assertThat(payload.getCurrentSyncCommitteeBranchList()).hasSize(11);
+            assertThat(payload.getNextSyncCommitteeBranchList()).hasSize(11);
+            assertThat(payload.getSyncAggregate().getBits().size()).isEqualTo(preset.committeeSize / 8);
+            assertThat(payload.getSyncAggregate().getSignature().size()).isEqualTo(256);
+            assertThat(payload.getCodeHash().size()).isEqualTo(32);
+            assertThat(payload.getGenesisValidatorsRoot().size()).isEqualTo(32);
+            assertThat(payload.getForkVersion().size()).isEqualTo(4);
+            assertThat(payload.getLedgerConfiguration().getServiceAddress().toByteArray())
+                    .isEqualTo(SyncCommitteeProofs.SERVICE_ADDRESS);
+        }
     }
 
     @Test
-    void bundlePayloadStorageProofsRoundTripToTheEmbeddedMetadata() {
-        final var content = messageContent();
-        final RLPList bundle = topList(EthSyncCommitteeProofs.bundlePayload(new byte[32], content));
-        final List<RLPItem> items = bundle.elements();
-        assertThat(items).hasSize(9);
+    @DisplayName("given a rotation bundle, then it carries one 7-item rotation and an 11-item delivery")
+    void givenRotationBundle_thenCarriesOneRotationAndDelivery() {
+        final var content = SyncCommitteeProofs.singleMessageBundleContent(message());
+        final List<RLPItem> items = topList(SyncCommitteeProofs.rotationBundlePayload(CHANNEL_ID, content))
+                .elements();
 
-        // syncAggregate = [bits(64), signature(96)]
-        final List<RLPItem> syncAggregate = items.get(1).asRLPList().elements();
+        final List<RLPItem> rotations = items.get(0).asRLPList().elements();
+        assertThat(rotations).hasSize(1);
+        final List<RLPItem> rotation = rotations.get(0).asRLPList().elements();
+        assertThat(rotation).hasSize(7);
+        assertThat(rotation.get(4).asRLPList().elements()).hasSize(9); // finality branch
+        final List<RLPItem> nextCommittee = rotation.get(5).asRLPList().elements();
+        assertThat(nextCommittee.get(0).data()).hasSize(32); // pubkeysRoot
+        assertThat(nextCommittee.get(1).data()).hasSize(128); // uncompressed aggregate
+        assertThat(rotation.get(6).asRLPList().elements()).hasSize(11); // next committee branch
+        assertThat(items.get(1).asRLPList().elements()).hasSize(11);
+    }
+
+    @Test
+    @DisplayName("given a bundle, then its storage proofs of the derived Channel slots round-trip to the embedded"
+            + " metadata")
+    void givenBundle_thenStorageProofsRoundTripToEmbeddedMetadata() {
+        final var content = SyncCommitteeProofs.singleMessageBundleContent(message());
+        final List<RLPItem> items =
+                topList(SyncCommitteeProofs.bundlePayload(CHANNEL_ID, content)).elements();
+        assertThat(items).hasSize(2);
+        assertThat(items.get(0).asRLPList().elements()).isEmpty();
+        final List<RLPItem> delivery = items.get(1).asRLPList().elements();
+        assertThat(delivery).hasSize(11);
+
+        // The committee signs in the slot after the attested header.
+        final long attestedSlot = delivery.get(0).asRLPList().elements().get(0).asLong();
+        assertThat(delivery.get(1).asLong()).isEqualTo(attestedSlot + 1);
+
+        // syncAggregate = [bits(64), signature(256)]; two non-signers of 128 + 9 × 32 bytes each.
+        final List<RLPItem> syncAggregate = delivery.get(2).asRLPList().elements();
         assertThat(syncAggregate.get(0).data()).hasSize(64);
-        assertThat(syncAggregate.get(1).data()).hasSize(96);
+        assertThat(syncAggregate.get(1).data()).hasSize(256);
+        assertThat(delivery.get(3).asRLPList().elements())
+                .hasSize(2)
+                .allSatisfy(entry -> assertThat(entry.data()).hasSize(416));
 
-        // Account proof against the proven execution state root → storage root.
-        final byte[] executionStateRoot = items.get(2).data();
-        final List<byte[]> accountNodes = rawList(items.get(6));
+        // The execution state root is item 3 of the block header in finalizedExecution.
+        final byte[] blockHeaderRlp =
+                delivery.get(4).asRLPList().elements().get(2).data();
+        final byte[] executionStateRoot =
+                topList(blockHeaderRlp).elements().get(3).data();
+
+        // Account proof against the execution state root → storage root.
         final byte[] accountValue = walk(
                 executionStateRoot,
-                accountNodes,
-                MiscCryptoUtils.keccak256DigestOf(EthSyncCommitteeProofs.SERVICE_ADDRESS));
+                rawList(delivery.get(6)),
+                MiscCryptoUtils.keccak256DigestOf(SyncCommitteeProofs.SERVICE_ADDRESS));
         assertThat(accountValue).as("account must be present in state trie").isNotNull();
         final byte[] storageRoot = topList(accountValue).elements().get(2).data();
 
         // Re-prove every storage slot against that storage root.
         final byte[][] slotValues = new byte[6][];
-        final List<RLPItem> entries = items.get(7).asRLPList().elements();
+        final List<RLPItem> entries = delivery.get(7).asRLPList().elements();
         assertThat(entries).hasSize(6);
+        assertThat(HexFormat.of()
+                        .formatHex(entries.get(0).asRLPList().elements().get(0).data()))
+                .isEqualTo(FIRST_CHANNEL_SLOT);
         for (int i = 0; i < 6; i++) {
             final List<RLPItem> entry = entries.get(i).asRLPList().elements();
             final byte[] key = entry.get(0).data();
@@ -94,13 +159,12 @@ class EthSyncCommitteeProofsTest {
         final byte[] channelId = new byte[32];
         channelId[0] = 0x42;
         final byte[] context = channelContext(channelId);
-        // The fixture uses a placeholder BLS signer; storage proof verification remains real.
-        final var verifier = new EthereumSyncCommitteeProofVerifier((keys, message, signature) -> true);
-        final byte[] anchor = verifier.verifyConfigPayload(EthSyncCommitteeProofs.configPayload())
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
                 .ledgerConfiguration()
                 .initialTrustAnchor()
                 .toByteArray();
-        final byte[] bundle = EthSyncCommitteeProofs.bundlePayload(channelId, content);
+        final byte[] bundle = SyncCommitteeProofs.bundlePayload(channelId, content);
 
         final var verified = verifier.verifyBundle(bundle, anchor, context);
 
@@ -117,33 +181,64 @@ class EthSyncCommitteeProofsTest {
     @Test
     void tamperedAccountProofStillFailsWithCanonicalChannelKeys() {
         final byte[] channelId = new byte[32];
-        final var verifier = new EthereumSyncCommitteeProofVerifier((keys, message, signature) -> true);
-        final byte[] anchor = verifier.verifyConfigPayload(EthSyncCommitteeProofs.configPayload())
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
                 .ledgerConfiguration()
                 .initialTrustAnchor()
                 .toByteArray();
-        final byte[] bundle = EthSyncCommitteeProofs.tamperedBundlePayload(channelId, messageContent());
+        final byte[] bundle = SyncCommitteeProofs.tamperedBundlePayload(channelId, messageContent());
 
         assertThatThrownBy(() -> verifier.verifyBundle(bundle, anchor, channelContext(channelId)))
                 .isInstanceOf(ProofException.class);
     }
 
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1})
+    void metadataWithoutSentMessagesKeepsFiveChannelProofs(final long nextMessageId) {
+        final var metadata = ClprQueueMetadata.newBuilder()
+                .setNextMessageId(nextMessageId)
+                .setStatus(ClprChannelStatus.ACTIVE)
+                .setSentRunningHash(ByteString.copyFrom(new byte[32]))
+                .setReceivedRunningHash(ByteString.copyFrom(new byte[32]))
+                .setEndpointManifestVersion(7)
+                .build();
+        final var content = ClprBundleContent.newBuilder().setMetadata(metadata).build();
+        final byte[] bundle = SyncCommitteeProofs.bundlePayload(CHANNEL_ID, content);
+        final List<RLPItem> delivery =
+                topList(bundle).elements().get(1).asRLPList().elements();
+        assertThat(delivery.get(7).asRLPList().elements()).hasSize(5);
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
+        final byte[] anchor = verifier.verifyConfigPayload(SyncCommitteeProofs.configPayload())
+                .ledgerConfiguration()
+                .initialTrustAnchor()
+                .toByteArray();
+
+        final var verified = verifier.verifyBundle(bundle, anchor, channelContext(CHANNEL_ID));
+
+        assertThat(verified.queueMetadata().nextMessageId()).isEqualTo(nextMessageId);
+        assertThat(verified.queueMetadata().status()).isEqualTo(ClprChannelStatus.ACTIVE.getNumber());
+        assertThat(verified.queueMetadata().endpointManifestVersion()).isEqualTo(7);
+    }
+
     private static byte[] channelContext(final byte[] channelId) {
         final byte[] context = new byte[52];
         System.arraycopy(channelId, 0, context, 0, channelId.length);
-        System.arraycopy(EthSyncCommitteeProofs.SERVICE_ADDRESS, 0, context, 32, 20);
+        System.arraycopy(SyncCommitteeProofs.SERVICE_ADDRESS, 0, context, 32, 20);
         return context;
     }
 
     private static ClprBundleContent messageContent() {
-        final var payload = ClprMessagePayload.newBuilder()
+        return SyncCommitteeProofs.singleMessageBundleContent(message());
+    }
+
+    private static ClprMessagePayload message() {
+        return ClprMessagePayload.newBuilder()
                 .setMessage(ClprMessage.newBuilder()
                         .setConnectorId(ByteString.copyFrom(new byte[32]))
                         .setTargetApplication(ByteString.copyFrom(new byte[20]))
                         .setSender(ByteString.copyFrom(new byte[20]))
                         .setMessageData(ByteString.copyFromUtf8("hello")))
                 .build();
-        return EthSyncCommitteeProofs.singleMessageBundleContent(payload);
     }
 
     // ── Minimal independent MPT reader ──

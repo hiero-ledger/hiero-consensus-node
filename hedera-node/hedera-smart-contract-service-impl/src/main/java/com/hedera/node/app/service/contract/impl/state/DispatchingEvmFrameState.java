@@ -37,6 +37,7 @@ import com.hedera.hapi.node.state.schedule.Schedule;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.ActiveContractVerificationStrategy.UseTopLevelSigs;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaNativeOperations;
@@ -414,11 +415,13 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 amount,
                 from.hederaId(),
                 to.hederaId(),
-                new ActiveContractVerificationStrategy(
-                        from.hederaContractId(),
-                        tuweniToPbjBytes(from.getAddress().getBytes()),
-                        delegateCall,
-                        UseTopLevelSigs.YES));
+                new AccountAuthorizingVerificationStrategy(
+                        from.hederaId(),
+                        new ActiveContractVerificationStrategy(
+                                from.hederaContractId(),
+                                tuweniToPbjBytes(from.getAddress().getBytes()),
+                                delegateCall,
+                                UseTopLevelSigs.YES)));
         if (status != OK) {
             if (status == INVALID_SIGNATURE) {
                 return Optional.of(CustomExceptionalHaltReason.INVALID_SIGNATURE);
