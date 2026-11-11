@@ -75,7 +75,8 @@ Leave out empty groups.
 In this order:
 
 1. **Orientation:**
-   - what the PR is for: the purpose sentences from step 2 of the skill
+   - what the PR is for: the three purpose sentences from step 2 of the skill (where it fits, what goes wrong
+     without it, how it works)
    - the order in which to read the files, most important first
 2. **Blocks merge**
 3. **Clarity and naming**
@@ -92,17 +93,40 @@ their own comments. No optional suggestions in reviewer mode.
 When the skill stops at step 2, the report is only this:
 
 ```
-Review stopped: why this change is made, or made this way, isn't clear from the description, the linked issue or the commits.
+Review stopped: the description, the linked issue and the commits don't say where this change fits or
+what goes wrong without it.
 
 Questions for the author:
-1. The description says what the saturation check is for, but not how its limit was chosen. Why is it a
-   rate per second of the pass, and why 1%?
+1. What is an example of a benchmark that will use this?
+2. Has a benchmark produced a misleading result without this check, or is it a precaution?
 ```
 
-This is what #28195's first review should have asked before raising questions about the limit.
+These are the questions #28195 needed ([SKILL.md](../SKILL.md), step 2). Ask for an example of a hard use case, not
+for the first or the full list of users.
 
-One to three questions, each about something the description, the issue or the commits would normally say. No
-findings, no orientation and no follow-up block.
+One to three questions, each about where the change fits or what goes wrong without it. Questions about how it works
+belong in the review, not here. No findings, no orientation and no follow-up block.
+
+## Design not agreed
+
+When the skill stops at step 3, the report is only this:
+
+```
+Review stopped: this PR makes decisions the team would normally agree on before code is written, and
+nothing shows that it did.
+
+Decisions in this PR:
+1. SimulatedNetworkConnectivity.java: the simulated network, which Turtle shares, delivers each hop one
+   tick earlier. Every Turtle test changes timing.
+2. ConsensusLatencyBenchmark.java and ConsensusLatencyRecorder.java: a new creation-to-consensus latency
+   benchmark in Otter.
+
+Question for the author: where were these discussed? The linked issue #28190 only asks to move
+NetworkSimulationTest to Falcon, and this PR doesn't change that module.
+```
+
+Each decision names its file and, in one line, its effect. No findings, no orientation and no follow-up block. If the
+author says the design was discussed, the review continues.
 
 ## Follow-up block
 

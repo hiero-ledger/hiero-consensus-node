@@ -26,6 +26,7 @@ Read these before reviewing. Each decides what is a finding, a question, or neit
 
 | File | Covers |
 |---|---|
+| [design-first.md](references/design-first.md) | changes the team should agree on before code is written |
 | [clarity-and-naming.md](references/clarity-and-naming.md) | the two readers, javadoc, comments, names, terminology, PR description, Markdown docs |
 | [structure.md](references/structure.md) | ownership, config, reuse, API surface, generality, layering, leftovers, records |
 | [correctness.md](references/correctness.md) | error paths, resources, concurrency, behaviour changes, tests, release risk |
@@ -43,27 +44,46 @@ Read these before reviewing. Each decides what is a finding, a question, or neit
 
 ### 2. Establish the purpose
 
-Before any lens runs, write one or two plain sentences that say:
+Before any lens runs, write three plain sentences:
 
-- what the change is for: the problem it solves or what it enables
-- why it is done this way, if the approach isn't the obvious one
+1. **Where it fits:** the larger piece of work the change is part of, or an example of what will use it.
+2. **What goes wrong without it.**
+3. **How it works,** with its concrete limits or numbers, and why it is done this way if the approach isn't the
+   obvious one.
 
 Use the PR description, the linked issue and the commit messages. Check whether the PR is part of a stack: a base
 branch other than `main`, or a description that mentions earlier or later PRs. The context may be in one of those.
+Read the class javadoc of the main classes the PR adds or changes; the reasoning is sometimes there rather than in the
+description.
 
-If you can't write those sentences from what is there, stop. Don't run the lenses and don't guess. A human reviewer
-would stop here and ask the author, and so does the skill. Report only that the purpose isn't clear and what is
-missing, as in [output.md](references/output.md#purpose-unclear). Continue when the user gives the missing context. In
-author mode, ask the author directly.
+If you can't write the first two sentences from what is there, stop. Don't run the lenses and don't guess. A human
+reviewer would stop here and ask the author, and so does the skill. Report only what is missing, as in
+[output.md](references/output.md#purpose-unclear). Continue when the user gives the missing context. In author mode,
+ask the author directly.
 
-The two readers still don't see the purpose. Their guesses are checked against it in step 4.
+If only the third sentence is incomplete, continue, and raise what is missing as a question.
 
-**Example:** #28195, first review. The description says the PR adds a saturation check to `PipelineTimer`, but not
-why the limit is a rate per second of the pass. The skill guessed what the check should measure and raised questions on
-that guess, such as question 5. The reviewer passed them to the author. Both found them confusing, and the skill then
-dropped them. One question to the author about how the limit was chosen would have been enough.
+The two readers still don't see the purpose. Their guesses are checked against it in step 5.
 
-### 3. Run the lenses
+**Example:** #28195. The description said what the saturation check does, but not where it fits or what goes wrong
+without it. The first review guessed, and the reviewer and the author found its questions confusing. A second attempt
+asked about the experiment behind the check and the source of the 1% limit. The author found those interesting, but
+they didn't help a reviewer understand the PR: they were about the third sentence. Two questions about the first two
+led to this summary, which the reviewer called "vastly better" than the description:
+
+> This is one of several steps to build tooling for benchmarks that don't exist yet. It makes such a benchmark fail
+> when the pipeline can't keep up with its inputs. In that case tasks pile up in queues, and the measured latency
+> reflects how long the run lasted rather than how fast the pipeline is. The check compares the median latency at the
+> start of a run with the median at the end, and fails the run if latency grew by more than 1% of the elapsed time.
+
+### 3. Check for an agreed design
+
+Decide whether the change makes decisions the team should have agreed on before the code was written, and whether
+there is evidence they did, as in [design-first.md](references/design-first.md). If it does and there is none, stop.
+Report only what is in [output.md](references/output.md#design-not-agreed). Continue when the user says the design was
+agreed.
+
+### 4. Run the lenses
 
 Each lens reads its reference file and returns candidate findings and questions, with `file:line`.
 
@@ -82,7 +102,7 @@ knowing the context.
 **Cost:** for a large diff, run the lenses as parallel subagents. For a small one, a few files and no new API, run them
 inline. The two readers always run as subagents, so they stay without context.
 
-### 4. Verify
+### 5. Verify
 
 Check every candidate against the code before keeping it. Drop it if it fails any test in
 [not-findings.md](references/not-findings.md#unverified-claims). Merge duplicates that two lenses found.
@@ -92,7 +112,7 @@ Compare each reader's guess at the purpose with step 2, as in
 lens, that depends on a guess about why the change was made. If a candidate can't be judged without knowing why, the
 purpose is unclear: go back to step 2.
 
-### 5. Report
+### 6. Report
 
 Classify and lay out the report as in [output.md](references/output.md). When the user asks to expand a finding, give
 its evidence, reasoning and a suggested fix.
