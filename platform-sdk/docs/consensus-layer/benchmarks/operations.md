@@ -180,9 +180,10 @@ run.
 - **`publish_results.py` publishes one result per parameter set:** the attempt measured on a quiet machine, or else the
   attempt with the least load. Its docstring lists the metrics and the labels; every time series carries the commit,
   the JDK, the runner, and the node (the machine).
-- **Latency only from quiet results; everything else always.** A latency measured on a busy machine says nothing about
-  the code. Marking it with a label instead would require every query to filter on that label, which is easy to forget.
-  Allocation and discarded passes do not depend on the load, and the load and the attempts explain it.
+- **Latency and saturation only from quiet results; everything else always.** A latency measured on a busy machine
+  says nothing about the code. Marking it with a label instead would require every query to filter on that label, which
+  is easy to forget. Allocation and passes discarded for GC do not depend on the load, and the load and the attempts
+  explain it. Passes discarded for saturation do, because a pipeline falls behind on a busy machine.
 - **A night without a quiet result is a gap in the latency panels.** The line panels connect points across gaps
   shorter than 36 hours only, so the gap stays visible.
 - **The commit comes from CI, not from the jar.** The task that builds the jar ignores `git.properties` when it checks
