@@ -85,11 +85,7 @@ import org.openjdk.jmh.annotations.Warmup;
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  */
 @State(Scope.Thread)
-@Fork(
-        value = 5,
-        jvmArgsAppend = {"-Xms3g", "-Xmx3g", "-XX:+AlwaysPreTouch"})
-@Warmup(iterations = 1, time = 10)
-@Measurement(iterations = 2, time = 10)
+@Fork(jvmArgsAppend = {"-Xms3g", "-Xmx3g", "-XX:+AlwaysPreTouch"})
 public class SequenceMapBenchmark {
 
     /** The seed of the recording. The same seed gives the same recording. */
@@ -240,20 +236,52 @@ public class SequenceMapBenchmark {
 
     /**
      * Replays the calls after the fill and records the latency of each event's parent lookups and addition.
+     *
+     * <h2>Calibration</h2>
+     * <ul>
+     *   <li>Date / commit: 2026-11-11, f2b8afb50d</li>
+     *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms3g -Xmx3g -XX:+AlwaysPreTouch</li>
+     *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
+     *   <li>Steady state after: 0 s / 0 s</li>
+     *   <li>Noise (latency.mean, CV): 1.75% / 1.39% per 5 s iteration, 2.51% / 4.43% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+     *   <li>Expected detectable regression: 2.45% / 3.97% (95 % CI half-width of one run)</li>
+     *   <li>Samples per iteration: 4.0 M / 3.6 M; expected stable: mean, p50, p90, p99, p99.9, p99.99 / p90, p99, p99.99</li>
+     *   <li>Runtime: 1.9 / 4.4 min per parameter set</li>
+     *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/42835485081, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/43032507449</li>
+     * </ul>
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
+    @Fork(5)
+    @Warmup(iterations = 1, time = 5)
+    @Measurement(iterations = 2, time = 5)
     public void addEvent() {
         replay(Kind.ADD_EVENT);
     }
 
     /**
      * Replays the calls after the fill and records the latency of each call of {@link SequenceMap#shiftWindow(long)}.
+     *
+     * <h2>Calibration</h2>
+     * <ul>
+     *   <li>Date / commit: 2026-11-10, f2b8afb50d</li>
+     *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms3g -Xmx3g -XX:+AlwaysPreTouch</li>
+     *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
+     *   <li>Steady state after: 5 s / 5 s</li>
+     *   <li>Noise (latency.mean, CV): 3.03% / 7.62% per 25 s iteration, 3.24% / 6.62% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+     *   <li>Expected detectable regression: 4.42% / 9.78% (95 % CI half-width of one run)</li>
+     *   <li>Samples per iteration: 393 k / 112 k; expected stable: p90, p99 / -; unmeasured: p99.99 / p99.99</li>
+     *   <li>Runtime: 3.4 / 4.9 min per parameter set</li>
+     *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/42855490466, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/42873676197</li>
+     * </ul>
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
+    @Fork(3)
+    @Warmup(iterations = 1, time = 10)
+    @Measurement(iterations = 2, time = 25)
     public void shiftWindow() {
         replay(Kind.SHIFT_WINDOW);
     }
