@@ -60,6 +60,14 @@ public class ProofControllers {
     @Nullable
     private HintsKeyProvenance controllerBinding;
 
+    /**
+     * If not null, whether the source proof that {@link #controller} was created with had a canonical WRAPS
+     * membership snapshot; null for a grounding construction or one without a source proof. A controller
+     * extending a proof that gains a snapshot in state must be rebuilt to use it, as a restarted node would.
+     */
+    @Nullable
+    private Boolean controllerSourceSnapshotted;
+
     @Inject
     public ProofControllers(
             @NonNull final Executor executor,
@@ -123,10 +131,13 @@ public class ProofControllers {
         requireNonNull(activeProofConstruction);
         // Incremental authority follows the adopted hinTS generation, which may have newer stake weights than
         // the platform roster. A grounding construction instead signs with its own complete target book.
-        final var sourceWeights = groundsChainOfTrust(construction) ? null : maybeWeightsFrom(activeHintsConstruction);
+        final boolean grounding = groundsChainOfTrust(construction);
+        final var sourceWeights = grounding ? null : maybeWeightsFrom(activeHintsConstruction);
+        final var sourceSnapshotted = grounding ? null : snapshotStateOf(activeProofConstruction.targetProof());
         if (currentConstructionId() != construction.constructionId()
                 || !Objects.equals(controllerBinding, construction.keyProvenance())
-                || !Objects.equals(sourceWeights, controllerSourceWeights)) {
+                || !Objects.equals(sourceWeights, controllerSourceWeights)
+                || !Objects.equals(sourceSnapshotted, controllerSourceSnapshotted)) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
@@ -140,6 +151,7 @@ public class ProofControllers {
                     sourceSigner);
             controllerBinding = construction.keyProvenance();
             controllerSourceWeights = sourceWeights;
+            controllerSourceSnapshotted = sourceSnapshotted;
         }
         return requireNonNull(controller);
     }
@@ -240,6 +252,10 @@ public class ProofControllers {
                     tssConfig,
                     provenanceSigner);
         }
+    }
+
+    private static @Nullable Boolean snapshotStateOf(@Nullable final HistoryProof proof) {
+        return proof == null ? null : !proof.targetNodeWeights().isEmpty();
     }
 
     /**

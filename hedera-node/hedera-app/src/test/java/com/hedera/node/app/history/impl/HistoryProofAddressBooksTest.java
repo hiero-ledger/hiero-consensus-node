@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryLibrary.AddressBook;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -168,5 +169,20 @@ class HistoryProofAddressBooksTest {
                 .targetProofKeys(new ProofKey(2L, KEY_A), new ProofKey(11L, KEY_C))
                 .targetHistory(new History(HASH, Bytes.wrap("verification-key")))
                 .build();
+    }
+
+    @Test
+    void rejectsARepeatedPublicPointEvenWithADifferentProofOfKnowledge() {
+        final var first = new byte[128];
+        Arrays.fill(first, (byte) 7);
+        final var second = first.clone();
+        // The same public point (the first 32 bytes), with different proof-of-knowledge bytes
+        second[127] = 8;
+        final var proof = HistoryProof.newBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(1L, 1L, 2L, 1L))))
+                .targetProofKeys(new ProofKey(1L, Bytes.wrap(first)), new ProofKey(2L, Bytes.wrap(second)))
+                .build();
+
+        assertThrows(IllegalArgumentException.class, () -> HistoryProofAddressBooks.targetBook(proof));
     }
 }

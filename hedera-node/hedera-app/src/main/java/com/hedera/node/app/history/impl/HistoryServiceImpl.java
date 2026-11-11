@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
@@ -15,6 +16,7 @@ import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
@@ -36,7 +38,10 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -61,6 +66,22 @@ public class HistoryServiceImpl implements HistoryService {
 
     @Nullable
     private OnProofFinished cb;
+
+    /**
+     * Weight maps already shown not to reproduce a legacy active proof's committed book, which they cannot
+     * reproduce later either. Remembering them only avoids repeating native hashes; it never changes an outcome.
+     */
+    private final Set<LegacyBookCandidate> rejectedLegacyBookCandidates = new HashSet<>();
+
+    /**
+     * The id of the active construction whose unrecoverable legacy book was last reported, if any.
+     */
+    private long reportedUnrecoverableConstructionId = -1L;
+
+    private record LegacyBookCandidate(
+            long constructionId,
+            @NonNull Bytes addressBookHash,
+            @NonNull SortedMap<Long, Long> weights) {}
 
     public HistoryServiceImpl(
             @NonNull final Metrics metrics,
@@ -144,7 +165,7 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(tssConfig);
         // Recovery must also run between transitions, before a later stake-period transaction can
         // replace the candidate that still holds this generation's complete weighted membership.
-        preserveLegacyActiveBook(activeRosters, historyStore);
+        preserveLegacyActiveBook(activeRosters, historyStore, activeHintsConstruction);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 if (targetHintsConstructionId > 0) {
@@ -216,38 +237,68 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     /**
-     * Durably recovers a pre-snapshot active generation while its original roster still exists. Keeping only
-     * a controller-local reconstruction would lose the book if the next candidate replacement pruned the
-     * roster and the node restarted before completing the successor proof.
+     * Durably recovers the canonical membership of a pre-snapshot active generation. Keeping only a
+     * controller-local reconstruction would lose the book if a later candidate replacement pruned its roster and
+     * the node restarted before completing the successor proof.
+     *
+     * <p>A source of weights is used only if it reproduces the generation's committed address book hash, so
+     * trying sources beyond the generation's own roster can never adopt another generation's book. The active
+     * hinTS scheme stores the generation's exact weights for its parties, so it reproduces the book whenever
+     * every member took part; the platform rosters reproduce it when only transport details changed.
      */
     private void preserveLegacyActiveBook(
-            @NonNull final ActiveRosters activeRosters, @NonNull final WritableHistoryStore historyStore) {
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeHintsConstruction) {
         final var active = historyStore.getActiveConstruction();
         if (active == null || !active.hasTargetProof()) {
             return;
         }
         final var proof = active.targetProofOrThrow();
-        if (!isWrapsExtensible(proof) || !proof.targetNodeWeights().isEmpty()) {
+        if (!isWrapsExtensible(proof) || !proof.targetNodeWeights().isEmpty() || !proof.hasTargetHistory()) {
             return;
         }
-        // The platform source and the active hinTS subset need not describe this TSS generation.
-        // Only its own retained target roster is a candidate for commitment-checked recovery.
-        final var roster = activeRosters.findRelatedRoster(active.targetRosterHash());
-        if (roster == null) {
-            return;
+        final var bookHash = proof.targetHistoryOrThrow().addressBookHash();
+        final List<Supplier<SortedMap<Long, Long>>> sources = List.of(
+                () -> weightsOf(activeRosters.findRelatedRoster(active.targetRosterHash())),
+                () -> maybeWeightsFrom(activeHintsConstruction),
+                () -> weightsOf(activeRosters.currentRoster()),
+                () -> activeRosters.phase() == ActiveRosters.Phase.HANDOFF
+                        ? null
+                        : weightsOf(activeRosters.targetRoster()));
+        final var tried = new HashSet<SortedMap<Long, Long>>();
+        for (final var source : sources) {
+            final var weights = source.get();
+            if (weights == null || !tried.add(weights)) {
+                continue;
+            }
+            final var candidate = new LegacyBookCandidate(active.constructionId(), bookHash, weights);
+            if (rejectedLegacyBookCandidates.contains(candidate)) {
+                continue;
+            }
+            try {
+                final var enriched = HistoryProofAddressBooks.withTargetWeights(proof, weights, component.library());
+                historyStore.completeProof(active.constructionId(), enriched);
+                rejectedLegacyBookCandidates.clear();
+                return;
+            } catch (IllegalArgumentException e) {
+                rejectedLegacyBookCandidates.add(candidate);
+            }
         }
-        try {
-            final var enriched = HistoryProofAddressBooks.withTargetWeights(
-                    proof, ActiveRosters.weightsFrom(roster), component.library());
-            historyStore.completeProof(active.constructionId(), enriched);
-        } catch (IllegalArgumentException e) {
-            // Preserve the existing trust root. The prover will deterministically refuse extension if
-            // no verified canonical snapshot is available; it must not guess another generation's book.
-            logger.warn(
-                    "Cannot recover canonical WRAPS book for construction #{}: {}",
-                    active.constructionId(),
-                    e.getMessage());
+        if (reportedUnrecoverableConstructionId != active.constructionId()) {
+            reportedUnrecoverableConstructionId = active.constructionId();
+            // Preserve the existing trust root. The prover deterministically refuses extension without a verified
+            // canonical snapshot; it must not guess another generation's book.
+            logger.error(
+                    "Cannot recover the canonical WRAPS book of active construction #{} from its roster, its hinTS"
+                            + " scheme, or the platform rosters; extending its chain of trust will fail until a fresh"
+                            + " genesis WRAPS proof grounds a new one",
+                    active.constructionId());
         }
+    }
+
+    private static @Nullable SortedMap<Long, Long> weightsOf(@Nullable final Roster roster) {
+        return roster == null ? null : ActiveRosters.weightsFrom(roster);
     }
 
     @Override

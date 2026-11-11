@@ -23,6 +23,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
@@ -43,6 +44,7 @@ import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
@@ -54,11 +56,13 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -361,6 +365,66 @@ class HistoryServiceImplTest {
         verify(store, never()).completeProof(anyLong(), any());
         assertTrue(original.targetProofOrThrow().targetNodeWeights().isEmpty());
         verifyNoInteractions(controllers, controller);
+    }
+
+    @Test
+    void recoversLegacyBookFromTheActiveHintsSchemeOnceItsRosterIsPruned() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+        final var generationHash = Bytes.wrap("pruned-tss-generation-roster");
+        final var bookHash = Bytes.wrap("committed-book-hash");
+        final var original = legacyGeneration(generationHash, bookHash);
+        // Every member of the generation took part in its hinTS scheme, which stores their exact listed weights
+        final var hints = HintsConstruction.newBuilder()
+                .constructionId(9L)
+                .hintsScheme(
+                        HintsScheme.newBuilder().nodePartyIds(new NodePartyId(2L, 1, 20L), new NodePartyId(7L, 2, 30L)))
+                .build();
+        given(store.getActiveConstruction()).willReturn(original);
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any())).willAnswer(invocation -> {
+            final HistoryLibrary.AddressBook book = invocation.getArgument(0);
+            return Arrays.equals(book.weights(), new long[] {20L, 30L})
+                    ? bookHash.toByteArray()
+                    : Bytes.wrap("another-book-hash").toByteArray();
+        });
+
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, hints, false);
+
+        final var expected = original.targetProofOrThrow()
+                .copyBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(2L, 20L, 7L, 30L))))
+                .build();
+        verify(activeRosters).findRelatedRoster(generationHash);
+        verify(store).completeProof(original.constructionId(), expected);
+    }
+
+    @Test
+    void unverifiedPlatformWeightsAreNeverAdoptedAndARejectedSourceIsHashedOnce() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+        final var original =
+                legacyGeneration(Bytes.wrap("pruned-tss-generation-roster"), Bytes.wrap("committed-book-hash"));
+        final var platformRoster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(2L).weight(21L).build(),
+                RosterEntry.newBuilder().nodeId(7L).weight(30L).build()));
+        given(store.getActiveConstruction()).willReturn(original);
+        given(activeRosters.currentRoster()).willReturn(platformRoster);
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any()))
+                .willReturn(Bytes.wrap("another-book-hash").toByteArray());
+        final var logs = new LogCaptor(LogManager.getLogger(HistoryServiceImpl.class));
+        try {
+            for (int round = 0; round < 3; round++) {
+                subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, null, false);
+            }
+            assertEquals(1, logs.errorLogs().size());
+        } finally {
+            logs.stopCapture();
+        }
+        verify(store, never()).completeProof(anyLong(), any());
+        // Weights that do not reproduce the commitment never will, so they are hashed only once
+        verify(library, times(1)).hashAddressBook(any());
     }
 
     private static HistoryProofConstruction legacyGeneration(final Bytes rosterHash, final Bytes bookHash) {

@@ -25,6 +25,11 @@ import java.util.TreeMap;
  * its original listed weight, even though its sentinel key contributes no native signing weight.
  */
 public final class HistoryProofAddressBooks {
+    /**
+     * The length of the compressed public point that begins every serialized attested Schnorr key.
+     */
+    private static final int PUBLIC_POINT_LENGTH = 32;
+
     private HistoryProofAddressBooks() {}
 
     /**
@@ -85,7 +90,7 @@ public final class HistoryProofAddressBooks {
                 .orElseThrow(
                         () -> new IllegalArgumentException("History proof has no canonical WRAPS membership snapshot"));
         final var keys = new TreeMap<Long, byte[]>();
-        final var selectedKeys = new HashSet<Bytes>();
+        final var selectedPoints = new HashSet<Bytes>();
         long previousId = -1;
         for (final var key : proof.targetProofKeys()) {
             if (key.nodeId() <= previousId
@@ -94,8 +99,9 @@ public final class HistoryProofAddressBooks {
                 throw new IllegalArgumentException(
                         "Selected WRAPS keys must have ordered ids in the canonical membership");
             }
-            // Multiple sentinel seats are valid, but the native book rejects duplicate non-identity keys.
-            if (!isIdentityKey(key.key()) && !selectedKeys.add(key.key())) {
+            // Multiple sentinel seats are valid, but the native book rejects a repeated non-identity public point,
+            // whatever proof of knowledge accompanies it
+            if (!isIdentityKey(key.key()) && !selectedPoints.add(publicPointOf(key.key()))) {
                 throw new IllegalArgumentException("Selected WRAPS keys contain a duplicate non-sentinel key");
             }
             keys.put(key.nodeId(), key.key().toByteArray());
@@ -104,13 +110,17 @@ public final class HistoryProofAddressBooks {
         return AddressBook.from(weights, keys);
     }
 
+    private static Bytes publicPointOf(@NonNull final Bytes key) {
+        return key.length() > PUBLIC_POINT_LENGTH ? key.slice(0, PUBLIC_POINT_LENGTH) : key;
+    }
+
     /**
      * Enriches a legacy proof from known complete generation weights only after checking its committed hash.
-     * The caller must obtain these weights from the proof generation's actual target roster, never from an
-     * unrelated platform roster or from the sparse hinTS scheme. No current key publications are consulted.
+     * The weights may come from any source, since they are used only if they reproduce the committed hash
+     * together with the proof's own frozen keys. No current key publications are consulted.
      *
      * @param proof the proof to enrich
-     * @param weights the known complete listed weights of the proof's target generation
+     * @param weights candidate complete listed weights, used only if they reproduce the proof's commitment
      * @param library the library used to validate the reconstructed commitment
      * @return the proof with a validated canonical membership snapshot
      * @throws IllegalArgumentException if an existing snapshot differs or the supplied weights do not reproduce the commitment

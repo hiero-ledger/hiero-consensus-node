@@ -14,6 +14,7 @@ import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensibl
 import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MPC_PHASES;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
+import static java.util.Objects.requireNonNullElse;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
 import com.hedera.cryptography.wraps.SchnorrKeys;
@@ -51,6 +52,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -80,10 +82,13 @@ public class WrapsHistoryProver implements HistoryProver {
     public static final String NOT_WRAPS_EXTENSIBLE_FAILURE_PREFIX = "Source proof is not WRAPS-extensible";
     public static final String ADDRESS_BOOK_TOO_LARGE_FAILURE_PREFIX = "Address book too large for a WRAPS proof";
     public static final String INVALID_SOURCE_BOOK_FAILURE_PREFIX = "Invalid canonical WRAPS source book";
+    public static final String INVALID_TARGET_BOOK_FAILURE_PREFIX = "Invalid WRAPS target book or message";
     public static final String INSUFFICIENT_SIGNERS_FAILURE_PREFIX =
             "Eligible source nodes cannot meet WRAPS signing quorums";
     public static final String INVALID_FROZEN_SIGNERS_FAILURE_PREFIX =
             "Frozen R1 set cannot meet WRAPS signing quorums";
+    public static final String INFEASIBLE_EXCLUSIONS_FAILURE_PREFIX =
+            "Excluded nodes leave eligible source nodes unable to meet WRAPS signing quorums";
     private static final String PROVENANCE_AGGREGATION_UNAVAILABLE =
             "Cannot aggregate the frozen R1 set's hinTS key provenance";
 
@@ -154,6 +159,14 @@ public class WrapsHistoryProver implements HistoryProver {
      */
     @Nullable
     private byte[] targetAddressBookHash;
+
+    /**
+     * If not null, the book this prover's source generation signs with and its quorum, or why that generation
+     * cannot sign. Computed once, since the source proof and weights are fixed for the life of this prover; a
+     * grounding construction signs with its target book, which is only cached once its WRAPS message is known.
+     */
+    @Nullable
+    private SourceSigning sourceSigning;
 
     /**
      * If non-null, the entropy used to generate the R1 message. (If this node rejoins the network
@@ -257,6 +270,24 @@ public class WrapsHistoryProver implements HistoryProver {
      * @param r2 its R2 message
      */
     private record MessageChecker(byte[] message, byte[] r1, byte[] r2) {}
+
+    /**
+     * The book a source generation signs with and its signing quorum; or, if it cannot sign, why not.
+     *
+     * @param folds whether this was computed for a construction that folds onto the source proof
+     * @param book the canonical source book, if valid
+     * @param quorum the signing quorum of that book and its source authority, if valid
+     * @param failureReason why the source generation cannot sign, if it cannot
+     */
+    private record SourceSigning(
+            boolean folds,
+            @Nullable AddressBook book,
+            @Nullable WrapsSigningQuorum quorum,
+            @Nullable String failureReason) {
+        static SourceSigning failed(final boolean folds, @NonNull final String failureReason) {
+            return new SourceSigning(folds, null, null, failureReason);
+        }
+    }
 
     private enum VoteChoice {
         SUBMIT,
@@ -395,22 +426,24 @@ public class WrapsHistoryProver implements HistoryProver {
             return new Outcome.Failed(ADDRESS_BOOK_TOO_LARGE_FAILURE_PREFIX + " (" + largestBookSize
                     + " nodes, but a WRAPS proof covers at most " + MAX_ADDRESS_BOOK_SIZE + ")");
         }
-        final WrapsSigningQuorum quorum;
         try {
             ensureWrapsMessage(targetProofKeys, targetMetadata);
-            final var sourceBook = sourceBook();
-            if (foldsOntoSourceProof
-                    && (!requireNonNull(sourceProof).hasTargetHistory()
-                            || !Bytes.wrap(historyLibrary.hashAddressBook(sourceBook))
-                                    .equals(sourceProof.targetHistoryOrThrow().addressBookHash()))) {
-                return new Outcome.Failed(INVALID_SOURCE_BOOK_FAILURE_PREFIX + ": predecessor commitment differs");
-            }
-            quorum = signingQuorum();
         } catch (IllegalArgumentException e) {
-            return new Outcome.Failed(INVALID_SOURCE_BOOK_FAILURE_PREFIX + ": " + e.getMessage());
+            return new Outcome.Failed(INVALID_TARGET_BOOK_FAILURE_PREFIX + ": " + e.getMessage());
         }
-        if (!quorum.canCompleteWithout(Set.copyOf(construction.wrapsExcludedNodeIds()))) {
-            return new Outcome.Failed(INSUFFICIENT_SIGNERS_FAILURE_PREFIX);
+        final var signing = sourceSigning();
+        if (signing.failureReason() != null) {
+            return new Outcome.Failed(INVALID_SOURCE_BOOK_FAILURE_PREFIX + ": " + signing.failureReason());
+        }
+        final var quorum = requireNonNull(signing.quorum());
+        final var excludedNodeIds = new TreeSet<>(construction.wrapsExcludedNodeIds());
+        if (!quorum.canCompleteWithout(excludedNodeIds)) {
+            // A node is only ever excluded while the rest can still complete, so exclusions that cannot were
+            // persisted under an older feasibility rule; and a retry without them can still succeed
+            return new Outcome.Failed(
+                    quorum.canCompleteWithout(Set.of())
+                            ? INFEASIBLE_EXCLUSIONS_FAILURE_PREFIX + " " + excludedNodeIds
+                            : INSUFFICIENT_SIGNERS_FAILURE_PREFIX);
         }
         final var state = construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT);
         if (state.phase() != AGGREGATE
@@ -457,21 +490,22 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(reason);
         return reason.startsWith(MISSING_MESSAGES_FAILURE_PREFIX)
                 || reason.startsWith(AGGREGATION_FAILURE_PREFIX)
-                || reason.startsWith(R1_TIMEOUT_FAILURE_PREFIX);
+                || clearsExclusionsOnRetry(reason);
     }
 
     /**
-     * Returns whether the source nodes with proof keys, other than the given excluded nodes, have enough weight to
-     * complete R1. (The prover ignores WRAPS messages from nodes without a proof key, so their weight cannot help.)
+     * Returns whether a retry after the given recoverable failure starts without any excluded nodes. Besides an R1
+     * timeout, these are the failures only reachable from signing state persisted under an older R1 freezing or
+     * feasibility rule; a fresh attempt under the canonical quorums can still complete.
      *
-     * @param excludedNodeIds the ids of the excluded nodes
-     * @param quorum the frozen canonical WRAPS and hinTS signing requirements
-     * @return whether the other source nodes can complete R1
+     * @param reason the failure reason
+     * @return whether the retry clears exclusions
      */
-    public static boolean canCompleteR1Without(
-            @NonNull final Set<Long> excludedNodeIds, @NonNull final WrapsSigningQuorum quorum) {
-        requireNonNull(excludedNodeIds);
-        return requireNonNull(quorum).canCompleteWithout(excludedNodeIds);
+    public static boolean clearsExclusionsOnRetry(@NonNull final String reason) {
+        requireNonNull(reason);
+        return reason.startsWith(R1_TIMEOUT_FAILURE_PREFIX)
+                || reason.startsWith(INVALID_FROZEN_SIGNERS_FAILURE_PREFIX)
+                || reason.startsWith(INFEASIBLE_EXCLUSIONS_FAILURE_PREFIX);
     }
 
     @Override
@@ -561,13 +595,12 @@ public class WrapsHistoryProver implements HistoryProver {
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
             @Nullable final WritableHistoryStore writableHistoryStore) {
-        final WrapsSigningQuorum quorum;
-        try {
-            quorum = signingQuorum();
-        } catch (IllegalArgumentException e) {
-            // advance() records the same deterministic book failure on active and inactive nodes.
+        final var signing = sourceSigning();
+        // advance() records the same deterministic book failure on active and inactive nodes
+        if (signing.failureReason() != null) {
             return false;
         }
+        final var quorum = requireNonNull(signing.quorum());
         if (!quorum.isEligibleSigner(publication.nodeId())) {
             return false;
         }
@@ -743,23 +776,67 @@ public class WrapsHistoryProver implements HistoryProver {
                 : null;
     }
 
+    /**
+     * Returns the canonical source book; only called once {@link #sourceSigning()} has validated it.
+     */
     private AddressBook sourceBook() {
-        if (foldsOntoSourceProof) {
-            return HistoryProofAddressBooks.targetBook(requireNonNull(sourceProof));
-        }
-        if (targetAddressBook != null) {
-            return targetAddressBook;
-        }
-        return AddressBook.from(
-                weights.targetNodeWeights(),
-                nodeId -> proofKeys.getOrDefault(nodeId, MISSING_SCHNORR_KEY).toByteArray());
+        return requireNonNull(sourceSigning().book());
     }
 
-    private WrapsSigningQuorum signingQuorum() {
-        return new WrapsSigningQuorum(
-                sourceBook(),
-                foldsOntoSourceProof ? weights.sourceNodeWeights() : weights.targetNodeWeights(),
-                provenanceBinding != null);
+    /**
+     * Returns the book this prover's source generation signs with and its quorum, or why it cannot sign. An
+     * incremental construction signs with the predecessor's committed book, which must reproduce the predecessor's
+     * address book hash; a grounding construction signs with its own target book.
+     */
+    private SourceSigning sourceSigning() {
+        final boolean folds = foldsOntoSourceProof;
+        if (sourceSigning != null && sourceSigning.folds() == folds) {
+            return sourceSigning;
+        }
+        if (folds) {
+            sourceSigning = foldingSourceSigning();
+            return sourceSigning;
+        }
+        // The target book is final once the WRAPS message is computed; before that (only when replaying persisted
+        // messages, all accepted after the key cutoff) the same book comes from the same selected keys
+        final var book = targetAddressBook != null
+                ? targetAddressBook
+                : AddressBook.from(
+                        weights.targetNodeWeights(),
+                        nodeId -> proofKeys
+                                .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                                .toByteArray());
+        final var signing = withQuorum(false, book, weights.targetNodeWeights());
+        if (targetAddressBook != null) {
+            sourceSigning = signing;
+        }
+        return signing;
+    }
+
+    private SourceSigning foldingSourceSigning() {
+        final var proof = requireNonNull(sourceProof);
+        final AddressBook book;
+        try {
+            book = HistoryProofAddressBooks.targetBook(proof);
+            if (!proof.hasTargetHistory()
+                    || !Bytes.wrap(historyLibrary.hashAddressBook(book))
+                            .equals(proof.targetHistoryOrThrow().addressBookHash())) {
+                return SourceSigning.failed(true, "predecessor commitment differs");
+            }
+        } catch (IllegalArgumentException e) {
+            return SourceSigning.failed(true, requireNonNullElse(e.getMessage(), "malformed source book"));
+        }
+        return withQuorum(true, book, weights.sourceNodeWeights());
+    }
+
+    private SourceSigning withQuorum(
+            final boolean folds, @NonNull final AddressBook book, @NonNull final Map<Long, Long> authority) {
+        try {
+            return new SourceSigning(
+                    folds, book, new WrapsSigningQuorum(book, authority, provenanceBinding != null), null);
+        } catch (IllegalArgumentException e) {
+            return SourceSigning.failed(folds, requireNonNullElse(e.getMessage(), "malformed signing quorum"));
+        }
     }
 
     private Bytes sourceKeyOf(final long nodeId) {
@@ -785,7 +862,12 @@ public class WrapsHistoryProver implements HistoryProver {
         if (shouldSkipAfterCancellation(constructionId, phase)) {
             return;
         }
-        if (phase == R1 && !signingQuorum().isEligibleSigner(selfId)) {
+        if (phase == R1 && !requireNonNull(sourceSigning().quorum()).isEligibleSigner(selfId)) {
+            return;
+        }
+        // Only source nodes' votes count (live and when a controller is rebuilt from state), so a node outside the
+        // source generation would compute a proof that can never be voted on
+        if (phase == AGGREGATE && !weights.sourceNodeIds().contains(selfId)) {
             return;
         }
         // The library only computes an R3 share for this node's key in the source proof, so with any other key

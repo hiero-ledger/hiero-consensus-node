@@ -572,6 +572,50 @@ class HistoryLibraryImplTest {
         assertTrue(subject.verifyCompressedProof(incrementalProof.compressed(), ledgerId, targetVerificationKey));
     }
 
+    @Test
+    void nativeRejectsSelectingAnIdentitySeatWhateverItsProofOfKnowledge() {
+        final var network = TestNetwork.withWeights(1L, 1L, 1L, 1L);
+        final var identityWithOtherAttestation = HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray();
+        identityWithOtherAttestation[identityWithOtherAttestation.length - 1] = 1;
+        final var publicKeys = network.addressBook().publicKeys().clone();
+        publicKeys[3] = identityWithOtherAttestation;
+        final var book = new HistoryLibrary.AddressBook(
+                network.addressBook().weights(),
+                publicKeys,
+                network.addressBook().nodeIds());
+        final var message = subject.computeWrapsMessage(book, randomBytes(VK_LENGTH));
+        final var key0 = network.keys().get(0).privateKey();
+        final var entropy = randomBytes(32);
+        final var r1 = subject.runWrapsPhaseR1(entropy, message, key0);
+        final var otherR1 = subject.runWrapsPhaseR1(
+                randomBytes(32), message, network.keys().get(1).privateKey());
+        assertNotNull(r1);
+        assertNotNull(otherR1);
+        final var r1Messages = new byte[][] {r1, otherR1};
+
+        // A real second signer is accepted...
+        assertNotNull(subject.runWrapsPhaseR2(entropy, message, r1Messages, key0, book, Set.of(0L, 1L)));
+        // ...but selecting the identity seat is refused by native itself, since the bridge only screens out the
+        // sentinel's exact bytes
+        assertNull(subject.runWrapsPhaseR2(entropy, message, r1Messages, key0, book, Set.of(0L, 3L)));
+    }
+
+    @Test
+    void nativeMajorityIsStrictAtExactlyHalfOfAnEvenTotal() {
+        final var network = TestNetwork.withWeights(10L, 10L, 10L, 10L);
+        final var book = network.addressBook();
+        final var message = subject.computeWrapsMessage(book, randomBytes(VK_LENGTH));
+
+        // Two of four equal seats sign; their positions are the same in the three-seat book that lets them sign
+        final var halfSignature = network.sign(message, Set.of(0L, 1L), network.subBook(0L, 1L, 2L));
+        assertFalse(verifiesAgainst(message, halfSignature, book));
+        assertTrue(verifiesAgainst(message, network.sign(message, Set.of(0L, 1L, 2L)), book));
+        // The Java quorum draws the same line
+        final var quorum = new WrapsSigningQuorum(book, Map.of(0L, 10L, 1L, 10L, 2L, 10L, 3L, 10L), false);
+        assertFalse(quorum.isSatisfiedBy(Set.of(0L, 1L)));
+        assertTrue(quorum.isSatisfiedBy(Set.of(0L, 1L, 2L)));
+    }
+
     private boolean verifiesAgainst(
             final byte[] message, final byte[] signature, final HistoryLibrary.AddressBook addressBook) {
         return subject.verifyAggregateSignature(

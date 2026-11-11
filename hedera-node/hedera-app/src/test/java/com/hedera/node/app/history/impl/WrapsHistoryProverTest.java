@@ -331,8 +331,10 @@ class WrapsHistoryProverTest {
         final var outcome = subject.advance(
                 EPOCH, groundingConstruction(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
         final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
-        assertTrue(failure.reason().startsWith(WrapsHistoryProver.INVALID_SOURCE_BOOK_FAILURE_PREFIX));
+        // The target side of the construction failed, so the reason must not blame the source book
+        assertTrue(failure.reason().startsWith(WrapsHistoryProver.INVALID_TARGET_BOOK_FAILURE_PREFIX));
         assertTrue(failure.reason().contains("boom"));
+        assertFalse(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
 
         assertNull(getField("targetAddressBook"));
         assertNull(getField("wrapsMessage"));
@@ -785,7 +787,7 @@ class WrapsHistoryProverTest {
     }
 
     @Test
-    void legacyFrozenSparseMajorityFailsDeterministicallyBeforeAggregation() {
+    void legacyFrozenSparseMajorityFailsRecoverablyBeforeAggregation() {
         final var canonicalWeights = new TreeMap<Long, Long>();
         for (long nodeId = 0; nodeId < 7; nodeId++) {
             canonicalWeights.put(nodeId, 1L);
@@ -810,6 +812,9 @@ class WrapsHistoryProverTest {
                     canSubmit);
             final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
             assertEquals(WrapsHistoryProver.INVALID_FROZEN_SIGNERS_FAILURE_PREFIX, failure.reason());
+            // Only state persisted under the older R1 rule can get here; a fresh attempt can still complete
+            assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+            assertTrue(WrapsHistoryProver.clearsExclusionsOnRetry(failure.reason()));
         }
         verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
         verifyNoInteractions(submissions);
@@ -1866,6 +1871,130 @@ class WrapsHistoryProverTest {
         assertTrue(subject.cancelPendingWork());
         manualExecutor.runNext();
 
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void eligibleSetThatCannotMeetCanonicalQuorumFailsBeforeAnyR1Work() {
+        // Seven listed members with real keys, but only three are in the source hinTS scheme: the eligible
+        // weight (3) cannot exceed half of the canonical effective weight (7), so R1 could never freeze.
+        final var canonicalWeights = new TreeMap<Long, Long>();
+        for (long nodeId = 0; nodeId < 7; nodeId++) {
+            canonicalWeights.put(nodeId, 1L);
+        }
+        givenThreeNodeNetwork(canonicalWeights);
+        for (long nodeId = 3; nodeId < 7; nodeId++) {
+            sourceWeights.remove(nodeId);
+        }
+        final var sourceProof = canonicalSourceProof(targetWeights);
+        for (final boolean canSubmit : List.of(false, true)) {
+            subject = newSubject(sourceProof, Runnable::run, delayer);
+            final var outcome = subject.advance(
+                    EPOCH,
+                    transitionConstruction(R1, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    LEDGER_ID,
+                    canSubmit);
+            final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+            assertEquals(WrapsHistoryProver.INSUFFICIENT_SIGNERS_FAILURE_PREFIX, failure.reason());
+            assertFalse(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+        }
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void exclusionsPersistedUnderAnOlderFeasibilityRuleFailRecoverably() {
+        final var canonicalWeights = new TreeMap<Long, Long>();
+        for (long nodeId = 0; nodeId < 7; nodeId++) {
+            canonicalWeights.put(nodeId, 1L);
+        }
+        givenThreeNodeNetwork(canonicalWeights);
+        final var sourceProof = canonicalSourceProof(targetWeights);
+        // Every member is eligible, but these exclusions leave three of seven, which no exclusion is allowed to do
+        final var construction = transitionConstruction(R1, null)
+                .copyBuilder()
+                .wrapsExcludedNodeIds(List.of(0L, 1L, 2L, 3L))
+                .build();
+        for (final boolean canSubmit : List.of(false, true)) {
+            subject = newSubject(sourceProof, Runnable::run, delayer);
+            final var outcome = subject.advance(
+                    EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, canSubmit);
+            final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+            assertTrue(failure.reason().startsWith(WrapsHistoryProver.INFEASIBLE_EXCLUSIONS_FAILURE_PREFIX));
+            assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+            assertTrue(WrapsHistoryProver.clearsExclusionsOnRetry(failure.reason()));
+        }
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void predecessorCommitmentIsHashedOncePerProverRatherThanEveryRound() {
+        subject = newSubject(wrapsExtensibleProof(), Runnable::run, delayer);
+
+        for (int round = 0; round < 3; round++) {
+            assertSame(
+                    HistoryProver.Outcome.InProgress.INSTANCE,
+                    subject.advance(
+                            EPOCH,
+                            transitionConstruction(R1, null),
+                            TARGET_METADATA,
+                            targetProofKeys,
+                            tssConfig,
+                            LEDGER_ID,
+                            false));
+        }
+
+        // Once for the target book with its WRAPS message, and once for the predecessor's committed book
+        verify(historyLibrary, times(2)).hashAddressBook(any());
+    }
+
+    @Test
+    void sourceBookMemberOutsideTheSourceSchemeSkipsR1EvenWithItsOwnKey() {
+        // This node has its own real key in the predecessor's book, but no weight in the source hinTS scheme
+        final var sourceProof = canonicalSourceProof(new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 2L)));
+        sourceWeights.clear();
+        sourceWeights.put(OTHER_NODE_ID, 2L);
+        subject = newSubject(sourceProof, Runnable::run, delayer);
+
+        final var outcome = subject.advance(
+                EPOCH, transitionConstruction(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void nodeOutsideTheSourceGenerationDoesNotComputeAProofItsVoteCouldNeverCount() {
+        // Node 2 alone has more than half the predecessor's effective weight, and this node is not a source node
+        final var sourceProof = canonicalSourceProof(new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 2L)));
+        sourceWeights.clear();
+        sourceWeights.put(OTHER_NODE_ID, 2L);
+        subject = newSubject(sourceProof, Runnable::run, delayer);
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
+        // Everything a source node would need to compute its proof right away is in place
+        lenient().when(historyLibrary.wrapsProverReady()).thenReturn(true);
+        lenient().when(tssConfig.wrapsVoteJitterPerRank()).thenReturn(Duration.ZERO);
+        replaySigningRoundsFrom(List.of(OTHER_NODE_ID));
+
+        final var outcome = subject.advance(
+                EPOCH,
+                transitionConstruction(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
         verifyNoInteractions(submissions);
     }
 

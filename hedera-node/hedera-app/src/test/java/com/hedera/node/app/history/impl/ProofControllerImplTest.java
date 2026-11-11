@@ -141,6 +141,11 @@ class ProofControllerImplTest {
         lenient()
                 .when(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID))
                 .thenAnswer(ignore -> construction);
+        // Votes count only from source nodes, as when a controller is rebuilt from state; unless a test says
+        // otherwise, every node id these tests vote with is a source node
+        lenient()
+                .when(weights.sourceNodeIds())
+                .thenReturn(new TreeSet<>(List.of(0L, SELF_ID, OTHER_NODE_ID, THIRD_NODE_ID)));
 
         given(proverFactory.create(
                         eq(SELF_ID),
@@ -929,6 +934,65 @@ class ProofControllerImplTest {
         verify(writableHistoryStore)
                 .restartWrapsSigning(
                         CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                WrapsHistoryProver.INVALID_FROZEN_SIGNERS_FAILURE_PREFIX,
+                WrapsHistoryProver.INFEASIBLE_EXCLUSIONS_FAILURE_PREFIX + " [2]"
+            })
+    void retryAfterAFailureFromOlderSigningStateLetsEveryNodeSignAgain(final String reason) {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .proofKeyCutoffTime(asTimestamp(Instant.EPOCH))
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .wrapsExcludedNodeIds(List.of(OTHER_NODE_ID))
+                .build();
+        subject = newSubject(null);
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Failed(reason));
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        given(writableHistoryStore.restartWrapsSigning(eq(CONSTRUCTION_ID), any(), any(), any()))
+                .willReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                        .wrapsRetryCount(1)
+                        .build());
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        // The exclusions may have come from the older rule too, so the fresh attempt starts without any
+        verify(writableHistoryStore)
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
+        verify(writableHistoryStore, never()).failForReason(anyLong(), any());
+    }
+
+    @Test
+    void votesFromNodesOutsideTheSourceGenerationAreIgnoredAsWhenRebuiltFromState() throws Exception {
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        lenient().when(historyLibrary.hashAddressBook(any())).thenReturn(TARGET_BOOK_HASH.toByteArray());
+        setField("targetMetadata", METADATA);
+        final var outsiderVote = HistoryProofVote.newBuilder()
+                .proof(recursiveProof("compressed", "uncompressed", TARGET_HISTORY))
+                .build();
+        final var congruentToOutsider =
+                HistoryProofVote.newBuilder().congruentNodeId(THIRD_NODE_ID).build();
+
+        subject.addProofVote(
+                THIRD_NODE_ID, outsiderVote, Instant.EPOCH.plusSeconds(1), writableHistoryStore, DEFAULT_TSS_CONFIG);
+        subject.addProofVote(
+                SELF_ID, congruentToOutsider, Instant.EPOCH.plusSeconds(2), writableHistoryStore, DEFAULT_TSS_CONFIG);
+
+        // A controller rebuilt from state never loads node3's vote, so live handling must not count, persist, or
+        // resolve congruent votes against it either
+        verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+        verify(prover, never()).observeProofVote(anyLong(), any(), anyBoolean(), any());
     }
 
     @Test

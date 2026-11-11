@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -92,6 +93,15 @@ class WrapsCanonicalBookIntegrationTest {
                 firstDay.chainOfTrustProofOrThrow().wrapsProofOrThrow().toByteArray(),
                 ledgerId.toByteArray(),
                 firstDayKey.toByteArray()));
+
+        // A proof written before the snapshot existed is enriched only by weights that reproduce its commitment:
+        // the generation's complete listed weights do, while its sparse hinTS weights cannot
+        final var legacy = firstDay.copyBuilder().targetNodeWeights(List.of()).build();
+        assertEquals(firstDay, HistoryProofAddressBooks.withTargetWeights(legacy, firstDayWeights, library));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> HistoryProofAddressBooks.withTargetWeights(
+                        legacy, participatingWeights(firstDayWeights, keys.keySet()), library));
 
         // After another candidate replaces the first day's roster, the serialized proof retains all its weights,
         // including nonzero listed weights for sentinel nodes 3 and 4. Its hinTS authority uses the adopted weights.

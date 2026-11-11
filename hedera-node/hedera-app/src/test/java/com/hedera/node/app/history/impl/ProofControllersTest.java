@@ -9,6 +9,9 @@ import static com.hedera.node.app.history.impl.ProofControllers.freshGenesisRequ
 import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -23,6 +26,7 @@ import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
@@ -371,6 +375,69 @@ class ProofControllersTest {
         verify(activeRosters, never()).transitionWeights(partyWeights);
         verify(historyStore).getWrapsMessagePublications(1L, fullNodeIds);
         verify(historyStore).getVotes(1L, fullNodeIds);
+    }
+
+    @Test
+    void groundingCreatedWhileSparseHintsSchemeIsActiveStillUsesFullRoster() {
+        // The fresh-genesis shape: the grounding construction's controller is first created after a sparse
+        // hinTS scheme already exists, so the scheme's party weights must not become its source weights.
+        final var fullNodeIds = new TreeSet<>(Set.of(1L, 2L, 3L));
+        final var partyWeights = new TreeMap<>(Map.of(1L, 7L, 2L, 9L));
+        final var sparseScheme = HintsConstruction.newBuilder()
+                .hintsScheme(
+                        HintsScheme.newBuilder().nodePartyIds(new NodePartyId(1L, 1, 7L), new NodePartyId(2L, 2, 9L)))
+                .build();
+        final var grounding = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(weights.sourceNodeIds()).willReturn(fullNodeIds);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+
+        final var controller = subject.getOrCreateFor(
+                activeRosters,
+                grounding,
+                historyStore,
+                sparseScheme,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+
+        assertInstanceOf(ProofControllerImpl.class, controller);
+        verify(activeRosters).transitionWeights(null);
+        verify(activeRosters, never()).transitionWeights(partyWeights);
+        verify(historyStore).getVotes(1L, fullNodeIds);
+    }
+
+    @Test
+    void rebuildsAnIncrementalControllerOnceItsSourceProofGainsACanonicalSnapshot() {
+        final var transition = constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null);
+        final var legacyProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
+                .build();
+        final var legacyActive = HistoryProofConstruction.newBuilder()
+                .constructionId(0L)
+                .targetProof(legacyProof)
+                .build();
+        final var enrichedActive = legacyActive
+                .copyBuilder()
+                .targetProof(legacyProof.copyBuilder().targetNodeWeights(new ProofNodeWeight(1L, 1L)))
+                .build();
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        final var config = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+
+        final var legacy = subject.getOrCreateFor(
+                activeRosters, transition, historyStore, HintsConstruction.DEFAULT, legacyActive, config);
+        final var reused = subject.getOrCreateFor(
+                activeRosters, transition, historyStore, HintsConstruction.DEFAULT, legacyActive, config);
+        // A restarted node would build its controller from the enriched proof, so a live node must too
+        final var rebuilt = subject.getOrCreateFor(
+                activeRosters, transition, historyStore, HintsConstruction.DEFAULT, enrichedActive, config);
+
+        assertSame(legacy, reused);
+        assertNotSame(legacy, rebuilt);
     }
 
     @Test

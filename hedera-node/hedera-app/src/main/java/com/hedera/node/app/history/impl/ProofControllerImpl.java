@@ -405,6 +405,12 @@ public class ProofControllerImpl implements ProofController {
         requireNonNull(now);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
+        // A controller rebuilt from state loads only the source nodes' votes (see ProofControllers), so a vote from
+        // any other node must not count live either; otherwise live and rebuilt nodes could tally and persist
+        // different votes, for example congruent votes referencing an explicit vote only the live nodes counted
+        if (!weights.sourceNodeIds().contains(nodeId)) {
+            return;
+        }
         // A precomputed proof cannot finish assembly while keys from its cutoff round can still arrive.
         // This guard applies only to new votes; persisted votes are replayed separately by the constructor.
         if (construction.hasProofKeyCutoffTime() && !now.isAfter(asInstant(construction.proofKeyCutoffTimeOrThrow()))) {
@@ -701,7 +707,8 @@ public class ProofControllerImpl implements ProofController {
      * If the given failure reason is recoverable and retry budget remains, restarts WRAPS signing for this
      * construction and reinitializes in-memory prover state. Later attempts ignore the given missing nodes, as long
      * as the other source nodes with proof keys can still reach the R1 threshold; and while any nodes are ignored,
-     * the restarted R1 has a grace period, after which the next attempt ignores no nodes.
+     * the restarted R1 has a grace period, after which the next attempt ignores no nodes. A retry after an R1
+     * timeout, or after a failure only reachable from signing state persisted under an older rule, ignores no nodes.
      *
      * @param reason the failure reason
      * @param missingNodeIds the ids of R1 participants whose later messages never arrived
@@ -739,7 +746,7 @@ public class ProofControllerImpl implements ProofController {
         if (prover != null) {
             prover.cancelPendingWork();
         }
-        final SortedSet<Long> excludedNodeIds = reason.startsWith(WrapsHistoryProver.R1_TIMEOUT_FAILURE_PREFIX)
+        final SortedSet<Long> excludedNodeIds = WrapsHistoryProver.clearsExclusionsOnRetry(reason)
                 ? new TreeSet<>()
                 : excludedNodeIdsAfter(missingNodeIds);
         final var r1GracePeriodEndTime =
