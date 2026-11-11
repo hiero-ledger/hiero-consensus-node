@@ -95,11 +95,11 @@ import org.openjdk.jmh.annotations.Warmup;
  * November 2026). This hardly matters for the cost: in a local A/B, deciding as if broadcast were paused sent 13 to 17
  * events per sync and changed the latency by at most 0.2%.
  *
- * <p>The synchronizer is built with the production metrics implementation {@link DefaultPlatformMetrics},
- * so that the decision's metric updates are measured, and the intake counter {@link DefaultIntakeEventCounter}. The
- * metrics are not started: in production, their periodic updaters and snapshots run on other threads. The benchmark
- * runs on one thread; in production, the syncs with all peers share one synchronizer, and events are added on another
- * thread, so lock contention is not measured.
+ * <p>The synchronizer is built with the production metrics implementation {@link DefaultPlatformMetrics} and the
+ * intake counter {@link DefaultIntakeEventCounter} so that their usage is measured. The metrics are not started:
+ * in production, their periodic updaters and snapshots run on other threads. The benchmark runs on one thread;
+ * in production, the syncs with all peers share one synchronizer, and events are added on another thread, so lock
+ * contention is not measured.
  *
  * <p>{@link LatencyProfiler} reports the mean, the percentiles, and the allocation per decision. JMH's primary score is
  * the time of a whole pass, the untimed replay included. Each invocation's setup ends with {@code System.gc()}; a pass
