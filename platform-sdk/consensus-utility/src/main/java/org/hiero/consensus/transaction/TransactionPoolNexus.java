@@ -97,7 +97,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     private final InstantSource time;
 
     /**
-     * Told the number of application transactions dropped past their drop time, whenever an event build drops any.
+     * A consumer of the number of application transactions dropped past their drop time. It is updated when an event asks for transactions.
      */
     private final IntConsumer droppedTransactionsListener;
 
