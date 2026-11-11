@@ -11,9 +11,17 @@ it drafts carries AI attribution.
 - Numbered, so the user can ask for more detail on any one ("expand 3").
 - Starts with `file:line`.
 - At most two lines: the problem and its consequence.
-- No fix unless the user asks to expand it.
+- No fix unless the user asks to expand it. Exception: a plain-language finding quotes the sentence and gives its
+  rewrite ([clarity-and-naming.md](clarity-and-naming.md), topic 3), because the rewrite shows the problem better than a
+  description of it.
 
-**Expanding a finding** gives the evidence (quoted code or javadoc), the reasoning, and a suggested fix.
+**Expanding a finding** gives the evidence (quoted code or javadoc), the reasoning, and a suggested fix. Start with the
+plain explanation; the evidence comes after it.
+
+**Plain enough to explain:** every finding, question and expansion must be explainable in two or three plain sentences
+to someone who doesn't know the code. If it can't be, drop it. Example: #28195, question 5 claimed the saturation
+check's limit depends on pass length. The expansion, with its table of overloads and its fix options, confused both the
+reviewer and the PR author, and in plain words the question had no concrete cost.
 
 There is no cap on the number of findings. Keep each one short instead.
 
@@ -57,7 +65,7 @@ In this order:
 6. **PR description**
 7. **Questions**
 8. **Optional suggestions:** structure suggestions with no named cost
-   ([structure.md](structure.md), topic 10), and data classes that could be records (topic 9).
+   ([structure.md](structure.md), topic 11), and data classes that could be records (topic 9).
 9. **Follow-up block**
 
 Leave out empty groups.

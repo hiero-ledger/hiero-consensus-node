@@ -175,7 +175,31 @@ that only holds data gets a suggestion to make it a record, not a finding.
 
 **Not a finding:** a record that holds a collection without copying it. Existing code doesn't copy either.
 
-### 10. What isn't a finding
+### 10. File location
+
+**Rule:** every new or moved file, including resources, sits in the narrowest module, source set and package that its
+current users need.
+
+**Check, for every file in the diff:**
+
+- **Source set:** `testFixtures` is for code and resources that other modules or other source sets use. A file that only
+  one source set uses belongs in that source set: `src/test`, `src/jmh`, `src/testOtter`, and so on.
+- **Resources:** in the same source set as the class that reads them, under that class's package path. Look for an
+  existing resources directory in the module and follow it.
+- **Package:** the package of the code the file belongs with, not a catch-all package.
+- **Module:** the module rules above, and the module whose code the file tests or supports.
+
+**Finding when:** a file sits in a broader source set, or a different package or module, than its current users need.
+Reuse that is only planned doesn't count (topic 5).
+
+**When moving a resource,** check how it's loaded. Under JPMS, `Class#getResourceAsStream` finds only resources in the
+loading class's own module, so the loader may have to move too.
+
+**Example:** the SCN-001 flicker test branch (27949-7). `scn-001.graph` and its loader `GraphFiles` were in
+`testFixtures` "so that any module depending on these fixtures can load them", but only `Scn001Test` read the file. The
+module's other test data (`roster.json`, PCES files) is in `src/test/resources`.
+
+### 11. What isn't a finding
 
 **Reviewer mode:** every structure finding names a concrete cost:
 

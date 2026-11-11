@@ -76,19 +76,29 @@ the author disagreed: the paragraphs explained, with measurements, why the code 
 
 ### 3. Plain language
 
-**Finding when** the reader can't say what a javadoc or comment means, or understands it wrongly.
+**The reader to write for:** an engineer on the consensus team who knows gossip, sync, the hashgraph and consensus,
+but not this PR. The two readers know less than that. If a reader stumbles only because it doesn't know the domain, it
+isn't a finding.
+
+**Finding when** that engineer would have to reread a sentence, or would misread it.
 
 **The finding:**
 
-- quotes the unclear sentence
-- says what is unclear
-- suggests a plainer version
+- quotes the sentence
+- gives a rewrite that is clearly easier to read and makes sense on its own
+
+If you can't write a clearly better rewrite, drop the finding. The finding's own wording must be as plain as it asks the
+code to be: don't paraphrase the problem in more abstract words than the original.
 
 **Examples:**
 
 - #27994: "a very complicated way to say something very trivial".
 - #27973: "I was following this sentence until the last part! I don't know what it's trying to say."
 - #27945: "I don't understand this comment."
+
+**False positive:** #28180: "a sync's decision which events to send" and "within one latency, so … every send list is
+empty". Both readers stumbled, but the suggested rewrites were no clearer, and the second was obvious to anyone who knows
+sync.
 
 ### 4. Accuracy
 
