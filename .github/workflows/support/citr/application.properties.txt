@@ -3,7 +3,7 @@
 contracts.chainId=298
 ledger.id=0x03
 entities.unlimitedAutoAssociationsEnabled=true
-bootstrap.throttleJsonDef.resource=genesis/throttles-dev.json
+bootstrap.throttleDefsJson.resource=genesis/throttles-dev.json
 networkAdmin.exportCandidateRoster=true
 addressBook.useRosterLifecycle=true
 nodes.gossipFqdnRestricted=false
@@ -12,6 +12,8 @@ blockStream.blockNodeConnectionFileDir=/opt/hgcapp/services-hedera/HapiApp2.0/da
 
 staking.periodMins=360
 
-tss.forceMockSignatures=false
-
+tss.forceMockSignatures=true
 blockStream.maxBlockSizeBytes=314572800
+tss.hintsEnabled=true
+tss.historyEnabled=true
+blockStream.streamWrappedRecordBlocks=true

@@ -193,20 +193,12 @@ jobs:
           path: target_block_node
           ref: ${{ inputs.bnref }}
 
-      - name: Checkout target BN Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: "hiero-ledger/hiero-block-node"
-          path: target_block_node
-          ref: ${{ inputs.bnref }}
-
       - name: Checkout Solo Code
-        if: false
+        if: true
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hiero-ledger/solo
           ref: "${{ inputs.solo-version }}"
-          token: ${{ secrets.github-token }}
           path: solo
 
       - name: Set Kubernetes Cluster
@@ -344,7 +336,7 @@ jobs:
       - name: Checkout PBJ Repository
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          token: ${{ secrets.access-token }}
+          token: ${{ secrets.github-token }}
           path: ${{ github.workspace }}/pbj-releases
           repository: hashgraph/pbj-releases
           ref: release/0.15
@@ -408,6 +400,7 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        if: false
         env:
           SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
         run: |
@@ -416,8 +409,8 @@ jobs:
           # verify the installation
           solo --version
 
-      - name: Build Solo
-        if: false
+      - name: Hack and Build Solo
+        if: true
         run: |
           set +x
           set +e
@@ -439,6 +432,10 @@ jobs:
           sudo mv "${HOME}"/solo /usr/bin/solo
 
           cd "${{ github.workspace}}"/solo
+
+          cat src/core/helpers.ts | \
+          perl -pne '~s/streamWrappedRecordBlocksEnabled: boolean = false/streamWrappedRecordBlocksEnabled: boolean = true/g; ~s/\x27blockStream.streamWrappedRecordBlocks\x27, \x27false\x27/\x27blockStream.streamWrappedRecordBlocks\x27, \x27true\x27/g' >/tmp/fix$$
+          mv /tmp/fix$$ src/core/helpers.ts
 
           task build:compile
           #npm run build
@@ -657,6 +654,10 @@ jobs:
           #sentinel
           sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@sentinel-data-solo-shared-resources-redis-node-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-sentinel.yaml
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-sentinel.yaml
+
+          #redis-master-0
+          sed -e "s@%PVC_SIZE%@100Mi@g" -e "s@%PVC_NAME%@redis-data-solo-shared-resources-redis-master-0@g" "${{ github.workspace }}"/.github/workflows/support/citr/mirror-node-pvc.yaml > mirror-node-pvc-master.yaml
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f mirror-node-pvc-master.yaml
 
       - name: Add Mirror Node
         run: |
@@ -1121,16 +1122,18 @@ jobs:
           grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         env:
           REF: ${{ inputs.ref }}
         run: |
@@ -1293,12 +1296,14 @@ jobs:
           grep -E 'validation .* is OK' "${{ github.workspace }}"/report/reconnect/validator_status.log
 
       - name: Authenticate to Google Cloud
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193 # v2.1.10
         with:
           workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
           service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
 
       - name: Setup Google Cloud SDK
+        if: ${{ !cancelled() && always() }}
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Copy logs
@@ -1312,7 +1317,7 @@ jobs:
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/reconnect/
 
       - name: Publish logs
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && always() }}
         env:
           REF: ${{ inputs.ref }}
         run: |
