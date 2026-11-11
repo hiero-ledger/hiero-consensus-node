@@ -774,7 +774,7 @@ jobs:
             target="block-node-server"
             echo ${pod} | grep "network-node" >/dev/null
 
-            if [ $? -eq 0 ]
+            if [ ${?} -eq 0 ]
             then
               target="root-container"
             fi
