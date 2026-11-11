@@ -354,7 +354,11 @@ public class Shadowgraph {
         while (oldestUnexpiredIndicator < minimumIndicatorToKeep) {
             final Set<ShadowEvent> shadowsToExpire = indicatorToShadowEvent.remove(oldestUnexpiredIndicator);
             if (shadowsToExpire != null) {
-                shadowsToExpire.forEach(this::expire);
+                // a loop, not forEach: C2 does not inline the shared Iterable.forEach once other callers have made
+                // its compiled code big, and then allocates the iterator and calls expire() for every event
+                for (final ShadowEvent shadow : shadowsToExpire) {
+                    expire(shadow);
+                }
             }
             oldestUnexpiredIndicator++;
         }
