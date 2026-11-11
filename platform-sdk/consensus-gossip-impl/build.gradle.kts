@@ -21,7 +21,13 @@ jmhModuleInfo {
 
 jmh {
     // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
-    includes.convention(listOf("GossipEventSerializationBenchmark", "ShadowgraphBenchmark", "SyncDecisionBenchmark"))
+    includes.convention(
+        listOf(
+            "GossipEventSerializationBenchmark",
+            "ShadowgraphBenchmark",
+            "SyncDecisionBenchmark",
+        ),
+    )
 }
 
 benchmarkTracking {
