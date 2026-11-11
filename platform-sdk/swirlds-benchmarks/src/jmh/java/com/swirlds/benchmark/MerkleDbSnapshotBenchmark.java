@@ -49,9 +49,6 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     @Param({"false", "true"})
     public boolean useDiskIndices;
 
-    @Param({"1", "4"})
-    public int longListWriteThreads;
-
     private VirtualDataSource source;
     private Path snapshotDirectory;
 
@@ -65,7 +62,6 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         super.configureBenchmarkConfiguration(configurationBuilder);
         configurationBuilder.withSource(new SimpleConfigSource()
                 .withValue("merkleDb.useDiskIndices", useDiskIndices)
-                .withValue("merkleDb.longListWriteThreads", longListWriteThreads)
                 .withOrdinal(Integer.MAX_VALUE));
     }
 
@@ -80,7 +76,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         try {
             final Path fixtureDirectory = fixtureDirectory(merkleDbConfig);
             createFixture(fixtureDirectory);
-            source = dataSourceBuilder.build(TABLE_NAME, fixtureDirectory, false, false);
+            source = dataSourceBuilder.build(TABLE_NAME, fixtureDirectory, false);
             populateHashChunkCache(merkleDbConfig);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
@@ -152,10 +148,12 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     /// @param fixtureDirectory reusable fixture location
     /// @throws IOException if fixture files cannot be written
     private void createFixture(final Path fixtureDirectory) throws IOException {
+        // With benchmark.saveDataDirectory enabled, a fixture built by an earlier run is kept and reused
         if (Files.isDirectory(fixtureDirectory)) {
             return;
         }
 
+        // Build under a temporary name, after removing anything an interrupted earlier build left there
         final Path temporaryFixtureDirectory = fixtureDirectory.resolveSibling(fixtureDirectory.getFileName() + ".tmp");
         Utils.deleteRecursively(temporaryFixtureDirectory);
 
@@ -179,6 +177,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
             mapReference.set(flushMap(mapReference.get()));
             final VirtualDataSource fixtureSource = mapReference.get().getDataSource();
 
+            // Write into the temporary directory, then rename it to the fixture name in one atomic step. The
+            // fixture name only appears once the fixture is complete, so the reuse check above never sees a partial one
             FileUtils.executeAndRename(fixtureDirectory, temporaryFixtureDirectory, directory -> {
                 dataSourceBuilder.snapshot(directory, fixtureSource);
                 forceSnapshotFiles(directory);
@@ -195,7 +195,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     private void populateHashChunkCache(final MerkleDbConfig merkleDbConfig) throws IOException {
         final long lastChunkId =
                 VirtualHashChunk.lastChunkIdForPaths(source.getLastLeafPath(), source.getHashChunkHeight());
-        final long cachedChunkCount = Math.min((long) merkleDbConfig.hashChunkCacheThreshold(), lastChunkId + 1);
+        final long cachedChunkCount = Math.min(merkleDbConfig.hashChunkCacheThreshold(), lastChunkId + 1);
         for (long chunkId = 0; chunkId < cachedChunkCount; chunkId++) {
             source.loadHashChunk(chunkId);
         }
