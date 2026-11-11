@@ -1174,6 +1174,7 @@ class BesuQbftVerifierTest {
                 plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
                 plusOffset(base, 5), plusOffset(base, 16), messageRunningHashSlot(connId, 1)
             };
+            // nextMessageId = 2, so the only acceptable message slot is message 1's running hash.
             byte[] vStatus = new byte[32];
             ByteBuffer.wrap(vStatus, 3, 8).putLong(2L);
             byte[][] vals = {vStatus, new byte[32], new byte[32], new byte[32], new byte[32], vRunningHash};
@@ -2052,7 +2053,10 @@ class BesuQbftVerifierTest {
 
     // ── Exact connId-based Channel-slot matching helpers ──────────────────
 
-    /** The running-hash slot of `_messages[connId][messageId]`. */
+    /**
+     * The running-hash slot of `_messages[connId][messageId]`: field +1 of
+     * keccak256(uint256(messageId) || keccak256(connId(32) || uint256(1))).
+     */
     private static byte[] messageRunningHashSlot(byte[] connId32, long messageId) {
         byte[] outer = new byte[64];
         System.arraycopy(connId32, 0, outer, 0, 32);

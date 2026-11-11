@@ -36,6 +36,10 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * {@code trustAnchor} is the proto-encoded {@code SeiTrustAnchor} stored on the Channel.
  * Verification is delegated to {@link SeiCometBftProofVerifier#verifyBundle(byte[], byte[], byte[])}.
  *
+ * <p>The {@code channelContext} is the local Channel record's {@code channelId(32) || serviceAddress(20)}. The
+ * verifier requires its service address to match the trust anchor and accepts only proven storage slots of its
+ * channel, so a valid proof of another channel's queue cannot be relayed into this one.
+ *
  * <p>The Sei verifier enforces two service-level invariants before returning, because a Sei bundle's
  * trust anchor is <i>computed</i> from proven validator-set rotation rather than echoed from the
  * payload:
@@ -51,6 +55,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
 
     private final byte[] bundlePayload;
     private final byte[] trustAnchor;
+    /** {@code channelId(32) || serviceAddress(20)} from the local Channel record; binds the proof to that channel. */
     private final byte[] channelContext;
 
     public SeiVerifyBundleCall(

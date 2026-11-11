@@ -23,7 +23,9 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
 
 class SeiVerifyBundleCallTest extends CallTestBase {
+    /** Opaque here: the verifier is mocked, so these tests only check that the context is passed through. */
     private static final byte[] CHANNEL_CONTEXT = new byte[52];
+
     private static final byte[] BUNDLE_PAYLOAD = {1, 2, 3};
     private static final byte[] TRUST_ANCHOR = {4, 5, 6};
     private static final byte[] BLOCK_HASH = filled(32, 0x01);
@@ -436,7 +438,6 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     }
 
     private SeiVerifyBundleCall subject() {
-        final byte[] channelContext = {7, 8, 9};
         return new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
     }
 

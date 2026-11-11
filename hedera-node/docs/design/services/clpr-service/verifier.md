@@ -258,9 +258,10 @@ service address stored in the channel context. The state proof authenticates tha
 service account or Sei store key. Queue slot keys must equal `keccak256(channelId32 || uint256(15))`
 plus the exact field offsets `{1,2,4,5,16}`. The optional last-message hash key must equal
 `keccak256(uint256(nextMessageId - 1) || keccak256(channelId32 || uint256(1))) + 1`,
-using the proven next-message ID. Proof order is irrelevant; duplicate, missing, and
-unrelated keys are rejected. A valid state proof for another channel cannot satisfy
-these checks, even if its counters and running hashes have the same values.
+using the proven next-message ID, which must be at least 2 because message IDs start at 1.
+Proof order is irrelevant; duplicate, missing, and unrelated keys are rejected. A valid
+state proof for another channel cannot satisfy these checks, even if its counters and
+running hashes have the same values.
 
 ### Compact Commit
 

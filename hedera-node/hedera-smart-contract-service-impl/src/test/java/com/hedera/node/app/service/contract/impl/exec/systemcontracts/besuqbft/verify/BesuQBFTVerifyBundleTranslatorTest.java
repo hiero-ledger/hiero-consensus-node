@@ -70,6 +70,8 @@ class BesuQBFTVerifyBundleTranslatorTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
+        // Constructor args are (enhancement, gasCalculator, bundlePayload, trustAnchor, channelContext); check that
+        // the decoded channelContext reaches the call instead of being dropped.
         try (final var calls = mockConstruction(
                 BesuQBFTVerifyBundleCall.class,
                 (mock, context) -> assertThat(context.arguments().get(4)).isEqualTo(channelContext))) {

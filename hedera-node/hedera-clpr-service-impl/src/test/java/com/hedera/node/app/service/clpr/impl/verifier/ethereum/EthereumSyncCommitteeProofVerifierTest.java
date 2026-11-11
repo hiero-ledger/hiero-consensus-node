@@ -142,11 +142,13 @@ class EthereumSyncCommitteeProofVerifierTest {
 
     @Test
     void contextualProofRejectsAnotherChannelsGenuineStorageKeys() {
+        // A genuine proof of CHANNEL_ID's slots verifies under CHANNEL_CONTEXT.
         final byte[] payload = bundle(delivery().build());
         assertThat(verifier.verifyBundle(payload, TRUST_ANCHOR, CHANNEL_CONTEXT)
                         .queueMetadata()
                         .nextMessageId())
                 .isZero();
+        // Changing one channel-ID byte keeps the service address valid, so only the slot-key binding can reject it.
         final byte[] otherContext = CHANNEL_CONTEXT.clone();
         otherContext[0] ^= 1;
         assertThatThrownBy(() -> verifier.verifyBundle(payload, TRUST_ANCHOR, otherContext))
@@ -665,6 +667,8 @@ class EthereumSyncCommitteeProofVerifierTest {
         @Test
         @DisplayName("given an unrelated sixth slot, then verifyBundle rejects the storage proof")
         void givenUnrelatedSixthSlot_thenThrowsProofException() {
+            // nextMessageId 42 gets past the counter check, so the failure is the slot-key mismatch: slot
+            // 0x50 is not message 41's running-hash slot.
             final byte[][] slots = channelSlots(CHANNEL_ID);
             final byte[] statusSlot = new byte[32];
             ByteBuffer.wrap(statusSlot, 3, 8).putLong(42L);

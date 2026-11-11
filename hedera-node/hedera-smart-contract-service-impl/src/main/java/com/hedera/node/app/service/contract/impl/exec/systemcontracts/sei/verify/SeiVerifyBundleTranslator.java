@@ -28,6 +28,8 @@ public class SeiVerifyBundleTranslator extends AbstractCallTranslator<SeiVerifie
 
     static final int TRUST_ANCHOR_INDEX = 1;
 
+    static final int CHANNEL_CONTEXT_INDEX = 2;
+
     public static final SystemContractMethod VERIFY_BUNDLE = SystemContractMethod.declare(
                     "verifyBundle(bytes,bytes,bytes)", "((uint64,bytes32,uint64,bytes32,uint8),bytes[],bytes,bytes)")
             .withCategories(Category.SEI);
@@ -52,7 +54,7 @@ public class SeiVerifyBundleTranslator extends AbstractCallTranslator<SeiVerifie
             final var call = VERIFY_BUNDLE.decodeCall(attempt.inputBytes());
             final var bundlePayload = (byte[]) call.get(BUNDLE_PAYLOAD_INDEX);
             final var trustAnchor = (byte[]) call.get(TRUST_ANCHOR_INDEX);
-            final var channelContext = (byte[]) call.get(2);
+            final var channelContext = (byte[]) call.get(CHANNEL_CONTEXT_INDEX);
             return new SeiVerifyBundleCall(
                     attempt.enhancement(),
                     attempt.systemContractGasCalculator(),

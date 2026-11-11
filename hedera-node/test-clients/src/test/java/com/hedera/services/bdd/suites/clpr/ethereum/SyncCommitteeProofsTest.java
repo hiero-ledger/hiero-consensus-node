@@ -127,7 +127,8 @@ class SyncCommitteeProofsTest {
         assertThat(accountValue).as("account must be present in state trie").isNotNull();
         final byte[] storageRoot = topList(accountValue).elements().get(2).data();
 
-        // Re-prove every storage slot against that storage root.
+        // Re-prove every storage slot against that storage root. A single-message bundle proves the five Channel
+        // slots plus the last message's running-hash slot.
         final byte[][] slotValues = new byte[6][];
         final List<RLPItem> entries = delivery.get(7).asRLPList().elements();
         assertThat(entries).hasSize(6);
@@ -150,9 +151,14 @@ class SyncCommitteeProofsTest {
         assertThat(slotValues[2]).isEqualTo(meta.getSentRunningHash().toByteArray());
         assertThat(slotValues[3]).isEqualTo(meta.getReceivedRunningHash().toByteArray());
         assertThat(readUint64(slotValues[4], 24)).isEqualTo(meta.getEndpointManifestVersion());
+        // The last message's running hash is the queue's sent running hash.
         assertThat(slotValues[5]).isEqualTo(meta.getSentRunningHash().toByteArray());
     }
 
+    /**
+     * The generator must key every slot, including the last-message slot, to the channel it is asked for: the
+     * production verifier accepts the bundle under that channel's context and rejects it under any other.
+     */
     @Test
     void generatedProofVerifiesOnlyForItsRequestedChannel() {
         final var content = messageContent();
@@ -172,12 +178,14 @@ class SyncCommitteeProofsTest {
                 .isEqualTo(content.getMetadata().getNextMessageId());
         assertThat(verified.queueMetadata().lastMessageRunningHash())
                 .isEqualTo(content.getMetadata().getSentRunningHash().toByteArray());
+        // Same service address, different channel ID.
         final byte[] otherContext = context.clone();
         otherContext[0] ^= 1;
         assertThatThrownBy(() -> verifier.verifyBundle(bundle, anchor, otherContext))
                 .isInstanceOf(ProofException.class);
     }
 
+    /** Correct channel keys must not mask a broken account proof: the tampered bundle still fails verification. */
     @Test
     void tamperedAccountProofStillFailsWithCanonicalChannelKeys() {
         final byte[] channelId = new byte[32];
@@ -192,6 +200,10 @@ class SyncCommitteeProofsTest {
                 .isInstanceOf(ProofException.class);
     }
 
+    /**
+     * With {@code nextMessageId} 0 or 1 no message has been sent, so the generator proves only the five Channel slots
+     * and the verifier accepts the bundle without a last-message slot.
+     */
     @ParameterizedTest
     @ValueSource(longs = {0, 1})
     void metadataWithoutSentMessagesKeepsFiveChannelProofs(final long nextMessageId) {
@@ -220,6 +232,7 @@ class SyncCommitteeProofsTest {
         assertThat(verified.queueMetadata().endpointManifestVersion()).isEqualTo(7);
     }
 
+    /** {@code channelId(32) || serviceAddress(20)}, as the CLPR service stores it on the Channel record. */
     private static byte[] channelContext(final byte[] channelId) {
         final byte[] context = new byte[52];
         System.arraycopy(channelId, 0, context, 0, channelId.length);
