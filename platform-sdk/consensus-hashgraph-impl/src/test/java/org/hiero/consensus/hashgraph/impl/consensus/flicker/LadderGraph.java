@@ -5,14 +5,15 @@ import static org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.EventSpec
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.EventSpec.genesis;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
+import java.util.SequencedMap;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.EventSpec;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.GraphBuilder;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedRoster;
 import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 
 /**
  * A hand-built graph over four equal-weight nodes, used by the Flicker harness tests.
@@ -55,59 +56,58 @@ import org.hiero.consensus.test.fixtures.WeightGenerators;
  */
 public final class LadderGraph {
 
-    /** Creator indices into the roster's node ids. */
-    private static final int A = 0;
-
-    private static final int B = 1;
-    private static final int C = 2;
-    private static final int D = 3;
-
     /** Fixed so the graph - and therefore every content hash in it - is reproducible. */
     private static final long SEED = 20260925L;
 
     private static final List<EventSpec> SPECS = List.of(
             // layer 0 - round 1 witnesses
-            genesis("a0", A),
-            genesis("b0", B),
-            genesis("c0", C),
-            genesis("d0", D),
+            genesis("a0"),
+            genesis("b0"),
+            genesis("c0"),
+            genesis("d0"),
             // layer 1 - round 1, fully connected, no witnesses
-            event("a1", A, "a0", "b0", "c0", "d0"),
-            event("b1", B, "b0", "a0", "c0", "d0"),
-            event("c1", C, "c0", "a0", "b0", "d0"),
-            event("d1", D, "d0", "a0", "b0", "c0"),
+            event("a1", "a0", "b0", "c0", "d0"),
+            event("b1", "b0", "a0", "c0", "d0"),
+            event("c1", "c0", "a0", "b0", "d0"),
+            event("d1", "d0", "a0", "b0", "c0"),
             // layer 2 - a2 is starved and stays in round 1; the rest become round-2 witnesses
-            event("a2", A, "a1", "b1"),
-            event("b2", B, "b1", "a1", "c1", "d1"),
-            event("c2", C, "c1", "a1", "b1", "d1"),
-            event("d2", D, "d1", "a1", "b1", "c1"),
+            event("a2", "a1", "b1"),
+            event("b2", "b1", "a1", "c1", "d1"),
+            event("c2", "c1", "a1", "b1", "d1"),
+            event("d2", "d1", "a1", "b1", "c1"),
             // layer 3 - a3 is A's round-2 witness, a layer later than the others
-            event("a3", A, "a2", "b2", "c2", "d2"),
-            event("b3", B, "b2", "a2", "c2", "d2"),
-            event("c3", C, "c2", "a2", "b2", "d2"),
-            event("d3", D, "d2", "a2", "b2", "c2"),
+            event("a3", "a2", "b2", "c2", "d2"),
+            event("b3", "b2", "a2", "c2", "d2"),
+            event("c3", "c2", "a2", "b2", "d2"),
+            event("d3", "d2", "a2", "b2", "c2"),
             // layer 4 - round 3 witnesses; adding a4 is what decides round 1
-            event("a4", A, "a3", "b3", "c3", "d3"),
-            event("b4", B, "b3", "a3", "c3", "d3"),
-            event("c4", C, "c3", "a3", "b3", "d3"),
-            event("d4", D, "d3", "a3", "b3", "c3"));
+            event("a4", "a3", "b3", "c3", "d3"),
+            event("b4", "b3", "a3", "c3", "d3"),
+            event("c4", "c3", "a3", "b3", "d3"),
+            event("d4", "d3", "a3", "b3", "c3"));
 
     private LadderGraph() {}
 
-    /** @return the roster this graph is derived against: four nodes of equal weight. */
+    /**
+     * @return the roster this graph is derived against: four nodes of equal weight, with the ids the events' letters
+     *         map to
+     */
     @NonNull
     public static RosterWrapper roster() {
-        return RosterWrapperFactory.randomRoster(new Random(SEED), 4, WeightGenerators.BALANCED);
+        final SequencedMap<String, Long> weights = new LinkedHashMap<>();
+        for (final String letter : List.of("a", "b", "c", "d")) {
+            weights.put(letter, 1L);
+        }
+        return new NamedRoster("ladder", weights).toRosterWrapper();
     }
 
     /**
      * Build the graph.
      *
-     * @param roster the four-node roster whose node ids the events are created by
      * @return the events in topological order, each paired with its name
      */
     @NonNull
-    public static List<NamedEvent> build(@NonNull final RosterWrapper roster) {
-        return GraphBuilder.build(SPECS, new Random(SEED), roster);
+    public static List<NamedEvent> build() {
+        return GraphBuilder.build(SPECS, new Random(SEED));
     }
 }

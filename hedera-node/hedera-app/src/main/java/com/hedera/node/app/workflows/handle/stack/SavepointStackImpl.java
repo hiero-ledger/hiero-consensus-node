@@ -99,6 +99,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     @Nullable
     private Map<StreamBuilder, TransactionID> batchInnerIdsByBuilder;
 
+    // Values attached to this stack, also visible to the stacks of the dispatches made from it
+    @Nullable
+    private Map<Class<?>, Object> attachments;
+
     @Nullable
     private final ImmediateStateChangeListener immediateStateChangeListener;
 
@@ -508,6 +512,44 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         }
     }
 
+    @Override
+    public void onRollback(@NonNull final Runnable action) {
+        requireNonNull(action);
+        peek().onRollback(action);
+    }
+
+    @Override
+    public <T> void attach(@NonNull final Class<T> type, @NonNull final T value) {
+        requireNonNull(type);
+        requireNonNull(value);
+        if (attachments == null) {
+            attachments = new HashMap<>();
+        }
+        if (attachments.putIfAbsent(type, value) != null) {
+            throw new IllegalStateException("A " + type.getSimpleName() + " is already attached to this stack");
+        }
+    }
+
+    @Override
+    public void detach(@NonNull final Class<?> type) {
+        requireNonNull(type);
+        if (attachments != null) {
+            attachments.remove(type);
+        }
+    }
+
+    @Override
+    @Nullable
+    public <T> T findInLineage(@NonNull final Class<T> type) {
+        requireNonNull(type);
+        final var value = attachments == null ? null : attachments.get(type);
+        if (value != null) {
+            return type.cast(value);
+        }
+        // A child stack also sees the values attached to the stacks of the dispatches that enclose it
+        return state instanceof SavepointStackImpl parent ? parent.findInLineage(type) : null;
+    }
+
     /**
      * Returns a transaction ID that can safely assigned to a child in this stack's context without
      * waiting to the end of the transaction.
@@ -702,11 +744,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         for (int i = 0; i < n; i++) {
             final var builder = builders.get(i);
             grouped |= builder.functionality() == HOOK_DISPATCH;
-            final var nonceOffset =
-                    switch (builder.category()) {
-                        case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
-                        case PRECEDING, CHILD -> nextNonceOffset++;
-                    };
+            final var nonceOffset = switch (builder.category()) {
+                case USER, SCHEDULED, NODE, BATCH_INNER -> 0;
+                case PRECEDING, CHILD -> nextNonceOffset++;
+            };
             final var txnId = builder.transactionID();
             // If the builder does not already have a transaction id, then complete with the next nonce offset;
             // attributing it to the batch inner transaction that dispatched it, if there was one, and otherwise
@@ -844,15 +885,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final TransactionCategory category,
             @NonNull final StreamBuilder.SignedTxCustomizer customizer) {
-        final var builder =
-                switch (streamMode) {
-                    case RECORDS ->
-                        new RecordStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
-                    case BLOCKS ->
-                        new BlockStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
-                    case BOTH ->
-                        new PairedStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
-                };
+        final var builder = switch (streamMode) {
+            case RECORDS ->
+                new RecordStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
+            case BLOCKS -> new BlockStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
+            case BOTH -> new PairedStreamBuilder(reversingBehavior, customizer, category, maxSerializedTraceDataBytes);
+        };
         if (!customizer.isSuppressed()) {
             // Other code is a bit simpler when we always put the base builder for a stack in its
             // "following" list, even if the stack is child stack for a preceding child dispatch;

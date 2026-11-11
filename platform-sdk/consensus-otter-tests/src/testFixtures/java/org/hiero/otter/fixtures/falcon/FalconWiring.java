@@ -68,7 +68,9 @@ public class FalconWiring implements TimeTickReceiver {
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
     private final StatusMonitorModule statusMonitorModule;
     private final InputWire<PlatformEvent> receivedGossipEventsInputWire;
+    private final OutputWire<PlatformEvent> preConsensusEventOutputWire;
     private final OutputWire<ConsensusRound> consensusRoundOutputWire;
+    private final OutputWire<PlatformEvent> staleEventOutputWire;
     private final OutputWire<EventWindow> eventWindowOutputWire;
 
     /**
@@ -148,11 +150,19 @@ public class FalconWiring implements TimeTickReceiver {
         orphanBufferOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
         orphanBufferOutput.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
+        preConsensusEventOutputWire = consensusEngineWiring
+                .getOutputWire()
+                .buildTransformer("PreConsensusEvents", "consensus output", ConsensusEngineOutput::preConsensusEvents)
+                .buildSplitter("PreConsensusEventsSplitter", "pre-consensus events");
         consensusRoundOutputWire = consensusEngineWiring
                 .getOutputWire()
                 .buildTransformer("ConsensusRound", "consensus output", ConsensusEngineOutput::consensusRounds)
                 .buildSplitter("ConsensusRoundSplitter", "consensus rounds");
         consensusRoundOutputWire.solderTo(statusMonitorModule.consensusRoundInputWire());
+        staleEventOutputWire = consensusEngineWiring
+                .getOutputWire()
+                .buildTransformer("StaleEvents", "consensus output", ConsensusEngineOutput::staleEvents)
+                .buildSplitter("StaleEventsSplitter", "stale events");
 
         eventWindowOutputWire = consensusRoundOutputWire.buildTransformer(
                 "EventWindow", "consensus round", ConsensusRound::getEventWindow);
@@ -211,6 +221,16 @@ public class FalconWiring implements TimeTickReceiver {
     }
 
     /**
+     * Get the output wire that provides each event the consensus engine emits for pre-consensus handling.
+     *
+     * @return the output wire for pre-consensus events
+     */
+    @NonNull
+    public OutputWire<PlatformEvent> preConsensusEventOutputWire() {
+        return preConsensusEventOutputWire;
+    }
+
+    /**
      * Get the output wire that provides each consensus round.
      *
      * @return the output wire for consensus rounds
@@ -218,6 +238,16 @@ public class FalconWiring implements TimeTickReceiver {
     @NonNull
     public OutputWire<ConsensusRound> consensusRoundOutputWire() {
         return consensusRoundOutputWire;
+    }
+
+    /**
+     * Get the output wire that provides each event the consensus engine reports as stale.
+     *
+     * @return the output wire for stale events
+     */
+    @NonNull
+    public OutputWire<PlatformEvent> staleEventOutputWire() {
+        return staleEventOutputWire;
     }
 
     /**

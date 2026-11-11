@@ -117,6 +117,15 @@ public interface HandleContext {
         }
 
         /**
+         * Creates an independently mutable copy of the given dispatch metadata.
+         *
+         * @param source the metadata to copy
+         */
+        public DispatchMetadata(@NonNull final DispatchMetadata source) {
+            this.metadata = new HashMap<>(requireNonNull(source).metadata);
+        }
+
+        /**
          * Constructs a new DispatchMetadata instance with a single metadata entry.
          *
          * @param type the metadata key
@@ -197,6 +206,17 @@ public interface HandleContext {
              * Metadata for a contract child dispatch executed by the native CLPR service.
              */
             CLPR_DISPATCH,
+            /** Parent-owned network gas payments and remaining execution budget for CLPR. */
+            CLPR_GAS_ACCOUNTING,
+            /**
+             * Boolean marker identifying the verifier call within a native CLPR transaction.
+             */
+            CLPR_VERIFIER,
+            /**
+             * The CLPR parent transaction whose successful gas reservation funds a verifier child dispatch.
+             * Set by the app after capacity screening and passed only to the direct verifier child.
+             */
+            CLPR_GAS_RESERVATION,
             /**
              * Boolean marker set by the app when dispatching a trusted internal system transaction.
              * Never populate this from a submitted transaction or propagate it to child dispatches.
@@ -268,6 +288,9 @@ public interface HandleContext {
      * @param amount the amount to refund.
      */
     void refundBestEffort(AccountID accountId, long amount);
+
+    /** Refunds an extra handler charge through the same fee component and strategy as {@link #tryToCharge}. */
+    void refundHandlerCharge(@NonNull AccountID accountId, long amount);
 
     /**
      * Refunds the requested account in this context the given amount of service fee.
@@ -533,6 +556,45 @@ public interface HandleContext {
          * @param <T>          the type to cast the builders to
          */
         <T> void forEachNonBaseBuilder(@NonNull Class<T> builderClass, @NonNull Consumer<T> consumer);
+
+        /**
+         * Registers an action to run if the changes made so far in the current savepoint are rolled back. Like those
+         * changes, the action moves into the enclosing savepoint when this one commits, including the savepoint of
+         * the parent dispatch when this stack commits; so it runs if any savepoint holding the changes is rolled
+         * back, and is discarded once they are committed at the root.
+         *
+         * @param action the action to run on rollback
+         */
+        void onRollback(@NonNull Runnable action);
+
+        /**
+         * Attaches a value to this stack under the given type. Until it is detached, {@link #findInLineage(Class)}
+         * returns it from this stack and from the stacks of all dispatches made from it, directly or indirectly.
+         *
+         * @param type the type to attach the value under
+         * @param value the value
+         * @param <T> the type of the value
+         * @throws IllegalStateException if a value of this type is already attached to this stack
+         */
+        <T> void attach(@NonNull Class<T> type, @NonNull T value);
+
+        /**
+         * Detaches the value of the given type from this stack, if one is attached.
+         *
+         * @param type the type of the value
+         */
+        void detach(@NonNull Class<?> type);
+
+        /**
+         * Returns the value of the given type attached to this stack or, failing that, to the nearest stack of a
+         * dispatch enclosing this one.
+         *
+         * @param type the type of the value
+         * @param <T> the type of the value
+         * @return the value, or {@code null} if no stack in this lineage has one attached
+         */
+        @Nullable
+        <T> T findInLineage(@NonNull Class<T> type);
     }
 
     /**
