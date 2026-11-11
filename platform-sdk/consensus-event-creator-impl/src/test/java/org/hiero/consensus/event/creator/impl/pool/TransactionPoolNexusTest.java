@@ -293,6 +293,28 @@ class TransactionPoolNexusTest {
     }
 
     @Test
+    void dropsStaleTransactionQueuedBehindFreshOne() {
+        final List<Integer> drops = new ArrayList<>();
+        final var pool = poolRecordingDrops(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, TX_QUEUE_SIZE, drops);
+        final Instant dropAfter = fakeTime.now().plusSeconds(10);
+        final Bytes fresh1 = Bytes.wrap(new byte[] {1});
+        final Bytes stale = Bytes.wrap(new byte[] {2});
+        final Bytes fresh2 = Bytes.wrap(new byte[] {3});
+        assertTrue(pool.submitApplicationTransaction(fresh1, dropAfter.plusSeconds(60)));
+        assertTrue(pool.submitApplicationTransaction(stale, dropAfter));
+        assertTrue(pool.submitApplicationTransaction(fresh2, dropAfter.plusSeconds(60)));
+
+        fakeTime.tick(Duration.ofSeconds(11));
+
+        assertEquals(
+                List.of(fresh1, fresh2),
+                pool.getTransactionsForEvent().stream()
+                        .map(TimestampedTransaction::transaction)
+                        .toList());
+        assertEquals(List.of(1), drops);
+    }
+
+    @Test
     void keepsApplicationTransactionAtExactlyItsDropTime() {
         final List<Integer> drops = new ArrayList<>();
         final var pool = poolRecordingDrops(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, TX_QUEUE_SIZE, drops);

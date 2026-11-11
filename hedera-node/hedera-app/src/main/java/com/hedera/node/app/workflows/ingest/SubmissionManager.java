@@ -221,7 +221,8 @@ public class SubmissionManager {
             return null;
         }
         final var validStart = txnId.transactionValidStartOrThrow();
-        return Instant.ofEpochSecond(validStart.seconds(), validStart.nanos())
+        // Nanos are clamped as TransactionChecker#checkTimeBox clamps them, so this is the expiry consensus enforces
+        return Instant.ofEpochSecond(validStart.seconds(), Math.clamp(validStart.nanos(), 0, 999_999_999))
                 .plusSeconds(body.transactionValidDurationOrThrow().seconds());
     }
 }

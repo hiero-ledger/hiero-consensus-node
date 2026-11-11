@@ -17,7 +17,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActiveNetworkWithReassignedPorts;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -53,28 +55,33 @@ class ExpiredPoolTransactionsDroppedTest implements LifecycleTest {
             "300s",
             "hedera.transaction.expiredPoolDropMarginSecs",
             "0");
-    // With txn.start.offset.secs=-60 in spec-default.properties, 15s of this is left when the transfer is submitted
-    private static final long SHORT_VALID_SECS = 75;
+    // The harness backdates valid start by 60s (txn.start.offset.secs) and ingest wants 10s of validity left, so a
+    // transfer has 15s to reach node 1, and expires 25s after it is built
+    private static final long SHORT_VALID_SECS = 85;
     private static final long LONG_VALID_SECS = 600;
     private static final int EXPIRING_COUNT = 5;
 
     @LeakyHapiTest(overrides = {"hedera.transaction.maxValidDuration"})
     final Stream<DynamicTest> dropsTransactionsThatExpireInThePool() {
         final AtomicReference<Instant> testStart = new AtomicReference<>();
+        final var expiringTransfers = IntStream.range(0, EXPIRING_COUNT)
+                .mapToObj(i -> cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))
+                        .setNode(SLOW_NODE_ACCOUNT)
+                        .validDurationSecs(SHORT_VALID_SECS)
+                        .via("expiring" + i)
+                        .fireAndForget())
+                .toList();
         return hapiTest(
                 overriding("hedera.transaction.maxValidDuration", String.valueOf(LONG_VALID_SECS)),
                 restartWithSlowNodeOverrides(SLOW_NODE),
                 doAdhoc(() -> testStart.set(Instant.now())),
                 // Once this reaches consensus, node 1 has just created an event, so its next one is about 50s away
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)).setNode(SLOW_NODE_ACCOUNT),
-                // These expire long before that next event; they never get a status, so none is awaited
-                blockingOrder(IntStream.range(0, EXPIRING_COUNT)
-                        .mapToObj(i -> cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))
-                                .setNode(SLOW_NODE_ACCOUNT)
-                                .validDurationSecs(SHORT_VALID_SECS)
-                                .via("expiring" + i)
-                                .fireAndForget())
-                        .toArray(SpecOperation[]::new)),
+                // These expire well before that next event; they never get a status, so none is awaited
+                blockingOrder(expiringTransfers.toArray(SpecOperation[]::new)),
+                // fireAndForget() accepts any precheck, and a transfer node 1 rejected would never be in its pool
+                doAdhoc(() -> expiringTransfers.forEach(transfer -> assertEquals(
+                        OK, transfer.getActualPrecheck(), "Node 1 rejected a short-lived transfer at precheck"))),
                 // Submitted after them and still valid at that event, so once this reaches consensus, so has the event
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))
                         .setNode(SLOW_NODE_ACCOUNT)

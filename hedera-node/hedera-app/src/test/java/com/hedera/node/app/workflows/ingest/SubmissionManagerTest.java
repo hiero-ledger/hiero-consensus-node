@@ -4,15 +4,19 @@ package com.hedera.node.app.workflows.ingest;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
+import static com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeBuffer.NO;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -20,6 +24,7 @@ import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
+import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -42,6 +47,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -433,6 +441,40 @@ final class SubmissionManagerTest extends AppTestBase {
             submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
 
             verify(transactionPool).submitApplicationTransaction(bytes, VALID_START.plusSeconds(125));
+        }
+
+        @ParameterizedTest
+        @ValueSource(ints = {0, 690_000_000, -1, Integer.MIN_VALUE, 1_000_000_000, Integer.MAX_VALUE})
+        @DisplayName("With no margin, the drop time is the last instant at which consensus accepts the transaction")
+        void dropTimeMatchesConsensusExpiry(final int validStartNanos) throws PreCheckException {
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
+            final var submissionManager = new SubmissionManager(
+                    transactionPool,
+                    deduplicationCache,
+                    configWith("hedera.transaction.expiredPoolDropMarginSecs", 0),
+                    mockedMetrics);
+            final var body = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(Timestamp.newBuilder()
+                                    .seconds(VALID_START.getEpochSecond())
+                                    .nanos(validStartNanos)
+                                    .build())
+                            .build())
+                    .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
+                            .seconds(120)
+                            .build())
+                    .build();
+
+            submissionManager.submit(body, bytes, false);
+
+            final var dropAfter = ArgumentCaptor.forClass(Instant.class);
+            verify(transactionPool).submitApplicationTransaction(eq(bytes), dropAfter.capture());
+            final var expiry = dropAfter.getValue();
+            final var checker = new TransactionChecker(config, new NoOpMetrics());
+            assertThatNoException().isThrownBy(() -> checker.checkTimeBox(body, expiry, NO));
+            assertThatThrownBy(() -> checker.checkTimeBox(body, expiry.plusNanos(1), NO))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", TRANSACTION_EXPIRED);
         }
 
         @Test
