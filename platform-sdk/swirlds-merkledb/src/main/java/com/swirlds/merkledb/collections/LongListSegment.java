@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
+import static java.lang.Math.toIntExact;
+import static java.util.Objects.requireNonNull;
+
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,6 +16,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * A {@link LongList} that stores its contents off-heap via {@link MemorySegment}s backed by
@@ -121,6 +128,60 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
             throws IOException {
         super(longsPerChunk, capacity, reservedBufferSize);
         loadFromFile(file);
+    }
+
+    /// {@inheritDoc}
+    ///
+    /// The copy is in memory and has the same chunk size and reserved buffer size. Every non-empty
+    /// chunk is copied into a new chunk by a separate task run on the given executor. This method
+    /// returns, once all tasks are complete.
+    @NonNull
+    @Override
+    public LongListSegment copy(@NonNull final Executor executor) {
+        return new LongListSegment(this, executor);
+    }
+
+    /// Creates a copy of the given list, see [#copy(Executor)].
+    ///
+    /// @param source the list to copy
+    /// @param executor the executor to copy chunks on
+    private LongListSegment(@NonNull final LongListSegment source, @NonNull final Executor executor) {
+        super(source.longsPerChunk, source.capacity, source.reservedBufferSize);
+        requireNonNull(executor);
+        final List<CompletableFuture<Void>> tasks = new ArrayList<>();
+        try {
+            for (int i = 0; i < source.chunkList.length(); i++) {
+                final SegmentChunk sourceChunk = source.chunkList.get(i);
+                if (sourceChunk != null) {
+                    final int chunkIndex = i;
+                    tasks.add(CompletableFuture.runAsync(() -> copyChunk(sourceChunk, chunkIndex), executor));
+                }
+            }
+            // allOf() completes once all tasks complete, even if some of them fail. join() isn't interruptible
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+        } catch (final Throwable e) {
+            // If a submission failed, wait for the tasks submitted before it, so no chunk is allocated
+            // after this copy is closed
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new))
+                    .exceptionally(_ -> null)
+                    .join();
+            // Don't leak the chunks allocated so far, e.g. if there isn't enough off-heap memory
+            close();
+            throw e;
+        }
+        size.set(source.size.get());
+        minValidIndex.set(source.minValidIndex.get());
+        maxValidIndex.set(source.maxValidIndex.get());
+    }
+
+    /// Copies a chunk of the source list into a new chunk of this list.
+    ///
+    /// @param sourceChunk the chunk to copy
+    /// @param chunkIndex the index of the chunk in the chunk list
+    private void copyChunk(@NonNull final SegmentChunk sourceChunk, final int chunkIndex) {
+        final SegmentChunk chunk = createChunk();
+        chunkList.set(chunkIndex, chunk);
+        MemorySegment.copy(sourceChunk.segment(), 0, chunk.segment(), 0, memoryChunkSize);
     }
 
     // =========================================================================
@@ -280,28 +341,54 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
         return chunk;
     }
 
-    /// {@inheritDoc}
-    ///
-    /// Writes a view of the assigned chunk range without copying its native bytes.
-    ///
-    /// Chunk writes may run concurrently, but the snapshot is sequenced after
-    /// flush completion by the virtual pipeline. No concurrent [#closeChunk(SegmentChunk)] can invalidate
-    /// a chunk's arena during this operation.
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Writes all chunk data to the file channel. Each chunk's {@link MemorySegment}
+     * is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
+     * for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
+     * pre-allocated zero-filled buffer is written instead.
+     *
+     * <p>This method runs exclusively during snapshot, which is sequenced after flush
+     * completion by the virtual pipeline. No concurrent {@link #closeChunk} can
+     * invalidate a chunk's arena during this operation.
+     */
     @Override
-    protected void writeChunkData(
-            @NonNull final FileChannel fc,
-            @NonNull final SegmentChunk chunk,
-            final int startIndexInChunk,
-            final int endIndexInChunk,
-            final long fileOffset)
-            throws IOException {
-        // Create a buffer view of only the requested values, without copying the chunk's bytes.
-        final ByteBuffer buffer = chunk.segment()
-                .asSlice(
-                        (long) startIndexInChunk * Long.BYTES,
-                        (long) (endIndexInChunk - startIndexInChunk) * Long.BYTES)
-                .asByteBuffer();
-        MerkleDbFileUtils.completelyWrite(fc, buffer, fileOffset);
+    protected void writeLongsData(@NonNull final FileChannel fc) throws IOException {
+        final int totalNumOfChunks = calculateNumberOfChunks(size());
+        final long currentMinValidIndex = minValidIndex.get();
+        final int firstChunkWithDataIndex = toIntExact(currentMinValidIndex / longsPerChunk);
+
+        // A zero-filled buffer for null chunk slots. Heap-allocated — no arena needed.
+        final ByteBuffer emptyBuffer = ByteBuffer.allocate(memoryChunkSize);
+
+        for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
+            final SegmentChunk segChunk = chunkList.get(i);
+            final ByteBuffer buf;
+            if (segChunk != null) {
+                buf = segChunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
+            } else {
+                emptyBuffer.clear();
+                buf = emptyBuffer;
+            }
+
+            if (i == firstChunkWithDataIndex) {
+                final int firstValidIndexInChunk = toIntExact(currentMinValidIndex % longsPerChunk);
+                buf.position(firstValidIndexInChunk * Long.BYTES);
+            } else {
+                buf.position(0);
+            }
+
+            if (i == (totalNumOfChunks - 1)) {
+                final long bytesWrittenSoFar = (long) memoryChunkSize * i;
+                final long remainingBytes = size() * Long.BYTES - bytesWrittenSoFar;
+                buf.limit(toIntExact(remainingBytes));
+            } else {
+                buf.limit(memoryChunkSize);
+            }
+
+            MerkleDbFileUtils.completelyWrite(fc, buf);
+        }
     }
 
     // =========================================================================

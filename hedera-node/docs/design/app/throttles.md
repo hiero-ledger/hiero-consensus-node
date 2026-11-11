@@ -256,17 +256,67 @@ from the main runtime throttle:
 - It exposes an `allow` predicate (returns `true` when capacity is reserved), the opposite
   polarity of the runtime `checkAndEnforceThrottle` (returns `true` when *throttled*).
 
+## Block Execution Budget (`StreamMode.BLOCKS`)
+
+The block execution budget caps the serialized size of each canonical block. It is separate from the
+bucket throttles above: it does not use a `ThrottleAccumulator`, and it is enforced only when
+`blockStream.streamMode=BLOCKS`.
+
+- Config in `BlockStreamConfig`:
+  - `blockStream.maxBlockSizeLimitEnabled` (feature flag, refreshed at each block start)
+  - `blockStream.maxBlockExecutionSizeBytes` (zero disables the budget)
+- `BlockStreamManagerImpl` tracks the running serialized size of the block. Once it reaches the
+  limit, `BlockStreamManager.hasReachedMaxBlockSize()` returns `true` for the rest of the block.
+  Output that was already written is never suppressed.
+- From then on, `HandleWorkflow` rejects each non-exempt transaction with `THROTTLED_AT_CONSENSUS`
+  and charges normal consensus throttle fees (`DispatchProcessor.processDispatch(..., blockFull=true)`).
+  The rejected transaction's output still counts toward the block size.
+- Exempt transactions keep running in a full block:
+  - Network protocol transactions: hinTS, history proof, CRS publication, migration root hash vote,
+    and CLPR endpoint publication. `CLPR_SUBMIT_BUNDLE` is **not** exempt.
+  - Transactions whose payer is in `1..accounts.lastThrottleExempt`.
+
+### Scheduled transactions
+
+Whose exemption applies depends on how the schedule executes:
+
+|                                            How the schedule executes                                            |         Whose exemption applies         |                                     If rejected in a full block                                      |
+|-----------------------------------------------------------------------------------------------------------------|-----------------------------------------|------------------------------------------------------------------------------------------------------|
+| At expiry (`wait_for_expiry=true`)                                                                              | The schedule payer                      | `THROTTLED_AT_CONSENSUS`; the schedule is consumed and never retried                                 |
+| As a child of the `ScheduleCreate` or `ScheduleSign` that supplies its last signature (`wait_for_expiry=false`) | The submitter of the parent transaction | The parent is rejected; the schedule is not created or signed, so it can be retried in a later block |
+
+With `scheduling.longTermEnabled=false`, every schedule executes as a child, so the second row
+applies to all of them.
+
+So in a full block, a `ScheduleSign` from an exempt account can still execute a schedule whose
+payer is not exempt. This is intended: the budget is checked once per top-level transaction
+(submitted transactions and schedules executed at expiry), and child dispatches inherit their
+parent's decision.
+
+### Metrics
+
+All in the `block` category:
+
+|                                           Metric                                           |                                                                    Counts                                                                     |
+|--------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `numMaxBlockSizeThrottleTrips`                                                             | Canonical blocks that reached the limit                                                                                                       |
+| `numMaxBlockSizeThrottleRejections`, `maxBlockSizeThrottleRejectedBytes`                   | Submitted transactions rejected, and the bytes they wrote. Includes a `ScheduleCreate`/`ScheduleSign` rejected before it could run a schedule |
+| `numMaxBlockSizeThrottleScheduledRejections`, `maxBlockSizeThrottleScheduledRejectedBytes` | Schedules rejected at expiry, and the bytes they wrote. Each is a schedule that will never execute                                            |
+| `numSignedTxnsInSizeLimitedBlocks`                                                         | Signed transactions written to canonical blocks while the budget is enabled, before and after the limit                                       |
+| `bytesAtMaxBlockSizeCutoff` (gauge)                                                        | Size of the most recent canonical block when it reached the limit                                                                             |
+
 ## Status Mapping
 
 This table maps common throttle-related statuses to the exact decision point where they are emitted.
 
-|          Status           |    Emitted in phase     |                                   Decision point                                    |            Source path             |
-|---------------------------|-------------------------|-------------------------------------------------------------------------------------|------------------------------------|
-| `BUSY`                    | Ingest precheck         | `synchronizedThrottleAccumulator.shouldThrottle(txInfo, ...)` returns true          | `IngestChecker.java`               |
-| `BUSY`                    | Query handling precheck | `synchronizedThrottleAccumulator.shouldThrottle(function, query, ...)` returns true | `QueryWorkflowImpl.java`           |
-| `CONSENSUS_GAS_EXHAUSTED` | Handle/consensus        | Backend check failed and last tx was gas-throttled (`wasLastTxnGasThrottled()`)     | `DispatchUsageManager.java`        |
-| `THROTTLED_AT_CONSENSUS`  | Handle/consensus        | Backend check failed for non-gas reason                                             | `DispatchUsageManager.java`        |
-| `CONSENSUS_GAS_EXHAUSTED` | Contract execution path | Ops-duration throttle had zero available capacity before EVM execution              | `ContextTransactionProcessor.java` |
+|          Status           |    Emitted in phase     |                                    Decision point                                    |            Source path             |
+|---------------------------|-------------------------|--------------------------------------------------------------------------------------|------------------------------------|
+| `BUSY`                    | Ingest precheck         | `synchronizedThrottleAccumulator.shouldThrottle(txInfo, ...)` returns true           | `IngestChecker.java`               |
+| `BUSY`                    | Query handling precheck | `synchronizedThrottleAccumulator.shouldThrottle(function, query, ...)` returns true  | `QueryWorkflowImpl.java`           |
+| `CONSENSUS_GAS_EXHAUSTED` | Handle/consensus        | Backend check failed and last tx was gas-throttled (`wasLastTxnGasThrottled()`)      | `DispatchUsageManager.java`        |
+| `THROTTLED_AT_CONSENSUS`  | Handle/consensus        | Backend check failed for non-gas reason                                              | `DispatchUsageManager.java`        |
+| `THROTTLED_AT_CONSENSUS`  | Handle/consensus        | Block execution budget spent (`hasReachedMaxBlockSize()`) and transaction not exempt | `HandleWorkflow.java`              |
+| `CONSENSUS_GAS_EXHAUSTED` | Contract execution path | Ops-duration throttle had zero available capacity before EVM execution               | `ContextTransactionProcessor.java` |
 
 **SEE ALSO:**
 - [High-Volume Pricing (HIP-1313)](high-volume-pricing.md)

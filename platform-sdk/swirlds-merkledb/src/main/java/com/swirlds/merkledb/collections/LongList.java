@@ -2,11 +2,11 @@
 package com.swirlds.merkledb.collections;
 
 import com.swirlds.merkledb.files.DataFileCommon;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
 /**
@@ -92,17 +92,18 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
      */
     LongStream stream();
 
-    /// Writes all longs in this LongList to a file.
-    /// If another thread calls `put()` during the write, the file may contain both old and updated values.
-    ///
-    /// Submits the writes to `executor` and waits for them to finish. The caller owns the executor.
-    /// Once `snapshotFailure` is set, writes that have not started are skipped and the file is incomplete.
-    ///
-    /// @param file new file to write; its parent directory must exist and be writable
-    /// @param executor executor able to run writer tasks while this method waits
-    /// @param snapshotFailure first failure of the enclosing snapshot; a failed write records its failure here
-    /// @throws IOException if there was a problem creating or writing to the file
-    void writeToFile(Path file, Executor executor, AtomicReference<Throwable> snapshotFailure) throws IOException;
+    /**
+     * Write all longs in this LongList into a file
+     * <p>
+     * <b> It is not guaranteed what version of data will be written if the LongList is changed
+     * via put methods while this LongList is being written to a file. If you need consistency while
+     * calling put concurrently then use a BufferedLongListWrapper. </b>
+     *
+     * @param file The file to write into, it should not exist but its parent directory should exist
+     *             and be writable.
+     * @throws IOException If there was a problem creating or writing to the file.
+     */
+    void writeToFile(Path file) throws IOException;
 
     /**
      * Updates min and max valid indexes in this list. If both values are -1, this indicates
@@ -138,6 +139,21 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
      * @return max valid index
      */
     long getMaxValidIndex();
+
+    /// Creates a copy of this list, with the same contents, capacity and valid range. The copy doesn't
+    /// share any resources with this list, so either list can be changed or closed independently. The
+    /// list must not be modified while it's copied. It may be read concurrently.
+    ///
+    /// Only in-memory lists can be copied. Other lists throw [UnsupportedOperationException].
+    ///
+    /// @param executor the executor to run copy tasks on, an implementation may copy parts of the list
+    ///     in parallel
+    /// @return the copy
+    /// @throws UnsupportedOperationException if this list can't be copied
+    @NonNull
+    default LongList copy(@NonNull final Executor executor) {
+        throw new UnsupportedOperationException(getClass().getSimpleName() + " can't be copied");
+    }
 
     /** {@inheritDoc} */
     @Override

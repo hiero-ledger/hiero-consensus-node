@@ -134,10 +134,7 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
         @NonNull
         @Override
         public VirtualDataSource build(
-                final String label,
-                @Nullable final Path sourceDir,
-                final boolean compactionEnabled,
-                final boolean offlineUse) {
+                final String label, @Nullable final Path sourceDir, final boolean compactionEnabled) {
             return new VirtualDataSource() {
                 @Override
                 public void close() throws IOException {

@@ -31,12 +31,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LongSummaryStatistics;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.collections.api.tuple.primitive.IntObjectPair;
@@ -141,10 +139,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      * @param legacyStoreName                Base name for the data store. If not null, the store will process
      *                                       files with this prefix at startup. New files in the store will be prefixed with {@code
      *                                       storeName}
-     * @param preferDiskBasedIndex           When true we will use disk based index rather than ram where
-     *                                       possible. This will come with a significant performance cost, especially for writing. It
-     *                                       is possible to load a data source that was written with memory index with disk based
-     *                                       index and vice versa.
+     * @param bucketIndex                    The bucket index to use instead of the bucket index file, or null to load
+     *                                       or rebuild the index. If it's null, the index is disk based if
+     *                                       {@link MerkleDbConfig#useDiskIndices()} is set. If it's provided, the store
+     *                                       dir must exist, and if this constructor succeeds, this map owns the bucket
+     *                                       index.
      * @throws IOException If there was a problem creating or opening a set of data files.
      */
     public HalfDiskHashMap(
@@ -155,9 +154,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final @NonNull Path storeDir,
             final String storeName,
             final String legacyStoreName,
-            final boolean preferDiskBasedIndex)
+            final @Nullable LongList bucketIndex)
             throws IOException {
         requireNonNull(config);
+        final boolean preferDiskBasedIndex = config.useDiskIndices();
         this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.
@@ -207,7 +207,10 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             }
             // load or rebuild index
             final boolean forceIndexRebuilding = config.indexRebuildingEnforced();
-            if (Files.exists(indexFile) && !forceIndexRebuilding) {
+            if (bucketIndex != null) {
+                bucketIndexToBucketLocation = bucketIndex;
+                loadedDataCallback = null;
+            } else if (Files.exists(indexFile) && !forceIndexRebuilding) {
                 bucketIndexToBucketLocation = preferDiskBasedIndex
                         ? new LongListDisk(indexFile, bucketIndexCapacity, config, fileSystemManager)
                         : new LongListSegment(indexFile, bucketIndexCapacity, config);
@@ -375,25 +378,18 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /** {@inheritDoc} */
     public void snapshot(final Path snapshotDirectory) throws IOException {
-        snapshot(snapshotDirectory, Runnable::run, new AtomicReference<>());
-    }
-
-    /// Writes a snapshot, using the supplied executor for parallel bucket-index writes.
-    ///
-    /// Waits for all writes to finish. The caller owns the executor.
-    ///
-    /// @param snapshotDirectory directory to write the snapshot to
-    /// @param executor executor able to run writer tasks while this method waits
-    /// @param snapshotFailure first failure of the enclosing snapshot; bucket-index writes skip once it is set
-    /// @throws IOException if the snapshot cannot be written
-    public void snapshot(
-            final Path snapshotDirectory, final Executor executor, final AtomicReference<Throwable> snapshotFailure)
-            throws IOException {
         // create snapshot directory if needed
         Files.createDirectories(snapshotDirectory);
         // write index to file
-        bucketIndexToBucketLocation.writeToFile(
-                snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX), executor, snapshotFailure);
+        bucketIndexToBucketLocation.writeToFile(snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX));
+        snapshotWithoutIndex(snapshotDirectory);
+    }
+
+    /// Same as [#snapshot(Path)], but the bucket index isn't written. To load such a snapshot,
+    /// the bucket index must be provided to the constructor.
+    public void snapshotWithoutIndex(final Path snapshotDirectory) throws IOException {
+        // create snapshot directory if needed
+        Files.createDirectories(snapshotDirectory);
         // snapshot files
         fileCollection.snapshot(snapshotDirectory);
         // write metadata
