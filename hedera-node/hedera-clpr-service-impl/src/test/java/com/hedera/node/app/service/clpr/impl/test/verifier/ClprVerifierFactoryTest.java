@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier;
+import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProofVerifier;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.DisplayName;
@@ -45,5 +46,44 @@ class ClprVerifierFactoryTest {
         assertThatThrownBy(() -> subject.getVerifier(contractId))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_INVALID_VERIFIER_CONTRACT));
+    }
+
+    @Test
+    @DisplayName("getVerifier resolves a precompile built-in (0x16f Besu) via the registry to an EvmClprVerifier")
+    void builtInResolvesViaRegistry() {
+        final var cid = ContractID.newBuilder().contractNum(0x16fL).build();
+        assertThat(subject.getVerifier(cid)).isInstanceOf(EvmClprVerifier.class);
+    }
+
+    @Test
+    @DisplayName("getVerifier falls through to EvmClprVerifier for a custom (non-built-in) contract num")
+    void customContractFallsThroughToEvm() {
+        final var cid = ContractID.newBuilder().contractNum(0x999L).build();
+        assertThat(subject.getVerifier(cid)).isInstanceOf(EvmClprVerifier.class);
+    }
+
+    @Test
+    @DisplayName("getVerifier throws CLPR_INVALID_VERIFIER_CONTRACT for an empty ContractID")
+    void emptyIdThrowsInvalidVerifierContract() {
+        final var cid = ContractID.newBuilder().build();
+        assertThatThrownBy(() -> subject.getVerifier(cid))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_INVALID_VERIFIER_CONTRACT));
+    }
+
+    @Test
+    @DisplayName("Canton (0x172) built-in resolves to CantonProofVerifier via contract num")
+    void cantonResolvesToNativeVerifierByNum() {
+        final var cid = ContractID.newBuilder().contractNum(0x172L).build();
+        assertThat(subject.getVerifier(cid)).isInstanceOf(CantonProofVerifier.class);
+    }
+
+    @Test
+    @DisplayName("Canton (0x172) built-in resolves to CantonProofVerifier via evm address")
+    void cantonResolvesToNativeVerifierByEvmAddress() {
+        final var addr =
+                Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x72});
+        final var cid = ContractID.newBuilder().evmAddress(addr).build();
+        assertThat(subject.getVerifier(cid)).isInstanceOf(CantonProofVerifier.class);
     }
 }

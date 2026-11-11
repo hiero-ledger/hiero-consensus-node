@@ -62,7 +62,7 @@ class CantonProtoTest {
         final Contract c = CantonProto.parseContract(contract, new ContractRange(0, contract.length));
 
         assertEquals(1, c.signatories().size());
-        assertThat(new String(sub(contract, c.signatories().getFirst()), StandardCharsets.UTF_8))
+        assertThat(new String(sub(contract, c.signatories().get(0)), StandardCharsets.UTF_8))
                 .startsWith("app_provider_localnet-localparty-1::1220");
 
         // Real Daml-LF create argument: a Record with 4 fields (dsoParty, validatorParty, endUserName, endUserParty).
@@ -380,7 +380,7 @@ class CantonProtoTest {
         void varintOverflowRejected() {
             // 10 continuation bytes overflow uint64.
             final byte[] b = new byte[11];
-            b[0] = (byte) ((5 << 3));
+            b[0] = (byte) ((5 << 3) | 0);
             for (int i = 1; i <= 10; i++) {
                 b[i] = (byte) 0x80;
             }

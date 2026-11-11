@@ -116,4 +116,13 @@ final class CantonRlp {
         System.arraycopy(value, 0, out, 32 - value.length, value.length);
         return out;
     }
+
+    /** {@code ClprCantonRlp.isEmpty}: whether {@code item} is an empty RLP string or an empty RLP list. */
+    static boolean isEmpty(final Slice item) {
+        if (item.len() != 1) {
+            return item.len() == 0;
+        }
+        final int head = item.buf()[item.off()] & 0xff;
+        return head == 0x80 || head == 0xc0;
+    }
 }

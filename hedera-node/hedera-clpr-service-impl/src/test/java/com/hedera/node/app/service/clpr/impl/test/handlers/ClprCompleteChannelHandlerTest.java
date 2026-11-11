@@ -44,6 +44,7 @@ import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteChannelHandler;
 import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
+import com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.store.StoreFactory;
@@ -467,7 +468,8 @@ class ClprCompleteChannelHandlerTest {
                         0x16eL, "9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e",
                         0x16fL, "9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909",
                         0x170L, "ee0783a29d06bd654e54a8fd53a8553af7a43b0e601b1a0a1b59034b10e2ff45",
-                        0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c")
+                        0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c",
+                        0x172L, "8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9")
                 .entrySet()
                 .stream()
                 .flatMap(entry -> Stream.of(
@@ -957,5 +959,41 @@ class ClprCompleteChannelHandlerTest {
         LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
                 LibSecp256k1.CONTEXT, compactSigBuffer, recId, recoverableSig);
         return compactSigBuffer.array();
+    }
+
+    @Test
+    void completeChannelAcceptsCantonBuiltInVerifier() {
+        final var cantonCid = ContractID.newBuilder().contractNum(0x172L).build();
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var op = validEcdsaTxn()
+                .clprCompleteChannelOrThrow()
+                .copyBuilder()
+                .verifierContract(cantonCid)
+                .build();
+        setupHandleContext(txnWith(op));
+
+        subject.handle(handleContext);
+
+        final var stored = channelStore.getChannel(CHANNEL_ID);
+        assertThat(stored).isNotNull();
+        assertThat(stored.verifierContract()).isEqualTo(cantonCid);
+        assertThat(stored.verifierFingerprint())
+                .isEqualTo(Bytes.fromHex("8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9"));
+        then(accountStore).shouldHaveNoInteractions();
+        then(smartContractServiceApi).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void builtInVerifierForReturnsEvmVerifierForPrecompileBuiltIns() {
+        for (long num : new long[] {0x16eL, 0x16fL, 0x170L, 0x171L}) {
+            var cid = ContractID.newBuilder().contractNum(num).build();
+            assertThat(ClprCompleteChannelHandler.builtInVerifierFor(cid)).isInstanceOf(EvmClprVerifier.class);
+        }
+    }
+
+    @Test
+    void builtInVerifierForReturnsNullForNonBuiltIn() {
+        var cid = ContractID.newBuilder().contractNum(0x999L).build();
+        assertThat(ClprCompleteChannelHandler.builtInVerifierFor(cid)).isNull();
     }
 }

@@ -99,7 +99,7 @@ class CantonProofVerifierBundleTest {
         assertThat(c.metadata().status()).isEqualTo(ClprChannelStatus.ACTIVE);
         assertThat(c.metadata().endpointManifestVersion()).isEqualTo(3);
         assertThat(c.messages()).hasSize(1);
-        assertThat(c.messages().getFirst().message().sender()).isEqualTo(Bytes.wrap(utf8(APP)));
+        assertThat(c.messages().get(0).message().sender()).isEqualTo(Bytes.wrap(utf8(APP)));
         assertThat(c.newTrustAnchor().length()).isZero();
         assertThat(c.newTrustAnchorId().length()).isZero();
         assertThat(c.newEndpointManifest().version()).isEqualTo(2);
@@ -264,9 +264,26 @@ class CantonProofVerifierBundleTest {
     }
 
     @Test
-    void nonEmptyRotationsAreNotSupportedInPrA() {
+    void malformedNonEmptyRotationsRejected() {
+        // Under PR B rotations are applied; a non-empty value that is not RLP [ownerSet, [rotation…]] is rejected
+        // by CantonTopologyVerifier.applyRotations (here: a one-item list, not the required two).
         final var b = new Bundle().rotations(rlpList(rlpString(new byte[] {1})));
-        assertRejects("RotationsNotSupported", () -> verify(b));
+        assertRejects("InvalidPayloadShape", () -> verify(b));
+    }
+
+    @Test
+    void nonEmptyRotationsAreRoutedThroughApplyRotations() {
+        // A real LsuAnnouncement rotation reaches CantonTopologyVerifier.applyRotations through verifyBundle: the
+        // owner set hashes to the anchor, but the announced successor is of a different logical synchronizer than
+        // the anchor's, so applyRotations rejects it — proving field 4 is applied, not short-circuited.
+        final byte[] ownerSet = CantonFixtures.lsuOwnerSet();
+        final byte[] rotationItem =
+                rlpList(rlpString(CantonFixtures.lsuAnnouncement()), rlpString(new byte[0]), rlpString(new byte[0]));
+        final byte[] rotations = rlpList(rlpString(ownerSet), rlpList(rotationItem));
+        final var b = new Bundle()
+                .anchorOwnersHash(MiscCryptoUtils.keccak256DigestOf(ownerSet))
+                .rotations(rotations);
+        assertRejects("InvalidLsuAnnouncement", () -> verify(b));
     }
 
     @Test
@@ -415,13 +432,6 @@ class CantonProofVerifierBundleTest {
                 .isInstanceOf(HandleException.class);
     }
 
-    @Test
-    void verifyConfigIsNotSupportedInPrA() {
-        assertThatThrownBy(() -> new CantonProofVerifier()
-                        .verifyConfig(Bytes.EMPTY, Bytes.wrap(CHANNEL_ID), Bytes.EMPTY, mock(HandleContext.class)))
-                .isInstanceOf(HandleException.class);
-    }
-
     // ── bundle assembly ─────────────────────
 
     private static ClprBundleContent verify(final Bundle b) {
@@ -436,6 +446,7 @@ class CantonProofVerifierBundleTest {
         private long upgradeTime;
         private long lastRequestId;
         private byte[] mediatorsHash = MiscCryptoUtils.keccak256DigestOf(MEDIATOR_SET);
+        private byte[] ownersHash = new byte[32];
         private String informee = APP;
         private long appWeight = 1;
         private long otherWeight = 0;
@@ -469,6 +480,11 @@ class CantonProofVerifierBundleTest {
 
         Bundle anchorMediatorsHash(final byte[] h) {
             mediatorsHash = h;
+            return this;
+        }
+
+        Bundle anchorOwnersHash(final byte[] h) {
+            ownersHash = h;
             return this;
         }
 
@@ -593,7 +609,7 @@ class CantonProofVerifierBundleTest {
                     lastRequestId,
                     GROUP,
                     new byte[32],
-                    new byte[32],
+                    ownersHash,
                     mediatorsHash,
                     successor,
                     upgradeTime,

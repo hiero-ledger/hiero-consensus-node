@@ -68,7 +68,11 @@ public final class CantonProto {
 
     /** What the verifier reads from a {@code ViewParticipantData} leaf. */
     public record ParticipantData(
-            boolean isExercise, boolean rolledBack, @NonNull List<ContractRange> createdCore) {}
+            boolean isExercise,
+            boolean rolledBack,
+            @NonNull List<ContractRange> createdCore,
+            @NonNull Range exerciseChoice,
+            @NonNull Range exerciseTemplateId) {}
 
     /** {@code CommonMetadata}'s synchronizer id and mediator group. */
     public record SyncAndGroup(@NonNull byte[] synchronizerId, long group) {}
@@ -84,11 +88,11 @@ public final class CantonProto {
 
     // ── Wire primitives ─────────────────────────────────────────────────────
 
-    private record Varint(long value, int next) {}
+    record Varint(long value, int next) {}
 
-    private record Field(long number, int wireType, Range value, long scalar, int next) {}
+    record Field(long number, int wireType, Range value, long scalar, int next) {}
 
-    private static Varint readVarint(final byte[] b, int i, final int end) {
+    static Varint readVarint(final byte[] b, int i, final int end) {
         long v = 0;
         int shift = 0;
         while (true) {
@@ -112,7 +116,7 @@ public final class CantonProto {
      * Read the field at {@code i}: its number and wire type, the value range for LEN fields, the value for
      * VARINT fields, and the offset of the next field.
      */
-    private static Field readField(final byte[] b, int i, final int end) {
+    static Field readField(final byte[] b, int i, final int end) {
         final Varint key = readVarint(b, i, end);
         i = key.next();
         final long number = key.value() >>> 3;
@@ -144,7 +148,7 @@ public final class CantonProto {
     }
 
     /** The value range of the LEN field {@code number} in {@code r}, which must occur at most once; null if absent. */
-    private static Range find(final byte[] b, final Range r, final long number) {
+    static Range find(final byte[] b, final Range r, final long number) {
         Range value = null;
         boolean found = false;
         int i = r.start();
@@ -163,7 +167,7 @@ public final class CantonProto {
     }
 
     /** As {@link #find}, throwing when the field is absent. */
-    private static Range get(final byte[] b, final Range r, final long number) {
+    static Range get(final byte[] b, final Range r, final long number) {
         final Range value = find(b, r, number);
         if (value == null) {
             throw CantonProofException.cantonProtoMissingField("field " + number);
@@ -175,7 +179,7 @@ public final class CantonProto {
      * The VARINT field {@code number} in {@code r}, which must occur at most once, or zero (the proto3
      * default) when absent.
      */
-    private static long getVarint(final byte[] b, final Range r, final long number) {
+    static long getVarint(final byte[] b, final Range r, final long number) {
         long value = 0;
         boolean found = false;
         int i = r.start();
@@ -194,7 +198,7 @@ public final class CantonProto {
     }
 
     /** Every LEN field {@code number} in {@code r}, in order. */
-    private static List<Range> getAll(final byte[] b, final Range r, final long number) {
+    static List<Range> getAll(final byte[] b, final Range r, final long number) {
         final List<Range> out = new ArrayList<>();
         int i = r.start();
         while (i < r.end()) {
@@ -211,7 +215,7 @@ public final class CantonProto {
     }
 
     /** The field of a {@code oneof} holder {@code r}, which must hold exactly one field. */
-    private static Field onlyField(final byte[] b, final Range r) {
+    static Field onlyField(final byte[] b, final Range r) {
         final Field f = readField(b, r.start(), r.end());
         if (f.next() != r.end()) {
             throw CantonProofException.cantonProtoMalformed("oneof holder does not hold exactly one field");
@@ -219,7 +223,7 @@ public final class CantonProto {
         return f;
     }
 
-    private static Range whole(final byte[] b) {
+    static Range whole(final byte[] b) {
         return new Range(0, b.length);
     }
 
@@ -227,7 +231,7 @@ public final class CantonProto {
         return r.length() == expected.length && Arrays.equals(b, r.start(), r.end(), expected, 0, expected.length);
     }
 
-    private static byte[] copy(final byte[] b, final Range r) {
+    static byte[] copy(final byte[] b, final Range r) {
         return Arrays.copyOfRange(b, r.start(), r.end());
     }
 
@@ -260,7 +264,7 @@ public final class CantonProto {
 
     /** The SHA-256 digest inside a 34-byte multihash {@code 0x12 0x20 || digest}. */
     @NonNull
-    private static byte[] readMultihash(final byte[] b, final Range r) {
+    static byte[] readMultihash(final byte[] b, final Range r) {
         if (r.length() != 34 || (b[r.start()] & 0xff) != 0x12 || (b[r.start() + 1] & 0xff) != 0x20) {
             throw CantonProofException.cantonProtoMalformed("not a 34-byte sha256 multihash");
         }
@@ -347,10 +351,12 @@ public final class CantonProto {
         final List<Range> createdCore = getAll(b, r, 3);
         final Field action = onlyField(b, get(b, r, 6));
         final boolean isExercise = action.number() == 2 && action.wireType() == WIRE_LEN;
+        // As the reference, the choice and template id are the empty range unless the action is an exercise.
+        Range exerciseChoice = new Range(0, 0);
+        Range exerciseTemplateId = new Range(0, 0);
         if (isExercise) {
-            // Read the exercise choice and template id for strictness parity even though they are not returned.
-            get(b, action.value(), 2);
-            get(b, action.value(), 10);
+            exerciseChoice = get(b, action.value(), 2);
+            exerciseTemplateId = get(b, action.value(), 10);
         }
         boolean rolledBack;
         if (protoV32) {
@@ -368,7 +374,7 @@ public final class CantonProto {
         for (final Range cr : createdCore) {
             created.add(new ContractRange(cr.start(), cr.end()));
         }
-        return new ParticipantData(isExercise, rolledBack, created);
+        return new ParticipantData(isExercise, rolledBack, created, exerciseChoice, exerciseTemplateId);
     }
 
     // ── Contracts ──────────────────────────────────────────────────────────

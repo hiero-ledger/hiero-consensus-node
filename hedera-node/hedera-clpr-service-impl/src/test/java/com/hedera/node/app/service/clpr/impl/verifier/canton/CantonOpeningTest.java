@@ -308,7 +308,7 @@ class CantonOpeningTest {
 
         /**
          * Generic: the expected root is computed bottom-up from the tree this describes ("root-view seq of one"
-         * path only), independently of the verifier's fold.
+         * path only), independently of the verifier's fold; see {@link #expectedRoot}.
          */
         Opening custom(
                 final int vpdVersion,

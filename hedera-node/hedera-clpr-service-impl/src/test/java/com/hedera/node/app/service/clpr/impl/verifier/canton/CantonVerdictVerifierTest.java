@@ -349,7 +349,7 @@ class CantonVerdictVerifierTest {
         }
         assertThat(hits).hasSize(1);
         final byte[] out = src.clone();
-        System.arraycopy(to, 0, out, hits.getFirst(), to.length);
+        System.arraycopy(to, 0, out, hits.get(0), to.length);
         return out;
     }
 }
