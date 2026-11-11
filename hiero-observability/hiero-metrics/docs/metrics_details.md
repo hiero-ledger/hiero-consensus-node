@@ -2,10 +2,6 @@
 
 [📘Back to Overview](metrics_overview.md)
 
-### Class Diagram
-
-![metrics_core_class_diagram.svg](img/metrics_core_class_diagram.svg)
-
 ### Metric API
 
 All metrics available to use are defined in `org.hiero.metrics` package.<br/>
@@ -114,7 +110,7 @@ To be discovered by SPI mechanism implementations of `MetricsExporterFactory` sh
 Snapshots provided to exporter contain all registered metrics in the registry with their measurements and values at the moment of snapshot.
 Snapshots internally are reusable objects and values are updated during each registry snapshot, which is **synchronous** operation.
 Registering or removing a metric and adding or removing a measurement only marks the snapshot as changed, so application threads never copy or lock snapshot lists.
-The snapshot supplier rebuilds the changed lists from the registered metrics and their measurements, creating the snapshots of new measurements, and then updates the values.
+The snapshot supplier rebuilds the changed lists from the registered metrics and their measurements, creating the snapshots of new measurements, and then updates the values; a rebuilt list replaces the iterated one only after its values are updated.
 Metrics are sorted by name, and measurements of a metric by their dynamic label values in label name order.
 This order is deterministic, but how label values are compared is not specified and may change, for example to order numeric values by number.
 The writer iterates exactly the metrics and measurements collected by the supplier, as long as the exporter finishes writing a snapshot before calling the supplier again; a change made after the supplier ran is picked up by the next export.

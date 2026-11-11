@@ -2,6 +2,7 @@
 package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -25,7 +26,7 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
     private final Collection<Metric<?>> metrics;
 
     // set by any thread after metrics are registered or removed, cleared by the update rebuilding the list
-    private final AtomicBoolean changed = new AtomicBoolean(true);
+    private final AtomicBoolean metricsChanged = new AtomicBoolean(true);
     // replaced by a rebuilt list and never changed in place, so a started iteration is not affected
     private volatile List<MetricSnapshot> snapshots = List.of();
 
@@ -66,6 +67,7 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
     /**
      * Rebuilds the list of metric snapshots if metrics were registered or removed since the last update,
      * and updates all metric snapshots with the latest measurement values.
+     * A rebuilt list replaces the iterated one only after its values are updated.
      * Package private method, because it is called by the {@link MetricRegistry} each time exporter collects metrics snapshots.
      *
      * @return this registry snapshot
@@ -73,19 +75,40 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
     @NonNull
     synchronized MetricRegistrySnapshot update() {
         timestamp = System.currentTimeMillis();
-        // cleared before reading the metrics: a change made after clearing marks it again for the next update;
-        // read first, so an update without changes does not write the flag
-        if (changed.get() && changed.getAndSet(false)) {
-            final List<MetricSnapshot> rebuilt = new ArrayList<>(metrics.size());
-            for (Metric<?> metric : metrics) {
-                rebuilt.add(metric.snapshot());
+        final List<MetricSnapshot> changed = snapshotsIfChanged();
+        final List<MetricSnapshot> current =
+                changed == null ? snapshots : SnapshotLists.sortKeepingLastOfEqual(changed, BY_NAME);
+        try {
+            for (MetricSnapshot snapshot : current) {
+                snapshot.update();
             }
-            snapshots = SnapshotLists.sortKeepingLastOfEqual(rebuilt, BY_NAME);
-        }
-        for (MetricSnapshot snapshot : snapshots) {
-            snapshot.update();
+        } finally {
+            // published after the values are updated, so an iteration never reads a new snapshot without its values;
+            // published also if an update throws, because the metrics are not marked as changed anymore
+            if (changed != null) {
+                snapshots = current;
+            }
         }
         return this;
+    }
+
+    /**
+     * Collects the snapshots of all metrics, if metrics were registered or removed since the last call.
+     *
+     * @return the snapshots of all metrics in iteration order, or {@code null} if nothing changed
+     */
+    @Nullable
+    private List<MetricSnapshot> snapshotsIfChanged() {
+        // cleared before reading the metrics: a change made after clearing marks it again for the next update;
+        // read first, so an update without changes does not write the flag
+        if (!metricsChanged.get() || !metricsChanged.getAndSet(false)) {
+            return null;
+        }
+        final List<MetricSnapshot> collected = new ArrayList<>(metrics.size());
+        for (Metric<?> metric : metrics) {
+            collected.add(metric.snapshot());
+        }
+        return collected;
     }
 
     /**
@@ -95,6 +118,6 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
      * or removing a metric.
      */
     void markChanged() {
-        changed.set(true);
+        metricsChanged.set(true);
     }
 }

@@ -35,16 +35,24 @@ public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSna
     /**
      * Rebuilds the list of measurement snapshots if measurements were added or removed since the last update,
      * and updates all measurement snapshots with the latest measurement values.
+     * A rebuilt list replaces the iterated one only after its values are updated.
      * <p>
      * This method is package private, because it is called by the {@link MetricRegistry} internally each time collecting metrics snapshots.
      */
     void update() {
         final List<MeasurementSnapshot> changed = measurements.snapshotsIfChanged();
-        if (changed != null) {
-            measurementSnapshots = SnapshotLists.sortKeepingLastOfEqual(changed, BY_LABEL_VALUES);
-        }
-        for (MeasurementSnapshot measurementSnapshot : measurementSnapshots) {
-            measurementSnapshot.update();
+        final List<MeasurementSnapshot> current =
+                changed == null ? measurementSnapshots : SnapshotLists.sortKeepingLastOfEqual(changed, BY_LABEL_VALUES);
+        try {
+            for (MeasurementSnapshot measurementSnapshot : current) {
+                measurementSnapshot.update();
+            }
+        } finally {
+            // published after the values are updated, so an iteration never reads a new snapshot without its value;
+            // published also if an update throws, because the measurements are not marked as changed anymore
+            if (changed != null) {
+                measurementSnapshots = current;
+            }
         }
     }
 
