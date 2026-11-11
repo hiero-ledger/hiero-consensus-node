@@ -166,12 +166,13 @@ public final class LatencyRecorder {
     LatencyRecorder() {}
 
     /**
-     * Creates an empty histogram with the layout of the recorders' histograms, so that it can merge them.
+     * Creates an empty histogram with the layout of the recorders' histograms, so that it can merge them, or be added
+     * to a recorder with {@link #recordPass}.
      *
      * @return an empty histogram
      */
     @NonNull
-    static LatencyHistogram newHistogram() {
+    public static LatencyHistogram newHistogram() {
         return new LatencyHistogram(PRECISION_BITS, RANGE_BITS);
     }
 
@@ -253,6 +254,20 @@ public final class LatencyRecorder {
         } else {
             discardedPasses++;
         }
+    }
+
+    /**
+     * Adds a pass that another tool timed, such as a pass of a
+     * {@link org.hiero.consensus.benchmark.tools.pipeline.PipelineTimer PipelineTimer}, whose latencies do not come
+     * from {@link #lap()} on one thread. Call it outside a pass started with {@link #startMeasurement()}.
+     *
+     * @param pass the latencies of the pass, in a histogram from {@link #newHistogram()}
+     * @param allocatedBytes the bytes the pass allocated
+     * @throws IllegalArgumentException if the histogram has another layout
+     */
+    public void recordPass(@NonNull final LatencyHistogram pass, final long allocatedBytes) {
+        histogram.add(pass);
+        this.allocatedBytes += allocatedBytes;
     }
 
     private static long totalGcCount() {

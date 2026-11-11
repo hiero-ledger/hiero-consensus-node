@@ -8,13 +8,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_SECP256K1_KEY;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -30,15 +27,13 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleSystemContractOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy.Decision;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
-import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.utils.SystemContractUtils;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.key.KeyVerifier;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
-import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -89,25 +84,10 @@ class HandleSystemContractOperationsTest {
     }
 
     @Test
-    void returnsExpectedPrimitiveTest() {
-        given(strategy.asPrimitiveSignatureTestIn(context, A_SECP256K1_KEY)).willReturn(callback);
-        assertSame(callback, subject.primitiveSignatureTestWith(strategy));
-    }
-
-    @Test
-    void returnsExpectedTest() {
-        final var captor = forClass(VerificationAssistant.class);
-        doCallRealMethod().when(strategy).asSignatureTestIn(context, A_SECP256K1_KEY);
-        given(strategy.asPrimitiveSignatureTestIn(context, A_SECP256K1_KEY)).willReturn(callback);
-        given(context.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(eq(Key.DEFAULT), captor.capture())).willReturn(passed);
-        given(passed.passed()).willReturn(true);
-
-        final var test = subject.signatureTestWith(strategy);
-
-        assertTrue(test.test(Key.DEFAULT));
-        captor.getValue().test(Key.DEFAULT, failed);
-        verify(callback).test(Key.DEFAULT);
+    void returnsExpectedRequirementTest() {
+        final var callback = mock(RequirementVerifier.class);
+        given(strategy.asRequirementTestIn(context, A_SECP256K1_KEY)).willReturn(callback);
+        assertSame(callback, subject.requirementTestWith(strategy));
     }
 
     @Test
@@ -129,18 +109,10 @@ class HandleSystemContractOperationsTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void dispatchesRespectingGivenStrategy() {
+    void dispatchesWithCompleteRequirementVerifier() {
         final var captor = forClass(DispatchOptions.class);
-        given(strategy.decideForPrimitive(TestHelpers.A_CONTRACT_KEY)).willReturn(Decision.VALID);
-        given(strategy.decideForPrimitive(AN_ED25519_KEY)).willReturn(Decision.DELEGATE_TO_CRYPTOGRAPHIC_VERIFICATION);
-        given(strategy.decideForPrimitive(TestHelpers.B_SECP256K1_KEY))
-                .willReturn(Decision.DELEGATE_TO_CRYPTOGRAPHIC_VERIFICATION);
-        given(strategy.decideForPrimitive(TestHelpers.A_SECP256K1_KEY)).willReturn(Decision.INVALID);
-        given(passed.passed()).willReturn(true);
-        given(context.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(AN_ED25519_KEY)).willReturn(passed);
-        given(keyVerifier.verificationFor(TestHelpers.B_SECP256K1_KEY)).willReturn(failed);
-        doCallRealMethod().when(strategy).asPrimitiveSignatureTestIn(context, A_SECP256K1_KEY);
+        final var requirementVerifier = mock(RequirementVerifier.class);
+        given(strategy.asRequirementTestIn(context, A_SECP256K1_KEY)).willReturn(requirementVerifier);
 
         subject.dispatch(
                 TransactionBody.DEFAULT,
@@ -152,11 +124,7 @@ class HandleSystemContractOperationsTest {
 
         verify(context).dispatch(captor.capture());
         final var options = captor.getValue();
-        final var test = options.keyVerifier();
-        assertTrue(test.test(TestHelpers.A_CONTRACT_KEY));
-        assertTrue(test.test(AN_ED25519_KEY));
-        assertFalse(test.test(TestHelpers.A_SECP256K1_KEY));
-        assertFalse(test.test(TestHelpers.B_SECP256K1_KEY));
+        assertSame(requirementVerifier, options.requirementVerifier());
         assertThat(options.authorizingKeys()).containsExactly(AN_ED25519_KEY);
     }
 

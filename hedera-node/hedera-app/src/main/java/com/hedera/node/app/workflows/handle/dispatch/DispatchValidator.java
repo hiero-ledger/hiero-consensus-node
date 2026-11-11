@@ -32,6 +32,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -125,7 +126,8 @@ public class DispatchValidator {
             // any node's ingest, so it must be verified here, before the payer is charged
             final var verification = isHollow(payer)
                     ? dispatch.keyVerifier().verificationFor(payer.alias())
-                    : dispatch.keyVerifier().verificationFor(payer.keyOrThrow());
+                    : dispatch.keyVerifier()
+                            .verificationFor(KeyRequirement.forAccount(payer.accountIdOrThrow(), payer.keyOrThrow()));
             if (verification.failed()) {
                 return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
             }

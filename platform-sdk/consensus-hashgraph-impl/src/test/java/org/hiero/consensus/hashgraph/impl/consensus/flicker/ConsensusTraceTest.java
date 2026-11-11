@@ -38,7 +38,7 @@ class ConsensusTraceTest {
         final ConsensusTraceLog traceLog = new ConsensusTraceLog();
         final FlickerIntake intake = new FlickerIntake(configuration, roster, traceLog);
 
-        for (final NamedEvent named : LadderGraph.build(roster)) {
+        for (final NamedEvent named : LadderGraph.build()) {
             intake.add(named.name(), named.event());
         }
         return traceLog;
@@ -150,7 +150,7 @@ class ConsensusTraceTest {
     void scopesPartitionTheRun() {
         final ConsensusTraceLog traceLog = runLadderGraph();
 
-        final List<Change> fromScopes = LadderGraph.build(LadderGraph.roster()).stream()
+        final List<Change> fromScopes = LadderGraph.build().stream()
                 .flatMap(named -> traceLog.during(named.name()).changes().stream())
                 .toList();
 

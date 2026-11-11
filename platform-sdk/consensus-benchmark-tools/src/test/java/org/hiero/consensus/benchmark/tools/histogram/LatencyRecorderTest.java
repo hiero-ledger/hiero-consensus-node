@@ -118,4 +118,29 @@ class LatencyRecorderTest {
 
         assertThatThrownBy(recorder::stopMeasurement).isInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void recordedPassesAddUp() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        final LatencyHistogram pass = LatencyRecorder.newHistogram();
+        pass.record(1_000);
+        pass.record(3_000);
+        recorder.recordPass(pass, 100);
+        pass.reset();
+        pass.record(5_000);
+        recorder.recordPass(pass, 50);
+
+        assertThat(recorder.histogram().totalCount()).isEqualTo(3);
+        assertThat(recorder.histogram().mean()).isEqualTo(3_000);
+        assertThat(recorder.allocatedBytes()).isEqualTo(150);
+        assertThat(recorder.discardedPasses()).isZero();
+    }
+
+    @Test
+    void aPassWithAnotherLayoutIsRejected() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+
+        assertThatThrownBy(() -> recorder.recordPass(new LatencyHistogram(8, 36), 0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

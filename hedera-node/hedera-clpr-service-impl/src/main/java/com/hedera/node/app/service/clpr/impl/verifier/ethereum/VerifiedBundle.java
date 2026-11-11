@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.verifier.ethereum;
 import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.checkedCopy;
 
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
@@ -11,22 +12,23 @@ import java.util.Objects;
 /**
  * Result of a successful {@link EthereumSyncCommitteeProofVerifier#verifyBundle} call.
  *
- * @param beaconBlockRoot32 the SSZ hash_tree_root of the attested beacon block header
+ * @param beaconBlockRoot32 the SSZ hash_tree_root of the delivery's attested beacon block header
  * @param bundleContentBytes the protobuf-serialized {@code ClprBundleContent} bytes
  *     pulled from the RLP item of the payload
  * @param queueMetadata the {@code ClprQueueMetadata} fields decoded from the five Merkle-proven
  *     storage slots, or the all-zero absent sentinel ({@code nextMessageId == 0}) when the bundle carried
  *     no queue storage proof — a bundle that advances only the endpoint manifest (spec §8.1.4)
- * @param nextTrustAnchor the successor trust anchor proven by the payload's next-sync-committee
- *     branch, or {@code null} if the payload carried no rotation proof
- * @param nextTrustAnchorId defines uniquely the trust anchor. For Ethereum, this is the slot number.
+ * @param nextTrustAnchor the successor trust anchor after the payload's committee rotations, or
+ *     {@code null} if the payload carried no rotation
+ * @param nextTrustAnchorId the successor trust anchor's id: its sync-committee period as 8 big-endian
+ *     bytes, or {@code null} if the payload carried no rotation
  * @param newEndpointManifest the endpoint manifest the bundle advances to — verified against the proven
  *     account storage root — or {@code null} when the bundle carried no manifest advance
  */
 public record VerifiedBundle(
         @NonNull byte[] beaconBlockRoot32,
         @NonNull byte[] bundleContentBytes,
-        @NonNull QueueMetadata queueMetadata,
+        @NonNull ProvenQueueMetadata queueMetadata,
         @Nullable byte[] nextTrustAnchor,
         @Nullable byte[] nextTrustAnchorId,
         @Nullable ClprEndpointManifest newEndpointManifest) {
@@ -66,7 +68,7 @@ public record VerifiedBundle(
     public static final class Builder {
         private byte[] beaconBlockRoot32;
         private byte[] bundleContentBytes;
-        private QueueMetadata queueMetadata;
+        private ProvenQueueMetadata queueMetadata;
         private byte[] nextTrustAnchor;
         private byte[] nextTrustAnchorId;
         private ClprEndpointManifest newEndpointManifest;
@@ -81,7 +83,8 @@ public record VerifiedBundle(
             return this;
         }
 
-        public Builder queueMetadata(@NonNull final QueueMetadata queueMetadata) {
+        /** Sets the proven queue metadata of the verified bundle. */
+        public Builder queueMetadata(@NonNull final ProvenQueueMetadata queueMetadata) {
             this.queueMetadata = queueMetadata;
             return this;
         }

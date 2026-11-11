@@ -34,4 +34,17 @@ final class EthProofs {
     static ProofException fail(@NonNull final String message, @NonNull final Throwable cause) {
         return new ProofException(VERIFIER_NAME, message, cause);
     }
+
+    /**
+     * Rebuilds {@code cause} with {@code context} in front of its reason, so whoever logs the rejection also sees what
+     * was being verified. The verifier-name prefix of a {@code cause} raised in this package is dropped from the
+     * reason, so the name appears once.
+     */
+    @NonNull
+    static ProofException withContext(@NonNull final String context, @NonNull final ProofException cause) {
+        final String ownPrefix = VERIFIER_NAME + ": ";
+        final String message = cause.getMessage();
+        final String reason = message.startsWith(ownPrefix) ? message.substring(ownPrefix.length()) : message;
+        return new ProofException(VERIFIER_NAME, context + ": " + reason, cause);
+    }
 }
