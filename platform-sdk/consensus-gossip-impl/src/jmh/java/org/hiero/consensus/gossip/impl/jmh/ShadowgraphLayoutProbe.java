@@ -103,12 +103,14 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>THROWAWAY PROBE for #27670, never merged: a copy of {@code ShadowgraphBenchmark#addEvent} at 10 nodes that tests
  * whether the per-fork latency levels come from where the recorded events lie in memory. With {@link #copyPerPass},
- * every pass adds fresh copies of the recorded events, allocated in replay order before the pass.
+ * every pass adds fresh copies of the recorded events, allocated in replay order before the pass. Second test: the heap
+ * on transparent huge pages, so that the physical placement of its 4 KB pages no longer differs between forks;
+ * {@code -Xlog:pagesize} shows in each fork's output whether the heap got them.
  */
 @State(Scope.Thread)
 @Fork(
         value = 10,
-        jvmArgsAppend = {"-Xms10g", "-Xmx10g", "-XX:+AlwaysPreTouch"})
+        jvmArgsAppend = {"-Xms10g", "-Xmx10g", "-XX:+AlwaysPreTouch", "-XX:+UseTransparentHugePages", "-Xlog:pagesize"})
 @Warmup(iterations = 1, time = 10)
 @Measurement(iterations = 2, time = 5)
 public class ShadowgraphLayoutProbe {
