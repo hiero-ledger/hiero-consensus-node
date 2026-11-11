@@ -13,8 +13,8 @@ import java.util.List;
  * <p>
  * Adding or removing measurements only marks the {@link Measurements} of the metric as changed. The list of
  * measurement snapshots is rebuilt from them by the next {@link #update()}, so measurements added or removed
- * after an update are iterated only after the next update. Every iteration reads a fixed list,
- * which is not affected by later updates.
+ * after an update are iterated only after the next update. Every iteration reads a fixed list of measurement
+ * snapshots, which later updates do not change, but later updates do overwrite the values of the snapshots in it.
  */
 public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSnapshot> {
 

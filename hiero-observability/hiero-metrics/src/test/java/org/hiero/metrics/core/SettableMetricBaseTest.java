@@ -415,7 +415,9 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
             MetricSnapshot snapshot = metric.snapshot();
             final int threadCount = 4;
             final int iterations = 20_000;
-            final int labelsCount = 5;
+            final List<String> values = collidingLabelValues();
+            // all label values share one map bin, created up front, so the race starts on a resized map with a tree bin
+            values.forEach(value -> metric.getOrCreateLabeled("label", value));
 
             // an export rebuilt during concurrent changes may iterate a measurement removed and created again twice,
             // so every export is checked for duplicates
@@ -424,7 +426,7 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                     Duration.ofSeconds(10),
                     threadIdx -> () -> {
                         for (int i = 0; i < iterations; i++) {
-                            final String label = "v" + (i % labelsCount);
+                            final String label = values.get(i % values.size());
                             if ((i + threadIdx) % 2 == 0) {
                                 metric.getOrCreateLabeled("label", label);
                             } else {
@@ -439,8 +441,15 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                                 .doesNotHaveDuplicates();
                     });
 
-            List<String> exported = exportedLabels(metric);
-            assertThat(exported).doesNotHaveDuplicates();
+            // the first export after the race rebuilds only if a change is still marked
+            List<MeasurementSnapshot> exported = exported(metric);
+            assertThat(labelsOf(exported)).doesNotHaveDuplicates();
+            metric.getOrCreateLabeled("label", "forced_rebuild");
+            metric.removeIf(labelValues -> "forced_rebuild".equals(labelValues.get("label")));
+            assertThat(exported)
+                    .as("exported snapshots are the ones of the current measurements, so no change was lost")
+                    .usingElementComparator(SettableMetricBaseTest::compareIdentity)
+                    .containsExactlyElementsOf(exported(metric));
             assertThat(metric.removeIf(_ -> true))
                     .as("exported measurements are the existing ones")
                     .isEqualTo(exported.size());
@@ -448,6 +457,17 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                     .as("no removed measurement left in the snapshot")
                     .isEmpty();
         }
+    }
+
+    // equal only for the same instance, for assertions on which snapshot is exported
+    private static int compareIdentity(MeasurementSnapshot first, MeasurementSnapshot second) {
+        return first == second ? 0 : 1;
+    }
+
+    private static List<String> labelsOf(List<MeasurementSnapshot> snapshots) {
+        return snapshots.stream()
+                .map(snapshot -> snapshot.getDynamicLabelValues().toString())
+                .toList();
     }
 
     private static List<MeasurementSnapshot> exported(Metric<?> metric) {

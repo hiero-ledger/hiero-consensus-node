@@ -4,6 +4,7 @@ package org.hiero.metrics.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +12,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.hiero.metrics.ThreadUtils;
-import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 
 class MeasurementsTest {

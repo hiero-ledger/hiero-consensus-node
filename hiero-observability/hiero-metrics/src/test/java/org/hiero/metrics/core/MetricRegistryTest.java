@@ -3,6 +3,7 @@ package org.hiero.metrics.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -517,6 +518,11 @@ public class MetricRegistryTest {
 
     @Test
     void testRemovedMetricIsReleasedByNextExport() {
+        // skipped where System.gc() does not collect, for example with -XX:+DisableExplicitGC
+        WeakReference<Object> unreferenced = new WeakReference<>(new Object());
+        collectGarbage(unreferenced);
+        assumeTrue(unreferenced.get() == null, "System.gc() does not clear weak references in this JVM");
+
         TestMetricsExporter exporter = new TestMetricsExporter();
         MetricRegistry registry =
                 MetricRegistry.builder().setMetricsExporter(exporter).build();

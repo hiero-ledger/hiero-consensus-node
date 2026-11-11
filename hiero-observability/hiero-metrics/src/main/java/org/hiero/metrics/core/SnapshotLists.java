@@ -20,7 +20,8 @@ final class SnapshotLists {
      * during the iteration twice, if the new entry is appended to the same bin after the removed one was returned.
      * The sort is stable, so equal snapshots stay in iteration order and the later, added again one is kept.
      *
-     * @param snapshots  the snapshots in iteration order, sorted in place
+     * @param snapshots  the snapshots in iteration order, sorted and compacted in place,
+     *                   so its contents are unspecified after the call
      * @param comparator compares snapshots by their keys in the map
      * @param <T>        the snapshot type
      * @return unmodifiable sorted list without equal snapshots

@@ -198,7 +198,7 @@ public final class MetricRegistry implements Closeable {
      */
     public boolean containsMetric(@NonNull MetricKey<?> key) {
         Objects.requireNonNull(key, "metric key must not be null");
-        Metric metric = metrics.get(key.name());
+        final Metric<?> metric = metrics.get(key.name());
         return key.type().isInstance(metric);
     }
 
@@ -216,7 +216,7 @@ public final class MetricRegistry implements Closeable {
     @NonNull
     public <M extends Metric<?>> M getMetric(@NonNull MetricKey<M> key) {
         Objects.requireNonNull(key, "metric key must not be null");
-        Metric metric = metrics.get(key.name());
+        final Metric<?> metric = metrics.get(key.name());
         if (metric == null) {
             throw new NoSuchElementException("Metric not found: " + key);
         }

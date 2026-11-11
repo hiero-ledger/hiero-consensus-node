@@ -15,8 +15,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>
  * Registering or removing metrics only marks this snapshot as changed. The list of metric snapshots
  * is rebuilt from the registered metrics by the next {@link #update()}, so metrics registered or removed
- * after an update are iterated only after the next update. Every iteration reads a fixed list,
- * which is not affected by later updates.
+ * after an update are iterated only after the next update. Every iteration reads a fixed list of metric snapshots,
+ * which later updates do not change, but later updates do overwrite the values of the snapshots in it.
  */
 public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
 
