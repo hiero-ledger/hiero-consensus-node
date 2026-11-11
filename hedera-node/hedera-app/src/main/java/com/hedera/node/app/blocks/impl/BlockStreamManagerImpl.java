@@ -190,7 +190,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private boolean savepointOutputSuppressed;
     // Independent of the circuit breaker above: in StreamMode.BLOCKS (canonical), tracks the same running size
     // against the maxBlockExecutionSizeBytes limit, but never suppresses output — HandleWorkflow consults
-    // hasReachedMaxBlockSize() to reject further submitted transactions with normal consensus throttle fees instead.
+    // hasReachedMaxBlockSize() to reject further submitted and scheduled transactions with normal consensus throttle
+    // fees instead.
     // Separate state from the circuit breaker so other consumers of isSavepointOutputSuppressed()
     // (e.g. trace-data serialization)
     // are unaffected by this StreamMode.BLOCKS-only mechanism.
@@ -310,6 +311,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Counter maxBlockSizeThrottleTripsCounter;
     private final Counter maxBlockSizeThrottleRejectionsCounter;
     private final Counter maxBlockSizeThrottleRejectedBytesCounter;
+    private final Counter maxBlockSizeThrottleScheduledRejectionsCounter;
+    private final Counter maxBlockSizeThrottleScheduledRejectedBytesCounter;
     private final Counter signedTxnsInSizeLimitedBlocksCounter;
     private final LongGauge bytesAtMaxBlockSizeCutoffGauge;
 
@@ -376,8 +379,17 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                 + " the canonical block had reached the max block size limit"));
         maxBlockSizeThrottleRejectedBytesCounter =
                 metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleRejectedBytes")
-                        .withDescription("Serialized bytes of block items written for transactions rejected because the"
-                                + " canonical block had reached the max block size limit"));
+                        .withDescription("Serialized bytes of block items written for submitted transactions rejected"
+                                + " because the canonical block had reached the max block size limit"));
+        maxBlockSizeThrottleScheduledRejectionsCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numMaxBlockSizeThrottleScheduledRejections")
+                        .withDescription("Number of due scheduled transactions rejected with THROTTLED_AT_CONSENSUS"
+                                + " because the canonical block had reached the max block size limit; each rejected"
+                                + " schedule is consumed and never retried"));
+        maxBlockSizeThrottleScheduledRejectedBytesCounter =
+                metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleScheduledRejectedBytes")
+                        .withDescription("Serialized bytes of block items written for due scheduled transactions"
+                                + " rejected because the canonical block had reached the max block size limit"));
         signedTxnsInSizeLimitedBlocksCounter =
                 metrics.getOrCreate(new Counter.Config("block", "numSignedTxnsInSizeLimitedBlocks")
                         .withDescription("Number of signed transactions written to canonical blocks with the max block"
@@ -1249,15 +1261,34 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public void recordSubmittedTransaction(@NonNull final List<BlockItem> items, final boolean rejectedForBlockSize) {
-        if (!maxBlockSizeThrottleEnabled) {
+        recordBlockSizeRejection(
+                items,
+                rejectedForBlockSize,
+                maxBlockSizeThrottleRejectionsCounter,
+                maxBlockSizeThrottleRejectedBytesCounter);
+    }
+
+    @Override
+    public void recordScheduledTransaction(@NonNull final List<BlockItem> items, final boolean rejectedForBlockSize) {
+        recordBlockSizeRejection(
+                items,
+                rejectedForBlockSize,
+                maxBlockSizeThrottleScheduledRejectionsCounter,
+                maxBlockSizeThrottleScheduledRejectedBytesCounter);
+    }
+
+    private void recordBlockSizeRejection(
+            @NonNull final List<BlockItem> items,
+            final boolean rejectedForBlockSize,
+            @NonNull final Counter rejectionsCounter,
+            @NonNull final Counter rejectedBytesCounter) {
+        if (!maxBlockSizeThrottleEnabled || !rejectedForBlockSize) {
             return;
         }
-        if (rejectedForBlockSize) {
-            maxBlockSizeThrottleRejectionsCounter.increment();
-            final long rejectedBytes = serializedBlockSize(items);
-            if (rejectedBytes > 0) {
-                maxBlockSizeThrottleRejectedBytesCounter.add(rejectedBytes);
-            }
+        rejectionsCounter.increment();
+        final long rejectedBytes = serializedBlockSize(items);
+        if (rejectedBytes > 0) {
+            rejectedBytesCounter.add(rejectedBytes);
         }
     }
 
@@ -1265,9 +1296,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Independent of the circuit breaker above: in {@code StreamMode.BLOCKS}, tracks the running size against
      * the {@code maxBlockExecutionSizeBytes} limit, but never suppresses output. Once tripped, {@link
      * #hasReachedMaxBlockSize()} reports {@code true} for the rest of the block, and {@code HandleWorkflow}
-     * is expected to reject further non-exempt submitted transactions with {@code THROTTLED_AT_CONSENSUS} using
-     * normal consensus throttle fee charging rather than let them run. Scheduled executions are exempt and keep
-     * running (their output still counts toward the running size); block signatures remain eligible to run.
+     * is expected to reject further non-exempt submitted transactions and scheduled executions with {@code
+     * THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging rather than let them run. Scheduled
+     * executions with a throttle-exempt payer keep running (their output still counts toward the running size);
+     * block signatures remain eligible to run.
      */
     private void trackMaxBlockSizeThrottle(@NonNull final List<BlockItem> items) {
         if (!maxBlockSizeThrottleEnabled) {

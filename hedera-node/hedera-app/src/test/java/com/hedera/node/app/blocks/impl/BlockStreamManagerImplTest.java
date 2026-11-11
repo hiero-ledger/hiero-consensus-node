@@ -46,6 +46,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
@@ -271,6 +272,8 @@ class BlockStreamManagerImplTest {
                 case "numBlockSizeCircuitBreakerTrips" -> blockSizeCircuitBreakerTripsCounter;
                 case "numMaxBlockSizeThrottleRejections",
                         "maxBlockSizeThrottleRejectedBytes",
+                        "numMaxBlockSizeThrottleScheduledRejections",
+                        "maxBlockSizeThrottleScheduledRejectedBytes",
                         "numSignedTxnsInSizeLimitedBlocks" ->
                     throttleCounters.computeIfAbsent(counterConfig.getName(), name -> mock(Counter.class));
                 default -> indirectProofsCounter;
@@ -801,6 +804,34 @@ class BlockStreamManagerImplTest {
         verify(throttleCounters.get("numSignedTxnsInSizeLimitedBlocks"), times(2))
                 .add(1L);
         verify(throttleGauges.get("bytesAtMaxBlockSizeCutoff")).set(longThat(bytes -> bytes > 1L));
+    }
+
+    @Test
+    void scheduledRejectionsAreCountedSeparatelyFromSubmittedRejections() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        assertTrue(subject.hasReachedMaxBlockSize());
+        final var items = List.of(FAKE_SIGNED_TRANSACTION);
+
+        subject.recordScheduledTransaction(items, true);
+        subject.recordScheduledTransaction(items, false);
+
+        final long batchBytes = Block.PROTOBUF.measureRecord(new Block(items));
+        verify(throttleCounters.get("numMaxBlockSizeThrottleScheduledRejections"))
+                .increment();
+        verify(throttleCounters.get("maxBlockSizeThrottleScheduledRejectedBytes"))
+                .add(batchBytes);
+        verifyNoInteractions(throttleCounters.get("numMaxBlockSizeThrottleRejections"));
+        verifyNoInteractions(throttleCounters.get("maxBlockSizeThrottleRejectedBytes"));
     }
 
     @Test

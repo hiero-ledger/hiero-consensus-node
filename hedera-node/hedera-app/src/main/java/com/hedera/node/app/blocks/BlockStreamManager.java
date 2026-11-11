@@ -245,11 +245,18 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * Returns whether the current block has already reached its configured maximum serialized size, in {@code
      * StreamMode.BLOCKS} (canonical block stream). Unlike {@link #isSavepointOutputSuppressed()}, reaching this
      * limit never suppresses any block-stream output — every dispatch that already completed is recorded normally.
-     * Callers (namely {@code HandleWorkflow}) are expected to reject further non-exempt submitted transactions with
-     * {@code THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging once this returns {@code true},
-     * rather than let them run. Scheduled executions, migration root hash votes, hints/CRS, history proof and CLPR
-     * endpoint publication transactions, and payers in {@code 1..accounts.lastThrottleExempt} are exempt. Always
-     * {@code false} in any other stream mode.
+     * Callers (namely {@code HandleWorkflow}) are expected to reject further non-exempt submitted transactions and
+     * scheduled executions with {@code THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging once this
+     * returns {@code true}, rather than let them run. Migration root hash votes, hints/CRS, history proof and CLPR
+     * endpoint publication transactions, and payers in {@code 1..accounts.lastThrottleExempt} (including the payers of
+     * scheduled executions) are exempt. Always {@code false} in any other stream mode.
+     * <p>
+     * The scheduled-execution rule applies only to schedules executed at expiry ({@code wait_for_expiry=true}). A
+     * schedule with {@code wait_for_expiry=false} executes as a child of the {@code ScheduleCreate} or {@code
+     * ScheduleSign} that supplies its last required signature, so it inherits that transaction's budget decision (the
+     * submitter's exemption, not the schedule payer's). In a full block, a {@code ScheduleSign} from an exempt account
+     * can therefore still execute a schedule whose payer is not exempt; a {@code ScheduleSign} from a non-exempt
+     * account is rejected without consuming the schedule.
      *
      * @return whether the current block has reached its configured maximum size, in {@code StreamMode.BLOCKS}
      */
@@ -260,6 +267,13 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * and child transactions are not submitted parents. Rejection bytes include the complete output batch.
      */
     default void recordSubmittedTransaction(@NonNull List<BlockItem> items, boolean rejectedForBlockSize) {}
+
+    /**
+     * Records diagnostic counts for a scheduled execution's output before it is written. Counted separately from
+     * {@link #recordSubmittedTransaction(List, boolean)} because a rejected schedule is consumed and never retried,
+     * while a rejected submitted transaction can be resubmitted. Rejection bytes include the complete output batch.
+     */
+    default void recordScheduledTransaction(@NonNull List<BlockItem> items, boolean rejectedForBlockSize) {}
 
     /**
      * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that
