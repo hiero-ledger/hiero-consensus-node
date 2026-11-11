@@ -79,7 +79,7 @@ public class PipelineTimerBenchmark {
     private Consumer<Object> output;
 
     /** Whether the latest pass failed the saturation check. */
-    private boolean saturated;
+    private boolean failedDueToSaturation;
 
     @Setup(Level.Trial)
     public void setUpTrial() {
@@ -116,14 +116,11 @@ public class PipelineTimerBenchmark {
 
     @Benchmark
     public void replay() {
-        saturated = false;
+        failedDueToSaturation = false;
         try {
             timer.replay();
-        } catch (final IllegalStateException e) {
-            if (!e.getMessage().startsWith("The pipeline did not keep up")) {
-                throw e;
-            }
-            saturated = true;
+        } catch (final PipelineSaturatedException e) {
+            failedDueToSaturation = true;
         }
     }
 
@@ -134,7 +131,7 @@ public class PipelineTimerBenchmark {
             throw new IllegalStateException("Expected " + items + " arrivals, but got " + timer.arrivals());
         }
         final boolean expectSaturated = pipeline.equals("saturated");
-        if (saturated != expectSaturated) {
+        if (failedDueToSaturation != expectSaturated) {
             throw new IllegalStateException(
                     "Expected a pass that " + (expectSaturated ? "fails" : "passes") + " the saturation check");
         }

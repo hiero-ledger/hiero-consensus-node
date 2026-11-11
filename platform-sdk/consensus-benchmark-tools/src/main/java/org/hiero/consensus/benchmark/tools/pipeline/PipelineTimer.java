@@ -14,7 +14,6 @@ import java.util.Arrays;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicLongArray;
@@ -118,9 +117,9 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * compares the median latency of the inputs due in the last quarter of the pass with that of the first quarter, and
  * divides the difference by the time between the quarters' centers. If that growth exceeds
  * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} throws: lower the speedup. A pass with fewer than
- * {@value #MIN_LATENCIES_PER_QUARTER} latencies in either quarter is not judged. Below their capacity, the pipelines
- * measured so far, the event intake and the self-check {@code PipelineTimerBenchmark}, stayed below 0.13%, also in
- * passes with short bursts; above it, the self-check's growth matched its overload.
+ * {@value #MIN_LATENCIES_PER_QUARTER} latencies in either quarter is not judged. Below capacity, the event intake and
+ * the self-check {@code PipelineTimerBenchmark} grew by less than 0.13%, even in passes with short bursts. Above
+ * capacity, the self-check's growth matched its overload.
  *
  * <p>A pipeline that drops inputs it cannot process in time, such as the intake, which drops events that turn ancient
  * while they wait, shows saturation as missing arrivals rather than as growing latencies. The benchmark's exact check
@@ -309,8 +308,7 @@ public final class PipelineTimer {
 
         final double growth = latencyGrowth(dueNanos, passLatencies);
         if (growth > MAX_LATENCY_GROWTH) {
-            throw new IllegalStateException(String.format(
-                    Locale.ROOT,
+            throw new PipelineSaturatedException(String.format(
                     "The pipeline did not keep up: its latency grew by %.2f%% of the elapsed time, more than the %.0f%%"
                             + " of a pipeline that keeps up; lower the speedup",
                     growth * 100,
