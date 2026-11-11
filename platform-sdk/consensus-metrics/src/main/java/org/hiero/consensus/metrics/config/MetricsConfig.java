@@ -34,7 +34,7 @@ public record MetricsConfig(
         @ConfigProperty(defaultValue = "false") boolean disableMetricsOutput,
         @ConfigProperty(defaultValue = "data/stats") String csvOutputFolder,
         @ConfigProperty(defaultValue = "MainNetStats") String csvFileName,
-        @ConfigProperty(defaultValue = "true") boolean csvOverwrite,
+        @ConfigProperty(defaultValue = "false") boolean csvOverwrite,
         @Min(0) @ConfigProperty(defaultValue = "3000") int csvWriteFrequency,
         @ConfigProperty(defaultValue = "10") double halfLife) {
 
