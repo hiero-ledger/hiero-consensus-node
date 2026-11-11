@@ -2,13 +2,14 @@
 package org.hiero.consensus.benchmark.tools.histogram;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 /**
  * Checks that {@link LatencyRecorder#pause()} and {@link LatencyRecorder#resume()} leave the work between them out of
- * the latencies and the allocation.
+ * the latencies and the allocation, and that they and {@link LatencyRecorder#stopMeasurement()} refuse the wrong state.
  */
 class LatencyRecorderTest {
 
@@ -79,5 +80,67 @@ class LatencyRecorderTest {
 
         assertThat(recorder.discardedPasses()).isZero();
         assertThat(recorder.allocatedBytes()).isGreaterThanOrEqualTo(PAUSED_ALLOCATION);
+    }
+
+    @Test
+    void isPausedFollowsPauseAndResume() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        recorder.startMeasurement();
+        assertThat(recorder.isPaused()).isFalse();
+        recorder.pause();
+        assertThat(recorder.isPaused()).isTrue();
+        recorder.resume();
+        assertThat(recorder.isPaused()).isFalse();
+    }
+
+    @Test
+    void pauseOnPausedPassThrows() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        recorder.startMeasurement();
+        recorder.pause();
+
+        assertThatThrownBy(recorder::pause).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void resumeOnRunningPassThrows() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        recorder.startMeasurement();
+
+        assertThatThrownBy(recorder::resume).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void stopOnPausedPassThrows() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        recorder.startMeasurement();
+        recorder.pause();
+
+        assertThatThrownBy(recorder::stopMeasurement).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void recordedPassesAddUp() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+        final LatencyHistogram pass = LatencyRecorder.newHistogram();
+        pass.record(1_000);
+        pass.record(3_000);
+        recorder.recordPass(pass, 100);
+        pass.reset();
+        pass.record(5_000);
+        recorder.recordPass(pass, 50);
+
+        assertThat(recorder.histogram().totalCount()).isEqualTo(3);
+        assertThat(recorder.histogram().mean()).isEqualTo(3_000);
+        assertThat(recorder.allocatedBytes()).isEqualTo(150);
+        assertThat(recorder.discardedPasses()).isZero();
+    }
+
+    @Test
+    void aPassWithAnotherLayoutIsRejected() {
+        final LatencyRecorder recorder = new LatencyRecorder();
+
+        assertThatThrownBy(() -> recorder.recordPass(new LatencyHistogram(8, 36), 0))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

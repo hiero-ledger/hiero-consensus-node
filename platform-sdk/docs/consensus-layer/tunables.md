@@ -212,7 +212,7 @@ Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-re
 | TUN-069 | `reconnect.socketTimeout`                          | Duration | `60s`   | Socket timeout for input streams used during reconnect.                                                                |       | —         |
 | TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
 | TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
-| TUN-232 | `reconnect.copyLearnerStateEarly`                  | boolean  | `false` | If true, the learner copies its state's data source while it waits for the teacher's signatures, instead of after.     |       | —         |
+| TUN-232 | `reconnect.copyLearnerStateEarly`                  | boolean  | `true`  | If true, the learner copies its state's data source while it waits for the teacher's signatures, instead of after.     |       | —         |
 
 **Retired.** `reconnect.maxAckDelay` (TUN-072) was removed from the record as unread — no production code read it, and the only reference was the record's own declaration. No successor key. Reconnect stream flushing is governed by `reconnect.teacher.asyncOutputStreamFlush` and `reconnect.learner.asyncOutputStreamFlush`, declared in `swirlds-virtualmap` and read by [TeachingSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/TeachingSynchronizer.java) and [LearningSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/LearningSynchronizer.java) — outside this catalog's consensus-layer scope, so they carry no TUN ID. ID retired, not reused.
 
@@ -454,6 +454,7 @@ Module: `consensus-gossip`. Source: [GossipConfig.java](../../consensus-gossip/s
 | TUN-148 | `gossip.endpointOverrides`              | List&lt;NetworkEndpoint&gt; | (empty) | Per-node endpoint overrides used in `OutboundConnectionManager`; replaces roster IP/port when network config diverges from the roster.  |       | —         |
 | TUN-149 | `gossip.connectionServerThreadPriority` | int                         | `5`     | Priority for threads listening for incoming gossip connections.                                                                         |       | —         |
 | TUN-150 | `gossip.hangingThreadDuration`          | Duration                    | `60s`   | How long a gossip thread is allowed to wait on shutdown before logging an error.                                                        |       | —         |
+| TUN-233 | `gossip.farFutureEventOffset`           | int                         | `-1`    | Far future limit: events with birth round above a node's pending round plus this are not sent to it and are dropped; `-1` disables.     | -1..  | —         |
 
 ## `event.creation.wiring.*` — GossipWiringConfig
 

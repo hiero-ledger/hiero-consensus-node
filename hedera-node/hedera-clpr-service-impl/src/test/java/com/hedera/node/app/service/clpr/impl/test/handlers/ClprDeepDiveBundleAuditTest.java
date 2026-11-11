@@ -121,7 +121,7 @@ class ClprDeepDiveBundleAuditTest {
             AccountID.newBuilder().accountNum(8888).build();
     // Per-message gas ceiling used by the default test config; the application callbacks
     // (onClprMessage / onClprResponse) are dispatched with this budget (spec §1.1 max_gas_per_message).
-    private static final long TEST_MAX_GAS_PER_MESSAGE = 15_000_000L;
+    private static final long TEST_MAX_GAS_PER_MESSAGE = 1_000_000L;
     // Connector execution charge, mirrored into the test config in setupHandleContext():
     //   worstCaseCharge = messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100
     // (see ClprSubmitBundleHandler worstCaseCharge). Kept as named constants so the charge
@@ -815,6 +815,7 @@ class ClprDeepDiveBundleAuditTest {
             putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
             final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
             setupHandleContext(bundle, true);
+            putConnector();
 
             subject.handle(handleContext);
 
@@ -1188,6 +1189,7 @@ class ClprDeepDiveBundleAuditTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         subject.handle(handleContext);
 
@@ -1202,6 +1204,7 @@ class ClprDeepDiveBundleAuditTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         // Make dispatch throw — callback is best-effort
         given(handleContext.dispatch(any(DispatchOptions.class)))
@@ -2999,6 +3002,9 @@ class ClprDeepDiveBundleAuditTest {
                 .getOrCreateConfig();
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
+        lenient()
+                .when(handleContext.dispatchMetadata())
+                .thenReturn(new HandleContext.DispatchMetadata(new java.util.HashMap<>()));
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
@@ -3029,6 +3035,7 @@ class ClprDeepDiveBundleAuditTest {
         // Mock dispatch for application calls — default to SUCCESS
         lenient().when(handleContext.dispatch(any(DispatchOptions.class))).thenReturn(dispatchResult);
         lenient().when(dispatchResult.status()).thenReturn(ResponseCodeEnum.SUCCESS);
+        lenient().when(dispatchResult.hasContractResult()).thenReturn(true);
         lenient().when(dispatchResult.getEvmCallResult()).thenReturn(Bytes.EMPTY);
         // Mock entity factory for staking account
         lenient().when(entityIdFactory.newAccountId(803L)).thenReturn(STAKING_ACCOUNT);

@@ -23,7 +23,6 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.tipset.DefaultTipsetTracker;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -40,7 +39,7 @@ import org.hiero.otter.fixtures.internal.AbstractMiniNode;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.network.simulation.GossipNetwork;
 import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 @SuppressWarnings("ForLoopReplaceableByForEach")
@@ -53,7 +52,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
     private final Time time;
 
     /** The network connectivity for this node. */
-    private final SimulatedNetworkConnectivity networkConnectivity;
+    private final GossipNetwork gossipNetwork;
 
     /** The configuration for this node. */
     private final NodeConfiguration nodeConfiguration;
@@ -63,6 +62,13 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
 
     /** The intake for this node, which takes the place of an event deduplicator and an orphan buffer. */
     private final FalconMiniIntake intake = new FalconMiniIntake();
+
+    /** The tipsets this node shares with the other mini nodes of the network. */
+    private final FalconSharedTipsets sharedTipsets;
+
+    /** The tipset tracker of this node's event creator, created when the node starts. */
+    @Nullable
+    private FalconSharedTipsetTracker tipsetTracker;
 
     /** The event creation manager for this node. */
     @Nullable
@@ -91,25 +97,27 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
      * @param time the time source
      * @param selfId the ID of this node
      * @param keysAndCerts the keys and certificates of this node
-     * @param networkConnectivity the simulated network connectivity
+     * @param gossipNetwork the simulated network this node gossips on
      * @param networkConfiguration the network configuration
      * @param transactionShape the shape the transactions of created events are drawn from, or {@code null} for empty events
      * @param signEvents whether this node signs its events with its own key
      */
-    public FalconMiniNode(
+    FalconMiniNode(
             @NonNull final Random random,
             @NonNull final Time time,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetworkConnectivity networkConnectivity,
+            @NonNull final GossipNetwork gossipNetwork,
             @NonNull final NetworkConfiguration networkConfiguration,
+            @NonNull final FalconSharedTipsets sharedTipsets,
             @Nullable final EventShape transactionShape,
             final boolean signEvents) {
         super(selfId, keysAndCerts, networkConfiguration);
 
         this.random = requireNonNull(random);
         this.time = requireNonNull(time);
-        this.networkConnectivity = requireNonNull(networkConnectivity);
+        this.gossipNetwork = requireNonNull(gossipNetwork);
+        this.sharedTipsets = requireNonNull(sharedTipsets);
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.transactionShape = transactionShape;
@@ -142,7 +150,7 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
             currentEventWindow = eventWindow;
             final List<PlatformEvent> orderedEvents = intake.setEventWindow(eventWindow);
             eventCreationManager.setEventWindow(eventWindow);
-            networkConnectivity.updateEventWindow(selfId, eventWindow);
+            gossipNetwork.updateEventWindow(selfId, eventWindow);
             registerAndSubmit(orderedEvents);
         }
         return true;
@@ -150,7 +158,8 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
 
     /**
      * Registers events released by the intake with the event creation manager and submits them to the network,
-     * in the order they were released.
+     * in the order they were released. The tipsets of this node's own events are added to the shared tipsets, so
+     * that they are there when the other mini nodes add the events or their children.
      *
      * @param orderedEvents the released events
      */
@@ -158,9 +167,12 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         assert eventCreationManager != null;
         for (int i = 0, n = orderedEvents.size(); i < n; i++) {
             final PlatformEvent orderedEvent = orderedEvents.get(i);
+            if (selfId.equals(orderedEvent.getCreatorId())) {
+                sharedTipsets.computeIfAbsent(orderedEvent);
+            }
             eventCreationManager.registerEvent(orderedEvent);
             orderedEvent.setSenderId(selfId);
-            networkConnectivity.submitEvent(orderedEvent);
+            gossipNetwork.submitEvent(orderedEvent);
         }
     }
 
@@ -177,7 +189,8 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
         final EventTransactionSupplier transactionSupplier = transactionShape == null
                 ? List::of
                 : new ShapedTransactionSupplier(transactionShape, random.nextLong(), time);
-        final DefaultTipsetTracker tipsetTracker = new DefaultTipsetTracker(time, selfId, roster);
+        tipsetTracker = new FalconSharedTipsetTracker(sharedTipsets, selfId, roster);
+        sharedTipsets.register(tipsetTracker);
 
         final EventCreator eventCreator = new TipsetEventCreator(
                 configuration, metrics, time, secureRandom, signer, roster, selfId, transactionSupplier, tipsetTracker);
@@ -198,6 +211,10 @@ public class FalconMiniNode extends AbstractMiniNode implements MiniNode, TimeTi
      */
     @Override
     protected void doKillImmediately(@NonNull final Duration timeout) {
+        if (tipsetTracker != null) {
+            sharedTipsets.unregister(tipsetTracker);
+            tipsetTracker = null;
+        }
         lifeCycle = DESTROYED;
     }
 

@@ -3,9 +3,6 @@ package org.hiero.otter.fixtures.network.simulation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Map;
-import java.util.function.BiPredicate;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The event windows that have been transmitted onto the simulated network but not yet delivered, held per directed
@@ -27,12 +24,14 @@ public class InFlightEventWindows extends InFlightConnections<EventWindowInTrans
     /**
      * Constructor.
      *
+     * @param nodeCount the number of nodes in the network; their ranks are {@code 0} to {@code nodeCount - 1}
      * @param connected reports whether the connection from a sender to a receiver is currently up
      * @param start     the instant arrival times are measured from, which should be close to the start of the
      *                  simulation
      */
-    public InFlightEventWindows(@NonNull final BiPredicate<NodeId, NodeId> connected, @NonNull final Instant start) {
-        super(connected, start);
+    public InFlightEventWindows(
+            final int nodeCount, @NonNull final ConnectionCheck connected, @NonNull final Instant start) {
+        super(nodeCount, connected, start);
     }
 
     /**
@@ -43,20 +42,22 @@ public class InFlightEventWindows extends InFlightConnections<EventWindowInTrans
      * holding. As with events, a receiver that refuses a window is taken to be refusing everything, so no further
      * senders are tried until the next call.
      *
-     * @param now      the current time
-     * @param receiver accepts the event windows on behalf of the receiving node
+     * @param now          the current time
+     * @param receiverRank the rank of the receiving node
+     * @param receiver     accepts the event windows on behalf of the receiving node
      */
-    public void deliverArrived(@NonNull final Instant now, @NonNull final EventReceiver receiver) {
-        final NodeId receiverId = receiver.getNodeId();
-        final Map<NodeId, InFlightQueue<EventWindowInTransit>> incomingConnections = incomingConnections(receiverId);
+    @Override
+    void deliverArrived(@NonNull final Instant now, final int receiverRank, @NonNull final EventReceiver receiver) {
+        final long nowNanos = nanosSinceStart(now);
+        final InFlightQueue<EventWindowInTransit>[] incomingConnections = incomingConnections(receiverRank);
 
-        for (final NodeId sender : sortedNodeIds()) {
-            final InFlightQueue<EventWindowInTransit> connection = incomingConnections.get(sender);
+        for (int senderRank = 0; senderRank < incomingConnections.length; senderRank++) {
+            final InFlightQueue<EventWindowInTransit> connection = incomingConnections[senderRank];
             if (connection == null) {
                 // the receiver is the sender, so there is no connection
                 continue;
             }
-            if (!isUp(sender, receiverId)) {
+            if (!isUp(senderRank, receiverRank)) {
                 // the connection is down, so its windows are not deliverable
                 continue;
             }
@@ -65,9 +66,7 @@ public class InFlightEventWindows extends InFlightConnections<EventWindowInTrans
             // refuses it, it goes back, and the superseded windows stay discarded since the newest still supersedes
             // them.
             EventWindowInTransit newestArrived = null;
-            for (EventWindowInTransit head = connection.peek();
-                    head != null && !head.arrivalTime().isAfter(now);
-                    head = connection.peek()) {
+            while (connection.hasArrived(nowNanos)) {
                 newestArrived = connection.poll();
             }
 
@@ -76,7 +75,7 @@ public class InFlightEventWindows extends InFlightConnections<EventWindowInTrans
                 continue;
             }
 
-            if (!receiver.receiveEventWindow(sender, newestArrived.eventWindow())) {
+            if (!receiver.receiveEventWindow(newestArrived.sender(), newestArrived.eventWindow())) {
                 connection.add(newestArrived);
                 return;
             }

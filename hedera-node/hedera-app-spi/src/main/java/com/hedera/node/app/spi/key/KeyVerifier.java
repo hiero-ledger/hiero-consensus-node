@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.key;
 
 import static java.util.Collections.unmodifiableSortedSet;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.hapi.utils.keys.KeyComparator;
@@ -53,10 +54,46 @@ public interface KeyVerifier {
     SignatureVerification verificationFor(@NonNull Key key, @NonNull VerificationAssistant callback);
 
     /**
+     * Verifies a requirement without treating its key as proof of any other identity's authority.
+     * Ordinary cryptographic verification is independent of scope; contextual verifiers can override
+     * this method to authorize an individual account requirement from execution context.
+     *
+     * @param requirement the authority and key required by the operation
+     * @return the verification of the requirement
+     */
+    @NonNull
+    default SignatureVerification verificationFor(@NonNull final KeyRequirement requirement) {
+        requireNonNull(requirement);
+        if (requirement instanceof KeyRequirement.AnyOf anyOf) {
+            return requirementVerification(
+                    requirement,
+                    anyOf.alternatives().stream()
+                            .anyMatch(r -> verificationFor(r).passed()));
+        }
+        return verificationFor(requirement.key());
+    }
+
+    private static SignatureVerification requirementVerification(
+            final KeyRequirement requirement, final boolean passed) {
+        return new SignatureVerification() {
+            @Override
+            public Key key() {
+                return requirement.key();
+            }
+
+            @Override
+            public boolean passed() {
+                return passed;
+            }
+        };
+    }
+
+    /**
      * If this verifier was authorized by one or more simple keys---for example, via cryptographic signature on a
      * transaction submitted via HAPI; or via the action of a contract inside the EVM---returns the set of these
      * authorizing keys, ordered by the {@link KeyComparator}.
      * <p>
+     * Account-scoped execution authority must not add the account's cryptographic admin key to this set.
      * Default is an empty set, for verifiers whose authorization is not derived from a legible set of simple keys.
      * @return any simple keys that authorized this verifier
      */

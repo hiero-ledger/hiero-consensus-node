@@ -26,7 +26,7 @@ match what production scraping pipelines store:
 - **Counters** get a `_total` suffix and **units** get a `_<unit>` suffix, both folded into the
   metric name (e.g. `bytes_received_byte_total`). `# TYPE` and `# HELP` use that full name.
 - `# TYPE` and `# HELP` lines are written **once**, on a metric's first appearance — not in every
-  snapshot.
+  snapshot. A metric removed from the registry and registered again appears for the first time again.
 - There is **no `# UNIT`** line (it is not part of the Prometheus text format) and **no `# EOF`**
   terminator (the file is a concatenation of snapshots, not a single exposition).
 - Every sample line ends with the snapshot's timestamp in milliseconds since the Unix epoch, shared

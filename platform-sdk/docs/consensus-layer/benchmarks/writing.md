@@ -40,15 +40,15 @@ The measured region is the part of the benchmark method that is timed: the calls
 
 - **The inputs are the same in every run.** Seed every random generator, and generate the data outside the measured
   region.
-- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example generates its
-  event graph in
-  [`ConsensusImplBenchmark#generateEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#generateEvents).
+- **Generate the data once per trial** (per fork and parameter set) in `@Setup(Level.Trial)`. The example records its
+  events in
+  [`ConsensusImplBenchmark#recordEvents`](../../../consensus-hashgraph-impl/src/jmh/java/org/hiero/consensus/hashgraph/ConsensusImplBenchmark.java#recordEvents).
 - **If the code under test changes its input, every call of the benchmark method gets fresh copies,** prepared in
   `@Setup(Level.Invocation)`. One call of the benchmark method, an invocation, then processes all the copies; this
   guide calls it a pass.
   - JMH's overhead per invocation does not matter when a pass takes a fraction of a second or more.
   - In the example, `ConsensusImpl` changes the events it processes, so `prepareInvocation` copies and relinks the
-    generated events for every pass.
+    recorded events for every pass.
 - **Check the output after every invocation** against an exact expected value, in `@TearDown(Level.Invocation)`. With
   the same inputs, every pass gives the same value.
   - In the example, `verifyInvocation` checks the number of decided rounds.
@@ -75,7 +75,8 @@ Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `s
   two calls; keep that work small.
 - **Pause the recorder around work that must not count,** such as calls of the code under test that another benchmark
   method measures: `pause()` right after a `lap()`, `resume()` right before the next measured call. The paused work
-  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it.
+  counts neither in a latency nor in `alloc.norm`, but JMH's primary score includes it. Calling either in the wrong
+  state throws; a loop that pauses only where timed and untimed calls meet asks `isPaused()`.
 - **Do not use JMH's `Mode.SampleTime`.** It gets the slow calls wrong, and they matter most:
   - it times at most about 20 calls per millisecond, a random selection, which adds noise to the slow end;
   - when its buffer is full, it halves every count but keeps counts of 1, so rare slow calls weigh too much, and p99.99
@@ -86,14 +87,18 @@ Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `s
 
 ### A pipeline
 
-For code that passes items between threads, record the time of each item on entry and on exit, and add the difference
-to a
-[`LatencyHistogram`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyHistogram.java),
-one per thread.
+For code that hands its inputs on between threads, such as the event intake, use
+[`PipelineTimer`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/pipeline/PipelineTimer.java).
+It replays timed inputs, such as the steps Falcon records, at their recorded times and records each input's latency
+until it reaches the pipeline's output. Its Javadoc shows the pattern.
 
-- **Submit the items at a fixed rate, whether or not earlier items are done.** A benchmark that submits N items and
-  waits for them stops submitting while the code is slow, which hides the time items wait in queues (an error known as
-  coordinated omission).
+- **Hand on every input at its due time, whether or not earlier inputs are done.** Waiting for them would hide the time
+  inputs wait in queues (an error known as coordinated omission).
+- **Check the arrivals after every invocation** against their exact expected value, and fail the benchmark when a
+  pipeline thread throws, with an `UncaughtExceptionCollector`.
+- **One exit point per timer:** the percentiles of a pipeline's parts do not add up to those of the whole.
+- **A garbage collection counts as latency;** a pipeline pass is never discarded. `alloc.norm` counts what all threads
+  allocate.
 
 ### Reporting
 
@@ -138,6 +143,7 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
     calls.
   - The price is the time of the `System.gc()` and the setup of every pass, which calibration includes.
   - Frequent discards mean the heap is too small ([calibration.md](calibration.md#heap)).
+  - A pipeline benchmark discards no pass: its collections count as latency ([above](#a-pipeline)).
 
 ## JVM arguments
 
@@ -181,6 +187,10 @@ A profiled run proves that the benchmark measures the code under test.
    is right to measure them. In the example, the metric timing in
    [`ConsensusImpl#timedStronglySeeP`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java#timedStronglySeeP)
    is such a cost.
+
+**A pipeline benchmark runs on several threads:** profile it with JMH's `-prof jfr` and split the recording with
+[`jfr-components.sh`](../../../consensus-benchmark-tools/scripts/jfr-components.sh), whose bucket "timer: output" stays
+well under a percent.
 
 If `alloc.norm` takes a few distinct values that differ between forks, the JIT compiler compiled the code differently
 in different forks; [calibration.md](calibration.md#fork-modes) explains how to find out why.

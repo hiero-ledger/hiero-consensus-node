@@ -247,7 +247,7 @@ jobs:
 
       - name: Setup Kind
         if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -312,7 +312,8 @@ jobs:
           set -eo pipefail
           HELM_VERSION="v3.14.2"
           ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 20 --max-time 300 \
+            "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
           cp -f "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
           chmod +x "${RUNNER_TEMP}/helm"
@@ -469,7 +470,7 @@ jobs:
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -483,7 +484,8 @@ jobs:
           set -eo pipefail
           HELM_VERSION="v3.14.2"
           ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 20 --max-time 300 \
+            "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
           install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
           export PATH="${RUNNER_TEMP}:${PATH}"
@@ -618,7 +620,7 @@ jobs:
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -632,7 +634,8 @@ jobs:
           set -eo pipefail
           HELM_VERSION="v3.14.2"
           ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 20 --max-time 300 \
+            "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
           install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
           export PATH="${RUNNER_TEMP}:${PATH}"
@@ -771,7 +774,7 @@ jobs:
           solo --version
 
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -785,7 +788,8 @@ jobs:
           set -eo pipefail
           HELM_VERSION="v3.14.2"
           ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 20 --max-time 300 \
+            "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
           install "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
           export PATH="${RUNNER_TEMP}:${PATH}"
@@ -887,7 +891,7 @@ jobs:
 
       - name: Setup Kind
         if: ${{ inputs.cluster-target == 'kind' }}
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.32.0
@@ -952,7 +956,8 @@ jobs:
           set -eo pipefail
           HELM_VERSION="v3.14.2"
           ARCHIVE="helm-${HELM_VERSION}-linux-amd64.tar.gz"
-          curl -fsSL "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
+          curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors --connect-timeout 20 --max-time 300 \
+            "https://get.helm.sh/${ARCHIVE}" -o "${RUNNER_TEMP}/${ARCHIVE}"
           tar -xzf "${RUNNER_TEMP}/${ARCHIVE}" -C "${RUNNER_TEMP}"
           cp -f "${RUNNER_TEMP}/linux-amd64/helm" "${RUNNER_TEMP}/helm"
           chmod +x "${RUNNER_TEMP}/helm"

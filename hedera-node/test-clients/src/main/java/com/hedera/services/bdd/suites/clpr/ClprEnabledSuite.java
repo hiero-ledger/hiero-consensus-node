@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChanne
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -43,6 +44,7 @@ import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBy
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_PEER_ENDPOINT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -99,6 +101,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -237,6 +240,7 @@ public class ClprEnabledSuite {
         final var crypto = new ClprChannelCrypto();
         final long executionCost = 1_000_000L;
         final long endpointMargin = executionCost / 10;
+        final var callbackGasFee = new AtomicLong();
         final var operations = contractSetup();
         operations.add(overridingAllOf(Map.of(
                 "clpr.messageExecutionCost", Long.toString(executionCost),
@@ -300,7 +304,12 @@ public class ClprEnabledSuite {
                         assertEquals(1, callbacks.size());
                         assertEquals(SUCCESS, callbacks.getFirst().getReceipt().getStatus());
                         assertEquals(0L, callbacks.getFirst().getTransactionFee(), "Callback gas is prepaid");
-                        assertTrue(callbacks.getFirst().getContractCallResult().getGasUsed() > 0);
+                        final var gasUsed =
+                                callbacks.getFirst().getContractCallResult().getGasUsed();
+                        assertTrue(gasUsed > 0);
+                        callbackGasFee.set(
+                                Math.multiplyExact(gasUsed, spec.ratesProvider().currentTinybarGasPrice()));
+                        assertTrue(callbackGasFee.get() > 0, "The connector reimburses the callback's network gas fee");
                         spec.registry().saveContractId("deletedClprChild", deletedId);
                     }),
                     getContractInfo("deletedClprChild").has(contractWith().isDeleted()));
@@ -308,8 +317,10 @@ public class ClprEnabledSuite {
         operations.add(contractCallLocal(application, "deliveries")
                 .exposingTypedResultsTo(results -> assertEquals(BigInteger.ONE, results[0])));
         operations.add(getContractInfo(application).has(contractWith().isNotDeleted()));
-        operations.add(
-                getAccountBalance(CONNECTOR_CONTRACT).hasTinyBars(ONE_HUNDRED_HBARS - executionCost - endpointMargin));
+        operations.add(withOpContext((spec, log) -> allRunFor(
+                spec,
+                getAccountBalance(CONNECTOR_CONTRACT)
+                        .hasTinyBars(ONE_HUNDRED_HBARS - executionCost - endpointMargin - callbackGasFee.get()))));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 
@@ -461,12 +472,15 @@ public class ClprEnabledSuite {
     }
 
     private static HapiTxnOp<?> dispatch(final HapiTxnOp<?> op, final boolean inBatch, final boolean bypassIngest) {
-        op.hasKnownStatus(SUCCESS);
+        // The channel's cached manifest is empty here, so eviction reaching its handler proves the feature is enabled
+        final var expected =
+                op.type() == HederaFunctionality.ClprEvictPeerEndpoint ? CLPR_PEER_ENDPOINT_NOT_FOUND : SUCCESS;
+        op.hasKnownStatus(expected);
         final HapiTxnOp<?> submitted = inBatch
                 ? atomicBatch(op.batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(BATCH_TRANSACTION_IN_BLACKLIST)
-                : op.hasKnownStatus(SUCCESS);
+                : op.hasKnownStatus(expected);
         if (bypassIngest) {
             submitted.setNode(INGEST_BYPASS_NODE);
         }
@@ -544,12 +558,15 @@ public class ClprEnabledSuite {
                         .endpointNodeId(0L)
                         .bundlePayload(
                                 toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(payload))));
+        txns.put(
+                "evictPeerEndpoint",
+                clprEvictPeerEndpoint().channelId(crypto.channelId()).endpoint("203.0.113.1", 50211));
         txns.put("closeChannel", clprCloseChannel().channelId(crypto.channelId()));
         // Only governance operations require an administrator; public operations must exercise user throttles.
         txns.values()
                 .forEach(op -> op.payingWith(
                         switch (op.type()) {
-                            case ClprUpdateLedgerConfiguration, ClprCloseChannel -> GENESIS;
+                            case ClprUpdateLedgerConfiguration, ClprCloseChannel, ClprEvictPeerEndpoint -> GENESIS;
                             default -> CALLER;
                         }));
         return txns;

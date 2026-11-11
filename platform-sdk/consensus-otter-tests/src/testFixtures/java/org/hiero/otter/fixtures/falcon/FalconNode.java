@@ -2,7 +2,6 @@
 package org.hiero.otter.fixtures.falcon;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.otter.fixtures.falcon.RecordingEventCreationManager.copyEvent;
 import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractMiniNode.LifeCycle.RUNNING;
 
@@ -23,7 +22,6 @@ import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.benchmark.tools.event.EventShape;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.gossip.impl.gossip.sync.protocol.SyncStatusChecker;
-import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -45,7 +43,7 @@ import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.network.simulation.GossipNetwork;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
@@ -62,7 +60,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
 
     private final Random random;
     private final SimulatorTimeManager timeManager;
-    private final SimulatedNetworkConnectivity networkConnectivity;
+    private final GossipNetwork gossipNetwork;
     private final NodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
 
@@ -97,7 +95,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
      * @param timeManager the time manager
      * @param selfId the ID of this node
      * @param keysAndCerts the keys and certificates of this node
-     * @param networkConnectivity the simulated network connectivity
+     * @param gossipNetwork the simulated network this node gossips on
      * @param networkConfiguration the network configuration
      * @param consensusRoundPool the consensus round pool that collects and deduplicates consensus rounds
      * @param transactionShape the shape the transactions of created events are drawn from, or {@code null} for events
@@ -109,7 +107,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final SimulatedNetworkConnectivity networkConnectivity,
+            @NonNull final GossipNetwork gossipNetwork,
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool,
             @Nullable final EventShape transactionShape,
@@ -117,13 +115,13 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
         super(selfId, keysAndCerts, networkConfiguration);
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
-        this.networkConnectivity = requireNonNull(networkConnectivity);
+        this.gossipNetwork = requireNonNull(gossipNetwork);
         this.transactionShape = transactionShape;
         this.signEvents = signEvents;
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
-        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
+        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool, true);
     }
 
     /**
@@ -187,8 +185,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             assert wiring != null;
             if (stepRecorder != null) {
                 // Before the event goes onto the wire: on direct schedulers, the put releases it right away
-                final NodeId sender = requireNonNull(event.getSenderId());
-                stepRecorder.accept(new Received(timeManager.now(), sender, copyEvent(event, EventOrigin.GOSSIP)));
+                stepRecorder.accept(Received.of(timeManager.now(), event));
             }
             wiring.receivedGossipEventsInputWire().put(event);
             return true;
@@ -252,16 +249,26 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
                 currentConfiguration, time, selfId, roster(), secureRandom, signer, transactionSupplier, stepRecorder);
         final Consumer<PlatformEvent> eventSubmitter = event -> {
             event.setSenderId(selfId);
-            networkConnectivity.submitEvent(event);
+            gossipNetwork.submitEvent(event);
         };
         wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", eventSubmitter);
         final Consumer<EventWindow> eventWindowSubmitter = eventWindow -> {
             latestEventWindow = eventWindow;
-            networkConnectivity.updateEventWindow(selfId, eventWindow);
+            gossipNetwork.updateEventWindow(selfId, eventWindow);
         };
         wiring.eventWindowOutputWire().solderTo("EventWindowSubmitter_" + selfId, "event window", eventWindowSubmitter);
         wiring.consensusRoundOutputWire()
                 .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
+        wiring.preConsensusEventOutputWire()
+                .solderTo(
+                        "PreConsensusEventCollector",
+                        "pre-consensus event",
+                        event -> resultsCollector.addPreConsensusEvent(event.getDescriptor()));
+        wiring.staleEventOutputWire()
+                .solderTo(
+                        "StaleEventCollector",
+                        "stale event",
+                        event -> resultsCollector.addStaleEvent(event.getDescriptor()));
         wiring.platformStatusOutputWire()
                 .solderTo("PlatformStatusCollector", "platform status", this::handlePlatformStatusChange);
 

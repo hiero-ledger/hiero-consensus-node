@@ -8,102 +8,100 @@ import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumTe
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.Committee;
 import java.util.Arrays;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class SyncCommitteeTest {
 
-    private static final int SIZE = Ssz.SYNC_COMMITTEE_SIZE; // 512
+    private static final int MAINNET_SIZE = 512;
 
     @Test
-    void allZeroCommitteeRootMatchesIndependentComputation() {
-        // pubkeyHash64(zeros48) = sha256(zeros64) = zh1; folding 512 identical leaves applies
-        // sha256(x||x) nine times; the committee root pairs that with the aggregate's zh1.
-        byte[] level = ZERO_HASH_1;
-        for (int i = 0; i < 9; i++) {
-            level = sha256(level, level);
+    @DisplayName("given 512 zero keys, then fromPubkeys computes the independently merkleized pubkeys root")
+    void givenZeroKeys_thenFromPubkeysMatchesIndependentRoot() {
+        // Every leaf is sha256(48 zero bytes ‖ 16 zero bytes) = ZERO_HASH_1.
+        final byte[][] leaves = new byte[MAINNET_SIZE][];
+        Arrays.fill(leaves, ZERO_HASH_1);
+
+        final SyncCommittee committee = SyncCommittee.fromPubkeys(keys(MAINNET_SIZE, 0, true), new byte[48]);
+
+        assertThat(committee.pubkeysRoot32()).isEqualTo(merkleizeIndependently(leaves));
+    }
+
+    @Test
+    @DisplayName("given distinct keys, then fromPubkeys computes the independently merkleized pubkeys root")
+    void givenDistinctKeys_thenFromPubkeysMatchesIndependentRoot() {
+        final byte[][] pubkeys = keys(32, 0x10, false);
+        final byte[][] leaves = new byte[pubkeys.length][];
+        for (int i = 0; i < pubkeys.length; i++) {
+            leaves[i] = sha256(pubkeys[i], new byte[16]);
         }
-        byte[] expected = sha256(level, ZERO_HASH_1);
 
-        assertThat(new SyncCommittee(zeroKeys(), new byte[48]).hashTreeRoot()).isEqualTo(expected);
+        final SyncCommittee committee = SyncCommittee.fromPubkeys(pubkeys, deterministicBytes(48, 0x01));
+
+        assertThat(committee.pubkeysRoot32()).isEqualTo(merkleizeIndependently(leaves));
     }
 
     @Test
-    void distinctCommitteeRootMatchesIndependentComputation() {
-        // A non-trivial committee: 512 distinct pubkeys + a distinct aggregate, merkleized
-        // independently (pad each key to 64 bytes, sha256, fold the vector, pair with the aggregate).
-        byte[][] pubkeys = distinctPubkeys();
-        byte[] aggregate = deterministicBytes(48, 0x77);
+    @DisplayName("given a committee, then hashTreeRoot pairs the pubkeys root with the aggregate's leaf")
+    void givenCommittee_thenHashTreeRootPairsPubkeysRootAndAggregateLeaf() {
+        final byte[] pubkeysRoot = deterministicBytes(32, 0x21);
+        final byte[] aggregate = deterministicBytes(48, 0x22);
 
-        byte[][] leaves = new byte[SIZE][];
-        for (int i = 0; i < SIZE; i++) {
-            leaves[i] = pubkeyLeaf(pubkeys[i]);
-        }
-        byte[] expected = sha256(merkleizeIndependently(leaves), pubkeyLeaf(aggregate));
+        final byte[] root = new SyncCommittee(pubkeysRoot, aggregate).hashTreeRoot();
 
-        assertThat(new SyncCommittee(pubkeys, aggregate).hashTreeRoot()).isEqualTo(expected);
+        assertThat(root).isEqualTo(sha256(pubkeysRoot, sha256(aggregate, new byte[16])));
     }
 
     @Test
-    void aggregatePubkeyIsBoundToTheRoot() {
-        byte[][] pubkeys = distinctPubkeys();
-        byte[] root = new SyncCommittee(pubkeys, deterministicBytes(48, 0x01)).hashTreeRoot();
-        byte[] other = new SyncCommittee(pubkeys, deterministicBytes(48, 0x02)).hashTreeRoot();
-        assertThat(other).isNotEqualTo(root);
+    @DisplayName("given swapped members, then fromPubkeys computes a different pubkeys root")
+    void givenSwappedMembers_thenPubkeysRootChanges() {
+        final byte[][] pubkeys = keys(32, 0x30, false);
+        final byte[] root = SyncCommittee.fromPubkeys(pubkeys, new byte[48]).pubkeysRoot32();
+        final byte[][] swapped = pubkeys.clone();
+        swapped[0] = pubkeys[1];
+        swapped[1] = pubkeys[0];
+
+        assertThat(SyncCommittee.fromPubkeys(swapped, new byte[48]).pubkeysRoot32())
+                .isNotEqualTo(root);
     }
 
     @Test
-    void memberOrderingMatters() {
-        byte[][] pubkeys = distinctPubkeys();
-        byte[] aggregate = deterministicBytes(48, 0x77);
-        byte[] root = new SyncCommittee(pubkeys, aggregate).hashTreeRoot();
+    @DisplayName("given a committee, then decompressAggregatePubkey returns the aggregate's EIP-2537 encoding")
+    void givenCommittee_thenDecompressAggregatePubkeyReturnsUncompressedAggregate() {
+        final Committee keys = Committee.of(SyncCommitteePreset.MINIMAL, 1);
 
-        byte[][] swapped = pubkeys.clone(); // shallow copy; swap the first two members
-        byte[] tmp = swapped[0];
-        swapped[0] = swapped[1];
-        swapped[1] = tmp;
-        assertThat(new SyncCommittee(swapped, aggregate).hashTreeRoot()).isNotEqualTo(root);
+        final SyncCommittee committee = new SyncCommittee(keys.pubkeysRoot, keys.compressedAggregate);
+
+        assertThat(committee.decompressAggregatePubkey()).isEqualTo(keys.uncompressedAggregate);
     }
 
     @Test
-    void wrongPubkeyCountThrows() {
-        byte[][] tooFew = new byte[SIZE - 1][];
-        Arrays.fill(tooFew, new byte[48]);
-        assertThatThrownBy(() -> new SyncCommittee(tooFew, new byte[48]).hashTreeRoot())
-                .isInstanceOf(ProofException.class)
-                .hasMessageContaining("sync committee must have " + SIZE + " pubkeys");
-    }
-
-    @Test
-    void wrongPubkeyLengthThrows() {
-        byte[][] pubkeys = zeroKeys();
-        pubkeys[7] = new byte[47];
-        assertThatThrownBy(() -> new SyncCommittee(pubkeys, new byte[48]).hashTreeRoot())
+    @DisplayName("given a 96-byte aggregate, then the constructor rejects it")
+    void givenUncompressedAggregate_thenConstructorThrows() {
+        assertThatThrownBy(() -> new SyncCommittee(new byte[32], new byte[96]))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("pubkey must be 48 bytes, got 47");
+                .hasMessageContaining("aggregatePubkey must be 48 bytes, got 96");
     }
 
-    // ── helpers ──
+    @Test
+    @DisplayName("given a committee, then its accessors return copies")
+    void givenCommittee_thenAccessorsReturnCopies() {
+        final SyncCommittee committee = new SyncCommittee(deterministicBytes(32, 1), deterministicBytes(48, 2));
 
-    private static byte[][] zeroKeys() {
-        byte[][] keys = new byte[SIZE][];
-        Arrays.fill(keys, new byte[48]);
-        return keys;
+        committee.pubkeysRoot32()[0] ^= 1;
+        committee.aggregatePubkey48()[0] ^= 1;
+
+        assertThat(committee.pubkeysRoot32()).isEqualTo(deterministicBytes(32, 1));
+        assertThat(committee.aggregatePubkey48()).isEqualTo(deterministicBytes(48, 2));
     }
 
-    private static byte[][] distinctPubkeys() {
-        byte[][] keys = new byte[SIZE][];
-        for (int i = 0; i < SIZE; i++) {
-            keys[i] = deterministicBytes(48, i);
+    private static byte[][] keys(final int count, final int seed, final boolean zero) {
+        final byte[][] keys = new byte[count][];
+        for (int i = 0; i < count; i++) {
+            keys[i] = zero ? new byte[48] : deterministicBytes(48, seed + i);
         }
         return keys;
-    }
-
-    /** Independent SSZ {@code Bytes48} leaf: the 48 bytes zero-padded to 64 and hashed once. */
-    private static byte[] pubkeyLeaf(byte[] pubkey48) {
-        byte[] padded = new byte[64];
-        System.arraycopy(pubkey48, 0, padded, 0, 48);
-        return sha256(padded);
     }
 }
