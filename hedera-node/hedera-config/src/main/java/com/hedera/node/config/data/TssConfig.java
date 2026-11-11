@@ -40,10 +40,10 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean useDeterministicHintsSignatures,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean hintsEnabled,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean historyEnabled,
 
         // Denominator used to compute signing threshold: totalWeight / signingThresholdDivisor
