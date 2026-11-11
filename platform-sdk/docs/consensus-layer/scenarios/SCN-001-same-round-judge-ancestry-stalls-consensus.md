@@ -78,7 +78,7 @@ integration test failed on exactly this stall — the network never reached `ACT
 The bug is intermittent: it only manifests when a specific graph/roster combination arises — two same-round judges on a
 single ancestry chain, with the new roster weighting witnesses such that an intermediate non-judge gets promoted. Runs
 that drive roster changes will not hit it deterministically. The JRS catch was an intermittent failure in a
-roster-change test, not a targeted reproduction; the constructed test in `related.tests` is.
+roster-change test, not a targeted reproduction. `Scn001Test`, in `related.tests`, reproduces it deterministically.
 
 SYM-001 has many possible causes; the discriminator for this scenario is the timing (immediately after a roster-change
 restart) plus the graph shape under **Setup**. Deeper log/metric signatures beyond the status stall have not been
@@ -126,7 +126,8 @@ differs.
 ## Verification
 
 `test-reproduced`. The test in `related.tests` constructs the J1 → MID → J2 shape, drives the roster change, and asserts
-INV-001 across the replay. Restoring the pre-fix carve-out makes it fail with the inversion in **Sequence** step 5.
+INV-001 between `MID` and its descendant judge `J2` after the roster change. Restoring the pre-fix carve-out makes it
+fail with the inversion in **Sequence** step 5.
 
 The scenario was observed before it was reproduced. The bug halted at least one JRS integration test in the subset that
 exercised address-book changes (now called roster changes). The state and PCES events from that failing run were

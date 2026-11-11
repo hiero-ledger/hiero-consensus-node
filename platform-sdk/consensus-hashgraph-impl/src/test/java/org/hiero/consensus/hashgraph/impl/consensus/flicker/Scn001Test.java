@@ -21,7 +21,8 @@ import org.junit.jupiter.api.Test;
  * SCN-001 — a round's judge exempted from clearing has another same-round judge in its ancestry.
  * <p>
  * Reproduces the scenario in {@code docs/consensus-layer/scenarios/SCN-001-*.md} and asserts INV-001
- * ({@code roundCreated(child) >= roundCreated(parent)}) holds across the roster change.
+ * ({@code roundCreated(child) >= roundCreated(parent)}) between MID and its descendant judge J2 after the roster
+ * change.
  * <p>
  * Before the fix, every judge of the just-decided round was exempt from metadata clearing. When two same-round judges
  * sat on one ancestry chain, the non-judge between them was cleared and recalculated under the new roster — and could
@@ -53,7 +54,7 @@ class Scn001Test {
                 .as("the event between the two judges must not itself be one")
                 .doesNotContain(Scn001Graph.MID);
 
-        // phase 2 - restart under the new roster and replay the same DAG
+        // phase 2 - restart under the new roster and replay the same events
         final ConsensusTraceLog trace = new ConsensusTraceLog();
         final FlickerIntake post = new FlickerIntake(configuration, rosterNew, trace);
         post.loadSnapshot(snapshot);
@@ -70,7 +71,9 @@ class Scn001Test {
         // The other premise: the new roster promotes mid. Without it, the inequality below holds trivially, and a
         // graph or roster edit that left mid in round 2 would leave the test passing without exercising the bug.
         assertThat(mid.getRoundCreated())
-                .as("%s must be promoted past the round of the judges around it", Scn001Graph.MID)
+                .as(
+                        "%s must be promoted to round %d under the new roster",
+                        Scn001Graph.MID, Scn001Graph.ANCHOR_ROUND + 1)
                 .isEqualTo(Scn001Graph.ANCHOR_ROUND + 1);
 
         assertThat(j2.getRoundCreated())
