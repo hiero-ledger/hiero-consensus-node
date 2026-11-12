@@ -10,7 +10,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConstantUtils.ZERO
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Duration;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Token;
@@ -21,7 +20,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -113,22 +114,15 @@ public abstract class UpdateCommonDecoder {
                 && tokenExpiry.autoRenewPeriod().seconds() != 0) {
             txnBodyBuilder.autoRenewPeriod(tokenExpiry.autoRenewPeriod());
         }
+        // TODO Glib: reuse tx body wrapper and the status
         TokenKeyUtils.addTokenKeys(tokenKeys, false, txnBodyBuilder);
         return txnBodyBuilder;
     }
 
-    /**
-     * The result of decoding an {@code updateTokenKeys} call.
-     *
-     * @param body             the synthetic body to dispatch, or null if the call cannot be decoded
-     * @param preemptingStatus if not null, the status to report instead of dispatching the body
-     */
-    public record KeyUpdate(
-            @Nullable TransactionBody body, @Nullable ResponseCodeEnum preemptingStatus) {}
+    protected abstract TokenTransactionBodyWrapper decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt);
 
-    protected abstract KeyUpdate decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt);
-
-    protected KeyUpdate decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt, final boolean withMetadata) {
+    protected TokenTransactionBodyWrapper decodeTokenUpdateKeys(
+            @NonNull final HtsCallAttempt attempt, final boolean withMetadata) {
 
         final var call = decodeCall(attempt);
 
@@ -142,10 +136,10 @@ public abstract class UpdateCommonDecoder {
             final var txnBodyBuilder = TokenUpdateTransactionBody.newBuilder();
             txnBodyBuilder.token(tokenId);
             final var preemptingStatus = TokenKeyUtils.addTokenKeys(tokenKeys, withMetadata, txnBodyBuilder);
-            return new KeyUpdate(
+            return new TokenTransactionBodyWrapper(
                     TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build(), preemptingStatus);
         } catch (final IllegalArgumentException ignore) {
-            return new KeyUpdate(null, null);
+            return TokenTransactionBodyWrapper.EMPTY;
         }
     }
 

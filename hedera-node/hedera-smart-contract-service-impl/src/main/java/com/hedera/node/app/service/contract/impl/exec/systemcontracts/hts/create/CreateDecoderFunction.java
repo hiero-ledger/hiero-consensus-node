@@ -2,9 +2,9 @@
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 
 /**
  * A decoder function used for decoding create calls to HTS system contract.
@@ -19,6 +19,6 @@ public interface CreateDecoderFunction {
      * @param converter the address id converter
      * @return the transaction body of the call
      */
-    TransactionBody decode(
+    TokenTransactionBodyWrapper decode(
             byte[] input, AccountID senderID, HederaNativeOperations nativeOps, AddressIdConverter converter);
 }

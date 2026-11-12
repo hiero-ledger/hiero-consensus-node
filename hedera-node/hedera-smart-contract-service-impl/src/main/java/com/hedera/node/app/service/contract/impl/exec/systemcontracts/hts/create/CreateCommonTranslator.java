@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create;
 
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -9,8 +8,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCal
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -37,15 +37,17 @@ public abstract class CreateCommonTranslator extends AbstractCallTranslator<HtsC
 
     @Override
     public Call callFrom(@NonNull HtsCallAttempt attempt) {
+        TokenTransactionBodyWrapper txnWrapper = nominalBodyFor(attempt);
         return new ClassicCreatesCall(
                 attempt.systemContractGasCalculator(),
                 attempt.enhancement(),
-                nominalBodyFor(attempt),
+                txnWrapper.body(),
                 attempt.defaultVerificationStrategy(),
-                attempt.senderId());
+                attempt.senderId(),
+                txnWrapper.preemptingStatus());
     }
 
-    private @Nullable TransactionBody nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
+    private TokenTransactionBodyWrapper nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
         final var inputBytes = attempt.inputBytes();
         final var senderId = attempt.senderId();
         final var nativeOperations = attempt.nativeOperations();
@@ -55,6 +57,6 @@ public abstract class CreateCommonTranslator extends AbstractCallTranslator<HtsC
                 .filter(entry -> attempt.isSelector(entry.getKey()))
                 .map(entry -> entry.getValue().decode(inputBytes, senderId, nativeOperations, addressIdConverter))
                 .findFirst()
-                .orElse(null);
+                .orElse(TokenTransactionBodyWrapper.EMPTY);
     }
 }

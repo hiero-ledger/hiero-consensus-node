@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecKey.Type.SECP_256K1;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -81,7 +82,7 @@ public class UpdateTokenPrecompileTest {
     private static final long GAS_NEEDED = 1_000_000L;
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
     // Name under which AuthorizeContractOperation registers the key it gives the contract for the shared token
-    private static final String SHARED_TOKEN_MANAGED_KEY = "sharedAuthorizedToken_UpdateTokenKeysContractManagedKey";
+    private static final String SHARED_TOKEN_MANAGED_KEY = "sharedAuthorizedToken_TokenKeysContractManagedKey";
     private static final String HTS_ADDRESS = "0x0000000000000000000000000000000000000167";
     private static final String KEYLESS_TOKEN = "keylessToken";
     private static final String KEYLESS_TREASURY = "keylessTreasury";
@@ -93,7 +94,7 @@ public class UpdateTokenPrecompileTest {
     static SpecContract updateTokenContract;
 
     // Forwards an arbitrary TokenKey[] to updateTokenKeys at 0x167, reverting unless the precompile returns SUCCESS
-    @Contract(contract = "UpdateTokenKeysContract", creationGas = 1_000_000L)
+    @Contract(contract = "TokenKeysContract", creationGas = 2_000_000L)
     static SpecContract updateTokenKeysContract;
 
     @FungibleToken(
@@ -241,14 +242,15 @@ public class UpdateTokenPrecompileTest {
     @HapiTest
     @DisplayName("updateTokenKeys with an empty key list from an authorized contract succeeds and changes nothing")
     public Stream<DynamicTest> emptyKeyListFromAuthorizedContractChangesNothing() {
-        return authorizedContractUpdateKeepsAllKeys("emptyKeyList", false, _ -> new Tuple[0]);
+        return Stream.of(
+                authorizedContractUpdateKeepsAllKeys("updateTokenKeys", "emptyKeyList", false, _ -> new Tuple[0]));
     }
 
     @HapiTest
     @DisplayName("updateTokenKeys with keyType zero from an authorized contract is rejected and changes nothing")
     public Stream<DynamicTest> zeroKeyTypeFromAuthorizedContractIsRejected() {
-        return authorizedContractUpdateKeepsAllKeys(
-                "zeroKeyType", true, newKeys -> new Tuple[] {keyEntry(BigInteger.ZERO, newKeys[0])});
+        return Stream.of(authorizedContractUpdateKeepsAllKeys("updateTokenKeys", "zeroKeyType", true, newKeys ->
+                new Tuple[] {keyEntry(BigInteger.ZERO, newKeys[0])}));
     }
 
     @HapiTest
@@ -256,16 +258,29 @@ public class UpdateTokenPrecompileTest {
     public Stream<DynamicTest> undefinedBitsFromAuthorizedContractAreRejected() {
         // At 0x167, bits 0x80 and up have no key; 0x80 is only the metadata key at 0x16c
         final var undefinedBits = IntStream.range(7, 16).mapToObj(BigInteger.ONE::shiftLeft);
-        return undefinedBits.flatMap(bit -> authorizedContractUpdateKeepsAllKeys(
-                "undefinedBit" + bit.toString(16), true, newKeys -> new Tuple[] {keyEntry(bit, newKeys[0])}));
+        return undefinedBits.map(bit -> authorizedContractUpdateKeepsAllKeys(
+                "updateTokenKeys", "undefinedBit" + bit.toString(16), true, newKeys ->
+                        new Tuple[] {keyEntry(bit, newKeys[0])}));
+    }
+
+    @HapiTest
+    @DisplayName(
+            "updateTokenKeys at 0x16c with only undefined bits from an authorized contract is rejected for each bit")
+    public Stream<DynamicTest> undefinedBitsFromAuthorizedContractAreRejectedWithMetadata() {
+        // At 0x16c, 0x80 is the metadata key, so the undefined bits start at 0x100
+        final var undefinedBits = IntStream.range(8, 16).mapToObj(BigInteger.ONE::shiftLeft);
+        return undefinedBits.map(bit -> authorizedContractUpdateKeepsAllKeys(
+                "updateTokenKeysWithMetadata", "undefinedBitWithMetadata" + bit.toString(16), true, newKeys ->
+                        new Tuple[] {keyEntry(bit, newKeys[0])}));
     }
 
     @HapiTest
     @DisplayName("updateTokenKeys with a valid and an undefined entry from an authorized contract updates nothing")
     public Stream<DynamicTest> validEntryWithUndefinedEntryFromAuthorizedContractUpdatesNothing() {
-        return authorizedContractUpdateKeepsAllKeys("validAndUndefined", true, newKeys -> new Tuple[] {
-            keyEntry(BigInteger.valueOf(0x10), newKeys[0]), keyEntry(BigInteger.valueOf(0x100), newKeys[0])
-        });
+        return Stream.of(authorizedContractUpdateKeepsAllKeys(
+                "updateTokenKeys", "validAndUndefined", true, newKeys -> new Tuple[] {
+                    keyEntry(BigInteger.valueOf(0x10), newKeys[0]), keyEntry(BigInteger.valueOf(0x100), newKeys[0])
+                }));
     }
 
     @HapiTest
@@ -285,20 +300,19 @@ public class UpdateTokenPrecompileTest {
                 token.getInfo().andAssert(info -> info.hasSupplyKey(token.name())));
     }
 
-    /**
-     * The contract holds the token's admin key, so authorization is not in play. The call either succeeds, or is
-     * rejected with INVALID_TRANSACTION_BODY (the contract reverts on any status but SUCCESS); either way none of
-     * the token's keys may change.
-     */
-    private Stream<DynamicTest> authorizedContractUpdateKeepsAllKeys(
-            @NonNull final String tag, final boolean rejected, @NonNull final Function<byte[][], Tuple[]> entries) {
+    private DynamicTest authorizedContractUpdateKeepsAllKeys(
+            @NonNull final String function,
+            @NonNull final String tag,
+            final boolean rejected,
+            @NonNull final Function<byte[][], Tuple[]> entries) {
         final var newKey = tag + "NewKey";
-        return hapiTest(
+        return namedHapiTest(
+                tag,
                 newKeyNamed(newKey),
                 withOpContext((spec, _) -> allRunFor(
                         spec,
                         updateTokenKeysContract
-                                .call("updateTokenKeys", sharedAuthorizedToken, entries.apply(new byte[][] {
+                                .call(function, sharedAuthorizedToken, entries.apply(new byte[][] {
                                     ed25519Of(spec, newKey)
                                 }))
                                 .gas(GAS_NEEDED)

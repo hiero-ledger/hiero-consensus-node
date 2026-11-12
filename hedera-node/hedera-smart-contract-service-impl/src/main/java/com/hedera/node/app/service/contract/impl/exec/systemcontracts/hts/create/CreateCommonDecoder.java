@@ -4,16 +4,14 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.creat
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
-import com.hedera.hapi.node.token.TokenCreateTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FixedFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FractionalFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.RoyaltyFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -208,9 +206,5 @@ public class CreateCommonDecoder {
                 .build();
         return new TokenExpiryWrapper(
                 second, autoRenewAccount.accountNumOrThrow() == 0 ? null : autoRenewAccount, autoRenewPeriod);
-    }
-
-    protected TransactionBody bodyOf(@NonNull final TokenCreateTransactionBody.Builder tokenCreate) {
-        return TransactionBody.newBuilder().tokenCreation(tokenCreate).build();
     }
 }

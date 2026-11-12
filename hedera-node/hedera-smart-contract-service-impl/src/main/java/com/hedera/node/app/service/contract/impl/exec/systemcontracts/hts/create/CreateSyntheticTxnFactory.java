@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create;
 
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody.Builder;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FixedFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.FractionalFeeWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper.RoyaltyFeeWrapper;
-import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -32,7 +33,8 @@ public class CreateSyntheticTxnFactory {
      * @return the body of the token create transaction
      */
     @NonNull
-    public static TokenCreateTransactionBody.Builder createToken(@NonNull final TokenCreateWrapper tokenCreateWrapper) {
+    public static TokenTransactionBodyWrapper createToken(
+            @NonNull final TokenCreateWrapper tokenCreateWrapper, final boolean withMetadata) {
         final var txnBodyBuilder = TokenCreateTransactionBody.newBuilder();
         txnBodyBuilder
                 .name(tokenCreateWrapper.getName())
@@ -51,7 +53,8 @@ public class CreateSyntheticTxnFactory {
         }
 
         // Set keys if they exist
-        setTokenKeys(tokenCreateWrapper, txnBodyBuilder);
+        final var preemptingStatus =
+                TokenKeyUtils.addTokenKeys(tokenCreateWrapper.getTokenKeys(), false, txnBodyBuilder);
 
         // Set expiry details
         setExpiry(tokenCreateWrapper, txnBodyBuilder);
@@ -59,46 +62,12 @@ public class CreateSyntheticTxnFactory {
         // Add custom fees
         addCustomFees(tokenCreateWrapper, txnBodyBuilder);
 
-        return txnBodyBuilder;
-    }
+        if (withMetadata) {
+            setMetadata(tokenCreateWrapper, txnBodyBuilder);
+        }
 
-    public static TokenCreateTransactionBody.Builder createTokenWithMetadata(
-            @NonNull final TokenCreateWrapper tokenCreateWrapper) {
-        final var transactionBodyBuilder = createToken(tokenCreateWrapper);
-        setMetadata(tokenCreateWrapper, transactionBodyBuilder);
-        setMetadataKey(tokenCreateWrapper, transactionBodyBuilder);
-        return transactionBodyBuilder;
-    }
-
-    private static void setTokenKeys(
-            @NonNull final TokenCreateWrapper tokenCreateWrapper, final Builder txnBodyBuilder) {
-        tokenCreateWrapper.getTokenKeys().forEach(tokenKeyWrapper -> {
-            final var key = tokenKeyWrapper.key().asGrpc();
-            if (Key.DEFAULT.equals(key)) {
-                throw new IllegalArgumentException();
-            }
-            if (tokenKeyWrapper.isUsedForAdminKey()) {
-                txnBodyBuilder.adminKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForKycKey()) {
-                txnBodyBuilder.kycKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForFreezeKey()) {
-                txnBodyBuilder.freezeKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForWipeKey()) {
-                txnBodyBuilder.wipeKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForSupplyKey()) {
-                txnBodyBuilder.supplyKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForFeeScheduleKey()) {
-                txnBodyBuilder.feeScheduleKey(key);
-            }
-            if (tokenKeyWrapper.isUsedForPauseKey()) {
-                txnBodyBuilder.pauseKey(key);
-            }
-        });
+        return new TokenTransactionBodyWrapper(
+                TransactionBody.newBuilder().tokenCreation(txnBodyBuilder).build(), preemptingStatus);
     }
 
     private static void setExpiry(
@@ -114,14 +83,6 @@ public class CreateSyntheticTxnFactory {
         if (tokenCreateWrapper.getExpiry().autoRenewPeriod() != null) {
             txnBodyBuilder.autoRenewPeriod(tokenCreateWrapper.getExpiry().autoRenewPeriod());
         }
-    }
-
-    private static void setMetadataKey(
-            @NonNull final TokenCreateWrapper tokenCreateWrapper, final Builder txnBodyBuilder) {
-        tokenCreateWrapper.getTokenKeys().stream()
-                .filter(TokenKeyWrapper::isUsedForMetadataKey)
-                .map(tokenKeyWrapper -> tokenKeyWrapper.key().asGrpc())
-                .forEach(txnBodyBuilder::metadataKey);
     }
 
     private static void setMetadata(

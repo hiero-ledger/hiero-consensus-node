@@ -9,6 +9,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateExpiryTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -121,7 +122,7 @@ public class UpdateDecoder extends UpdateCommonDecoder {
 
     @NonNull
     @Override
-    public KeyUpdate decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
+    public TokenTransactionBodyWrapper decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt) {
         return decodeTokenUpdateKeys(attempt, false);
     }
 }

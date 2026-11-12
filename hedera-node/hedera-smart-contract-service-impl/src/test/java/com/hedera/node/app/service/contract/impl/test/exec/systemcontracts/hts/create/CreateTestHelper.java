@@ -278,15 +278,15 @@ public class CreateTestHelper {
 
     public static void customFeesAssertions(final List<CustomFee> customFees) {
         assertThatList(customFees).size().isEqualTo(2);
-        final var customFee1 = customFees.get(0);
+        final var customFee1 = customFees.getFirst();
         assertTrue(customFee1.hasFixedFee());
-        assertEquals(2L, customFee1.fixedFee().amount());
-        assertNull(customFee1.fixedFee().denominatingTokenId());
+        assertEquals(2L, customFee1.fixedFeeOrThrow().amount());
+        assertNull(customFee1.fixedFeeOrThrow().denominatingTokenId());
         assertEquals(SENDER_ID, customFee1.feeCollectorAccountId());
         final var customFee2 = customFees.get(1);
         assertTrue(customFee2.hasFixedFee());
-        assertEquals(3L, customFee2.fixedFee().amount());
-        assertEquals(FUNGIBLE_TOKEN_ID, customFee2.fixedFee().denominatingTokenId());
+        assertEquals(3L, customFee2.fixedFeeOrThrow().amount());
+        assertEquals(FUNGIBLE_TOKEN_ID, customFee2.fixedFeeOrThrow().denominatingTokenId());
         assertEquals(SENDER_ID, customFee2.feeCollectorAccountId());
     }
 }

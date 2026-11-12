@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update;
+package com.hedera.node.app.service.contract.impl.exec.utils;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper.KEY_TYPES_167;
@@ -9,11 +9,10 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
-import com.hedera.node.app.service.contract.impl.exec.utils.KeyValueWrapper;
-import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -33,6 +32,7 @@ public final class TokenKeyUtils {
 
     private TokenKeyUtils() {}
 
+    // TODO Glib; move AddressIdConverter to utils
     /**
      * Decodes the {@code TokenKey[]} of a token create or update call, keeping the entries in call order.
      * A contract id or delegatable contract id of zero is treated as unset.
@@ -91,6 +91,51 @@ public final class TokenKeyUtils {
             @NonNull final List<TokenKeyWrapper> tokenKeys,
             final boolean withMetadata,
             @NonNull final TokenUpdateTransactionBody.Builder builder) {
+        final var definedKeyTypes = withMetadata ? KEY_TYPES_16C : KEY_TYPES_167;
+        ResponseCodeEnum status = null;
+        for (final var tokenKeyWrapper : tokenKeys) {
+            final var key = tokenKeyWrapper.key().asGrpc();
+            if (Key.DEFAULT.equals(key)) {
+                throw new IllegalArgumentException();
+            }
+            if (tokenKeyWrapper.selectsNoKey(definedKeyTypes)) {
+                status = INVALID_TRANSACTION_BODY;
+            } else {
+                if (tokenKeyWrapper.isUsedForAdminKey()) {
+                    builder.adminKey(key);
+                }
+                if (tokenKeyWrapper.isUsedForKycKey()) {
+                    builder.kycKey(key);
+                }
+                if (tokenKeyWrapper.isUsedForFreezeKey()) {
+                    builder.freezeKey(key);
+                }
+                if (tokenKeyWrapper.isUsedForWipeKey()) {
+                    builder.wipeKey(key);
+                }
+                if (tokenKeyWrapper.isUsedForSupplyKey()) {
+                    builder.supplyKey(key);
+                }
+                if (tokenKeyWrapper.isUsedForFeeScheduleKey()) {
+                    builder.feeScheduleKey(key);
+                }
+                if (tokenKeyWrapper.isUsedForPauseKey()) {
+                    builder.pauseKey(key);
+                }
+                if (withMetadata && tokenKeyWrapper.isUsedForMetadataKey()) {
+                    builder.metadataKey(key);
+                }
+            }
+        }
+        return status;
+    }
+
+    // TODO Glib: can we get rid of duplicates here?
+    @Nullable
+    public static ResponseCodeEnum addTokenKeys(
+            @NonNull final List<TokenKeyWrapper> tokenKeys,
+            final boolean withMetadata,
+            @NonNull final TokenCreateTransactionBody.Builder builder) {
         final var definedKeyTypes = withMetadata ? KEY_TYPES_16C : KEY_TYPES_167;
         ResponseCodeEnum status = null;
         for (final var tokenKeyWrapper : tokenKeys) {
