@@ -244,10 +244,12 @@ val prCheckPropOverrides =
         "hapiTestToken" to
             "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCrypto" to
-            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "blockStream.enableStateChangePartials=true,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCryptoSerial" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
-        "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.enableStateChangePartials=true,tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
+        "hapiTestSmartContract" to
+            "blockStream.enableStateChangePartials=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestSmartContractSerial" to "blockStream.enableStateChangePartials=true",
         // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. With history enabled,
         // the genesis chain-of-trust proof must progress under that pressure, and
         // DabEnabledUpgradeTest's upgrades start timing out, so it keeps a hints-only TSS surface
