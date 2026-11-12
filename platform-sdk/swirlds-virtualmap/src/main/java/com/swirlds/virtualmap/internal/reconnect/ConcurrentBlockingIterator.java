@@ -7,6 +7,8 @@ import com.swirlds.virtualmap.VirtualMap;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
 import org.hiero.base.concurrent.SpinThenParkBackoff;
 import org.hiero.base.concurrent.jctools.queues.MpscVarHandleArrayQueue;
 
@@ -81,6 +83,11 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
      * the hashing future, since a {@code CompletableFuture} isn't interrupted on cancel. A failed reconnect ends
      * the wait by closing the iterator, in {@code VirtualMapLearner.abortOnException()}.
      *
+     * <p>On a fork join worker, once spinning is over, this waits through {@link ForkJoinPool#managedBlock}, so
+     * the pool may start a spare worker to run the tasks the consumer has created in the meantime. Otherwise, in
+     * a pool with a single worker, they wouldn't run until the iterator is closed, and a supplier that waits for
+     * them, like the reconnect learner at its leaf backlog threshold, would wait forever.
+     *
      * @throws RuntimeException if the current thread is interrupted, even if an element is available. The
      * 		interrupted flag is cleared
      */
@@ -109,7 +116,38 @@ public class ConcurrentBlockingIterator<T> implements Iterator<T> {
             if (closed && buffer.isEmpty()) {
                 return false;
             }
-            backoffStep = backOff(backoffStep, CONSUMER_MAX_PARK_SHIFT);
+            if ((backoffStep >= SpinThenParkBackoff.SPIN_LIMIT)
+                    && (Thread.currentThread() instanceof ForkJoinWorkerThread)) {
+                awaitElementOrClose();
+            } else {
+                backoffStep = backOff(backoffStep, CONSUMER_MAX_PARK_SHIFT);
+            }
+        }
+    }
+
+    // Waits on a fork join worker until the buffer isn't empty, the iterator is closed, or the thread is
+    // interrupted. The caller checks which one it is. The wait is managed, so while the worker parks here, the
+    // pool may run its other tasks on a spare worker
+    private void awaitElementOrClose() {
+        final ForkJoinPool.ManagedBlocker blocker = new ForkJoinPool.ManagedBlocker() {
+            private int backoffStep = SpinThenParkBackoff.SPIN_LIMIT;
+
+            @Override
+            public boolean block() {
+                backoffStep = backOff(backoffStep, CONSUMER_MAX_PARK_SHIFT);
+                return isReleasable();
+            }
+
+            @Override
+            public boolean isReleasable() {
+                return closed || !buffer.isEmpty() || Thread.currentThread().isInterrupted();
+            }
+        };
+        try {
+            ForkJoinPool.managedBlock(blocker);
+        } catch (final InterruptedException e) {
+            // Not thrown, since block() doesn't throw it. Restore the flag, hasNext() reports the interrupt
+            Thread.currentThread().interrupt();
         }
     }
 

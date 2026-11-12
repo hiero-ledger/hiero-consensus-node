@@ -75,11 +75,9 @@ public final class VirtualHasher {
      */
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
-    /// Leaf hashing tasks of the current or the last [#hash] call, which are created but not started yet. Each
-    /// of them holds its leaf in memory. The hasher itself doesn't limit them: when hashing falls behind the dirty
-    /// leaf feed, for example when hashing threads are blocked in the listener, they pile up in memory. The caller
-    /// that feeds dirty leaves may throttle the feed based on [#getPendingLeafTasks()]. Reset when a hash call
-    /// starts, since tasks of a failed call may never run.
+    /// Number of leaf hash tasks that are created but not started yet. Each one holds its leaf in memory until
+    /// it runs, so the count grows when dirty leaves are supplied faster than they are hashed. Reset at the
+    /// start of every [#hash] call.
     private final LongAdder pendingLeafTasks = new LongAdder();
 
     /**
@@ -103,10 +101,9 @@ public final class VirtualHasher {
         hashingPool.shutdown();
     }
 
-    /// Returns the number of leaf hashing tasks of the current or the last [#hash] call, which are created, but
-    /// not started yet. Each of them holds its leaf in memory.
+    /// Returns the number of leaf hash tasks that are created but not started yet, see [#pendingLeafTasks].
     ///
-    /// @return the number of leaf hashing tasks that are created, but not started yet
+    /// @return the number of leaf hash tasks that are created but not started yet
     public long getPendingLeafTasks() {
         return pendingLeafTasks.sum();
     }

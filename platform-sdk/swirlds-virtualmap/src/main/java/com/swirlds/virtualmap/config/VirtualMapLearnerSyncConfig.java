@@ -39,14 +39,14 @@ import java.time.Duration;
  *                                               store, and reconnect data files are rarely compacted, so a small
  *                                               interval leaves many small files behind, while a large interval
  *                                               increases heap usage.
- * @param maxInFlightLeaves                      The maximum number of leaves requested from the teacher, but not
- *                                               hashed yet: leaf requests whose responses haven't been fed to the
- *                                               hasher, plus leaf hashing tasks that haven't run yet. The learner
- *                                               stops requesting leaves while this limit is reached. This bounds the
- *                                               memory used by leaves waiting for hashing, when leaves are received
- *                                               faster than they are hashed, for example when hashing threads are
- *                                               blocked on flusher backpressure. Each leaf takes a few hundred bytes
- *                                               of heap.
+ * @param leafBacklogThrottleThreshold           The learner stops requesting leaves while its leaf backlog is at this
+ *                                               threshold or above. The backlog is the number of leaf requests whose
+ *                                               responses aren't applied yet, plus leaf hashing tasks that haven't
+ *                                               run yet. Leaves in the hashing buffer between them aren't counted, the
+ *                                               buffer has its own fixed size. This bounds the memory used by leaves
+ *                                               waiting for hashing, when leaves are received faster than they are
+ *                                               hashed, for example when hashing threads are blocked on flusher
+ *                                               backpressure. Each leaf takes a few hundred bytes of heap.
  */
 // spotless:off
 @ConfigData("reconnect.learner")
@@ -58,5 +58,5 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "10000") @Positive @Max(1073741824) int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
         @ConfigProperty(defaultValue = "2000000") @Positive int flushInterval,
-        @ConfigProperty(defaultValue = "1000000") @Positive int maxInFlightLeaves) {}
+        @ConfigProperty(defaultValue = "1000000") @Positive int leafBacklogThrottleThreshold) {}
 // spotless:on

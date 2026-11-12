@@ -55,31 +55,27 @@ public final class LearnerTreeExchanger {
      */
     private final Queue<Long> anticipatedLeafPaths = new ConcurrentLinkedDeque<>();
 
-    /**
-     * Related to the queue above. If a response is received out of order, it's temporarily stored
-     * in this map.
-     *
-     * <p>This map can't hold more than {@link #maxInFlightLeaves} responses, since it only holds responses
-     * to leaf requests that are not applied yet. Its size is reported as {@code responsesWaiting} in the
-     * periodic status log.
-     */
+    /// Related to the queue above. If a response is received out of order, it's temporarily stored
+    /// in this map.
+    ///
+    /// This map can't hold more than [#leafBacklogThrottleThreshold] responses, since it only holds responses
+    /// to leaf requests that are not applied yet. Its size is reported as `responsesWaiting` in the
+    /// periodic status log.
     private final Map<Long, PullVirtualTreeResponse> responses = new ConcurrentHashMap<>();
 
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
-    /**
-     * Max number of leaves requested from the teacher, but not hashed yet. When this limit is reached,
-     * {@link #getNextPathToSend()} stops returning leaf paths. Flusher backpressure throttles both receiving
-     * and hashing, but it doesn't keep hashing up with receiving. Without this limit, leaves that are received
-     * faster than they are hashed pile up in memory, either in {@link #responses} or in hashing tasks.
-     */
-    private final int maxInFlightLeaves;
+    /// While the leaf backlog, [#unappliedLeafRequests] plus leaf hashing tasks that haven't run yet, is at this
+    /// threshold or above, [#getNextPathToSend()] doesn't return leaf paths. Flusher backpressure throttles both
+    /// receiving and hashing, but it doesn't keep hashing up with receiving. Without this threshold, leaves that
+    /// are received faster than they are hashed pile up in memory, either in [#responses] or in hashing tasks.
+    /// Leaves in the hashing buffer between the applier and the hasher aren't counted, the buffer has its own
+    /// fixed size.
+    private final int leafBacklogThrottleThreshold;
 
-    /**
-     * Number of leaf requests sent to the teacher, whose responses are not applied yet. Equals the size of
-     * {@link #anticipatedLeafPaths}, which is not used directly as the deque size is O(n).
-     */
-    private final AtomicLong inFlightLeaves = new AtomicLong();
+    /// Number of leaf requests sent to the teacher, whose responses are not applied yet. Equals the size of
+    /// [#anticipatedLeafPaths], which is not used directly as the deque size is O(n).
+    private final AtomicLong unappliedLeafRequests = new AtomicLong();
 
     /**
      * How often the applier thread logs the state of the leaf pipeline (responses waiting, hashing buffer,
@@ -98,21 +94,23 @@ public final class LearnerTreeExchanger {
      *      the traversal order defining which paths to request
      * @param stats
      *      a ReconnectMapStats object to collect reconnect metrics
-     * @param maxInFlightLeaves
-     *      max number of leaves requested from the teacher, but not hashed yet
+     * @param leafBacklogThrottleThreshold
+     *      the leaf backlog at which the learner stops requesting leaves, see
+     *      {@code reconnect.learner.leafBacklogThrottleThreshold}
      */
     public LearnerTreeExchanger(
             @NonNull final VirtualMapLearner vmapLearner,
             @NonNull final NodeTraversalOrder traversalOrder,
             @NonNull final LearnerSyncMetrics stats,
-            final int maxInFlightLeaves) {
+            final int leafBacklogThrottleThreshold) {
         this.vmapLearner = Objects.requireNonNull(vmapLearner, "vmapLearner is null");
         this.traversalOrder = Objects.requireNonNull(traversalOrder, "traversalOrder is null");
         this.stats = Objects.requireNonNull(stats, "mapStats is null");
-        if (maxInFlightLeaves <= 0) {
-            throw new IllegalArgumentException("maxInFlightLeaves must be positive: " + maxInFlightLeaves);
+        if (leafBacklogThrottleThreshold <= 0) {
+            throw new IllegalArgumentException(
+                    "leafBacklogThrottleThreshold must be positive: " + leafBacklogThrottleThreshold);
         }
-        this.maxInFlightLeaves = maxInFlightLeaves;
+        this.leafBacklogThrottleThreshold = leafBacklogThrottleThreshold;
     }
 
     /**
@@ -166,10 +164,9 @@ public final class LearnerTreeExchanger {
             return intPath;
         }
         synchronized (this) {
-            // Backpressure: don't request more leaves until some of the requested ones are hashed. Leaves
-            // in the hashing buffer between the applier and the hasher aren't counted, the buffer has its
-            // own limit. Checked under the lock, so concurrent senders can't overshoot the limit
-            if (inFlightLeaves.get() + vmapLearner.getPendingLeafHashTasks() >= maxInFlightLeaves) {
+            // Backpressure: don't request more leaves until some of the requested ones are hashed. Checked
+            // under the lock, so concurrent senders can't overshoot the threshold
+            if (unappliedLeafRequests.get() + vmapLearner.getPendingLeafHashTasks() >= leafBacklogThrottleThreshold) {
                 return NodeTraversalOrder.PATH_NOT_AVAILABLE_YET;
             }
             // If the last leaf path is sent, all subsequent calls to getNextPathToSend()
@@ -182,7 +179,7 @@ public final class LearnerTreeExchanger {
                 assert (leafPath < 0) || isLeafOnTeacher(leafPath);
                 if (leafPath > 0) {
                     anticipatedLeafPaths.add(leafPath);
-                    inFlightLeaves.incrementAndGet();
+                    unappliedLeafRequests.incrementAndGet();
                 }
             }
             return leafPath;
@@ -258,7 +255,7 @@ public final class LearnerTreeExchanger {
             final long applyStart = System.nanoTime();
             handleResponse(r);
             anticipatedLeafPaths.remove();
-            inFlightLeaves.decrementAndGet();
+            unappliedLeafRequests.decrementAndGet();
             status.applied(applyStart, System.nanoTime());
         }
 
@@ -280,7 +277,7 @@ public final class LearnerTreeExchanger {
             }
             final long applyStart = System.nanoTime();
             handleResponse(r);
-            inFlightLeaves.decrementAndGet();
+            unappliedLeafRequests.decrementAndGet();
             status.applied(applyStart, System.nanoTime());
         }
         status.log(System.nanoTime(), null, 0);
@@ -325,21 +322,25 @@ public final class LearnerTreeExchanger {
 
         void log(final long now, final Long headPath, final long headWaitStart) {
             lastLogNanos = now;
+            final long unapplied = unappliedLeafRequests.get();
+            final long pendingHashTasks = vmapLearner.getPendingLeafHashTasks();
             logger.info(
                     RECONNECT.getMarker(),
-                    "Learner leaf pipeline: appliedLeaves={}, inFlightLeaves={} (max {}), responsesWaiting={}, "
+                    "Learner leaf pipeline: appliedLeaves={}, leafBacklog={} (throttle threshold {}), "
+                            + "unappliedLeafRequests={}, pendingLeafHashTasks={}, responsesWaiting={}, "
                             + "applyMillis={}, parkedMillis={}, waitingForPath={}, waitingMillis={}, "
-                            + "hashingBuffer={}, pendingLeafHashTasks={}, chunk status: {}, flusher: {}",
+                            + "hashingBuffer={}, chunk status: {}, flusher: {}",
                     appliedLeaves,
-                    inFlightLeaves.get(),
-                    maxInFlightLeaves,
+                    unapplied + pendingHashTasks,
+                    leafBacklogThrottleThreshold,
+                    unapplied,
+                    pendingHashTasks,
                     responses.size(),
                     TimeUnit.NANOSECONDS.toMillis(applyNanos),
                     TimeUnit.NANOSECONDS.toMillis(parkedNanos),
                     headPath,
                     (headPath == null) ? 0 : TimeUnit.NANOSECONDS.toMillis(now - headWaitStart),
                     vmapLearner.getHashingBufferSize(),
-                    vmapLearner.getPendingLeafHashTasks(),
                     traversalOrder.getStatus(),
                     vmapLearner.getFlusherStatus());
         }

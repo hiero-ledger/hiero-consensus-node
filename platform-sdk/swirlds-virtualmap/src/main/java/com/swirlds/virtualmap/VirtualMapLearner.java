@@ -272,10 +272,10 @@ public final class VirtualMapLearner {
         return reconnectFlusher.getStatus();
     }
 
-    /**
-     * @return the number of leaf hashing tasks created by the reconnect hashing, but not run yet. Each task
-     *      holds its leaf in memory
-     */
+    /// Returns the number of leaf hashing tasks created by the reconnect hashing, but not run yet. Each task
+    /// holds its leaf in memory.
+    ///
+    /// @return the number of leaf hashing tasks that are created, but not run yet
     public long getPendingLeafHashTasks() {
         return hasher.getPendingLeafTasks();
     }
