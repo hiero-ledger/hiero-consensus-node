@@ -3,6 +3,8 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.merkledb.collections.AbstractLongList.FILE_HEADER_SIZE_V3;
 import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.checkDirectMemoryIsCleanedUpToLessThanBaseUsage;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.getDirectMemoryUsedBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,6 +70,11 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
 
     private static AbstractLongList<?> longList;
 
+    /**
+     * Keep track of initial direct memory used already, so we can check if we leek over and above what we started with
+     */
+    private static long directMemoryUsedAtStart;
+
     // Factory methods for creating different configurations of LongList instances
 
     protected abstract T createLongList(final long capacity, final MerkleDbConfig config);
@@ -85,6 +92,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
     void testCreateData() {
         longList = createLongList(1024 * 1024, 2_000_000_000L, 256 * 1024);
         final long capacity = longList.capacity();
+        directMemoryUsedAtStart = getDirectMemoryUsedBytes();
 
         assertEquals(2_000_000_000L, longList.capacity(), "Capacity should be default it not given explicitly");
         assertEquals(
@@ -189,6 +197,9 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
         if (longList != null) {
             longList.close();
         }
+        // Check all direct memory is freed after the list is closed. LongListSegment's arenas aren't
+        // tracked by the direct memory pool, so they are checked separately below.
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
         // For LongListSegment: Arena.close() is deterministic — no GC dependency. If
         // AbstractLongList.close() called closeChunk for every chunk (which it does via
         // getAndSet), all arenas are freed and getOffHeapConsumption() must return 0.
