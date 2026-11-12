@@ -77,6 +77,10 @@ class HistoryServiceImplTest {
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+    private static final TssConfig MOCK_SIGNING_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("tss.forceMockSignatures", true)
+            .getOrCreateConfig()
+            .getConfigData(TssConfig.class);
     private static final TssConfig REAL_SIGNING_CONFIG = HederaTestConfigBuilder.create()
             .withValue("tss.forceMockSignatures", false)
             .getOrCreateConfig()
@@ -236,14 +240,14 @@ class HistoryServiceImplTest {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
 
-        reconcileWitnesses(DEFAULT_TSS_CONFIG, CONSENSUS_NOW);
+        reconcileWitnesses(MOCK_SIGNING_CONFIG, CONSENSUS_NOW);
         subject.publishKeyWitness(CURRENT_VK, eligibleWitness());
         verifyNoInteractions(store, submissions);
 
         given(store.keyProvenanceWithWitnesses())
                 .willAnswer(ignored -> List.of(pendingWitnessRecord()).iterator());
         reconcileWitnesses(REAL_SIGNING_CONFIG, CONSENSUS_NOW.plusSeconds(1));
-        reconcileWitnesses(DEFAULT_TSS_CONFIG, CONSENSUS_NOW.plusSeconds(2));
+        reconcileWitnesses(MOCK_SIGNING_CONFIG, CONSENSUS_NOW.plusSeconds(2));
         subject.publishKeyWitness(CURRENT_VK, eligibleWitness());
         verifyNoInteractions(submissions);
         verify(store).keyProvenanceWithWitnesses();
