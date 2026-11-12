@@ -13,7 +13,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -42,7 +41,7 @@ public class CreateDecoder extends CreateCommonDecoder {
      * @param addressIdConverter the address ID converter for this call
      * @return the synthetic transaction body
      */
-    public @Nullable TokenTransactionBodyWrapper decodeCreateFungibleTokenV1(
+    public TokenTransactionBodyWrapper decodeCreateFungibleTokenV1(
             @NonNull final byte[] encoded,
             @NonNull final AccountID senderId,
             @NonNull final HederaNativeOperations nativeOperations,

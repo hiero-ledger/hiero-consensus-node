@@ -10,7 +10,6 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 

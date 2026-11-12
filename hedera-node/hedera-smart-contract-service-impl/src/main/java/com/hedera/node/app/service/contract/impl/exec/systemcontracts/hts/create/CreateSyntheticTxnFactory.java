@@ -54,7 +54,7 @@ public class CreateSyntheticTxnFactory {
 
         // Set keys if they exist
         final var preemptingStatus =
-                TokenKeyUtils.addTokenKeys(tokenCreateWrapper.getTokenKeys(), false, txnBodyBuilder);
+                TokenKeyUtils.addTokenKeys(tokenCreateWrapper.getTokenKeys(), withMetadata, txnBodyBuilder);
 
         // Set expiry details
         setExpiry(tokenCreateWrapper, txnBodyBuilder);

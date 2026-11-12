@@ -13,7 +13,6 @@ import com.hedera.node.app.service.contract.impl.exec.utils.TokenCreateWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -199,8 +198,7 @@ public class CreateDecoder extends CreateCommonDecoder {
         return tokenCreateWrapper;
     }
 
-    private TokenTransactionBodyWrapper bodyForWithMeta(
-            @NonNull final TokenCreateWrapper tokenCreateWrapper) {
+    private TokenTransactionBodyWrapper bodyForWithMeta(@NonNull final TokenCreateWrapper tokenCreateWrapper) {
         try {
             return createToken(tokenCreateWrapper, true);
         } catch (IllegalArgumentException ignore) {

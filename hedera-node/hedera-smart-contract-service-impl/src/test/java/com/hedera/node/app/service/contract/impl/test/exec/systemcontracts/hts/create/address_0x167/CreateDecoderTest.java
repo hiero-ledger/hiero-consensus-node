@@ -19,10 +19,11 @@ import static com.hedera.node.app.service.contract.impl.test.exec.systemcontract
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.nftAssertions;
 import static com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.create.CreateTestHelper.tokenAssertions;
 import static org.assertj.core.api.Assertions.assertThatList;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateDecoder;
@@ -55,10 +56,13 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1
                 .encodeCall(CREATE_FUNGIBLE_V1_TUPLE)
                 .array();
-        final TransactionBody transaction =
+        final var transactionWrapper =
                 subject.decodeCreateFungibleTokenV1(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         tokenAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isEmpty();
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isEmpty();
     }
 
     @Test
@@ -66,10 +70,13 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_TOKEN_V2
                 .encodeCall(CREATE_FUNGIBLE_V2_TUPLE)
                 .array();
-        final TransactionBody transaction =
+        final var transactionWrapper =
                 subject.decodeCreateFungibleTokenV2(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         tokenAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isEmpty();
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isEmpty();
     }
 
     @Test
@@ -77,10 +84,13 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_TOKEN_V3
                 .encodeCall(CREATE_FUNGIBLE_V3_TUPLE)
                 .array();
-        final TransactionBody transaction =
+        final var transactionWrapper =
                 subject.decodeCreateFungibleTokenV3(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         tokenAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isEmpty();
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isEmpty();
     }
 
     @Test
@@ -89,11 +99,14 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V1
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V1_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithCustomFeesV1(
+        final var transactionWrapper = subject.decodeCreateFungibleTokenWithCustomFeesV1(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         tokenAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
-        customFeesAssertions(transaction.tokenCreation().customFees());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isNotEmpty();
+        customFeesAssertions(transaction.tokenCreationOrThrow().customFees());
     }
 
     @Test
@@ -102,11 +115,14 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V2
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V2_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithCustomFeesV2(
+        final var transactionWrapper = subject.decodeCreateFungibleTokenWithCustomFeesV2(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         tokenAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
-        customFeesAssertions(transaction.tokenCreation().customFees());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isNotEmpty();
+        customFeesAssertions(transaction.tokenCreationOrThrow().customFees());
     }
 
     @Test
@@ -115,11 +131,14 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_FUNGIBLE_WITH_CUSTOM_FEES_V3
                 .encodeCall(CREATE_FUNGIBLE_WITH_FEES_V3_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithCustomFeesV3(
+        final var transactionWrapper = subject.decodeCreateFungibleTokenWithCustomFeesV3(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         tokenAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
-        customFeesAssertions(transaction.tokenCreation().customFees());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isNotEmpty();
+        customFeesAssertions(transaction.tokenCreationOrThrow().customFees());
     }
 
     @Test
@@ -127,10 +146,13 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V1
                 .encodeCall(CREATE_NON_FUNGIBLE_V1_TUPLE)
                 .array();
-        final TransactionBody transaction =
+        final var transactionWrapper =
                 subject.decodeCreateNonFungibleV1(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         nftAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isEmpty();
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isEmpty();
     }
 
     @Test
@@ -138,10 +160,13 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V2
                 .encodeCall(CREATE_NON_FUNGIBLE_V2_TUPLE)
                 .array();
-        final TransactionBody transaction =
+        final var transactionWrapper =
                 subject.decodeCreateNonFungibleV2(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         nftAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isEmpty();
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isEmpty();
     }
 
     @Test
@@ -149,10 +174,13 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_V3
                 .encodeCall(CREATE_NON_FUNGIBLE_V3_TUPLE)
                 .array();
-        final TransactionBody transaction =
+        final var transactionWrapper =
                 subject.decodeCreateNonFungibleV3(inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         nftAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isEmpty();
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isEmpty();
     }
 
     @Test
@@ -161,11 +189,14 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V1
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V1_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithCustomFeesV1(
+        final var transactionWrapper = subject.decodeCreateNonFungibleWithCustomFeesV1(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         nftAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
-        customFeesAssertions(transaction.tokenCreation().customFees());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isNotEmpty();
+        customFeesAssertions(transaction.tokenCreationOrThrow().customFees());
     }
 
     @Test
@@ -174,11 +205,14 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V2
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V2_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithCustomFeesV2(
+        final var transactionWrapper = subject.decodeCreateNonFungibleWithCustomFeesV2(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         nftAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
-        customFeesAssertions(transaction.tokenCreation().customFees());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isNotEmpty();
+        customFeesAssertions(transaction.tokenCreationOrThrow().customFees());
     }
 
     @Test
@@ -187,10 +221,13 @@ class CreateDecoderTest {
         byte[] inputBytes = CreateTranslator.CREATE_NON_FUNGIBLE_TOKEN_WITH_CUSTOM_FEES_V3
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_FEES_V3_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithCustomFeesV3(
+        final var transactionWrapper = subject.decodeCreateNonFungibleWithCustomFeesV3(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         nftAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
-        customFeesAssertions(transaction.tokenCreation().customFees());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isNotEmpty();
+        customFeesAssertions(transaction.tokenCreationOrThrow().customFees());
     }
 }

@@ -247,17 +247,11 @@ public class UpdateTokenPrecompileTest {
     }
 
     @HapiTest
-    @DisplayName("updateTokenKeys with keyType zero from an authorized contract is rejected and changes nothing")
-    public Stream<DynamicTest> zeroKeyTypeFromAuthorizedContractIsRejected() {
-        return Stream.of(authorizedContractUpdateKeepsAllKeys("updateTokenKeys", "zeroKeyType", true, newKeys ->
-                new Tuple[] {keyEntry(BigInteger.ZERO, newKeys[0])}));
-    }
-
-    @HapiTest
-    @DisplayName("updateTokenKeys with only undefined bits from an authorized contract is rejected for each bit")
+    @DisplayName("updateTokenKeys with keyType zero or only undefined bits from an authorized contract is rejected")
     public Stream<DynamicTest> undefinedBitsFromAuthorizedContractAreRejected() {
         // At 0x167, bits 0x80 and up have no key; 0x80 is only the metadata key at 0x16c
-        final var undefinedBits = IntStream.range(7, 16).mapToObj(BigInteger.ONE::shiftLeft);
+        final var undefinedBits =
+                Stream.concat(Stream.of(BigInteger.ZERO), IntStream.range(7, 16).mapToObj(BigInteger.ONE::shiftLeft));
         return undefinedBits.map(bit -> authorizedContractUpdateKeepsAllKeys(
                 "updateTokenKeys", "undefinedBit" + bit.toString(16), true, newKeys ->
                         new Tuple[] {keyEntry(bit, newKeys[0])}));
@@ -265,10 +259,11 @@ public class UpdateTokenPrecompileTest {
 
     @HapiTest
     @DisplayName(
-            "updateTokenKeys at 0x16c with only undefined bits from an authorized contract is rejected for each bit")
+            "updateTokenKeys at 0x16c with keyType zero or only undefined bits from an authorized contract is rejected")
     public Stream<DynamicTest> undefinedBitsFromAuthorizedContractAreRejectedWithMetadata() {
         // At 0x16c, 0x80 is the metadata key, so the undefined bits start at 0x100
-        final var undefinedBits = IntStream.range(8, 16).mapToObj(BigInteger.ONE::shiftLeft);
+        final var undefinedBits =
+                Stream.concat(Stream.of(BigInteger.ZERO), IntStream.range(8, 16).mapToObj(BigInteger.ONE::shiftLeft));
         return undefinedBits.map(bit -> authorizedContractUpdateKeepsAllKeys(
                 "updateTokenKeysWithMetadata", "undefinedBitWithMetadata" + bit.toString(16), true, newKeys ->
                         new Tuple[] {keyEntry(bit, newKeys[0])}));

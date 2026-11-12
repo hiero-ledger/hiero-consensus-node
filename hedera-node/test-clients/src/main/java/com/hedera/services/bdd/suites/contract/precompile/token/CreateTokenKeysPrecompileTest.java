@@ -86,42 +86,20 @@ public class CreateTokenKeysPrecompileTest {
     }
 
     @HapiTest
-    @DisplayName("keyType zero is rejected when creating a fungible token at 0x167")
-    public Stream<DynamicTest> zeroKeyTypeIsRejectedForFungibleToken() {
-        return Stream.of(creating("zeroKeyTypeFungible167", FUNGIBLE_167, true, newKey ->
-                new Tuple[] {keyEntry(BigInteger.ZERO, newKey)}));
-    }
-
-    @HapiTest
-    @DisplayName("keyType zero is rejected when creating a non-fungible token at 0x167")
-    public Stream<DynamicTest> zeroKeyTypeIsRejectedForNonFungibleToken() {
-        return Stream.of(creating("zeroKeyTypeNonFungible167", NON_FUNGIBLE_167, true, newKey ->
-                new Tuple[] {keyEntry(BigInteger.ZERO, newKey)}));
-    }
-
-    @HapiTest
-    @DisplayName("keyType zero is rejected when creating a fungible token at 0x16c")
-    public Stream<DynamicTest> zeroKeyTypeIsRejectedForFungibleTokenAt16c() {
-        return Stream.of(creating("zeroKeyTypeFungible16c", FUNGIBLE_16C, true, newKey ->
-                new Tuple[] {keyEntry(BigInteger.ZERO, newKey)}));
-    }
-
-    // TODO Glib: add ZERO to each bit
-    @HapiTest
-    @DisplayName("each undefined bit is rejected when creating a fungible token at 0x167")
+    @DisplayName("keyType zero and each undefined bit are rejected when creating a fungible token at 0x167")
     public Stream<DynamicTest> undefinedBitsAreRejectedForFungibleToken() {
         // At 0x167 bits 0x80 and up have no key; 0x80 is only the metadata key at 0x16c
         return rejectingEachBit(FUNGIBLE_167, 7);
     }
 
     @HapiTest
-    @DisplayName("each undefined bit is rejected when creating a non-fungible token at 0x167")
+    @DisplayName("keyType zero and each undefined bit are rejected when creating a non-fungible token at 0x167")
     public Stream<DynamicTest> undefinedBitsAreRejectedForNonFungibleToken() {
         return rejectingEachBit(NON_FUNGIBLE_167, 7);
     }
 
     @HapiTest
-    @DisplayName("each undefined bit is rejected when creating a fungible token at 0x16c")
+    @DisplayName("keyType zero and each undefined bit are rejected when creating a fungible token at 0x16c")
     public Stream<DynamicTest> undefinedBitsAreRejectedForFungibleTokenAt16c() {
         return rejectingEachBit(FUNGIBLE_16C, 8);
     }
@@ -134,8 +112,9 @@ public class CreateTokenKeysPrecompileTest {
     }
 
     private Stream<DynamicTest> rejectingEachBit(@NonNull final String function, final int firstBit) {
-        return IntStream.range(firstBit, 16)
-                .mapToObj(BigInteger.ONE::shiftLeft)
+        return Stream.concat(
+                        Stream.of(BigInteger.ZERO),
+                        IntStream.range(firstBit, 16).mapToObj(BigInteger.ONE::shiftLeft))
                 .map(bit -> creating(function + "UndefinedBit" + bit.toString(16), function, true, newKey ->
                         new Tuple[] {keyEntry(bit, newKey)}));
     }
