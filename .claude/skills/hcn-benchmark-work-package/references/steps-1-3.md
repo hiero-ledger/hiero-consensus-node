@@ -55,9 +55,9 @@ Apply [latency](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#latency
 - **A single call:** obtain the recorder with `LatencyProfiler.recorder()` in the per-invocation setup, and follow the
   pattern in the Javadoc of `LatencyRecorder`: `startMeasurement()`, `lap()` after each call, `stopMeasurement()`.
   `@BenchmarkMode(Mode.AverageTime)` with `@OperationsPerInvocation` set to the calls per pass.
-- **A pipeline,** where items pass between threads: the tooling does not exist yet. `LatencyProfiler` reports
-  `LatencyRecorder`s, which time calls on one thread. Agree on the design with the developer, and build it in
-  `consensus-benchmark-tools` first, in its own pull request
+- **A pipeline,** where items pass between threads: build a `PipelineTimer` in the per-trial setup, and follow the
+  pattern in its Javadoc: `prepare()` in the per-invocation setup, `replay()` as the benchmark method, and the exact
+  check of `arrivals()` in the per-invocation teardown
   ([a pipeline](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#a-pipeline)).
 - The heap goes into `@Fork(jvmArgsAppend = ...)`, never into `jvmArgsPrepend`
   ([JVM arguments](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#jvm-arguments)).
@@ -72,9 +72,12 @@ echo "exit $?"     # 1
 ```
 
 - Every parameter set has `latency.mean`, `latency.p50`, `latency.p90`, `latency.p99`, `latency.p99.9`,
-  `latency.p99.99`, `latency.max`, `latency.min`, `latency.samples`, `alloc.norm`, and `measured.gc.discardedPasses`.
+  `latency.p99.99`, `latency.max`, `latency.min`, `latency.samples`, `alloc.norm`, and `measured.gc.discardedPasses`;
+  a pipeline also `measured.saturation.discardedPasses`.
 - `measured.gc.discardedPasses` is 0. If it is not, the heap is too small
   ([heap](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#heap)).
+- `measured.saturation.discardedPasses` is 0. If it is not, the pipeline gets its inputs too fast: lower the speedup
+  ([a pipeline](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#a-pipeline)).
 - `alloc.norm` matches what the production code should allocate per call.
 - `latency.samples` divided by the iterations shows how long an iteration must be for p99.99, about 10⁶ calls
   ([reporting](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#reporting)); step 6 sets it.
@@ -84,7 +87,8 @@ echo "exit $?"     # 1
 Apply [profiling](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#profiling). async-profiler is not part of
 the repository: download a release from https://github.com/async-profiler/async-profiler and set `AP` to its
 directory. The library is `lib/libasyncProfiler.dylib` on macOS and `lib/libasyncProfiler.so` on Linux.
-`-jvmArgsAppend` replaces the `@Fork`'s, so repeat its heap.
+`-jvmArgsAppend` replaces the `@Fork`'s, so repeat its heap. A pipeline runs on several threads: profile it with
+`-prof jfr` and `jfr-components.sh` instead, as the guide describes; its bucket "timer: output" stays well under 1%.
 
 ```bash
 java -jar "$JAR" "$BENCH" -foe true -prof "$PROFILER" \

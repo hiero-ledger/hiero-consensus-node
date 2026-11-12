@@ -159,7 +159,10 @@ public class DispatchProcessor {
         processDispatch(dispatch, hollowAccountCompletionsDetails, false);
     }
 
-    /** Processes a submitted transaction using normal fee charging, with an optional block-capacity rejection. */
+    /**
+     * Processes a submitted or scheduled transaction using normal fee charging, with an optional block-capacity
+     * rejection.
+     */
     public void processDispatch(
             @NonNull final Dispatch dispatch,
             @Nullable final Details hollowAccountCompletionsDetails,
@@ -821,9 +824,9 @@ public class DispatchProcessor {
             if (isClprSubmitBundle(dispatch)) {
                 logger.debug(
                         "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
-                                + "requiredKeys={} hollowAccounts={}",
+                                + "requiredKeyRequirements={} hollowAccounts={}",
                         dispatch.txnInfo().transactionID(),
-                        dispatch.requiredKeys().size(),
+                        dispatch.requiredKeyRequirements().size(),
                         dispatch.hollowAccounts().size());
             }
             dispatch.streamBuilder().status(INVALID_SIGNATURE);
@@ -877,8 +880,8 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private boolean failsSignatureVerification(@NonNull final Dispatch dispatch) {
-        for (final var key : dispatch.requiredKeys()) {
-            final var verification = dispatch.keyVerifier().verificationFor(key);
+        for (final var requirement : dispatch.requiredKeyRequirements()) {
+            final var verification = dispatch.keyVerifier().verificationFor(requirement);
             if (verification.failed()) {
                 return true;
             }

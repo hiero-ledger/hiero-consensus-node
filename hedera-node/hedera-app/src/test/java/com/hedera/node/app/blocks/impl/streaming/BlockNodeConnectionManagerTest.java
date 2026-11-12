@@ -1987,7 +1987,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final VersionedConfiguration versionedConfiguration = mock(VersionedConfiguration.class);
         final BlockStreamConfig bsConfig = mock(BlockStreamConfig.class);
         // The configuration in effect says streaming is off, but the caller knows the committed mode enables it
-        lenient().when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(bsConfig);
+        lenient()
+                .when(versionedConfiguration.getConfigData(BlockStreamConfig.class))
+                .thenReturn(bsConfig);
         lenient().when(localConfigProvider.getConfiguration()).thenReturn(versionedConfiguration);
         lenient().when(bsConfig.streamToBlockNodes()).thenReturn(false);
 

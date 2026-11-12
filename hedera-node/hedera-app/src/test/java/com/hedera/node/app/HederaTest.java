@@ -2,9 +2,14 @@
 package com.hedera.node.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -17,20 +22,27 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
+import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
+import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.tss.PreparedTssHandoff;
+import com.hedera.node.app.tss.TssHandoffCoordinator;
 import com.hedera.node.app.tss.TssKeyFiles;
 import com.hedera.node.app.utils.TestUtils;
 import com.hedera.node.app.workflows.clpr.ClprRuntime;
@@ -49,7 +61,9 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.Map;
 import java.util.Set;
@@ -58,6 +72,8 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -272,6 +288,69 @@ final class HederaTest {
             verify(historyService).setLatestHistoryProof(proof);
             assertThat(TssKeyFiles.readBlsPrivateKey(config, 1L)).contains(importedBlsKey);
             assertThat(TssKeyFiles.readSchnorrKeyPair(config, 1L)).contains(importedSchnorrKeys);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void restartAdoptionRequiresAndForwardsTheSnapshotConsensusTime(final boolean missingTime) throws Exception {
+        final var boundary = Instant.ofEpochSecond(1_800_000_000L, 456);
+        final var roster = Roster.DEFAULT;
+        final var prepared = new PreparedTssHandoff(RosterUtils.hash(roster).getBytes());
+        final var state = mock(State.class, RETURNS_DEEP_STUBS);
+        final var writableStates = mock(
+                WritableStates.class,
+                withSettings().extraInterfaces(CommittableWritableStates.class).defaultAnswer(RETURNS_DEEP_STUBS));
+        when(state.getWritableStates(any())).thenReturn(writableStates);
+        setHederaField("initState", state);
+        setHederaField(
+                "configProvider",
+                new ConfigProviderImpl(false, null, Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true")));
+        final var hintsService = serviceOfType(HintsService.class);
+        when(hintsService.handoff(any(), any(), any(), any())).thenReturn(true);
+        try (final var platformState = mockStatic(PlatformStateUtils.class);
+                final var coordinator = mockStatic(TssHandoffCoordinator.class);
+                final var readableHistory =
+                        mockConstruction(ReadableHistoryStoreImpl.class, (store, _) -> prepared.stub(store));
+                final var readableHints =
+                        mockConstruction(ReadableHintsStoreImpl.class, (store, _) -> prepared.stub(store));
+                final var writableHistory = mockConstruction(WritableHistoryStoreImpl.class, (store, _) -> {
+                    prepared.stub(store);
+                    when(store.handoff(any(), any(), any(), any())).thenReturn(true);
+                });
+                final var writableHints =
+                        mockConstruction(WritableHintsStoreImpl.class, (store, _) -> prepared.stub(store))) {
+            platformState
+                    .when(() -> PlatformStateUtils.consensusTimestampOf(state))
+                    .thenReturn(missingTime ? null : boundary);
+            coordinator
+                    .when(() -> TssHandoffCoordinator.preparedRosterHashForAdoption(any(), any(), any(), any()))
+                    .thenCallRealMethod();
+            coordinator
+                    .when(() -> TssHandoffCoordinator.isReadyForHandoff(any(), any(), any(), anyBoolean()))
+                    .thenCallRealMethod();
+            coordinator
+                    .when(() -> TssHandoffCoordinator.tryJointHandoff(
+                            any(), any(), any(), any(), any(), any(), any(), any()))
+                    .thenCallRealMethod();
+            coordinator
+                    .when(() -> TssHandoffCoordinator.rebindActiveTargetsForAdoption(
+                            any(), any(), any(), any(), any(), anyBoolean(), any()))
+                    .thenReturn(true);
+            final var onAdopt = Hedera.class.getDeclaredMethod("onAdoptRoster", Roster.class, Roster.class);
+            onAdopt.setAccessible(true);
+            if (missingTime) {
+                final var error =
+                        assertThrows(InvocationTargetException.class, () -> onAdopt.invoke(hedera, roster, roster));
+                assertThat(error.getCause()).isInstanceOf(NullPointerException.class);
+                verify(writableHistory.constructed().getFirst(), never()).handoff(any(), any(), any(), any());
+                verify((CommittableWritableStates) writableStates, never()).commit();
+            } else {
+                onAdopt.invoke(hedera, roster, roster);
+                verify(writableHistory.constructed().getFirst())
+                        .handoff(roster, roster, prepared.rosterHash(), boundary);
+            }
+            platformState.verify(() -> PlatformStateUtils.consensusTimestampOf(state));
         }
     }
 

@@ -68,6 +68,7 @@ import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -452,8 +453,13 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(dispatch.requiredKeys()).willReturn(Set.of(Key.DEFAULT));
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(FAILED_VERIFICATION);
+        final var executingAccountRequirement = KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT);
+        final var otherAccountRequirement = KeyRequirement.forAccount(CREATOR_ACCOUNT_ID, Key.DEFAULT);
+        given(dispatch.requiredKeyRequirements())
+                .willReturn(new java.util.LinkedHashSet<>(
+                        java.util.List.of(executingAccountRequirement, otherAccountRequirement)));
+        given(keyVerifier.verificationFor(executingAccountRequirement)).willReturn(PASSED_VERIFICATION);
+        given(keyVerifier.verificationFor(otherAccountRequirement)).willReturn(FAILED_VERIFICATION);
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
@@ -463,6 +469,8 @@ class DispatchProcessorTest {
 
         verifyTrackedFeePayments();
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
+        verify(keyVerifier).verificationFor(executingAccountRequirement);
+        verify(keyVerifier).verificationFor(otherAccountRequirement);
         verify(recordBuilder).status(INVALID_SIGNATURE);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
@@ -479,8 +487,8 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(dispatch.requiredKeys()).willReturn(Set.of(Key.DEFAULT));
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(PASSED_VERIFICATION);
+        given(dispatch.requiredKeyRequirements()).willReturn(Set.of(KeyRequirement.forKey(Key.DEFAULT)));
+        given(keyVerifier.verificationFor(KeyRequirement.forKey(Key.DEFAULT))).willReturn(PASSED_VERIFICATION);
         given(dispatch.hollowAccounts()).willReturn(Set.of(HOLLOW));
         given(keyVerifier.verificationFor(HOLLOW.alias())).willReturn(FAILED_VERIFICATION);
         given(dispatch.txnCategory()).willReturn(USER);
@@ -650,6 +658,37 @@ class DispatchProcessorTest {
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
         verify(feeAccumulator).reverseAccumulatedNodeFees();
         verify(opWorkflowMetrics).incrementThrottled(CONTRACT_CALL);
+        assertFinished();
+    }
+
+    @Test
+    void blockFullScheduledChargesPayerThrottleFeesWithoutExecuting() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        subject.processDispatch(dispatch, null, true);
+
+        verifyTrackedFeePayments();
+        verify(dispatcher, never()).dispatchHandle(context);
+        verify(dispatchUsageManager, never()).screenForCapacity(dispatch);
+        verify(recordBuilder).status(com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        // The full fee charged up front is rolled back, and the scheduled payer re-charged without the service fee
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(feeAccumulator)
+                .chargeFee(PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
+        // A scheduled execution never charges the node that submitted its triggering transaction
+        verify(feeAccumulator, never()).chargeFees(any(), any(), any(), any());
+        verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
         assertFinished();
     }
 
@@ -835,8 +874,11 @@ class DispatchProcessorTest {
         given(dispatch.handleContext()).willReturn(context);
         given(dispatch.txnCategory()).willReturn(USER);
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(dispatch.requiredKeys()).willReturn(Set.of(Key.DEFAULT));
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(PASSED_VERIFICATION);
+        final var payerRequirement = KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT);
+        final var creatorRequirement = KeyRequirement.forAccount(CREATOR_ACCOUNT_ID, Key.DEFAULT);
+        given(dispatch.requiredKeyRequirements()).willReturn(Set.of(payerRequirement, creatorRequirement));
+        given(keyVerifier.verificationFor(payerRequirement)).willReturn(PASSED_VERIFICATION);
+        given(keyVerifier.verificationFor(creatorRequirement)).willReturn(PASSED_VERIFICATION);
         given(dispatch.hollowAccounts()).willReturn(Set.of(HOLLOW));
         given(keyVerifier.verificationFor(HOLLOW.alias())).willReturn(PASSED_VERIFICATION);
         givenAuthorization(CONTRACT_TXN_INFO);
@@ -849,6 +891,8 @@ class DispatchProcessorTest {
         subject.processDispatch(dispatch);
 
         verifyUtilization();
+        verify(keyVerifier).verificationFor(payerRequirement);
+        verify(keyVerifier).verificationFor(creatorRequirement);
         verify(platformStateUpdates).handleTxBody(stack, CONTRACT_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder, times(2)).status(SUCCESS);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);

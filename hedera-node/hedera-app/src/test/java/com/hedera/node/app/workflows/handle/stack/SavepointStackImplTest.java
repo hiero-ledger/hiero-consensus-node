@@ -353,6 +353,48 @@ class SavepointStackImplTest extends StateTestBase {
     }
 
     @Test
+    void rollbackActionFollowsChildChangesIntoTheParentSavepoint() {
+        final var root = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        root.createSavepoint();
+        final var child = SavepointStackImpl.newChildStack(
+                root, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+        final List<String> rolledBack = new ArrayList<>();
+        child.onRollback(() -> rolledBack.add("child"));
+
+        child.commitFullStack();
+
+        assertThat(rolledBack).isEmpty();
+        root.rollback();
+        assertThat(rolledBack).containsExactly("child");
+    }
+
+    @Test
+    void rollbackActionIsDiscardedOnceItsChangesCommitAtTheRoot() {
+        final var root = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        final List<String> rolledBack = new ArrayList<>();
+        root.onRollback(() -> rolledBack.add("root"));
+
+        root.commitFullStack();
+        root.rollbackFullStack();
+
+        assertThat(rolledBack).isEmpty();
+    }
+
+    @Test
     void attachedValueIsVisibleOnlyToStacksOfEnclosedDispatches() {
         final var root = SavepointStackImpl.newRootStack(
                 baseState,

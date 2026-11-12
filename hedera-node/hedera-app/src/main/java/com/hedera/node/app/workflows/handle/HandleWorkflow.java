@@ -791,8 +791,10 @@ public class HandleWorkflow {
      * time to the latest time known to have been processed; and the {@link #lastExecutedSecond} value to the last
      * second of the interval for which all scheduled transactions were executed.
      * <p>
-     * Scheduled executions are exempt from the {@code StreamMode.BLOCKS} block execution budget, so they run here
-     * even after {@link BlockStreamManager#hasReachedMaxBlockSize()} is {@code true}.
+     * Due schedules are still processed after {@link BlockStreamManager#hasReachedMaxBlockSize()} is {@code true}
+     * in {@code StreamMode.BLOCKS}, but only those with a throttle-exempt payer execute; the rest are rejected with
+     * {@code THROTTLED_AT_CONSENSUS} and normal consensus throttle fees. Either way the schedule is consumed, and its
+     * output is written to the block.
      *
      * @param state the state to execute scheduled transactions from
      * @param executionStart the start of the interval to execute transactions in
@@ -944,6 +946,24 @@ public class HandleWorkflow {
     }
 
     /**
+     * Returns whether the given due schedule must be rejected with {@code THROTTLED_AT_CONSENSUS} instead of executed,
+     * because the {@code StreamMode.BLOCKS} block execution budget is spent and the schedule's payer is not in
+     * {@code 1..accounts.lastThrottleExempt}.
+     * <p>
+     * This applies only to schedules executed at expiry ({@code wait_for_expiry=true}). A schedule with {@code
+     * wait_for_expiry=false} executes as a child of the {@code ScheduleCreate} or {@code ScheduleSign} that supplies
+     * its last required signature, so it inherits that transaction's budget decision from
+     * {@link #isExecutionBudgetExempt(ParentTxn)} (the submitter's exemption, not the schedule payer's). In a full
+     * block, a {@code ScheduleSign} from an exempt account can therefore still execute a schedule whose payer is not
+     * exempt; a {@code ScheduleSign} from a non-exempt account is rejected without consuming the schedule.
+     */
+    private boolean isRejectedForBlockBudget(@NonNull final ExecutableTxn<? extends StreamBuilder> executableTxn) {
+        return streamMode == BLOCKS
+                && blockStreamManager.hasReachedMaxBlockSize()
+                && !throttleExempt(executableTxn.payerId(), configProvider.getConfiguration());
+    }
+
+    /**
      * Executes the user transaction and returns the output that should be externalized in the
      * block stream. (And if still producing records, the precomputed records.)
      * <p>
@@ -1047,11 +1067,23 @@ public class HandleWorkflow {
             final var dispatch =
                     parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
             stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
-            dispatchProcessor.processDispatch(dispatch);
+            // Once the block is full, a due schedule whose payer is not throttle-exempt is rejected just like a
+            // submitted transaction; it is still consumed, so a later block never retries it
+            final boolean blockFull = isRejectedForBlockBudget(executableTxn);
+            if (blockFull) {
+                dispatchProcessor.processDispatch(dispatch, null, true);
+            } else {
+                dispatchProcessor.processDispatch(dispatch);
+            }
             final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
                     .stack()
                     .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
+            if (streamMode == BLOCKS) {
+                blockStreamManager.recordScheduledTransaction(
+                        handleOutput.blockRecordSourceOrThrow().blockItems(),
+                        blockFull && baseBuilder.status() == THROTTLED_AT_CONSENSUS);
+            }
             recordCache.addRecordSource(
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
@@ -1250,13 +1282,15 @@ public class HandleWorkflow {
                                     hintsService,
                                     activeRoster,
                                     requireNonNull(candidateRoster),
-                                    requireNonNull(candidateRosterHash));
+                                    requireNonNull(candidateRosterHash),
+                                    requireNonNull(inFlightDispatch).consensusNow());
                         } else if (historyStore.handoff(
                                 activeRoster,
                                 // A fresh genesis handoff keeps the active roster, so a pending candidate
                                 // roster must not remove the proof keys of the nodes it drops
                                 null,
-                                candidateRosterHash)) {
+                                candidateRosterHash,
+                                null)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                             // The ledger id is that of the history a genesis proof grounds its chain of

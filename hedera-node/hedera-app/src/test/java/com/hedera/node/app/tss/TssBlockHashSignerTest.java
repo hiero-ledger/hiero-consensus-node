@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.HintsService.SigningResult;
@@ -98,6 +99,7 @@ class TssBlockHashSignerTest {
         assertTrue(subject.isReady());
         given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
         given(signing.verificationKey()).willReturn(verificationKey);
+        given(signing.constructionId()).willReturn(7L);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
         given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(new SigningResult(signing, submissionFuture));
 
@@ -106,6 +108,7 @@ class TssBlockHashSignerTest {
 
         assertSame(FAKE_HINTS_SIGNATURE, signature);
         assertSame(verificationKey, attempt.verificationKey());
+        assertEquals(7L, attempt.constructionId());
         assertNull(attempt.chainOfTrustProof());
         assertSame(submissionFuture, attempt.submissionFuture());
     }
@@ -143,6 +146,7 @@ class TssBlockHashSignerTest {
         assertTrue(subject.isReady());
         given(signing.future()).willReturn(CompletableFuture.completedFuture(FAKE_HINTS_SIGNATURE));
         given(signing.verificationKey()).willReturn(verificationKey);
+        given(signing.constructionId()).willReturn(7L);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
         given(hintsService.sign(FAKE_BLOCK_HASH)).willReturn(new SigningResult(signing, submissionFuture));
         given(historyService.getCurrentChainOfTrustProof(verificationKey)).willReturn(chainOfTrustProof);
@@ -152,8 +156,29 @@ class TssBlockHashSignerTest {
 
         assertEquals(FAKE_HINTS_SIGNATURE, signature);
         assertSame(verificationKey, attempt.verificationKey());
+        assertEquals(7L, attempt.constructionId());
         assertSame(chainOfTrustProof, attempt.chainOfTrustProof());
         assertSame(submissionFuture, attempt.submissionFuture());
+    }
+
+    @Test
+    void passesCapturedWitnessToHistoryAndSuppressesMockPublication() {
+        givenSubjectWith(HintsEnabled.YES, HistoryEnabled.YES);
+        final var witness =
+                HintsKeyWitness.newBuilder().targetHintsConstructionId(7).build();
+        final var verificationKey = Bytes.wrap("captured key");
+        subject.publishKeyWitness(verificationKey, witness);
+        verify(historyService).publishKeyWitness(verificationKey, witness);
+    }
+
+    @Test
+    void doesNotPublishWitnessWithoutHistoryOrWithMockSignatures() {
+        final var witness = HintsKeyWitness.DEFAULT;
+        givenSubjectWith(HintsEnabled.YES, HistoryEnabled.NO);
+        subject.publishKeyWitness(Bytes.EMPTY, witness);
+        givenSubjectWith(HintsEnabled.YES, HistoryEnabled.YES, ForceMockSignatures.YES, StreamMode.BOTH);
+        subject.publishKeyWitness(Bytes.EMPTY, witness);
+        verifyNoInteractions(historyService);
     }
 
     @Test

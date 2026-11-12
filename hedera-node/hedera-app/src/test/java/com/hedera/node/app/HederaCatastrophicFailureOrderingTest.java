@@ -12,6 +12,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.withSettings;
 
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.failure.IssDetectionStagingCoordinator;
+import com.hedera.node.app.blocks.failure.TriageBlockStagingCoordinator;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -54,6 +56,12 @@ class HederaCatastrophicFailureOrderingTest {
     private BlockNodeConnectionManager blockNodeConnectionManager;
 
     @Mock
+    private TriageBlockStagingCoordinator triageBlockStagingCoordinator;
+
+    @Mock
+    private IssDetectionStagingCoordinator issDetectionStagingCoordinator;
+
+    @Mock
     private ClprRuntime clprRuntime;
 
     @Mock
@@ -79,6 +87,8 @@ class HederaCatastrophicFailureOrderingTest {
         given(daggerApp.blockNodeConnectionManager()).willReturn(blockNodeConnectionManager);
         given(daggerApp.clprRuntime()).willReturn(clprRuntime);
         given(daggerApp.quiescenceController()).willReturn(quiescenceController);
+        given(daggerApp.triageBlockStagingCoordinator()).willReturn(triageBlockStagingCoordinator);
+        given(daggerApp.issDetectionStagingCoordinator()).willReturn(issDetectionStagingCoordinator);
 
         // The configuration in effect does not stream to block nodes. The connection shutdown does not depend on it
         // (so the stub is lenient): it can be a configuration that a transaction is still trying out.
@@ -101,12 +111,23 @@ class HederaCatastrophicFailureOrderingTest {
         setField(hedera, "transactionPool", transactionPool);
         setField(hedera, "appContext", appContext);
 
+        given(issDetectionStagingCoordinator.currentIncidentFolder()).willReturn("2026-06-16T14-32-05Z");
+
         hedera.newPlatformStatus(CATASTROPHIC_FAILURE);
 
-        final InOrder inOrder = inOrder(blockStreamManager, blockNodeConnectionManager);
+        final InOrder inOrder = inOrder(
+                blockStreamManager,
+                issDetectionStagingCoordinator,
+                blockNodeConnectionManager,
+                triageBlockStagingCoordinator);
         inOrder.verify(blockStreamManager).notifyFatalEvent();
         inOrder.verify(blockStreamManager).awaitFatalShutdown(any());
+        // The ISS-round block must be captured BEFORE the connection shutdown clears the in-memory buffer: in gRPC
+        // mode a closed, proven ISS block lives only in that buffer, so capturing after shutdown would find nothing.
+        inOrder.verify(issDetectionStagingCoordinator).stageDetectedIssOnFailure();
         inOrder.verify(blockNodeConnectionManager).shutdown();
+        // The flushed triage set is staged AFTER shutdown, grouped under the ISS block's incident folder.
+        inOrder.verify(triageBlockStagingCoordinator).stageFlushedTriageBlocks("2026-06-16T14-32-05Z");
     }
 
     private static void setField(final Object target, final String name, final Object value) throws Exception {

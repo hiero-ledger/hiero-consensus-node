@@ -32,6 +32,7 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -236,8 +237,9 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
             final AccountID toEntityId,
             @NonNull final VerificationStrategy strategy) {
         final var to = requireNonNull(getAccount(toEntityId));
-        final var signatureTest = strategy.asSignatureTestIn(context, maybeEthSenderKey);
-        if (to.receiverSigRequired() && !signatureTest.test(to.keyOrThrow())) {
+        final var signatureTest = strategy.asRequirementTestIn(context, maybeEthSenderKey);
+        if (to.receiverSigRequired()
+                && !signatureTest.test(KeyRequirement.forAccount(to.accountIdOrThrow(), to.keyOrThrow()))) {
             return INVALID_SIGNATURE;
         }
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
