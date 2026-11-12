@@ -39,6 +39,9 @@ In real history mode, a completed scheme requires a matching completed history p
 verification key, any provenance binding, and participant weights must agree. Signing attempts freeze the complete
 generation and native verification fraction across handoff. Reconnect discards stale runtime generations before
 restoring state.
+If required generation validation fails, the node cancels and removes its preprocessing controller before
+processing more votes. A recovered valid snapshot allows preparation to resume; already-open signing attempts
+retain their captured generation.
 
 A legacy history proof without `target_node_weights` is usable only after consensus recovery finds complete weights
 that reproduce its committed address-book hash. Startup defers signing for a matching recoverable legacy book;

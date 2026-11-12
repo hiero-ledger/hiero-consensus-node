@@ -305,6 +305,25 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
             @Nullable final HistoryProofConstruction activeHistoryConstruction) {
+        try {
+            reconcileConstruction(
+                    activeRosters, hintsStore, now, crsWorkTime, tssConfig, isActive, activeHistoryConstruction);
+        } catch (HintsGenerationWeights.InvalidGenerationException e) {
+            // Signing installation can reject the generation before the controller factory is reached.
+            // Preserve existing signing attempts while stopping all preprocessing work and vote admission.
+            component.controllers().stop();
+            throw e;
+        }
+    }
+
+    private void reconcileConstruction(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            @NonNull final Instant crsWorkTime,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(hintsStore);
         requireNonNull(now);

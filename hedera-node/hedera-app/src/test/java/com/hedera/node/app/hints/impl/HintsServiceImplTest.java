@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
@@ -503,6 +504,106 @@ class HintsServiceImplTest {
                         true,
                         reparsedDifferentHistory));
         verify(context).setConstruction(construction, crs, HintsGenerationWeights.from(construction, history));
+    }
+
+    @Test
+    void signingInstallRejectionStopsPreprocessingAndPreservesTheInstalledSigningGeneration() {
+        final var active = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(active);
+        final var crs = CRSState.newBuilder()
+                .ceremonyId(1)
+                .numParties(8)
+                .stage(COMPLETED)
+                .crs(Bytes.wrap("active CRS"))
+                .build();
+        given(component.controllers()).willReturn(controllers);
+        given(hintsStore.getActiveConstruction()).willReturn(active);
+        given(hintsStore.getCrsStateFor(active)).willReturn(crs);
+        given(context.isReady()).willReturn(true);
+        subject.setActiveConstruction(active, crs, history);
+        final var invalid = history.copyBuilder()
+                .targetRosterHash(Bytes.wrap("other generation"))
+                .build();
+
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.reconcile(
+                        activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, invalid));
+
+        verify(controllers).stop();
+        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any(), any());
+        verify(context, never()).clear();
+        verify(context).setConstruction(active, crs, HintsGenerationWeights.from(active, history));
+        assertTrue(subject.isReady());
+
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, history);
+        // Recovery reuses the still-installed signing material, retaining already-open signing attempts.
+        verify(context).setConstruction(active, crs, HintsGenerationWeights.from(active, history));
+        verify(context, never()).clear();
+    }
+
+    @Test
+    void sourceResolutionRejectionStopsPreprocessingAndValidRecoveryCanAdvanceAgain() {
+        final var active = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(active);
+        final var missingSnapshot = history.copyBuilder()
+                .targetProof(history.targetProofOrThrow()
+                        .copyBuilder()
+                        .targetNodeWeights(List.of())
+                        .build())
+                .build();
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(active, missingSnapshot));
+        final var next = HintsConstruction.newBuilder()
+                .constructionId(124)
+                .crsId(1)
+                .numParties(8)
+                .preprocessingStartTime(asTimestamp(CONSENSUS_NOW))
+                .build();
+        final var crs = CRSState.newBuilder()
+                .ceremonyId(1)
+                .numParties(8)
+                .stage(COMPLETED)
+                .crs(Bytes.wrap("active CRS"))
+                .build();
+        given(component.controllers()).willReturn(controllers);
+        given(hintsStore.getActiveConstruction()).willReturn(active);
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.TRANSITION);
+        given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+                .willReturn(next);
+        given(hintsStore.getCrsState()).willReturn(crs);
+        given(hintsStore.getCrsStateFor(next)).willReturn(crs);
+        given(controllers.getOrCreateFor(activeRosters, next, hintsStore, active, missingSnapshot))
+                .willThrow(failure);
+
+        assertSame(
+                failure,
+                assertThrows(
+                        HintsGenerationWeights.InvalidGenerationException.class,
+                        () -> subject.reconcile(
+                                activeRosters,
+                                hintsStore,
+                                CONSENSUS_NOW,
+                                CONSENSUS_NOW,
+                                tssConfig,
+                                true,
+                                missingSnapshot)));
+
+        verify(controllers).stop();
+        verify(context, never()).clear();
+        verify(context, never()).setConstruction(any(), any(), any());
+        verify(controller, never()).advanceConstruction(any(), any(), anyBoolean());
+
+        given(hintsStore.getCrsStateFor(active)).willReturn(crs);
+        given(controllers.getOrCreateFor(activeRosters, next, hintsStore, active, history))
+                .willReturn(controller);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, history);
+
+        verify(context).setConstruction(active, crs, HintsGenerationWeights.from(active, history));
+        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
+        verify(context, never()).clear();
     }
 
     @Test

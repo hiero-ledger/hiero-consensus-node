@@ -4,6 +4,7 @@ package com.hedera.node.app.hints.impl;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
@@ -48,6 +49,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -353,17 +355,42 @@ class HintsControllersTest {
         }
     }
 
-    @Test
-    void cachedControllerDoesNotBypassSourceSnapshotValidation() {
-        votingControllerWithSchemePartyWeight(1L);
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void invalidSourceCancelsCachedControllerAndRecoveryRebuildsIt(final boolean missingHistory) {
+        try (final var generationFactory = mockStatic(HintsGenerationWeights.class, CALLS_REAL_METHODS)) {
+            final var oldController = votingControllerWithSchemePartyWeight(1L);
+            assertSame(oldController, subject.getInProgressById(2L).orElseThrow());
+            final var invalidHistory = missingHistory
+                    ? null
+                    : sourceHistory(1L)
+                            .copyBuilder()
+                            .targetRosterHash(Bytes.wrap("another generation"))
+                            .build();
 
-        assertThrows(
-                HintsGenerationWeights.InvalidGenerationException.class,
-                () -> subject.getOrCreateFor(
-                        activeRosters,
-                        HintsConstruction.newBuilder().constructionId(2L).build(),
-                        hintsStore,
-                        sourceConstruction(1L)));
+            assertThrows(
+                    HintsGenerationWeights.InvalidGenerationException.class,
+                    () -> subject.getOrCreateFor(
+                            activeRosters,
+                            HintsConstruction.newBuilder().constructionId(2L).build(),
+                            hintsStore,
+                            sourceConstruction(1L),
+                            invalidHistory));
+
+            assertTrue(subject.getAnyInProgress().isEmpty());
+            assertTrue(subject.getInProgressById(2L).isEmpty());
+            assertFalse(oldController.isStillInProgress());
+            assertFalse(oldController.addPreprocessingVote(0L, VOTE, hintsStore));
+            verify(hintsStore, never()).addPreprocessingVote(anyLong(), anyLong(), any());
+            verify(hintsStore, never()).setHintsScheme(anyLong(), any(), any(), any());
+
+            final var recoveredController = votingControllerWithSchemePartyWeight(1L);
+            assertNotSame(oldController, recoveredController);
+            assertSame(recoveredController, subject.getInProgressById(2L).orElseThrow());
+            assertTrue(recoveredController.addPreprocessingVote(0L, VOTE, hintsStore));
+            generationFactory.verify(
+                    () -> HintsGenerationWeights.from(sourceConstruction(1L), sourceHistory(1L)), times(2));
+        }
     }
 
     /**

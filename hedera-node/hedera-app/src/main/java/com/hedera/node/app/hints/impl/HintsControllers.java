@@ -123,22 +123,28 @@ public class HintsControllers {
         final boolean requiresHistory = HintsGenerationWeights.requiresHistory(
                 configurationSupplier.get().getConfigData(TssConfig.class));
         final HintsGenerationWeights sourceGeneration;
-        if (sourceInputsResolved
-                && Objects.equals(resolvedHints, activeHintsConstruction)
-                && resolvedRequiresHistory == requiresHistory
-                && (!requiresHistory || Objects.equals(resolvedHistory, activeHistoryConstruction))) {
-            sourceGeneration = resolvedSourceGeneration;
-        } else {
-            sourceGeneration = activeHintsConstruction != null && activeHintsConstruction.hasHintsScheme()
-                    ? (requiresHistory
-                            ? HintsGenerationWeights.from(activeHintsConstruction, activeHistoryConstruction)
-                            : HintsGenerationWeights.forScheme(activeHintsConstruction))
-                    : null;
-            resolvedHints = activeHintsConstruction;
-            resolvedHistory = requiresHistory ? activeHistoryConstruction : null;
-            resolvedSourceGeneration = sourceGeneration;
-            resolvedRequiresHistory = requiresHistory;
-            sourceInputsResolved = true;
+        try {
+            if (sourceInputsResolved
+                    && Objects.equals(resolvedHints, activeHintsConstruction)
+                    && resolvedRequiresHistory == requiresHistory
+                    && (!requiresHistory || Objects.equals(resolvedHistory, activeHistoryConstruction))) {
+                sourceGeneration = resolvedSourceGeneration;
+            } else {
+                sourceGeneration = activeHintsConstruction != null && activeHintsConstruction.hasHintsScheme()
+                        ? (requiresHistory
+                                ? HintsGenerationWeights.from(activeHintsConstruction, activeHistoryConstruction)
+                                : HintsGenerationWeights.forScheme(activeHintsConstruction))
+                        : null;
+                resolvedHints = activeHintsConstruction;
+                resolvedHistory = requiresHistory ? activeHistoryConstruction : null;
+                resolvedSourceGeneration = sourceGeneration;
+                resolvedRequiresHistory = requiresHistory;
+                sourceInputsResolved = true;
+            }
+        } catch (HintsGenerationWeights.InvalidGenerationException e) {
+            // A rejected generation must leave no live controller reachable by transaction handlers.
+            stop();
+            throw e;
         }
         if (currentConstructionId() != construction.constructionId()
                 || !Objects.equals(sourceGeneration, controllerSourceGeneration)) {
