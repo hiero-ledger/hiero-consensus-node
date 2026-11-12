@@ -108,7 +108,10 @@ import org.openjdk.jmh.annotations.Warmup;
  * ({@code compile-pid<process id>.log}) into the results directory of the calibration workflow, to compare all
  * compilations below {@code Shadowgraph#addEvent} between fast and slow forks, as for {@code EventHashingBenchmark}
  * in <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>. Only the recorded events
- * are added, without copies.
+ * are added, without copies. Fifth test (the fourth found two compilations of {@code addEvent}, both at all
+ * levels): the forks run with {@code -Xbatch}, without background compilation. The recording and the benchmark run
+ * on one thread, so every fork then compiles in the same order with the same profiles; the compile logs show whether
+ * the code is the same. If the levels stay, the compiled code does not set them.
  */
 @State(Scope.Thread)
 @Fork(
@@ -117,6 +120,7 @@ import org.openjdk.jmh.annotations.Warmup;
             "-Xms10g",
             "-Xmx10g",
             "-XX:+AlwaysPreTouch",
+            "-Xbatch",
             "-XX:+UnlockDiagnosticVMOptions",
             "-XX:+LogCompilation",
             "-XX:LogFile=build/benchmark-calibration/compile-%p.log"
