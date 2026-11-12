@@ -447,7 +447,8 @@ public final class SyncCommitteeProofs {
         /** The RLP items of the delivery. */
         private Object toRlpItems() {
             // 1) Storage trie over the Channel slots (and the manifest commitment), keyed by keccak(slot).
-            final byte[][] channelSlots = channelSlots(channelId);
+            final byte[][] channelSlots =
+                    channelSlots(channelId, content.getMetadata().getNextMessageId());
             final List<byte[]> slots = new ArrayList<>(Arrays.asList(channelSlots));
             final List<byte[]> values = new ArrayList<>(Arrays.asList(computeSlotValues(content.getMetadata())));
             if (manifestBytes != null) {
@@ -535,31 +536,79 @@ public final class SyncCommitteeProofs {
 
     // ── Storage-slot layout and packing (mirrors the ClprService Channel struct) ──
 
-    /** The Channel slot keys of {@code channelId}: {@code keccak256(channelId ‖ uint256(15)) + {1, 2, 4, 5, 16}}. */
-    private static byte[][] channelSlots(final byte[] channelId) {
+    /**
+     * The storage keys a bundle for {@code channelId} must prove, in the order {@link #computeSlotValues} fills: the
+     * five Channel fields {@code keccak256(channelId ‖ uint256(15)) + {1, 2, 4, 5, 16}} and, when at least one
+     * message has been sent, the running-hash slot of the last one. The verifier derives that last key from the proven
+     * {@code nextMessageId}, so the two must agree.
+     *
+     * @param channelId the 32-byte channel ID
+     * @param nextMessageId the queue's next message ID; message IDs start at 1, so the last sent message is
+     *     {@code nextMessageId - 1}
+     */
+    private static byte[][] channelSlots(final byte[] channelId, final long nextMessageId) {
+        if (channelId.length != 32) {
+            throw new IllegalArgumentException("Channel proofs require a bytes32 channel ID");
+        }
         final byte[] mappingKey = new byte[64];
         System.arraycopy(channelId, 0, mappingKey, 0, 32);
         mappingKey[63] = CHANNELS_BASE_SLOT;
         final BigInteger base = new BigInteger(1, MiscCryptoUtils.keccak256DigestOf(mappingKey));
-        final byte[][] slots = new byte[CHANNEL_SLOT_OFFSETS.length][];
-        for (int i = 0; i < slots.length; i++) {
+        // nextMessageId 0 or 1 means no message has been sent yet, so there is no last-message slot to prove.
+        final boolean hasLastMessage = nextMessageId > 1;
+        final byte[][] slots = new byte[CHANNEL_SLOT_OFFSETS.length + (hasLastMessage ? 1 : 0)][];
+        for (int i = 0; i < CHANNEL_SLOT_OFFSETS.length; i++) {
             final byte[] raw = base.add(BigInteger.valueOf(CHANNEL_SLOT_OFFSETS[i]))
                     .mod(BigInteger.ONE.shiftLeft(256))
                     .toByteArray();
             slots[i] = leftPad32(raw.length > 32 ? Arrays.copyOfRange(raw, 1, raw.length) : raw);
         }
+        if (hasLastMessage) {
+            // Message mapping at slot 1: entry = keccak256(uint256(messageId) ‖ keccak256(channelId ‖ uint256(1))),
+            // and the running hash is field +1 of that entry.
+            final byte[] queueBase = mappingSlot(channelId, slotKey(1));
+            slots[CHANNEL_SLOT_OFFSETS.length] =
+                    addSlotOffset(mappingSlot(leftPad32(minimalBE(nextMessageId - 1)), queueBase), 1);
+        }
         return slots;
+    }
+
+    /** Storage slot of {@code mapping[key]} for a Solidity mapping at {@code base}: {@code keccak256(key ‖ base)}. */
+    private static byte[] mappingSlot(final byte[] key, final byte[] base) {
+        final byte[] preimage = new byte[64];
+        System.arraycopy(key, 0, preimage, 0, 32);
+        System.arraycopy(base, 0, preimage, 32, 32);
+        return MiscCryptoUtils.keccak256DigestOf(preimage);
+    }
+
+    /** Returns {@code base + offset} as a 32-byte big-endian word, wrapping modulo 2^256. */
+    private static byte[] addSlotOffset(final byte[] base, final int offset) {
+        final byte[] result = base.clone();
+        int carry = offset;
+        for (int i = result.length - 1; i >= 0 && carry != 0; i--) {
+            final int sum = (result[i] & 0xff) + carry;
+            result[i] = (byte) sum;
+            carry = sum >>> 8;
+        }
+        return result;
     }
 
     /** The Channel slot values, in {@link #channelSlots} order, encoding {@code metadata}. */
     private static byte[][] computeSlotValues(final ClprQueueMetadata metadata) {
-        final byte[][] slotValues = new byte[CHANNEL_SLOT_OFFSETS.length][];
+        final boolean hasLastMessage = metadata.getNextMessageId() > 1;
+        final byte[][] slotValues = new byte[CHANNEL_SLOT_OFFSETS.length + (hasLastMessage ? 1 : 0)][];
         slotValues[0] = packedStatusSlot(
                 metadata.getNextMessageId(), metadata.getStatus().getNumber());
         slotValues[1] = packedReceivedMessageIdSlot(metadata.getReceivedMessageId());
         slotValues[2] = leftPad32(metadata.getSentRunningHash().toByteArray());
         slotValues[3] = leftPad32(metadata.getReceivedRunningHash().toByteArray());
-        slotValues[4] = ZERO_32; // endpointManifestVersion: the peer has not cached our manifest.
+        // Slot +16: endpointManifestVersion, a lone uint64 in the low 8 bytes.
+        slotValues[4] = new byte[32];
+        putUint64BigEndian(slotValues[4], 24, metadata.getEndpointManifestVersion());
+        if (hasLastMessage) {
+            // The queue's sent running hash is the running hash stored with the last sent message.
+            slotValues[5] = leftPad32(metadata.getSentRunningHash().toByteArray());
+        }
         return slotValues;
     }
 
