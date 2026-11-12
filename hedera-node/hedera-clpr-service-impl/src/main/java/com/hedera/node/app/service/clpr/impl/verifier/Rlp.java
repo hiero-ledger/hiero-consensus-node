@@ -17,6 +17,18 @@ import java.util.Objects;
 public final class Rlp {
     private Rlp() {}
 
+    /**
+     * Maximum nesting depth accepted when decoding RLP. RLP lists are decoded recursively, one JVM
+     * stack frame per nesting level, and the payloads handled here (execution headers, Merkle-Patricia
+     * proof nodes, bundle/config structures) are only a handful of levels deep. Without a cap, an
+     * attacker-supplied buffer of nested empty lists (e.g. repeated {@code 0xc1}) drives the recursion
+     * arbitrarily deep and overflows the thread stack, throwing a {@link StackOverflowError}. Because
+     * that is an {@link Error} rather than a {@link RuntimeException}, it would escape the decode-site
+     * guards. We fail closed well before that point by rejecting over-deep input with a caught
+     * {@link IllegalArgumentException}.
+     */
+    static final int MAX_RECURSION_DEPTH = 64;
+
     public static byte[] encodeUint(long value) {
         if (value < 0) throw new IllegalArgumentException("RLP unsigned integer is negative");
         if (value == 0) return encodeBytes(new byte[0]);
@@ -66,7 +78,7 @@ public final class Rlp {
     }
 
     public static Item decodeOne(byte[] encoded) {
-        DecodeResult result = decode(Objects.requireNonNull(encoded, "encoded"), 0);
+        DecodeResult result = decode(Objects.requireNonNull(encoded, "encoded"), 0, 0);
         if (result.nextOffset() != encoded.length) {
             final int consumed = result.nextOffset();
             final int trailing = encoded.length - consumed;
@@ -114,7 +126,10 @@ public final class Rlp {
         return out;
     }
 
-    private static DecodeResult decode(byte[] input, int offset) {
+    private static DecodeResult decode(byte[] input, int offset, int depth) {
+        if (depth > MAX_RECURSION_DEPTH) {
+            throw new IllegalArgumentException("RLP nesting exceeds maximum depth " + MAX_RECURSION_DEPTH);
+        }
         if (offset >= input.length) throw new IllegalArgumentException("RLP offset out of bounds");
         int prefix = input[offset] & 0xff;
         if (prefix < 0x80) {
@@ -148,21 +163,21 @@ public final class Rlp {
         }
         if (prefix <= 0xf7) {
             int len = prefix - 0xc0;
-            return decodeList(input, offset, offset + 1, len);
+            return decodeList(input, offset, offset + 1, len, depth);
         }
         int lenOfLen = prefix - 0xf7;
         int len = readRlpLength(input, offset + 1, lenOfLen);
         int start = offset + 1 + lenOfLen;
-        return decodeList(input, offset, start, len);
+        return decodeList(input, offset, start, len, depth);
     }
 
-    private static DecodeResult decodeList(byte[] input, int rawStart, int payloadStart, int payloadLen) {
+    private static DecodeResult decodeList(byte[] input, int rawStart, int payloadStart, int payloadLen, int depth) {
         checkRange(input, payloadStart, payloadLen, "RLP list");
         int end = payloadStart + payloadLen;
         List<Item> children = new ArrayList<>();
         int p = payloadStart;
         while (p < end) {
-            DecodeResult child = decode(input, p);
+            DecodeResult child = decode(input, p, depth + 1);
             children.add(child.item());
             p = child.nextOffset();
         }
