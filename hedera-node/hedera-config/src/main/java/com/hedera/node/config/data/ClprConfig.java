@@ -75,7 +75,8 @@ public record ClprConfig(
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
         // Maximum fee the node will pay when submitting an inbound bundle for consensus.
-        @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
+        // Must cover the shared verifier/callback gas reservation as well as base and byte fees.
+        @ConfigProperty(defaultValue = "100000000000") @NetworkProperty
         long nodeSubmitBundleMaxFee,
 
         // --- Sender-side state-proof verification (bring-up sanity check) ---

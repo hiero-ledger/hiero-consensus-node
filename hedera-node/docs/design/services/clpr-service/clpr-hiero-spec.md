@@ -303,6 +303,9 @@ its verifier allowance, with its billable reservation capped at 300,000 gas unit
 The configured transaction maximum therefore determines a bundle payer's worst-case
 required balance, so CLPR execution profiles must choose it deliberately. The signed
 `transactionFee` must cover already charged base/byte fees plus the gas reservation.
+Node-submitted bundles sign `clpr.nodeSubmitBundleMaxFee`, which defaults to 1,000 HBAR.
+Explicitly configured caps still apply and must cover this reservation and the other
+applicable fees; increasing the cap does not increase the charge for actual execution.
 Before bundle validation, the handler also reserves signed-fee headroom for the full
 possible endpoint misbehavior penalty. This reserves capacity only: the penalty is
 collected only when applicable, and the gas escrow must leave that headroom available.
