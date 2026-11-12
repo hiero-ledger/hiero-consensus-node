@@ -30,6 +30,7 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsKeySet;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
@@ -100,6 +101,7 @@ final class StateChangeTypes {
     static final ValueType HINTS_CONSTRUCTION = type(HintsConstruction.class, HintsConstruction.PROTOBUF);
     static final ValueType HINTS_KEY_SET = type(HintsKeySet.class, HintsKeySet.PROTOBUF);
     static final ValueType PREPROCESSING_VOTE = type(PreprocessingVote.class, PreprocessingVote.PROTOBUF);
+    static final ValueType HINTS_KEY_WITNESS_RECORD = type(HintsKeyWitnessRecord.class, HintsKeyWitnessRecord.PROTOBUF);
     static final ValueType HISTORY_PROOF_CONSTRUCTION =
             type(HistoryProofConstruction.class, HistoryProofConstruction.PROTOBUF);
     static final ValueType HISTORY_PROOF_VOTE = type(HistoryProofVote.class, HistoryProofVote.PROTOBUF);
@@ -163,6 +165,7 @@ final class StateChangeTypes {
             HINTS_CONSTRUCTION,
             HINTS_KEY_SET,
             PREPROCESSING_VOTE,
+            HINTS_KEY_WITNESS_RECORD,
             HISTORY_PROOF_CONSTRUCTION,
             HISTORY_PROOF_VOTE,
             PROOF_KEY_SET,
@@ -230,7 +233,8 @@ final class StateChangeTypes {
             entry(ValueChoiceOneOfType.CLPR_CHANNEL_VALUE.protoOrdinal(), CLPR_CHANNEL),
             entry(ValueChoiceOneOfType.PROTO_BYTES_VALUE.protoOrdinal(), PROTO_BYTES),
             entry(ValueChoiceOneOfType.CLPR_MESSAGE_VALUE.protoOrdinal(), CLPR_MESSAGE_VALUE),
-            entry(ValueChoiceOneOfType.CLPR_CONNECTOR_VALUE.protoOrdinal(), CLPR_CONNECTOR));
+            entry(ValueChoiceOneOfType.CLPR_CONNECTOR_VALUE.protoOrdinal(), CLPR_CONNECTOR),
+            entry(ValueChoiceOneOfType.HINTS_KEY_WITNESS_RECORD_VALUE.protoOrdinal(), HINTS_KEY_WITNESS_RECORD));
 
     private static final Map<Integer, ValueType> SINGLETON_TYPES = Map.ofEntries(
             entry(NewValueOneOfType.BLOCK_INFO_VALUE.protoOrdinal(), BLOCK_INFO),
@@ -286,6 +290,7 @@ final class StateChangeTypes {
             case HintsConstruction ignored -> HINTS_CONSTRUCTION;
             case HintsKeySet ignored -> HINTS_KEY_SET;
             case PreprocessingVote ignored -> PREPROCESSING_VOTE;
+            case HintsKeyWitnessRecord ignored -> HINTS_KEY_WITNESS_RECORD;
             case HistoryProofConstruction ignored -> HISTORY_PROOF_CONSTRUCTION;
             case HistoryProofVote ignored -> HISTORY_PROOF_VOTE;
             case ProofKeySet ignored -> PROOF_KEY_SET;
