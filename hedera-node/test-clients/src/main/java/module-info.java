@@ -143,6 +143,7 @@ open module com.hedera.node.test.clients {
     requires io.netty.handler;
     requires java.desktop;
     requires java.net.http;
+    requires jdk.httpserver;
     requires net.i2p.crypto.eddsa;
     requires org.apache.commons.io;
     requires org.apache.commons.lang3;
@@ -152,6 +153,7 @@ open module com.hedera.node.test.clients {
     requires org.hyperledger.besu.datatypes;
     requires org.hyperledger.besu.evm;
     requires org.hyperledger.besu.internal.crypto;
+    requires org.hyperledger.besu.nativelib.gnark;
     requires org.hyperledger.besu.nativelib.secp256k1;
     requires org.json;
     requires org.junit.jupiter.api;

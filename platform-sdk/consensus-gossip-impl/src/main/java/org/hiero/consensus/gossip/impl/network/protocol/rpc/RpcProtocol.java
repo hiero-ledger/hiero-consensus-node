@@ -21,6 +21,7 @@ import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.config.TrafficShapingConfig;
 import org.hiero.consensus.gossip.impl.gossip.GossipController;
@@ -52,6 +53,7 @@ public class RpcProtocol implements Protocol, GossipController {
     private final Time time;
     private final SyncMetrics syncMetrics;
     private final SyncConfig syncConfig;
+    private final GossipConfig gossipConfig;
     private final BroadcastConfig broadcastConfig;
     private final TrafficShapingConfig trafficConfig;
     private final ShadowgraphSynchronizer synchronizer;
@@ -121,6 +123,7 @@ public class RpcProtocol implements Protocol, GossipController {
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.syncConfig = configuration.getConfigData(SyncConfig.class);
+        this.gossipConfig = configuration.getConfigData(GossipConfig.class);
         this.broadcastConfig = configuration.getConfigData(BroadcastConfig.class);
         this.trafficConfig = configuration.getConfigData(TrafficShapingConfig.class);
         validateTrafficShapingConfig(trafficConfig, broadcastConfig);
@@ -177,6 +180,7 @@ public class RpcProtocol implements Protocol, GossipController {
                 syncGuard,
                 fallenBehindMonitor,
                 syncConfig,
+                gossipConfig,
                 broadcastConfig);
 
         peerProtocol.setRpcPeerHandler(handler);

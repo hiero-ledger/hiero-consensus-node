@@ -10,8 +10,8 @@ import java.util.Objects;
  *
  * @param ledgerConfiguration the advertised {@link ClprLedgerConfiguration} with
  *     {@code initialTrustAnchor} / {@code initialTrustAnchorId} derived from the self-described committee
- * @param slot the beacon slot the initial committee is current for; its period ({@code slot / 8192})
- *     will pin the initial trust anchor when sync-committee rotation lands
+ * @param slot the beacon slot the initial committee is current for; its sync-committee period is the
+ *     initial trust anchor's period
  */
 public record VerifiedConfig(@NonNull ClprLedgerConfiguration ledgerConfiguration, long slot) {
     public VerifiedConfig {
