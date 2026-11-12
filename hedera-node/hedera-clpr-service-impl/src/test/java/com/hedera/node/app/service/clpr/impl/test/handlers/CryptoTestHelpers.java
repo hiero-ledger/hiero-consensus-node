@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
-import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
-
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteConnectorHandler;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -12,8 +13,6 @@ import net.i2p.crypto.eddsa.EdDSAEngine;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 final class CryptoTestHelpers {
-    static final byte[] CLPR_SERVICE_ADDRESS = CLPR_EVM_ADDRESS_BYTES.toByteArray();
-
     public static Bytes computeConnectorId(final byte[] channelId, final byte[] pubKey, final byte[] salt) {
         final var preimage = new byte[channelId.length + pubKey.length + salt.length];
         System.arraycopy(channelId, 0, preimage, 0, channelId.length);
@@ -29,14 +28,19 @@ final class CryptoTestHelpers {
         return MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(preimage));
     }
 
-    public static Bytes signEcdsa(final byte[] secretKey, final byte[] connectorId) {
-        // Sign keccak256(connectorId || CLPR_SERVICE_ADDRESS)
-        final var msgPreimage = new byte[connectorId.length + CLPR_SERVICE_ADDRESS.length];
-        System.arraycopy(connectorId, 0, msgPreimage, 0, connectorId.length);
-        System.arraycopy(CLPR_SERVICE_ADDRESS, 0, msgPreimage, connectorId.length, CLPR_SERVICE_ADDRESS.length);
-        final byte[] msgHash =
-                MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(msgPreimage)).toByteArray();
+    public static Bytes signEcdsa(
+            final byte[] secretKey,
+            final Bytes channelId,
+            final Bytes connectorId,
+            final ContractID connectorContract,
+            final Key adminKey) {
+        return signEcdsaMessage(
+                secretKey,
+                ClprCompleteConnectorHandler.completeConnectorSigningMessage(
+                        channelId, connectorId, connectorContract, adminKey));
+    }
 
+    public static Bytes signEcdsaMessage(final byte[] secretKey, final byte[] msgHash) {
         final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
         final var signResult = LibSecp256k1.secp256k1_ecdsa_sign_recoverable(
                 LibSecp256k1.CONTEXT, recoverableSig, msgHash, secretKey, null, null);
@@ -70,12 +74,14 @@ final class CryptoTestHelpers {
         return Ed25519Utils.extractEd25519PublicKey(Ed25519Utils.keyFrom(seed));
     }
 
-    public static Bytes signEd25519(final byte[] seed, final byte[] connectorId) {
-        final var msgPreimage = new byte[connectorId.length + CLPR_SERVICE_ADDRESS.length];
-        System.arraycopy(connectorId, 0, msgPreimage, 0, connectorId.length);
-        System.arraycopy(CLPR_SERVICE_ADDRESS, 0, msgPreimage, connectorId.length, CLPR_SERVICE_ADDRESS.length);
-        final byte[] msgHash =
-                MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(msgPreimage)).toByteArray();
+    public static Bytes signEd25519(
+            final byte[] seed,
+            final Bytes channelId,
+            final Bytes connectorId,
+            final ContractID connectorContract,
+            final Key adminKey) {
+        final byte[] msgHash = ClprCompleteConnectorHandler.completeConnectorSigningMessage(
+                channelId, connectorId, connectorContract, adminKey);
         try {
             final var engine = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));
             engine.initSign(Ed25519Utils.keyFrom(seed));

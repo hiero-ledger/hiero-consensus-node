@@ -374,7 +374,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
             clprCompleteConnector()
                     .connectorId(crypto.connectorId())
                     .publicKey(crypto.publicKey())
-                    .signature(crypto.connectorSignature())
+                    .signedWith(crypto::signConnectorCompletion)
                     .signatureScheme(ClprSignatureScheme.ED25519)
                     .salt(crypto.connectorSalt())
                     .channelId(crypto.channelId())

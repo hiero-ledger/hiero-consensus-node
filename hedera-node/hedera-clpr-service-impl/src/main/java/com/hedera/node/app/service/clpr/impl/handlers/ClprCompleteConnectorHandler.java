@@ -12,7 +12,9 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
@@ -30,6 +32,8 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -108,8 +112,12 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
         final var connectorKey = new ClprConnectorKey(op.channelId(), submittedConnectorId);
         validateTrue(connectorStore.getConnector(connectorKey) == null, CLPR_CONNECTOR_ALREADY_EXISTS);
 
-        // 5. Verify signature over keccak256(connectorId || clprServiceAddress)
-        final var sigMsgHash = computeSignatureMessage(derivedConnectorId.toByteArray());
+        // 5. Verify the connector owner's signature. It must cover the connector contract and admin key
+        // as well as the connector id; otherwise a signature that becomes visible (for example in the
+        // record of a failed attempt) could be reused by any payer to take the connector id with a
+        // contract and admin key the owner never chose.
+        final var sigMsgHash = completeConnectorSigningMessage(
+                op.channelId(), derivedConnectorId, op.connectorContractOrThrow(), op.adminKeyOrThrow());
         final var signatureType =
                 switch (op.signatureScheme()) {
                     case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
@@ -162,11 +170,37 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
         return MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(preimage));
     }
 
-    private static byte[] computeSignatureMessage(final byte[] connectorId) {
-        final var clprServiceAddress = CLPR_EVM_ADDRESS_BYTES.toByteArray();
-        final var preimage = new byte[connectorId.length + clprServiceAddress.length];
-        System.arraycopy(connectorId, 0, preimage, 0, connectorId.length);
-        System.arraycopy(clprServiceAddress, 0, preimage, connectorId.length, clprServiceAddress.length);
-        return MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(preimage)).toByteArray();
+    /** Domain separator for the connector-completion owner signature. */
+    private static final byte[] COMPLETE_CONNECTOR_SIGNING_DOMAIN =
+            "hiero.clpr.complete-connector.v1".getBytes(StandardCharsets.UTF_8);
+
+    /**
+     * Returns the 32-byte message the connector owner signs to complete a connector:
+     * {@code keccak256(domain || channel_id || connector_id || clpr_service_address
+     * || keccak256(connector_contract) || keccak256(admin_key))}, where {@code connector_contract} and
+     * {@code admin_key} are the protobuf serializations exactly as they appear in the transaction body.
+     *
+     * @param channelId the channel id the connector belongs to
+     * @param connectorId the connector id being completed
+     * @param connectorContract the connector contract named in the transaction
+     * @param adminKey the connector admin key named in the transaction
+     * @return the keccak256 digest to be signed by the connector key
+     */
+    @NonNull
+    public static byte[] completeConnectorSigningMessage(
+            @NonNull final Bytes channelId,
+            @NonNull final Bytes connectorId,
+            @NonNull final ContractID connectorContract,
+            @NonNull final Key adminKey) {
+        final var out = new ByteArrayOutputStream();
+        out.writeBytes(COMPLETE_CONNECTOR_SIGNING_DOMAIN);
+        out.writeBytes(channelId.toByteArray());
+        out.writeBytes(connectorId.toByteArray());
+        out.writeBytes(CLPR_EVM_ADDRESS_BYTES.toByteArray());
+        out.writeBytes(MiscCryptoUtils.keccak256DigestOf(
+                ContractID.PROTOBUF.toBytes(connectorContract).toByteArray()));
+        out.writeBytes(
+                MiscCryptoUtils.keccak256DigestOf(Key.PROTOBUF.toBytes(adminKey).toByteArray()));
+        return MiscCryptoUtils.keccak256DigestOf(out.toByteArray());
     }
 }
