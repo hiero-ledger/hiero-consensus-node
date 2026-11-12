@@ -24,11 +24,15 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../../../" && pwd)"
 # Published CN release deployed at genesis, before the three local-build stages.
 # DEPLOY_RELEASE_TAG is accepted as a legacy alias (the workflows' starting-tag input).
 CN_BASELINE_RELEASE_TAG="${CN_BASELINE_RELEASE_TAG:-${DEPLOY_RELEASE_TAG:-v0.78.1}}"
+# The one Block Node pin is block-node-version in .citr-env; fail here rather than let Solo pick a chart.
+CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
+CITR_BLOCK_NODE_VERSION="$(sed -n 's/^block-node-version=//p' "${CITR_ENV_FILE}" | head -n 1)"
+: "${CITR_BLOCK_NODE_VERSION:?block-node-version is missing from ${CITR_ENV_FILE}}"
 # Block Node source tag used offline for `blocks wrap` (jumpstart + replay) and BN protos.
 # The wrapping CLI must hash with the same algorithm the CN uses for wrapped record hashes.
-BLOCK_NODE_TOOLS_REF="${BLOCK_NODE_TOOLS_REF:-v0.46.0-rc1}"
+BLOCK_NODE_TOOLS_REF="${BLOCK_NODE_TOOLS_REF:-${CITR_BLOCK_NODE_VERSION}}"
 # Block Node chart/image deployed after the stage 2 upgrade and kept through cutover.
-BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.46.0-rc1}"
+BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-${CITR_BLOCK_NODE_VERSION}}"
 # Mirror node deployed before stage 2 and kept through cutover. Must support the CN's TSS library:
 # 0.165.2+ loads the WRAPS verification key from the crypto library (TSS 3.19+) instead of the
 # ledger id publication, which no longer carries it.
@@ -143,7 +147,6 @@ VALIDATION_SUMMARY_LINES=()
 
 # Run SDK TCK against the final BLOCKS-only network by default, using the XTS pins.
 ENABLE_TCK_TESTS="${ENABLE_TCK_TESTS:-true}"
-CITR_ENV_FILE="${REPO_ROOT}/.github/workflows/support/citr/.citr-env"
 TCK_VERSION="${TCK_VERSION:-$({ sed -n 's/^tck-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
 JS_SDK_VERSION="${JS_SDK_VERSION:-$({ sed -n 's/^js-sdk-version=//p' "${CITR_ENV_FILE}" 2>/dev/null | head -n 1; } || true)}"
 TCK_REPO_PATH="${TCK_REPO_PATH:-}"
