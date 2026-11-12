@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.withSettings;
 
@@ -79,12 +80,13 @@ class HederaCatastrophicFailureOrderingTest {
         given(daggerApp.clprRuntime()).willReturn(clprRuntime);
         given(daggerApp.quiescenceController()).willReturn(quiescenceController);
 
-        // streamToBlockNodes() is true whenever writerMode != FILE, so the connection shutdown is reached.
+        // The configuration in effect does not stream to block nodes. The connection shutdown does not depend on it
+        // (so the stub is lenient): it can be a configuration that a transaction is still trying out.
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
-                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.writerMode", "FILE")
                 .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        lenient().when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1L));
 
         // isNotEmbedded() compares the app context's instant source by reference to InstantSource.system(); match it so
         // the embedded guard does not skip the connection shutdown whose order we are asserting.

@@ -4253,6 +4253,37 @@ class BlockStreamManagerImplTest {
         assertEquals(BlockHashAlgorithm.SHA2_256, headerRef.get().hashAlgorithm());
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void blockHashingKeepsTheDigestTypeTheManagerWasCreatedWith() {
+        final var headerRef = new AtomicReference<BlockHeader>();
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        // The configuration changes the digest type after the manager was created, as an update that is not final
+        // yet does for every thread
+        digestType = DigestType.SHA_256;
+        given(configProvider.getConfiguration())
+                .willReturn(versionedConfigWith(1, 0, StreamMode.BOTH, 0, true, false, 2L));
+        givenEndOfRoundSetup(headerRef);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        final var signedHashRef = new AtomicReference<Bytes>();
+        given(blockHashSigner.sign(any(), any())).willAnswer(invocation -> {
+            signedHashRef.set(invocation.getArgument(0));
+            return new BlockHashSigner.Attempt(null, null, mockSigningFuture);
+        });
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+
+        assertEquals(BlockHashAlgorithm.SHA2_384, headerRef.get().hashAlgorithm());
+        assertEquals(SHA_384_HASH_SIZE, signedHashRef.get().length());
+    }
+
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {
         return BlockItem.newBuilder()
                 .transactionResult(TransactionResult.newBuilder().consensusTimestamp(asTimestamp(consensusTimestamp)))

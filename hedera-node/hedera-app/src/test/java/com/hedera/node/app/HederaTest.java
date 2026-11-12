@@ -64,6 +64,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -150,6 +151,21 @@ final class HederaTest {
 
         verify(clprRuntime).stop();
         verify(clprRuntime, never()).start();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = PlatformStatus.class,
+            names = {"FREEZE_COMPLETE", "CATASTROPHIC_FAILURE"})
+    @DisplayName("newPlatformStatus shuts down block node connections whatever the configuration in effect says")
+    void newPlatformStatusShutsDownBlockNodeConnectionsWhateverTheConfigurationSays(final PlatformStatus status) {
+        // The configuration in effect does not stream to block nodes, but it can be one a transaction is still
+        // trying out, so it does not decide whether connections that were started get shut down
+        setHederaField("configProvider", new ConfigProviderImpl(false, null, Map.of("blockStream.writerMode", "FILE")));
+
+        hedera.newPlatformStatus(status);
+
+        verify(app.blockNodeConnectionManager()).shutdown();
     }
 
     @Test

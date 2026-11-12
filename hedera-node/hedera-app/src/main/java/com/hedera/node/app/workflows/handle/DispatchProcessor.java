@@ -88,17 +88,21 @@ public class DispatchProcessor {
 
     /**
      * A system-file facility update a dispatch of the current transaction applied in memory, with the file contents
-     * it was updated from and the savepoint stack of that dispatch: a rollback of that stack (or of one enclosing it)
-     * recovers the update right away, and once the transaction commits any facility whose file no longer holds the
-     * applied contents is re-derived from the committed state.
+     * it was updated from and the savepoint stack of that dispatch. The update is anchored to the savepoint holding
+     * the dispatch's changes, so a rollback of that savepoint, or of any savepoint or stack those changes were
+     * committed into, recovers the update right away; and once the transaction commits any facility whose file no
+     * longer holds the applied contents is re-derived from the committed state.
      */
     private record PendingResync(
             @NonNull SystemFileUpdates.ResyncTarget target,
-            @NonNull SavepointStackImpl stack) {}
+            @NonNull SavepointStackImpl stack,
+            boolean recoveryFailed) {}
 
     // In recording order, so updates recovered together can share the baseline captured before the first of them,
     // and several updates of one facility in a transaction are evaluated from the earliest to the latest
     private final List<PendingResync> pendingResyncs = new ArrayList<>();
+    // A single instance, so a rollback that discards several updates reports them to this processor together
+    private final SavepointStackImpl.RollbackObserver rollbackObserver = this::recoverDiscardedUpdates;
     private boolean pendingNodeInfoResync;
 
     @Inject
@@ -179,11 +183,12 @@ public class DispatchProcessor {
         final var isRoot = dispatch.stack().isRoot();
         if (isRoot) {
             // The transaction's outcome is final here: a failed root dispatch has already been rolled back, and a
-            // successful one holds its final changes in the stack. Rollbacks this processor performed were recovered
-            // when they happened; this pass catches the ones it did not see (a contract frame reverting around a
-            // completed dispatch) by comparing memory against the stack, before the throttle usage is finalized and
-            // saved, so a restored usage is what gets saved to state. The targets stay pending until the commit, so
-            // an abandoned transaction can still recover them from the state that remains.
+            // successful one holds its final changes in the stack. Every rollback of a savepoint or stack holding an
+            // update, including a contract frame reverting around a completed dispatch, was recovered when it
+            // happened. This pass is the backstop for an update whose rollback was not observed, comparing memory
+            // against the stack before the throttle usage is finalized and saved, so a restored usage is what gets
+            // saved to state. The targets stay pending until the commit, so an abandoned transaction can still
+            // recover them from the state that remains.
             resyncPendingFacilities(dispatch.stack(), false);
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -272,14 +277,22 @@ public class DispatchProcessor {
     }
 
     /**
-     * Once the transaction has committed: queues any block node streaming transition the committed writer mode calls
-     * for (judged against the mode in effect before the first network-properties update of the transaction), and
-     * clears the pending updates and the node info flag.
+     * Once the transaction's outcome is final: returns block node streaming to the configuration in effect, queues any
+     * block node streaming transition the committed writer mode calls for (judged against the mode in effect before
+     * the first configuration update of the transaction), and clears the pending updates and the node info flag.
      */
     private void completeResyncsAfterCommit() {
         try {
-            for (final var updates : pendingUpdatesByFacility().values()) {
-                systemFileUpdates.reconcileBlockNodeStreaming(updates.getFirst());
+            // The configuration in effect is a committed one again. Released before a transition is queued, since
+            // the transition runs on another thread and must act on the committed configuration, not the held one
+            systemFileUpdates.releaseStreamingConfiguration();
+            // Either configuration file can set the writer mode, and the earliest update of either recorded the
+            // mode from before the transaction
+            for (final var pending : pendingResyncs) {
+                if (isConfigurationFacility(pending.target().facility())) {
+                    systemFileUpdates.reconcileBlockNodeStreaming(pending.target());
+                    break;
+                }
             }
         } finally {
             pendingResyncs.clear();
@@ -288,28 +301,97 @@ public class DispatchProcessor {
     }
 
     /**
-     * Recovers, right away, every pending facility update recorded by the dispatch with the given stack or by a
-     * dispatch nested within it, which has just been rolled back. The rolled-back stack shows the state the dispatch
-     * started from, so each facility is re-derived from it, restoring the throttle usage captured before the first of
-     * these updates; work done later in the transaction then accumulates on top of that. Several rolled-back updates of
-     * one facility are recovered once, from the latest one's file with the earliest one's baselines. A recovered update
-     * is no longer pending, so the root-level pass does not restore it again; a facility whose recovery fails stays
-     * pending with the baselines used here, so the abandonment pass retries with the same ones.
+     * Returns whether an update of the given facility replaces the configuration, which both the network-properties
+     * and the HAPI-permissions files are sources of.
+     */
+    private static boolean isConfigurationFacility(@NonNull final SystemFileUpdates.ResyncTarget.Facility facility) {
+        return facility == SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES
+                || facility == SystemFileUpdates.ResyncTarget.Facility.HAPI_PERMISSIONS;
+    }
+
+    /**
+     * Recovers the pending facility updates held by savepoints that were just rolled back, whether this processor
+     * rolled back a dispatch or a handler rolled back a savepoint (such as a reverted contract frame) that the changes
+     * of a completed dispatch had been committed into.
+     *
+     * @param stack the stack the rollback was performed on
+     * @param anchors the updates the discarded savepoints held, in recording order
+     */
+    private void recoverDiscardedUpdates(@NonNull final SavepointStackImpl stack, @NonNull final List<Object> anchors) {
+        // In recording order: the discarded updates that are still pending (one already recovered or cleared is not),
+        // together with any update made within this stack whose earlier recovery failed. Such an update is known to be
+        // rolled back and is no longer anchored; recovering it here with the others lets them all restore the baselines
+        // captured before the first of them.
+        final List<PendingResync> discarded = new ArrayList<>();
+        for (final var pending : pendingResyncs) {
+            if (containsInstance(anchors, pending) || (pending.recoveryFailed() && isWithin(pending.stack(), stack))) {
+                discarded.add(pending);
+            }
+        }
+        recoverRolledBack(stack, discarded);
+    }
+
+    /**
+     * Recovers every pending facility update recorded by the dispatch with the given stack or by a dispatch nested
+     * within it, which has just been rolled back. The rollback itself already recovered the updates anchored in the
+     * stack; this catches an update that never reached it, such as one from a nested dispatch that failed before
+     * committing into its parent, or one whose first recovery attempt failed.
      *
      * @param rolledBackStack the stack that was just rolled back
      */
     private void recoverRolledBackTargets(@NonNull final SavepointStackImpl rolledBackStack) {
+        final List<PendingResync> discarded = new ArrayList<>();
+        for (final var pending : pendingResyncs) {
+            if (isWithin(pending.stack(), rolledBackStack)) {
+                discarded.add(pending);
+            }
+        }
+        recoverRolledBack(rolledBackStack, discarded);
+    }
+
+    /** Returns whether the given stack is the given enclosing stack or the stack of a dispatch nested within it. */
+    private static boolean isWithin(
+            @NonNull final SavepointStackImpl stack, @NonNull final SavepointStackImpl enclosing) {
+        for (var candidate = stack; candidate != null; candidate = candidate.parent()) {
+            if (candidate == enclosing) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsInstance(@NonNull final List<?> values, @NonNull final Object value) {
+        for (final var candidate : values) {
+            if (candidate == value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Recovers, right away, the given pending facility updates, whose changes were just rolled back. The given stack
+     * shows the state without those changes, so each facility is re-derived from it, restoring the throttle usage
+     * captured before the first of these updates; work done later in the transaction then accumulates on top of that.
+     * Several rolled-back updates of one facility are recovered once, from the latest one's file with the earliest
+     * one's baselines. A recovered update is no longer pending, so the root-level pass does not restore it again; a
+     * facility whose recovery fails stays pending with the baselines used here, so a later pass retries with the same
+     * ones.
+     *
+     * @param rolledBackStack the stack showing the state after the rollback
+     * @param discarded the pending updates that were rolled back, in recording order
+     */
+    private void recoverRolledBack(
+            @NonNull final SavepointStackImpl rolledBackStack, @NonNull final List<PendingResync> discarded) {
+        if (discarded.isEmpty()) {
+            return;
+        }
         // The rolled-back updates, grouped per facility in recording order
         final Map<SystemFileUpdates.ResyncTarget.Facility, List<PendingResync>> rolledBack = new LinkedHashMap<>();
-        for (final var pending : pendingResyncs) {
-            for (var stack = pending.stack(); stack != null; stack = stack.parent()) {
-                if (stack == rolledBackStack) {
-                    rolledBack
-                            .computeIfAbsent(pending.target().facility(), k -> new ArrayList<>())
-                            .add(pending);
-                    break;
-                }
-            }
+        for (final var pending : discarded) {
+            rolledBack
+                    .computeIfAbsent(pending.target().facility(), k -> new ArrayList<>())
+                    .add(pending);
         }
         // One recovery per facility: the latest rolled-back update's file and the earliest one's baselines
         final List<SystemFileUpdates.ResyncTarget> targets = new ArrayList<>();
@@ -324,14 +406,14 @@ public class DispatchProcessor {
             final var target = shared.get(i++);
             try {
                 systemFileUpdates.resyncFromState(rolledBackStack, target);
-                pendingResyncs.removeAll(updates);
+                removePending(updates);
             } catch (final Throwable e) {
                 logger.error("Failed to re-derive facility {} from the rolled-back state", target.facility(), e);
                 // Keep a single pending update for the facility carrying the baselines used here (including the
                 // shared throttle usage), so the abandonment pass retries with the same baselines
-                final var retry = new PendingResync(target, updates.getFirst().stack());
-                pendingResyncs.set(pendingResyncs.indexOf(updates.getFirst()), retry);
-                pendingResyncs.removeAll(updates.subList(1, updates.size()));
+                final var retry = new PendingResync(target, updates.getFirst().stack(), true);
+                pendingResyncs.set(pendingIndexOf(updates.getFirst()), retry);
+                removePending(updates.subList(1, updates.size()));
                 if (firstFailure == null) {
                     firstFailure = e;
                 } else {
@@ -372,6 +454,20 @@ public class DispatchProcessor {
             }
         }
         return firstFailure;
+    }
+
+    /** Removes exactly the given pending updates, not others that merely equal them. */
+    private void removePending(@NonNull final List<PendingResync> updates) {
+        pendingResyncs.removeIf(pending -> containsInstance(updates, pending));
+    }
+
+    private int pendingIndexOf(@NonNull final PendingResync update) {
+        for (int i = 0; i < pendingResyncs.size(); i++) {
+            if (pendingResyncs.get(i) == update) {
+                return i;
+            }
+        }
+        throw new IllegalStateException("Update " + update + " is not pending");
     }
 
     /** Returns the position at which the given update was recorded in the transaction. */
@@ -554,7 +650,17 @@ public class DispatchProcessor {
                 .resyncTarget(dispatch.stack(), dispatch.txnInfo().txBody())
                 // Updates accumulate across a transaction's dispatches, each with the stack that applied it, and are
                 // cleared when the root commits
-                .ifPresent(target -> pendingResyncs.add(new PendingResync(target, dispatch.stack())));
+                .ifPresent(target -> {
+                    if (isConfigurationFacility(target.facility())) {
+                        // Until the outcome is final, block node streaming keeps using the committed configuration
+                        systemFileUpdates.holdStreamingConfiguration();
+                    }
+                    final var pending = new PendingResync(target, dispatch.stack(), false);
+                    pendingResyncs.add(pending);
+                    // The update follows the dispatch's changes through the savepoints they are committed into, and
+                    // is recovered as soon as one of them is rolled back
+                    dispatch.stack().anchorToCurrentSavepoint(pending, rollbackObserver);
+                });
         if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
             pendingNodeInfoResync = true;
         }
@@ -660,7 +766,15 @@ public class DispatchProcessor {
             @NonNull final StreamBuilder builder,
             @NonNull final FeeAccumulator feeAccumulator) {
         builder.status(status);
-        stack.rollbackFullStack();
+        try {
+            // Also recovers the in-memory facility updates anchored in the stack
+            stack.rollbackFullStack();
+        } finally {
+            reverseFeeAccumulation(feeAccumulator);
+        }
+    }
+
+    private static void reverseFeeAccumulation(@NonNull final FeeAccumulator feeAccumulator) {
         // The full-stack rollback reverts the ledger effects of the discarded charge (payer debit and
         // fee collection credit) and the savepoint's node-fee reward counter, but it cannot reach the
         // block-scoped node-payments accumulator. Reverse that accumulation here, before the tracked

@@ -58,7 +58,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.CommittableWritableStates;
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -106,6 +105,7 @@ class ResyncRecoveryReproTest {
 
     private ExchangeRateManager exchangeRateManager;
     private FeeManager feeManager;
+    private ThrottleAccumulator ingestThrottle;
     private ThrottleAccumulator backendThrottle;
     private ThrottleServiceManager throttleServiceManager;
     private SystemFileUpdates subject;
@@ -124,8 +124,7 @@ class ResyncRecoveryReproTest {
 
         exchangeRateManager = new ExchangeRateManager(configProvider);
         feeManager = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(), Set.of());
-        final var ingestThrottle =
-                new ThrottleAccumulator(configProvider::getConfiguration, () -> 1, FRONTEND_THROTTLE);
+        ingestThrottle = new ThrottleAccumulator(configProvider::getConfiguration, () -> 1, FRONTEND_THROTTLE);
         backendThrottle = new ThrottleAccumulator(configProvider::getConfiguration, () -> 1, BACKEND_THROTTLE);
         throttleServiceManager = new ThrottleServiceManager(
                 new ThrottleParser(configProvider), ingestThrottle, backendThrottle, congestionMultipliers);
@@ -192,6 +191,10 @@ class ResyncRecoveryReproTest {
                 .getFirst()
                 .resetUsageTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
         backendThrottle.gasLimitThrottle().resetUsageTo(new ThrottleUsageSnapshot(777L, lastDecision));
+        ingestThrottle
+                .allActiveThrottles()
+                .getFirst()
+                .resetUsageTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
 
         // The dispatch applies a valid update with different definitions: the target captures the pre-update usage,
         // and the rebuild discards it
@@ -201,6 +204,15 @@ class ResyncRecoveryReproTest {
         assertThat(backendThrottle.allActiveThrottles().getFirst().used())
                 .as("the forward update rebuilt the bucket")
                 .isNotEqualTo(usedBefore);
+        assertThat(ingestThrottle.allActiveThrottles().getFirst().used())
+                .as("the forward update rebuilt the ingest bucket")
+                .isNotEqualTo(usedBefore);
+        // The update left the gas and ops-duration throttles intact, and the enclosing work keeps using them
+        final var laterDecision = new Timestamp(1_234_568L, 0);
+        final var gasUsageAfterUpdate = new ThrottleUsageSnapshot(888L, laterDecision);
+        final var opsDurationUsageAfterUpdate = new ThrottleUsageSnapshot(999L, laterDecision);
+        backendThrottle.gasLimitThrottle().resetUsageTo(gasUsageAfterUpdate);
+        backendThrottle.opsDurationThrottle().resetUsageTo(opsDurationUsageAfterUpdate);
 
         // The dispatch is rolled back, restoring the committed file; recovery must restore the pre-update usage
         commitFile(fileId, committedDefs);
@@ -209,8 +221,15 @@ class ResyncRecoveryReproTest {
         assertThat(backendThrottle.allActiveThrottles().getFirst().usageSnapshot())
                 .as("backend bucket usage after recovery of a valid, rolled-back definitions update")
                 .isEqualTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+        assertThat(ingestThrottle.allActiveThrottles().getFirst().usageSnapshot())
+                .as("ingest bucket usage after recovery of a valid, rolled-back definitions update")
+                .isEqualTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
         assertThat(backendThrottle.gasLimitThrottle().usageSnapshot())
-                .isEqualTo(new ThrottleUsageSnapshot(777L, lastDecision));
+                .as("gas usage recorded after the update, in a throttle the update left intact")
+                .isEqualTo(gasUsageAfterUpdate);
+        assertThat(backendThrottle.opsDurationThrottle().usageSnapshot())
+                .as("ops-duration usage recorded after the update, in a throttle the update left intact")
+                .isEqualTo(opsDurationUsageAfterUpdate);
     }
 
     /**
@@ -271,6 +290,10 @@ class ResyncRecoveryReproTest {
         final var lastDecision = new Timestamp(1_234_567L, 890);
         backendThrottle.gasLimitThrottle().resetUsageTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
         final var gasThrottleBefore = backendThrottle.gasLimitThrottle();
+        final var ingestGasUsage = new ThrottleUsageSnapshot(2_000L, lastDecision);
+        final var ingestBytesUsage = new ThrottleUsageSnapshot(3_000L, lastDecision);
+        ingestThrottle.gasLimitThrottle().resetUsageTo(ingestGasUsage);
+        ingestThrottle.bytesLimitThrottle().resetUsageTo(ingestBytesUsage);
 
         // The update rewrites the file with identical contents
         final var target =
@@ -280,11 +303,23 @@ class ResyncRecoveryReproTest {
                 .as("no throttle setting changed, so the gas throttle is not rebuilt")
                 .isSameAs(gasThrottleBefore);
 
+        // The enclosing work keeps using the throttles after the update
+        final var gasUsageAfterUpdate = new ThrottleUsageSnapshot(usedBefore + 1, new Timestamp(1_234_568L, 0));
+        backendThrottle.gasLimitThrottle().resetUsageTo(gasUsageAfterUpdate);
+
         // The dispatch is rolled back; the bytes still match, so only the savepoint outcome can trigger recovery
         subject.resyncIfChanged(state, target.asRolledBack());
 
-        assertThat(backendThrottle.gasLimitThrottle().usageSnapshot())
-                .isEqualTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+        assertThat(backendThrottle.gasLimitThrottle())
+                .as("recovery moved no throttle setting either, so the gas throttle is still not rebuilt")
+                .isSameAs(gasThrottleBefore);
+        assertThat(backendThrottle.gasLimitThrottle().usageSnapshot()).isEqualTo(gasUsageAfterUpdate);
+        assertThat(ingestThrottle.gasLimitThrottle().usageSnapshot())
+                .as("ingest gas usage after a recovery that moved no throttle setting")
+                .isEqualTo(ingestGasUsage);
+        assertThat(ingestThrottle.bytesLimitThrottle().usageSnapshot())
+                .as("ingest bytes usage after a recovery that moved no throttle setting")
+                .isEqualTo(ingestBytesUsage);
     }
 
     /**
@@ -298,17 +333,37 @@ class ResyncRecoveryReproTest {
         final var defs = transfersThrottleDefs(10_000);
         files.put(fileId, File.newBuilder().contents(defs).build());
         throttleServiceManager.init(state, defs, true);
-        final var capacity = backendThrottle.gasLimitThrottle().capacity();
+        final var opsDurationUsage = new ThrottleUsageSnapshot(5L, new Timestamp(1_234_567L, 890));
+        backendThrottle.opsDurationThrottle().resetUsageTo(opsDurationUsage);
+        final var captured = throttleServiceManager.captureThrottleUsage();
+        final var gasThrottleAtCapture = backendThrottle.gasLimitThrottle();
+        final var capacity = gasThrottleAtCapture.capacity();
         final var usage = new ThrottleServiceManager.PreservedThrottleUsage(
-                List.of(backendThrottle.allActiveThrottles().getFirst().usageSnapshot()),
+                captured.hapiUsage(),
                 new ThrottleUsageSnapshot(capacity + 1, null),
-                backendThrottle.opsDurationThrottle().usageSnapshot(),
-                null,
-                null);
+                captured.opsDurationUsage(),
+                captured.utilizationStarts(),
+                captured.gasStarts(),
+                captured.buckets(),
+                captured.ingestUsage());
+        // The snapshot really is one the gas throttle rejects
+        assertThatThrownBy(() -> gasThrottleAtCapture.resetUsageTo(usage.gasUsage()))
+                .isInstanceOf(RuntimeException.class);
 
-        assertThatCode(() -> throttleServiceManager.restoreThrottles(defs, usage))
+        // A network-properties recovery that refreshes the throttles rebuilds the gas throttle, so it tries to restore
+        // the captured gas usage into it
+        assertThatCode(() -> throttleServiceManager.recoverThrottleConfiguration(true, usage))
                 .doesNotThrowAnyException();
-        assertThat(backendThrottle.gasLimitThrottle().used()).isLessThanOrEqualTo(capacity);
+
+        assertThat(backendThrottle.gasLimitThrottle())
+                .as("the gas throttle was rebuilt, so the restore was attempted")
+                .isNotSameAs(gasThrottleAtCapture);
+        assertThat(backendThrottle.gasLimitThrottle().used())
+                .as("the incompatible gas usage was skipped")
+                .isZero();
+        assertThat(backendThrottle.opsDurationThrottle().usageSnapshot())
+                .as("the rest of the recovery still ran after the skipped gas usage")
+                .isEqualTo(opsDurationUsage);
     }
 
     private static Bytes transfersThrottleDefs(final long milliOpsPerSec) {
@@ -398,11 +453,17 @@ class ResyncRecoveryReproTest {
         final var usedBefore = 1_000_000L;
         final var lastDecision = new Timestamp(1_234_567L, 890);
         backendThrottle.gasLimitThrottle().resetUsageTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+        final var ingestGasUsage = new ThrottleUsageSnapshot(2_000L, lastDecision);
+        final var ingestBytesUsage = new ThrottleUsageSnapshot(3_000L, lastDecision);
+        ingestThrottle.gasLimitThrottle().resetUsageTo(ingestGasUsage);
+        ingestThrottle.bytesLimitThrottle().resetUsageTo(ingestBytesUsage);
         // The updated properties change a setting the gas throttle is built from, so applying them refreshes the
         // throttle configuration; like the real provider, the active configuration follows the applied properties
         final var baseConfig = configProvider.getConfiguration();
         final var gasChangedConfig = HederaTestConfigBuilder.create()
                 .withValue("contracts.maxGasPerSecBackend", 123_456_789L)
+                .withValue("contracts.maxGasPerSec", 123_456_789L)
+                .withValue("jumboTransactions.maxBytesPerSec", 123_456L)
                 .getOrCreateConfig();
         final var activeConfig = new AtomicReference<Configuration>(baseConfig);
         when(configProvider.getConfiguration()).thenAnswer(inv -> new VersionedConfigImpl(activeConfig.get(), 1L));
@@ -431,6 +492,12 @@ class ResyncRecoveryReproTest {
         assertThat(backendThrottle.gasLimitThrottle().usageSnapshot())
                 .as("backend gas throttle usage after recovery of a forward-applied then rolled-back update")
                 .isEqualTo(new ThrottleUsageSnapshot(usedBefore, lastDecision));
+        assertThat(ingestThrottle.gasLimitThrottle().usageSnapshot())
+                .as("ingest gas throttle usage after recovery of a forward-applied then rolled-back update")
+                .isEqualTo(ingestGasUsage);
+        assertThat(ingestThrottle.bytesLimitThrottle().usageSnapshot())
+                .as("ingest bytes throttle usage after recovery of a forward-applied then rolled-back update")
+                .isEqualTo(ingestBytesUsage);
     }
 
     // ---- Bug 2: file 0.0.112 ------------------------------------------------------------------------------------

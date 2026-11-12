@@ -6,8 +6,13 @@ import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.CONGESTION_LEVEL_STARTS_STATE_ID;
 import static com.hedera.node.app.throttle.schemas.V0490CongestionThrottleSchema.THROTTLE_USAGE_SNAPSHOTS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Timestamp;
@@ -29,6 +34,7 @@ import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -244,5 +250,163 @@ class ThrottleServiceManagerTest {
                 .isTrue();
         assertThat(ThrottleServiceManager.throttleConfigurationChanged(base, differentBytes))
                 .isTrue();
+    }
+
+    @Test
+    void recoveryRestoresCongestionStartsTheMultipliersDiscardedEvenIfNoBucketWasRebuilt() {
+        final var utilizationStarts = new Instant[] {Instant.ofEpochSecond(1L), null};
+        final var gasStarts = new Instant[] {Instant.ofEpochSecond(2L), null};
+        givenCapturableThrottles();
+        given(congestionMultipliers.entityUtilizationCongestionStarts()).willReturn(utilizationStarts);
+        given(congestionMultipliers.gasThrottleMultiplierCongestionStarts()).willReturn(gasStarts);
+        given(congestionMultipliers.congestionStartsGeneration()).willReturn(5L);
+        final var usage = subject.captureThrottleUsage();
+
+        // A rolled-back update changed the multipliers' own configuration, so they discarded their starts while
+        // every bucket stayed as it was
+        given(congestionMultipliers.congestionStartsGeneration()).willReturn(6L);
+        subject.recoverThrottleConfiguration(false, usage);
+
+        final var inOrder = inOrder(congestionMultipliers);
+        inOrder.verify(congestionMultipliers).resetExpectations();
+        inOrder.verify(congestionMultipliers).resetUtilizationScaledThrottleMultiplierStarts(utilizationStarts);
+        inOrder.verify(congestionMultipliers).resetGasThrottleMultiplierStarts(gasStarts);
+        // The buckets were not rebuilt, so their usage is left alone
+        verify(gasThrottle, never()).resetUsageTo(any());
+        verify(opsDurationThrottle, never()).resetUsageTo(any());
+        verify(bytesThrottle, never()).resetUsageTo(any());
+    }
+
+    @Test
+    void recoveryLeavesCongestionStartsAloneIfTheMultipliersKeptThem() {
+        givenCapturableThrottles();
+        given(congestionMultipliers.entityUtilizationCongestionStarts())
+                .willReturn(new Instant[] {Instant.ofEpochSecond(1L), null});
+        given(congestionMultipliers.gasThrottleMultiplierCongestionStarts())
+                .willReturn(new Instant[] {Instant.ofEpochSecond(2L), null});
+        given(congestionMultipliers.congestionStartsGeneration()).willReturn(5L);
+        final var usage = subject.captureThrottleUsage();
+
+        subject.recoverThrottleConfiguration(false, usage);
+
+        verify(congestionMultipliers, never()).resetExpectations();
+        verify(congestionMultipliers, never()).resetUtilizationScaledThrottleMultiplierStarts(any());
+        verify(congestionMultipliers, never()).resetGasThrottleMultiplierStarts(any());
+    }
+
+    private void givenCapturableThrottles() {
+        givenThrottleMocks();
+        given(gasThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
+        given(opsDurationThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
+        given(ingestThrottle.allActiveThrottlesIncludingHighVolume()).willReturn(List.of());
+        given(ingestThrottle.gasLimitThrottle()).willReturn(gasThrottle);
+        given(ingestThrottle.bytesLimitThrottle()).willReturn(bytesThrottle);
+        given(bytesThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
+    }
+
+    @Test
+    void captureReadsTheIngestUsageHoldingTheIngestMonitor() {
+        final var held = new ArrayList<Boolean>();
+        givenThrottleMocks();
+        given(gasThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
+        given(opsDurationThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
+        final var ingestGasThrottle = mock(LeakyBucketDeterministicThrottle.class);
+        final var ingestHapiThrottle = mock(DeterministicThrottle.class);
+        given(ingestThrottle.allActiveThrottlesIncludingHighVolume()).willReturn(List.of(ingestHapiThrottle));
+        given(ingestThrottle.gasLimitThrottle()).willReturn(ingestGasThrottle);
+        given(ingestThrottle.bytesLimitThrottle()).willReturn(bytesThrottle);
+        given(ingestHapiThrottle.usageSnapshot()).willAnswer(invocation -> {
+            held.add(Thread.holdsLock(ingestThrottle));
+            return MOCK_USAGE_SNAPSHOT;
+        });
+        given(ingestGasThrottle.usageSnapshot()).willAnswer(invocation -> {
+            held.add(Thread.holdsLock(ingestThrottle));
+            return MOCK_USAGE_SNAPSHOT;
+        });
+        given(bytesThrottle.usageSnapshot()).willAnswer(invocation -> {
+            held.add(Thread.holdsLock(ingestThrottle));
+            return MOCK_USAGE_SNAPSHOT;
+        });
+
+        subject.captureThrottleUsage();
+
+        assertThat(held).containsExactly(true, true, true);
+    }
+
+    @Test
+    void configurationRecoveryRebuildsAndRestoresTheIngestBucketsInOneHoldOfTheIngestMonitor() {
+        final var events = new ArrayList<String>();
+        givenCapturableThrottles();
+        final var usage = subject.captureThrottleUsage();
+        // The refresh replaces the ingest gas and bytes buckets
+        final var rebuiltIngestGas = mock(LeakyBucketDeterministicThrottle.class);
+        final var rebuiltIngestBytes = mock(LeakyBucketDeterministicThrottle.class);
+        given(ingestThrottle.gasLimitThrottle()).willReturn(rebuiltIngestGas);
+        given(ingestThrottle.bytesLimitThrottle()).willReturn(rebuiltIngestBytes);
+        willAnswer(invocation -> {
+                    events.add("rebuild gas, monitor held: " + Thread.holdsLock(ingestThrottle));
+                    return null;
+                })
+                .given(ingestThrottle)
+                .applyGasConfig();
+        willAnswer(invocation -> {
+                    events.add("rebuild bytes, monitor held: " + Thread.holdsLock(ingestThrottle));
+                    return null;
+                })
+                .given(ingestThrottle)
+                .applyBytesConfig();
+        willAnswer(invocation -> {
+                    events.add("restore gas, monitor held: " + Thread.holdsLock(ingestThrottle));
+                    return null;
+                })
+                .given(rebuiltIngestGas)
+                .resetUsageTo(MOCK_USAGE_SNAPSHOT);
+        willAnswer(invocation -> {
+                    events.add("restore bytes, monitor held: " + Thread.holdsLock(ingestThrottle));
+                    return null;
+                })
+                .given(rebuiltIngestBytes)
+                .resetUsageTo(MOCK_USAGE_SNAPSHOT);
+
+        subject.recoverThrottleConfiguration(true, usage);
+
+        assertThat(events)
+                .containsExactly(
+                        "rebuild gas, monitor held: true",
+                        "rebuild bytes, monitor held: true",
+                        "restore gas, monitor held: true",
+                        "restore bytes, monitor held: true");
+        // The monitor is released once the recovery is done
+        assertFalse(Thread.holdsLock(ingestThrottle));
+    }
+
+    @Test
+    void definitionsRecoveryRebuildsAndRestoresTheIngestBucketsInOneHoldOfTheIngestMonitor() {
+        final var events = new ArrayList<String>();
+        givenMockThrottleDefs();
+        givenCapturableThrottles();
+        given(ingestThrottle.allActiveThrottlesIncludingHighVolume()).willReturn(List.of(cryptoTransferThrottle));
+        given(cryptoTransferThrottle.usageSnapshot()).willReturn(MOCK_USAGE_SNAPSHOT);
+        final var usage = subject.captureThrottleUsage();
+        // The rebuild replaces the ingest HAPI bucket
+        final var rebuiltIngestBucket = mock(DeterministicThrottle.class);
+        given(ingestThrottle.allActiveThrottlesIncludingHighVolume()).willReturn(List.of(rebuiltIngestBucket));
+        willAnswer(invocation -> {
+                    events.add("rebuild, monitor held: " + Thread.holdsLock(ingestThrottle));
+                    return null;
+                })
+                .given(ingestThrottle)
+                .rebuildFor(MOCK_THROTTLE_DEFS);
+        willAnswer(invocation -> {
+                    events.add("restore, monitor held: " + Thread.holdsLock(ingestThrottle));
+                    return null;
+                })
+                .given(rebuiltIngestBucket)
+                .resetUsageTo(MOCK_USAGE_SNAPSHOT);
+
+        subject.restoreThrottles(MOCK_ENCODED_THROTTLE_DEFS, usage);
+
+        assertThat(events).containsExactly("rebuild, monitor held: true", "restore, monitor held: true");
+        assertFalse(Thread.holdsLock(ingestThrottle));
     }
 }

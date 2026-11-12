@@ -1437,4 +1437,130 @@ class SavepointStackImplTest extends StateTestBase {
         assertThat(grandchild.parent()).isSameAs(child);
         assertThat(grandchild.parent().parent()).isSameAs(root);
     }
+
+    /** Records each rollback notification as the stack it was reported on and the anchors it carried. */
+    private static final class RecordingObserver implements SavepointStackImpl.RollbackObserver {
+        private final List<SavepointStackImpl> stacks = new ArrayList<>();
+        private final List<List<Object>> anchors = new ArrayList<>();
+
+        @Override
+        public void onRollback(final SavepointStackImpl stack, final List<Object> discarded) {
+            stacks.add(stack);
+            anchors.add(List.copyOf(discarded));
+        }
+    }
+
+    private SavepointStackImpl childOf(final SavepointStackImpl parentStack) {
+        final var child = SavepointStackImpl.newChildStack(
+                parentStack, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+        initialized(child.getBaseBuilder(StreamBuilder.class));
+        return child;
+    }
+
+    @Test
+    void anchorCommittedIntoASavepointIsReportedWhenThatSavepointIsRolledBack() {
+        final var root = rootStackWith(TransactionID.DEFAULT, 3, 50);
+        final var observer = new RecordingObserver();
+        // A handler opens a savepoint, and a dispatch made within it commits its changes into that savepoint
+        root.createSavepoint();
+        final var dispatchStack = childOf(root);
+        dispatchStack.anchorToCurrentSavepoint("update", observer);
+        dispatchStack.commitFullStack();
+        assertThat(observer.anchors).isEmpty();
+
+        root.rollback();
+
+        assertThat(observer.stacks).containsExactly(root);
+        assertThat(observer.anchors).containsExactly(List.of("update"));
+        // The anchor was dropped with the savepoint, so a later rollback does not report it again
+        root.rollbackFullStack();
+        assertThat(observer.anchors).hasSize(1);
+    }
+
+    @Test
+    void anchorFollowsItsChangesThroughCommittedSavepointsAndStacks() {
+        final var root = rootStackWith(TransactionID.DEFAULT, 3, 50);
+        final var observer = new RecordingObserver();
+        final var handlerStack = childOf(root);
+        handlerStack.createSavepoint();
+        final var dispatchStack = childOf(handlerStack);
+        dispatchStack.createSavepoint();
+        dispatchStack.anchorToCurrentSavepoint("update", observer);
+
+        // Each commit moves the anchor along with the changes, and reports nothing
+        dispatchStack.commitFullStack();
+        handlerStack.commit();
+        handlerStack.commitFullStack();
+        assertThat(observer.anchors).isEmpty();
+
+        // The changes now live in the root stack, so rolling it back discards them
+        root.rollbackFullStack();
+
+        assertThat(observer.stacks).containsExactly(root);
+        assertThat(observer.anchors).containsExactly(List.of("update"));
+    }
+
+    @Test
+    void rollingBackOneSavepointReportsOnlyTheAnchorsItHolds() {
+        final var root = rootStackWith(TransactionID.DEFAULT, 3, 50);
+        final var observer = new RecordingObserver();
+        root.anchorToCurrentSavepoint("kept", observer);
+        root.createSavepoint();
+        root.anchorToCurrentSavepoint("discarded", observer);
+
+        root.rollback();
+
+        assertThat(observer.anchors).containsExactly(List.of("discarded"));
+
+        root.rollbackFullStack();
+
+        assertThat(observer.anchors).containsExactly(List.of("discarded"), List.of("kept"));
+    }
+
+    @Test
+    void fullStackRollbackReportsEveryAnchorOnceInTheOrderAnchored() {
+        final var root = rootStackWith(TransactionID.DEFAULT, 3, 50);
+        final var observer = new RecordingObserver();
+        final var handlerStack = childOf(root);
+        handlerStack.anchorToCurrentSavepoint("first", observer);
+        handlerStack.createSavepoint();
+        handlerStack.anchorToCurrentSavepoint("second", observer);
+        final var dispatchStack = childOf(handlerStack);
+        dispatchStack.anchorToCurrentSavepoint("third", observer);
+        dispatchStack.commitFullStack();
+
+        handlerStack.rollbackFullStack();
+
+        assertThat(observer.stacks).containsExactly(handlerStack);
+        assertThat(observer.anchors).containsExactly(List.of("first", "second", "third"));
+    }
+
+    @Test
+    void committedRootStackDropsItsAnchors() {
+        final var root = rootStackWith(TransactionID.DEFAULT, 3, 50);
+        final var observer = new RecordingObserver();
+        root.anchorToCurrentSavepoint("update", observer);
+
+        root.commitFullStack();
+        root.rollbackFullStack();
+
+        assertThat(observer.anchors).isEmpty();
+    }
+
+    @Test
+    void everyObserverIsNotifiedEvenIfAnEarlierOneFails() {
+        final var root = rootStackWith(TransactionID.DEFAULT, 3, 50);
+        final var failure = new IllegalStateException("cannot undo");
+        final var observer = new RecordingObserver();
+        root.createSavepoint();
+        root.anchorToCurrentSavepoint("failing", (stack, anchors) -> {
+            throw failure;
+        });
+        root.anchorToCurrentSavepoint("recorded", observer);
+
+        assertThatThrownBy(root::rollback).isSameAs(failure);
+
+        assertThat(observer.anchors).containsExactly(List.of("recorded"));
+        assertThat(root.depth()).isEqualTo(1);
+    }
 }

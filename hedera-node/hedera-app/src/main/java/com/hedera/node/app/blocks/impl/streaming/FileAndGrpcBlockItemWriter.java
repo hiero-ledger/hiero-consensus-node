@@ -19,7 +19,9 @@ import java.nio.file.FileSystem;
 public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     private final FileBlockItemWriter fileBlockItemWriter;
     private final GrpcBlockItemWriter grpcBlockItemWriter;
-    private final ConfigProvider configProvider;
+    private final BlockBufferService blockBufferService;
+    // Whether the wrapped record block path owns the stream to block nodes; fixed for the life of this writer
+    private final boolean streamWrappedRecordBlocks;
 
     /**
      * Construct a new FileAndGrpcBlockItemWriter.
@@ -37,12 +39,23 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
         this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
         this.grpcBlockItemWriter =
                 new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
-        this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
+        this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
+        // A writer is created when a block begins, between transactions, so the configuration read here is a
+        // committed one
+        this.streamWrappedRecordBlocks = requireNonNull(configProvider, "configProvider must not be null")
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamWrappedRecordBlocks();
     }
 
+    /**
+     * Whether the normal block stream is forwarded to block nodes. This follows whether the buffer service is started,
+     * which changes only for a committed writer mode, and not the configuration in effect when an item arrives: items
+     * are written asynchronously, so that configuration may be one a transaction is still trying out, and following it
+     * would drop part of a block.
+     */
     private boolean shouldForwardNormalBlockStreamToGrpc() {
-        final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
-        return blockStreamConfig.streamToBlockNodes() && !blockStreamConfig.streamWrappedRecordBlocks();
+        return blockBufferService.isStarted() && !streamWrappedRecordBlocks;
     }
 
     @Override

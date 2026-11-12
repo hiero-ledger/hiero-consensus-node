@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -216,7 +217,7 @@ class SystemFileUpdatesResyncReproTest {
                 .as("the committed mode equals the prior mode, so nothing is queued")
                 .isEmpty();
         verify(blockNodeConnectionManager, never()).shutdown();
-        verify(blockNodeConnectionManager, never()).start();
+        verify(blockNodeConnectionManager, never()).start(anyBoolean());
     }
 
     /**
@@ -252,7 +253,7 @@ class SystemFileUpdatesResyncReproTest {
         activeConfig.set(configWith(Map.of("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC.name())));
         queued.getFirst().run();
         verify(blockNodeConnectionManager, times(1)).shutdown();
-        verify(blockNodeConnectionManager, never()).start();
+        verify(blockNodeConnectionManager, never()).start(anyBoolean());
     }
 
     /** Writes the file through committed writable states, so later reads see it as the state's readable view does. */

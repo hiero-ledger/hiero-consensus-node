@@ -1502,7 +1502,8 @@ class DispatchProcessorTest {
     void facilitiesAreResyncedBeforeThrottleUsageIsFinalizedAndSaved() {
         givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
         given(stack.isRoot()).willReturn(true);
-        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+        final var propertiesTarget = targetOf(SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(propertiesTarget));
 
         subject.processDispatch(dispatch);
 
@@ -1512,7 +1513,66 @@ class DispatchProcessorTest {
         inOrder.verify(systemFileUpdates).resyncFromState(eq(stack), any());
         inOrder.verify(dispatchUsageManager).finalizeAndSaveUsage(dispatch);
         inOrder.verify(stack).commitFullStack();
-        inOrder.verify(systemFileUpdates).reconcileBlockNodeStreaming(RATES_TARGET);
+        inOrder.verify(systemFileUpdates).reconcileBlockNodeStreaming(propertiesTarget);
+    }
+
+    @Test
+    void streamingTransitionIsNotQueuedForAFacilityThatIsNotAConfigurationFile() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(RATES_TARGET));
+
+        subject.processDispatch(dispatch);
+
+        verify(stack).commitFullStack();
+        verify(systemFileUpdates, never()).reconcileBlockNodeStreaming(any());
+    }
+
+    @Test
+    void streamingConfigurationIsReleasedBeforeTheStreamingTransitionIsQueued() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(true);
+        final var propertiesTarget = targetOf(SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(propertiesTarget));
+
+        subject.processDispatch(dispatch);
+
+        // The transition runs on another thread as soon as it is queued, and must find the committed configuration
+        final var inOrder = inOrder(systemFileUpdates, stack);
+        inOrder.verify(stack).commitFullStack();
+        inOrder.verify(systemFileUpdates).releaseStreamingConfiguration();
+        inOrder.verify(systemFileUpdates).reconcileBlockNodeStreaming(propertiesTarget);
+    }
+
+    @Test
+    void streamingTransitionIsJudgedAgainstTheEarliestConfigurationUpdateOfTheTransaction() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        // A rates update, then a permissions update, then a properties update, then the root dispatch
+        given(stack.isRoot()).willReturn(false, false, false, true);
+        final var permissionsTarget = targetOf(SystemFileUpdates.ResyncTarget.Facility.HAPI_PERMISSIONS);
+        final var propertiesTarget = targetOf(SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY))
+                .willReturn(
+                        Optional.of(RATES_TARGET),
+                        Optional.of(permissionsTarget),
+                        Optional.of(propertiesTarget),
+                        Optional.empty());
+
+        subject.processDispatch(dispatch);
+        subject.processDispatch(dispatch);
+        subject.processDispatch(dispatch);
+        verify(systemFileUpdates, never()).reconcileBlockNodeStreaming(any());
+        subject.processDispatch(dispatch);
+
+        // Only the earliest configuration update saw the writer mode from before the transaction; the later one saw
+        // the mode the earlier one proposed
+        verify(systemFileUpdates).reconcileBlockNodeStreaming(permissionsTarget);
+        verify(systemFileUpdates, never()).reconcileBlockNodeStreaming(propertiesTarget);
+        verify(systemFileUpdates, never()).reconcileBlockNodeStreaming(RATES_TARGET);
+    }
+
+    private static SystemFileUpdates.ResyncTarget targetOf(final SystemFileUpdates.ResyncTarget.Facility facility) {
+        return new SystemFileUpdates.ResyncTarget(facility, RATES_TARGET.fileId(), RATES_TARGET.appliedContents());
     }
 
     @Test
@@ -1596,5 +1656,66 @@ class DispatchProcessorTest {
 
     private void verifyUtilization() {
         verify(dispatchUsageManager).finalizeAndSaveUsage(dispatch);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = SystemFileUpdates.ResyncTarget.Facility.class,
+            names = {"NETWORK_PROPERTIES", "HAPI_PERMISSIONS"})
+    void streamingConfigurationIsHeldBeforeAConfigurationFileUpdateAppliesAndReleasedOnceTheTransactionCommits(
+            final SystemFileUpdates.ResyncTarget.Facility facility) {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        // First a dispatch within a transaction, then the transaction's root dispatch
+        given(stack.isRoot()).willReturn(false, true);
+        // Both files are sources of the configuration, so an update of either can change streaming settings
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY))
+                .willReturn(Optional.of(targetOf(facility)), Optional.empty());
+
+        subject.processDispatch(dispatch);
+
+        // The update is still tentative after the dispatch that applied it, so the configuration stays held
+        final var inOrder = inOrder(systemFileUpdates, stack);
+        inOrder.verify(systemFileUpdates).holdStreamingConfiguration();
+        inOrder.verify(systemFileUpdates).handleTxBody(stack, TXN_BODY);
+        verify(systemFileUpdates, never()).releaseStreamingConfiguration();
+
+        subject.processDispatch(dispatch);
+
+        inOrder.verify(stack).commitFullStack();
+        inOrder.verify(systemFileUpdates).releaseStreamingConfiguration();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = SystemFileUpdates.ResyncTarget.Facility.class,
+            mode = EnumSource.Mode.EXCLUDE,
+            names = {"NETWORK_PROPERTIES", "HAPI_PERMISSIONS"})
+    void streamingConfigurationIsNotHeldForOtherFacilities(final SystemFileUpdates.ResyncTarget.Facility facility) {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(true);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY)).willReturn(Optional.of(targetOf(facility)));
+
+        subject.processDispatch(dispatch);
+
+        verify(systemFileUpdates, never()).holdStreamingConfiguration();
+    }
+
+    @Test
+    void streamingConfigurationIsReleasedWhenATransactionIsAbandoned() {
+        givenSuccessfulDispatch(CRYPTO_TRANSFER_TXN_INFO);
+        given(stack.isRoot()).willReturn(false);
+        given(systemFileUpdates.resyncTarget(stack, TXN_BODY))
+                .willReturn(Optional.of(new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES,
+                        RATES_TARGET.fileId(),
+                        RATES_TARGET.appliedContents())));
+        subject.processDispatch(dispatch);
+        verify(systemFileUpdates).holdStreamingConfiguration();
+        verify(systemFileUpdates, never()).releaseStreamingConfiguration();
+
+        // The transaction never reaches its root commit
+        subject.resyncAfterAbandonedTransaction(stack);
+
+        verify(systemFileUpdates).releaseStreamingConfiguration();
     }
 }

@@ -103,6 +103,16 @@ public class CongestionMultipliers {
     }
 
     /**
+     * Returns a number that changes every time either underlying multiplier rebuilds its internal state, which
+     * discards its congestion level starts. Two equal values mean no starts were discarded in between.
+     *
+     * @return the combined generation of the underlying multipliers' state
+     */
+    public long congestionStartsGeneration() {
+        return gasThrottleMultiplier.stateGeneration() + utilizationScaledThrottleMultiplier.stateGeneration();
+    }
+
+    /**
      * Resets the state of the underlying congestion multipliers.
      */
     public void resetExpectations() {

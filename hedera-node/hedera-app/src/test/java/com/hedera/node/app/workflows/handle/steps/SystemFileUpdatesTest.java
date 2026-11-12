@@ -9,6 +9,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
@@ -316,7 +317,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
     }
 
     @Test
-    void resyncFromStateRestoresNetworkPropertiesAndRefreshesThrottleConfiguration() {
+    void resyncFromStateRestoresNetworkPropertiesAndLeavesThrottlesAloneWhenTheirSettingsAreUnchanged() {
         final var permissions = givenCommittedPropertiesAndPermissions();
         final var fileID = idFactory.newFileId(fileNumOf(SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES));
 
@@ -326,8 +327,8 @@ class SystemFileUpdatesTest implements TransactionFactory {
                         SystemFileUpdates.ResyncTarget.Facility.NETWORK_PROPERTIES, fileID, Bytes.wrap("rolled back")));
 
         verify(configProvider).update(CONFIG_LIST_BYTES, permissions);
-        // Recovery refreshes throttle configuration while preserving accumulated usage and the congestion period
-        verify(throttleServiceManager).refreshThrottleConfigurationPreservingUsage();
+        // The settings the throttles are built from did not move, so nothing is rebuilt and no usage is touched
+        verifyNoInteractions(throttleServiceManager);
         verifyNoInteractions(blockNodeConnectionManager);
     }
 
@@ -749,9 +750,46 @@ class SystemFileUpdatesTest implements TransactionFactory {
         subject.reconcileBlockNodeStreaming(target);
 
         verify(blockNodeConnectionManager, times(1)).shutdown();
-        verify(blockNodeConnectionManager, never()).start();
+        verify(blockNodeConnectionManager, never()).start(anyBoolean());
         // Only the writer mode changed, so the throttle configuration is left alone and keeps its usage
         verify(throttleServiceManager, never()).refreshThrottleConfiguration();
+    }
+
+    @Test
+    void enablesGrpcStreamingOnceAPermissionsUpdateThatChangesTheWriterModeIsCommitted() {
+        // The permissions file is a source of the configuration too, so it can carry the writer mode
+        final var permissionsId =
+                givenWriterModeUpdateInPermissionsFile(BlockStreamWriterMode.FILE, BlockStreamWriterMode.FILE_AND_GRPC);
+        final var txBody = fileUpdateOf(permissionsId);
+
+        final var target = subject.resyncTarget(state, txBody).orElseThrow();
+        assertThat(target.facility()).isEqualTo(SystemFileUpdates.ResyncTarget.Facility.HAPI_PERMISSIONS);
+        assertThat(target.priorWriterMode()).isEqualTo(BlockStreamWriterMode.FILE);
+        subject.handleTxBody(state, txBody);
+        verifyNoInteractions(blockNodeConnectionManager);
+
+        subject.resyncIfChanged(state, target);
+        subject.reconcileBlockNodeStreaming(target);
+
+        verify(blockNodeConnectionManager, times(1)).start(true);
+        verify(blockNodeConnectionManager, never()).shutdown();
+    }
+
+    @Test
+    void disablesGrpcStreamingOnceAPermissionsUpdateThatChangesTheWriterModeIsCommitted() {
+        final var permissionsId =
+                givenWriterModeUpdateInPermissionsFile(BlockStreamWriterMode.FILE_AND_GRPC, BlockStreamWriterMode.FILE);
+        final var txBody = fileUpdateOf(permissionsId);
+
+        final var target = subject.resyncTarget(state, txBody).orElseThrow();
+        subject.handleTxBody(state, txBody);
+        verifyNoInteractions(blockNodeConnectionManager);
+
+        subject.resyncIfChanged(state, target);
+        subject.reconcileBlockNodeStreaming(target);
+
+        verify(blockNodeConnectionManager, times(1)).shutdown();
+        verify(blockNodeConnectionManager, never()).start(anyBoolean());
     }
 
     @Test
@@ -767,7 +805,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
         subject.resyncIfChanged(state, target);
         subject.reconcileBlockNodeStreaming(target);
 
-        verify(blockNodeConnectionManager, times(1)).start();
+        verify(blockNodeConnectionManager, times(1)).start(true);
         verify(blockNodeConnectionManager, never()).shutdown();
         verify(throttleServiceManager, never()).refreshThrottleConfiguration();
     }
@@ -833,7 +871,7 @@ class SystemFileUpdatesTest implements TransactionFactory {
         activeConfig.set(streamingConfig(BlockStreamWriterMode.FILE_AND_GRPC));
         queued.getFirst().run();
         verify(blockNodeConnectionManager, times(1)).shutdown();
-        verify(blockNodeConnectionManager, never()).start();
+        verify(blockNodeConnectionManager, never()).start(anyBoolean());
     }
 
     @Test
@@ -929,6 +967,33 @@ class SystemFileUpdatesTest implements TransactionFactory {
         return networkPropsId;
     }
 
+    /**
+     * Like {@link #givenWriterModeUpdate(BlockStreamWriterMode, BlockStreamWriterMode)}, but the updated contents are
+     * in the HAPI-permissions file, which is a source of the configuration as well.
+     *
+     * @return the HAPI-permissions file ID
+     */
+    private FileID givenWriterModeUpdateInPermissionsFile(
+            final BlockStreamWriterMode priorWriterMode, final BlockStreamWriterMode updatedWriterMode) {
+        activeConfig.set(streamingConfig(priorWriterMode));
+        when(configProvider.getConfiguration()).thenAnswer(inv -> new VersionedConfigImpl(activeConfig.get(), 1L));
+        doAnswer(inv -> {
+                    final Bytes permissions = inv.getArgument(1);
+                    activeConfig.set(streamingConfig(
+                            UPDATED_PROPERTIES.equals(permissions) ? updatedWriterMode : priorWriterMode));
+                    return null;
+                })
+                .when(configProvider)
+                .update(any(), any());
+        final var filesConfig = activeConfig.get().getConfigData(FilesConfig.class);
+        final var networkPropsId = idFactory.newFileId(filesConfig.networkProperties());
+        final var permissionsId = idFactory.newFileId(filesConfig.hapiPermissions());
+        files.put(
+                networkPropsId, File.newBuilder().contents(Bytes.wrap("props")).build());
+        files.put(permissionsId, File.newBuilder().contents(UPDATED_PROPERTIES).build());
+        return permissionsId;
+    }
+
     private Configuration streamingConfig(final BlockStreamWriterMode writerMode) {
         return new TestConfigBuilder(false)
                 .withConverter(Bytes.class, new BytesConverter())
@@ -941,5 +1006,16 @@ class SystemFileUpdatesTest implements TransactionFactory {
                 .withConfigDataType(JumboTransactionsConfig.class)
                 .withValue("blockStream.writerMode", writerMode)
                 .getOrCreateConfig();
+    }
+
+    @Test
+    void holdsBlockNodeStreamingOnTheConfigurationInEffectAndReleasesIt() {
+        final var configuration = configProvider.getConfiguration();
+
+        subject.holdStreamingConfiguration();
+        verify(blockNodeConnectionManager).holdConfiguration(configuration);
+
+        subject.releaseStreamingConfiguration();
+        verify(blockNodeConnectionManager).releaseConfiguration();
     }
 }
