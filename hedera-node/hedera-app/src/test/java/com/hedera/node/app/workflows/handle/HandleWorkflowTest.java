@@ -54,6 +54,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -109,6 +110,7 @@ import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.OnProofFinished;
@@ -142,9 +144,12 @@ import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.BlockRecordSource;
+import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.tss.PreparedTssHandoff;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.clpr.ClprHapiTlsEndpoint;
 import com.hedera.node.app.workflows.clpr.ClprSubmissions;
@@ -1635,7 +1640,7 @@ class HandleWorkflowTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
-    void fullBlockStillExecutesAllDueSchedules(final boolean initiallyFull) throws Exception {
+    void fullBlockRejectsButStillConsumesDueSchedulesWithNonExemptPayer(final boolean initiallyFull) throws Exception {
         givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"));
         final var executionStart = NOW.minusSeconds(2);
         final var entityIdStates =
@@ -1687,15 +1692,114 @@ class HandleWorkflowTest {
 
         assertTrue((boolean) method.invoke(subject, state, executionStart, NOW, mock(NodeInfo.class)));
 
-        // Every due schedule runs through the ordinary scheduled dispatch path, never the block-full rejection
+        // Only a schedule handled before the block is full executes; every later one is rejected
+        final int executed = initiallyFull ? 0 : 1;
+        verify(dispatchProcessor, times(executed)).processDispatch(dispatch);
+        verify(dispatchProcessor, times(3 - executed)).processDispatch(dispatch, null, true);
+        // Rejected schedules are still consumed and their output written, so none are retried in a later block
         assertEquals(0, remaining.get());
-        verify(dispatchProcessor, times(3)).processDispatch(dispatch);
-        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
-        // Scheduled output is still written, so it counts toward the block size
         verify(blockStreamManager, times(3)).writeSavepointItems(any(), any());
-        // The whole interval is processed, so nothing is left behind for a later block
         verify(blockStreamManager).setLastIntervalProcessTime(NOW);
         assertTrue(full.get());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,false", "1,true", "2,true", "37,true", "38,false", "1001,false"})
+    void fullBlockRejectsDueScheduleUnlessPayerIsThrottleExempt(final long payerNum, final boolean exempt)
+            throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList(), Map.of("accounts.lastThrottleExempt", "37"));
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        final var dispatch =
+                givenScheduledDispatch(exempt ? ResponseCodeEnum.SUCCESS : ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+
+        invokeExecuteScheduled(scheduledPaidBy(payerNum));
+
+        if (exempt) {
+            verify(dispatchProcessor).processDispatch(dispatch);
+            verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        } else {
+            verify(dispatchProcessor).processDispatch(dispatch, null, true);
+            verify(dispatchProcessor, never()).processDispatch(any());
+        }
+        // Scheduled executions feed their own diagnostics, never the submitted-transaction ones
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), !exempt);
+        verify(blockStreamManager, never()).recordSubmittedTransaction(any(), anyBoolean());
+    }
+
+    @Test
+    void fullBlockDoesNotCountScheduleThatFailedBeforeBudgetRejection() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(true);
+        // The payer could not cover the fees, so the dispatch fails before reaching the block-full rejection
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE);
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch, null, true);
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), false);
+    }
+
+    @Test
+    void dueScheduleWithNonExemptPayerExecutesBeforeBlockIsFull() throws Exception {
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        given(blockStreamManager.hasReachedMaxBlockSize()).willReturn(false);
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.SUCCESS);
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        verify(blockStreamManager).recordScheduledTransaction(List.of(), false);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = StreamMode.class,
+            names = {"BOTH", "RECORDS"})
+    void dueScheduleIgnoresBlockBudgetOutsideBlocksStreamMode(final StreamMode mode) throws Exception {
+        givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList());
+        // Only StreamMode.BLOCKS enforces the budget, even if the manager were to report a full block
+        lenient().when(blockStreamManager.hasReachedMaxBlockSize()).thenReturn(true);
+        final var dispatch = givenScheduledDispatch(ResponseCodeEnum.SUCCESS);
+
+        invokeExecuteScheduled(scheduledPaidBy(1001L));
+
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(dispatchProcessor, never()).processDispatch(any(), any(), anyBoolean());
+        verify(blockStreamManager, never()).recordScheduledTransaction(any(), anyBoolean());
+    }
+
+    private static ExecutableTxn<StreamBuilder> scheduledPaidBy(final long payerNum) {
+        return new ExecutableTxn<>(
+                TransactionBody.DEFAULT,
+                AccountID.newBuilder().accountNum(payerNum).build(),
+                key -> true,
+                NOW.minusSeconds(1),
+                StreamBuilder.class,
+                builder -> {});
+    }
+
+    private Dispatch givenScheduledDispatch(@NonNull final ResponseCodeEnum finalStatus) {
+        final var scheduledTxn = mock(ParentTxn.class, RETURNS_DEEP_STUBS);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(scheduledTxn);
+        // The status the (mocked) dispatch processor would have left on the base builder
+        final var baseBuilder = mock(StreamBuilder.class);
+        lenient().when(baseBuilder.status()).thenReturn(finalStatus);
+        given(scheduledTxn.initBaseBuilder(any(), any(), any())).willReturn(baseBuilder);
+        final var dispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(eq(scheduledTxn), any(), any(), any()))
+                .willReturn(dispatch);
+        given(scheduledTxn.stack().buildHandleOutput(any(), any(), any()))
+                .willReturn(new HandleOutput(new BlockRecordSource(List.of()), null, NOW));
+        return dispatch;
+    }
+
+    private void invokeExecuteScheduled(@NonNull final ExecutableTxn<StreamBuilder> executableTxn) throws Exception {
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "executeScheduled", State.class, Instant.class, NodeInfo.class, ExecutableTxn.class);
+        method.setAccessible(true);
+        method.invoke(subject, state, NOW, mock(NodeInfo.class), executableTxn);
     }
 
     /**
@@ -1905,6 +2009,124 @@ class HandleWorkflowTest {
         verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
     }
 
+    /**
+     * A scheduled transaction whose fee cannot be computed makes dispatch creation throw. That must fail only
+     * the one scheduled transaction, not abandon the rest of the interval: the failing transaction is still
+     * consumed from the iterator and its failure output externalized, and the next due transaction still executes.
+     */
+    @Test
+    void scheduledTxnWhoseDispatchCannotBeCreatedDoesNotDropTheNextOne() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);
+        given(blockRecordManager.lastUsedConsensusTime()).willReturn(NOW);
+        final var entityIdStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(entityIdStates);
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
+        final var schedIter = mock(ExecutableTxnIterator.class);
+        given(schedIter.hasNext()).willReturn(true, true, false);
+        final var executableTxn = new ExecutableTxn<>(
+                TransactionBody.DEFAULT, AccountID.DEFAULT, key -> true, NOW, StreamBuilder.class, b -> {});
+        Mockito.doReturn(executableTxn, executableTxn).when(schedIter).next();
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(schedIter);
+        final var failingTxn = mock(ParentTxn.class);
+        final var laterTxn = mock(ParentTxn.class);
+        given(laterTxn.creatorInfo()).willReturn(mock(NodeInfo.class));
+        given(laterTxn.txnInfo()).willReturn(mock(TransactionInfo.class));
+        given(laterTxn.stack()).willReturn(mock(SavepointStackImpl.class));
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(failingTxn, laterTxn);
+        final var laterDispatch = mock(Dispatch.class);
+        given(parentTxnFactory.createDispatch(any(), any(), any(), any()))
+                .willThrow(new IllegalArgumentException("Extra not defined"))
+                .willReturn(laterDispatch);
+        final var failureOutput = mock(HandleOutput.class);
+        given(failureOutput.lastAssignedConsensusTime()).willReturn(NOW);
+        given(failureOutput.recordSourceOrThrow()).willReturn(new LegacyListRecordSource(List.of(), List.of()));
+        final var laterOutput = mock(HandleOutput.class);
+        given(laterOutput.lastAssignedConsensusTime()).willReturn(NOW);
+        given(laterOutput.recordSourceOrThrow()).willReturn(new LegacyListRecordSource(List.of(), List.of()));
+        given(laterTxn.stack().buildHandleOutput(any(), any(), any())).willReturn(laterOutput);
+        givenSubjectWith(
+                RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("scheduling.longTermEnabled", "true"), 104);
+
+        try (final var handleOutput = Mockito.mockStatic(HandleOutput.class)) {
+            handleOutput
+                    .when(() -> HandleOutput.failInvalidStreamItems(any(), any(), any(), any()))
+                    .thenReturn(failureOutput);
+
+            subject.handleRound(state, round, txns -> {});
+
+            handleOutput.verify(() -> HandleOutput.failInvalidStreamItems(same(failingTxn), any(), any(), any()));
+            handleOutput.verify(
+                    () -> HandleOutput.failInvalidStreamItems(same(laterTxn), any(), any(), any()), never());
+        }
+        verify(dispatchProcessor).processDispatch(same(laterDispatch));
+        verify(blockRecordManager, times(2)).endUserTransaction(any(), same(state));
+        verify(schedIter, times(2)).remove();
+    }
+
+    @Test
+    void completedWeightRotationRecordsTheDispatchConsensusTime() throws Exception {
+        final var activeRosterHash = Bytes.wrap("ACTIVE");
+        final var candidateRosterHash = Bytes.wrap("CANDIDATE");
+        final var activeRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+                .build();
+        final var candidateRoster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(2L).build())
+                .build();
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).willReturn(rosters);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .candidateRosterHash(candidateRosterHash)
+                        .roundRosterPairs(new RoundRosterPair(0, activeRosterHash))
+                        .build());
+        given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
+        given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
+        final var prepared = new PreparedTssHandoff(candidateRosterHash);
+        final var historyStore = mock(WritableHistoryStore.class);
+        prepared.stub(historyStore);
+        final var boundary = NOW.plusSeconds(5).plusNanos(123);
+        given(historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash, boundary))
+                .willReturn(true);
+        given(hintsService.handoff(any(), eq(activeRoster), eq(candidateRoster), eq(candidateRosterHash)))
+                .willReturn(true);
+        final var dispatch = mock(Dispatch.class, RETURNS_DEEP_STUBS);
+        given(dispatch.consensusNow()).willReturn(boundary);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+        final var field = HandleWorkflow.class.getDeclaredField("inFlightDispatch");
+        field.setAccessible(true);
+        field.set(subject, dispatch);
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var callback = ArgumentCaptor.forClass(OnProofFinished.class);
+        verify(historyService).onFinishedConstruction(callback.capture());
+        try (final var hintsStores =
+                mockConstruction(WritableHintsStoreImpl.class, (store, _) -> prepared.stub(store))) {
+            callback.getValue().onFinished(historyStore, prepared.history(), new TreeMap<>());
+            verify(historyStore).handoff(activeRoster, candidateRoster, candidateRosterHash, boundary);
+            verify(historyService).setLatestHistoryProof(prepared.history().targetProofOrThrow());
+            assertEquals(1, hintsStores.constructed().size());
+        }
+    }
+
     @Test
     void freshGenesisHandoffKeepsTheProofKeysOfNodesAPendingCandidateRosterDrops() {
         final var activeRosterHash = Bytes.wrap("ACTIVE");
@@ -1967,7 +2189,7 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txns -> {});
 
         // The roster does not change, so no node's proof key may be removed
-        verify(historyStore).handoff(activeRoster, null, null);
+        verify(historyStore).handoff(activeRoster, null, null, null);
     }
 
     @Test

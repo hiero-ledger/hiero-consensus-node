@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.falcon.recording;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.platform.event.GossipEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -11,7 +12,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import org.assertj.core.data.Percentage;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig_;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig_;
 import org.hiero.consensus.model.roster.RosterWrapper;
@@ -137,17 +137,17 @@ public final class FalconRecorder {
         private final List<Step> steps = new ArrayList<>();
 
         /**
-         * The hashes of the events received so far. A node receives each event from every node that passes it on;
-         * only the first copy is kept. Remove once the simulated network sends only the copies that can arrive first
-         * (#27782).
+         * The events received so far, by content: received events are not hashed. A node receives each event from
+         * every node that passes it on; only the first copy is kept. Remove once the simulated network sends only the
+         * copies that can arrive first (#27782).
          */
-        private final Set<Hash> received = new HashSet<>();
+        private final Set<GossipEvent> received = new HashSet<>();
 
         private int released;
 
         @Override
         public void accept(@NonNull final Step step) {
-            if (step instanceof final Received r && !received.add(r.event().getHash())) {
+            if (step instanceof final Received r && !received.add(r.event().getGossipEvent())) {
                 return;
             }
             if (step instanceof Released) {

@@ -15,18 +15,18 @@ import java.util.Arrays;
  * <p>
  * This class contains the SSZ ({@code hash_tree_root}) primitives and the Ethereum consensus constants this verifier
  * needs: balanced-tree merkleization, the {@code BLS pubkey} / {@code uint64} leaf encodings, the sync-committee
- * signing domain/root, and Merkle-branch verification. Also holds the protocol size constants (committee size, BLS
- * lengths, fork-version length) and the SSZ generalized indices for the branches the verifier walks.
+ * signing domain/root, and Merkle-branch verification. Also holds the protocol size constants (BLS lengths,
+ * fork-version length). None of it depends on the fork: the generalized indices of the branches the verifier walks do,
+ * and live in {@link Gloas}. The committee size and period length depend on the consensus preset; see
+ * {@link SyncCommitteePreset}.
  */
 final class Ssz {
 
     private Ssz() {}
 
-    // ── Sync committee / BLS sizes (Altair, unchanged through Electra) ──
-    static final int SYNC_COMMITTEE_SIZE = 512;
-    static final int SYNC_COMMITTEE_BITS_LENGTH = SYNC_COMMITTEE_SIZE / 8;
+    /** Length of a BLS public key as the beacon chain encodes it: a compressed G1 point. */
     static final int BLS_PUBKEY_LENGTH = 48;
-    static final int BLS_SIGNATURE_LENGTH = 96;
+
     static final int FORK_VERSION_LENGTH = 4;
 
     /**
@@ -40,37 +40,10 @@ final class Ssz {
     private static final byte[] DOMAIN_SYNC_COMMITTEE = {0x07, 0x00, 0x00, 0x00};
 
     /**
-     * SSZ generalized index of {@code BeaconBlockBody.execution_payload.state_root} relative to the block body root:
-     * body has 12 (Deneb) / 13 (Electra) fields padded to 16 with {@code execution_payload} at field 9 (gindex 25), and
-     * ExecutionPayloadHeader has 17 fields padded to 32 with {@code state_root} at field 2 (gindex 34); composed: 25*32
-     * + 2 = 802, i.e. depth 9, leaf index 290.
-     */
-    static final int EXECUTION_STATE_ROOT_BRANCH_DEPTH = 9;
-
-    static final int EXECUTION_STATE_ROOT_LEAF_INDEX = 290;
-
-    /**
-     * SSZ generalized index of {@code BeaconState.next_sync_committee} relative to the state root: the state has 37
-     * fields padded to 64 with {@code next_sync_committee} at field 23, i.e. gindex 87, depth 6, leaf index 23.
-     * (Pre-Electra forks used gindex 55 — depth 5 — because the state had fewer fields.)
-     */
-    static final int NEXT_SYNC_COMMITTEE_BRANCH_DEPTH = 6;
-
-    static final int NEXT_SYNC_COMMITTEE_LEAF_INDEX = 23;
-
-    /**
-     * SSZ generalized index of {@code BeaconState.current_sync_committee} relative to the state root: field 22 of the
-     * state padded to 64 fields, i.e. gindex 86, depth 6, leaf index 22. (Pre-Electra forks used gindex 54 — depth 5.)
-     */
-    static final int CURRENT_SYNC_COMMITTEE_BRANCH_DEPTH = 6;
-
-    static final int CURRENT_SYNC_COMMITTEE_LEAF_INDEX = 22;
-
-    /**
      * Per-thread reusable SHA-256 digest. {@link MessageDigest} is stateful and not thread-safe, so it cannot be shared
      * across threads via a plain static field; a {@link ThreadLocal} gives each thread its own instance while still
      * avoiding a fresh {@code getInstance} provider lookup and allocation on every hash. A single verify call performs
-     * ~1k hashes (dominated by {@link SyncCommittee#hashTreeRoot()}), so reuse matters.
+     * ~1k hashes (dominated by {@link SyncCommittee#fromPubkeys} for a mainnet committee), so reuse matters.
      */
     private static final ThreadLocal<MessageDigest> SHA_256 = ThreadLocal.withInitial(() -> {
         try {
@@ -206,9 +179,10 @@ final class Ssz {
 
     /**
      * A single SSZ Merkle inclusion proof: the sibling hashes along one leaf-to-root path bundled with the leaf's fixed
-     * position in the tree ({@code depth} and {@code index}). Each branch type the verifier walks — execution state
-     * root, current/next sync committee — has a constant depth and index (see the generalized-index constants above);
-     * only the {@code siblings} vary per proof.
+     * position in the tree ({@code depth} and {@code index}). Each beacon branch type the verifier walks — execution
+     * block hash, finalized root, next sync committee — has a fixed position, a {@link GeneralizedIndex} in
+     * {@link Gloas}; only the {@code siblings} vary per proof. A non-signer proof's index is the member's committee
+     * index.
      *
      * <p>This is the SSZ analogue of
      * {@link com.hedera.node.app.service.clpr.impl.verifier.evm.MerklePatriciaTrie}: both wrap proof data behind a
@@ -223,6 +197,11 @@ final class Ssz {
      *                 generalized index minus {@code 2^depth})
      */
     record SszMerkleBranch(@NonNull byte[][] siblings, int depth, int index) {
+
+        /** A branch to the node at {@code position}. */
+        SszMerkleBranch(@NonNull final byte[][] siblings, @NonNull final GeneralizedIndex position) {
+            this(siblings, position.depth(), position.index());
+        }
 
         /**
          * Checks this inclusion proof: does {@code leaf32} really sit at {@link #index} of the depth-{@link #depth}

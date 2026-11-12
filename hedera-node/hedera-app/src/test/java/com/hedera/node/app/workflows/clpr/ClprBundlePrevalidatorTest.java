@@ -21,8 +21,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -46,7 +44,6 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
-import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
@@ -57,7 +54,6 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
-import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
@@ -74,7 +70,6 @@ import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
-import com.swirlds.state.spi.ReadableKVStateBase;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import java.util.List;
@@ -125,9 +120,6 @@ class ClprBundlePrevalidatorTest {
 
     @Mock
     private State state;
-
-    @Mock
-    private ReadableKVStateBase<ProtoBytes, ClprChannel> cachedChannels;
 
     @Mock
     private ReadableStates clprStates;
@@ -233,30 +225,6 @@ class ClprBundlePrevalidatorTest {
     }
 
     @Test
-    void checksProgressAndRepliesAgainstTheChannelReadLiveAfterVerification() throws PreCheckException {
-        // The handle thread changed the channel while the proof was being verified
-        final var advanced = CHANNEL.copyBuilder()
-                .endpointManifestVersion(CHANNEL.endpointManifestVersion() + 1)
-                .build();
-        when(clprStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)).thenReturn(cachedChannels);
-        when(cachedChannels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(CHANNEL, advanced);
-        final var content = bundle(List.of(dataPayload()));
-        givenLocalReturn(content);
-
-        subject.validate(PAYLOAD, configuration);
-
-        // Each read bypasses this round's read cache
-        final var order = inOrder(cachedChannels, localHandler, validator);
-        order.verify(cachedChannels).reset();
-        order.verify(cachedChannels).get(new ProtoBytes(CHANNEL_ID));
-        order.verify(localHandler).findResponse(any(), any());
-        order.verify(cachedChannels).reset();
-        order.verify(cachedChannels).get(new ProtoBytes(CHANNEL_ID));
-        order.verify(validator).validate(advanced, content, LEDGER_CONFIG);
-        order.verify(validator).validateReplies(eq(advanced), any(), any(ReadableMessageQueueStore.class));
-    }
-
-    @Test
     void rejectsUnknownChannelAndClosesStateBeforeProofVerification() {
         when(channels.get(new ProtoBytes(CHANNEL_ID))).thenReturn(null);
 
@@ -296,8 +264,11 @@ class ClprBundlePrevalidatorTest {
 
         subject.validate(PAYLOAD, configuration);
 
-        verify(validator).validate(CHANNEL, content, LEDGER_CONFIG);
-        verify(validator).validateReplies(eq(CHANNEL), any(), any(ReadableMessageQueueStore.class));
+        verify(validator).prevalidate(CHANNEL, content, LEDGER_CONFIG);
+        // Checks that depend on the latest state, including the replies, are left to consensus
+        verify(validator, never()).validate(any(), any(), any());
+        verify(validator, never()).validateReplies(any(), any(), any());
+        verifyNoInteractions(queue);
         verify(channelLifecycle).recordPeerObservedManifestVersion(CHANNEL_ID, 9L);
         verify(releaseState).run();
         final var contextCaptor = ArgumentCaptor.forClass(QueryContext.class);
@@ -356,23 +327,6 @@ class ClprBundlePrevalidatorTest {
         givenLocalReturn(bundle(List.of(ClprMessagePayload.newBuilder()
                 .control(ClprControlMessage.DEFAULT)
                 .build())));
-
-        assertRejected(PAYLOAD, CLPR_BUNDLE_VERIFICATION_FAILED);
-
-        verify(releaseState).run();
-    }
-
-    @Test
-    void rejectsOutOfOrderRepliesAgainstTheOutboundQueue() {
-        final var content = bundle(List.of(replyPayload(2), replyPayload(1)));
-        givenLocalReturn(content.copyBuilder()
-                .metadata(content.metadataOrThrow().copyBuilder().receivedMessageId(2))
-                .build());
-        when(queue.get(ClprMessageKey.newBuilder()
-                        .channelId(CHANNEL_ID)
-                        .messageId(1)
-                        .build()))
-                .thenReturn(ClprMessageValue.newBuilder().payload(dataPayload()).build());
 
         assertRejected(PAYLOAD, CLPR_BUNDLE_VERIFICATION_FAILED);
 
@@ -453,12 +407,6 @@ class ClprBundlePrevalidatorTest {
     private static ClprMessagePayload dataPayload() {
         return ClprMessagePayload.newBuilder()
                 .message(ClprMessage.newBuilder().messageData(Bytes.fromHex("01")))
-                .build();
-    }
-
-    private static ClprMessagePayload replyPayload(final long id) {
-        return ClprMessagePayload.newBuilder()
-                .messageReply(ClprMessageReply.newBuilder().messageId(id))
                 .build();
     }
 }
