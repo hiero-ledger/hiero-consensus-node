@@ -103,9 +103,12 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>THROWAWAY PROBE for #27670, never merged: a copy of {@code ShadowgraphBenchmark#addEvent} at 10 nodes that tests
  * whether the per-fork latency levels come from where the recorded events lie in memory. With {@link #copyPerPass},
- * every pass adds fresh copies of the recorded events, allocated in replay order before the pass. Third test (the
- * second, huge pages, changed nothing): each fork prints when C2 compiled what, and the inlining decisions of its
- * compilations of {@code Shadowgraph#addEvent} and {@code Shadowgraph#insert}, to join them with the fork's level.
+ * every pass adds fresh copies of the recorded events, allocated in replay order before the pass. Fourth test (the
+ * second, huge pages, and the third, the inlining of two methods, changed nothing): each fork writes a compile log
+ * ({@code compile-pid<process id>.log}) into the results directory of the calibration workflow, to compare all
+ * compilations below {@code Shadowgraph#addEvent} between fast and slow forks, as for {@code EventHashingBenchmark}
+ * in <a href="https://github.com/hiero-ledger/hiero-consensus-node/issues/27940">#27940</a>. Only the recorded events
+ * are added, without copies.
  */
 @State(Scope.Thread)
 @Fork(
@@ -115,9 +118,8 @@ import org.openjdk.jmh.annotations.Warmup;
             "-Xmx10g",
             "-XX:+AlwaysPreTouch",
             "-XX:+UnlockDiagnosticVMOptions",
-            "-XX:+PrintCompilation",
-            "-XX:CompileCommand=PrintInlining,org.hiero.consensus.gossip.impl.gossip.shadowgraph.Shadowgraph::addEvent",
-            "-XX:CompileCommand=PrintInlining,org.hiero.consensus.gossip.impl.gossip.shadowgraph.Shadowgraph::insert"
+            "-XX:+LogCompilation",
+            "-XX:LogFile=build/benchmark-calibration/compile-%p.log"
         })
 @Warmup(iterations = 1, time = 10)
 @Measurement(iterations = 2, time = 5)
@@ -137,7 +139,7 @@ public class ShadowgraphLayoutProbe {
     public int numNodes;
 
     /** Whether every pass adds fresh copies of the recorded events instead of the recorded events themselves. */
-    @Param({"false", "true"})
+    @Param({"false"})
     public boolean copyPerPass;
 
     /** The calls of the current pass: {@link #calls}, or calls with fresh copies of the events. */
