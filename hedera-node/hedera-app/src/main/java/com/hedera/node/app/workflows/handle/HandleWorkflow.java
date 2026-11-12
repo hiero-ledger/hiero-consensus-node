@@ -41,7 +41,6 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
-import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -55,6 +54,7 @@ import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
@@ -1225,6 +1225,23 @@ public class HandleWorkflow {
             @NonNull final State state, @NonNull final AtomicReference<LedgerIdContext> setLedgerIdContext) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
+            if (!HintsGenerationWeights.requiresHistory(tssConfig)) {
+                hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
+                    if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                        hintsService.setActiveConstruction(construction, hintsStore.getCrsStateFor(construction));
+                    } else {
+                        final var rosters = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+                        if (rosters.candidateIsWeightRotation()) {
+                            hintsService.handoff(
+                                    hintsStore,
+                                    requireNonNull(rosters.getActiveRoster()),
+                                    requireNonNull(rosters.getCandidateRoster()),
+                                    requireNonNull(rosters.getCandidateRosterHash()));
+                        }
+                    }
+                });
+            }
+
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction, targetNodeWeights) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
@@ -1233,7 +1250,6 @@ public class HandleWorkflow {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
-                        initializeHintsSigningForHistory(state, construction);
                         // And set the ledger id if needed
                         if (historyStore.getLedgerId() == null) {
                             final var ledgerId = historyService.ledgerIdOf(proof);
@@ -1277,7 +1293,6 @@ public class HandleWorkflow {
                                 null)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
-                            initializeHintsSigningForHistory(state, historyStore.getActiveConstruction());
                             // The ledger id is that of the history a genesis proof grounds its chain of
                             // trust in; it must be in state before any proof extending the chain is voted on
                             final var proof = construction.targetProofOrThrow();
@@ -1297,15 +1312,6 @@ public class HandleWorkflow {
                 });
             }
         }
-    }
-
-    private void initializeHintsSigningForHistory(
-            @NonNull final State state, @NonNull final HistoryProofConstruction historyConstruction) {
-        final var hintsStore = new ReadableHintsStoreImpl(
-                state.getReadableStates(HintsService.NAME),
-                new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME)));
-        final var activeHints = hintsStore.getActiveConstruction();
-        hintsService.setActiveConstruction(activeHints, hintsStore.getCrsStateFor(activeHints), historyConstruction);
     }
 
     /**
@@ -1519,17 +1525,24 @@ public class HandleWorkflow {
                 }
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
-                doStreamingOnlyKvChanges(
-                        hintsWritableStates,
-                        null,
-                        () -> hintsService.reconcile(
+                doStreamingOnlyKvChanges(hintsWritableStates, null, () -> {
+                    try {
+                        hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
                                 roundTimestamp,
                                 workTime,
                                 tssConfig,
                                 isActive,
-                                readableHistoryStore.getActiveConstruction()));
+                                HintsGenerationWeights.requiresHistory(tssConfig)
+                                        ? readableHistoryStore.getActiveConstruction()
+                                        : null);
+                    } catch (HintsGenerationWeights.InvalidGenerationException e) {
+                        logger.error(
+                                "Cannot advance hinTS with the current generation snapshot; history reconciliation will continue",
+                                e);
+                    }
+                });
                 if (tssConfig.historyEnabled()) {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);

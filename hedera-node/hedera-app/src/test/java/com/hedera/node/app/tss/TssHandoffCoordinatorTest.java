@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -28,6 +30,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -66,6 +69,7 @@ class TssHandoffCoordinatorTest {
 
     @BeforeEach
     void readyStores() {
+        lenient().when(hintsService.requiresHistoryWeights()).thenReturn(true);
         lenient().when(hintsStore.getCrsState()).thenReturn(CRSState.DEFAULT);
         lenient()
                 .when(hintsStore.getActiveConstruction())
@@ -421,6 +425,113 @@ class TssHandoffCoordinatorTest {
         verify(hintsService)
                 .handoff(hintsStore, PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, historyConstruction(proof));
         verify(historyService).setLatestHistoryProof(proof);
+    }
+
+    @Test
+    void preparedLegacyNextRecoveryIsValidatedAndItsEnrichedProofIsForwarded() {
+        final var enrichedProof = wrapsProof(VERIFICATION_KEY);
+        final var legacyProof =
+                enrichedProof.copyBuilder().targetNodeWeights(List.of()).build();
+        final var nextHints = hintsConstruction(VERIFICATION_KEY);
+        final var next = new AtomicReference<>(historyConstruction(legacyProof));
+        given(hintsStore.getNextConstruction()).willReturn(nextHints);
+        given(historyStore.getNextConstruction()).willAnswer(_ -> next.get());
+        doAnswer(_ -> {
+                    next.set(historyConstruction(enrichedProof));
+                    return null;
+                })
+                .when(historyService)
+                .recoverNextBook(historyStore, ADOPTED_ROSTER, nextHints);
+        given(historyStore.handoff(PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, Instant.EPOCH))
+                .willReturn(true);
+        given(historyStore.getActiveConstruction()).willAnswer(_ -> next.get());
+        given(hintsService.handoff(
+                        hintsStore,
+                        PREVIOUS_ROSTER,
+                        ADOPTED_ROSTER,
+                        ADOPTED_ROSTER_HASH,
+                        historyConstruction(enrichedProof)))
+                .willReturn(true);
+
+        assertTrue(TssHandoffCoordinator.tryJointHandoff(
+                historyStore,
+                hintsStore,
+                historyService,
+                hintsService,
+                PREVIOUS_ROSTER,
+                ADOPTED_ROSTER,
+                ADOPTED_ROSTER_HASH,
+                Instant.EPOCH));
+
+        final var order = inOrder(historyService, historyStore, hintsService);
+        order.verify(historyService).recoverNextBook(historyStore, ADOPTED_ROSTER, nextHints);
+        order.verify(historyStore).handoff(PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, Instant.EPOCH);
+        order.verify(hintsService)
+                .handoff(
+                        hintsStore,
+                        PREVIOUS_ROSTER,
+                        ADOPTED_ROSTER,
+                        ADOPTED_ROSTER_HASH,
+                        historyConstruction(enrichedProof));
+        order.verify(historyService).setLatestHistoryProof(enrichedProof);
+        verify(historyService, never()).setLatestHistoryProof(legacyProof);
+    }
+
+    @Test
+    void invalidPreparedGenerationCannotPromoteEitherStore() {
+        final var invalid = wrapsProof(VERIFICATION_KEY)
+                .copyBuilder()
+                .targetNodeWeights(new ProofNodeWeight(0, 999))
+                .build();
+        given(hintsStore.getNextConstruction()).willReturn(hintsConstruction(VERIFICATION_KEY));
+        given(historyStore.getNextConstruction()).willReturn(historyConstruction(invalid));
+
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> TssHandoffCoordinator.tryJointHandoff(
+                        historyStore,
+                        hintsStore,
+                        historyService,
+                        hintsService,
+                        PREVIOUS_ROSTER,
+                        ADOPTED_ROSTER,
+                        ADOPTED_ROSTER_HASH,
+                        Instant.EPOCH));
+
+        verify(historyService).recoverNextBook(historyStore, ADOPTED_ROSTER, hintsConstruction(VERIFICATION_KEY));
+        verify(historyStore, never()).handoff(any(), any(), any(), any());
+        verify(hintsService, never()).handoff(any(), any(), any(), any(), any());
+        verify(historyService, never()).setLatestHistoryProof(any());
+    }
+
+    @Test
+    void compatibilityHandoffDoesNotRequireOrRecoverACanonicalSnapshot() {
+        given(hintsService.requiresHistoryWeights()).willReturn(false);
+        final var legacyProof = wrapsProof(VERIFICATION_KEY)
+                .copyBuilder()
+                .targetNodeWeights(List.of())
+                .build();
+        final var legacyHistory = historyConstruction(legacyProof);
+        given(hintsStore.getNextConstruction()).willReturn(hintsConstruction(VERIFICATION_KEY));
+        given(historyStore.getNextConstruction()).willReturn(legacyHistory);
+        given(historyStore.handoff(PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, Instant.EPOCH))
+                .willReturn(true);
+        given(historyStore.getActiveConstruction()).willReturn(legacyHistory);
+        given(hintsService.handoff(hintsStore, PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, legacyHistory))
+                .willReturn(true);
+
+        assertTrue(TssHandoffCoordinator.tryJointHandoff(
+                historyStore,
+                hintsStore,
+                historyService,
+                hintsService,
+                PREVIOUS_ROSTER,
+                ADOPTED_ROSTER,
+                ADOPTED_ROSTER_HASH,
+                Instant.EPOCH));
+
+        verify(historyService, never()).recoverNextBook(any(), any(), any());
+        verify(historyService).setLatestHistoryProof(legacyProof);
     }
 
     @Test

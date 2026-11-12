@@ -12,6 +12,7 @@ import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.config.data.TssConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -56,6 +57,18 @@ public class HintsControllers {
 
     @Nullable
     private HintsGenerationWeights controllerSourceGeneration;
+
+    @Nullable
+    private HintsConstruction resolvedHints;
+
+    @Nullable
+    private HistoryProofConstruction resolvedHistory;
+
+    @Nullable
+    private HintsGenerationWeights resolvedSourceGeneration;
+
+    private boolean resolvedRequiresHistory;
+    private boolean sourceInputsResolved;
 
     @Inject
     public HintsControllers(
@@ -107,12 +120,26 @@ public class HintsControllers {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(hintsStore);
-        final var sourceGeneration = activeHintsConstruction != null && activeHintsConstruction.hasHintsScheme()
-                ? HintsGenerationWeights.from(
-                        activeHintsConstruction,
-                        requireNonNull(
-                                activeHistoryConstruction, "Active hinTS requires its matching history generation"))
-                : null;
+        final boolean requiresHistory = HintsGenerationWeights.requiresHistory(
+                configurationSupplier.get().getConfigData(TssConfig.class));
+        final HintsGenerationWeights sourceGeneration;
+        if (sourceInputsResolved
+                && resolvedHints == activeHintsConstruction
+                && resolvedRequiresHistory == requiresHistory
+                && (!requiresHistory || resolvedHistory == activeHistoryConstruction)) {
+            sourceGeneration = resolvedSourceGeneration;
+        } else {
+            sourceGeneration = activeHintsConstruction != null && activeHintsConstruction.hasHintsScheme()
+                    ? (requiresHistory
+                            ? HintsGenerationWeights.from(activeHintsConstruction, activeHistoryConstruction)
+                            : HintsGenerationWeights.forScheme(activeHintsConstruction))
+                    : null;
+            resolvedHints = activeHintsConstruction;
+            resolvedHistory = requiresHistory ? activeHistoryConstruction : null;
+            resolvedSourceGeneration = sourceGeneration;
+            resolvedRequiresHistory = requiresHistory;
+            sourceInputsResolved = true;
+        }
         if (currentConstructionId() != construction.constructionId()
                 || !Objects.equals(sourceGeneration, controllerSourceGeneration)) {
             if (controller != null) {
@@ -154,6 +181,10 @@ public class HintsControllers {
             controller = null;
             controllerSourceGeneration = null;
         }
+        resolvedHints = null;
+        resolvedHistory = null;
+        resolvedSourceGeneration = null;
+        sourceInputsResolved = false;
     }
 
     /**
@@ -231,7 +262,7 @@ public class HintsControllers {
             return weights;
         }
         final long total = sourceGeneration.totalWeight();
-        final long sourceThreshold = total / 3 + (total % 3 == 0 ? 0 : 1);
+        final long sourceThreshold = RosterTransitionWeights.atLeastOneThirdOfTotal(total);
         return new RosterTransitionWeights(
                 weights.sourceNodeWeights(),
                 weights.targetNodeWeights(),

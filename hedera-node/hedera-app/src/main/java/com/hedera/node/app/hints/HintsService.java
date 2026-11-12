@@ -105,6 +105,15 @@ public interface HintsService extends Service {
     @Nullable
     KeyProvenanceSigner keyProvenanceFor(@NonNull ReadableHintsStore hintsStore);
 
+    /** Whether real hinTS signing and preprocessing require canonical history generation weights. */
+    boolean requiresHistoryWeights();
+
+    /** Activates a completed scheme without history only in history-disabled or mock-signature mode. */
+    default void setActiveConstruction(
+            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+        setActiveConstruction(construction, crsState, null);
+    }
+
     /**
      * Sets a completed active construction into the signing context during startup.
      *
@@ -113,7 +122,7 @@ public interface HintsService extends Service {
     void setActiveConstruction(
             @NonNull HintsConstruction construction,
             @NonNull CRSState crsState,
-            @NonNull HistoryProofConstruction historyConstruction);
+            @Nullable HistoryProofConstruction historyConstruction);
 
     /**
      * Whether the signer is ready.
@@ -145,6 +154,15 @@ public interface HintsService extends Service {
      */
     void onFinishedConstruction(@Nullable OnHintsFinished cb);
 
+    /** Hands off without history only in history-disabled or mock-signature mode. */
+    default boolean handoff(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash) {
+        return handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, null);
+    }
+
     /**
      * Initializes hinTS signing from a completed next construction bound to the adopted roster
      * in the given {@link WritableHintsStore}.
@@ -160,7 +178,7 @@ public interface HintsService extends Service {
             @NonNull Roster previousRoster,
             @NonNull Roster adoptedRoster,
             @NonNull Bytes adoptedRosterHash,
-            @NonNull HistoryProofConstruction historyConstruction);
+            @Nullable HistoryProofConstruction historyConstruction);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward

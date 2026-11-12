@@ -20,7 +20,9 @@ import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Duration;
@@ -28,9 +30,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -112,13 +117,13 @@ class HintsContextTest {
                 Duration.ofSeconds(5),
                 "data/keys/tss",
                 false,
-                false,
-                false,
+                true,
+                true,
                 2,
                 10,
                 Duration.ofSeconds(5),
                 validateBlockSignatures,
-                true,
+                false,
                 false);
     }
 
@@ -332,6 +337,190 @@ class HintsContextTest {
                 () -> subject.setConstruction(changed, CRS_STATE, HintsGenerationTestUtils.weightsFor(CONSTRUCTION)));
 
         assertEquals(CONSTRUCTION, subject.activeConstruction());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,true"})
+    void compatibilityModesUseSchemeOnlyWeightsAndNeedNoHistory(
+            final boolean historyEnabled, final boolean forceMockSignatures) {
+        final var a = new NodePartyId(1L, 1, 10L);
+        final var b = new NodePartyId(2L, 2, 1L);
+        final var c = new NodePartyId(3L, 3, 7L);
+        final var construction = constructionWith(4L, PREPROCESSED_KEYS, List.of(a, b, c));
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tss.historyEnabled", historyEnabled)
+                .withValue("tss.forceMockSignatures", forceMockSignatures)
+                .withValue("tss.validateBlockSignatures", true)
+                .getOrCreateConfig();
+        given(configuration.getConfigData(TssConfig.class)).willReturn(config.getConfigData(TssConfig.class));
+        final var aggregate = Bytes.wrap("ten of eighteen");
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, Map.of(1, signature)))
+                .willReturn(aggregate);
+        given(library.verifyAggregate(aggregate, BLOCK_HASH, VERIFICATION_KEY, 1L, 2L))
+                .willReturn(true);
+
+        subject.setConstruction(construction, CRS_STATE);
+        // An optional history argument must not change compatibility-mode behavior either.
+        subject.setConstruction(
+                construction,
+                CRS_STATE,
+                HintsGenerationWeights.from(
+                        construction,
+                        HintsGenerationTestUtils.historyFor(construction, Map.of(1L, 10L, 2L, 1L, 3L, 7L, 4L, 2L))));
+
+        assertFalse(subject.requiresHistory());
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        signing.incorporateValid(CRS, a.nodeId(), signature);
+        assertEquals(aggregate, signing.future().join());
+        verify(library).verifyAggregate(aggregate, BLOCK_HASH, VERIFICATION_KEY, 1L, 2L);
+    }
+
+    @Test
+    void compatibilityModeRetainsLegacyEmptyIdentityAndZeroWeightScheme() {
+        given(configuration.getConfigData(TssConfig.class))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.forceMockSignatures", true)
+                        .getOrCreateConfig()
+                        .getConfigData(TssConfig.class));
+        final var construction = constructionWith(4L, PREPROCESSED_KEYS, List.of())
+                .copyBuilder()
+                .targetRosterHash(Bytes.EMPTY)
+                .build();
+
+        subject.setConstruction(construction, CRS_STATE);
+
+        assertTrue(subject.isReady());
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        signing.incorporateValid(CRS, 1L, signature);
+        assertFalse(signing.future().isDone());
+        verifyNoInteractions(library);
+        signing.cancel();
+    }
+
+    @Test
+    void policyChangesKeepAlreadyOpenedSigningDenominatorsInBothDirections() {
+        final var construction = constructionWith(
+                4L,
+                PREPROCESSED_KEYS,
+                List.of(new NodePartyId(1L, 1, 10L), new NodePartyId(2L, 2, 1L), new NodePartyId(3L, 3, 7L)));
+        final var history = HintsGenerationTestUtils.historyFor(construction, Map.of(1L, 10L, 2L, 1L, 3L, 7L, 4L, 2L));
+        subject.setConstruction(construction, CRS_STATE, HintsGenerationWeights.from(construction, history));
+        final var strictSigning = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        given(configuration.getConfigData(TssConfig.class))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.forceMockSignatures", true)
+                        .getOrCreateConfig()
+                        .getConfigData(TssConfig.class));
+        subject.setConstruction(construction, CRS_STATE);
+        final var compatibilitySigning = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        given(configuration.getConfigData(TssConfig.class)).willReturn(defaultConfig());
+        subject.setConstruction(construction, CRS_STATE, HintsGenerationWeights.from(construction, history));
+        final var restoredStrictSigning = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        final var compatibilityAggregate = Bytes.wrap("legacy ten of eighteen");
+        final var strictAggregate = Bytes.wrap("strict eleven of twenty");
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, Map.of(1, signature)))
+                .willReturn(compatibilityAggregate);
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, Map.of(1, signature, 2, signature)))
+                .willReturn(strictAggregate);
+
+        strictSigning.incorporateValid(CRS, 1L, signature);
+        compatibilitySigning.incorporateValid(CRS, 1L, signature);
+        restoredStrictSigning.incorporateValid(CRS, 1L, signature);
+        assertFalse(strictSigning.future().isDone());
+        assertFalse(restoredStrictSigning.future().isDone());
+        assertEquals(compatibilityAggregate, compatibilitySigning.future().join());
+        strictSigning.incorporateValid(CRS, 2L, signature);
+        restoredStrictSigning.incorporateValid(CRS, 2L, signature);
+        assertEquals(strictAggregate, strictSigning.future().join());
+        assertEquals(strictAggregate, restoredStrictSigning.future().join());
+    }
+
+    @Test
+    void switchingToStrictPolicyBlocksNewSigningUntilAMatchingHistoryGenerationIsInstalled() {
+        final var construction = constructionWith(
+                4L,
+                PREPROCESSED_KEYS,
+                List.of(new NodePartyId(1L, 1, 10L), new NodePartyId(2L, 2, 1L), new NodePartyId(3L, 3, 7L)));
+        final var history = HintsGenerationTestUtils.historyFor(construction, Map.of(1L, 10L, 2L, 1L, 3L, 7L, 4L, 2L));
+        given(configuration.getConfigData(TssConfig.class))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.forceMockSignatures", true)
+                        .getOrCreateConfig()
+                        .getConfigData(TssConfig.class));
+        subject.setConstruction(construction, CRS_STATE);
+        assertTrue(subject.isReady());
+        final var compatibilitySigning = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        given(configuration.getConfigData(TssConfig.class)).willReturn(defaultConfig());
+
+        assertFalse(subject.isReady());
+        assertThrows(IllegalStateException.class, () -> subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {}));
+        assertNull(subject.newSigningForConstruction(BLOCK_HASH, construction.constructionId(), () -> {}));
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.setConstruction(construction, CRS_STATE));
+        assertFalse(subject.isReady());
+        final var malformedHistory = history.copyBuilder()
+                .targetRosterHash(Bytes.wrap("different generation"))
+                .build();
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.setConstruction(
+                        construction, CRS_STATE, HintsGenerationWeights.from(construction, malformedHistory)));
+        assertFalse(subject.isReady());
+        assertNull(subject.newSigningForConstruction(BLOCK_HASH, construction.constructionId(), () -> {}));
+        final var compatibilityAggregate = Bytes.wrap("existing compatibility attempt");
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, Map.of(1, signature)))
+                .willReturn(compatibilityAggregate);
+        compatibilitySigning.incorporateValid(CRS, 1L, signature);
+        assertEquals(compatibilityAggregate, compatibilitySigning.future().join());
+
+        subject.setConstruction(construction, CRS_STATE, HintsGenerationWeights.from(construction, history));
+
+        assertTrue(subject.isReady());
+        final var strictSigning = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        strictSigning.incorporateValid(CRS, 1L, signature);
+        assertFalse(strictSigning.future().isDone());
+        final var strictAggregate = Bytes.wrap("restored strict attempt");
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, Map.of(1, signature, 2, signature)))
+                .willReturn(strictAggregate);
+        strictSigning.incorporateValid(CRS, 2L, signature);
+        assertEquals(strictAggregate, strictSigning.future().join());
+    }
+
+    @Test
+    void warnsOnSparseStrictActivationWithoutRepeatingOrWarningInCompatibilityMode() {
+        final var construction = constructionWith(4L, PREPROCESSED_KEYS, List.of(new NodePartyId(1L, 1, 5L)));
+        final var history = HintsGenerationTestUtils.historyFor(construction, Map.of(1L, 5L, 2L, 1L));
+        final var weights = HintsGenerationWeights.from(construction, history);
+        final var logs = new LogCaptor(LogManager.getLogger(HintsContext.class));
+        try {
+            subject.setConstruction(construction, CRS_STATE, weights);
+            subject.setConstruction(construction, CRS_STATE, weights);
+            subject.setConstruction(construction, CRS_STATE, HintsGenerationWeights.from(construction, history));
+            assertEquals(1, logs.warnLogs().size());
+            assertTrue(logs.warnLogs().getFirst().contains("scheme coverage 5/6"));
+            assertTrue(logs.warnLogs().getFirst().contains("additional 6/3 unavailable weight"));
+            given(configuration.getConfigData(TssConfig.class))
+                    .willReturn(HederaTestConfigBuilder.create()
+                            .withValue("tss.historyEnabled", false)
+                            .getOrCreateConfig()
+                            .getConfigData(TssConfig.class));
+
+            subject.setConstruction(construction, CRS_STATE);
+
+            assertEquals(1, logs.warnLogs().size());
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
+    void strictModeRejectsTheHistoryFreeOverloadWithGenerationDiagnostic() {
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.setConstruction(CONSTRUCTION, CRS_STATE));
+        assertTrue(failure.getMessage().contains("hinTS"));
+        assertFalse(subject.isReady());
     }
 
     @Test

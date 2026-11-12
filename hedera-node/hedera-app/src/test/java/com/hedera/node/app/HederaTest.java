@@ -84,6 +84,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /**
@@ -190,6 +191,8 @@ final class HederaTest {
                 Map.of(
                         "hedera.profiles.active",
                         profile,
+                        "tss.forceMockSignatures",
+                        "true",
                         "tss.tssKeysPath",
                         tempDir.toAbsolutePath().toString()));
         setHederaField("configProvider", configProvider);
@@ -272,6 +275,7 @@ final class HederaTest {
                     .put(activeProofConstruction);
             verify((CommittableWritableStates) hintsStates).commit();
             verify((CommittableWritableStates) historyStates).commit();
+            verify(hintsService).setActiveConstruction(activeHintsConstruction, activeCrs);
             verify(hintsService, never())
                     .setActiveConstruction(activeHintsConstruction, activeCrs, activeProofConstruction);
             verify(historyService).setLatestHistoryProof(proof);
@@ -371,6 +375,28 @@ final class HederaTest {
     }
 
     @Test
+    void restartDefersCompletedTransitionHintsUntilTheirHistoryIsComplete() throws ReflectiveOperationException {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("transition-target"));
+        final var sourceHash = Bytes.wrap("transition-source");
+        final var active = prepared.next()
+                .copyBuilder()
+                .sourceRosterHash(sourceHash)
+                .crsId(1L)
+                .build();
+        final var unfinishedHistory = HistoryProofConstruction.newBuilder()
+                .constructionId(3L)
+                .sourceRosterHash(sourceHash)
+                .targetRosterHash(prepared.rosterHash())
+                .build();
+        final var hintsService = serviceOfType(HintsService.class);
+        clearInvocations(hintsService);
+
+        initializeHintsSigning(active, completedBootstrapCrs(), unfinishedHistory);
+
+        verifyNoInteractions(hintsService);
+    }
+
+    @Test
     void restartInitializesCompletedHintsWithItsExactCompletedHistorySnapshot() throws ReflectiveOperationException {
         final var prepared = new PreparedTssHandoff(Bytes.wrap("bootstrap-roster"));
         final var active = prepared.next()
@@ -411,6 +437,31 @@ final class HederaTest {
     }
 
     @Test
+    void restartRejectsNonWrapsLegacyHistoryWithoutACanonicalSnapshot() {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("legacy-roster"));
+        final var legacyHistory = prepared.history()
+                .copyBuilder()
+                .targetProof(prepared.history()
+                        .targetProofOrThrow()
+                        .copyBuilder()
+                        .targetNodeWeights(List.of())
+                        .uncompressedWrapsProof(Bytes.EMPTY))
+                .build();
+        final var hintsService = serviceOfType(HintsService.class);
+        clearInvocations(hintsService);
+
+        final var error = assertThrows(
+                InvocationTargetException.class,
+                () -> initializeHintsSigning(prepared.next(), completedBootstrapCrs(), legacyHistory));
+
+        assertThat(error.getCause())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("legacy proof is not WRAPS-extensible")
+                .hasMessageContaining("restore a verified snapshot or reset TSS");
+        verifyNoInteractions(hintsService);
+    }
+
+    @Test
     void restartRejectsCompletedHistoryFromAnotherGenerationWithoutSchemeOnlyFallback() {
         final var prepared = new PreparedTssHandoff(Bytes.wrap("bootstrap-roster"));
         final var active = prepared.next()
@@ -439,19 +490,20 @@ final class HederaTest {
         verify(hintsService).setActiveConstruction(active, crs, mismatchedHistory);
     }
 
-    @Test
-    void hintsSigningRequiresHistorySnapshots() throws ReflectiveOperationException {
-        setHederaField(
-                "configProvider",
-                new ConfigProviderImpl(false, null, Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "false")));
-        final var state = mock(State.class);
-        final var initialize = Hedera.class.getDeclaredMethod("initializeHintsSigning", State.class);
-        initialize.setAccessible(true);
-        final var failure = assertThrows(InvocationTargetException.class, () -> initialize.invoke(hedera, state));
-        assertThat(failure.getCause())
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("history generation snapshots");
-        verifyNoInteractions(state);
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true, true"})
+    void restoresSchemeSigningInCompatibleConfigurations(final boolean historyEnabled, final boolean forceMock)
+            throws ReflectiveOperationException {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("compatible-roster"));
+        final var active = prepared.next();
+        final var crs = completedBootstrapCrs();
+        final var hintsService = serviceOfType(HintsService.class);
+        clearInvocations(hintsService);
+
+        initializeHintsSigning(active, crs, HistoryProofConstruction.DEFAULT, historyEnabled, forceMock);
+
+        verify(hintsService).setActiveConstruction(active, crs);
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
     }
 
     private static CRSState completedBootstrapCrs() {
@@ -466,9 +518,25 @@ final class HederaTest {
     private void initializeHintsSigning(
             final HintsConstruction active, final CRSState crs, final HistoryProofConstruction history)
             throws ReflectiveOperationException {
+        initializeHintsSigning(active, crs, history, true, false);
+    }
+
+    private void initializeHintsSigning(
+            final HintsConstruction active,
+            final CRSState crs,
+            final HistoryProofConstruction history,
+            final boolean historyEnabled,
+            final boolean forceMock)
+            throws ReflectiveOperationException {
         setHederaField(
                 "configProvider",
-                new ConfigProviderImpl(false, null, Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true")));
+                new ConfigProviderImpl(
+                        false,
+                        null,
+                        Map.of(
+                                "tss.hintsEnabled", "true",
+                                "tss.historyEnabled", Boolean.toString(historyEnabled),
+                                "tss.forceMockSignatures", Boolean.toString(forceMock))));
         final var state = mock(State.class, RETURNS_DEEP_STUBS);
         try (final var hintsStores = mockConstruction(ReadableHintsStoreImpl.class, (store, _) -> {
                     when(store.getActiveConstruction()).thenReturn(active);
@@ -480,6 +548,9 @@ final class HederaTest {
             final var initialize = Hedera.class.getDeclaredMethod("initializeHintsSigning", State.class);
             initialize.setAccessible(true);
             initialize.invoke(hedera, state);
+            if (!historyEnabled || forceMock) {
+                assertThat(historyStores.constructed()).isEmpty();
+            }
         }
     }
 

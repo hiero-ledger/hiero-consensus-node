@@ -65,6 +65,7 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.RsaContext;
@@ -941,7 +942,10 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
-        initializeHintsSigning(state);
+        // Genesis TSS singletons are populated by HandleWorkflow.doGenesisSetup in the first round.
+        if (trigger != GENESIS) {
+            initializeHintsSigning(state);
+        }
 
         initializePendingTransactions(state, trigger);
 
@@ -979,14 +983,15 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         if (!tssConfig.hintsEnabled()) {
             return;
         }
-        if (!tssConfig.historyEnabled()) {
-            throw new IllegalStateException("hinTS signing requires history generation snapshots");
-        }
         final var hintsStore = new ReadableHintsStoreImpl(
                 state.getReadableStates(HintsService.NAME),
                 new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME)));
         final var active = hintsStore.getActiveConstruction();
         if (active.hasHintsScheme()) {
+            if (!HintsGenerationWeights.requiresHistory(tssConfig)) {
+                hintsService.setActiveConstruction(active, hintsStore.getCrsStateFor(active));
+                return;
+            }
             final var historyStore = new ReadableHistoryStoreImpl(state.getReadableStates(HistoryService.NAME));
             final var history = historyStore.getActiveConstruction();
             // Legacy books are recovered and persisted in consensus before thresholds or signing use them.
@@ -1000,14 +1005,24 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                             .equals(active.hintsSchemeOrThrow()
                                     .preprocessedKeysOrThrow()
                                     .verificationKey())) {
+                if (!com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible(
+                        history.targetProofOrThrow())) {
+                    throw new IllegalStateException("Cannot recover history snapshot #" + history.constructionId()
+                            + " for hinTS #" + active.constructionId() + " (target " + active.targetRosterHash()
+                            + "): legacy proof is not WRAPS-extensible; restore a verified snapshot or reset TSS");
+                }
+                logger.info(
+                        "Deferring hinTS signing for construction #{} until legacy history #{} book recovery",
+                        active.constructionId(),
+                        history.constructionId());
                 return;
             }
-            // Resume unfinished bootstrap history after restart, without enabling scheme-only signing.
-            if (!history.hasTargetProof()
-                    && active.sourceRosterHash().equals(active.targetRosterHash())
-                    && (history.constructionId() == 0
-                            || (history.sourceRosterHash().equals(history.targetRosterHash())
-                                    && history.targetRosterHash().equals(active.targetRosterHash())))) {
+            if (!history.hasTargetProof()) {
+                logger.info(
+                        "Deferring hinTS signing for construction #{} (target {}) until history #{} completes",
+                        active.constructionId(),
+                        active.targetRosterHash(),
+                        history.constructionId());
                 return;
             }
             hintsService.setActiveConstruction(active, hintsStore.getCrsStateFor(active), history);
@@ -1999,12 +2014,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             writableHistoryStore.handoff(
                     previousRoster, adoptedRoster, adoptedRosterHash, consensusTimestampOf(initState));
         } else if (tssConfig.hintsEnabled()
-                && !hintsService.handoff(
-                        writableHintsStore,
-                        previousRoster,
-                        adoptedRoster,
-                        preparedRosterHash,
-                        readableHistoryStore.getActiveConstruction())) {
+                && !hintsService.handoff(writableHintsStore, previousRoster, adoptedRoster, preparedRosterHash)) {
             throw new IllegalStateException("Prepared hinTS construction failed to promote with the adopted roster");
         }
         if (tssConfig.hintsEnabled()) {

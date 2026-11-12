@@ -276,17 +276,39 @@ retry starts with no exclusions.
 
 ### Implemented full-generation thresholds
 
-This signing path requires history whenever hinTS is enabled; startup rejects a hinTS-only configuration.
-Preprocessing vote eligibility and vote weight come from the adopted hinTS scheme. The vote threshold is
-at least one third of that generation's complete listed weight, recovered from the matching completed history
-proof's `target_node_weights` snapshot. Platform roster weights are not substituted for missing parties: a daily
-weight rotation may already be active in TSS while the platform still uses the previous weights.
+Real hinTS signing with history enabled uses a complete generation snapshot. Preprocessing vote eligibility and
+vote weight come from the adopted hinTS scheme, but the vote threshold is at least one third of that generation's
+complete listed weight, recovered from the matching completed history proof's `target_node_weights` snapshot.
+Platform roster weights are not substituted for missing parties: a daily weight rotation may already be active in
+TSS while the platform still uses the previous weights.
 
 Block-signature aggregation uses the same complete generation total. With the production signing divisor of two,
 a signature must have strictly more than half that total. Native verification measures fractions against the weight
 inside the hinTS key, so the node verifies with the equivalent per-key fraction `fullWeight / (2 * schemeWeight)`.
 Both full weight and verification fraction remain frozen in each active/previous signing snapshot through handoff.
 Runtime signing is installed only after a matching completed history book is available, including on restart.
+
+This tightens the previous main-branch thresholds when the scheme is sparse: the preprocessing denominator changes
+from scheme weight to complete generation weight, and the block-signing denominator changes in the same way.
+For full weight 7 and scheme weight 5, preprocessing now needs weight 3 instead of 2, and block signing needs weight
+4 instead of 3. These stricter thresholds can reduce liveness. If full weight is `F`, scheme weight is `S`, and up to
+`F/3` additional weight among scheme parties is unavailable, guaranteeing a strict full-book majority requires
+`S - F/3 > F/2`, or `S > 5F/6`. The existing scheme-availability requirement `S > 2F/3` does not guarantee that bound.
+Activation logs a warning when participating scheme weight is at or below `5F/6`; repeated reconciliation of the
+same generation does not repeat that warning.
+See the [rollout note](full-generation-threshold-rollout.md) for compatibility and recovery requirements.
+
+History-disabled and mock-signature configurations retain their previous scheme-based behavior. Fresh `GENESIS`
+does not restore signing from uninitialized TSS singletons; the first handled round initializes those states.
+In real history mode, missing legacy snapshots defer signing only until hash-verified consensus recovery supplies
+the matching complete book. A different generation's roster or an unverifiable snapshot is never a fallback.
+An incomplete history defers activation regardless of its transition shape. A completed legacy non-WRAPS proof
+without a recoverable membership snapshot fails with a recovery/reset diagnostic instead of deferring indefinitely.
+
+This change does not alter WRAPS proof-adoption vote authority: incremental proof votes still use the source hinTS
+scheme's eligible nodes and weights, with at least one third of that scheme weight required. Native WRAPS
+construction separately requires its canonical book quorum. Key-provenance authorization remains strictly more
+than one third of source scheme weight. Changing these separate authority rules requires its own protocol review.
 
 The threshold metadata described below remains a protocol requirement, not a claim about the current composite
 signature format. Current WRAPS metadata carries only the hinTS key, and hiero-cryptography's composite `TSS.verifyTSS`

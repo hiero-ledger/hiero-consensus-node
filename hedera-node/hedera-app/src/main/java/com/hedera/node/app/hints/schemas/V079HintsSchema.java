@@ -18,6 +18,8 @@ import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
+import com.hedera.node.config.data.TssConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -33,11 +35,12 @@ public class V079HintsSchema extends Schema<SemanticVersion> {
     public static final String NEXT_CRS_STATE_LABEL = computeLabel(HintsService.NAME, NEXT_CRS_STATE_KEY);
 
     private final HintsLibrary library;
+    private final HintsContext signingContext;
 
     public V079HintsSchema(@NonNull final HintsLibrary library, @NonNull final HintsContext signingContext) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.library = requireNonNull(library);
-        requireNonNull(signingContext);
+        this.signingContext = requireNonNull(signingContext);
     }
 
     @Override
@@ -86,8 +89,18 @@ public class V079HintsSchema extends Schema<SemanticVersion> {
             return;
         }
         initializeState(ctx);
-        // The signing context requires the complete matching history generation. Restore it only after
-        // all services have initialized, when that history snapshot is available.
+        final var config = ctx.appConfig().getConfigData(TssConfig.class);
+        if (config.hintsEnabled() && !HintsGenerationWeights.requiresHistory(config)) {
+            final var states = ctx.newStates();
+            final var active = states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                    .get();
+            if (active.hasHintsScheme()) {
+                signingContext.setConstruction(
+                        active,
+                        states.<CRSState>getSingleton(CRS_STATE_STATE_ID).get());
+            }
+        }
+        // Real history-backed signing is restored after all services have initialized.
     }
 
     /** Fail closed even when this schema already ran under an earlier cryptography library. */

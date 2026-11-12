@@ -257,7 +257,8 @@ public final class TssHandoffCoordinator {
             @NonNull final Bytes adoptedRosterHash,
             @NonNull final HistoryProof proof,
             @NonNull final Instant activationTime) {
-        HintsGenerationWeights.from(hintsStore.getNextConstruction(), historyStore.getNextConstruction());
+        final var preparedProof =
+                prepareSigningGeneration(historyStore, hintsStore, historyService, hintsService, adoptedRoster, proof);
         final boolean historyPromoted =
                 historyStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash, activationTime);
         if (!historyPromoted) {
@@ -268,8 +269,24 @@ public final class TssHandoffCoordinator {
                 hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, historyStore.getActiveConstruction())) {
             throw new IllegalStateException("Guarded hinTS handoff failed after history promotion");
         }
-        historyService.setLatestHistoryProof(proof);
+        historyService.setLatestHistoryProof(preparedProof);
         return true;
+    }
+
+    private static HistoryProof prepareSigningGeneration(
+            final WritableHistoryStore historyStore,
+            final WritableHintsStore hintsStore,
+            final HistoryService historyService,
+            final HintsService hintsService,
+            final Roster targetRoster,
+            final HistoryProof proof) {
+        if (!hintsService.requiresHistoryWeights()) {
+            return proof;
+        }
+        historyService.recoverNextBook(historyStore, targetRoster, hintsStore.getNextConstruction());
+        final var prepared = historyStore.getNextConstruction();
+        HintsGenerationWeights.from(hintsStore.getNextConstruction(), prepared);
+        return prepared.targetProofOrThrow();
     }
 
     private static @NonNull Optional<HistoryProof> matchingCompletedHistoryProof(

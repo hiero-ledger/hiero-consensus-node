@@ -12,6 +12,8 @@ import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.ProofNodeWeight;
+import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import java.util.List;
@@ -163,11 +165,75 @@ class HintsGenerationWeightsTest {
                 () -> HintsGenerationWeights.from(
                         hints(List.of(new NodePartyId(0, 1, 0))),
                         history(List.of(new ProofNodeWeight(0, 0), new ProofNodeWeight(1, 10)))));
-        assertThrows(
-                ArithmeticException.class,
+        final var overflow = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
                 () -> HintsGenerationWeights.from(
                         hints(List.of(new NodePartyId(0, 1, Long.MAX_VALUE))),
                         history(List.of(new ProofNodeWeight(0, Long.MAX_VALUE), new ProofNodeWeight(1, 1)))));
+        assertInstanceOf(ArithmeticException.class, overflow.getCause());
+        assertTrue(overflow.getMessage().contains("hinTS construction #" + CONSTRUCTION_ID));
+    }
+
+    @Test
+    void compatibilityRequiresHistoryOnlyForRealHistoryBackedSignatures() {
+        for (final boolean history : List.of(false, true)) {
+            for (final boolean mock : List.of(false, true)) {
+                final var config = HederaTestConfigBuilder.create()
+                        .withValue("tss.historyEnabled", history)
+                        .withValue("tss.forceMockSignatures", mock)
+                        .getOrCreateConfig()
+                        .getConfigData(TssConfig.class);
+                assertEquals(history && !mock, HintsGenerationWeights.requiresHistory(config));
+            }
+        }
+    }
+
+    @Test
+    void compatibilityPreservesSchemeRelativeWeightsAndLegacyMockIdentities() {
+        final var legacy = HINTS.copyBuilder().targetRosterHash(Bytes.EMPTY).build();
+        final var weights = HintsGenerationWeights.forScheme(legacy);
+        assertEquals(Map.of(0L, 7L), weights.fullWeights());
+        assertEquals(weights.fullWeights(), weights.schemeWeights());
+        assertEquals(7, weights.totalWeight());
+        assertEquals(new HintsGenerationWeights.ThresholdFraction(1, 2), weights.verificationFraction(2));
+        assertThrows(
+                UnsupportedOperationException.class, () -> weights.fullWeights().put(1L, 3L));
+        final var empty = HintsGenerationWeights.forScheme(hints(List.of()));
+        assertEquals(0, empty.totalWeight());
+        assertEquals(new HintsGenerationWeights.ThresholdFraction(1, 2), empty.verificationFraction(2));
+    }
+
+    @Test
+    void strictDiagnosticsIdentifyBothGenerationsAndUnsupportedLegacyState() {
+        final var wrongHash = Bytes.wrap("other-generation");
+        final var mismatch = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(
+                        HINTS,
+                        HISTORY.copyBuilder()
+                                .constructionId(41)
+                                .targetRosterHash(wrongHash)
+                                .build()));
+        assertTrue(mismatch.getMessage().contains("hinTS construction #" + CONSTRUCTION_ID));
+        assertTrue(mismatch.getMessage().contains(TARGET_HASH.toHex()));
+        assertTrue(mismatch.getMessage().contains("history construction #41"));
+        assertTrue(mismatch.getMessage().contains(wrongHash.toHex()));
+        final var missing = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(HINTS, null));
+        assertTrue(missing.getMessage().contains("history construction is absent"));
+        final var legacy = HISTORY.copyBuilder()
+                .targetProof(HISTORY.targetProofOrThrow()
+                        .copyBuilder()
+                        .targetNodeWeights(List.of())
+                        .build())
+                .build();
+        final var unsupported = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(HINTS, legacy));
+        assertTrue(unsupported.getMessage().contains("legacy non-WRAPS"));
+        assertTrue(unsupported.getMessage().contains("fresh-genesis migration"));
+        assertEquals(7, HintsGenerationWeights.forScheme(HINTS).totalWeight());
     }
 
     @Test

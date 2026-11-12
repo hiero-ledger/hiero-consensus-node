@@ -8,7 +8,6 @@ import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGR
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
@@ -36,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -81,12 +81,9 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
-import com.hedera.hapi.node.state.hints.NodePartyId;
-import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -111,6 +108,10 @@ import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
+import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -976,6 +977,106 @@ class HandleWorkflowTest {
                 reconciliationTimes.getAllValues());
     }
 
+    @Test
+    void invalidSigningGenerationStillCommitsHintsProgressAndCompletesHistoryLedgerWork() {
+        givenTssEnabledEmptyRounds();
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(HintsConstruction.DEFAULT, null));
+        willThrow(failure).given(hintsService).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        final var callback = new AtomicReference<OnProofFinished>();
+        willAnswer(invocation -> {
+                    callback.set(invocation.getArgument(0));
+                    return null;
+                })
+                .given(historyService)
+                .onFinishedConstruction(any());
+        final var proof =
+                HistoryProof.newBuilder().targetHistory(History.DEFAULT).build();
+        final var completed = HistoryProofConstruction.newBuilder()
+                .constructionId(5)
+                .targetProof(proof)
+                .build();
+        final var callbackStore = mock(WritableHistoryStore.class);
+        given(callbackStore.getActiveConstruction()).willReturn(completed);
+        final var ledgerId = Bytes.wrap("recovered-ledger-id");
+        given(historyService.ledgerIdOf(proof)).willReturn(ledgerId);
+        willAnswer(_ -> {
+                    callback.get().onFinished(callbackStore, completed, new TreeMap<>());
+                    return null;
+                })
+                .given(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+        subject.handleRound(state, round, txn -> {});
+
+        final var order = inOrder(historyService, hintsService, callbackStore);
+        order.verify(historyService).recoverActiveBook(any(), any(), any());
+        order.verify(hintsService).reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        order.verify(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+        order.verify(historyService).setLatestHistoryProof(proof);
+        order.verify(callbackStore).setLedgerId(ledgerId);
+        verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME))
+                .commit();
+        verify((CommittableWritableStates) state.getWritableStates(HistoryService.NAME), times(2))
+                .commit();
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+    }
+
+    @Test
+    void unrelatedHintsFailureStillAbortsTheTssReconciliationAction() {
+        givenTssEnabledEmptyRounds();
+        willThrow(new IllegalStateException("unrelated local failure"))
+                .given(hintsService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+
+        subject.handleRound(state, round, txn -> {});
+
+        verify(historyService).recoverActiveBook(any(), any(), any());
+        verify(historyService, never())
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+        verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME), never())
+                .commit();
+        verify((CommittableWritableStates) state.getWritableStates(HistoryService.NAME))
+                .commit();
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void compatibilityCompletionStartsGenesisSigningWithoutAHistorySnapshot(final boolean historyEnabled)
+            throws Exception {
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of(
+                        "tss.hintsEnabled",
+                        "true",
+                        "tss.historyEnabled",
+                        "" + historyEnabled,
+                        "tss.forceMockSignatures",
+                        "" + historyEnabled));
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var callback = ArgumentCaptor.forClass(OnHintsFinished.class);
+        verify(hintsService).onFinishedConstruction(callback.capture());
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(7)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var store = mock(WritableHintsStore.class);
+        given(store.getActiveConstruction()).willReturn(active);
+        given(store.getCrsStateFor(active)).willReturn(CRSState.DEFAULT);
+
+        callback.getValue().accept(store, active, mock(HintsContext.class));
+
+        verify(hintsService).setActiveConstruction(active, CRSState.DEFAULT);
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+    }
+
     private void givenTssEnabledEmptyRounds() {
         final var rosterStates = mock(ReadableStates.class);
         final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
@@ -989,14 +1090,16 @@ class HandleWorkflowTest {
         final var entityStates =
                 mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
         given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityStates);
-        final var hintsStates = mock(WritableStates.class);
+        final var hintsStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
         final WritableSingletonState<HintsConstruction> hintsConstruction = mock(WritableSingletonState.class);
         given(state.getWritableStates(HintsService.NAME)).willReturn(hintsStates);
         lenient()
                 .when(hintsStates.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
                 .thenReturn(hintsConstruction);
         given(hintsConstruction.get()).willReturn(HintsConstruction.DEFAULT);
-        final var historyStates = mock(WritableStates.class);
+        final var historyStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
         given(state.getWritableStates(HistoryService.NAME)).willReturn(historyStates);
         lenient()
                 .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
@@ -1017,9 +1120,11 @@ class HandleWorkflowTest {
         given(event.consensusTransactionIterator()).willAnswer(ignore -> emptyIterator());
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
         given(networkInfo.nodeInfo(0)).willReturn(mock(NodeInfo.class));
-        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
-        given(scheduleService.executableTxns(any(), any(), any())).willReturn(mock(ExecutableTxnIterator.class));
-        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
+        lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
+        lenient()
+                .when(scheduleService.executableTxns(any(), any(), any()))
+                .thenReturn(mock(ExecutableTxnIterator.class));
+        lenient().when(state.getWritableStates(ScheduleService.NAME)).thenReturn(mock(WritableStates.class));
 
         givenSubjectWith(
                 BLOCKS,
@@ -1961,6 +2066,7 @@ class HandleWorkflowTest {
 
     @Test
     void completedWeightRotationRecordsTheDispatchConsensusTime() throws Exception {
+        given(hintsService.requiresHistoryWeights()).willReturn(true);
         final var activeRosterHash = Bytes.wrap("ACTIVE");
         final var candidateRosterHash = Bytes.wrap("CANDIDATE");
         final var activeRoster = Roster.newBuilder()
@@ -2087,36 +2193,6 @@ class HandleWorkflowTest {
         final var ledgerId = Bytes.wrap("LEDGER_ID");
         final var targetRosterHash = Bytes.wrap("generation roster");
         final var verificationKey = Bytes.wrap("generation verification key");
-        final var activeHints = HintsConstruction.newBuilder()
-                .constructionId(1L)
-                .targetRosterHash(targetRosterHash)
-                .crsId(1L)
-                .numParties(4)
-                .hintsScheme(new HintsScheme(
-                        new PreprocessedKeys(Bytes.wrap("aggregation key"), verificationKey),
-                        List.of(new NodePartyId(0L, 1, 1L))))
-                .build();
-        final var activeCrs = CRSState.newBuilder()
-                .ceremonyId(1L)
-                .numParties(4)
-                .stage(CRSStage.COMPLETED)
-                .crs(Bytes.wrap("generation CRS"))
-                .build();
-        final var hintsStates = mock(ReadableStates.class);
-        final ReadableSingletonState<HintsConstruction> activeHintsState = mock(ReadableSingletonState.class);
-        final ReadableSingletonState<CRSState> activeCrsState = mock(ReadableSingletonState.class);
-        given(hintsStates.getSingleton(
-                        com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
-                .willReturn(mock(ReadableSingletonState.class));
-        given(hintsStates.getSingleton(com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID))
-                .willReturn(mock(ReadableSingletonState.class));
-        given(state.getReadableStates(HintsService.NAME)).willReturn(hintsStates);
-        given(state.getReadableStates(EntityIdService.NAME)).willReturn(mock(ReadableStates.class));
-        given(hintsStates.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
-                .willReturn(activeHintsState);
-        given(activeHintsState.get()).willReturn(activeHints);
-        given(hintsStates.<CRSState>getSingleton(CRS_STATE_STATE_ID)).willReturn(activeCrsState);
-        given(activeCrsState.get()).willReturn(activeCrs);
         final var proof = HistoryProof.newBuilder()
                 .targetHistory(History.newBuilder()
                         .addressBookHash(Bytes.wrap("ADDRESS_BOOK_HASH"))
@@ -2217,7 +2293,7 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
-        verify(hintsService).setActiveConstruction(activeHints, activeCrs, construction);
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
         final var consTimes = assignedConsTimes.getAllValues();
         assertEquals(2, consTimes.size(), "Expected the node fee payment and the ledger id publication to dispatch");
         final var nodeFeeConsTime = consTimes.getFirst();

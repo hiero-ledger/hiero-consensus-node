@@ -7,8 +7,11 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONST
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.hints.CRSStage;
@@ -38,6 +41,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -68,7 +72,13 @@ class V079HintsSchemaTest {
     @BeforeEach
     void setUp() {
         subject = new V079HintsSchema(library, signingContext);
-        lenient().when(ctx.appConfig()).thenReturn(HederaTestConfigBuilder.createConfig());
+        lenient()
+                .when(ctx.appConfig())
+                .thenReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.hintsEnabled", true)
+                        .withValue("tss.historyEnabled", true)
+                        .withValue("tss.forceMockSignatures", false)
+                        .getOrCreateConfig());
         lenient()
                 .when(ctx.newStates())
                 .thenReturn(new MapWritableStates(Map.of(
@@ -167,13 +177,27 @@ class V079HintsSchemaTest {
         givenBoundActiveScheme(4);
         given(library.crsPartySize(CRS)).willReturn(4);
         subject.restart(ctx);
-        lenient()
-                .when(ctx.appConfig())
-                .thenReturn(HederaTestConfigBuilder.create()
-                        .withValue("tss.hintsEnabled", "true")
-                        .getOrCreateConfig());
         subject.restart(ctx);
         verifyNoInteractions(signingContext);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true, true"})
+    void restartRestoresSchemeSigningForCompatibleConfigurations(
+            final boolean historyEnabled, final boolean forceMock) {
+        givenBoundActiveScheme(4);
+        given(library.crsPartySize(CRS)).willReturn(4);
+        given(ctx.appConfig())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.hintsEnabled", true)
+                        .withValue("tss.historyEnabled", historyEnabled)
+                        .withValue("tss.forceMockSignatures", forceMock)
+                        .getOrCreateConfig());
+
+        subject.restart(ctx);
+
+        verify(signingContext).setConstruction(active.get(), activeCrs.get());
+        verify(signingContext, never()).setConstruction(any(), any(), any());
     }
 
     @Test
@@ -247,6 +271,8 @@ class V079HintsSchemaTest {
                 .when(ctx.appConfig())
                 .thenReturn(HederaTestConfigBuilder.create()
                         .withValue("tss.hintsEnabled", "true")
+                        .withValue("tss.historyEnabled", true)
+                        .withValue("tss.forceMockSignatures", false)
                         .getOrCreateConfig());
     }
 

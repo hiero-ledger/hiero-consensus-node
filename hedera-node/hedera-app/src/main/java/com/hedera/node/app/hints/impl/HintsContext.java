@@ -18,6 +18,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +93,8 @@ public class HintsContext {
             @NonNull Map<Long, Integer> nodePartyIds,
             @NonNull Map<Long, Long> nodeWeights,
             long totalWeight,
-            @NonNull HintsGenerationWeights generationWeights) {
+            @NonNull HintsGenerationWeights generationWeights,
+            boolean requiresHistory) {
         private ConstructionSnapshot {
             requireNonNull(construction);
             requireNonNull(crsState);
@@ -108,7 +110,8 @@ public class HintsContext {
                     && construction.numParties() == other.construction.numParties()
                     && construction.hintsSchemeOrThrow().equals(other.construction.hintsSchemeOrThrow())
                     && crsState.crs().equals(other.crsState.crs())
-                    && generationWeights.fullWeights().equals(other.generationWeights.fullWeights());
+                    && (requiresHistory != other.requiresHistory
+                            || generationWeights.fullWeights().equals(other.generationWeights.fullWeights()));
         }
     }
 
@@ -122,28 +125,45 @@ public class HintsContext {
         this.signingMetrics = requireNonNull(signingMetrics);
     }
 
+    /** Whether this context requires the complete history generation for its signing denominator. */
+    public boolean requiresHistory() {
+        return HintsGenerationWeights.requiresHistory(configProvider.get().getConfigData(TssConfig.class));
+    }
+
+    /** Restores scheme-only signing when history is disabled or signatures are mocked. */
+    public void setConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+        final var weights = requiresHistory()
+                ? HintsGenerationWeights.from(construction, null)
+                : HintsGenerationWeights.forScheme(construction);
+        setConstruction(construction, crsState, weights);
+    }
+
     /**
-     * Sets the active hinTS construction as the signing context. Called in three places,
-     * <ol>
-     *     <li>In the startup phase, when restarting from a state whose active hinTS
-     *     construction (and possibly next construction) had complete schemes.</li>
-     *     <li>In the runtime phase, on finishing the preprocessing work for a hinTS
-     *     construction (either the bootstrap construction or for a roster with
-     *     rebalanced weights after a stake period boundary).</li>
-     *     <li>In the restart runtime phase, when swapping in a newly adopted roster's
-     *     hinTS construction and purging votes for the previous construction.</li>
-     * </ol>
+     * Activates a completed scheme bound to its CRS. Real history-backed signing requires the complete
+     * canonical generation supplied by startup recovery or a completed history handoff. History-disabled
+     * and mock-signature modes retain scheme-relative weights, regardless of an optional history snapshot.
+     * Existing signing attempts keep the weights and verification fraction captured when they opened.
      *
-     * @param construction the construction to start using for signing
+     * @param construction the completed construction to use for signing
      * @param crsState the completed CRS bound to that construction
-     * @param generationWeights the complete committed generation and eligible hinTS party weights
-     * @throws IllegalArgumentException if either construction does not have a hinTS scheme
+     * @param generationWeights the validated canonical generation in real history-backed mode
+     * @throws IllegalArgumentException if the construction, CRS, or generation binding is incompatible
      */
     public synchronized void setConstruction(
             @NonNull final HintsConstruction construction,
             @NonNull final CRSState crsState,
             @NonNull final HintsGenerationWeights generationWeights) {
         requireNonNull(construction);
+        requireNonNull(crsState);
+        final boolean historyRequired = requiresHistory();
+        final var currentSnapshot = constructionSnapshots.active();
+        if (currentSnapshot != null
+                && currentSnapshot.construction() == construction
+                && currentSnapshot.crsState() == crsState
+                && currentSnapshot.requiresHistory() == historyRequired
+                && (!historyRequired || currentSnapshot.generationWeights() == generationWeights)) {
+            return;
+        }
         if (!construction.hasHintsScheme()) {
             throw new IllegalArgumentException(
                     "Given construction #" + construction.constructionId() + " has no hinTS scheme");
@@ -159,7 +179,9 @@ public class HintsContext {
                 || construction.numParties() != crsState.numParties()) {
             throw new IllegalArgumentException("Construction must be bound to its completed CRS");
         }
-        final var newSnapshot = snapshotOf(construction, crsState, requireNonNull(generationWeights));
+        final var effectiveWeights =
+                historyRequired ? requireNonNull(generationWeights) : HintsGenerationWeights.forScheme(construction);
+        final var newSnapshot = snapshotOf(construction, crsState, effectiveWeights, historyRequired);
         final var writeLock = constructionLock.writeLock();
         writeLock.lock();
         try {
@@ -172,12 +194,16 @@ public class HintsContext {
                 }
                 // A transport-only target rebinding or repeated initialization must preserve an existing window.
                 constructionSnapshots = new ConstructionSnapshots(newSnapshot, current.previous());
+                if (currentActive.requiresHistory() != historyRequired) {
+                    warnOnLowCoverage(newSnapshot);
+                }
                 return;
             }
             final boolean activeChanged =
                     currentActive != null && currentActive.constructionId() != newSnapshot.constructionId();
             final boolean canEnterMixedMode = activeChanged && lastStartedBlock != NO_BLOCK_STARTED;
             constructionSnapshots = new ConstructionSnapshots(newSnapshot, canEnterMixedMode ? currentActive : null);
+            warnOnLowCoverage(newSnapshot);
             if (activeChanged) {
                 if (canEnterMixedMode) {
                     beginMixedMode(currentActive.constructionId(), newSnapshot.constructionId());
@@ -187,6 +213,23 @@ public class HintsContext {
             }
         } finally {
             writeLock.unlock();
+        }
+    }
+
+    private static void warnOnLowCoverage(final ConstructionSnapshot snapshot) {
+        final var weights = snapshot.generationWeights();
+        if (snapshot.requiresHistory()
+                && BigInteger.valueOf(weights.schemeWeight())
+                                .multiply(BigInteger.valueOf(6))
+                                .compareTo(BigInteger.valueOf(weights.totalWeight())
+                                        .multiply(BigInteger.valueOf(5)))
+                        <= 0) {
+            log.warn(
+                    "hinTS construction #{} has scheme coverage {}/{}; full-book majority liveness cannot tolerate an additional {}/3 unavailable weight",
+                    snapshot.constructionId(),
+                    weights.schemeWeight(),
+                    weights.totalWeight(),
+                    weights.totalWeight());
         }
     }
 
@@ -241,7 +284,8 @@ public class HintsContext {
      * @return true if the context is ready
      */
     public boolean isReady() {
-        return constructionSnapshots.active() != null;
+        final var snapshot = constructionSnapshots.active();
+        return snapshot != null && snapshot.requiresHistory() == requiresHistory();
     }
 
     /**
@@ -351,7 +395,12 @@ public class HintsContext {
             @NonNull final Bytes blockHash, @NonNull final Runnable onCompletion) {
         requireNonNull(blockHash);
         requireNonNull(onCompletion);
-        return newSigningFrom(activeSnapshotOrThrow(), blockHash, onCompletion);
+        final var config = configProvider.get().getConfigData(TssConfig.class);
+        final var snapshot = constructionSnapshots.active();
+        if (snapshot == null || snapshot.requiresHistory() != HintsGenerationWeights.requiresHistory(config)) {
+            throw new IllegalStateException("Signing context not ready for the current history-weight policy");
+        }
+        return newSigningFrom(snapshot, blockHash, onCompletion, config);
     }
 
     /**
@@ -370,14 +419,17 @@ public class HintsContext {
         requireNonNull(blockHash);
         requireNonNull(onCompletion);
         final var snapshot = acceptedSnapshot(constructionId);
-        return snapshot == null ? null : newSigningFrom(snapshot, blockHash, onCompletion);
+        final var config = configProvider.get().getConfigData(TssConfig.class);
+        return snapshot == null || snapshot.requiresHistory() != HintsGenerationWeights.requiresHistory(config)
+                ? null
+                : newSigningFrom(snapshot, blockHash, onCompletion, config);
     }
 
     private @NonNull Signing newSigningFrom(
             @NonNull final ConstructionSnapshot snapshot,
             @NonNull final Bytes blockHash,
-            @NonNull final Runnable onCompletion) {
-        final var tssConfig = configProvider.get().getConfigData(TssConfig.class);
+            @NonNull final Runnable onCompletion,
+            @NonNull final TssConfig tssConfig) {
         final int divisor = Math.max(1, tssConfig.signingThresholdDivisor());
         final long threshold = snapshot.totalWeight() / divisor;
         return new Signing(
@@ -397,7 +449,8 @@ public class HintsContext {
     private @NonNull ConstructionSnapshot snapshotOf(
             @NonNull final HintsConstruction construction,
             @NonNull final CRSState crsState,
-            @NonNull final HintsGenerationWeights generationWeights) {
+            @NonNull final HintsGenerationWeights generationWeights,
+            final boolean requiresHistory) {
         final var scheme = construction.hintsSchemeOrThrow();
         final var preprocessedKeys = scheme.preprocessedKeysOrThrow();
         final var schemeWeights =
@@ -414,7 +467,8 @@ public class HintsContext {
                 Map.copyOf(asNodePartyIds(scheme.nodePartyIds())),
                 generationWeights.schemeWeights(),
                 generationWeights.totalWeight(),
-                generationWeights);
+                generationWeights,
+                requiresHistory);
     }
 
     /**
@@ -431,8 +485,8 @@ public class HintsContext {
      */
     private @NonNull ConstructionSnapshot activeSnapshotOrThrow() {
         final var snapshot = constructionSnapshots.active();
-        if (snapshot == null) {
-            throw new IllegalStateException("Signing context not ready");
+        if (snapshot == null || snapshot.requiresHistory() != requiresHistory()) {
+            throw new IllegalStateException("Signing context not ready for the current history-weight policy");
         }
         return snapshot;
     }

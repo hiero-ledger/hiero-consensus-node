@@ -30,6 +30,7 @@ import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -42,6 +43,8 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -102,9 +105,11 @@ class HintsControllersTest {
     private ReadableRosterStore rosterStore;
 
     private HintsControllers subject;
+    private Configuration configuration;
 
     @BeforeEach
     void setUp() {
+        configuration = HederaTestConfigBuilder.createConfig();
         subject = new HintsControllers(
                 executor,
                 keyAccessor,
@@ -112,7 +117,7 @@ class HintsControllersTest {
                 submissions,
                 context,
                 selfNodeInfoSupplier,
-                HederaTestConfigBuilder::createConfig,
+                () -> configuration,
                 onHintsFinished);
     }
 
@@ -237,13 +242,31 @@ class HintsControllersTest {
         verify(hintsStore).setHintsScheme(eq(2L), eq(VOTE.preprocessedKeysOrThrow()), any(), any());
     }
 
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,true"})
+    void compatibilityModesUseTheLegacySchemeVoteThresholdWithoutHistory(
+            final boolean historyEnabled, final boolean forceMockSignatures) {
+        configuration = HederaTestConfigBuilder.create()
+                .withValue("tss.historyEnabled", historyEnabled)
+                .withValue("tss.forceMockSignatures", forceMockSignatures)
+                .getOrCreateConfig();
+        final var controller = votingControllerWithSchemePartyWeight(1L, false);
+
+        assertTrue(controller.addPreprocessingVote(0, VOTE, hintsStore));
+        assertTrue(controller.addPreprocessingVote(1, VOTE, hintsStore));
+        verify(hintsStore, never()).setHintsScheme(eq(2L), any(), any(), any());
+        assertTrue(controller.addPreprocessingVote(2, VOTE, hintsStore));
+
+        verify(hintsStore).setHintsScheme(eq(2L), eq(VOTE.preprocessedKeysOrThrow()), any(), any());
+    }
+
     @Test
     void completedSourceSchemeRequiresMatchingHistorySnapshot() {
         final var activeHints = sourceConstruction(1L);
         final var activeHistory = sourceHistory(1L);
 
         assertThrows(
-                NullPointerException.class,
+                HintsGenerationWeights.InvalidGenerationException.class,
                 () -> subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore, activeHints));
         assertThrows(
                 IllegalArgumentException.class,
@@ -278,7 +301,7 @@ class HintsControllersTest {
         votingControllerWithSchemePartyWeight(1L);
 
         assertThrows(
-                NullPointerException.class,
+                HintsGenerationWeights.InvalidGenerationException.class,
                 () -> subject.getOrCreateFor(
                         activeRosters,
                         HintsConstruction.newBuilder().constructionId(2L).build(),
@@ -292,6 +315,10 @@ class HintsControllersTest {
      * hold no party in the active hinTS scheme.
      */
     private HintsController votingControllerWithSchemePartyWeight(final long partyWeight) {
+        return votingControllerWithSchemePartyWeight(partyWeight, true);
+    }
+
+    private HintsController votingControllerWithSchemePartyWeight(final long partyWeight, final boolean withHistory) {
         final var sourceRosterHash = Bytes.wrap("source");
         final var targetRosterHash = Bytes.wrap("target");
         final var roster = new Roster(LongStream.range(0, 10)
@@ -320,8 +347,10 @@ class HintsControllersTest {
                         .copyBuilder()
                         .hintsScheme(new HintsScheme(VOTE.preprocessedKeysOrThrow(), List.of()))
                         .build());
-        return subject.getOrCreateFor(
-                rosters, nextConstruction, hintsStore, activeConstruction, sourceHistory(partyWeight));
+        return withHistory
+                ? subject.getOrCreateFor(
+                        rosters, nextConstruction, hintsStore, activeConstruction, sourceHistory(partyWeight))
+                : subject.getOrCreateFor(rosters, nextConstruction, hintsStore, activeConstruction);
     }
 
     private static HintsConstruction sourceConstruction(final long weight) {

@@ -162,6 +162,11 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public boolean requiresHistoryWeights() {
+        return delegate.requiresHistoryWeights();
+    }
+
+    @Override
     public void setActiveConstruction(
             @NonNull final HintsConstruction construction,
             @NonNull final CRSState crsState,

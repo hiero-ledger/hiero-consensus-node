@@ -156,6 +156,9 @@ class HintsServiceImplTest {
     @BeforeEach
     void setUp() {
         subject = new HintsServiceImpl(component, library);
+        lenient().when(component.signingContext()).thenReturn(context);
+        lenient().when(context.requiresHistory()).thenReturn(true);
+        lenient().when(tssConfig.historyEnabled()).thenReturn(true);
         lenient().when(hintsStore.getCrsState()).thenReturn(CRSState.DEFAULT);
         lenient().when(activeRosters.targetRoster()).thenReturn(Roster.DEFAULT);
         lenient()
@@ -387,7 +390,80 @@ class HintsServiceImplTest {
                 () -> subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, history));
 
         verify(hintsStore, never()).handoff(any(), any(), any());
-        verifyNoInteractions(component, context);
+        verify(context, never()).setConstruction(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,true"})
+    void compatibilityServiceOverloadsActivateAndHandOffWithoutHistory(
+            final boolean historyEnabled, final boolean forceMockSignatures) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tss.historyEnabled", historyEnabled)
+                .withValue("tss.forceMockSignatures", forceMockSignatures)
+                .getOrCreateConfig();
+        given(context.requiresHistory())
+                .willReturn(HintsGenerationWeights.requiresHistory(config.getConfigData(TssConfig.class)));
+        final var construction = signingConstruction();
+        final var weights = HintsGenerationWeights.forScheme(construction);
+        assertFalse(subject.requiresHistoryWeights());
+
+        subject.setActiveConstruction(construction, CRSState.DEFAULT);
+        given(hintsStore.getActiveConstruction()).willReturn(construction);
+        given(hintsStore.getCrsStateFor(construction)).willReturn(CRSState.DEFAULT);
+        given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(true);
+
+        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
+
+        verify(context, times(2)).setConstruction(construction, CRSState.DEFAULT, weights);
+    }
+
+    @Test
+    void compatibilityHandoffWithNoCandidateRetainsLegacyNoOp() {
+        given(context.requiresHistory()).willReturn(false);
+
+        assertFalse(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
+
+        verify(hintsStore, never()).getNextConstruction();
+        verify(context, never()).setConstruction(any(), any(), any());
+    }
+
+    @Test
+    void strictServiceOverloadsRejectMissingHistoryBeforeActivationOrMutation() {
+        final var construction = signingConstruction();
+        assertTrue(subject.requiresHistoryWeights());
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.setActiveConstruction(construction, CRSState.DEFAULT));
+        given(hintsStore.getNextConstruction()).willReturn(construction);
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
+        verify(hintsStore, never()).handoff(any(), any(), any());
+        verify(context, never()).setConstruction(any(), any(), any());
+    }
+
+    @Test
+    void unchangedReconciliationInstallsSigningGenerationOnlyOnce() {
+        final var construction = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(construction);
+        given(hintsStore.getActiveConstruction()).willReturn(construction);
+        given(hintsStore.getCrsStateFor(construction)).willReturn(CRSState.DEFAULT);
+        given(context.isReady()).willReturn(true);
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
+        given(component.controllers()).willReturn(controllers);
+
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, history);
+        subject.reconcile(
+                activeRosters,
+                hintsStore,
+                CONSENSUS_NOW.plusSeconds(1),
+                CONSENSUS_NOW.plusSeconds(1),
+                tssConfig,
+                true,
+                history);
+
+        verify(context)
+                .setConstruction(construction, CRSState.DEFAULT, HintsGenerationWeights.from(construction, history));
     }
 
     @Test
@@ -404,7 +480,7 @@ class HintsServiceImplTest {
                 HintsGenerationTestUtils.historyFor(candidate)));
 
         verify(hintsStore).handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY);
-        verify(component, never()).signingContext();
+        verify(context, never()).setConstruction(any(), any(), any());
     }
 
     @Test

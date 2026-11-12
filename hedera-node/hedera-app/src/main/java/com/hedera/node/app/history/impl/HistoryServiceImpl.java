@@ -88,9 +88,9 @@ public class HistoryServiceImpl implements HistoryService {
     private final Set<LegacyBookCandidate> rejectedLegacyBookCandidates = new HashSet<>();
 
     /**
-     * The id of the active construction whose unrecoverable legacy book was last reported, if any.
+     * Construction ids whose unrecoverable legacy books have already been reported.
      */
-    private long reportedUnrecoverableConstructionId = -1L;
+    private final Set<Long> reportedUnrecoverableConstructionIds = new HashSet<>();
 
     private record LegacyBookCandidate(
             long constructionId,
@@ -285,14 +285,9 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         final var active = historyStore.getActiveConstruction();
-        if (active == null || !active.hasTargetProof()) {
+        if (active == null) {
             return;
         }
-        final var proof = active.targetProofOrThrow();
-        if (!isWrapsExtensible(proof) || !proof.targetNodeWeights().isEmpty() || !proof.hasTargetHistory()) {
-            return;
-        }
-        final var bookHash = proof.targetHistoryOrThrow().addressBookHash();
         final List<Supplier<SortedMap<Long, Long>>> sources = List.of(
                 () -> weightsOf(activeRosters.findRelatedRoster(active.targetRosterHash())),
                 () -> maybeWeightsFrom(activeHintsConstruction),
@@ -300,35 +295,91 @@ public class HistoryServiceImpl implements HistoryService {
                 () -> activeRosters.phase() == ActiveRosters.Phase.HANDOFF
                         ? null
                         : weightsOf(activeRosters.targetRoster()));
+        recoverBook("active", active, historyStore, sources);
+    }
+
+    @Override
+    public void recoverNextBook(
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final Roster targetRoster,
+            @Nullable final HintsConstruction nextHintsConstruction) {
+        requireNonNull(historyStore);
+        final var next = historyStore.getNextConstruction();
+        if (next == null) {
+            return;
+        }
+        recoverBook(
+                "prepared next",
+                next,
+                historyStore,
+                List.of(() -> weightsOf(targetRoster), () -> matchingSchemeWeights(next, nextHintsConstruction)));
+    }
+
+    private void recoverBook(
+            @NonNull final String role,
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final List<Supplier<SortedMap<Long, Long>>> sources) {
+        if (!construction.hasTargetProof()) {
+            return;
+        }
+        final var proof = construction.targetProofOrThrow();
+        if (!isWrapsExtensible(proof) || !proof.targetNodeWeights().isEmpty() || !proof.hasTargetHistory()) {
+            return;
+        }
+        final var bookHash = proof.targetHistoryOrThrow().addressBookHash();
         final var tried = new HashSet<SortedMap<Long, Long>>();
         for (final var source : sources) {
             final var weights = source.get();
             if (weights == null || !tried.add(weights)) {
                 continue;
             }
-            final var candidate = new LegacyBookCandidate(active.constructionId(), bookHash, weights);
+            final var candidate = new LegacyBookCandidate(construction.constructionId(), bookHash, weights);
             if (rejectedLegacyBookCandidates.contains(candidate)) {
                 continue;
             }
             try {
                 final var enriched = HistoryProofAddressBooks.withTargetWeights(proof, weights, component.library());
-                historyStore.completeProof(active.constructionId(), enriched);
+                historyStore.completeProof(construction.constructionId(), enriched);
                 rejectedLegacyBookCandidates.clear();
                 return;
             } catch (IllegalArgumentException e) {
                 rejectedLegacyBookCandidates.add(candidate);
             }
         }
-        if (reportedUnrecoverableConstructionId != active.constructionId()) {
-            reportedUnrecoverableConstructionId = active.constructionId();
+        if (reportedUnrecoverableConstructionIds.add(construction.constructionId())) {
             // Preserve the existing trust root. The prover deterministically refuses extension without a verified
             // canonical snapshot; it must not guess another generation's book.
             logger.error(
-                    "Cannot recover the canonical WRAPS book of active construction #{} from its roster, its hinTS"
-                            + " scheme, or the platform rosters; extending its chain of trust will fail until a fresh"
-                            + " genesis WRAPS proof grounds a new one",
-                    active.constructionId());
+                    "Cannot recover the canonical WRAPS book of {} history construction #{} (targetRosterHash={},"
+                            + " addressBookHash={}) from verified generation weights; strict signing or handoff must"
+                            + " wait for recovery or a fresh genesis WRAPS proof",
+                    role,
+                    construction.constructionId(),
+                    construction.targetRosterHash().toHex(),
+                    bookHash.toHex());
         }
+    }
+
+    private static @Nullable SortedMap<Long, Long> matchingSchemeWeights(
+            final HistoryProofConstruction history, @Nullable final HintsConstruction hints) {
+        if (hints == null
+                || !hints.hasHintsScheme()
+                || !hints.hintsSchemeOrThrow().hasPreprocessedKeys()
+                || !hints.targetRosterHash().equals(history.targetRosterHash())
+                || !history.hasTargetProof()
+                || !history.targetProofOrThrow().hasTargetHistory()
+                || !hints.hintsSchemeOrThrow()
+                        .preprocessedKeysOrThrow()
+                        .verificationKey()
+                        .equals(history.targetProofOrThrow()
+                                .targetHistoryOrThrow()
+                                .metadata())
+                || (history.hasKeyProvenance()
+                        && history.keyProvenanceOrThrow().targetHintsConstructionId() != hints.constructionId())) {
+            return null;
+        }
+        return maybeWeightsFrom(hints);
     }
 
     private static @Nullable SortedMap<Long, Long> weightsOf(@Nullable final Roster roster) {
