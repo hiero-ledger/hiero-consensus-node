@@ -1176,6 +1176,38 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(bufferService);
     }
 
+    // Tests that closing a connection that failed to initialize still reports the close, with its reason, so the
+    // block node is put into cool down
+    @Test
+    void testClose_afterFailedInitializeCoolsDownBlockNode() throws Exception {
+        @SuppressWarnings("unchecked")
+        final Future<Object> mockFuture = mock(Future.class);
+        when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("Simulated timeout"));
+        doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
+        // forward the close notification to the block node, as the real connection manager does
+        final AtomicReference<CloseReason> closeReasonWhenNotified = new AtomicReference<>();
+        doAnswer(invocation -> {
+                    closeReasonWhenNotified.set(connection.closeReason());
+                    blockNode.onClose(connection);
+                    return null;
+                })
+                .when(connectionManager)
+                .notifyConnectionClosed(connection);
+
+        assertThat(catchRuntimeException(() -> connection.initialize())).isNotNull();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
+        assertThat(blockNode.isStreamingCandidate()).isTrue();
+
+        // this is how the connection manager closes a connection that failed to initialize
+        connection.close(CloseReason.INTERNAL_ERROR, true, null);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(connectionManager).notifyConnectionClosed(connection);
+        // the close reason must already be set when the block node is notified
+        assertThat(closeReasonWhenNotified).hasValue(CloseReason.INTERNAL_ERROR);
+        assertThat(blockNode.isStreamingCandidate()).isFalse();
+    }
+
     @Test
     void testClose_alreadyClosed() {
         openConnectionAndResetMocks();
