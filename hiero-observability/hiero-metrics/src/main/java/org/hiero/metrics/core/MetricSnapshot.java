@@ -18,14 +18,15 @@ import java.util.List;
 public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSnapshot> {
 
     private final Metric<?> metric;
-    private final Measurements<?> measurements;
+    private final SnapshotList<MeasurementSnapshot> measurementSnapshots;
 
-    // replaced by a rebuilt list and never changed in place, so a started iteration is not affected
-    private volatile List<MeasurementSnapshot> measurementSnapshots = List.of();
-
-    MetricSnapshot(Metric<?> metric, Measurements<?> measurements) {
+    /**
+     * Package private, because it is created only by the {@link Metric} constructor,
+     * after the measurements of the metric are created.
+     */
+    MetricSnapshot(Metric<?> metric) {
         this.metric = metric;
-        this.measurements = measurements;
+        this.measurementSnapshots = metric.measurements().snapshots();
     }
 
     /**
@@ -36,19 +37,7 @@ public final class MetricSnapshot implements MetricInfo, Iterable<MeasurementSna
      * This method is package private, because it is called by the {@link MetricRegistry} internally each time collecting metrics snapshots.
      */
     void update() {
-        final List<MeasurementSnapshot> changed = measurements.snapshotsIfChanged();
-        final List<MeasurementSnapshot> current = changed == null ? measurementSnapshots : changed;
-        try {
-            for (MeasurementSnapshot measurementSnapshot : current) {
-                measurementSnapshot.update();
-            }
-        } finally {
-            // published after the values are updated, so an iteration never reads a new snapshot without its value;
-            // published also if an update throws, because the measurements are not marked as changed anymore
-            if (changed != null) {
-                measurementSnapshots = current;
-            }
-        }
+        measurementSnapshots.update();
     }
 
     @Override

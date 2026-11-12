@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -37,14 +36,15 @@ public final class Measurements<M> {
 
     private final BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory;
 
-    // set by any thread after measurements are added or removed, cleared by the export collecting the snapshots
-    private final AtomicBoolean changed = new AtomicBoolean(true);
+    // marked by any thread after measurements are added or removed, rebuilt and updated by exports
+    private final SnapshotList<MeasurementSnapshot> snapshots;
 
     /**
      * Package private, because it is created only by the {@link Metric} constructor.
      */
     Measurements(@NonNull BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory) {
         this.snapshotFactory = Objects.requireNonNull(snapshotFactory, "snapshot factory must not be null");
+        this.snapshots = new SnapshotList<>(BY_LABEL_VALUES, this::collectSnapshots, MeasurementSnapshot::update);
     }
 
     /**
@@ -144,39 +144,33 @@ public final class Measurements<M> {
     }
 
     /**
-     * Returns the snapshots of the current measurements sorted by their dynamic label values, if measurements were
-     * added or removed since the last call, creating the snapshots of measurements collected for the first time.
-     * Package private, because it is called only by the metric snapshot during export, one export at a time.
-     * <p>
-     * The list holds one snapshot per label values. Measurements may be added and removed during the call, so for
-     * label values removed and added again meanwhile, it may hold the snapshot of the removed measurement. The new
-     * measurement marks the measurements again, so the next call returns its snapshot instead.
-     * If creating a snapshot fails, the measurements stay marked, so the next call collects them again.
+     * Returns the snapshots of the measurements exported by the metric snapshot, sorted by their dynamic label values.
+     * Package private, because it is used only by the {@link MetricSnapshot} of the metric, which exports them.
      *
-     * @return the sorted, unmodifiable snapshots, or {@code null} if nothing changed since the last call
+     * @return the snapshot list of the measurements, never {@code null}
      */
-    @Nullable
-    List<MeasurementSnapshot> snapshotsIfChanged() {
-        // read first, so an export without changes does not write the flag; cleared before reading the measurements,
-        // so a change made after clearing marks them again for the next export
-        if (!changed.get() || !changed.getAndSet(false)) {
-            return null;
+    @NonNull
+    SnapshotList<MeasurementSnapshot> snapshots() {
+        return snapshots;
+    }
+
+    /**
+     * Collects the snapshots of the current measurements, creating the snapshots of measurements collected for the
+     * first time. Called only by the {@link SnapshotList} rebuild during export, one export at a time.
+     * If creating a snapshot fails, the snapshot list stays marked, so the next export collects them again.
+     *
+     * @return the snapshots in iteration order of the map
+     */
+    private List<MeasurementSnapshot> collectSnapshots() {
+        final List<MeasurementSnapshot> collected = new ArrayList<>(entries.size());
+        for (Entry<M> entry : entries.values()) {
+            collected.add(entry.snapshot(snapshotFactory));
         }
-        final List<MeasurementSnapshot> snapshots = new ArrayList<>(entries.size());
-        try {
-            for (Entry<M> entry : entries.values()) {
-                snapshots.add(entry.snapshot(snapshotFactory));
-            }
-        } catch (RuntimeException | Error e) {
-            markChanged();
-            throw e;
-        }
-        // label values removed and added again during the iteration may be collected twice: the later one is kept
-        return SnapshotLists.sortKeepingLastOfEqual(snapshots, BY_LABEL_VALUES);
+        return collected;
     }
 
     private void markChanged() {
-        changed.set(true);
+        snapshots.markChanged();
     }
 
     /**

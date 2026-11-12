@@ -2,13 +2,11 @@
 package org.hiero.metrics.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A snapshot of all metrics in a {@link MetricRegistry} at a specific point in time,
@@ -25,10 +23,8 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
 
     private final Collection<Metric<?>> metrics;
 
-    // set by any thread after metrics are registered or removed, cleared by the update rebuilding the list
-    private final AtomicBoolean metricsChanged = new AtomicBoolean(true);
-    // replaced by a rebuilt list and never changed in place, so a started iteration is not affected
-    private volatile List<MetricSnapshot> snapshots = List.of();
+    // marked by any thread after metrics are registered or removed, rebuilt and updated by exports
+    private final SnapshotList<MetricSnapshot> snapshots;
 
     private volatile long timestamp = System.currentTimeMillis();
 
@@ -45,6 +41,7 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
      */
     MetricRegistrySnapshot(@NonNull Collection<Metric<?>> metrics) {
         this.metrics = metrics;
+        this.snapshots = new SnapshotList<>(BY_NAME, this::collectSnapshots, MetricSnapshot::update);
     }
 
     @NonNull
@@ -75,43 +72,22 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
     @NonNull
     synchronized MetricRegistrySnapshot update() {
         timestamp = System.currentTimeMillis();
-        final List<MetricSnapshot> changed = snapshotsIfChanged();
-        final List<MetricSnapshot> current = changed == null ? snapshots : changed;
-        try {
-            for (MetricSnapshot snapshot : current) {
-                snapshot.update();
-            }
-        } finally {
-            // published after the values are updated, so an iteration never reads a new snapshot without its values;
-            // published also if an update throws, because the metrics are not marked as changed anymore
-            if (changed != null) {
-                snapshots = current;
-            }
-        }
+        snapshots.update();
         return this;
     }
 
     /**
-     * Collects the snapshots of all metrics sorted by name, if metrics were registered or removed since the last call.
-     * The list holds one snapshot per name. For a name removed and registered again during the call, it may hold the
-     * snapshot of the removed metric. The new registration marks the metrics again, so the next call returns its
-     * snapshot instead.
+     * Collects the snapshots of all registered metrics. Called only by the {@link SnapshotList} rebuild
+     * during {@link #update()}.
      *
-     * @return the sorted, unmodifiable snapshots, or {@code null} if nothing changed since the last call
+     * @return the snapshots in iteration order of the metrics
      */
-    @Nullable
-    private List<MetricSnapshot> snapshotsIfChanged() {
-        // cleared before reading the metrics: a change made after clearing marks it again for the next update;
-        // read first, so an update without changes does not write the flag
-        if (!metricsChanged.get() || !metricsChanged.getAndSet(false)) {
-            return null;
-        }
+    private List<MetricSnapshot> collectSnapshots() {
         final List<MetricSnapshot> collected = new ArrayList<>(metrics.size());
         for (Metric<?> metric : metrics) {
             collected.add(metric.snapshot());
         }
-        // names removed and registered again during the iteration may be collected twice: the later one is kept
-        return SnapshotLists.sortKeepingLastOfEqual(collected, BY_NAME);
+        return collected;
     }
 
     /**
@@ -121,6 +97,6 @@ public final class MetricRegistrySnapshot implements Iterable<MetricSnapshot> {
      * or removing a metric.
      */
     void markChanged() {
-        metricsChanged.set(true);
+        snapshots.markChanged();
     }
 }

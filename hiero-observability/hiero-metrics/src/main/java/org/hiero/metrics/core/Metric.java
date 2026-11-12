@@ -62,7 +62,8 @@ public abstract class Metric<M> implements MetricInfo {
         // the snapshot factory is called only by exports, after this metric is constructed and registered
         measurements = new Measurements<>(this::createMeasurementSnapshot);
         if (builder.snapshotable) {
-            snapshot = new MetricSnapshot(this, measurements);
+            // created after the measurements, which the metric snapshot reads from this metric
+            snapshot = new MetricSnapshot(this);
         } else {
             snapshot = null;
         }
