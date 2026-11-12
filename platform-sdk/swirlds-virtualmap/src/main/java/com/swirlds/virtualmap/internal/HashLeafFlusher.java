@@ -120,6 +120,12 @@ public class HashLeafFlusher {
     private final AtomicLong totalFlushMillis = new AtomicLong();
     private volatile long lastFlushMillis;
 
+    // Data flushed so far, logged in finish() or cancel(). Updated by the flusher thread and by the thread that
+    // calls finish()
+    private final AtomicLong flushedHashChunks = new AtomicLong();
+    private final AtomicLong flushedLeaves = new AtomicLong();
+    private final AtomicLong flushedDeletedLeaves = new AtomicLong();
+
     // Data accumulated for a single flush
     private final class Batch {
         final List<VirtualHashChunk> hashChunks = new ArrayList<>();
@@ -274,7 +280,8 @@ public class HashLeafFlusher {
         }
         // Not initialized or already finished, nothing to log
         if (batch != null) {
-            logBackpressureTotal();
+            stopBackpressureTimer();
+            logSummary();
         }
     }
 
@@ -301,17 +308,21 @@ public class HashLeafFlusher {
             // below
             running = flushingFuture;
             executor.shutdown();
-            logBackpressureTotal();
+            stopBackpressureTimer();
         }
-        if (running != null) {
-            // Wait outside of the synchronized block, so cancel() isn't blocked, and can release this thread.
-            // Throws, if the flush has failed
-            awaitFlush(running);
+        try {
+            if (running != null) {
+                // Wait outside of the synchronized block, so cancel() isn't blocked, and can release this thread.
+                // Throws, if the flush has failed
+                awaitFlush(running);
+            }
+            // Nodes / leaves lists may be empty, but a flush is still needed to make sure all stale leaves are
+            // removed from the data source. The flush is run outside the synchronized block, so cancel() isn't
+            // blocked till the final flush is complete
+            flush(last);
+        } finally {
+            logSummary();
         }
-        // Nodes / leaves lists may be empty, but a flush is still needed to make sure all stale leaves are
-        // removed from the data source. The flush is run outside the synchronized block, so cancel() isn't
-        // blocked till the final flush is complete
-        flush(last);
     }
 
     private void addToBatch(final Consumer<Batch> batchConsumer) {
@@ -447,22 +458,25 @@ public class HashLeafFlusher {
                 + ", backpressureWaitMillis=" + (backpressureTotalMs + ongoingStallMs);
     }
 
-    // Logs the total time producers were blocked on backpressure, in finish() or cancel(). If producers are
-    // still blocked, e.g. when cancelled, the ongoing stall is included. Must be called with the lock held
-    private void logBackpressureTotal() {
-        stopBackpressureTimer();
-        logger.info(logMarker, "Producers were blocked on backpressure for {} ms in total", backpressureTotalMs);
+    // Logs the data flushed so far, the total flush time, and the total time producers were blocked on
+    // backpressure, once per flusher, in finish() or cancel(). Individual flushes are logged at the debug level
+    // only, since there may be tens of thousands of them, e.g. in a large reconnect
+    private synchronized void logSummary() {
+        logger.info(
+                logMarker,
+                "Flushed {} times in {} ms in total: {} hash chunks, {} leaves, {} deleted leaves. Producers were "
+                        + "blocked on backpressure for {} ms in total",
+                flushCount.get(),
+                totalFlushMillis.get(),
+                flushedHashChunks.get(),
+                flushedLeaves.get(),
+                flushedDeletedLeaves.get(),
+                backpressureTotalMs);
     }
 
     // Since flushes may take quite some time, this method is always called outside synchronized blocks
     private void flush(@NonNull final Batch toFlush) {
         throwIfInterrupted();
-        logger.info(
-                logMarker,
-                "Flush: {} updated hash chunks, {} updated leaves, {} deleted leaves",
-                toFlush.hashChunks.size(),
-                toFlush.leaves.size(),
-                toFlush.deletedLeaves.size());
         // flush it down
         final long start = System.currentTimeMillis();
         try {
@@ -481,7 +495,16 @@ public class HashLeafFlusher {
             flushCount.incrementAndGet();
             totalFlushMillis.addAndGet(end - start);
             lastFlushMillis = end - start;
-            logger.debug(logMarker, "Flushed in {} ms", end - start);
+            flushedHashChunks.addAndGet(toFlush.hashChunks.size());
+            flushedLeaves.addAndGet(toFlush.leaves.size());
+            flushedDeletedLeaves.addAndGet(toFlush.deletedLeaves.size());
+            logger.debug(
+                    logMarker,
+                    "Flushed {} hash chunks, {} leaves, {} deleted leaves in {} ms",
+                    toFlush.hashChunks.size(),
+                    toFlush.leaves.size(),
+                    toFlush.deletedLeaves.size(),
+                    end - start);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

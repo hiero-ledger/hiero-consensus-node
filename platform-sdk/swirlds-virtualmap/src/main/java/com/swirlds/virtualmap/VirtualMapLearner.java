@@ -273,6 +273,14 @@ public final class VirtualMapLearner {
     }
 
     /**
+     * @return the number of leaf hashing tasks created by the reconnect hashing, but not run yet. Each task
+     *      holds its leaf in memory
+     */
+    public long getPendingLeafHashTasks() {
+        return hasher.getPendingLeafTasks();
+    }
+
+    /**
      * Deletes an old leaf, if the new leaf node is in the same path position and leaf keys are different.
      *
      * @param newLeaf new leaf to be checked if

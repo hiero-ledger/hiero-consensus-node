@@ -24,6 +24,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,6 +76,15 @@ public final class VirtualHasher {
     private final AtomicBoolean shutdown = new AtomicBoolean(false);
 
     /**
+     * Leaf hashing tasks of the current or the last {@link #hash} call, which are created but not started yet.
+     * Each of them holds its leaf in memory. The hasher itself doesn't limit them: when hashing falls behind the
+     * dirty leaf feed, for example when hashing threads are blocked in the listener, they pile up in memory. The
+     * caller that feeds dirty leaves may throttle the feed based on {@link #getPendingLeafTasks()}. Reset when a
+     * hash call starts, since tasks of a failed call may never run.
+     */
+    private final LongAdder pendingLeafTasks = new LongAdder();
+
+    /**
      * @param virtualMapConfig platform configuration for VirtualMap
      */
     public VirtualHasher(final @NonNull VirtualMapConfig virtualMapConfig) {
@@ -93,6 +103,14 @@ public final class VirtualHasher {
     public void shutdown() {
         shutdown.set(true);
         hashingPool.shutdown();
+    }
+
+    /**
+     * @return the number of leaf hashing tasks of the current or the last {@link #hash} call, which are created,
+     *     but not started yet. Each of them holds its leaf in memory
+     */
+    public long getPendingLeafTasks() {
+        return pendingLeafTasks.sum();
     }
 
     // A task that can supply hashes to other tasks. There are two hash producer task
@@ -313,6 +331,7 @@ public final class VirtualHasher {
 
         LeafHashTask(final ForkJoinPool pool, final long path, @NonNull final VirtualLeafBytes<?> leaf) {
             super(pool, 1); // dependency: output task
+            pendingLeafTasks.increment();
             this.path = path;
             assert leaf != null;
             assert path == leaf.path();
@@ -321,6 +340,7 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
+            pendingLeafTasks.decrement();
             final WritableMessageDigest wmd = getWritableMessageDigest();
             out.setHash(path, MerkleHasher.leafNodeHashBytes(leaf, wmd));
             return true;
@@ -434,6 +454,9 @@ public final class VirtualHasher {
                     /* noop */
                 }
                 : listener;
+        // Tasks of a previous failed call may never run
+        pendingLeafTasks.reset();
+
         // Let the listener know we have started hashing.
         this.listener.onHashingStarted(firstLeafPath, lastLeafPath);
 

@@ -90,18 +90,17 @@ public class LearningSynchronizer {
     private LearnerTreeExchanger buildLearnerExchanger(
             final VirtualMapLearner vmapLearner, final LearnerSyncMetrics syncMetrics) {
         final VirtualMapConfig virtualMapConfig = vmapLearner.getVirtualMapConfig();
-        final NodeTraversalOrder traversalOrder =
-                switch (virtualMapConfig.reconnectMode()) {
-                    case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> new TopToBottomTraversalOrder();
-                    case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> new TwoPhasePessimisticTraversalOrder();
-                    case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new ParallelSyncTraversalOrder();
-                    default ->
-                        throw new UnsupportedOperationException("Unknown reconnect mode: "
-                                + virtualMapConfig.reconnectMode()
-                                + ". Supported modes: PULL_TOP_TO_BOTTOM,"
-                                + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
-                };
-        return new LearnerTreeExchanger(vmapLearner, traversalOrder, syncMetrics);
+        final NodeTraversalOrder traversalOrder = switch (virtualMapConfig.reconnectMode()) {
+            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> new TopToBottomTraversalOrder();
+            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> new TwoPhasePessimisticTraversalOrder();
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new ParallelSyncTraversalOrder();
+            default ->
+                throw new UnsupportedOperationException("Unknown reconnect mode: "
+                        + virtualMapConfig.reconnectMode()
+                        + ". Supported modes: PULL_TOP_TO_BOTTOM,"
+                        + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
+        };
+        return new LearnerTreeExchanger(vmapLearner, traversalOrder, syncMetrics, syncConfig.maxInFlightLeaves());
     }
 
     /**
