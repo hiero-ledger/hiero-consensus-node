@@ -39,6 +39,14 @@ message HistoryProofKeyPublicationTransactionBody {
      * A WRAPS message from the submitting node.
      */
     bytes wraps_message = 2;
+
+    /**
+     * A directly signed block witness for an adopted hinTS generation.
+     * Its target_hints_construction_id is independent of the history
+     * construction_id below. This publication does not require an in-progress
+     * WRAPS construction and may backfill a retired generation.
+     */
+    com.hedera.hapi.node.state.history.HintsKeyWitness key_witness = 6;
   }
 
   /**

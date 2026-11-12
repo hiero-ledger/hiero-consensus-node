@@ -52,11 +52,9 @@ the next night.
 
 ## Step 9: dashboard
 
-The dashboard "ConsensusLayer Benchmarks" (uid `consensuslayer-benchmarks`, from
-`.github/workflows/support/scripts/benchmarks/grafana-dashboard.json`) takes its benchmark and parameter drop-downs
-from the data, so a new benchmark needs no change to it. Claude cannot reach Grafana: ask the developer to select the
-benchmark and each parameter set.
+The dashboard "ConsensusLayer Benchmarks" takes its benchmark and parameter drop-downs from the data, so a new
+benchmark needs no change to it. Claude cannot reach Grafana: ask the developer to select the benchmark and each 
+parameter set.
 
 **Check:** the developer sees the night of step 8 in the panels for latency, allocation, percentiles, load, attempts,
-and discarded passes, and in the runs log. A change to the dashboard goes into its own pull request and keeps the uid,
-so that an import overwrites it.
+and discarded passes, and in the runs log. A change to the dashboard goes into that repository and keeps the uid.
