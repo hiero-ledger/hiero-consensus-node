@@ -5,10 +5,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import org.hiero.metrics.core.DoubleMeasurementSnapshot;
 import org.hiero.metrics.core.LabelValues;
 import org.hiero.metrics.core.LongMeasurementSnapshot;
@@ -25,10 +25,12 @@ import org.hiero.metrics.core.MetricType;
  * {@link Builder#observe(LongSupplier, String...)}, {@link Builder#observe(DoubleSupplier, String...)}
  * or could be added later after metric creation using {@link #observe(LongSupplier, String...)}
  * or {@link #observe(DoubleSupplier, String...)}.
+ * Observed value suppliers with dynamic labels can be removed using {@link #removeIf(Predicate)}.
  */
 public final class ObservableGauge extends Metric {
 
-    private final Set<LabelValues> labelValuesSet = ConcurrentHashMap.newKeySet();
+    // observed label values, a map instead of a set to add and remove their snapshots under the map bin locks
+    private final ConcurrentHashMap<LabelValues, Boolean> observed = new ConcurrentHashMap<>();
 
     private ObservableGauge(ObservableGauge.Builder builder) {
         super(builder);
@@ -86,16 +88,51 @@ public final class ObservableGauge extends Metric {
         return this;
     }
 
+    /**
+     * Removes all observed value suppliers whose dynamic label values match the given filter,
+     * so they are not exported anymore. The same label values can be observed again afterwards.
+     * Use {@link LabelValues#get(String)} to match by label name, for example
+     * {@code gauge.removeIf(labelValues -> "3".equals(labelValues.get("node")))}.
+     * <p>
+     * The filter is called for the label values of each observed supplier without holding any lock.
+     * Suppliers observed concurrently with this call may or may not be removed.
+     * <p>
+     * The gauge releases removed suppliers, but an export already in progress may call a removed supplier once more.
+     * A supplier must stay safe to call after its removal, for example it must not throw when its source is closed,
+     * because a throwing supplier fails the whole export.
+     *
+     * @param filter returns {@code true} for label values of suppliers to remove, must not be {@code null}
+     * @return the number of removed suppliers
+     * @throws IllegalStateException if metric has no dynamic labels specified during creation
+     * @throws NullPointerException  if the filter is {@code null}
+     */
+    public int removeIf(@NonNull Predicate<LabelValues> filter) {
+        return removeMeasurements(observed, filter);
+    }
+
     private void observeInternal(@NonNull Object valueSupplier, @NonNull String... labelNamesAndValues) {
         Objects.requireNonNull(valueSupplier, "value supplier must not be null");
 
-        LabelValues labelValues = createLabelValues(labelNamesAndValues);
-        if (!labelValuesSet.add(labelValues)) {
-            throw new IllegalArgumentException(
-                    "A measurement with the same label values already exists: " + labelValues);
+        final LabelValues labelValues = createLabelValues(labelNamesAndValues);
+        if (observed.containsKey(labelValues)) {
+            throw duplicateLabelValues(labelValues);
         }
 
-        addMeasurementSnapshot(createSnapshot(valueSupplier, labelValues));
+        // the snapshot calls the supplier, so it is created before taking the map bin lock
+        final MeasurementSnapshot snapshot = createSnapshot(valueSupplier, labelValues);
+        final boolean[] added = {false};
+        observed.computeIfAbsent(labelValues, _ -> {
+            addMeasurementSnapshot(snapshot);
+            added[0] = true;
+            return Boolean.TRUE;
+        });
+        if (!added[0]) {
+            throw duplicateLabelValues(labelValues);
+        }
+    }
+
+    private static IllegalArgumentException duplicateLabelValues(LabelValues labelValues) {
+        return new IllegalArgumentException("A measurement with the same label values already exists: " + labelValues);
     }
 
     @Override

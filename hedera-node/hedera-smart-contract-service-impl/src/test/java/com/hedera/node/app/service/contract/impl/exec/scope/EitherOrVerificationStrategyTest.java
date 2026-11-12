@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.contract.impl.test.exec.scope;
+package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.Key;
-import com.hedera.node.app.service.contract.impl.exec.scope.EitherOrVerificationStrategy;
-import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

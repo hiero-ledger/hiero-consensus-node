@@ -89,8 +89,8 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
     protected abstract T self();
 
     /**
-     * Returns the default verification strategy for this call (i.e., the strategy that treats only
-     * contract id and delegatable contract id keys as active when they match the call's sender address).
+     * Returns the default verification strategy for this call, binding the authorizing account's
+     * own authority separately from activation of matching contract and delegatable contract keys.
      *
      * @return the default verification strategy for this call
      */

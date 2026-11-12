@@ -23,9 +23,10 @@ public interface HederaEvmBlocks {
     Hash blockHashOf(MessageFrame frame, long blockNo);
 
     /**
-     * Returns the in-scope block values, given an effective gas limit.
+     * Returns the in-scope block values, given the block gas limit (the network's
+     * {@code contracts.blockGasLimit}, which is what the {@code GASLIMIT} opcode returns).
      *
-     * @param gasLimit the effective gas limit
+     * @param gasLimit the block gas limit
      * @return the scoped block values
      */
     BlockValues blockValuesOf(long gasLimit);
