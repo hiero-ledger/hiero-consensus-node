@@ -14,17 +14,8 @@ import java.security.Signature;
 import java.security.interfaces.ECPublicKey;
 import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
-import org.bouncycastle.asn1.x9.X9ECParameters;
-import org.bouncycastle.crypto.ec.CustomNamedCurves;
-import org.bouncycastle.crypto.generators.ECKeyPairGenerator;
-import org.bouncycastle.crypto.params.ECDomainParameters;
-import org.bouncycastle.crypto.params.ECKeyGenerationParameters;
-import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
-import org.bouncycastle.crypto.params.ECPublicKeyParameters;
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
-import org.bouncycastle.crypto.signers.ECDSASigner;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
+import org.hiero.base.crypto.ECDSASecp256k1;
+import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -33,7 +24,7 @@ import org.junit.jupiter.api.Test;
  * <p>Provenance of each vector is documented inline. {@code validate}/{@code lookup} run over the
  * REAL {@code topology-mediator-set.hex} fixture (a Canton LocalNet packed set with one Ed25519
  * mediator key). Signature vectors are CONSTRUCTED with real crypto libraries (JDK SunEC for P-256,
- * BouncyCastle for Ed25519 and secp256k1), since no real P-256/secp256k1 mediator signature exists in
+ * the repo's libsodium/libsecp256k1 bindings for Ed25519 and secp256k1), since no real P-256/secp256k1 mediator signature exists in
  * the fixtures; DER test vectors are built deterministically from real scalar magnitudes.
  */
 class CantonMediatorsTest {
@@ -188,16 +179,16 @@ class CantonMediatorsTest {
 
     @Test
     void verifyDispatchesEd25519() {
-        // CONSTRUCTED: real BC Ed25519 key/signature; keySpec 1, x = 32-byte key, y = zero pad.
-        final var priv = new Ed25519PrivateKeyParameters(new SecureRandom());
-        final Ed25519PublicKeyParameters pub = priv.generatePublicKey();
+        // CONSTRUCTED: real libsodium Ed25519 key/signature; keySpec 1, x = 32-byte key, y = zero pad.
+        final byte[] seed = new byte[Ed25519.SEED_BYTES];
+        new SecureRandom().nextBytes(seed);
+        final byte[] pub = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] secret = new byte[Ed25519.SECRET_KEY_BYTES];
+        Ed25519.newKeypair(pub, secret, seed);
         final byte[] message = "verdict multihash".getBytes();
-        final var signer = new Ed25519Signer();
-        signer.init(true, priv);
-        signer.update(message, 0, message.length);
-        final byte[] sig = signer.generateSignature();
-        final var key = new CantonMediators.SignerKey(
-                true, 0, CantonMediators.KEY_SPEC_ED25519, pub.getEncoded(), new byte[32]);
+        final byte[] sig = new byte[Ed25519.SIGNATURE_BYTES];
+        Ed25519.sign(sig, message, secret);
+        final var key = new CantonMediators.SignerKey(true, 0, CantonMediators.KEY_SPEC_ED25519, pub, new byte[32]);
 
         assertThat(CantonMediators.verify(key, message, sig)).isTrue();
         final byte[] tampered = message.clone();
@@ -231,22 +222,13 @@ class CantonMediatorsTest {
 
     @Test
     void verifyDispatchesSecp256k1RoundTrip() {
-        // CONSTRUCTED: real BC secp256k1 key, ECDSA over SHA256(message), raw r||s signature.
-        final X9ECParameters p = CustomNamedCurves.getByName("secp256k1");
-        final ECDomainParameters domain = new ECDomainParameters(p.getCurve(), p.getG(), p.getN(), p.getH());
-        final var gen = new ECKeyPairGenerator();
-        gen.init(new ECKeyGenerationParameters(domain, new SecureRandom()));
-        final var pair = gen.generateKeyPair();
-        final var priv = (ECPrivateKeyParameters) pair.getPrivate();
-        final var pub = (ECPublicKeyParameters) pair.getPublic();
+        // CONSTRUCTED: real libsecp256k1 key, ECDSA over SHA256(message), raw r||s signature.
+        final KeyPair pair = ECDSASecp256k1.genEcdsaSecp256k1KeyPair();
+        final var pub = (ECPublicKey) pair.getPublic();
         final byte[] message = "verdict content k1".getBytes();
-        final byte[] digest = sha256(message);
-        final var signer = new ECDSASigner();
-        signer.init(true, priv);
-        final BigInteger[] rs = signer.generateSignature(digest);
-        final byte[] sig = concat(to32(rs[0]), to32(rs[1]));
-        final byte[] x = to32(pub.getQ().normalize().getAffineXCoord().toBigInteger());
-        final byte[] y = to32(pub.getQ().normalize().getAffineYCoord().toBigInteger());
+        final byte[] sig = ECDSASecp256k1.signDigestWithEcdsaSecp256k1(pair.getPrivate(), sha256(message));
+        final byte[] x = to32(pub.getW().getAffineX());
+        final byte[] y = to32(pub.getW().getAffineY());
         final var key = new CantonMediators.SignerKey(true, 0, CantonMediators.KEY_SPEC_SECP256K1, x, y);
 
         assertThat(CantonMediators.verify(key, message, sig)).isTrue();

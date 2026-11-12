@@ -37,7 +37,6 @@ module com.hedera.node.app.service.clpr.impl {
     requires org.hiero.consensus.roster;
     requires com.sun.jna;
     requires org.apache.logging.log4j;
-    requires org.bouncycastle.provider;
     requires org.hyperledger.besu.nativelib.secp256k1;
     requires org.slf4j;
     requires static transitive com.github.spotbugs.annotations;

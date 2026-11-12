@@ -9,8 +9,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
+import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -18,7 +17,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>REAL = bytes straight from the Canton fixtures (typed content, mediator set, mediator signature). The real
  * mediator set is threshold 1 of 1 member (Ed25519). CONSTRUCTED = assembled here from real fixture bytes (mutated
- * typed content / signature) or from fresh BouncyCastle Ed25519 keys signing the REAL verdict signing input, used for
+ * typed content / signature) or from fresh libsodium Ed25519 keys signing the REAL verdict signing input, used for
  * the multi-member quorum cases that no real fixture covers.
  */
 class CantonVerdictVerifierTest {
@@ -67,20 +66,20 @@ class CantonVerdictVerifierTest {
     }
 
     /** A constructed Ed25519 mediator: key pair plus its set fingerprint. */
-    private record Mediator(Ed25519PrivateKeyParameters priv, byte[] pub, byte[] fp) {
+    private record Mediator(byte[] secret, byte[] pub, byte[] fp) {
         static Mediator of(final int seed) {
-            final byte[] s = new byte[32];
+            final byte[] s = new byte[Ed25519.SEED_BYTES];
             Arrays.fill(s, (byte) seed);
-            final var priv = new Ed25519PrivateKeyParameters(s, 0);
-            final byte[] pub = priv.generatePublicKey().getEncoded();
-            return new Mediator(priv, pub, sha256(pub));
+            final byte[] pub = new byte[Ed25519.PUBLIC_KEY_BYTES];
+            final byte[] secret = new byte[Ed25519.SECRET_KEY_BYTES];
+            Ed25519.newKeypair(pub, secret, s);
+            return new Mediator(secret, pub, sha256(pub));
         }
 
         byte[] sign(final byte[] message) {
-            final var signer = new Ed25519Signer();
-            signer.init(true, priv);
-            signer.update(message, 0, message.length);
-            return signer.generateSignature();
+            final byte[] sig = new byte[Ed25519.SIGNATURE_BYTES];
+            Ed25519.sign(sig, message, secret);
+            return sig;
         }
     }
 
@@ -250,7 +249,7 @@ class CantonVerdictVerifierTest {
         final var m = Mediator.of(11);
         final byte[] fp = new byte[32];
         fp[31] = 7;
-        final byte[] set = setOf(1, new Mediator(m.priv(), m.pub(), fp));
+        final byte[] set = setOf(1, new Mediator(m.secret(), m.pub(), fp));
         final byte[] e = Rlp.encodeList(List.of(new byte[] {7}, Rlp.encodeBytes(m.sign(message())), EMPTY_DELEGATION));
         assertThat(verify(sigs(e), set)).isEqualTo(VERDICT.rootHash());
     }
