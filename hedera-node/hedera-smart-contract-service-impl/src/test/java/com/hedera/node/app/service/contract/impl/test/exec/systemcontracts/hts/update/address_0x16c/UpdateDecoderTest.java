@@ -10,15 +10,16 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityI
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateNFTsMetadataTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import java.time.Instant;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -75,7 +76,9 @@ class UpdateDecoderTest {
         given(attempt.nativeOperations()).willReturn(nativeOperations);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
-        final var body = subject.decodeTokenUpdateWithMetadata(attempt);
+        final var bodyWrapper = subject.decodeTokenUpdateWithMetadata(attempt);
+        final var body = bodyWrapper.body();
+        assertNull(bodyWrapper.preemptingStatus());
         final var tokenUpdate = body.tokenUpdateOrThrow();
         assertEquals(tokenUpdate.metadata().asUtf8String(), metadata);
     }

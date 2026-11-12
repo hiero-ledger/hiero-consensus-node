@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_H
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
@@ -23,10 +24,10 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
 import com.hedera.hapi.node.transaction.RoyaltyFee;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updatetokencustomfees.UpdateTokenCustomFeesTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -147,9 +148,10 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 1);
-        assertEquals(updateTokenCustomFees.customFees().get(0), FIXED_HBAR_FEES);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(1, updateTokenCustomFees.customFees().size());
+        assertEquals(updateTokenCustomFees.customFees().getFirst(), FIXED_HBAR_FEES);
     }
 
     @Test
@@ -172,8 +174,9 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 2);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(2, updateTokenCustomFees.customFees().size());
         assertTrue(updateTokenCustomFees.customFees().contains(FIXED_HBAR_FEES));
         assertTrue(updateTokenCustomFees.customFees().contains(FIXED_HTS_FEES));
     }
@@ -202,8 +205,9 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 3);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(3, updateTokenCustomFees.customFees().size());
         assertTrue(updateTokenCustomFees.customFees().contains(FIXED_HBAR_FEES));
         assertTrue(updateTokenCustomFees.customFees().containsAll(List.of(FIXED_HTS_FEES, FIXED_HTS_FEES)));
     }
@@ -239,8 +243,9 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 10);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(10, updateTokenCustomFees.customFees().size());
         assertTrue(updateTokenCustomFees.customFees().contains(FIXED_HBAR_FEES));
     }
 
@@ -293,9 +298,10 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 1);
-        assertEquals(updateTokenCustomFees.customFees().get(0), FIXED_HTS_FEES);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(1, updateTokenCustomFees.customFees().size());
+        assertEquals(updateTokenCustomFees.customFees().getFirst(), FIXED_HTS_FEES);
     }
 
     @Test
@@ -318,9 +324,10 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 1);
-        assertEquals(updateTokenCustomFees.customFees().get(0), FIXED_HTS_FEES);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(1, updateTokenCustomFees.customFees().size());
+        assertEquals(updateTokenCustomFees.customFees().getFirst(), FIXED_HTS_FEES);
     }
 
     @Test
@@ -343,9 +350,10 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 1);
-        assertEquals(updateTokenCustomFees.customFees().get(0), FRACTIONAL_FEE);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(1, updateTokenCustomFees.customFees().size());
+        assertEquals(updateTokenCustomFees.customFees().getFirst(), FRACTIONAL_FEE);
     }
 
     @Test
@@ -369,9 +377,10 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), NON_FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 1);
-        assertEquals(updateTokenCustomFees.customFees().get(0), ROYALTY_FEE);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(NON_FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(1, updateTokenCustomFees.customFees().size());
+        assertEquals(updateTokenCustomFees.customFees().getFirst(), ROYALTY_FEE);
     }
 
     @Test
@@ -454,9 +463,10 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), NON_FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 1);
-        assertEquals(updateTokenCustomFees.customFees().get(0), ROYALTY_FEE_WITH_FALLBACK);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(NON_FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(1, updateTokenCustomFees.customFees().size());
+        assertEquals(updateTokenCustomFees.customFees().getFirst(), ROYALTY_FEE_WITH_FALLBACK);
     }
 
     @Test
@@ -480,9 +490,10 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), NON_FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 1);
-        assertEquals(updateTokenCustomFees.customFees().get(0), ROYALTY_FEE_WITH_HBAR_FALLBACK);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(NON_FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(1, updateTokenCustomFees.customFees().size());
+        assertEquals(updateTokenCustomFees.customFees().getFirst(), ROYALTY_FEE_WITH_HBAR_FALLBACK);
     }
 
     @Test
@@ -504,8 +515,9 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 0);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(0, updateTokenCustomFees.customFees().size());
     }
 
     @Test
@@ -529,8 +541,9 @@ class UpdateTokenCustomFeesDecoderTest {
         final var updateTokenCustomFees = body.tokenFeeScheduleUpdate();
 
         // Then the result should match the expected decoded request
-        assertEquals(updateTokenCustomFees.tokenId(), NON_FUNGIBLE_TOKEN_ID);
-        assertEquals(updateTokenCustomFees.customFees().size(), 0);
+        assertNotNull(updateTokenCustomFees);
+        assertEquals(NON_FUNGIBLE_TOKEN_ID, updateTokenCustomFees.tokenId());
+        assertEquals(0, updateTokenCustomFees.customFees().size());
     }
 
     private void setConfiguration() {
