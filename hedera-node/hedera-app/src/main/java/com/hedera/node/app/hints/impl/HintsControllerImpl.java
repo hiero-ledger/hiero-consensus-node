@@ -325,6 +325,11 @@ public class HintsControllerImpl implements HintsController {
                         () -> {
                             final var output = requireNonNull(
                                     library.updateCrs(crs.crs(), generateEntropy()), "CRS contribution failed");
+                            final var expectedLength = crs.crs().length() + HintsLibrary.PROOF_LENGTH;
+                            if (output.length() != expectedLength) {
+                                throw new IllegalStateException("Malformed CRS update length " + output.length()
+                                        + "; expected " + expectedLength);
+                            }
                             return decodeCrsUpdate(crs.crs().length(), output);
                         },
                         executor)
@@ -508,7 +513,8 @@ public class HintsControllerImpl implements HintsController {
         // Validation is pure and completed before the consensus write. Persist the validated head
         // and distinct contributors together, so replay needs no node-local future or transcript KV.
         try {
-            if (publication.newCrs().length() != crs.crs().length()
+            if (publication.newCrs().length() != crs.initialCrs().length()
+                    || !HintsLibrary.isValidCrsUpdateFraming(crs.crs(), publication.newCrs(), publication.proof())
                     || !library.verifyCrsUpdate(crs.crs(), publication.newCrs(), publication.proof())) {
                 return;
             }

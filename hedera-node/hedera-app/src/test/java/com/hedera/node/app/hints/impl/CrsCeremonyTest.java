@@ -22,21 +22,26 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class CrsCeremonyTest {
     private static final Instant NOW = Instant.ofEpochSecond(12345);
     private static final Bytes SEED = Bytes.wrap("seed");
     private static final Bytes NEXT = Bytes.wrap("next");
-    private static final Bytes PROOF = Bytes.wrap("proof");
+    private static final Bytes PROOF = Bytes.wrap(new byte[HintsLibrary.PROOF_LENGTH]);
+    private static final Bytes UPDATE_OUTPUT =
+            Bytes.wrap(Arrays.copyOf(NEXT.toByteArray(), (int) NEXT.length() + HintsLibrary.PROOF_LENGTH));
     private static final HintsConstruction CONSTRUCTION = HintsConstruction.newBuilder()
             .constructionId(11)
             .crsId(9)
@@ -90,7 +95,7 @@ class CrsCeremonyTest {
                 mock(OnHintsFinished.class));
     }
 
-    private CrsPublicationTransactionBody publication() {
+    private static CrsPublicationTransactionBody publication() {
         return CrsPublicationTransactionBody.newBuilder()
                 .ceremonyId(9)
                 .attempt(1)
@@ -111,7 +116,62 @@ class CrsCeremonyTest {
         final var after = state.get();
         subject.addCrsPublication(publication(), NOW, store, 42);
         assertEquals(after, state.get());
+        controller().addCrsPublication(publication(), NOW, store, 42);
+        assertEquals(after, state.get());
         verify(library, times(1)).verifyCrsUpdate(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @MethodSource("malformedPublications")
+    void malformedFramingIsNotVerifiedOrPersistedAndDoesNotBlockTheNextContributor(
+            CrsPublicationTransactionBody malformed) {
+        final var before = state.get();
+
+        subject.addCrsPublication(malformed, NOW, store, 42);
+
+        assertEquals(before, state.get());
+        verifyNoInteractions(library);
+        verify(store, never()).setCrsStateFor(any(), any());
+
+        // Preserve the current ceremony policy: invalid publications leave the turn open until its deadline.
+        subject.advanceCrsWork(NOW.plusSeconds(10), store, false);
+        assertEquals(99L, state.get().nextContributingNodeIdOrThrow());
+        when(library.verifyCrsUpdate(SEED, NEXT, PROOF)).thenReturn(true);
+        subject.addCrsPublication(publication(), NOW.plusSeconds(10), store, 99);
+        assertEquals(NEXT, state.get().crs());
+        assertEquals(List.of(99L), state.get().contributedNodeIds());
+    }
+
+    private static Stream<CrsPublicationTransactionBody> malformedPublications() {
+        return Stream.of(
+                publication().copyBuilder().newCrs(Bytes.wrap("nex")).build(),
+                publication().copyBuilder().newCrs(Bytes.wrap("next!")).build(),
+                publication()
+                        .copyBuilder()
+                        .proof(Bytes.wrap(new byte[HintsLibrary.PROOF_LENGTH - 1]))
+                        .build(),
+                publication()
+                        .copyBuilder()
+                        .proof(Bytes.wrap(new byte[HintsLibrary.PROOF_LENGTH + 1]))
+                        .build());
+    }
+
+    @Test
+    void rejectsCandidateThatNoLongerMatchesOriginalCeremonyLength() {
+        final var shortenedHead = Bytes.wrap("bad");
+        state.set(state.get().copyBuilder().crs(shortenedHead).build());
+        final var before = state.get();
+        final var malformed = publication()
+                .copyBuilder()
+                .previousCrsHash(noThrowSha384HashOf(shortenedHead))
+                .newCrs(Bytes.wrap("new"))
+                .build();
+
+        subject.addCrsPublication(malformed, NOW, store, 42);
+
+        assertEquals(before, state.get());
+        verifyNoInteractions(library);
+        verify(store, never()).setCrsStateFor(any(), any());
     }
 
     @Test
@@ -213,7 +273,7 @@ class CrsCeremonyTest {
 
     @Test
     void asynchronousPublicationCapturesTheHeadAndRetriesFailure() {
-        when(library.updateCrs(eq(SEED), any())).thenReturn(Bytes.wrap("nextproof"));
+        when(library.updateCrs(eq(SEED), any())).thenReturn(UPDATE_OUTPUT);
         when(submissions.submitCrsUpdate(9, 1, noThrowSha384HashOf(SEED), NEXT, PROOF))
                 .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("offline")))
                 .thenReturn(CompletableFuture.completedFuture(null));
@@ -225,5 +285,27 @@ class CrsCeremonyTest {
         subject.advanceCrsWork(NOW, store, true);
         tasks.remove().run();
         verify(submissions, times(2)).submitCrsUpdate(9, 1, noThrowSha384HashOf(SEED), NEXT, PROOF);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 1})
+    void malformedLocalOutputIsNotSubmittedAndCanBeRetried(int lengthDelta) {
+        final var malformed = Bytes.wrap(new byte[(int) UPDATE_OUTPUT.length() + lengthDelta]);
+        when(library.updateCrs(eq(SEED), any())).thenReturn(malformed, UPDATE_OUTPUT);
+        when(submissions.submitCrsUpdate(9, 1, noThrowSha384HashOf(SEED), NEXT, PROOF))
+                .thenReturn(CompletableFuture.completedFuture(null));
+        final var before = state.get();
+
+        subject.advanceCrsWork(NOW, store, true);
+        tasks.remove().run();
+
+        verifyNoInteractions(submissions);
+        assertEquals(before, state.get());
+
+        subject.advanceCrsWork(NOW, store, true);
+        tasks.remove().run();
+
+        verify(library, times(2)).updateCrs(eq(SEED), any());
+        verify(submissions).submitCrsUpdate(9, 1, noThrowSha384HashOf(SEED), NEXT, PROOF);
     }
 }
