@@ -371,27 +371,25 @@ public class BlockNode {
 
         final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
         final ConnectionHistory connHistory = connectionHistories.get(connection.connectionId());
+        final CloseReason closeReason;
 
         if (connHistory == null) {
+            // no history entry means the connection never became active (e.g. it failed to initialize)
+            closeReason = connection.closeReason();
             logger.warn(
-                    "[{}:{}] Block node does not have a history entry for connection ({})",
+                    "[{}:{}] Connection ({}) was closed before it became active (reason: {})",
                     endpoint.host(),
                     endpoint.port(),
-                    connection.connectionId());
-            // The connection never became active (e.g. it failed to initialize); it still counts against the node.
-            final CloseReason closeReason = connection.closeReason();
-            if (closeReason != null && closeReason.isDeviantCloseReason()) {
-                applyCoolDown(new DeviantConnectionClose(closeReason));
-            }
-            return;
+                    connection.connectionId(),
+                    closeReason);
+        } else {
+            globalActiveStreamingConnectionCount.decrementAndGet();
+            localActiveStreamingConnectionCount.decrementAndGet();
+            connHistory.onClose(connection);
+            closeReason = connHistory.closeReason;
         }
 
-        globalActiveStreamingConnectionCount.decrementAndGet();
-        localActiveStreamingConnectionCount.decrementAndGet();
-        connHistory.onClose(connection);
-
-        final CloseReason closeReason = connHistory.closeReason;
-        if (closeReason.isDeviantCloseReason()) {
+        if (closeReason != null && closeReason.isDeviantCloseReason()) {
             applyCoolDown(new DeviantConnectionClose(closeReason));
         }
     }
