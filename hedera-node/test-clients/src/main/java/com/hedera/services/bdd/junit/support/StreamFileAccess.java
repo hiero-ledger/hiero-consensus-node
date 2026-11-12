@@ -275,8 +275,18 @@ public enum StreamFileAccess {
         }
 
         @Override
+        public boolean wantsFullStateValues() {
+            return delegate.wantsFullStateValues();
+        }
+
+        @Override
         public synchronized void onNewBlock(@NonNull final Block block) {
             delegate.onNewBlock(block);
+        }
+
+        @Override
+        public synchronized void onBlockError(@NonNull final Throwable error) {
+            delegate.onBlockError(error);
         }
 
         @Override
