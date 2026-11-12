@@ -282,9 +282,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         blockNodes().clear();
         final BlockNode priority2Node = new BlockNode(
-                configProvider, newBlockNodeConfig("localhost", 1234, 2), new AtomicInteger(), new BlockNodeStats());
-        final BlockNode activeNode =
-                new BlockNode(configProvider, activeConfig, new AtomicInteger(), new BlockNodeStats());
+                configProvider,
+                newBlockNodeConfig("localhost", 1234, 2),
+                new AtomicInteger(),
+                new AtomicInteger(),
+                new BlockNodeStats());
+        final BlockNode activeNode = new BlockNode(
+                configProvider, activeConfig, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
         activeNode.onActive(activeConnection);
         blockNodes().put(new BlockNodeEndpoint("localhost", 1234), priority2Node);
         blockNodes().put(activeConfig.streamingEndpoint(), activeNode);
@@ -314,9 +318,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         blockNodes().clear();
         final BlockNode priority1Node = new BlockNode(
-                configProvider, newBlockNodeConfig("localhost", 1234, 1), new AtomicInteger(), new BlockNodeStats());
-        final BlockNode activeNode =
-                new BlockNode(configProvider, activeConfig, new AtomicInteger(), new BlockNodeStats());
+                configProvider,
+                newBlockNodeConfig("localhost", 1234, 1),
+                new AtomicInteger(),
+                new AtomicInteger(),
+                new BlockNodeStats());
+        final BlockNode activeNode = new BlockNode(
+                configProvider, activeConfig, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
         activeNode.onActive(activeConnection);
         blockNodes().put(priority1Node.configuration().streamingEndpoint(), priority1Node);
         blockNodes().put(activeConfig.streamingEndpoint(), activeNode);
@@ -593,7 +601,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         blockNodes()
                 .put(
                         config.streamingEndpoint(),
-                        new BlockNode(configProvider, config, new AtomicInteger(), new BlockNodeStats()));
+                        new BlockNode(
+                                configProvider,
+                                config,
+                                new AtomicInteger(),
+                                new AtomicInteger(),
+                                new BlockNodeStats()));
 
         final boolean isUpdated = invoke_isConfigUpdated();
 
@@ -1407,13 +1420,15 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(bufferService.getLastBlockNumberProduced()).thenReturn(20L);
         // Node 1 is the highest priority; its status check passes but its stream can never be opened
         final BlockNodeConfiguration node1Config = newBlockNodeConfig("localhost", 1234, 1);
-        final BlockNode node1 = new BlockNode(configProvider, node1Config, new AtomicInteger(), new BlockNodeStats());
+        final BlockNode node1 = new BlockNode(
+                configProvider, node1Config, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
         final Future<Object> node1Future = mock(Future.class);
         when(node1Future.state()).thenReturn(State.SUCCESS);
         when(node1Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 12));
         // Node 2 is a healthy, lower priority node
         final BlockNodeConfiguration node2Config = newBlockNodeConfig("localhost", 2345, 2);
-        final BlockNode node2 = new BlockNode(configProvider, node2Config, new AtomicInteger(), new BlockNodeStats());
+        final BlockNode node2 = new BlockNode(
+                configProvider, node2Config, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
         final Future<Object> node2Future = mock(Future.class);
         when(node2Future.state()).thenReturn(State.SUCCESS);
         when(node2Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 12));
@@ -1666,7 +1681,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(newActiveConnection);
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1836,7 +1852,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(lowerPriorityNode).onTerminate(CloseReason.CONFIG_UPDATE);
         // in the real world, when BlockNode#onTerminate(CloseReason) is called, it will close the connection
         // associated with the node, but since this is using mocks, those side effects aren't verifiable here
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1870,7 +1887,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // because there is only one block node, even though we are experiencing an unhealthy buffer we will not close
         // the active connection - having some sort of connection is better than nothing in this scenario
         verify(activeConnection, never()).closeAtBlockBoundary(any(CloseReason.class));
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1932,7 +1950,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(lowerPriorityConnection).closeAtBlockBoundary(CloseReason.HIGHER_PRIORITY_FOUND);
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1988,7 +2007,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(existingActiveConnection, times(2)).closeAtBlockBoundary(CloseReason.PERIODIC_RESET);
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -2019,7 +2039,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // the active connection should not be changed
         assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(activeConnection);
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -2159,7 +2180,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     throw new IllegalStateException("connectivity check failed");
                 })
                 .when(metrics)
-                .recordActiveConnectionCount(anyLong());
+                .recordActiveStreamingConnectionCount(anyLong());
         isConnectionManagerActive().set(true);
 
         connectionManager.new ConnectionMonitorTask().run();

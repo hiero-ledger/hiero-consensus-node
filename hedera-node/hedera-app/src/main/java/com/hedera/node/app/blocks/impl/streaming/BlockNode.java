@@ -3,11 +3,10 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockBufferConfig;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Clock;
@@ -24,11 +23,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 
 /**
  * Represents a single block node that can be used to send blocks to.
  */
-public class BlockNode {
+public class BlockNode extends BlockStreamingBase {
 
     private static final Logger logger = LogManager.getLogger(BlockNode.class);
 
@@ -45,10 +45,6 @@ public class BlockNode {
      */
     private static final int MAX_HISTORY_ENTRIES = 5;
     /**
-     * Mechanism to access application configurations.
-     */
-    private final ConfigProvider configProvider;
-    /**
      * The latest configuration associated with this block node.
      */
     private final AtomicReference<BlockNodeConfiguration> configurationRef = new AtomicReference<>();
@@ -61,9 +57,13 @@ public class BlockNode {
      */
     private final ConcurrentMap<ConnectionId, ConnectionHistory> connectionHistories = new ConcurrentHashMap<>();
     /**
-     * If this block node is actively streaming, the connection will be referenced here.
+     * If this block node is actively being streamed to, the associated connection will be referenced here.
      */
-    private final AtomicReference<BlockNodePublisherConnection> activeStreamingConnectionRef = new AtomicReference<>();
+    private final AtomicReference<BlockNodeStreamingConnection> activeStreamingConnectionRef = new AtomicReference<>();
+    /**
+     * If this block node is actively being observed, the associated connection will be referenced here.
+     */
+    private final AtomicReference<BlockNodeObservingConnection> activeObservingConnectionRef = new AtomicReference<>();
     /**
      * Flag to indicate if this block node is "terminal" and thus is not eligible for streaming to. A node is in this
      * terminal state usually because it was removed from the block node configuration set and isn't a node we want
@@ -75,13 +75,22 @@ public class BlockNode {
      */
     private final AtomicInteger globalActiveStreamingConnectionCount;
     /**
-     * Counter to track the number of local connections active for this block node. Typically, this value will always be
-     * 0 or 1, but there are cases where more connections may be active. For example, if this block node is the only
-     * available node to stream to and the previous active connection reached its periodic/auto reset time then the old
-     * connection will be closed while a new connection is established. If the old connection was closed at a block
-     * boundary, it may take a little time for it to close, and thus two connections will be active.
+     * Counter to track the number of local streaming connections active for this block node. Typically, this value will
+     * always be 0 or 1, but there are cases where more connections may be active. For example, if this block node is
+     * the only available node to stream to and the previous active connection reached its periodic/auto reset time
+     * then the old connection will be closed while a new connection is established. If the old connection was closed at
+     * a block boundary, it may take a little time for it to close, and thus two connections will be active.
      */
     private final AtomicInteger localActiveStreamingConnectionCount = new AtomicInteger(0);
+    /**
+     * Reference to the global counter for tracking the number of active streaming connections from this consensus node.
+     */
+    private final AtomicInteger globalActiveObservingConnectionCount;
+    /**
+     * Counter to track the number of local observing connections active for this block node. Typically, this value will
+     * always be 0 or 1, but there are some cases where more connections may be active for a short period of time.
+     */
+    private final AtomicInteger localActiveObservingConnectionCount = new AtomicInteger(0);
     /**
      * Reference to statistics related to this block node.
      */
@@ -115,8 +124,15 @@ public class BlockNode {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfiguration configuration,
             @NonNull final AtomicInteger globalActiveStreamingConnectionCount,
+            @NonNull final AtomicInteger globalActiveObservingConnectionCount,
             @NonNull final BlockNodeStats stats) {
-        this(configProvider, configuration, globalActiveStreamingConnectionCount, stats, Clock.systemUTC());
+        this(
+                configProvider,
+                configuration,
+                globalActiveStreamingConnectionCount,
+                globalActiveObservingConnectionCount,
+                stats,
+                Clock.systemUTC());
     }
 
     /**
@@ -126,12 +142,15 @@ public class BlockNode {
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfiguration configuration,
             @NonNull final AtomicInteger globalActiveStreamingConnectionCount,
+            @NonNull final AtomicInteger globalActiveObservingConnectionCount,
             @NonNull final BlockNodeStats stats,
             @NonNull final Clock clock) {
-        this.configProvider = requireNonNull(configProvider, "Configuration provider is required");
+        super(configProvider);
         this.configurationRef.set(requireNonNull(configuration, "Configuration is required"));
         this.globalActiveStreamingConnectionCount = requireNonNull(
                 globalActiveStreamingConnectionCount, "Global active streaming connection counter is required");
+        this.globalActiveObservingConnectionCount = requireNonNull(
+                globalActiveObservingConnectionCount, "Global active observing connection counter is required");
         this.stats = requireNonNull(stats, "Block node stats is required");
         this.clock = requireNonNull(clock, "Clock is required");
     }
@@ -153,8 +172,10 @@ public class BlockNode {
         sb.append(", port: ").append(streamingEndpoint.port());
         sb.append(", priority: ").append(configuration.priority());
         sb.append(", isStreamingCandidate: ").append(isStreamingCandidate());
+        sb.append(", isObservingCandidate: ").append(isObservingCandidate());
         sb.append(", coolDownTimestamp: ").append(nodeCoolDownTimestamp == null ? NIL : nodeCoolDownTimestamp);
-        sb.append(", activeConnections: ").append(localActiveStreamingConnectionCount);
+        sb.append(", activeStreamingConnections: ").append(localActiveStreamingConnectionCount);
+        sb.append(", activeObservingConnections: ").append(localActiveObservingConnectionCount);
         sb.append(")\n  Connection History");
 
         if (connectionHistories.isEmpty()) {
@@ -165,24 +186,26 @@ public class BlockNode {
                             .reversed())
                     .toList();
             for (final ConnectionHistory history : sortedHistory) {
-                sb.append("\n    ").append(history.connectionId).append(" => ");
-                sb.append("created: ").append(history.createTimestamp);
-                sb.append(", activated: ").append(history.activeTimestamp == null ? NIL : history.activeTimestamp);
-
                 final boolean isClosed = history.closeTimestamp != null;
                 final StreamingConnectionStatistics connStats = history.connectionStatistics;
 
                 // spotless:off
+                sb.append("\n    ").append(history.connectionId).append(" => ");
+                sb.append("created: ").append(history.createTimestamp);
+                sb.append(", activated: ").append(history.activeTimestamp == null ? NIL : history.activeTimestamp);
                 sb.append(", closed: ").append(isClosed ? history.closeTimestamp : IN_PROGRESS);
                 sb.append(", duration: ").append(isClosed ? history.duration() : IN_PROGRESS);
                 sb.append(", closeReason: ").append(isClosed ? history.closeReason : IN_PROGRESS);
-                sb.append(", numBlocksSent: ").append(connStats.numBlocksSent()).append(isClosed ? "" : IN_PROGRESS);
-                sb.append(", lastBlockSent: ").append(connStats.lastBlockSent()).append(isClosed ? "" : IN_PROGRESS);
-                sb.append(", numBlocksAcked: ").append(connStats.numBlocksAcked()).append(isClosed ? "" : IN_PROGRESS);
-                sb.append(", lastBlockAcked: ").append(connStats.lastBlockAcked()).append(isClosed ? "" : IN_PROGRESS);
                 sb.append(", reqSendAttempts: ").append(connStats.numRequestSendAttempts()).append(isClosed ? "" : IN_PROGRESS);
                 sb.append(", reqSendSuccesses: ").append(connStats.numRequestSendSuccesses()).append(isClosed ? "" : IN_PROGRESS);
                 sb.append(", lastHeartbeat: ").append(connStats.lastHeartbeatMillis()).append(isClosed ? "" : IN_PROGRESS);
+                sb.append(", numBlocksAcked: ").append(connStats.numBlocksAcked()).append(isClosed ? "" : IN_PROGRESS);
+                sb.append(", lastBlockAcked: ").append(connStats.lastBlockAcked()).append(isClosed ? "" : IN_PROGRESS);
+
+                if (ConnectionType.BLOCK_STREAMING == history.connectionId.type()) {
+                    sb.append(", numBlocksSent: ").append(connStats.numBlocksSent()).append(isClosed ? "" : IN_PROGRESS);
+                    sb.append(", lastBlockSent: ").append(connStats.lastBlockSent()).append(isClosed ? "" : IN_PROGRESS);
+                }
                 // spotless:on
             }
         }
@@ -207,12 +230,27 @@ public class BlockNode {
     /**
      * Retrieves whether this block node may be streamed to with a new connection. If this block node is marked as
      * terminated, it is currently in cool down, or there is already an active connection, then this block node will
-     * not be considered as a candidate to stream to.
+     * not be considered as a candidate to stream to. If this block node is currently an observer, it will be treated
+     * as a candidate to stream to.
      *
      * @return true if this block node can be streamed to, else false
      */
     boolean isStreamingCandidate() {
         return !isTerminated.get() && !isNodeInCoolDown() && activeStreamingConnectionRef.get() == null;
+    }
+
+    /**
+     * Retrieves whether this block node may be used as an observer with a new connection. If this block node is marked
+     * as terminated, currently in cool down, or there is already an active streaming or observing connection, then this
+     * block node will not be considered as a candidate to observe.
+     *
+     * @return true if this block node can be used as an observer, else false
+     */
+    boolean isObservingCandidate() {
+        return !isTerminated.get()
+                && !isNodeInCoolDown()
+                && activeStreamingConnectionRef.get() == null
+                && activeObservingConnectionRef.get() == null;
     }
 
     /**
@@ -225,10 +263,8 @@ public class BlockNode {
         configurationRef.set(requireNonNull(configuration, "Configuration is required"));
         nodeCoolDownTimestampRef.set(null);
 
-        final BlockNodePublisherConnection activeConnection = activeStreamingConnectionRef.get();
-        if (activeConnection instanceof final BlockNodeStreamingConnection streamingConnection) {
-            streamingConnection.closeAtBlockBoundary(CloseReason.CONFIG_UPDATE);
-        }
+        closeStreamingConnection(CloseReason.CONFIG_UPDATE);
+        closeObservingConnection(CloseReason.CONFIG_UPDATE);
     }
 
     /**
@@ -238,7 +274,38 @@ public class BlockNode {
      * @return true if this block node instance can be safely removed, else false
      */
     boolean isRemovable() {
-        return isTerminated.get() && activeStreamingConnectionRef.get() == null;
+        return isTerminated.get()
+                && activeStreamingConnectionRef.get() == null
+                && activeObservingConnectionRef.get() == null;
+    }
+
+    private void closeStreamingConnection(final CloseReason closeReason) {
+        final BlockNodeStreamingConnection streamingConnection = activeStreamingConnectionRef.get();
+        if (streamingConnection != null) {
+            try {
+                streamingConnection.closeAtBlockBoundary(closeReason);
+            } catch (final Exception e) {
+                logger.warn(
+                        "[{}] Error while signaling streaming connection to close at the next block boundary - suppressing",
+                        streamingConnection.connectionId(),
+                        e);
+            }
+        }
+    }
+
+    private void closeObservingConnection(final CloseReason closeReason) {
+        final BlockNodeObservingConnection observingConnection = activeObservingConnectionRef.get();
+        if (observingConnection != null) {
+            try {
+                // we don't have enough context to pick an ideal EndStream code, so just default to RESET
+                observingConnection.close(closeReason, true, EndStream.Code.RESET);
+            } catch (final Exception e) {
+                logger.warn(
+                        "[{}] Error while signaling observing connection to close - suppressing",
+                        observingConnection.connectionId(),
+                        e);
+            }
+        }
     }
 
     /**
@@ -247,10 +314,8 @@ public class BlockNode {
      * @param closeReason the reason for closing the connection
      */
     void closeConnection(@NonNull final CloseReason closeReason) {
-        final BlockNodePublisherConnection activeConnection = activeStreamingConnectionRef.get();
-        if (activeConnection instanceof final BlockNodeStreamingConnection streamingConnection) {
-            streamingConnection.closeAtBlockBoundary(closeReason);
-        }
+        closeStreamingConnection(closeReason);
+        closeObservingConnection(closeReason);
     }
 
     /**
@@ -284,17 +349,28 @@ public class BlockNode {
      */
     void onActive(@NonNull final BlockNodePublisherConnection connection) {
         requireNonNull(connection, "Connection is required");
-        final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
 
-        final BlockNodePublisherConnection oldConnection = activeStreamingConnectionRef.getAndSet(connection);
-        if (oldConnection instanceof final BlockNodeStreamingConnection oldStreamingConnection) {
+        if (connection instanceof final BlockNodeStreamingConnection streamingConnection) {
+            onActiveStreaming(streamingConnection);
+        } else if (connection instanceof final BlockNodeObservingConnection observingConnection) {
+            onActiveObserving(observingConnection);
+        }
+
+        pruneOldHistory();
+    }
+
+    private void onActiveStreaming(final BlockNodeStreamingConnection connection) {
+        final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
+        final BlockNodeStreamingConnection oldConnection = activeStreamingConnectionRef.getAndSet(connection);
+
+        if (oldConnection != null) {
             logger.info(
-                    "[{}:{}] Block node has multiple active connections (new: {}, old: {}); closing old connection",
+                    "[{}:{}] Block node has multiple active streaming connections (new: {}, old: {}); closing old connection",
                     endpoint.host(),
                     endpoint.port(),
                     connection.connectionId(),
-                    oldStreamingConnection.connectionId());
-            oldStreamingConnection.closeAtBlockBoundary(CloseReason.NEW_CONNECTION);
+                    oldConnection.connectionId());
+            oldConnection.closeAtBlockBoundary(CloseReason.NEW_CONNECTION);
         }
 
         final ConnectionHistory connectionHistory = new ConnectionHistory(connection);
@@ -309,18 +385,50 @@ public class BlockNode {
         if (connection.currentState() == ConnectionState.CLOSED
                 && activeStreamingConnectionRef.compareAndSet(connection, null)) {
             logger.warn(
-                    "[{}:{}] Connection ({}) closed before registration completed; "
-                            + "unregistering so this block node remains selectable",
+                    "[{}:{}] Connection ({}) closed before registration completed; unregistering so this block node remains selectable",
                     endpoint.host(),
                     endpoint.port(),
                     connection.connectionId());
             connectionHistories.remove(connection.connectionId(), connectionHistory);
             globalActiveStreamingConnectionCount.decrementAndGet();
             localActiveStreamingConnectionCount.decrementAndGet();
-            return;
+        }
+    }
+
+    private void onActiveObserving(final BlockNodeObservingConnection connection) {
+        final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
+        final BlockNodeObservingConnection oldConnection = activeObservingConnectionRef.getAndSet(connection);
+
+        if (oldConnection != null) {
+            logger.info(
+                    "[{}:{}] Block node has multiple active observing connections (new: {}, old: {}); closing old connection",
+                    endpoint.host(),
+                    endpoint.port(),
+                    connection.connectionId(),
+                    oldConnection.connectionId());
+            oldConnection.close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
         }
 
-        pruneOldHistory();
+        final ConnectionHistory connectionHistory = new ConnectionHistory(connection);
+        connectionHistories.put(connection.connectionId(), connectionHistory);
+        connectionHistory.onActive(connection);
+
+        globalActiveObservingConnectionCount.incrementAndGet();
+        localActiveObservingConnectionCount.incrementAndGet();
+
+        // The connection can close before registration completes, in which case onClose() already ran as a
+        // no-op; without this undo the node holds a dead connection forever and is never selected again.
+        if (connection.currentState() == ConnectionState.CLOSED
+                && activeObservingConnectionRef.compareAndSet(connection, null)) {
+            logger.warn(
+                    "[{}:{}] Connection ({}) closed before registration completed; unregistering so this block node remains selectable",
+                    endpoint.host(),
+                    endpoint.port(),
+                    connection.connectionId());
+            connectionHistories.remove(connection.connectionId(), connectionHistory);
+            globalActiveObservingConnectionCount.decrementAndGet();
+            localActiveObservingConnectionCount.decrementAndGet();
+        }
     }
 
     /**
@@ -367,6 +475,14 @@ public class BlockNode {
     void onClose(@NonNull final BlockNodePublisherConnection connection) {
         requireNonNull(connection, "Connection is required");
 
+        if (connection instanceof final BlockNodeStreamingConnection streamingConnection) {
+            onCloseSteaming(streamingConnection);
+        } else if (connection instanceof final BlockNodeObservingConnection observingConnection) {
+            onCloseObserving(observingConnection);
+        }
+    }
+
+    private void onCloseSteaming(final BlockNodeStreamingConnection connection) {
         activeStreamingConnectionRef.compareAndSet(connection, null);
 
         final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
@@ -390,6 +506,31 @@ public class BlockNode {
         }
 
         if (closeReason != null && closeReason.isDeviantCloseReason()) {
+            applyCoolDown(new DeviantConnectionClose(closeReason));
+        }
+    }
+
+    private void onCloseObserving(final BlockNodeObservingConnection connection) {
+        activeObservingConnectionRef.compareAndSet(connection, null);
+
+        final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
+        final ConnectionHistory connHistory = connectionHistories.get(connection.connectionId());
+
+        if (connHistory == null) {
+            logger.warn(
+                    "[{}:{}] Block node does not have a history entry for connection ({})",
+                    endpoint.host(),
+                    endpoint.port(),
+                    connection.connectionId());
+            return;
+        }
+
+        globalActiveObservingConnectionCount.decrementAndGet();
+        localActiveObservingConnectionCount.decrementAndGet();
+        connHistory.onClose(connection);
+
+        final CloseReason closeReason = connHistory.closeReason;
+        if (closeReason.isDeviantCloseReason()) {
             applyCoolDown(new DeviantConnectionClose(closeReason));
         }
     }
@@ -431,20 +572,6 @@ public class BlockNode {
         }
 
         return wantedBlock.blockNumber();
-    }
-
-    /**
-     * @return the latest {@link BlockNodeConnectionConfig} configuration object
-     */
-    private BlockNodeConnectionConfig bncConfig() {
-        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
-    }
-
-    /**
-     * @return the latest {@link BlockBufferConfig} configuration object
-     */
-    private BlockBufferConfig bufferConfig() {
-        return configProvider.getConfiguration().getConfigData(BlockBufferConfig.class);
     }
 
     /**
