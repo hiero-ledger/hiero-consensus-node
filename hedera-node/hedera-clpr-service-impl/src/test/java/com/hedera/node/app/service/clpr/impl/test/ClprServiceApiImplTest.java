@@ -11,8 +11,10 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
@@ -45,6 +47,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -144,7 +149,7 @@ class ClprServiceApiImplTest {
     }
 
     @Test
-    @DisplayName("should reject when payload exceeds maximum size")
+    @DisplayName("should reject when the serialized payload exceeds maximum size")
     void rejectsWhenPayloadTooLarge() {
         final var channel = createChannel(ClprChannelStatus.ACTIVE);
         final var connector = createConnector();
@@ -153,7 +158,7 @@ class ClprServiceApiImplTest {
         given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
                 .willReturn(connector);
 
-        // MESSAGE_DATA is 5 bytes, max is 3
+        // The message data alone is 5 bytes, already exceeding the 3-byte serialized payload limit.
         assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
@@ -162,7 +167,7 @@ class ClprServiceApiImplTest {
     @Test
     @DisplayName("should validate payload size against peer's limit, not local")
     void rejectsWhenPayloadExceedsPeerLimit() {
-        // Local config allows 1000 bytes; peer only allows 10. An 11-byte payload must be rejected.
+        // Local config allows 1000 bytes; peer only allows 10. Even the 11-byte data alone cannot fit.
         final var peerThrottles = ClprThrottles.newBuilder()
                 .maxMessagePayloadBytes(10)
                 .maxQueueDepth(100)
@@ -188,6 +193,98 @@ class ClprServiceApiImplTest {
         assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, elevenBytes))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+    }
+
+    @ParameterizedTest
+    @EnumSource(MessageField.class)
+    @DisplayName("oversized message metadata is rejected before stale config propagation, even with empty data")
+    void rejectsOversizedMessageFieldsBeforeStaleConfigPropagation(final MessageField field) {
+        final var oversized = Bytes.wrap(new byte[100_000]);
+        final var connectorId = field == MessageField.CONNECTOR_ID ? oversized : SOURCE_CONNECTOR_ADDRESS;
+        final var targetApplication = field == MessageField.TARGET_APPLICATION ? oversized : TARGET_APP;
+        final var sender = field == MessageField.SENDER ? oversized : SENDER;
+        final var staleTimestamp = Timestamp.newBuilder().seconds(500).build();
+        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 0, 0, staleTimestamp);
+        final var connector =
+                createConnector().copyBuilder().connectorId(connectorId).build();
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(connector);
+
+        assertThatThrownBy(() ->
+                        subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, targetApplication, sender, Bytes.EMPTY))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+
+        assertNoStateWrites();
+    }
+
+    @ParameterizedTest
+    @EnumSource(PayloadLimitSource.class)
+    @DisplayName("the complete serialized message is accepted exactly at the effective payload limit")
+    void acceptsSerializedPayloadExactlyAtEffectiveLimit(final PayloadLimitSource limitSource) {
+        final var targetApplication = Bytes.wrap(new byte[256]);
+        final var sender = Bytes.wrap(new byte[64]);
+        final var data = Bytes.wrap(new byte[180]);
+        final var expectedPayload = createMessagePayload(SOURCE_CONNECTOR_ADDRESS, targetApplication, sender, data);
+        final var maxPayloadBytes = Math.toIntExact(
+                ClprMessagePayload.PROTOBUF.toBytes(expectedPayload).length());
+        final var channel = withPayloadLimit(createChannel(ClprChannelStatus.ACTIVE), limitSource, maxPayloadBytes);
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        // A positive peer limit remains authoritative even when the local limit would reject the message.
+        final var localLimit = limitSource == PayloadLimitSource.PEER ? 1 : maxPayloadBytes;
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, localLimit, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(createConnector());
+
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, targetApplication, sender, data))
+                .isZero();
+
+        final var valueCaptor = ArgumentCaptor.forClass(ClprMessageValue.class);
+        verify(messageQueueStore).put(eq(CHANNEL_ID), eq(0L), valueCaptor.capture());
+        assertThat(valueCaptor.getValue().payload()).isEqualTo(expectedPayload);
+        assertThat(ClprMessagePayload.PROTOBUF
+                        .toBytes(valueCaptor.getValue().payload())
+                        .length())
+                .isEqualTo(maxPayloadBytes);
+    }
+
+    @ParameterizedTest
+    @EnumSource(PayloadLimitSource.class)
+    @DisplayName("a serialized message one byte over the effective limit is rejected without any state writes")
+    void rejectsSerializedPayloadOneByteOverEffectiveLimit(final PayloadLimitSource limitSource) {
+        final var targetApplication = Bytes.wrap(new byte[256]);
+        final var sender = Bytes.wrap(new byte[64]);
+        final var boundaryData = Bytes.wrap(new byte[180]);
+        final var boundaryPayload =
+                createMessagePayload(SOURCE_CONNECTOR_ADDRESS, targetApplication, sender, boundaryData);
+        final var maxPayloadBytes = Math.toIntExact(
+                ClprMessagePayload.PROTOBUF.toBytes(boundaryPayload).length());
+        final var oversizedData = Bytes.wrap(new byte[181]);
+        final var oversizedPayload =
+                createMessagePayload(SOURCE_CONNECTOR_ADDRESS, targetApplication, sender, oversizedData);
+        assertThat(oversizedData.length()).isLessThan(maxPayloadBytes);
+        assertThat(ClprMessagePayload.PROTOBUF.toBytes(oversizedPayload).length())
+                .isEqualTo(maxPayloadBytes + 1);
+        final var staleTimestamp = Timestamp.newBuilder().seconds(500).build();
+        final var channel = withPayloadLimit(
+                createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 0, 0, staleTimestamp),
+                limitSource,
+                maxPayloadBytes);
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        // The peer must also win when its limit is stricter than the local one.
+        final var localLimit = limitSource == PayloadLimitSource.PEER ? 2 * maxPayloadBytes : maxPayloadBytes;
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, localLimit, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(createConnector());
+
+        assertThatThrownBy(() ->
+                        subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, targetApplication, sender, oversizedData))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+
+        assertNoStateWrites();
     }
 
     @Test
@@ -566,13 +663,13 @@ class ClprServiceApiImplTest {
         assertThat(dataCaptor.getValue().runningHashAfterProcessing()).isNotEqualTo(Bytes.wrap(wrongOuter.digest()));
     }
 
-    @Test
-    @DisplayName("zero local maxMessagePayloadBytes blocks all non-empty messages when peer throttle is also unset")
-    void zeroLocalPayloadLimitBlocksAllMessages() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("zero local maxMessagePayloadBytes blocks messages even with empty data when peer throttle is unset")
+    void zeroLocalPayloadLimitBlocksAllMessages(final boolean emptyData) {
         // peerThrottles.maxMessagePayloadBytes = 0 (unset) → falls back to local
         // localThrottles.maxMessagePayloadBytes = 0 → effectiveMaxPayload = 0
-        // MESSAGE_DATA.length() = 5 > 0 → PAYLOAD_TOO_LARGE
-        // This documents a misconfiguration trap: setting localMax=0 silently kills all messaging.
+        // Even empty data carries non-empty metadata and protobuf framing, so a zero limit blocks all messaging.
         final var channel = ClprChannel.newBuilder()
                 .channelId(CHANNEL_ID)
                 .chainId("hedera:testnet")
@@ -593,12 +690,58 @@ class ClprServiceApiImplTest {
         given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
                 .willReturn(connector);
 
-        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+        final var data = emptyData ? Bytes.EMPTY : MESSAGE_DATA;
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, data))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+        assertNoStateWrites();
     }
 
     // ---- Helper methods ----
+
+    private enum MessageField {
+        CONNECTOR_ID,
+        TARGET_APPLICATION,
+        SENDER
+    }
+
+    private enum PayloadLimitSource {
+        PEER,
+        LOCAL_WITHOUT_PEER_THROTTLES,
+        LOCAL_WITH_UNSET_PEER_LIMIT
+    }
+
+    private ClprChannel withPayloadLimit(
+            final ClprChannel channel, final PayloadLimitSource limitSource, final int maxPayloadBytes) {
+        return switch (limitSource) {
+            case PEER ->
+                channel.copyBuilder()
+                        .peerThrottles(ClprThrottles.newBuilder().maxMessagePayloadBytes(maxPayloadBytes))
+                        .build();
+            case LOCAL_WITHOUT_PEER_THROTTLES -> channel;
+            case LOCAL_WITH_UNSET_PEER_LIMIT ->
+                channel.copyBuilder()
+                        .peerThrottles(ClprThrottles.newBuilder().maxMessagePayloadBytes(0))
+                        .build();
+        };
+    }
+
+    private ClprMessagePayload createMessagePayload(
+            final Bytes connectorId, final Bytes targetApplication, final Bytes sender, final Bytes messageData) {
+        return ClprMessagePayload.newBuilder()
+                .message(ClprMessage.newBuilder()
+                        .connectorId(connectorId)
+                        .targetApplication(targetApplication)
+                        .sender(sender)
+                        .messageData(messageData))
+                .build();
+    }
+
+    private void assertNoStateWrites() {
+        verify(messageQueueStore, never()).put(any(), anyLong(), any());
+        verify(channelWriteStore, never()).put(any());
+        verify(connectorStore, never()).put(any());
+    }
 
     private ClprChannel createChannel(@NonNull final ClprChannelStatus status) {
         return createChannelWithQueue(status, 0, 0);

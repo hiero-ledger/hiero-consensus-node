@@ -2059,7 +2059,10 @@ class ClprSubmitBundleHandlerTest {
                 .control(buildControlMessage(peerTimestamp))
                 .build();
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(configUpdatePayload));
-        setupHandleContext(bundle, true);
+        // Control messages are exempt from the Data-message payload ceiling.
+        assertThat(ClprMessagePayload.PROTOBUF.toBytes(configUpdatePayload).length())
+                .isGreaterThan(1);
+        setupHandleContext(bundle, true, 1000, 1, 1_048_576L);
 
         subject.handle(handleContext);
 
@@ -2591,9 +2594,12 @@ class ClprSubmitBundleHandlerTest {
         putChannel(ClprChannelStatus.ACTIVE, 3, 0, ZERO_HASH);
 
         // Bundle acks both DATA messages with in-order replies: #1 then #2
-        final var bundle =
-                buildBundle(ClprChannelStatus.ACTIVE, 0, 2, ZERO_HASH, List.of(replyPayload(1), replyPayload(2)));
-        setupHandleContext(bundle, true);
+        final var replies = List.of(replyPayload(1), replyPayload(2));
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 2, ZERO_HASH, replies);
+        // Replies are exempt from the Data-message payload ceiling.
+        replies.forEach(reply ->
+                assertThat(ClprMessagePayload.PROTOBUF.toBytes(reply).length()).isGreaterThan(1));
+        setupHandleContext(bundle, true, 1000, 1, 1_048_576L);
 
         subject.handle(handleContext);
 
@@ -2820,6 +2826,89 @@ class ClprSubmitBundleHandlerTest {
         final var conn = channelStore.getChannel(CHANNEL_ID);
         assertThat(conn.receivedMessageId()).isEqualTo(0L);
         assertThat(conn.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "targetApplication, 0",
+        "targetApplication, 1",
+        "sender, 0",
+        "sender, 1",
+        "connectorId, 0",
+        "connectorId, 1"
+    })
+    @DisplayName("message metadata counts toward the serialized payload limit even with empty or small data")
+    void oversizedMessageMetadataRejectsBundle(final String field, final int dataBytes) {
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        final var oversized = Bytes.wrap(new byte[128]);
+        final var message = ClprMessage.newBuilder()
+                .connectorId(CONNECTOR_ADDRESS)
+                .targetApplication(TARGET_APP)
+                .sender(SENDER)
+                .messageData(Bytes.wrap(new byte[dataBytes]));
+        switch (field) {
+            case "targetApplication" -> message.targetApplication(oversized);
+            case "sender" -> message.sender(oversized);
+            case "connectorId" -> message.connectorId(oversized);
+            default -> throw new IllegalArgumentException(field);
+        }
+        final var payload =
+                ClprMessagePayload.newBuilder().message(message.build()).build();
+        assertThat(payload.messageOrThrow().messageData().length()).isLessThan(64);
+        assertThat(ClprMessagePayload.PROTOBUF.toBytes(payload).length()).isGreaterThan(64);
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(payload));
+        setupHandleContext(bundle, true, 1000, 64, 1_048_576L);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isZero();
+        assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 0)).isNull();
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    @DisplayName("a Data message exactly at the serialized payload limit is accepted")
+    void exactSerializedPayloadBoundaryIsAccepted() {
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        putConnector();
+        final var payload = dataPayload();
+        final int serializedSize =
+                Math.toIntExact(ClprMessagePayload.PROTOBUF.toBytes(payload).length());
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(payload));
+        setupHandleContext(bundle, true, 1000, serializedSize, 1_048_576L);
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(1);
+        assertThat(messageQueueStore
+                        .getMessage(CHANNEL_ID, 0)
+                        .payload()
+                        .messageReplyOrThrow()
+                        .status())
+                .isEqualTo(ClprMessageReplyStatus.SUCCESS);
+        verify(handleContext).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    @DisplayName("a Data message one serialized byte over the payload limit is rejected")
+    void serializedPayloadBoundaryMinusOneIsRejected() {
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        final var payload = dataPayload();
+        final int serializedSize =
+                Math.toIntExact(ClprMessagePayload.PROTOBUF.toBytes(payload).length());
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(payload));
+        setupHandleContext(bundle, true, 1000, serializedSize - 1, 1_048_576L);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 0)).isNull();
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
     }
 
     /**
