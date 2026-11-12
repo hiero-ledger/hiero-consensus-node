@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -33,11 +32,10 @@ public class UpdateDecoder extends UpdateCommonDecoder {
      * @param attempt the attempt
      * @return the synthetic transaction body
      */
-    public @Nullable TransactionBody decodeTokenUpdateV1(@NonNull final HtsCallAttempt attempt) {
+    public TokenTransactionBodyWrapper decodeTokenUpdateV1(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V1.decodeCall(
                 attempt.input().toArrayUnsafe());
-        final var decoded = decodeTokenUpdate(call, attempt.addressIdConverter(), attempt.nativeOperations());
-        return TransactionBody.newBuilder().tokenUpdate(decoded).build();
+        return decodeTokenUpdate(call, attempt.addressIdConverter(), attempt.nativeOperations(), false);
     }
 
     /**
@@ -46,11 +44,10 @@ public class UpdateDecoder extends UpdateCommonDecoder {
      * @param attempt the attempt
      * @return the synthetic transaction body
      */
-    public @Nullable TransactionBody decodeTokenUpdateV2(@NonNull final HtsCallAttempt attempt) {
+    public TokenTransactionBodyWrapper decodeTokenUpdateV2(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V2.decodeCall(
                 attempt.input().toArrayUnsafe());
-        final var decoded = decodeTokenUpdate(call, attempt.addressIdConverter(), attempt.nativeOperations());
-        return TransactionBody.newBuilder().tokenUpdate(decoded).build();
+        return decodeTokenUpdate(call, attempt.addressIdConverter(), attempt.nativeOperations(), false);
     }
 
     /**
@@ -59,11 +56,10 @@ public class UpdateDecoder extends UpdateCommonDecoder {
      * @param attempt the attempt
      * @return the synthetic transaction body
      */
-    public @Nullable TransactionBody decodeTokenUpdateV3(@NonNull final HtsCallAttempt attempt) {
+    public TokenTransactionBodyWrapper decodeTokenUpdateV3(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_V3.decodeCall(
                 attempt.input().toArrayUnsafe());
-        final var decoded = decodeTokenUpdate(call, attempt.addressIdConverter(), attempt.nativeOperations());
-        return TransactionBody.newBuilder().tokenUpdate(decoded).build();
+        return decodeTokenUpdate(call, attempt.addressIdConverter(), attempt.nativeOperations(), false);
     }
 
     /**

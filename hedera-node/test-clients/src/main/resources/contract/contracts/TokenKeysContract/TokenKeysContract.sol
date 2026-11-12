@@ -3,8 +3,8 @@ pragma solidity >=0.5.0 <0.9.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * Forwards an arbitrary caller-supplied TokenKey[] to the HTS updateTokenKeys function at 0x167 and 0x16c and to the create
- * functions at 0x167 and 0x16c, so tests can exercise key types (empty list, zero, undefined or mixed bits) that the
+ * Forwards an arbitrary caller-supplied TokenKey[] to the HTS updateTokenKeys and updateTokenInfo functions and to
+ * the create functions at 0x167 and 0x16c, so tests can exercise key types (empty list, zero, undefined or mixed bits) that the
  * shared HederaTokenService/KeyHelper sources cannot express. The contract is the treasury of a created token and may
  * hold the keys of a token it updates. Self-contained on purpose.
  */
@@ -71,6 +71,30 @@ contract TokenKeysContract {
         int64 responseCode = success ? abi.decode(result, (int64)) : int64(-1);
         if (responseCode != SUCCESS) {
             revert("Update of token keys failed!");
+        }
+    }
+
+    // Updates nothing but the keys: blank name, symbol and memo, a zero treasury and a zero expiry mean "unchanged"
+    function updateTokenInfo(address token, TokenKey[] memory keys) external {
+        HederaToken memory info = HederaToken("", "", address(0), "", false, 0, false, keys, Expiry(0, address(0), 0));
+        callUpdate(HTS_167, abi.encodeWithSignature(
+            "updateTokenInfo(address,(string,string,address,string,bool,int64,bool,(uint256,(bool,address,bytes,bytes,address))[],(int64,address,int64)))",
+            token, info));
+    }
+
+    function updateTokenInfoWithMetadata(address token, TokenKey[] memory keys) external {
+        HederaTokenWithMetadata memory info = HederaTokenWithMetadata(
+            "", "", address(0), "", false, 0, false, keys, Expiry(0, address(0), 0), "");
+        callUpdate(HTS_16C, abi.encodeWithSignature(
+            "updateTokenInfo(address,(string,string,address,string,bool,int64,bool,(uint256,(bool,address,bytes,bytes,address))[],(int64,address,int64),bytes))",
+            token, info));
+    }
+
+    function callUpdate(address hts, bytes memory encodedCall) private {
+        (bool success, bytes memory result) = hts.call(encodedCall);
+        int64 responseCode = success ? abi.decode(result, (int64)) : int64(-1);
+        if (responseCode != SUCCESS) {
+            revert("Update of token info failed!");
         }
     }
 

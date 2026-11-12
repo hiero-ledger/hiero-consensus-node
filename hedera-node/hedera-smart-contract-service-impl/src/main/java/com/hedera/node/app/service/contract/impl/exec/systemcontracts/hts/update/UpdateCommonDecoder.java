@@ -16,14 +16,15 @@ import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenExpiryWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -69,10 +70,11 @@ public abstract class UpdateCommonDecoder {
         return token != null && IMMUTABILITY_SENTINEL_KEY.equals(token.adminKeyOrElse(IMMUTABILITY_SENTINEL_KEY));
     }
 
-    protected TokenUpdateTransactionBody.Builder decodeTokenUpdate(
+    protected TokenTransactionBodyWrapper decodeTokenUpdate(
             @NonNull final Tuple call,
             @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final HederaNativeOperations nativeOperation) {
+            @NonNull final HederaNativeOperations nativeOperation,
+            final boolean withMetadata) {
         final var tokenId = ConversionUtils.asTokenId(nativeOperation.entityIdFactory(), call.get(TOKEN_ADDRESS));
         final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
 
@@ -114,9 +116,15 @@ public abstract class UpdateCommonDecoder {
                 && tokenExpiry.autoRenewPeriod().seconds() != 0) {
             txnBodyBuilder.autoRenewPeriod(tokenExpiry.autoRenewPeriod());
         }
-        // TODO Glib: reuse tx body wrapper and the status
-        TokenKeyUtils.addTokenKeys(tokenKeys, false, txnBodyBuilder);
-        return txnBodyBuilder;
+        final var preemptingStatus = TokenKeyUtils.addTokenKeys(tokenKeys, withMetadata, txnBodyBuilder);
+        if (withMetadata) {
+            final Bytes tokenMetadata = hederaToken.size() > 9 ? Bytes.wrap((byte[]) hederaToken.get(9)) : null;
+            if (tokenMetadata != null && tokenMetadata.length() > 0) {
+                txnBodyBuilder.metadata(tokenMetadata);
+            }
+        }
+        return new TokenTransactionBodyWrapper(
+                TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build(), preemptingStatus);
     }
 
     protected abstract TokenTransactionBodyWrapper decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt);

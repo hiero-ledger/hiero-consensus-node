@@ -4,14 +4,9 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updat
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.common.primitives.Longs;
 import com.hedera.hapi.node.token.TokenUpdateNftsTransactionBody;
-import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder;
-import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyUtils;
-import com.hedera.node.app.service.contract.impl.exec.utils.TokenKeyWrapper;
 import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -37,33 +32,16 @@ public class UpdateDecoder extends UpdateCommonDecoder {
      * @param attempt the attempt
      * @return the synthetic transaction body
      */
-    public TransactionBody decodeTokenUpdateWithMetadata(@NonNull final HtsCallAttempt attempt) {
+    public TokenTransactionBodyWrapper decodeTokenUpdateWithMetadata(@NonNull final HtsCallAttempt attempt) {
         final var call = UpdateTranslator.TOKEN_UPDATE_INFO_FUNCTION_WITH_METADATA.decodeCall(
                 attempt.input().toArrayUnsafe());
-        final var decoded = decodeUpdateWithMeta(call, attempt.addressIdConverter(), attempt.nativeOperations());
-        return TransactionBody.newBuilder().tokenUpdate(decoded).build();
+        return decodeTokenUpdate(call, attempt.addressIdConverter(), attempt.nativeOperations(), true);
     }
 
     @Override
     protected Tuple decodeCall(@NonNull final HtsCallAttempt attempt) {
         return UpdateKeysTranslator.TOKEN_UPDATE_KEYS_16C.decodeCall(
                 attempt.input().toArrayUnsafe());
-    }
-
-    public TokenUpdateTransactionBody.Builder decodeUpdateWithMeta(
-            @NonNull final Tuple call,
-            @NonNull final AddressIdConverter addressIdConverter,
-            @NonNull final HederaNativeOperations nativeOperation) {
-        final var tokenUpdateTransactionBody = decodeTokenUpdate(call, addressIdConverter, nativeOperation);
-        final var hederaToken = (Tuple) call.get(HEDERA_TOKEN);
-        final Bytes tokenMetadata = hederaToken.size() > 9 ? Bytes.wrap((byte[]) hederaToken.get(9)) : null;
-        if (tokenMetadata != null && tokenMetadata.length() > 0) {
-            tokenUpdateTransactionBody.metadata(tokenMetadata);
-        }
-        final List<TokenKeyWrapper> tokenKeys =
-                TokenKeyUtils.decodeTokenKeys(hederaToken.get(7), addressIdConverter, nativeOperation);
-        TokenKeyUtils.addTokenKeys(tokenKeys, true, tokenUpdateTransactionBody);
-        return tokenUpdateTransactionBody;
     }
 
     public TransactionBody decodeUpdateNFTsMetadata(@NonNull final HtsCallAttempt attempt) {

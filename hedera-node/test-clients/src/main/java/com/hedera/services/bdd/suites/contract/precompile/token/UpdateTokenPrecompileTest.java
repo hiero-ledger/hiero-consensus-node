@@ -142,8 +142,26 @@ public class UpdateTokenPrecompileTest {
     }
 
     @HapiTest
+    @DisplayName("updateTokenKeys from a contract that holds none of the keys is unauthorized")
+    public Stream<DynamicTest> validEntryFromUnauthorizedContractIsRejected(
+            @FungibleToken final SpecFungibleToken token) {
+        return hapiTest(
+                newKeyNamed("unauthorizedNewSupply"),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateTokenKeysContract
+                                .call("updateTokenKeys", token, new Tuple[] {
+                                    keyEntry(BigInteger.valueOf(0x10), ed25519Of(spec, "unauthorizedNewSupply"))
+                                })
+                                .gas(GAS_NEEDED)
+                                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE)))),
+                token.getInfo().andAssert(info -> info.hasSupplyKey(token.name())));
+    }
+
+    @HapiTest
     @DisplayName("cannot update the keys of a token that has no keys at all, calling HTS directly")
     public Stream<DynamicTest> cannotUpdateKeysOfKeylessTokenViaDirectEthereumCall() {
+        // cant use @FungibleToken because we need to create token with no keys
         return hapiTest(
                 newKeyNamed(KEYLESS_ETH_SENDER_KEY).shape(SECP_256K1_SHAPE),
                 newKeyNamed(KEYLESS_NEW_ADMIN_KEY),
@@ -190,8 +208,7 @@ public class UpdateTokenPrecompileTest {
 
     @HapiTest
     @DisplayName("updateTokenKeys with duplicate keyTypes from an authorized contract applies them in order")
-    public Stream<DynamicTest> duplicateKeyTypesFromAuthorizedContractApplyInOrder(
-            @FungibleToken final SpecFungibleToken token) {
+    public Stream<DynamicTest> duplicateKeyTypesApplyInOrder(@FungibleToken final SpecFungibleToken token) {
         final var supplyKeyType = BigInteger.valueOf(0x10);
         return hapiTest(
                 newKeyNamed("dupContractFirstSupply"),
@@ -210,89 +227,90 @@ public class UpdateTokenPrecompileTest {
     }
 
     @HapiTest
-    @DisplayName("updateTokenKeys ignores an undefined bit next to a defined one for an authorized contract")
+    @DisplayName("an undefined bit next to a defined one from an authorized contract is ignored")
     public Stream<DynamicTest> strayUndefinedBitNextToAdminBitIsAppliedAsAdminKey(
-            @FungibleToken final SpecFungibleToken token) {
-        return hapiTest(
+            @FungibleToken final SpecFungibleToken keysToken,
+            @FungibleToken final SpecFungibleToken keysWithMetadataToken,
+            @FungibleToken final SpecFungibleToken infoToken,
+            @FungibleToken final SpecFungibleToken infoWithMetadataToken) {
+        // Each case changes the admin key of its own token, so the cases cannot share one
+        return Stream.of(
+                strayBitNextToAdminBit("updateTokenKeys", keysToken),
+                strayBitNextToAdminBit("updateTokenKeysWithMetadata", keysWithMetadataToken),
+                strayBitNextToAdminBit("updateTokenInfo", infoToken),
+                strayBitNextToAdminBit("updateTokenInfoWithMetadata", infoWithMetadataToken));
+    }
+
+    @HapiTest
+    @DisplayName("an empty key list from an authorized contract succeeds and changes no keys")
+    public Stream<DynamicTest> emptyKeyListChangesNoKeys() {
+        return Stream.of(
+                        "updateTokenKeys",
+                        "updateTokenKeysWithMetadata",
+                        "updateTokenInfo",
+                        "updateTokenInfoWithMetadata")
+                .map(function -> authorizedContractUpdateKeepsAllKeys(
+                        function, function + "EmptyKeyList", false, _ -> new Tuple[0]));
+    }
+
+    @HapiTest
+    @DisplayName("keyType zero or only undefined bits from an authorized contract are rejected")
+    public Stream<DynamicTest> undefinedBitsAreRejected() {
+        // Bits 0x80 and up have no key at 0x167; 0x80 is only the metadata key at 0x16c, so there they start at 0x100
+        return Stream.of(
+                        rejectingUndefinedBits("updateTokenKeys", 7),
+                        rejectingUndefinedBits("updateTokenKeysWithMetadata", 8),
+                        rejectingUndefinedBits("updateTokenInfo", 7),
+                        rejectingUndefinedBits("updateTokenInfoWithMetadata", 8))
+                .flatMap(Function.identity());
+    }
+
+    @HapiTest
+    @DisplayName("a valid and an undefined entry from an authorized contract updates nothing")
+    public Stream<DynamicTest> validEntryWithUndefinedEntryUpdatesNothing() {
+        return Stream.of(
+                        "updateTokenKeys",
+                        "updateTokenKeysWithMetadata",
+                        "updateTokenInfo",
+                        "updateTokenInfoWithMetadata")
+                .map(function -> authorizedContractUpdateKeepsAllKeys(
+                        function, function + "ValidAndUndefined", true, newKeys -> new Tuple[] {
+                            keyEntry(BigInteger.valueOf(0x10), newKeys[0]),
+                            keyEntry(BigInteger.valueOf(0x100), newKeys[0])
+                        }));
+    }
+
+    private DynamicTest strayBitNextToAdminBit(@NonNull final String function, @NonNull final SpecFungibleToken token) {
+        return namedHapiTest(
+                function + "StrayBitNextToAdminBit",
                 token.authorizeContracts(updateTokenKeysContract),
                 withOpContext((spec, _) -> allRunFor(
                         spec,
                         updateTokenKeysContract
-                                .call(
-                                        "updateTokenKeys",
-                                        token,
-                                        // 0x101 = admin (0x01) plus the undefined 0x100; the new admin key is the
-                                        // calling contract itself, so no extra signature is needed
-                                        new Tuple[] {
+                                .call(function, token, new Tuple[] {
+                                    // 0x101 = admin (0x01) plus the undefined 0x100; the new admin key is the calling
+                                    // contract itself, so no extra signature is needed
+                                    Tuple.of(
+                                            BigInteger.valueOf(0x101),
                                             Tuple.of(
-                                                    BigInteger.valueOf(0x101),
-                                                    Tuple.of(
-                                                            false,
-                                                            updateTokenKeysContract.addressOn(
-                                                                    spec.targetNetworkOrThrow()),
-                                                            new byte[0],
-                                                            new byte[0],
-                                                            ZERO_ADDRESS))
-                                        })
+                                                    false,
+                                                    updateTokenKeysContract.addressOn(spec.targetNetworkOrThrow()),
+                                                    new byte[0],
+                                                    new byte[0],
+                                                    ZERO_ADDRESS))
+                                })
                                 .gas(GAS_NEEDED))),
                 updateTokenKeysContract.doWith(
                         contract -> token.getInfo().andAssert(info -> info.hasAdminKey(contractIdKeyFor(contract)))));
     }
 
-    @HapiTest
-    @DisplayName("updateTokenKeys with an empty key list from an authorized contract succeeds and changes nothing")
-    public Stream<DynamicTest> emptyKeyListFromAuthorizedContractChangesNothing() {
-        return Stream.of(
-                authorizedContractUpdateKeepsAllKeys("updateTokenKeys", "emptyKeyList", false, _ -> new Tuple[0]));
-    }
-
-    @HapiTest
-    @DisplayName("updateTokenKeys with keyType zero or only undefined bits from an authorized contract is rejected")
-    public Stream<DynamicTest> undefinedBitsFromAuthorizedContractAreRejected() {
-        // At 0x167, bits 0x80 and up have no key; 0x80 is only the metadata key at 0x16c
-        final var undefinedBits =
-                Stream.concat(Stream.of(BigInteger.ZERO), IntStream.range(7, 16).mapToObj(BigInteger.ONE::shiftLeft));
-        return undefinedBits.map(bit -> authorizedContractUpdateKeepsAllKeys(
-                "updateTokenKeys", "undefinedBit" + bit.toString(16), true, newKeys ->
-                        new Tuple[] {keyEntry(bit, newKeys[0])}));
-    }
-
-    @HapiTest
-    @DisplayName(
-            "updateTokenKeys at 0x16c with keyType zero or only undefined bits from an authorized contract is rejected")
-    public Stream<DynamicTest> undefinedBitsFromAuthorizedContractAreRejectedWithMetadata() {
-        // At 0x16c, 0x80 is the metadata key, so the undefined bits start at 0x100
-        final var undefinedBits =
-                Stream.concat(Stream.of(BigInteger.ZERO), IntStream.range(8, 16).mapToObj(BigInteger.ONE::shiftLeft));
-        return undefinedBits.map(bit -> authorizedContractUpdateKeepsAllKeys(
-                "updateTokenKeysWithMetadata", "undefinedBitWithMetadata" + bit.toString(16), true, newKeys ->
-                        new Tuple[] {keyEntry(bit, newKeys[0])}));
-    }
-
-    @HapiTest
-    @DisplayName("updateTokenKeys with a valid and an undefined entry from an authorized contract updates nothing")
-    public Stream<DynamicTest> validEntryWithUndefinedEntryFromAuthorizedContractUpdatesNothing() {
-        return Stream.of(authorizedContractUpdateKeepsAllKeys(
-                "updateTokenKeys", "validAndUndefined", true, newKeys -> new Tuple[] {
-                    keyEntry(BigInteger.valueOf(0x10), newKeys[0]), keyEntry(BigInteger.valueOf(0x100), newKeys[0])
-                }));
-    }
-
-    @HapiTest
-    @DisplayName("updateTokenKeys from a contract that holds none of the keys is unauthorized")
-    public Stream<DynamicTest> validEntryFromUnauthorizedContractIsRejected(
-            @FungibleToken final SpecFungibleToken token) {
-        return hapiTest(
-                newKeyNamed("unauthorizedNewSupply"),
-                withOpContext((spec, _) -> allRunFor(
-                        spec,
-                        updateTokenKeysContract
-                                .call("updateTokenKeys", token, new Tuple[] {
-                                    keyEntry(BigInteger.valueOf(0x10), ed25519Of(spec, "unauthorizedNewSupply"))
-                                })
-                                .gas(GAS_NEEDED)
-                                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE)))),
-                token.getInfo().andAssert(info -> info.hasSupplyKey(token.name())));
+    private Stream<DynamicTest> rejectingUndefinedBits(@NonNull final String function, final int firstBit) {
+        return Stream.concat(
+                        Stream.of(BigInteger.ZERO),
+                        IntStream.range(firstBit, 16).mapToObj(BigInteger.ONE::shiftLeft))
+                .map(bit -> authorizedContractUpdateKeepsAllKeys(
+                        function, function + "UndefinedBit" + bit.toString(16), true, newKeys ->
+                                new Tuple[] {keyEntry(bit, newKeys[0])}));
     }
 
     private DynamicTest authorizedContractUpdateKeepsAllKeys(
