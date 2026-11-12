@@ -51,7 +51,11 @@ import org.openjdk.jmh.annotations.Warmup;
  *   <li>{@link Logged}: the flags of {@link Baseline} and a compile log per fork
  *   ({@code compile-pid<process id>.log}), written into the results directory of the calibration workflow, which
  *   uploads it. The log's header holds the fork's start time ({@code time_ms}), which joins it with the fork's result;
- *   its {@code nmethod} elements hold where each compilation lies in the code cache.</li>
+ *   its {@code nmethod} elements hold where each compilation lies in the code cache;</li>
+ *   <li>{@link EmptyCall}: the flags of {@link Baseline}, but every second measurement iteration times an empty call,
+ *   {@code resume()} directly followed by {@code lap()}, and hashes the event after it. Run it with one warmup
+ *   iteration ({@code -wi 1}): the iterations of a fork are then hash, empty, hash, empty. If a fork whose hashes are
+ *   slow also has slow empty calls, the fork is slow in the timing, not in the hasher.</li>
  * </ul>
  * The flags are diagnostics: they change what is measured, so only the spread between the forks of a variant counts,
  * not its level. If the levels stay with both flags, the cause lies outside the JVM's own state; if they go, the
@@ -96,6 +100,31 @@ public abstract class EventHashingForkProbe {
 
     /** The latency recorder for the benchmark. */
     private LatencyRecorder recorder;
+
+    /** The number of iterations started in this fork, the warmup iterations included. */
+    private int iterations;
+
+    /** Whether the current iteration times empty calls instead of hashes. */
+    private boolean emptyCalls;
+
+    /**
+     * Whether every second measurement iteration times an empty call instead of a hash.
+     *
+     * @return false, unless a variant overrides it
+     */
+    protected boolean timesEmptyCalls() {
+        return false;
+    }
+
+    /**
+     * Counts the iteration and decides what it times: after one warmup iteration, the second, fourth, ... measurement
+     * iteration of a variant that {@link #timesEmptyCalls()}. This method is called once per iteration.
+     */
+    @Setup(Level.Iteration)
+    public void startIteration() {
+        iterations++;
+        emptyCalls = timesEmptyCalls() && iterations > 1 && iterations % 2 == 1;
+    }
 
     /**
      * Generates the events and creates the hasher. This method is called once per trial.
@@ -159,6 +188,10 @@ public abstract class EventHashingForkProbe {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void hashEvents() {
+        if (emptyCalls) {
+            timeEmptyCalls();
+            return;
+        }
         recorder.startMeasurement();
         recorder.pause();
         // The first call follows the setup, which makes it slow; it is hashed but not timed.
@@ -169,6 +202,26 @@ public abstract class EventHashingForkProbe {
             hasher.hashEvent(event);
             recorder.lap();
             recorder.pause();
+            events[i] = event;
+        }
+        recorder.resume();
+        recorder.stopMeasurement();
+    }
+
+    /**
+     * Receives and hashes every event as {@link #hashEvents()} does, but times an empty call per event instead of the
+     * hash: the recorder is resumed and read right away, and the event is hashed while it is paused again.
+     */
+    private void timeEmptyCalls() {
+        recorder.startMeasurement();
+        recorder.pause();
+        events[0] = hasher.hashEvent(receiveUnhashed(generatedEvents.getFirst()));
+        for (int i = 1; i < NUMBER_OF_EVENTS; i++) {
+            final PlatformEvent event = receiveUnhashed(generatedEvents.get(i));
+            recorder.resume();
+            recorder.lap();
+            recorder.pause();
+            hasher.hashEvent(event);
             events[i] = event;
         }
         recorder.resume();
@@ -211,4 +264,15 @@ public abstract class EventHashingForkProbe {
                 "-XX:LogFile=build/benchmark-calibration/compile-%p.log"
             })
     public static class Logged extends EventHashingForkProbe {}
+
+    /** The forks of {@link Baseline}, with every second measurement iteration timing empty calls. */
+    @Fork(
+            value = 10,
+            jvmArgsAppend = {"-Xms1g", "-Xmx1g", "-XX:+AlwaysPreTouch"})
+    public static class EmptyCall extends EventHashingForkProbe {
+        @Override
+        protected boolean timesEmptyCalls() {
+            return true;
+        }
+    }
 }
