@@ -43,7 +43,7 @@ public interface HintsServiceComponent {
     HintsControllers controllers();
 
     @Named(HintsModule.HINTS_SIGNINGS)
-    ConcurrentMap<Bytes, BlockHashSigning> signings();
+    ConcurrentMap<SigningAttemptId, HintsContext.Signing> signings();
 
     @Deprecated
     Supplier<Configuration> configSupplier();

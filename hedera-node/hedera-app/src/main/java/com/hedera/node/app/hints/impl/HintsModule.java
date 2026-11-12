@@ -10,7 +10,6 @@ import com.hedera.node.app.hints.handlers.HintsPartialSignatureHandler;
 import com.hedera.node.app.hints.handlers.HintsPreprocessingVoteHandler;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NodeInfo;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import dagger.Binds;
 import dagger.Module;
@@ -46,7 +45,7 @@ public interface HintsModule {
     @Provides
     @Singleton
     @Named(HINTS_SIGNINGS)
-    static ConcurrentMap<Bytes, BlockHashSigning> providePendingSignatures() {
+    static ConcurrentMap<SigningAttemptId, HintsContext.Signing> providePendingSignatures() {
         return new ConcurrentHashMap<>();
     }
 

@@ -46,7 +46,6 @@ import java.util.Comparator;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -143,29 +142,14 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
         final var context = component.signingContext();
-        final long activeConstructionId = context.constructionIdOrThrow();
-        final var displaced = new AtomicReference<BlockHashSigning>();
-        // Only reuse an attempt a peer opened in pre-handle if it is bound to the active construction
-        final var blockHashSigning = component.signings().compute(blockHash, (b, existing) -> {
-            if (existing instanceof HintsContext.Signing s && s.constructionId() == activeConstructionId) {
-                return existing;
-            }
-            displaced.set(existing);
-            return context.newSigningForActiveConstruction(
-                    b, () -> component.signings().remove(blockHash));
-        });
-        final var displacedSigning = displaced.get();
-        if (displacedSigning != null) {
-            logger.warn(
-                    "Replaced signing attempt on block hash {} that was not opened under active construction #{}",
-                    blockHash,
-                    activeConstructionId);
-            // Also cancels its timeout, so its completion callback cannot remove the replacement
-            displacedSigning.cancel();
-        }
-        if (!(blockHashSigning instanceof HintsContext.Signing signing)) {
-            throw new IllegalStateException("hinTS signing required for block hash " + blockHash);
-        }
+        // Keyed by the active construction, so an attempt a peer opened under another one is never reused
+        final var attemptId = new SigningAttemptId(blockHash, context.constructionIdOrThrow());
+        final var signing = component
+                .signings()
+                .computeIfAbsent(
+                        attemptId,
+                        id -> context.newSigningForActiveConstruction(
+                                blockHash, () -> component.signings().remove(id)));
         // Submit under the construction captured by the signing attempt, not whatever construction is active after a
         // possible handoff.
         final var submissionFuture =

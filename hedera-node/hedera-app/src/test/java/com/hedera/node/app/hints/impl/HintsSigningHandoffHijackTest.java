@@ -4,7 +4,7 @@ package com.hedera.node.app.hints.impl;
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -38,6 +38,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -55,17 +56,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class HintsSigningHandoffHijackTest {
     private static final long OLD_CONSTRUCTION_ID = 1L;
     private static final long NEW_CONSTRUCTION_ID = 2L;
-    private static final long ATTACKER_NODE_ID = 1L;
-    private static final int ATTACKER_OLD_PARTY_ID = 2;
+    private static final long MINORITY_NODE_ID = 1L;
+    private static final int MINORITY_PARTY_ID = 2;
+    private static final long MAJORITY_NODE_ID = 9L;
+    private static final int MAJORITY_PARTY_ID = 18;
     private static final Bytes OLD_VERIFICATION_KEY = Bytes.wrap("OLD_VK");
     private static final Bytes NEW_VERIFICATION_KEY = Bytes.wrap("NEW_VK");
     private static final Bytes OLD_AGGREGATION_KEY = Bytes.wrap(new byte[49]);
     private static final Bytes NEW_AGGREGATION_KEY = Bytes.wrap(aggregationKeyBytes());
     private static final List<NodePartyId> NODE_PARTY_IDS = List.of(
-            new NodePartyId(ATTACKER_NODE_ID, ATTACKER_OLD_PARTY_ID, 1L),
+            new NodePartyId(MINORITY_NODE_ID, MINORITY_PARTY_ID, 1L),
             new NodePartyId(3L, 6, 1L),
             new NodePartyId(7L, 14, 1L),
-            new NodePartyId(9L, 18, 9L));
+            new NodePartyId(MAJORITY_NODE_ID, MAJORITY_PARTY_ID, 9L));
     private static final Bytes CRS = Bytes.wrap("CRS");
     private static final CRSState CRS_STATE = CRSState.newBuilder()
             .ceremonyId(1L)
@@ -74,7 +77,9 @@ class HintsSigningHandoffHijackTest {
             .stage(CRSStage.COMPLETED)
             .build();
     private static final Bytes POST_HANDOFF_BLOCK_HASH = Bytes.wrap("POST_HANDOFF_BLOCK_HASH");
-    private static final Bytes ATTACKER_PARTIAL_SIGNATURE = Bytes.wrap("ATTACKER_OLD_KEY_SIGNATURE");
+    private static final Bytes MINORITY_PARTIAL_SIGNATURE = Bytes.wrap("MINORITY_OLD_KEY_SIGNATURE");
+    private static final Bytes MAJORITY_PARTIAL_SIGNATURE = Bytes.wrap("MAJORITY_NEW_KEY_SIGNATURE");
+    private static final Bytes AGGREGATE_SIGNATURE = Bytes.wrap("AGGREGATE_SIGNATURE");
     private static final ChainOfTrustProof NEW_CHAIN_OF_TRUST_PROOF =
             ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("PROOF")).build();
 
@@ -103,7 +108,7 @@ class HintsSigningHandoffHijackTest {
     private PreHandleContext preHandleContext;
 
     @Mock
-    private NodeInfo attackerInfo;
+    private NodeInfo creatorInfo;
 
     private final Configuration config = HederaTestConfigBuilder.create()
             .withValue("tss.hintsEnabled", "true")
@@ -113,7 +118,7 @@ class HintsSigningHandoffHijackTest {
             .withValue("blockStream.streamMode", "BLOCKS")
             .getOrCreateConfig();
 
-    private final ConcurrentMap<Bytes, BlockHashSigning> signings = new ConcurrentHashMap<>();
+    private final ConcurrentMap<SigningAttemptId, HintsContext.Signing> signings = new ConcurrentHashMap<>();
 
     private HintsContext hintsContext;
     private HistoryServiceImpl historyService;
@@ -142,6 +147,58 @@ class HintsSigningHandoffHijackTest {
 
     @Test
     void peerPreviousConstructionSignatureCannotHijackPostHandoffBlockSigning() {
+        givenHandoffInsideBlockTen();
+        givenPreviousConstructionSignatureInPreHandle();
+
+        // Now this node closes block 10 and signs its hash
+        final var attempt = assertDoesNotThrow(() -> blockHashSigner.sign(POST_HANDOFF_BLOCK_HASH, SUCCINCT_SIGNATURE));
+
+        // It must sign, prove, and submit under the active construction only
+        assertEquals(NEW_VERIFICATION_KEY, attempt.verificationKey());
+        assertEquals(NEW_CHAIN_OF_TRUST_PROOF, attempt.chainOfTrustProof());
+        final var signing = signings.get(new SigningAttemptId(POST_HANDOFF_BLOCK_HASH, NEW_CONSTRUCTION_ID));
+        assertSame(signing.future(), attempt.signatureFuture());
+        verify(submissions).submitPartialSignature(NEW_CONSTRUCTION_ID, POST_HANDOFF_BLOCK_HASH);
+        verify(submissions, never()).submitPartialSignature(OLD_CONSTRUCTION_ID, POST_HANDOFF_BLOCK_HASH);
+    }
+
+    @Test
+    void activeConstructionSignaturesAreKeptAfterPeerPreviousConstructionSignature() {
+        givenHandoffInsideBlockTen();
+        givenPreviousConstructionSignatureInPreHandle();
+
+        // Still before this node closes block 10, a majority-weight peer's active-construction partial
+        // signature on the same block hash reaches pre-handle
+        given(library.verifyBls(
+                        CRS,
+                        MAJORITY_PARTIAL_SIGNATURE,
+                        POST_HANDOFF_BLOCK_HASH,
+                        NEW_AGGREGATION_KEY,
+                        MAJORITY_PARTY_ID))
+                .willReturn(true);
+        given(library.aggregateSignatures(
+                        CRS,
+                        NEW_AGGREGATION_KEY,
+                        NEW_VERIFICATION_KEY,
+                        Map.of(MAJORITY_PARTY_ID, MAJORITY_PARTIAL_SIGNATURE)))
+                .willReturn(AGGREGATE_SIGNATURE);
+        givenPreHandleOf(
+                MAJORITY_NODE_ID,
+                HintsPartialSignatureTransactionBody.newBuilder()
+                        .constructionId(NEW_CONSTRUCTION_ID)
+                        .message(POST_HANDOFF_BLOCK_HASH)
+                        .partialSignature(MAJORITY_PARTIAL_SIGNATURE)
+                        .build());
+        assertDoesNotThrow(() -> partialSignatureHandler.preHandle(preHandleContext));
+
+        final var attempt = assertDoesNotThrow(() -> blockHashSigner.sign(POST_HANDOFF_BLOCK_HASH, SUCCINCT_SIGNATURE));
+
+        // The attempt this node signs with already holds the peer's signature
+        assertEquals(NEW_VERIFICATION_KEY, attempt.verificationKey());
+        assertEquals(AGGREGATE_SIGNATURE, attempt.signatureFuture().getNow(null));
+    }
+
+    private void givenHandoffInsideBlockTen() {
         // The node is signing under the old construction...
         hintsContext.setConstruction(
                 construction(OLD_CONSTRUCTION_ID, OLD_AGGREGATION_KEY, OLD_VERIFICATION_KEY), CRS_STATE);
@@ -154,43 +211,35 @@ class HintsSigningHandoffHijackTest {
         hintsContext.setConstruction(
                 construction(NEW_CONSTRUCTION_ID, NEW_AGGREGATION_KEY, NEW_VERIFICATION_KEY), CRS_STATE);
         assertTrue(blockHashSigner.isReady());
+    }
 
+    private void givenPreviousConstructionSignatureInPreHandle() {
         // Before this node closes block 10, a peer's valid previous-construction partial signature on the
         // block hash reaches pre-handle
         given(library.verifyBls(
                         CRS,
-                        ATTACKER_PARTIAL_SIGNATURE,
+                        MINORITY_PARTIAL_SIGNATURE,
                         POST_HANDOFF_BLOCK_HASH,
                         OLD_AGGREGATION_KEY,
-                        ATTACKER_OLD_PARTY_ID))
+                        MINORITY_PARTY_ID))
                 .willReturn(true);
-        givenPreHandleOf(HintsPartialSignatureTransactionBody.newBuilder()
-                .constructionId(OLD_CONSTRUCTION_ID)
-                .message(POST_HANDOFF_BLOCK_HASH)
-                .partialSignature(ATTACKER_PARTIAL_SIGNATURE)
-                .build());
+        givenPreHandleOf(
+                MINORITY_NODE_ID,
+                HintsPartialSignatureTransactionBody.newBuilder()
+                        .constructionId(OLD_CONSTRUCTION_ID)
+                        .message(POST_HANDOFF_BLOCK_HASH)
+                        .partialSignature(MINORITY_PARTIAL_SIGNATURE)
+                        .build());
         assertDoesNotThrow(() -> partialSignatureHandler.preHandle(preHandleContext));
-
-        // Now this node closes block 10 and signs its hash
-        final var attempt = assertDoesNotThrow(() -> blockHashSigner.sign(POST_HANDOFF_BLOCK_HASH, SUCCINCT_SIGNATURE));
-
-        // It must sign, prove, and submit under the active construction only
-        assertEquals(NEW_VERIFICATION_KEY, attempt.verificationKey());
-        assertEquals(NEW_CHAIN_OF_TRUST_PROOF, attempt.chainOfTrustProof());
-        final var signing = assertInstanceOf(HintsContext.Signing.class, signings.get(POST_HANDOFF_BLOCK_HASH));
-        assertEquals(NEW_CONSTRUCTION_ID, signing.constructionId());
-        verify(submissions).submitPartialSignature(NEW_CONSTRUCTION_ID, POST_HANDOFF_BLOCK_HASH);
-        verify(submissions, never()).submitPartialSignature(OLD_CONSTRUCTION_ID, POST_HANDOFF_BLOCK_HASH);
     }
 
-    private void givenPreHandleOf(
-            @SuppressWarnings("SameParameterValue") final HintsPartialSignatureTransactionBody op) {
+    private void givenPreHandleOf(final long creatorId, final HintsPartialSignatureTransactionBody op) {
         given(preHandleContext.body())
                 .willReturn(
                         TransactionBody.newBuilder().hintsPartialSignature(op).build());
         given(preHandleContext.configuration()).willReturn(config);
-        given(preHandleContext.creatorInfo()).willReturn(attackerInfo);
-        given(attackerInfo.nodeId()).willReturn(ATTACKER_NODE_ID);
+        given(preHandleContext.creatorInfo()).willReturn(creatorInfo);
+        given(creatorInfo.nodeId()).willReturn(creatorId);
     }
 
     private static HintsConstruction construction(
