@@ -673,10 +673,10 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     private static LinkedHashMap<String, String> defaultSetupOverrides() {
         final var overrides = new LinkedHashMap<String, String>();
         // Multi-network tests register connectors as part of setup; the prod default
-        // clpr.minLockedStake (100M tinybars) requires a hbar transfer to register, which the
-        // tests don't fund. Lower the threshold so simple test connectors succeed without
+        // clpr.minLockedStakeTinycents ($3,000) requires a hbar transfer to register, which the
+        // tests don't fund. Disable the threshold so simple test connectors succeed without
         // forcing every test annotation to repeat this override.
-        overrides.put("clpr.minLockedStake", "100");
+        overrides.put("clpr.minLockedStakeTinycents", "0");
         overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
         overrides.put("clpr.verifierGasLimit", "5000000");
         // Task defaults apply at genesis and fixture restart, while per-test setup overrides win.
