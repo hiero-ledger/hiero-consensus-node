@@ -2,6 +2,7 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
+    id("org.hiero.gradle.feature.benchmark")
 }
 
 description = "Wiring Framework"
@@ -10,7 +11,7 @@ description = "Wiring Framework"
 // and then fix the reported issues.
 tasks.withType<JavaCompile>().configureEach {
     options.compilerArgs.add(
-        "-Xlint:-exports,-lossy-conversions,-overloads,-dep-ann,-text-blocks,-varargs"
+        "-Xlint:-exports,-lossy-conversions,-overloads,-dep-ann,-text-blocks,-varargs",
     )
 }
 
@@ -24,4 +25,16 @@ testModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
+}
+
+jmhModuleInfo {
+    requires("com.swirlds.base")
+    requires("com.swirlds.config.api")
+    requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.base.concurrent")
+    requires("org.hiero.consensus.benchmark.tools")
+    requires("org.hiero.consensus.metrics")
+    requires("org.hiero.consensus.model")
+    requires("org.hiero.consensus.wiring.framework")
+    requires("jmh.core")
 }
