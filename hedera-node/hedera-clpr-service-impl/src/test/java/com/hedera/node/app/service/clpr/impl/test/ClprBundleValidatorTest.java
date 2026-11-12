@@ -32,6 +32,7 @@ import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -63,6 +64,10 @@ class ClprBundleValidatorTest {
             .endpointManifestVersion(2)
             .trustAnchorId(ANCHOR_ID)
             .build();
+
+    /** The same channel after receiving 2 messages, which a prevalidation read may not have caught up with yet. */
+    private static final ClprChannel RECEIVED_TWO =
+            CHANNEL.copyBuilder().receivedMessageId(2).build();
 
     private final ClprBundleValidator subject = new ClprBundleValidator();
 
@@ -551,6 +556,198 @@ class ClprBundleValidatorTest {
                 Arguments.of(timestamp(-1, 0)),
                 Arguments.of(timestamp(11, -1)),
                 Arguments.of(timestamp(11, 1_000_000_000)));
+    }
+
+    // ========== prevalidation: what a stale channel read could wrongly reject is left to consensus ==========
+
+    @Test
+    void prevalidationAcceptsBundleStartingPastAnOlderReceivedId() throws PreCheckException {
+        // Built for a channel that has already received 2 messages; this read is older and has received none
+        final var bundleAhead = bundle(RECEIVED_TWO, List.of(dataPayload(1)));
+
+        assertRejected(CHANNEL, bundleAhead, CLPR_BUNDLE_VERIFICATION_FAILED);
+        subject.prevalidate(CHANNEL, bundleAhead, LEDGER_CONFIG);
+    }
+
+    @Test
+    void prevalidationSkipsRunningHashForBundleStartingPastAnOlderReceivedId() throws PreCheckException {
+        // From this older read, the hash of the 2 messages in between is unknown
+        final var bundleAhead = withSentRunningHash(bundle(RECEIVED_TWO, List.of(dataPayload(1))), ANCHOR);
+
+        subject.prevalidate(CHANNEL, bundleAhead, LEDGER_CONFIG);
+    }
+
+    @Test
+    void prevalidationSkipsStoredConfigurationTimestampForBundleStartingPastAnOlderReceivedId()
+            throws PreCheckException {
+        // Not newer than this read's stored timestamp, which a configuration in between may have replaced
+        final var bundleAhead = bundle(RECEIVED_TWO, List.of(configPayload(PEER_TIMESTAMP)));
+
+        subject.prevalidate(CHANNEL, bundleAhead, LEDGER_CONFIG);
+    }
+
+    @Test
+    void prevalidationAcceptsAckOfMessageNotYetSentInAnOlderRead() throws PreCheckException {
+        // This read has sent nothing yet; the current channel may have sent 3 messages
+        final var ackOfUnsent = withPeerAck(bundle(CHANNEL, List.of(dataPayload(1))), 3);
+
+        assertRejected(CHANNEL, ackOfUnsent, CLPR_BUNDLE_VERIFICATION_FAILED);
+        subject.prevalidate(CHANNEL, ackOfUnsent, LEDGER_CONFIG);
+    }
+
+    // ========== prevalidation: what no newer channel could accept is rejected ==========
+
+    @Test
+    void prevalidationRejectsRunningHashMismatchWhenBundleContinuesTheChannel() {
+        final var badHash = withSentRunningHash(bundle(CHANNEL, List.of(dataPayload(1))), ANCHOR);
+
+        assertPrevalidationRejected(CHANNEL, badHash, CLPR_RUNNING_HASH_MISMATCH);
+    }
+
+    @Test
+    void prevalidationRejectsRunningHashMismatchOfTheNewTailWhenBundleRepeatsReceivedMessages() {
+        final var channel = CHANNEL.copyBuilder()
+                .receivedMessageId(1)
+                .receivedRunningHash(ClprHashUtils.computeRunningHash(ZERO_HASH, dataPayload(1)))
+                .build();
+        // Repeats message 1 and carries message 2, but attests a hash that is not the chain through 2
+        final var content = bundle(CHANNEL, List.of(dataPayload(1), dataPayload(2)));
+        final var badHash = withSentRunningHash(content, ANCHOR);
+
+        assertPrevalidationRejected(channel, badHash, CLPR_RUNNING_HASH_MISMATCH);
+    }
+
+    @Test
+    void prevalidationRejectsConfigurationNotNewerThanStoredWhenBundleContinuesTheChannel() {
+        assertPrevalidationRejected(
+                CHANNEL, bundle(CHANNEL, List.of(configPayload(PEER_TIMESTAMP))), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsNoProgress() {
+        assertPrevalidationRejected(CHANNEL, bundle(CHANNEL, List.of()), CLPR_NO_PROGRESS);
+    }
+
+    @Test
+    void prevalidationRejectsBundleOfAlreadyReceivedMessagesOnly() {
+        assertPrevalidationRejected(
+                RECEIVED_TWO, bundle(CHANNEL, List.of(dataPayload(1))), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsBundleClaimingFewerSentMessagesThanItCarries() {
+        final var content = bundle(CHANNEL, List.of(dataPayload(1)));
+
+        assertPrevalidationRejected(
+                CHANNEL,
+                content.copyBuilder()
+                        .metadata(content.metadataOrThrow().copyBuilder().nextMessageId(1))
+                        .build(),
+                CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsAckBelowTheChannelAck() {
+        final var channel =
+                CHANNEL.copyBuilder().ackedMessageId(1).nextMessageId(3).build();
+
+        assertPrevalidationRejected(
+                channel, withPeerAck(bundle(channel, List.of(dataPayload(1))), 0), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsMoreMessagesThanMaxMessagesPerBundle() {
+        final var messages = Collections.nCopies(THROTTLES.maxMessagesPerBundle() + 1, dataPayload(1));
+
+        assertPrevalidationRejected(CHANNEL, bundle(CHANNEL, messages), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsDataPayloadOverLimit() {
+        assertPrevalidationRejected(CHANNEL, bundle(CHANNEL, List.of(dataPayload(4))), CLPR_PAYLOAD_TOO_LARGE);
+    }
+
+    @Test
+    void prevalidationRejectsUnknownControlVariant() {
+        final var unknown = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.DEFAULT)
+                .build();
+
+        assertPrevalidationRejected(CHANNEL, bundle(CHANNEL, List.of(unknown)), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsUnsupportedPeerProtocolVersion() {
+        final var peerConfig = LEDGER_CONFIG
+                .copyBuilder()
+                .protocolVersion(2)
+                .timestamp(timestamp(11, 0))
+                .build();
+
+        assertPrevalidationRejected(
+                CHANNEL, bundle(CHANNEL, List.of(configPayload(peerConfig))), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidTimestamps")
+    void prevalidationRejectsInvalidPeerConfigurationTimestamp(final Timestamp timestamp) {
+        final var peerConfig = LEDGER_CONFIG.copyBuilder().timestamp(timestamp).build();
+
+        assertPrevalidationRejected(
+                CHANNEL, bundle(CHANNEL, List.of(configPayload(peerConfig))), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsNonIncreasingConfigurationsEvenForBundleStartingPastAnOlderReceivedId() {
+        final var messages = List.of(configPayload(timestamp(11, 1)), configPayload(timestamp(11, 0)));
+
+        assertPrevalidationRejected(CHANNEL, bundle(RECEIVED_TWO, messages), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsMismatchedTrustAnchorAndId() {
+        assertPrevalidationRejected(CHANNEL, anchorBundle(true, false), CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    // ========== prevalidation: bundles without queue metadata ==========
+
+    @Test
+    void prevalidationAcceptsStateUpdateOnlyTrustAnchorBundle() throws PreCheckException {
+        subject.prevalidate(CHANNEL, anchorBundle(true, true), LEDGER_CONFIG);
+    }
+
+    @Test
+    void prevalidationAcceptsStateUpdateOnlyAdvancingManifestBundle() throws PreCheckException {
+        subject.prevalidate(
+                CHANNEL,
+                ClprBundleContent.newBuilder().newEndpointManifest(manifest(3)).build(),
+                LEDGER_CONFIG);
+    }
+
+    @Test
+    void prevalidationRejectsMessagesWithoutQueueMetadata() {
+        assertPrevalidationRejected(
+                CHANNEL,
+                anchorBundle(true, true).copyBuilder().messages(dataPayload(1)).build(),
+                CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    @Test
+    void prevalidationRejectsBundleWithoutQueueMetadataOrStateUpdate() {
+        assertPrevalidationRejected(CHANNEL, ClprBundleContent.DEFAULT, CLPR_BUNDLE_VERIFICATION_FAILED);
+    }
+
+    private static ClprBundleContent withSentRunningHash(final ClprBundleContent content, final Bytes hash) {
+        return content.copyBuilder()
+                .metadata(content.metadataOrThrow().copyBuilder().sentRunningHash(hash))
+                .build();
+    }
+
+    private void assertPrevalidationRejected(
+            final ClprChannel channel, final ClprBundleContent content, final ResponseCodeEnum code) {
+        assertThatThrownBy(() -> subject.prevalidate(channel, content, LEDGER_CONFIG))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(code));
     }
 
     private void assertRejected(

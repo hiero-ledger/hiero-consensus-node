@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.parseX509Certificate;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -20,10 +21,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ServiceEndpoint;
-import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
@@ -31,6 +29,7 @@ import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -39,7 +38,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -225,8 +224,13 @@ public class NodeUpdateHandler implements TransactionHandler {
     private void handleAccountIdOnlyUpdate(PreHandleContext context, Node existingNode) throws PreCheckException {
         if (existingNode.hasAccountId()) {
             // Allow signature from either admin key or existing account key
-            Key requiredKey = oneOf(existingNode.adminKey(), context.getAccountKey(existingNode.accountIdOrThrow()));
-            context.requireKeyOrThrow(requiredKey, INVALID_SIGNATURE);
+            final var accountId = existingNode.accountIdOrThrow();
+            validateTruePreCheck(existingNode.hasAdminKey(), INVALID_SIGNATURE);
+            final var requirement = KeyRequirement.anyOf(List.of(
+                    KeyRequirement.forKey(existingNode.adminKeyOrThrow()),
+                    KeyRequirement.forAccount(accountId, context.getAccountKey(accountId))));
+            validateTruePreCheck(isValid(requirement.key()), INVALID_SIGNATURE);
+            context.requireKeyRequirement(requirement);
         } else {
             // No account ID exists, so only admin key signature is acceptable
             context.requireKeyOrThrow(existingNode.adminKey(), INVALID_ADMIN_KEY);
@@ -244,19 +248,5 @@ public class NodeUpdateHandler implements TransactionHandler {
                 && !op.hasDeclineReward()
                 && !op.hasGrpcProxyEndpoint()
                 && !op.hasAssociatedRegisteredNodeList();
-    }
-
-    /**
-     * Creates a threshold key with threshold 1 with the given keys.
-     * @param acceptedKeys all keys that can individually authorize an operation
-     * @return threshold key with threshold 1
-     */
-    private static Key oneOf(@NonNull final Key... acceptedKeys) {
-        return Key.newBuilder()
-                .thresholdKey(ThresholdKey.newBuilder()
-                        .keys(new KeyList(Arrays.asList(acceptedKeys)))
-                        .threshold(1)
-                        .build())
-                .build();
     }
 }

@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A thread-safe registry for {@link Metric} instances, that allows registering new metrics by their builders
- * and retrieving existing metrics by their {@link MetricKey}.
+ * and retrieving or removing existing metrics by their {@link MetricKey}.
  * <p>
  * The registry may have global labels that are applied to all metrics registered in it.
  * New registry can be created via {@link #builder()} using builder pattern.
@@ -148,6 +148,38 @@ public final class MetricRegistry implements Closeable {
 
             return metric;
         }));
+    }
+
+    /**
+     * Removes the metric with the given key from the registry, so it is not exported anymore
+     * and its name can be registered again.
+     * Metric to be removed has to have the same name as the provided key and be of compatible type.
+     * <p>
+     * References to the removed metric held by callers remain usable, but their updates are not exported anymore,
+     * so callers caching the metric or its measurements must drop them on removal.
+     *
+     * @param key the metric key, must not be {@code null}
+     * @return {@code true} if a metric with the given key was registered (name and type match) and is removed,
+     * {@code false} otherwise
+     * @throws NullPointerException if the key is {@code null}
+     */
+    public boolean remove(@NonNull MetricKey<?> key) {
+        Objects.requireNonNull(key, "metric key must not be null");
+
+        final boolean[] removed = {false};
+        // the snapshot is removed under the map bin lock, which also guards the registration with the same name
+        metrics.computeIfPresent(key.name(), (name, metric) -> {
+            if (!key.type().isInstance(metric)) {
+                return metric;
+            }
+            if (snapshot != null) {
+                snapshot.removeMetricSnapshot(metric.snapshot());
+            }
+            removed[0] = true;
+            logger.log(DEBUG, "Removed metric. name={0}", name);
+            return null;
+        });
+        return removed[0];
     }
 
     /**

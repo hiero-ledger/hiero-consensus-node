@@ -133,13 +133,8 @@ public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAt
                 attempt.systemContractGasCalculator(),
                 attempt.enhancement(),
                 selector,
-                // This is the only place we don't use the EVM sender id, because
-                // we need to switch debits to approvals based on whether the
-                // mono-service would have activated a key; and its key activation
-                // test would use the qualified delegate id if applicable
-                // test would use the qualified delegate id if applicable.
-                // Only certain functions support qualified delegates, so restrict to those.
-                isClassicCallSupportingQualifiedDelegate(attempt) ? attempt.authorizingId() : attempt.senderId(),
+                // Match the account whose authority is used to distinguish direct debits from allowance spends.
+                supportsQualifiedDelegate(attempt) ? attempt.authorizingId() : attempt.senderId(),
                 decoder.checkForFailureStatus(attempt),
                 nominalBodyFor(attempt),
                 attempt.configuration(),
@@ -181,7 +176,10 @@ public class ClassicTransfersTranslator extends AbstractCallTranslator<HtsCallAt
                 .isPresent();
     }
 
-    private boolean isClassicCallSupportingQualifiedDelegate(@NonNull final HtsCallAttempt attempt) {
+    /**
+     * Returns whether the call's method uses the qualified delegate for both the dispatch payer and account authority.
+     */
+    public static boolean supportsQualifiedDelegate(@NonNull final HtsCallAttempt attempt) {
         return attempt.isMethod(TRANSFER_TOKENS, TRANSFER_TOKEN, TRANSFER_NFTS, TRANSFER_NFT)
                 .isPresent();
     }

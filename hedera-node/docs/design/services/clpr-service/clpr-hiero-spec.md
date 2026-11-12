@@ -290,51 +290,51 @@ actual send, which may never happen on an idle channel.
 
 ---
 
-## E-10. `messageExecutionCost` (currently flat; planned gas-based)
+## E-10. Application execution gas and endpoint compensation
 
-### Current behavior
+Before verifier or application EVM execution, the submitting transaction's original
+payer prepays the network fee for `contracts.maxGasPerTransaction` gas. The gas-unit
+price uses the ordinary ContractCall price, congestion multiplier, and active exchange
+rate. Unused gas fees are refunded once the entire parent transaction succeeds. If a
+later failure rolls back application state, payment for gas already used is replayed
+against that original payer before other failure penalties. Reversible transfers from
+connectors never provide the backing for this network payment.
 
-Every successful inbound bundle dispatch charges the receiving connector:
+For each DATA callback, the receiving connector reimburses the payer for actual billed
+application gas, plus the existing flat endpoint compensation:
 
 ```
-charge = messageExecutionCost + margin
+networkGasFee = gasUsed * gasPriceTinybars
+endpointCompensation = messageExecutionCost * (1 + endpointMarginPercent / 100)
+connectorDebit = networkGasFee + endpointCompensation
 ```
 
-where:
-- `messageExecutionCost` — a flat `clpr.messageExecutionCost` config value (default:
-1,000,000 tinybars).
-- `margin` — `charge * clpr.endpointMarginPercent / 100`.
+The connector's worst-case gas reimbursement and compensation are transferred before
+the callback. Unused gas reimbursement is returned afterward. Response callbacks use
+the same gas payment and reimbursement path without the DATA compensation. An absent
+or underfunded originating connector causes best-effort response delivery to be skipped.
+Reverted callbacks still pay for gas consumed. A dispatch without a reported EVM result
+consumes its full gas reservation for billing.
 
-The full `charge` amount is paid to the **submitting endpoint** (the Hiero consensus
-node that submitted the `ClprSubmitBundle` transaction). There is no central treasury;
-the submitter receives the entire payment.
+The sum of verifier and application gas grants cannot exceed the transaction cap.
+Callbacks share the remaining allowance: each DATA or response payload receives at
+most `min(maxGasPerMessage, remainingGas / remainingCallbackPayloads)`. Skipped payloads
+release their share for later callbacks. Once granted, gas capacity is consumed in full
+regardless of billed EVM gas refunds, so repeated storage refunds cannot reopen capacity.
+Application children use consensus throttling with the connector as child payer while
+retaining the CLPR service's synthetic EVM sender. When the verifier adapter does not
+report gas into the shared accounting ledger, its full configured gas allowance is
+conservatively reserved before allocating application grants.
 
-### Planned behavior (Richard's directive)
+A multi-message bundle can therefore give each callback less than the per-message
+ceiling. Applications must stay within the callback's allocated grant; exhausting it
+produces the existing application error response. Per-message limits remain ceilings.
 
-The flat fee is a placeholder. The correct model is:
+When integrating the separate [CLPR fee proposal](https://github.com/hiero-ledger/hiero-consensus-node/pull/28137),
+reconcile any prepaid verifier GAS fee with the actual-gas escrow to avoid charging the
+same execution twice. That fee proposal does not replace callback gas accounting.
 
-> Charge connector `gasUsed * gasPriceTinybars * (1 + margin)`, where `gasUsed` is the
-> actual gas consumed by the application-contract dispatch. Pay the entire amount to
-> the submitter; there is no separate treasury account.
-
-This aligns the charge with actual compute cost and provides submitters honest
-incentives: submitters earn more by including higher-gas messages and are not penalized
-for low-gas messages. The margin component (`endpointMarginPercent`) remains the
-protocol's incentive premium above break-even.
-
-**Current limitation:** under the flat model, a high-gas message that costs more to
-execute than `messageExecutionCost` under-reimburses the submitting endpoint. Until the
-gas-based model is implemented, connectors sending gas-heavy messages impose an
-uncompensated cost on submitters.
-
-**Implementation note:** measuring `gasUsed` requires reading the child contract call
-result from the dispatch. `ClprSubmitBundleHandler` already captures the child call
-result to detect `APPLICATION_ERROR`; extending it to read `gasUsed` is straightforward.
-
-See also D-8 in [DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md) and the
-"Success-path economics" subsection in [`config-and-slashing.md`](config-and-slashing.md).
-
----
+See also the economics section in [config-and-slashing.md](config-and-slashing.md).
 
 ## E-11. CLPR singleton maintenance in the block stream
 
