@@ -27,6 +27,7 @@ Read these before reviewing. Each decides what is a finding, a question, or neit
 | File | Covers |
 |---|---|
 | [design-first.md](references/design-first.md) | changes the team should agree on before code is written |
+| [pr-size.md](references/pr-size.md) | how large a PR is, and whether it should be split |
 | [clarity-and-naming.md](references/clarity-and-naming.md) | the two readers, javadoc, comments, names, terminology, PR description, Markdown docs |
 | [structure.md](references/structure.md) | ownership, config, reuse, API surface, generality, layering, leftovers, records |
 | [correctness.md](references/correctness.md) | error paths, resources, concurrency, behaviour changes, tests, release risk |
@@ -63,7 +64,7 @@ ask the author directly.
 
 If only the third sentence is incomplete, continue, and raise what is missing as a question.
 
-The two readers still don't see the purpose. Their guesses are checked against it in step 5.
+The two readers still don't see the purpose. Their guesses are checked against it in step 6.
 
 **Example:** #28195. The description said what the saturation check does, but not where it fits or what goes wrong
 without it. The first review guessed, and the reviewer and the author found its questions confusing. A second attempt
@@ -83,7 +84,12 @@ there is evidence they did, as in [design-first.md](references/design-first.md).
 Report only what is in [output.md](references/output.md#design-not-agreed). Continue when the user says the design was
 agreed.
 
-### 4. Run the lenses
+### 4. Check the size
+
+Measure the PR and, if it is over a limit, look for a sensible split, as in [pr-size.md](references/pr-size.md). This
+doesn't stop the review.
+
+### 5. Run the lenses
 
 Each lens reads its reference file and returns candidate findings and questions, with `file:line`.
 
@@ -102,7 +108,7 @@ knowing the context.
 **Cost:** for a large diff, run the lenses as parallel subagents. For a small one, a few files and no new API, run them
 inline. The two readers always run as subagents, so they stay without context.
 
-### 5. Verify
+### 6. Verify
 
 Check every candidate against the code before keeping it. Drop it if it fails any test in
 [not-findings.md](references/not-findings.md#unverified-claims). Merge duplicates that two lenses found.
@@ -112,7 +118,7 @@ Compare each reader's guess at the purpose with step 2, as in
 lens, that depends on a guess about why the change was made. If a candidate can't be judged without knowing why, the
 purpose is unclear: go back to step 2.
 
-### 6. Report
+### 7. Report
 
 Classify and lay out the report as in [output.md](references/output.md). When the user asks to expand a finding, give
 its evidence, reasoning and a suggested fix.

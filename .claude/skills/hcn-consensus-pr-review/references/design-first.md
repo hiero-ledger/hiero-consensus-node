@@ -42,7 +42,8 @@ they can depend on. Adding a module, a dependency or an export isn't significant
 - it makes several of the decisions above, or mixes one with unrelated work
 - its title or description doesn't mention a decision the diff makes, such as a behaviour change in a "chore"
 
-Size alone isn't a decision. A large PR that makes none of them isn't significant.
+Size alone isn't a decision. A large PR that makes none of them isn't significant. Whether it should be split is a
+separate check ([pr-size.md](pr-size.md)).
 
 ## Was the design agreed?
 

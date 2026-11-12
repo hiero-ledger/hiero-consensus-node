@@ -31,6 +31,7 @@ are, and the user can ask for them.
 
 | Group | Contains | Blocks merge |
 |---|---|---|
+| **PR size** | Splits and moves from [pr-size.md](pr-size.md) | No |
 | **Blocks merge** | Correctness, module dependency rules, and consensus findings except the KB group | Yes |
 | **Clarity and naming** | Findings from [clarity-and-naming.md](clarity-and-naming.md) | No |
 | **Structure** | Findings from [structure.md](structure.md) | No |
@@ -38,7 +39,8 @@ are, and the user can ask for them.
 | **PR description** | Author mode only; see [clarity-and-naming.md](clarity-and-naming.md), topic 10 | No |
 
 Findings that don't block merge can be fixed in this PR, or in a follow-up PR or ticket if another push isn't worth a
-CI cycle. They are never dropped.
+CI cycle. They are never dropped. PR size findings are the exception: a split can't be done in a follow-up, so they are
+reported first, and the author decides before review starts.
 
 ## Questions
 
@@ -59,16 +61,18 @@ says what to decide.
 
 In this order:
 
-1. **One summary line:** the count in each group.
-2. **Blocks merge**
-3. **Clarity and naming**
-4. **Structure**
-5. **KB**
-6. **PR description**
-7. **Questions**
-8. **Optional suggestions:** structure suggestions with no named cost
+1. **One summary line:** the count in each group. If the PR is large with no sensible split, the size line from
+   [pr-size.md](pr-size.md) goes under it.
+2. **PR size**
+3. **Blocks merge**
+4. **Clarity and naming**
+5. **Structure**
+6. **KB**
+7. **PR description**
+8. **Questions**
+9. **Optional suggestions:** structure suggestions with no named cost
    ([structure.md](structure.md), topic 11), and data classes that could be records (topic 9).
-9. **Follow-up block**
+10. **Follow-up block**
 
 Leave out empty groups.
 
@@ -80,12 +84,14 @@ In this order:
    - what the PR is for: the three purpose sentences from step 2 of the skill (where it fits, what goes wrong
      without it, how it works)
    - the order in which to read the files, most important first
-2. **Blocks merge**
-3. **Clarity and naming**
-4. **Structure**
-5. **KB**
-6. **Questions**
-7. **Follow-up block**
+   - if the PR is large with no sensible split, the size line from [pr-size.md](pr-size.md)
+2. **PR size**
+3. **Blocks merge**
+4. **Clarity and naming**
+5. **Structure**
+6. **KB**
+7. **Questions**
+8. **Follow-up block**
 
 Phrase each finding as something the reviewer could ask the author. The reviewer decides what to raise and writes
 their own comments. No optional suggestions in reviewer mode.
@@ -134,7 +140,8 @@ follow-up block. If the author says the design was discussed, the review continu
 ## Follow-up block
 
 Every finding that doesn't block merge, as a Markdown task list the user can paste into a follow-up PR or a ticket.
-PR description findings are left out: editing the description doesn't trigger CI, so they are fixed right away.
+PR description findings are left out: editing the description doesn't trigger CI, so they are fixed right away. PR size
+findings are left out too: a split has to happen before the PR merges.
 
 Each item stands on its own: no finding numbers, no references to the review. It says the file and what to change.
 
