@@ -241,6 +241,9 @@ class CrsRosterTransitionTest {
                 PreprocessingVote.newBuilder().preprocessedKeys(shrinkOutputs).build();
         assertTrue(shrinkController.addPreprocessingVote(0, shrinkVote, store));
         assertTrue(shrinkController.addPreprocessingVote(1, shrinkVote, store));
+        // Node 6 holds no party in the active scheme, but its weight still counts toward the vote threshold
+        assertFalse(store.isReadyToAdopt(OLD_HASH));
+        assertTrue(shrinkController.addPreprocessingVote(2, shrinkVote, store));
         assertTrue(store.isReadyToAdopt(OLD_HASH));
         assertTrue(service.handoff(store, newRoster, oldRoster, OLD_HASH));
         assertEquals(16, store.getActiveConstruction().numParties());

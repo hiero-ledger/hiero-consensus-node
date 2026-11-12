@@ -2,6 +2,7 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
+import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
@@ -10,10 +11,12 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
@@ -143,7 +146,7 @@ public class HintsControllers {
             @NonNull final HintsConstruction construction,
             @NonNull final WritableHintsStore hintsStore,
             @Nullable final HintsConstruction activeHintsConstruction) {
-        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
+        final var weights = transitionWeightsFor(activeRosters, activeHintsConstruction);
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertHintsController(construction.constructionId());
         } else {
@@ -186,6 +189,33 @@ public class HintsControllers {
                     hintsStore,
                     onHintsFinished);
         }
+    }
+
+    /**
+     * Returns the weights for a transition whose source weights come from the active hinTS scheme when
+     * there is one, with a vote threshold of at least 1/3 of the weight of every source roster node.
+     *
+     * @param activeRosters the active rosters
+     * @param activeHintsConstruction the active hinTS construction, if any
+     * @return the transition weights
+     */
+    private static RosterTransitionWeights transitionWeightsFor(
+            @NonNull final ActiveRosters activeRosters, @Nullable final HintsConstruction activeHintsConstruction) {
+        final var schemeWeights = maybeWeightsFrom(activeHintsConstruction);
+        final var weights = activeRosters.transitionWeights(schemeWeights);
+        if (schemeWeights == null) {
+            return weights;
+        }
+        // A source node with no party in the scheme cannot vote, but its weight still counts toward the total
+        final long absentWeight = activeRosters.transitionWeights(null).sourceNodeWeights().entrySet().stream()
+                .filter(entry -> !schemeWeights.containsKey(entry.getKey()))
+                .mapToLong(Map.Entry::getValue)
+                .sum();
+        return new RosterTransitionWeights(
+                weights.sourceNodeWeights(),
+                weights.targetNodeWeights(),
+                atLeastOneThirdOfTotal(weights.totalSourceWeight() + absentWeight),
+                weights.targetWeightThreshold());
     }
 
     /**

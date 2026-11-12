@@ -3,11 +3,20 @@ package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
+import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -24,6 +33,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
+import java.util.stream.LongStream;
+import org.hiero.consensus.roster.ReadableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +51,9 @@ class HintsControllersTest {
     private static final Roster CURRENT_ROSTER = new Roster(List.of(
             RosterEntry.newBuilder().nodeId(1L).build(),
             RosterEntry.newBuilder().nodeId(2L).build()));
+    private static final PreprocessingVote VOTE = PreprocessingVote.newBuilder()
+            .preprocessedKeys(new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK")))
+            .build();
 
     @Mock
     private Executor executor;
@@ -76,6 +90,9 @@ class HintsControllersTest {
 
     @Mock
     private HintsController controller;
+
+    @Mock
+    private ReadableRosterStore rosterStore;
 
     private HintsControllers subject;
 
@@ -150,6 +167,81 @@ class HintsControllersTest {
         final var refreshedController =
                 subject.getOrCreateFor(activeRosters, learnedConstruction, hintsStore, HintsConstruction.DEFAULT);
         assertNotSame(staleController, refreshedController);
+    }
+
+    @Test
+    void sourceNodesMissingFromActiveSchemeStillCountTowardsVoteThreshold() {
+        final var votingController = votingControllerWithSchemePartyWeight(10L);
+
+        // Three nodes hold 30 of the source roster's 100 weight, which is less than one third
+        for (long nodeId = 0; nodeId < 3; nodeId++) {
+            assertTrue(votingController.addPreprocessingVote(nodeId, VOTE, hintsStore));
+        }
+        verify(hintsStore, never()).setHintsScheme(eq(2L), any(), any(), any());
+
+        // A fourth node brings the votes to 40, which is at least one third
+        assertTrue(votingController.addPreprocessingVote(3L, VOTE, hintsStore));
+        verify(hintsStore).setHintsScheme(eq(2L), eq(VOTE.preprocessedKeysOrThrow()), any(), any());
+    }
+
+    @Test
+    void activeSchemeWeightsStillDecideVoteWeightAfterWeightRotation() {
+        // The scheme's seven parties now weigh 20 each, so the total is 140 plus the 30 of the three other nodes
+        final var votingController = votingControllerWithSchemePartyWeight(20L);
+
+        // Two nodes hold 40 of that 170 weight, which is less than one third
+        for (long nodeId = 0; nodeId < 2; nodeId++) {
+            assertTrue(votingController.addPreprocessingVote(nodeId, VOTE, hintsStore));
+        }
+        verify(hintsStore, never()).setHintsScheme(eq(2L), any(), any(), any());
+
+        // A third node brings the votes to 60, which is at least one third
+        assertTrue(votingController.addPreprocessingVote(2L, VOTE, hintsStore));
+        verify(hintsStore).setHintsScheme(eq(2L), eq(VOTE.preprocessedKeysOrThrow()), any(), any());
+    }
+
+    /**
+     * Returns the controller for a construction in a network of ten nodes with roster weight 10, where
+     * nodes 7, 8, and 9 hold no party in the active hinTS scheme and every other node holds a party with
+     * the given weight.
+     */
+    private HintsController votingControllerWithSchemePartyWeight(final long partyWeight) {
+        final var sourceRosterHash = Bytes.wrap("source");
+        final var targetRosterHash = Bytes.wrap("target");
+        final var roster = new Roster(LongStream.range(0, 10)
+                .mapToObj(nodeId ->
+                        RosterEntry.newBuilder().nodeId(nodeId).weight(10L).build())
+                .toList());
+        given(rosterStore.getActiveRosterHash()).willReturn(sourceRosterHash);
+        given(rosterStore.getCandidateRosterHash()).willReturn(targetRosterHash);
+        given(rosterStore.get(sourceRosterHash)).willReturn(roster);
+        given(rosterStore.get(targetRosterHash)).willReturn(roster);
+        final var rosters = ActiveRosters.from(rosterStore, false, () -> false, null);
+        final var activeConstruction = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .hintsScheme(new HintsScheme(
+                        PreprocessedKeys.DEFAULT,
+                        LongStream.range(0, 7)
+                                .mapToObj(nodeId -> new NodePartyId(nodeId, (int) nodeId + 1, partyWeight))
+                                .toList()))
+                .build();
+        final var nextConstruction = HintsConstruction.newBuilder()
+                .constructionId(2L)
+                .crsId(1L)
+                .numParties(16)
+                .preprocessingStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        given(keyAccessor.getOrCreateBlsPrivateKey(2L)).willReturn(Bytes.EMPTY);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        given(hintsStore.getCrsStateFor(nextConstruction))
+                .willReturn(CRSState.newBuilder().stage(CRSStage.COMPLETED).build());
+        lenient()
+                .when(hintsStore.setHintsScheme(eq(2L), eq(VOTE.preprocessedKeysOrThrow()), any(), any()))
+                .thenReturn(nextConstruction
+                        .copyBuilder()
+                        .hintsScheme(new HintsScheme(VOTE.preprocessedKeysOrThrow(), List.of()))
+                        .build());
+        return subject.getOrCreateFor(rosters, nextConstruction, hintsStore, activeConstruction);
     }
 
     private void setController(final HintsController controller) throws Exception {
