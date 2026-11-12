@@ -3,6 +3,7 @@ package com.hedera.node.app.history;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
@@ -77,6 +78,12 @@ public interface HistoryService extends Service, OnProofFinished {
      * @param historyProof the latest history proof
      */
     void setLatestHistoryProof(@NonNull HistoryProof historyProof);
+
+    /**
+     * Offers a directly signed block witness for consensus publication. The verification key and generation
+     * must come from the captured signing attempt, not the current mutable signing context.
+     */
+    void publishKeyWitness(@NonNull Bytes verificationKey, @NonNull HintsKeyWitness witness);
 
     /**
      * Whether this service is ready to provide metadata-enriched proofs.

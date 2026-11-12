@@ -59,8 +59,8 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
     @Override
     protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
         final var round = platform.roundWith(serializedSignedTx);
-        hedera.onPreHandle(round.iterator().next(), state, NOOP_STATE_SIG_CALLBACK);
         synchronized (state) {
+            hedera.onPreHandle(round.iterator().next(), state, NOOP_STATE_SIG_CALLBACK);
             bulkUpdateOf(state, v -> {
                 v.setRound(round.getRoundNum());
                 v.setConsensusTimestamp(round.getConsensusTimestamp());

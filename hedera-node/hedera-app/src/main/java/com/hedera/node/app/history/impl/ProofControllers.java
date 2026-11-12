@@ -5,12 +5,14 @@ import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.tss.TssBlockHashSigner.usesChainOfTrustProof;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toSet;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
@@ -59,6 +61,14 @@ public class ProofControllers {
 
     @Nullable
     private HintsKeyProvenance controllerBinding;
+
+    /**
+     * If not null, whether the source proof that {@link #controller} was created with had a canonical WRAPS
+     * membership snapshot; null for a grounding construction or one without a source proof. A controller
+     * extending a proof that gains a snapshot in state must be rebuilt to use it, as a restarted node would.
+     */
+    @Nullable
+    private Boolean controllerSourceSnapshotted;
 
     @Inject
     public ProofControllers(
@@ -121,12 +131,15 @@ public class ProofControllers {
         requireNonNull(construction);
         requireNonNull(historyStore);
         requireNonNull(activeProofConstruction);
-        // A controller created from state takes its source weights from the hinTS construction active now, so a
-        // controller created before that construction had a scheme must be replaced to agree with it
-        final var sourceWeights = maybeWeightsFrom(activeHintsConstruction);
+        // Incremental authority follows the adopted hinTS generation, which may have newer stake weights than
+        // the platform roster. A grounding construction instead signs with its own complete target book.
+        final boolean grounding = groundsChainOfTrust(construction);
+        final var sourceWeights = grounding ? null : maybeWeightsFrom(activeHintsConstruction);
+        final var sourceSnapshotted = grounding ? null : snapshotStateOf(activeProofConstruction.targetProof());
         if (currentConstructionId() != construction.constructionId()
                 || !Objects.equals(controllerBinding, construction.keyProvenance())
-                || !Objects.equals(sourceWeights, controllerSourceWeights)) {
+                || !Objects.equals(sourceWeights, controllerSourceWeights)
+                || !Objects.equals(sourceSnapshotted, controllerSourceSnapshotted)) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
@@ -140,6 +153,7 @@ public class ProofControllers {
                     sourceSigner);
             controllerBinding = construction.keyProvenance();
             controllerSourceWeights = sourceWeights;
+            controllerSourceSnapshotted = sourceSnapshotted;
         }
         return requireNonNull(controller);
     }
@@ -193,17 +207,27 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction activeProofConstruction,
             @NonNull final TssConfig tssConfig,
             @Nullable final KeyProvenanceSigner sourceSigner) {
-        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
+        final boolean grounding = groundsChainOfTrust(construction);
+        final var weights =
+                activeRosters.transitionWeights(grounding ? null : maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
+            // Publisher readiness follows platform membership, not the sparse hinTS source authority.
+            // A joining target node cannot publish until platform adoption; an existing platform member
+            // can publish even if it did not contribute to the current hinTS scheme.
+            final var expectedProofKeyPublishers =
+                    requireNonNull(activeRosters.currentRoster()).rosterEntries().stream()
+                            .map(RosterEntry::nodeId)
+                            .filter(weights.targetNodeIds()::contains)
+                            .collect(toSet());
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
             final var wrapsMessagePublications =
                     historyStore.getWrapsMessagePublications(construction.constructionId(), weights.sourceNodeIds());
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
-            final var sourceProof = activeProofConstruction.targetProof();
+            final var sourceProof = grounding ? null : activeProofConstruction.targetProof();
             final var provenanceSigner = construction.hasKeyProvenance() ? sourceSigner : null;
             final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
                     s,
@@ -236,8 +260,13 @@ public class ProofControllers {
                     sourceProof,
                     historyProofMetrics,
                     tssConfig,
-                    provenanceSigner);
+                    provenanceSigner,
+                    expectedProofKeyPublishers);
         }
+    }
+
+    private static @Nullable Boolean snapshotStateOf(@Nullable final HistoryProof proof) {
+        return proof == null ? null : !proof.targetNodeWeights().isEmpty();
     }
 
     /**
