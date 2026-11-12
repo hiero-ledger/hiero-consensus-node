@@ -59,6 +59,9 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     /** The tipsets shared by the event creators of all mini nodes of this network. */
     private final FalconSharedTipsets sharedTipsets = new FalconSharedTipsets();
 
+    /** Collects the creation-to-consensus latency and the event throughput of all nodes of this network. */
+    private final ConsensusLatencyRecorder latencyRecorder = new ConsensusLatencyRecorder();
+
     /**
      * Constructor for {@code FalconNetwork}.
      *
@@ -112,6 +115,16 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
         return result;
     }
 
+    /**
+     * Returns the recorder that collects the creation-to-consensus latency and the event throughput of this network.
+     *
+     * @return the latency recorder
+     */
+    @NonNull
+    ConsensusLatencyRecorder latencyRecorder() {
+        return latencyRecorder;
+    }
+
     private void throwIfNodesAdded(@NonNull final String message) {
         throwIfNotInLifecycle(Lifecycle.INIT, message);
         if (!allNodes().isEmpty()) {
@@ -134,7 +147,9 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 networkConfiguration,
                 consensusRoundPool,
                 transactionShape,
-                signingSchema != null);
+                signingSchema != null,
+                latencyRecorder);
+        latencyRecorder.registerNode(nodeId, true);
         addEventReceiver(node);
         return node;
     }
@@ -164,7 +179,9 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 networkConfiguration,
                 sharedTipsets,
                 transactionShape,
-                signingSchema != null);
+                signingSchema != null,
+                latencyRecorder);
+        latencyRecorder.registerNode(nodeId, false);
         addEventReceiver(node);
         return node;
     }
