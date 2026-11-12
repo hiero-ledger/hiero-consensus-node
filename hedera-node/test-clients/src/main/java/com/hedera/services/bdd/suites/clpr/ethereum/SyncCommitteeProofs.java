@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.clpr;
+package com.hedera.services.bdd.suites.clpr.ethereum;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 
@@ -30,27 +30,25 @@ import java.util.Map;
 
 /**
  * Self-contained generator for the Ethereum sync-committee verifier's wire payloads, used by
- * {@link ClprEthSyncCommitteeVerifierSuite}.
+ * {@code ClprEthSyncCommitteeVerifierSuite}.
  * <p>
  * This class supports the generation of Ethereum configuration and bundle payloads, used by the CLPR HAPI tests
  * involving this ledger.
  *
- * <p><b>BLS.</b> The node's verifier currently runs a fake BLS check that accepts any signature, so a
- * placeholder 256-byte signature suffices today, and the committee keys are curve points but not real validator keys.
- * The signing root the real verifier would check is computed here and handed to {@link BlsSigner} so that, when a real
- * {@code BlsSignatureVerifier} and a BLS library land, only {@link BlsSigner} and the key generation need a real
- * implementation — the rest of the payload is already shaped as if signatures were verified.
+ * <p><b>BLS.</b> The node verifies the sync-aggregate signatures for real, so each committee holds secret keys and
+ * {@link BlsSigner} signs the signing roots computed here. The keys are small deterministic scalars, distinct per
+ * committee and member: fine for tests, never for a real validator.
  *
  * <p>The config payload is the protobuf {@code EthereumPosLedgerConfigurationPayload} that the verifier's
  * {@code verifyConfig(bytes,bytes32,bytes)} expects — <em>not</em> the {@code StateProof} envelope
- * {@link ClprTestProofs} builds for the passthrough verifier: a light-client bootstrap of the initial committee, and an
+ * {@code ClprTestProofs} builds for the passthrough verifier: a light-client bootstrap of the initial committee, and an
  * update it signs proving the next committee. The channel then trusts the initial committee for the configured period
  * and the next one for the period after. The bundle payload is the RLP {@code [ [rotation...], delivery ]} that
  * {@code verifyBundle(bytes,bytes,bytes)} expects, in the Gloas format.
  */
-final class EthSyncCommitteeProofs {
+public final class SyncCommitteeProofs {
 
-    private EthSyncCommitteeProofs() {}
+    private SyncCommitteeProofs() {}
 
     // ── Chain constants (a config payload and its bundles must share these) ──
     private static final byte[] GENESIS_VALIDATORS_ROOT = generateBytes(32, 0x44);
@@ -69,6 +67,9 @@ final class EthSyncCommitteeProofs {
     /** Members that do not sign the bundles, so every bundle exercises the non-signer proofs. */
     private static final int[] NON_SIGNERS = {3, 17};
 
+    /** Every member signs the config payload's update. */
+    private static final int[] NO_NON_SIGNERS = {};
+
     // ── Gloas generalized indices (consensus-specs light-client constants) ──
     private static final long FINALIZED_ROOT_GINDEX = 735L;
     private static final long CURRENT_SYNC_COMMITTEE_GINDEX = 2945L;
@@ -86,7 +87,7 @@ final class EthSyncCommitteeProofs {
     private static final byte[] ZERO_32 = new byte[32];
 
     /** The consensus presets the verifier supports. */
-    enum Preset {
+    public enum Preset {
         MAINNET(512, 8192),
         MINIMAL(32, 64);
 
@@ -108,12 +109,12 @@ final class EthSyncCommitteeProofs {
     // ─────────────────────────────────────────────────────────────────────────────
 
     /** A valid mainnet config payload: the initial and next committees and a peer config with throttles. */
-    static byte[] configPayload() {
+    public static byte[] configPayload() {
         return configPayload(Preset.MAINNET);
     }
 
     /** A valid config payload whose committees have the size of {@code preset}. */
-    static byte[] configPayload(final Preset preset) {
+    public static byte[] configPayload(final Preset preset) {
         return configPayload(preset, peerLedgerConfig(SERVICE_ADDRESS));
     }
 
@@ -123,7 +124,7 @@ final class EthSyncCommitteeProofs {
      * {@code CLPR_VERIFIER_CONFIG_FAILED}) — unlike endpoint/throttle checks, which the verifier ignores and the
      * completion handler enforces downstream.
      */
-    static byte[] configPayloadBadServiceAddress() {
+    public static byte[] configPayloadBadServiceAddress() {
         return configPayload(Preset.MAINNET, peerLedgerConfig(generateBytes(3, 0x66)));
     }
 
@@ -148,8 +149,8 @@ final class EthSyncCommitteeProofs {
                 beaconHeaderRoot(updateSlot, 9L, updateParentRoot, sparseRoot(updateState), updateBodyRoot);
         final byte[] bits = new byte[preset.committeeSize / 8];
         Arrays.fill(bits, (byte) 0xFF);
-        final byte[] signature = BlsSigner.PLACEHOLDER.sign(
-                computeSigningRoot(updateRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT), preset.committeeSize);
+        final byte[] signature =
+                current.sign(computeSigningRoot(updateRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT), NO_NON_SIGNERS);
         return EthereumPosLedgerConfigurationPayload.newBuilder()
                 .setSyncCommittee(current.toProto())
                 .setLedgerConfiguration(ledgerConfig)
@@ -216,7 +217,7 @@ final class EthSyncCommitteeProofs {
      * {@code endpointCount} manifest endpoints are generated deterministically via
      * {@link #manifestEndpointIp}/{@link #manifestEndpointPort}.
      */
-    static byte[] manifestBytes(final long version, final int endpointCount) {
+    public static byte[] manifestBytes(final long version, final int endpointCount) {
         return manifest(version, SERVICE_ADDRESS, endpointCount).toByteArray();
     }
 
@@ -225,17 +226,17 @@ final class EthSyncCommitteeProofs {
      * {@link #SERVICE_ADDRESS}. The verifier enforces spec §4.8 (manifest service_address == config service_address),
      * so completeChannel reverts with {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
-    static byte[] manifestBytesBadServiceAddress() {
+    public static byte[] manifestBytesBadServiceAddress() {
         return manifest(1L, generateBytes(20, 0x66), 1).toByteArray();
     }
 
     /** Deterministic IP address of manifest endpoint {@code i}, mirrored by the suite's assertions. */
-    static String manifestEndpointIp(final int i) {
+    public static String manifestEndpointIp(final int i) {
         return "10.0.0." + (i + 1);
     }
 
     /** Deterministic port of manifest endpoint {@code i}, mirrored by the suite's assertions. */
-    static int manifestEndpointPort(final int i) {
+    public static int manifestEndpointPort(final int i) {
         return 50_000 + i;
     }
 
@@ -266,7 +267,7 @@ final class EthSyncCommitteeProofs {
      * none of ours) and {@code sentRunningHash = SHA-256(ZERO || SHA-256(serialized(payload)))}, matching
      * what the submit handler recomputes when it folds the delivered message.
      */
-    static ClprBundleContent singleMessageBundleContent(final ClprMessagePayload payload) {
+    public static ClprBundleContent singleMessageBundleContent(final ClprMessagePayload payload) {
         final byte[] sentRunningHash = sha256(ZERO_32, sha256(serializePayload(payload)));
         final var metadata = ClprQueueMetadata.newBuilder()
                 .setNextMessageId(2L)
@@ -286,7 +287,7 @@ final class EthSyncCommitteeProofs {
      * reports {@code nextMessageId = 3} (messages #1 and #2 sent) and a running hash chained over both
      * payloads.
      */
-    static ClprBundleContent twoMessageBundleContent(
+    public static ClprBundleContent twoMessageBundleContent(
             final ClprMessagePayload payload1, final ClprMessagePayload payload2) {
         final byte[] hash1 = sha256(ZERO_32, sha256(serializePayload(payload1)));
         final byte[] sentRunningHash = sha256(hash1, sha256(serializePayload(payload2)));
@@ -308,12 +309,12 @@ final class EthSyncCommitteeProofs {
      * A valid mainnet bundle with no rotation, signed by the initial committee, whose proven Channel slots of
      * {@code channelId} encode exactly {@code content}'s metadata.
      */
-    static byte[] bundlePayload(final byte[] channelId, final ClprBundleContent content) {
+    public static byte[] bundlePayload(final byte[] channelId, final ClprBundleContent content) {
         return bundlePayload(Preset.MAINNET, channelId, content);
     }
 
     /** A valid bundle with no rotation, under a channel configured with {@code preset}. */
-    static byte[] bundlePayload(final Preset preset, final byte[] channelId, final ClprBundleContent content) {
+    public static byte[] bundlePayload(final Preset preset, final byte[] channelId, final ClprBundleContent content) {
         final Committee committee = Committee.initial(preset);
         return bundle(List.of(), new Delivery(preset, CONFIG_PERIOD, committee, channelId, content).toRlpItems());
     }
@@ -323,7 +324,7 @@ final class EthSyncCommitteeProofs {
      * fails to verify against the proven execution state root and the verifier rejects the bundle with
      * {@code CLPR_BUNDLE_VERIFICATION_FAILED}.
      */
-    static byte[] tamperedBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+    public static byte[] tamperedBundlePayload(final byte[] channelId, final ClprBundleContent content) {
         final Delivery delivery =
                 new Delivery(Preset.MAINNET, CONFIG_PERIOD, Committee.initial(Preset.MAINNET), channelId, content);
         delivery.tamperAccountProof = true;
@@ -336,7 +337,7 @@ final class EthSyncCommitteeProofs {
      * delivery signed by that committee two periods after the configured one. The verifier returns a successor trust
      * anchor.
      */
-    static byte[] rotationBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+    public static byte[] rotationBundlePayload(final byte[] channelId, final ClprBundleContent content) {
         final Committee next = Committee.next(Preset.MAINNET);
         final Committee afterNext = Committee.afterNext(Preset.MAINNET);
         final Object rotation = rotation(Preset.MAINNET, CONFIG_PERIOD + 1, next, afterNext);
@@ -350,7 +351,7 @@ final class EthSyncCommitteeProofs {
      * delivery signed by the committee two periods after the configured one, which only the rotated trust anchor
      * accepts.
      */
-    static byte[] postRotationBundlePayload(final byte[] channelId, final ClprBundleContent content) {
+    public static byte[] postRotationBundlePayload(final byte[] channelId, final ClprBundleContent content) {
         final Committee afterNext = Committee.afterNext(Preset.MAINNET);
         return bundle(
                 List.of(), new Delivery(Preset.MAINNET, CONFIG_PERIOD + 2, afterNext, channelId, content).toRlpItems());
@@ -361,7 +362,7 @@ final class EthSyncCommitteeProofs {
      * ({@code keccak256(manifestBytes)}) is proven at slot 18 in the SAME storage trie — under the SAME account storage
      * root — as the Channel slots, so the single account proof commits to both.
      */
-    static byte[] bundlePayloadWithManifest(
+    public static byte[] bundlePayloadWithManifest(
             final byte[] channelId, final ClprBundleContent content, final byte[] manifestBytes) {
         final Delivery delivery =
                 new Delivery(Preset.MAINNET, CONFIG_PERIOD, Committee.initial(Preset.MAINNET), channelId, content);
@@ -370,7 +371,7 @@ final class EthSyncCommitteeProofs {
     }
 
     /** The trust anchor id after {@link #rotationBundlePayload}: the period after the configured one, 8 bytes BE. */
-    static byte[] trustAnchorIdAfterRotation() {
+    public static byte[] trustAnchorIdAfterRotation() {
         final byte[] id = new byte[Long.BYTES];
         putUint64BigEndian(id, 0, CONFIG_PERIOD + 1);
         return id;
@@ -406,7 +407,7 @@ final class EthSyncCommitteeProofs {
         final byte[] bodyRoot = generateBytes(32, 0x62);
         return List.of(
                 header(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot),
-                syncAggregate(preset, beaconHeaderRoot(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot)),
+                syncAggregate(signer, preset, beaconHeaderRoot(attestedSlot, 11L, parentRoot, stateRoot, bodyRoot)),
                 signer.nonSignerEntries(),
                 header(finalizedSlot, 5L, finalizedParentRoot, finalizedStateRoot, finalizedBodyRoot),
                 byteList(sparseBranch(state, FINALIZED_ROOT_GINDEX)),
@@ -501,6 +502,7 @@ final class EthSyncCommitteeProofs {
                     header(attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot),
                     minimalBE(attestedSlot + 1), // signature slot
                     syncAggregate(
+                            signer,
                             preset,
                             beaconHeaderRoot(
                                     attestedSlot, 7L, attestedParentRoot, attestedStateRoot, attestedBodyRoot)),
@@ -519,17 +521,16 @@ final class EthSyncCommitteeProofs {
     }
 
     /**
-     * The sync aggregate over an attested header: every member signs except {@link #NON_SIGNERS}; the signature comes
-     * from the (placeholder) signer over the real signing root.
+     * {@code signer}'s sync aggregate over an attested header: every member signs except {@link #NON_SIGNERS}.
      */
-    private static Object syncAggregate(final Preset preset, final byte[] attestedRoot) {
+    private static Object syncAggregate(final Committee signer, final Preset preset, final byte[] attestedRoot) {
         final byte[] bits = new byte[preset.committeeSize / 8];
         Arrays.fill(bits, (byte) 0xFF);
         for (final int index : NON_SIGNERS) {
             bits[index / 8] &= (byte) ~(1 << (index % 8));
         }
         final byte[] signingRoot = computeSigningRoot(attestedRoot, FORK_VERSION, GENESIS_VALIDATORS_ROOT);
-        return List.of(bits, BlsSigner.PLACEHOLDER.sign(signingRoot, preset.committeeSize - NON_SIGNERS.length));
+        return List.of(bits, signer.sign(signingRoot, NON_SIGNERS));
     }
 
     // ── Storage-slot layout and packing (mirrors the ClprService Channel struct) ──
@@ -595,9 +596,8 @@ final class EthSyncCommitteeProofs {
     // ─────────────────────────────────────────────────────────────────────────────
 
     /**
-     * A committee of test keys whose uncompressed (EIP-2537) and compressed (ZCash) forms are consistent: points of the
-     * curve {@code y² = x³ + 4} whose {@code x} is derived from the seed and the member index, as the verifier rejects
-     * off-curve keys. Members alternate between the smaller and the larger {@code y}, so both sign-flag values occur.
+     * A committee of test validators: secret keys {@code seed · 2³² + index + 1}, their public keys in the uncompressed
+     * (EIP-2537) and compressed (ZCash) forms, and the aggregate of all of them.
      */
     private static final class Committee {
         /** The BLS12-381 base field modulus. */
@@ -607,30 +607,27 @@ final class EthSyncCommitteeProofs {
         /** {@code (p - 1) / 2}: a {@code y} above it is the larger root, flagged by the sign bit. */
         private static final BigInteger HALF_FIELD_MODULUS = FIELD_MODULUS.shiftRight(1);
 
-        /** {@code (p + 1) / 4}: as {@code p ≡ 3 (mod 4)}, {@code a^((p+1)/4)} is a square root of any square. */
-        private static final BigInteger SQUARE_ROOT_EXPONENT =
-                FIELD_MODULUS.add(BigInteger.ONE).shiftRight(2);
-
-        /** The constant {@code b} of the curve {@code y² = x³ + b}. */
-        private static final BigInteger CURVE_B = BigInteger.valueOf(4);
-
         final byte[][] uncompressedKeys;
         final byte[][] compressedKeys;
         final byte[] uncompressedAggregate;
         final byte[] compressedAggregate;
         final byte[] pubkeysRoot;
+        private final BigInteger[] secretKeys;
         private final byte[][] leaves;
 
         private Committee(final int size, final int seed) {
+            secretKeys = new BigInteger[size];
             uncompressedKeys = new byte[size][];
             compressedKeys = new byte[size][];
             leaves = new byte[size][];
             for (int i = 0; i < size; i++) {
-                uncompressedKeys[i] = curvePoint(seed, i);
+                secretKeys[i] = BigInteger.valueOf(seed).shiftLeft(Integer.SIZE).add(BigInteger.valueOf(i + 1L));
+                uncompressedKeys[i] = BlsSigner.publicKey(secretKeys[i]);
                 compressedKeys[i] = compress(uncompressedKeys[i]);
                 leaves[i] = pubkeyChunk(compressedKeys[i]);
             }
-            uncompressedAggregate = curvePoint(seed + 1, size);
+            // The aggregate of the public keys is the public key of the sum of the secret keys.
+            uncompressedAggregate = BlsSigner.publicKey(sumOfSecretKeys(NO_NON_SIGNERS));
             compressedAggregate = compress(uncompressedAggregate);
             pubkeysRoot = merkleize(leaves);
         }
@@ -665,6 +662,25 @@ final class EthSyncCommitteeProofs {
             return sha256(pubkeysRoot, pubkeyChunk(compressedAggregate));
         }
 
+        /**
+         * The aggregate signature over {@code signingRoot32} of every member but {@code nonSigners}: the signature of
+         * the sum of their secret keys.
+         */
+        byte[] sign(final byte[] signingRoot32, final int[] nonSigners) {
+            return BlsSigner.sign(sumOfSecretKeys(nonSigners), signingRoot32);
+        }
+
+        private BigInteger sumOfSecretKeys(final int[] excluded) {
+            BigInteger sum = BigInteger.ZERO;
+            for (int i = 0; i < secretKeys.length; i++) {
+                final int member = i;
+                if (Arrays.stream(excluded).noneMatch(index -> index == member)) {
+                    sum = sum.add(secretKeys[i]);
+                }
+            }
+            return sum.mod(BlsSigner.SUBGROUP_ORDER);
+        }
+
         /** One {@code key128 ‖ siblings} entry per {@link #NON_SIGNERS} member, in ascending index order. */
         List<Object> nonSignerEntries() {
             final List<Object> entries = new ArrayList<>();
@@ -684,44 +700,6 @@ final class EthSyncCommitteeProofs {
                 entries.add(concat(parts));
             }
             return entries;
-        }
-
-        /**
-         * The EIP-2537 encoding of the first curve point at or after an {@code x} unique per (seed, index): the first
-         * {@code x} whose {@code x³ + 4} is a square mod {@code p}. Even members take the smaller {@code y}.
-         */
-        private static byte[] curvePoint(final int seed, final int index) {
-            final byte[] start = new byte[48];
-            for (int j = 0; j < 48; j++) {
-                start[j] = (byte) (seed * 13 + index * 7 + j);
-            }
-            // Below p (top byte 0x01) and unique per (seed, index).
-            start[0] = 0x01;
-            start[1] = (byte) (index >>> 8);
-            start[2] = (byte) index;
-            start[3] = (byte) seed;
-            BigInteger x = new BigInteger(1, start);
-            while (true) {
-                final BigInteger ySquared = x.pow(3).add(CURVE_B).mod(FIELD_MODULUS);
-                final BigInteger root = ySquared.modPow(SQUARE_ROOT_EXPONENT, FIELD_MODULUS);
-                if (root.multiply(root).mod(FIELD_MODULUS).equals(ySquared)) {
-                    final BigInteger otherRoot = FIELD_MODULUS.subtract(root);
-                    final BigInteger y = (index % 2 == 0) == (root.compareTo(otherRoot) < 0) ? root : otherRoot;
-                    final byte[] point = new byte[128];
-                    System.arraycopy(toBytes48(x), 0, point, 16, 48);
-                    System.arraycopy(toBytes48(y), 0, point, 80, 48);
-                    return point;
-                }
-                x = x.add(BigInteger.ONE);
-            }
-        }
-
-        private static byte[] toBytes48(final BigInteger value) {
-            final byte[] raw = value.toByteArray();
-            final byte[] out = new byte[48];
-            final int length = Math.min(raw.length, 48);
-            System.arraycopy(raw, raw.length - length, out, 48 - length, length);
-            return out;
         }
 
         /** ZCash compression: {@code x} with the compression flag and, when {@code y > (p-1)/2}, the sign flag. */
@@ -998,23 +976,6 @@ final class EthSyncCommitteeProofs {
         return hasLeafBelow
                 ? sha256(sparseNode(leavesByGindex, 2 * gindex), sparseNode(leavesByGindex, 2 * gindex + 1))
                 : ZERO_32;
-    }
-
-    // ─────────────────────────────────────────────────────────────────────────────
-    //  BLS signing seam
-    // ─────────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Produces the sync-aggregate signature over the committee signing root. The node currently runs a
-     * fake BLS verifier that accepts any signature, so {@link #PLACEHOLDER} returns a structurally-valid
-     * 256-byte (EIP-2537 uncompressed G2) zero signature. When a real {@code BlsSignatureVerifier} and a BLS12-381 library land, swap
-     * in a real signer here (signing over G2 with the {@code BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_}
-     * ciphersuite) and real committee keys; nothing else in this generator changes.
-     */
-    interface BlsSigner {
-        byte[] sign(byte[] signingRoot32, int numParticipants);
-
-        BlsSigner PLACEHOLDER = (signingRoot32, numParticipants) -> new byte[256];
     }
 
     // ─────────────────────────────────────────────────────────────────────────────

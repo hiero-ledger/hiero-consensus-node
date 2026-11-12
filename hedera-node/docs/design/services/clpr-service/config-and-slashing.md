@@ -200,43 +200,23 @@ and endpoint incentives.
 
 ### Per-message charge on successful dispatch
 
-For every inbound data message that dispatches successfully (i.e., the application
-contract returns without reverting and the reply status is `SUCCESS`), the following
-transfer occurs:
+Application execution gas is paid to the network by the original bundle payer before
+any EVM execution. The parent holds the full transaction gas allowance until completion,
+then refunds unused fees. A later parent rollback retains payment for executed gas.
 
-1. **Connector is charged** — the receiving connector's contract account is debited:
+A receiving DATA connector reimburses actual gas plus the existing flat endpoint
+compensation (`messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100`).
+The worst-case reimbursement is debited before the callback and unused reimbursement
+is returned afterward. Response callbacks reimburse actual gas without the DATA flat
+compensation; absent or underfunded source connectors skip best-effort delivery.
+Callbacks rejected by consensus throttling before execution incur no gas charge,
+so their entire gas reimbursement is returned to the connector.
 
-   ```
-   charge = messageExecutionCost + (messageExecutionCost * endpointMarginPercent / 100)
-   ```
-2. **Submitting endpoint is paid** — the entire `charge` is credited to the Hiero
-   consensus node that submitted the `ClprSubmitBundle` transaction. There is no
-   central treasury; the submitter receives the full amount.
-
-The submitting endpoint is identified by `endpoint_node_id` on the transaction body,
-resolved through `ReadableNodeStore`. The node's account receives the payment.
-
-### Why the submitter receives the full charge
-
-The economics are designed so that submitting nodes have a direct financial incentive
-to relay bundles promptly and honestly. A node that delays or censors bundles gives up
-the execution payment to whichever node eventually submits the same bundle. There is no
-"protocol fee" extracted to a treasury — the design assumes that enough competition
-among nodes will keep margins honest.
-
-### Planned gas-based model (E-10)
-
-The current flat `messageExecutionCost` is a placeholder. The planned model charges
-the connector the *actual gas consumed* by the application dispatch plus margin:
-
-```
-charge = gasUsed * gasPriceTinybars * (1 + endpointMarginPercent / 100)
-```
-
-The same "submitter receives all" rule applies. Under the gas-based model, high-gas
-messages cost connectors more and compensate submitters more, aligning costs with
-actual compute. See E-10 in [`clpr-hiero-spec.md`](clpr-hiero-spec.md) for the full
-rationale and implementation notes.
+The full sum of verifier and callback gas grants is capped by
+`contracts.maxGasPerTransaction`. Remaining callback payloads share the available gas,
+with each grant capped by `maxGasPerMessage`. EVM billing refunds do not restore granted
+execution capacity. See [E-10](clpr-hiero-spec.md#e-10-application-execution-gas-and-endpoint-compensation)
+for pricing, rollback, and grant-allocation details.
 
 ### Slashing payouts (non-success path)
 
