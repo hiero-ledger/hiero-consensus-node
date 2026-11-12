@@ -70,7 +70,15 @@ public enum CloseReason {
     /**
      * The connection was closed due to too many timeouts sending requests to the block node.
      */
-    TIMEOUT(CoolDownType.BASIC);
+    TIMEOUT(CoolDownType.BASIC),
+    /**
+     * The connection is closed because it is no longer needed.
+     */
+    OBSOLETE(CoolDownType.NONE),
+    /**
+     * The connection is closed because no replies have been received.
+     */
+    IDLE_RECEIVE(CoolDownType.NONE);
 
     private final CoolDownType coolDownType;
 

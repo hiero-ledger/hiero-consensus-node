@@ -28,6 +28,7 @@ import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherRequest;
+import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
@@ -57,7 +58,6 @@ import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
-import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.block.api.PublishStreamResponse.ResponseOneOfType;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -274,7 +274,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).acknowledgeBlock(10L, blockNodeStreamingEndpoint);
         verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.ACKNOWLEDGEMENT);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
@@ -310,7 +310,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).acknowledgeBlock(8L, blockNodeStreamingEndpoint);
         verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(bufferService, times(8)).getBlockState(anyLong());
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(bufferService);
@@ -348,7 +348,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).acknowledgeBlock(11L, blockNodeStreamingEndpoint);
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
-        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(bufferService, times(10)).getBlockState(anyLong());
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
@@ -386,7 +386,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).acknowledgeBlock(11L, blockNodeStreamingEndpoint);
         verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(bufferService, times(11)).getBlockState(anyLong());
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
@@ -427,7 +427,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).acknowledgeBlock(10L, blockNodeStreamingEndpoint);
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
-        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(bufferService, times(10)).getBlockState(anyLong());
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
@@ -471,11 +471,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
         verify(bufferService).acknowledgeBlock(10L, blockNodeStreamingEndpoint);
         verify(bufferService, atLeastOnce()).getBlockState(anyLong());
-        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(metrics).recordHighLatencyEvent();
-        verify(metrics).recordConnectionClosed(CloseReason.BLOCK_NODE_HIGH_LATENCY);
-        verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TIMEOUT);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BLOCK_NODE_HIGH_LATENCY);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TIMEOUT);
         verify(connectionManager).notifyConnectionClosed(connection);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
@@ -495,8 +495,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.END_STREAM_RECEIVED);
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
-        verify(metrics).recordResponseEndOfStreamReceived(responseCode);
-        verify(metrics).recordConnectionClosed(CloseReason.END_STREAM_RECEIVED);
+        verify(metrics).recordResponseEndOfStreamReceived(ConnectionType.BLOCK_STREAMING, responseCode);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
@@ -515,8 +515,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.TRANSIENT_END_STREAM_RECEIVED);
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
-        verify(metrics).recordResponseEndOfStreamReceived(responseCode);
-        verify(metrics).recordConnectionClosed(CloseReason.TRANSIENT_END_STREAM_RECEIVED);
+        verify(metrics).recordResponseEndOfStreamReceived(ConnectionType.BLOCK_STREAMING, responseCode);
+        verify(metrics)
+                .recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.TRANSIENT_END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
@@ -526,15 +527,15 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_endOfStream_blockNodeGracefulShutdown() {
         activateConnection();
         // STREAM_ITEMS_SUCCESS is sent when the block node is gracefully shutting down
-        final PublishStreamResponse response = createEndOfStreamResponse(Code.SUCCESS, 10L);
+        final PublishStreamResponse response = createEndOfStreamResponse(EndOfStream.Code.SUCCESS, 10L);
 
         connection.onNext(response);
 
         assertThat(connection.closeReason()).isEqualTo(CloseReason.END_STREAM_RECEIVED);
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
-        verify(metrics).recordResponseEndOfStreamReceived(Code.SUCCESS);
-        verify(metrics).recordConnectionClosed(CloseReason.END_STREAM_RECEIVED);
+        verify(metrics).recordResponseEndOfStreamReceived(ConnectionType.BLOCK_STREAMING, EndOfStream.Code.SUCCESS);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
@@ -561,7 +562,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(stats).shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class));
         verify(bufferService).getBlockState(11L);
         verifyNoMoreInteractions(metrics);
@@ -582,10 +583,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.BLOCK_NODE_BEHIND);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
-        verify(metrics).recordConnectionClosed(CloseReason.BLOCK_NODE_BEHIND);
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
-        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BLOCK_NODE_BEHIND);
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TOO_FAR_BEHIND);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService).getBlockState(11L);
@@ -617,10 +618,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
-        verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
-        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.INTERNAL_ERROR);
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(stats).shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class));
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
@@ -643,14 +644,14 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_endOfStream_itemsUnknown() {
         activateConnection();
 
-        final PublishStreamResponse response = createEndOfStreamResponse(Code.UNKNOWN, 10L);
+        final PublishStreamResponse response = createEndOfStreamResponse(EndOfStream.Code.UNKNOWN, 10L);
         connection.onNext(response);
 
         assertThat(connection.closeReason()).isEqualTo(CloseReason.END_STREAM_RECEIVED);
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
-        verify(metrics).recordResponseEndOfStreamReceived(Code.UNKNOWN);
-        verify(metrics).recordConnectionClosed(CloseReason.END_STREAM_RECEIVED);
+        verify(metrics).recordResponseEndOfStreamReceived(ConnectionType.BLOCK_STREAMING, EndOfStream.Code.UNKNOWN);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
@@ -666,7 +667,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(26);
 
         verify(metrics).recordLatestBlockSkipBlock(25L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.SKIP_BLOCK);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
         verifyNoMoreInteractions(connectionManager);
@@ -684,7 +685,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(27);
 
         verify(metrics).recordLatestBlockSkipBlock(25L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.SKIP_BLOCK);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
         verifyNoMoreInteractions(connectionManager);
@@ -703,7 +704,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(10);
 
         verify(metrics).recordLatestBlockResendBlock(10L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.RESEND_BLOCK);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.RESEND_BLOCK);
         verify(bufferService).getBlockState(10L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
@@ -726,10 +727,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.BLOCK_NODE_BEHIND);
 
         verify(metrics).recordLatestBlockResendBlock(10L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.RESEND_BLOCK);
-        verify(metrics).recordConnectionClosed(CloseReason.BLOCK_NODE_BEHIND);
-        verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.RESEND_BLOCK);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BLOCK_NODE_BEHIND);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TOO_FAR_BEHIND);
         verify(requestCall).sendRequest(createRequest(EndStream.Code.TOO_FAR_BEHIND, 11L), false);
         verify(requestCall).completeRequests();
         verify(connectionManager).notifyConnectionClosed(connection);
@@ -756,10 +757,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
 
         verify(metrics).recordLatestBlockResendBlock(10L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.RESEND_BLOCK);
-        verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
-        verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.RESEND_BLOCK);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.INTERNAL_ERROR);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
         verify(requestCall).sendRequest(createRequest(EndStream.Code.ERROR), false);
         verify(requestCall).completeRequests();
         verify(bufferService).getBlockState(10L);
@@ -777,7 +778,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final PublishStreamResponse response = new PublishStreamResponse(new OneOf<>(ResponseOneOfType.UNSET, null));
         connection.onNext(response);
 
-        verify(metrics).recordUnknownResponseReceived();
+        verify(metrics).recordUnknownResponseReceived(ConnectionType.BLOCK_STREAMING);
 
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
@@ -868,9 +869,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(streamingBlockNumber).hasValue(10);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.BLOCK_NODE_BEHIND);
 
-        verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
-        verify(metrics).recordConnectionClosed(CloseReason.BLOCK_NODE_BEHIND);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.TOO_FAR_BEHIND);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BLOCK_NODE_BEHIND);
         verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
@@ -930,18 +931,18 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // Should have sent block 11 header and EndOfBlock
         assertRequestContainsItems(allRequests.getFirst(), block11Header);
 
-        verify(metrics, atLeast(1)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics, times(1)).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        verify(metrics, atLeast(1)).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(1)).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.END_OF_BLOCK);
         verify(metrics, atLeast(1)).recordBlockItemsSent(1);
-        verify(metrics, atLeast(2)).recordRequestLatency(anyLong());
+        verify(metrics, atLeast(2)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordLatestBlockSkipBlock(10);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.SKIP_BLOCK);
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verify(bufferService, atLeastOnce()).getBlockState(12);
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(metrics, times(1)).recordRequestBlockItemCount(1);
-        verify(metrics, times(1)).recordRequestBytes(anyLong());
+        verify(metrics, times(1)).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
         verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
@@ -1045,7 +1046,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // The connection must NOT have been fatally closed: both items are valid and can each be sent in their own
         // request. This is the primary signal of the bug.
         verify(metrics, never()).recordRequestExceedsHardLimit();
-        verify(metrics, never()).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(metrics, never()).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
         assertThat(connection.currentState()).isNotEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isNotEqualTo(CloseReason.INTERNAL_ERROR);
 
@@ -1135,8 +1136,8 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(endStream).isNotNull();
         assertThat(endStream.endCode()).isEqualTo(EndStream.Code.ERROR);
 
-        verify(metrics, times(4)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(metrics, times(4)).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
 
         final ArgumentCaptor<Integer> metricItemsSentCaptor = ArgumentCaptor.forClass(Integer.class);
         verify(metrics, times(4)).recordBlockItemsSent(metricItemsSentCaptor.capture());
@@ -1150,15 +1151,15 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
 
         verify(metrics).recordRequestExceedsHardLimit();
-        verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
-        verify(metrics, times(5)).recordRequestLatency(anyLong());
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.INTERNAL_ERROR);
+        verify(metrics, times(5)).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(requestCall).completeRequests();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
         verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
-        verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
+        verify(metrics, atLeastOnce()).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
@@ -1185,7 +1186,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_endOfStream_rateLimitExceeded() {
         activateConnection();
-        final PublishStreamResponse response = createEndOfStreamResponse(Code.ERROR, 10L);
+        final PublishStreamResponse response = createEndOfStreamResponse(EndOfStream.Code.ERROR, 10L);
         when(stats.addEndOfStreamAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class)))
                 .thenReturn(true);
 
@@ -1195,9 +1196,10 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.TOO_MANY_END_STREAM_RESPONSES);
 
         verify(metrics).recordLatestBlockEndOfStream(10L);
-        verify(metrics).recordResponseEndOfStreamReceived(Code.ERROR);
+        verify(metrics).recordResponseEndOfStreamReceived(ConnectionType.BLOCK_STREAMING, EndOfStream.Code.ERROR);
         verify(metrics).recordEndOfStreamLimitExceeded();
-        verify(metrics).recordConnectionClosed(CloseReason.TOO_MANY_END_STREAM_RESPONSES);
+        verify(metrics)
+                .recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.TOO_MANY_END_STREAM_RESPONSES);
         verify(stats).addEndOfStreamAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class));
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
@@ -1219,8 +1221,9 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.TRANSIENT_END_STREAM_RECEIVED);
 
         verify(metrics).recordLatestBlockEndOfStream(Long.MAX_VALUE);
-        verify(metrics).recordResponseEndOfStreamReceived(responseCode);
-        verify(metrics).recordConnectionClosed(CloseReason.TRANSIENT_END_STREAM_RECEIVED);
+        verify(metrics).recordResponseEndOfStreamReceived(ConnectionType.BLOCK_STREAMING, responseCode);
+        verify(metrics)
+                .recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.TRANSIENT_END_STREAM_RECEIVED);
         verify(requestCall).completeRequests();
 
         verifyNoMoreInteractions(metrics);
@@ -1244,7 +1247,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // internal inconsistency: the CN sends EndStream.ERROR and closes with INTERNAL_ERROR.
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.ERROR);
         verify(requestCall).completeRequests();
     }
 
@@ -1262,7 +1265,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         connection.onNext(response);
 
         verify(metrics).recordLatestBlockBehindPublisher(Long.MAX_VALUE);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(stats).shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class));
         verify(stats).addBehindPublisherAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class));
         verify(bufferService).getBlockState(0L);
@@ -1292,11 +1295,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.closeReason()).isEqualTo(CloseReason.BLOCK_NODE_BEHIND);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
-        verify(metrics).recordConnectionClosed(CloseReason.BLOCK_NODE_BEHIND);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordConnectionClosed(ConnectionType.BLOCK_STREAMING, CloseReason.BLOCK_NODE_BEHIND);
         // Verify EndStream request metrics
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
-        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(stats).shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class));
         verify(stats).addBehindPublisherAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class));
         // Verify EndStream request was sent with RESET code
@@ -1326,7 +1329,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
 
         verify(metrics).recordLatestBlockBehindPublisher(10L);
-        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(bufferService).getBlockState(11L);
         verify(stats).shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class));
         verify(stats).addBehindPublisherAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class));
@@ -1349,7 +1352,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
 
         // Metrics are recorded before the ignore check in onNext, but handleBlockNodeBehind returns early
-        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordResponseReceived(ConnectionType.BLOCK_STREAMING, ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(stats).shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class));
         // Should NOT record or process the message in handleBlockNodeBehind

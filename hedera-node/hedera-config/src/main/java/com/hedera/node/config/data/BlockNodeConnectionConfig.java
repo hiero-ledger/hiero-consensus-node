@@ -48,6 +48,8 @@ import java.time.Duration;
  * @param opTimeoutMaxAttemptsPerWindow the maximum number of times requests are allowed to timeout within a given window before the connection is closed
  * @param opTimeoutWindowDuration the sliding window duration used for checking if too many request timeouts have occurred
  * @param grpcCompressionType the type of compression to use while communicating to the block node
+ * @param maxObserverIdleSeconds the maximum amount of time (in seconds) that an observing connection can go without receiving an acknowledgement before being closed
+ * @param idealObserversCoolDownSeconds the minimum amount of time (in seconds) to permit trying to establish the ideal number of observers when the minimum number is already established
  */
 // spotless:off
 @ConfigData("blockNode")
@@ -84,6 +86,8 @@ public record BlockNodeConnectionConfig(
         @ConfigProperty(value = "operationTimeout.maxMillis", defaultValue = "30000") @Min(1) @NetworkProperty long opTimeoutMaxMillis,
         @ConfigProperty(value = "operationTimeout.maxTimeoutsPerWindow", defaultValue = "3") @Min(1) @NetworkProperty int opTimeoutMaxAttemptsPerWindow,
         @ConfigProperty(value = "operationTimeout.timeoutWindowDuration", defaultValue = "60s") @NetworkProperty Duration opTimeoutWindowDuration,
-        @ConfigProperty(defaultValue = "ZSTD") @NetworkProperty BlockStreamGrpcCompressionType grpcCompressionType) {
+        @ConfigProperty(defaultValue = "ZSTD") @NetworkProperty BlockStreamGrpcCompressionType grpcCompressionType,
+        @ConfigProperty(defaultValue = "30") @NetworkProperty int maxObserverIdleSeconds,
+        @ConfigProperty(defaultValue = "30") @Min(1) @NetworkProperty int idealObserversCoolDownSeconds) {
 }
 // spotless:on

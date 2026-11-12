@@ -75,7 +75,10 @@ public class BlockBufferService extends BlockStreamingBase {
      * This tracks the earliest block number in the buffer.
      */
     private final AtomicLong earliestBlockNumber = new AtomicLong(Long.MIN_VALUE);
-
+    /**
+     * This tracks the latest (highest) block that has been closed.
+     */
+    private final AtomicLong latestBlockClosed = new AtomicLong(Long.MIN_VALUE);
     /**
      * This tracks the highest block number that has been acknowledged by the connected block node. This is kept
      * separately instead of individual acknowledgement tracking on a per-block basis because it is possible that after
@@ -421,6 +424,7 @@ public class BlockBufferService extends BlockStreamingBase {
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
         blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
         blockState.closeBlock();
+        latestBlockClosed.updateAndGet(old -> Math.max(old, blockNumber));
     }
 
     /**
@@ -584,7 +588,7 @@ public class BlockBufferService extends BlockStreamingBase {
 
         if (orderedBlockAcks.size() < minAcknowledgementsRequired) {
             logger.warn(
-                    "Not enough block nodes available ({}) to reach block acknowledgement threshold ({})",
+                    "Not enough unique acknowledgements received to reach block acknowledgement threshold (block: {}, received: {}, threshold: {})",
                     orderedBlockAcks.size(),
                     minAcknowledgementsRequired);
             return getHighestAckedBlockNumber();
@@ -694,6 +698,15 @@ public class BlockBufferService extends BlockStreamingBase {
      */
     public long getEarliestAvailableBlockNumber() {
         return earliestBlockNumber.get() == Long.MIN_VALUE ? -1 : earliestBlockNumber.get();
+    }
+
+    /**
+     * Retrieves the latest (highest) block number that was closed.
+     * @return the latest block closed or -1 if no blocks have been closed yet
+     */
+    public long getLatestBlockClosed() {
+        final long latest = latestBlockClosed.get();
+        return latest == Long.MIN_VALUE ? -1 : latest;
     }
 
     /**

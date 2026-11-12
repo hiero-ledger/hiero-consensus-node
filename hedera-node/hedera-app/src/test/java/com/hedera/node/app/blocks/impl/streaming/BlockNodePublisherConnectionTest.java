@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -213,7 +214,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         // Verify timeout was detected and recorded
         verify(mockFuture).get(anyLong(), any(TimeUnit.class));
         verify(mockFuture).cancel(true);
-        verify(metrics).recordPipelineOperationTimeout();
+        verify(metrics).recordOperationTimeout(ConnectionType.BLOCK_STREAMING);
 
         // Connection should still be UNINITIALIZED since pipeline creation failed
         assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
@@ -320,10 +321,10 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // verifications for sending EndStream.RESET
         verify(requestCall).sendRequest(any(), anyBoolean());
-        verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
         // remaining verifications
-        verify(metrics).recordConnectionClosed(CloseReason.CONFIG_UPDATE);
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.CONFIG_UPDATE);
         verify(requestCall).completeRequests();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
@@ -344,11 +345,11 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // verifications for sending EndStream.RESET
         verify(requestCall).sendRequest(any(), anyBoolean());
-        verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.RESET);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.BLOCK_STREAMING, EndStream.Code.RESET);
         // remaining verifications
         // Should not call onComplete when callOnComplete is false
-        verify(metrics).recordConnectionClosed(CloseReason.UNKNOWN);
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.UNKNOWN);
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
@@ -369,7 +370,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // Should call onComplete when callOnComplete=true and state transitions to CLOSING
         verify(requestCall).completeRequests();
-        verify(metrics).recordConnectionClosed(CloseReason.UNKNOWN);
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.UNKNOWN);
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
@@ -432,7 +433,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // Should not interact with pipeline since it's null
         verifyNoInteractions(requestCall);
-        verify(metrics).recordConnectionClosed(CloseReason.UNKNOWN);
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.UNKNOWN);
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(metrics);
@@ -540,8 +541,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         // Verify timeout was detected during onComplete
         verify(mockFuture, times(2)).get(anyLong(), any(TimeUnit.class));
         verify(mockFuture).cancel(true);
-        verify(metrics).recordPipelineOperationTimeout();
-        verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
+        verify(metrics).recordOperationTimeout(ConnectionType.BLOCK_STREAMING);
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.INTERNAL_ERROR);
     }
 
     /**
@@ -570,7 +571,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         // Verify shutdownNow was called after interruption
         verify(blockingIoExecutor).shutdownNow();
 
-        verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.INTERNAL_ERROR);
     }
 
     /**
@@ -627,7 +628,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         verify(requestCall).sendRequest(any(), anyBoolean()); // sendRequest executed to send the RESET request
 
         // Verify no additional interactions beyond the close operation
-        verify(metrics).recordConnectionClosed(CloseReason.PERIODIC_RESET);
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.PERIODIC_RESET);
         verifyNoMoreInteractions(requestCall);
     }
 
@@ -646,11 +647,11 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(sendArgs.result.status()).isEqualTo(SendRequestStatus.SUCCESS);
 
         verify(requestCall).sendRequest(request, false);
-        verify(metrics).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
         verify(metrics).recordBlockItemsSent(1);
-        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verify(metrics).recordRequestBlockItemCount(1);
-        verify(metrics).recordRequestBytes(anyLong());
+        verify(metrics).recordRequestBytes(eq(ConnectionType.BLOCK_STREAMING), anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
         verifyNoMoreInteractions(connectionManager);
@@ -666,7 +667,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         assertThat(connection.postSuccessfulRequestSendArgs).hasNullValue();
 
-        verify(metrics).recordConnectionOpened();
+        verify(metrics).recordConnectionOpened(connection.connectionType());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
         verifyNoMoreInteractions(connectionManager);
@@ -705,7 +706,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         assertThat(connection.postSuccessfulRequestSendArgs).hasNullValue();
 
-        verify(metrics).recordRequestSendFailure();
+        verify(metrics).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
         verifyNoMoreInteractions(metrics);
     }
 
@@ -726,7 +727,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         verify(requestCall).sendRequest(any(), anyBoolean());
         verify(spiedConnection, atLeast(2)).currentState();
-        verify(metrics).recordRequestSendFailure();
+        verify(metrics).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
 
         verifyNoMoreInteractions(metrics);
     }
@@ -743,12 +744,12 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // Verify the request was sent successfully
         verify(requestCall).sendRequest(request, false);
-        verify(metrics).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics).recordRequestSent(ConnectionType.BLOCK_STREAMING, RequestOneOfType.BLOCK_ITEMS);
         verify(metrics).recordBlockItemsSent(1);
-        verify(metrics).recordRequestLatency(anyLong());
+        verify(metrics).recordRequestLatency(eq(ConnectionType.BLOCK_STREAMING), anyLong());
 
         // Verify no timeout was recorded
-        verify(metrics, times(0)).recordPipelineOperationTimeout();
+        verify(metrics, times(0)).recordOperationTimeout(any(ConnectionType.class));
 
         // Connection should still be ACTIVE
         assertThat(connection.currentState()).isEqualTo(ConnectionState.ACTIVE);
@@ -802,7 +803,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         // Verify error was recorded
         verify(requestCall).sendRequest(request, false);
-        verify(metrics).recordRequestSendFailure();
+        verify(metrics).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
     }
 
     @Test
@@ -846,8 +847,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         verify(mockFuture).get(anyLong(), any(TimeUnit.class));
         verify(mockFuture).cancel(true); // Future should be cancelled both times
 
-        verify(metrics).recordRequestSendFailure();
-        verify(metrics).recordPipelineOperationTimeout();
+        verify(metrics).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
+        verify(metrics).recordOperationTimeout(ConnectionType.BLOCK_STREAMING);
 
         verifyNoMoreInteractions(mockFuture);
         verifyNoMoreInteractions(metrics);
@@ -881,7 +882,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(exception.getCause()).isInstanceOf(RuntimeException.class);
         assertThat(exception.getCause().getMessage()).isEqualTo("Execution failed");
 
-        verify(metrics).recordRequestSendFailure();
+        verify(metrics).recordRequestSendFailure(ConnectionType.BLOCK_STREAMING);
     }
 
     @Test
@@ -893,7 +894,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.closeReason()).isEqualTo(CloseReason.INTERNAL_ERROR);
         assertThat(connection.isStartWorkerThreadCalled).isFalse();
 
-        verify(metrics).recordConnectionClosed(CloseReason.INTERNAL_ERROR);
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.INTERNAL_ERROR);
         verify(connectionManager).notifyConnectionClosed(connection);
         verifyNoInteractions(requestCall);
         verifyNoMoreInteractions(metrics);
@@ -914,7 +915,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.isRequestClientActive()).isTrue();
 
         verify(blockingIoExecutor).submit(any(Runnable.class));
-        verify(metrics).recordConnectionOpened();
+        verify(metrics).recordConnectionOpened(connection.connectionType());
         verify(connectionManager).notifyConnectionActive(connection);
         verifyNoInteractions(requestCall);
         verifyNoMoreInteractions(blockingIoExecutor);
@@ -931,8 +932,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
 
-        verify(metrics).recordConnectionOnError();
-        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
+        verify(metrics).recordConnectionOnError(connection.connectionType());
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.CONNECTION_ERROR);
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
@@ -952,8 +953,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
 
-        verify(metrics).recordConnectionOnError();
-        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
+        verify(metrics).recordConnectionOnError(connection.connectionType());
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.CONNECTION_ERROR);
         verify(requestCall).completeRequests();
     }
 
@@ -982,7 +983,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
 
         connection.onComplete();
 
-        verify(metrics).recordConnectionOnComplete();
+        verify(metrics).recordConnectionOnComplete(connection.connectionType());
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
         verifyNoInteractions(connectionManager);
@@ -1007,7 +1008,7 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         // The flag should be reset to false by getAndSet(false)
         assertThat(streamShutdownInProgress.get()).isFalse();
 
-        verify(metrics).recordConnectionOnComplete();
+        verify(metrics).recordConnectionOnComplete(connection.connectionType());
 
         verifyNoMoreInteractions(metrics);
         // Should not interact with dependencies since shutdown was expected
@@ -1027,8 +1028,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
 
         verify(requestCall).completeRequests();
-        verify(metrics).recordConnectionOnComplete();
-        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
+        verify(metrics).recordConnectionOnComplete(connection.connectionType());
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.CONNECTION_ERROR);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestCall);
         verifyNoInteractions(bufferService);
@@ -1079,8 +1080,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
 
-        verify(metrics).recordConnectionOnError();
-        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
+        verify(metrics).recordConnectionOnError(connection.connectionType());
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.CONNECTION_ERROR);
         // Should call onComplete when callOnComplete=true (from handleStreamFailure)
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(metrics);
@@ -1099,8 +1100,8 @@ public class BlockNodePublisherConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
         assertThat(connection.closeReason()).isEqualTo(CloseReason.CONNECTION_ERROR);
 
-        verify(metrics).recordConnectionOnError();
-        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
+        verify(metrics).recordConnectionOnError(connection.connectionType());
+        verify(metrics).recordConnectionClosed(connection.connectionType(), CloseReason.CONNECTION_ERROR);
         verifyNoMoreInteractions(metrics);
         verifyNoInteractions(requestCall);
         verifyNoInteractions(bufferService);
