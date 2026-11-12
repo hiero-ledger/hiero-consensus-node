@@ -152,4 +152,29 @@ public final class BlockRootTree {
     public static int siblingCount() {
         return BlockRootTreeHasher.SIBLING_COUNT;
     }
+
+    /**
+     * Reconstructs the timestamp leaf's right sibling from branch 1 and its four right siblings.
+     * All inputs are already hashed, exactly as they occur in the block root tree.
+     */
+    public static Bytes timestampSiblingHash(
+            @NonNull final DigestType digestType,
+            @NonNull final Bytes previousBlockHash,
+            @NonNull final MerkleSiblingHash... siblings) {
+        requireNonNull(digestType);
+        requireNonNull(previousBlockHash);
+        requireNonNull(siblings);
+        if (siblings.length != siblingCount()) {
+            throw new IllegalArgumentException("Invalid branch-1 proof for timestamp witness");
+        }
+        final var digest = digestType.buildDigest();
+        var hash = previousBlockHash;
+        for (final var sibling : siblings) {
+            if (sibling == null || sibling.isFirst() || sibling.siblingHash().length() != digestType.digestLength()) {
+                throw new IllegalArgumentException("Timestamp witness requires four right sibling hashes");
+            }
+            hash = BlockImplUtils.hashInternalNode(digest, hash, sibling.siblingHash());
+        }
+        return hash;
+    }
 }

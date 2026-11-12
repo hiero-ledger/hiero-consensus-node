@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.provider.Arguments;
 
 public class LongListDiskTest extends AbstractLongListTest<LongListDisk> {
@@ -25,6 +29,14 @@ public class LongListDiskTest extends AbstractLongListTest<LongListDisk> {
             final Path file, final int longsPerChunk, final long capacity, final long reservedBufferLength)
             throws IOException {
         return new LongListDisk(file, longsPerChunk, capacity, reservedBufferLength, fileSystemManager);
+    }
+
+    @Test
+    @DisplayName("A disk based list can't be copied")
+    void copyIsNotSupported() {
+        try (final LongListDisk list = createLongList(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
+            assertThrows(UnsupportedOperationException.class, () -> list.copy(Runnable::run));
+        }
     }
 
     /**

@@ -643,6 +643,37 @@ class DispatchProcessorTest {
     }
 
     @Test
+    void blockFullScheduledChargesPayerThrottleFeesWithoutExecuting() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        subject.processDispatch(dispatch, null, true);
+
+        verifyTrackedFeePayments();
+        verify(dispatcher, never()).dispatchHandle(context);
+        verify(dispatchUsageManager, never()).screenForCapacity(dispatch);
+        verify(recordBuilder).status(com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        // The full fee charged up front is rolled back, and the scheduled payer re-charged without the service fee
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(feeAccumulator)
+                .chargeFee(PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
+        // A scheduled execution never charges the node that submitted its triggering transaction
+        verify(feeAccumulator, never()).chargeFees(any(), any(), any(), any());
+        verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
+        assertFinished();
+    }
+
+    @Test
     void blockFullEthTxnRecordsEthereumHashWithoutExecuting() throws ThrottleException {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.handleContext()).willReturn(context);

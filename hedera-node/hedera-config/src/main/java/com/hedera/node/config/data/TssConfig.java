@@ -5,7 +5,13 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.validation.ConfigViolation;
+import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Min;
+import com.swirlds.config.extensions.validators.DefaultConfigViolation;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 
 /**
@@ -47,7 +53,7 @@ public record TssConfig(
         boolean historyEnabled,
 
         // Denominator used to compute signing threshold: totalWeight / signingThresholdDivisor
-        @ConfigProperty(defaultValue = "2") @Min(1) @NetworkProperty
+        @ConfigProperty(defaultValue = "2") @Min(1) @NetworkProperty @ConstraintMethod("witnessSigningThreshold")
         int signingThresholdDivisor,
 
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty
@@ -72,4 +78,19 @@ public record TssConfig(
         // made by its predecessor. Applies to every upgrade while set, and has no effect once block proofs
         // carry the chain of trust
         @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean needsFreshGenesisWrapsProof) {}
+        boolean needsFreshGenesisWrapsProof) {
+    /** Real hinTS history needs attainable block signatures with strictly more than one third of the weight. */
+    public @Nullable ConfigViolation witnessSigningThreshold(@NonNull final Configuration configuration) {
+        if (hintsEnabled
+                && historyEnabled
+                && !forceMockSignatures
+                && (signingThresholdDivisor < 2 || signingThresholdDivisor > 3)) {
+            return new DefaultConfigViolation(
+                    "tss.signingThresholdDivisor",
+                    Integer.toString(signingThresholdDivisor),
+                    true,
+                    "Real hinTS history requires signingThresholdDivisor of 2 or 3 for durable witnesses");
+        }
+        return null;
+    }
+}
