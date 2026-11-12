@@ -79,6 +79,8 @@ public final class TokenKeyUtils {
      * An entry whose key type has no defined bit (including zero) would select no key, so it is reported to the
      * caller. An empty list is not an error, since nothing was asked for, and undefined bits next to a defined one
      * are ignored.
+     * <p>
+     * Duplicated for {@link TokenCreateTransactionBody.Builder} below; keep the two in sync.
      *
      * @param tokenKeys the decoded key entries
      * @param withMetadata whether the metadata key bit is defined, which it is only at the 0x16c address
@@ -130,7 +132,22 @@ public final class TokenKeyUtils {
         return status;
     }
 
-    // TODO Glib: can we get rid of duplicates here?
+    /**
+     * Sets on the builder each key whose bit is set in the key type of an entry. Entries apply in order, so for
+     * repeated bits the last entry wins, and bits that select no key are ignored.
+     * <p>
+     * An entry whose key type has no defined bit (including zero) would select no key, so it is reported to the
+     * caller. An empty list is not an error, since nothing was asked for, and undefined bits next to a defined one
+     * are ignored.
+     * <p>
+     * Duplicated for {@link TokenUpdateTransactionBody.Builder} above; keep the two in sync.
+     *
+     * @param tokenKeys the decoded key entries
+     * @param withMetadata whether the metadata key bit is defined, which it is only at the 0x16c address
+     * @param builder the create body builder to set the keys on
+     * @return {@link ResponseCodeEnum#INVALID_TRANSACTION_BODY} if some entry selects no key, otherwise null
+     * @throws IllegalArgumentException if an entry has an empty key value
+     */
     @Nullable
     public static ResponseCodeEnum addTokenKeys(
             @NonNull final List<TokenKeyWrapper> tokenKeys,
