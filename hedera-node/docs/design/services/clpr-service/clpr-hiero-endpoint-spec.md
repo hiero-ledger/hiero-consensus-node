@@ -1134,8 +1134,7 @@ billing ceiling, not an execution allowance: verifier and callback gas grants st
 one parent execution budget. The shared escrow owns verifier billing; native fee
 settlement detects that ownership and does not collect the same verifier gas again.
 Base and applicable byte fees remain part of the normal fee schedule. For user dispatches,
-fees already charged plus the gas reservation and any possible endpoint penalty cannot
-exceed the signed `transactionFee`, on success or rollback. Bundles reserve headroom for
-the full possible penalty before validation without collecting it; the penalty is
-collected only when applicable. Unexpected internal errors retain the normal service-fee waiver and
+fees already charged plus the gas reservation cannot exceed the signed `transactionFee`,
+on success or rollback. CLPR imposes no additional endpoint misbehavior penalty.
+Unexpected internal errors retain the normal service-fee waiver and
 platform alert while replaying payment for executed gas.

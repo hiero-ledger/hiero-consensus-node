@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto.test.fixtures;
 
+import static org.hiero.base.crypto.ECDSASecp256k1.signDigestWithEcdsaSecp256k1;
 import static org.hiero.base.crypto.engine.EcdsaSecp256k1Verifier.ECDSA_KECCAK_256_SIZE;
 import static org.hiero.base.crypto.engine.EcdsaSecp256k1Verifier.ECDSA_UNCOMPRESSED_KEY_SIZE;
 import static org.hiero.base.crypto.test.fixtures.EcdsaUtils.asRawEcdsaSecp256k1Key;
-import static org.hiero.base.crypto.test.fixtures.EcdsaUtils.signDigestWithEcdsaSecp256k1;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.KeyPair;
@@ -14,6 +14,7 @@ import java.security.interfaces.ECPublicKey;
 import java.util.ArrayList;
 import java.util.SplittableRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.TransactionSignature;
 
@@ -130,7 +131,7 @@ public class EcdsaSignedTxnPool {
      */
     void generateActiveKeyPair() {
         try {
-            activeKp = EcdsaUtils.genEcdsaSecp256k1KeyPair();
+            activeKp = ECDSASecp256k1.genEcdsaSecp256k1KeyPair();
         } catch (final Exception fatal) {
             throw new IllegalStateException("Tests cannot be trusted without working key-pair generation", fatal);
         }

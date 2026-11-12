@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
+import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -60,7 +61,8 @@ public class ClprLedgerConfigurationUpgradeTest {
             }
             """;
 
-    @GenesisHapiTest
+    // Close every round so the simulated upgrade starts at a block boundary.
+    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
     final Stream<DynamicTest> changedLedgerConfigurationFileIsAppliedAtUpgradeBoundary() {
         return hapiTest(
                 streamMustIncludePassFrom(selectedItems(
@@ -70,10 +72,12 @@ public class ClprLedgerConfigurationUpgradeTest {
                 // This is the genesis transaction, which seeds the ledger configuration
                 cryptoCreate("genesisAccount"),
                 // Genesis seeds the bundled throttles and derives the chain id from contracts.chainId
-                doWithStartupConfig("contracts.chainId", chainId -> clprGetLedgerConfiguration()
-                        .chainId("eip155:" + chainId)
-                        .maxMessagesPerBundle(1_000)
-                        .maxQueueDepth(10_000)),
+                doWithStartupConfig(
+                        "contracts.chainId",
+                        chainId -> clprGetLedgerConfiguration()
+                                .chainId("eip155:" + chainId)
+                                .maxMessagesPerBundle(1_000)
+                                .maxQueueDepth(10_000)),
                 // Now write the upgrade file to the node's working dirs
                 doWithStartupConfig(
                         "clpr.upgradeLedgerConfigurationFile",

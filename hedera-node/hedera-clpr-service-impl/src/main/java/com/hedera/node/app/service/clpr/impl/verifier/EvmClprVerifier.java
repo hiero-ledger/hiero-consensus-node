@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator.settleBundleVerifierFee;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
@@ -151,7 +152,8 @@ public class EvmClprVerifier implements ClprVerifier {
         final var callData = encodeVerifyConfigWithManifestCall(
                 VERIFY_CONFIG_SELECTOR, configProofBytes, channelId, endpointManifestProofBytes);
         final var rawReturn = dispatchRaw(callData, CLPR_VERIFIER_CONFIG_FAILED, context);
-        final var verified = decodeVerifyConfigWithManifestReturn(rawReturn, CLPR_VERIFIER_CONFIG_FAILED);
+        final var verified = decodeVerifyConfigWithManifestReturn(
+                rawReturn.output(), CLPR_VERIFIER_CONFIG_FAILED, rawReturn.gasUsed());
         log.info(
                 "[EvmClprVerifier] verifyConfigWithManifest EXIT: chainId={} serviceAddress={} manifestVersion={} manifestEndpoints={} trustAnchorBytes={}",
                 verified.config().chainId(),
@@ -171,11 +173,11 @@ public class EvmClprVerifier implements ClprVerifier {
             @NonNull final HandleContext context)
             throws HandleException {
         requireNonNull(context);
-        return verifyBundleUsing(
-                bundlePayload,
-                trustAnchor,
-                channelContext,
-                callData -> dispatchRaw(callData.toByteArray(), CLPR_BUNDLE_VERIFICATION_FAILED, context));
+        return verifyBundleUsing(bundlePayload, trustAnchor, channelContext, callData -> {
+            final var result = dispatchRaw(callData.toByteArray(), CLPR_BUNDLE_VERIFICATION_FAILED, context);
+            settleBundleVerifierFee(context, result.gasUsed());
+            return result.output();
+        });
     }
 
     /**
@@ -303,11 +305,13 @@ public class EvmClprVerifier implements ClprVerifier {
         return buf.array();
     }
 
+    private record VerifierResult(Bytes output, long gasUsed) {}
+
     /**
-     * Dispatches call data to the Channel's verifier contract and returns the raw EVM result bytes.
+     * Dispatches call data to the Channel's verifier contract and returns its output and measured gas.
      */
     @NonNull
-    private Bytes dispatchRaw(
+    private VerifierResult dispatchRaw(
             @NonNull final byte[] callData,
             @NonNull final ResponseCodeEnum failureCode,
             @NonNull final HandleContext context)
@@ -382,7 +386,7 @@ public class EvmClprVerifier implements ClprVerifier {
                     "[EvmClprVerifier] dispatchRaw EXIT: evmResultBytes={} evmResultHash={}",
                     evmResult.length(),
                     shortHex(MiscCryptoUtils.keccak256DigestOf(evmResult)));
-            return evmResult;
+            return new VerifierResult(evmResult, gasUsage.gasUsed());
         } finally {
             gasAccounting.settleVerifierWithGasUsage(payer, gasLimit, gasUsage);
         }
@@ -394,7 +398,8 @@ public class EvmClprVerifier implements ClprVerifier {
      */
     @NonNull
     private static VerifiedConfig decodeVerifyConfigWithManifestReturn(
-            @NonNull final Bytes rawEvmBytes, @NonNull final ResponseCodeEnum failureCode) throws HandleException {
+            @NonNull final Bytes rawEvmBytes, @NonNull final ResponseCodeEnum failureCode, final long gasUsed)
+            throws HandleException {
         try {
             final var decoded = ClprVerifierAbi.VERIFY_CONFIG_RETURN.decode(ByteBuffer.wrap(rawEvmBytes.toByteArray()));
             // index 0: channelContext bytes → IGNORED; Java builds its own from known channelId
@@ -435,7 +440,7 @@ public class EvmClprVerifier implements ClprVerifier {
                     .build();
 
             final var manifest = decodeManifestTuple(manifestTuple);
-            return new VerifiedConfig(config, manifest);
+            return new VerifiedConfig(config, manifest, gasUsed);
         } catch (final Exception e) {
             log.warn(
                     "[EvmClprVerifier] decodeVerifyConfigWithManifestReturn failed: rawBytes={} ({})",

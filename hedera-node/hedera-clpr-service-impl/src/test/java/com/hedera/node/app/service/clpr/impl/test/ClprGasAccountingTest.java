@@ -294,75 +294,35 @@ class ClprGasAccountingTest {
     }
 
     @Test
-    void reservingRollbackFeeRejectsAnInsufficientOfferWithoutCollectingThePenalty() {
+    void successfulFinalRecordFitsBaseBytesAndAllGasAtTheSignedOfferBoundary() {
         final long alreadyCharged = 300;
-        final long penalty = 1_000;
-        givenUserDispatch(alreadyCharged, alreadyCharged + penalty - 1);
-        final var subject = ClprGasAccounting.forContext(context);
-
-        assertThatThrownBy(() -> subject.reserveRollbackFee(penalty))
-                .isInstanceOfSatisfying(
-                        HandleException.class,
-                        failure -> assertThat(failure.getStatus()).isEqualTo(INSUFFICIENT_TX_FEE));
-
-        assertThat(payments).isEmpty();
-        assertThat(recordedFee).hasValue(alreadyCharged);
-        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - alreadyCharged);
-    }
-
-    @Test
-    void gasEscrowRequiresSignedHeadroomForTheFullPossiblePenalty() {
-        final long alreadyCharged = 300;
-        final long penalty = 1_000;
-        givenUserDispatch(alreadyCharged, alreadyCharged + TOTAL_GAS * GAS_PRICE + penalty - 1);
-        final var subject = ClprGasAccounting.forContext(context);
-        subject.reserveRollbackFee(penalty);
-
-        assertThatThrownBy(() -> subject.prepayVerifier(PARENT, 100))
-                .isInstanceOfSatisfying(
-                        HandleException.class,
-                        failure -> assertThat(failure.getStatus()).isEqualTo(INSUFFICIENT_TX_FEE));
-
-        assertThat(payments).isEmpty();
-        assertThat(recordedFee).hasValue(alreadyCharged);
-    }
-
-    @Test
-    void successfulFinalRecordFitsBaseBytesGasAndFullPenaltyAtTheSignedOfferBoundary() {
-        final long alreadyCharged = 300;
-        final long penalty = 1_000;
-        final long offered = alreadyCharged + TOTAL_GAS * GAS_PRICE + penalty;
+        final long offered = alreadyCharged + TOTAL_GAS * GAS_PRICE;
         givenUserDispatch(alreadyCharged, offered);
         final var subject = ClprGasAccounting.forContext(context);
-        subject.reserveRollbackFee(penalty);
         assertThat(payments).isEmpty();
         assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
         subject.settleVerifierWithGasUsage(PARENT, 100, gasResult(100));
         assertThat(subject.prepay(CONNECTOR_A, 900)).isTrue();
         subject.settleWithGasUsage(CONNECTOR_A, 900, gasResult(900));
 
-        assertThat(context.tryToCharge(PARENT, penalty)).isTrue();
         subject.refundUnusedGas();
 
         assertThat(recordedFee).hasValue(offered);
         assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - offered);
-        assertThat(payments).containsExactly("1001:6000", "1001:1000");
+        assertThat(payments).containsExactly("1001:6000");
     }
 
     @Test
-    void rollbackFinalRecordFitsRechargedBaseBytesGasAndFullPenaltyAtTheSignedOfferBoundary() {
+    void rollbackFinalRecordFitsRechargedBaseBytesAndAllGasAtTheSignedOfferBoundary() {
         final long alreadyCharged = 300;
-        final long penalty = 1_000;
-        final long offered = alreadyCharged + TOTAL_GAS * GAS_PRICE + penalty;
+        final long offered = alreadyCharged + TOTAL_GAS * GAS_PRICE;
         givenUserDispatch(alreadyCharged, offered);
         final var subject = ClprGasAccounting.forContext(context);
-        subject.reserveRollbackFee(penalty);
         assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
         subject.settleVerifierWithGasUsage(PARENT, 100, gasResult(100));
         assertThat(subject.prepay(CONNECTOR_A, 900)).isTrue();
         subject.settleWithGasUsage(CONNECTOR_A, 900, gasResult(900));
-        final var original = new HandleException(
-                CLPR_BUNDLE_VERIFICATION_FAILED, (fees, rollback) -> rollback.tryToCharge(PARENT, penalty));
+        final var original = new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
         final var failure = subject.preservingChargesOnRollback(original);
         recordedFee.set(alreadyCharged);
         balances.put(PARENT, INITIAL_BALANCE - alreadyCharged);
@@ -372,7 +332,7 @@ class ClprGasAccountingTest {
 
         assertThat(recordedFee).hasValue(offered);
         assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - offered);
-        assertThat(payments).containsExactly("1001:6000", "1001:1000");
+        assertThat(payments).containsExactly("1001:6000");
     }
 
     @Test

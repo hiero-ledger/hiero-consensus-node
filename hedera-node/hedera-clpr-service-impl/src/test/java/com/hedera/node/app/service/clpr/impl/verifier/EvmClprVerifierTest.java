@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
@@ -20,7 +21,12 @@ import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.T
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -34,10 +40,13 @@ import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FeeData;
+import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.ContractGasUsage;
@@ -53,10 +62,13 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.stream.Stream;
+import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
@@ -82,7 +94,7 @@ class EvmClprVerifierTest {
     // Manifest-aware bundle return tuple — single-sourced with the producer + consumer via ClprVerifierAbi.
     private static final TupleType<Tuple> BUNDLE_RETURN = ClprVerifierAbi.VERIFY_BUNDLE_RETURN;
 
-    @Mock
+    @Mock(extraInterfaces = FeeContext.class)
     private HandleContext context;
 
     @Mock
@@ -95,12 +107,14 @@ class EvmClprVerifierTest {
     void verifyConfigWithManifestReturnsProvenConfigAndManifest() {
         givenConfig();
         givenDispatchReturns(configWithManifestReturn("295", SERVICE_ADDR, 3L));
+        givenDispatchGasUsed(100_000L);
 
         final var verified = subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
 
         assertThat(verified.config().chainId()).isEqualTo("295");
         assertThat(verified.config().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
         assertThat(verified.manifest().version()).isEqualTo(3L);
+        assertThat(verified.verifierGasUsed()).isEqualTo(100_000L);
         assertThat(verified.manifest().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
     }
 
@@ -115,8 +129,8 @@ class EvmClprVerifierTest {
     }
 
     @Test
-    @DisplayName("Verifier dispatch suppresses its child fee but allows EVM gas collection")
-    void verifierDispatchAllowsEvmGasCollection() {
+    @DisplayName("Verifier dispatch treats execution gas as prepaid by the native parent")
+    void verifierDispatchTreatsGasAsPrepaid() {
         givenConfig();
         givenDispatchReturns(configWithManifestReturn("295", SERVICE_ADDR, 1L));
 
@@ -164,6 +178,7 @@ class EvmClprVerifierTest {
         assertThat(content.metadata()).isNotNull();
         assertThat(content.metadata().nextMessageId()).isEqualTo(1L);
         assertThat(content.newEndpointManifest()).isNull();
+        verify(context, never()).tryToChargePayer(anyLong());
     }
 
     @Test
@@ -176,6 +191,44 @@ class EvmClprVerifierTest {
 
         assertThat(content.metadata()).isNotNull();
         assertThat(content.metadata().endpointManifestVersion()).isEqualTo(9L);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"100000,100000", "500000,300000"})
+    void chargesMeasuredBundleVerifierGasUpToTheCap(final long gasUsed, final long gasCharged) {
+        final var payload = Bytes.wrap(new byte[100]);
+        final long gasLimit = 500_000L;
+        final long gasPrice = 21L;
+        givenPricedConfig(true, gasLimit);
+        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
+        givenDispatchGasUsed(gasUsed);
+        given(context.simpleFeesSchedule())
+                .willReturn(FeeSchedule.newBuilder()
+                        .extras(makeExtraDef(Extra.GAS, 852L), makeExtraDef(Extra.PROCESSING_BYTES, 10_000L))
+                        .services(makeService(
+                                "Clpr",
+                                makeServiceFee(
+                                        CLPR_SUBMIT_BUNDLE,
+                                        100_000_000L,
+                                        makeExtraIncluded(Extra.PROCESSING_BYTES, 0))))
+                        .build());
+        given(context.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .transactionFee(2_000_000_000L)
+                        .clprSubmitBundle(
+                                ClprSubmitBundleTransactionBody.newBuilder().bundlePayload(payload))
+                        .build());
+        final var streamBuilder = context.savepointStack().getBaseBuilder(StreamBuilder.class);
+        given(streamBuilder.isUserDispatch()).willReturn(true);
+        given(streamBuilder.transactionFee()).willReturn(100_000_000L);
+
+        subject.verifyBundle(payload, Bytes.EMPTY, Bytes.EMPTY, context);
+        ClprGasAccounting.refundUnusedGas(context);
+
+        verify(context).tryToCharge(PAYER, gasLimit * gasPrice);
+        verify(context).refundHandlerCharge(PAYER, (gasLimit - gasCharged) * gasPrice);
+        verify(context, never()).tryToChargePayer(anyLong());
+        verify(context, never()).refundServiceFee(any(), anyLong());
     }
 
     @Test
@@ -394,9 +447,13 @@ class EvmClprVerifierTest {
     }
 
     private void givenPricedConfig(final boolean solvent) {
+        givenPricedConfig(solvent, 1000L);
+    }
+
+    private void givenPricedConfig(final boolean solvent, final long gasLimit) {
         final var cfg = HederaTestConfigBuilder.create()
-                .withValue("clpr.verifierGasLimit", 1000L)
-                .withValue("contracts.maxGasPerTransaction", 1000L)
+                .withValue("clpr.verifierGasLimit", gasLimit)
+                .withValue("contracts.maxGasPerTransaction", gasLimit)
                 .getOrCreateConfig();
         given(context.configuration()).willReturn(cfg);
         given(context.dispatchMetadata()).willReturn(new HandleContext.DispatchMetadata(new HashMap<>()));
@@ -412,7 +469,7 @@ class EvmClprVerifierTest {
         given(context.consensusNow()).willReturn(Instant.EPOCH);
         given(rates.activeRate(Instant.EPOCH))
                 .willReturn(ExchangeRate.newBuilder().hbarEquiv(7).centEquiv(2).build());
-        given(context.tryToCharge(PAYER, 21_000L)).willReturn(solvent);
+        given(context.tryToCharge(PAYER, gasLimit * 21L)).willReturn(solvent);
     }
 
     // ---- helpers ----

@@ -33,7 +33,6 @@ public final class ClprGasAccounting {
     private final long totalGas;
     private long spentFee;
     private long reservedFee;
-    private long reservedRollbackFee;
     private boolean prepaid;
     private boolean refunded;
     private long remainingGas;
@@ -71,20 +70,6 @@ public final class ClprGasAccounting {
         return accounting;
     }
 
-    /** Reserves signed-fee headroom for a possible rollback charge without collecting it. */
-    public void reserveRollbackFee(final long maximumFee) {
-        if (maximumFee < 0) {
-            throw new IllegalArgumentException("Negative rollback fee reservation");
-        }
-        final var builder = context.savepointStack().getBaseBuilder(StreamBuilder.class);
-        if (builder.isUserDispatch()) {
-            final long offered = context.body().transactionFee();
-            final long charged = builder.transactionFee();
-            validateTrue(charged <= offered && maximumFee <= offered - charged, INSUFFICIENT_TX_FEE);
-        }
-        reservedRollbackFee = maximumFee;
-    }
-
     /** Prepays the whole transaction allowance from the original payer before any EVM work. */
     public boolean reserveParentGas() {
         if (prepaid) return true;
@@ -95,14 +80,10 @@ public final class ClprGasAccounting {
         if (fee > 0) {
             final var builder = context.savepointStack().getBaseBuilder(StreamBuilder.class);
             if (builder.isUserDispatch()) {
-                // Base, byte and possible rollback fees also count against the signed maximum.
+                // Base and byte fees also count against the signed maximum.
                 final long offered = context.body().transactionFee();
                 final long charged = builder.transactionFee();
-                validateTrue(
-                        charged <= offered
-                                && reservedRollbackFee <= offered - charged
-                                && fee <= offered - charged - reservedRollbackFee,
-                        INSUFFICIENT_TX_FEE);
+                validateTrue(charged <= offered && fee <= offered - charged, INSUFFICIENT_TX_FEE);
             }
         }
         if (fee > 0 && !context.tryToCharge(parentPayer, fee)) return false;
