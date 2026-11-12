@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
@@ -499,7 +500,9 @@ class HintsContextTest {
             subject.setConstruction(construction, CRS_STATE, HintsGenerationWeights.from(construction, history));
             assertEquals(1, logs.warnLogs().size());
             assertTrue(logs.warnLogs().getFirst().contains("scheme coverage 5/6"));
-            assertTrue(logs.warnLogs().getFirst().contains("additional 6/3 unavailable weight"));
+            assertTrue(logs.warnLogs()
+                    .getFirst()
+                    .contains("additional one third of the full generation being unavailable"));
             given(configuration.getConfigData(TssConfig.class))
                     .willReturn(HederaTestConfigBuilder.create()
                             .withValue("tss.historyEnabled", false)
@@ -675,6 +678,49 @@ class HintsContextTest {
         assertNotNull(signing);
         assertEquals(CONSTRUCTION.constructionId(), signing.constructionId());
         assertEquals(VERIFICATION_KEY, signing.verificationKey());
+    }
+
+    @Test
+    void equalReparsedGenerationDoesNotWaitForTheSigningWriteLock() throws Exception {
+        final var constructionBytes = HintsConstruction.PROTOBUF.toBytes(CONSTRUCTION);
+        final var crsBytes = CRSState.PROTOBUF.toBytes(CRS_STATE);
+        final var history = HintsGenerationTestUtils.historyFor(CONSTRUCTION);
+        final var historyBytes = HistoryProofConstruction.PROTOBUF.toBytes(history);
+        final var firstConstruction = HintsConstruction.PROTOBUF.parse(constructionBytes);
+        final var secondConstruction = HintsConstruction.PROTOBUF.parse(constructionBytes);
+        final var firstCrs = CRSState.PROTOBUF.parse(crsBytes);
+        final var secondCrs = CRSState.PROTOBUF.parse(crsBytes);
+        final var firstHistory = HistoryProofConstruction.PROTOBUF.parse(historyBytes);
+        final var secondHistory = HistoryProofConstruction.PROTOBUF.parse(historyBytes);
+        assertNotSame(firstConstruction, secondConstruction);
+        assertNotSame(firstCrs, secondCrs);
+        assertNotSame(firstHistory, secondHistory);
+        assertEquals(firstConstruction, secondConstruction);
+        assertEquals(firstCrs, secondCrs);
+        assertEquals(firstHistory, secondHistory);
+        subject.setConstruction(
+                firstConstruction, firstCrs, HintsGenerationWeights.from(firstConstruction, firstHistory));
+        final var entered = new java.util.concurrent.CountDownLatch(1);
+        final var release = new java.util.concurrent.CountDownLatch(1);
+        given(library.verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId()))
+                .willAnswer(invocation -> {
+                    entered.countDown();
+                    assertTrue(release.await(10, java.util.concurrent.TimeUnit.SECONDS));
+                    return true;
+                });
+        try (final var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            final var verification = executor.submit(() ->
+                    subject.validate(A_NODE_PARTY_ID.nodeId(), CRS, partialSigBody(CONSTRUCTION.constructionId())));
+            try {
+                assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+                final var activation = executor.submit(() -> subject.setConstruction(
+                        secondConstruction, secondCrs, HintsGenerationWeights.from(secondConstruction, secondHistory)));
+                activation.get(2, java.util.concurrent.TimeUnit.SECONDS);
+            } finally {
+                release.countDown();
+            }
+            assertTrue(verification.get(5, java.util.concurrent.TimeUnit.SECONDS));
+        }
     }
 
     @Test

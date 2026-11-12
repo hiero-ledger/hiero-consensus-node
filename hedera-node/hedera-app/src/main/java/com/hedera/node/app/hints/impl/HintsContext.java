@@ -158,10 +158,10 @@ public class HintsContext {
         final boolean historyRequired = requiresHistory();
         final var currentSnapshot = constructionSnapshots.active();
         if (currentSnapshot != null
-                && currentSnapshot.construction() == construction
-                && currentSnapshot.crsState() == crsState
+                && currentSnapshot.construction().equals(construction)
+                && currentSnapshot.crsState().equals(crsState)
                 && currentSnapshot.requiresHistory() == historyRequired
-                && (!historyRequired || currentSnapshot.generationWeights() == generationWeights)) {
+                && (!historyRequired || currentSnapshot.generationWeights().equals(generationWeights))) {
             return;
         }
         if (!construction.hasHintsScheme()) {
@@ -225,10 +225,9 @@ public class HintsContext {
                                         .multiply(BigInteger.valueOf(5)))
                         <= 0) {
             log.warn(
-                    "hinTS construction #{} has scheme coverage {}/{}; full-book majority liveness cannot tolerate an additional {}/3 unavailable weight",
+                    "hinTS construction #{} has scheme coverage {}/{}; full-book majority liveness cannot tolerate an additional one third of the full generation being unavailable",
                     snapshot.constructionId(),
                     weights.schemeWeight(),
-                    weights.totalWeight(),
                     weights.totalWeight());
         }
     }

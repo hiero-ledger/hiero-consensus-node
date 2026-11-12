@@ -6,8 +6,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.hints.CRSStage;
@@ -294,6 +297,60 @@ class HintsControllersTest {
                                         .targetHistory(new History(Bytes.EMPTY, Bytes.wrap("other-key")))
                                         .build())
                                 .build()));
+    }
+
+    @Test
+    void equalReparsedSourceRecordsReuseTheResolvedGenerationAndController() throws Exception {
+        final var activeHints = sourceConstruction(1L);
+        final var history = sourceHistory(1L);
+        final var hintsBytes = HintsConstruction.PROTOBUF.toBytes(activeHints);
+        final var historyBytes = HistoryProofConstruction.PROTOBUF.toBytes(history);
+        final var firstHints = HintsConstruction.PROTOBUF.parse(hintsBytes);
+        final var secondHints = HintsConstruction.PROTOBUF.parse(hintsBytes);
+        final var firstHistory = HistoryProofConstruction.PROTOBUF.parse(historyBytes);
+        final var secondHistory = HistoryProofConstruction.PROTOBUF.parse(historyBytes);
+        assertNotSame(firstHints, secondHints);
+        assertNotSame(firstHistory, secondHistory);
+        assertEquals(firstHints, secondHints);
+        assertEquals(firstHistory, secondHistory);
+        final var upcoming = ONE_CONSTRUCTION.copyBuilder().constructionId(2L).build();
+        final var upcomingBytes = HintsConstruction.PROTOBUF.toBytes(upcoming);
+        given(activeRosters.transitionWeights(any())).willReturn(weights);
+        given(weights.targetWeightThreshold()).willReturn(1L);
+        try (final var generationFactory = mockStatic(HintsGenerationWeights.class, CALLS_REAL_METHODS)) {
+            final var first = subject.getOrCreateFor(
+                    activeRosters,
+                    HintsConstruction.PROTOBUF.parse(upcomingBytes),
+                    hintsStore,
+                    firstHints,
+                    firstHistory);
+            final var second = subject.getOrCreateFor(
+                    activeRosters,
+                    HintsConstruction.PROTOBUF.parse(upcomingBytes),
+                    hintsStore,
+                    secondHints,
+                    secondHistory);
+
+            assertSame(first, second);
+            generationFactory.verify(() -> HintsGenerationWeights.from(firstHints, firstHistory));
+            verify(activeRosters).transitionWeights(any());
+            final var changedSnapshot = history.targetProofOrThrow().targetNodeWeights().stream()
+                    .map(entry -> entry.nodeId() == 9L ? new ProofNodeWeight(9L, 2L) : entry)
+                    .toList();
+            final var changedHistory = HistoryProofConstruction.PROTOBUF.parse(
+                    HistoryProofConstruction.PROTOBUF.toBytes(history.copyBuilder()
+                            .targetProof(
+                                    history.targetProofOrThrow().copyBuilder().targetNodeWeights(changedSnapshot))
+                            .build()));
+
+            final var changed =
+                    subject.getOrCreateFor(activeRosters, upcoming, hintsStore, secondHints, changedHistory);
+
+            assertNotSame(
+                    first, changed, "A changed full source book must rebuild even when source IDs and keys match");
+            generationFactory.verify(() -> HintsGenerationWeights.from(secondHints, changedHistory));
+            verify(activeRosters, times(2)).transitionWeights(any());
+        }
     }
 
     @Test

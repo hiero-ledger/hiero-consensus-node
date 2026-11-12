@@ -44,6 +44,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -219,10 +220,10 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @Nullable final HistoryProofConstruction historyConstruction) {
         final var context = component.signingContext();
         final boolean requiresHistory = context.requiresHistory();
-        if (installedConstruction == construction
-                && installedCrs == crsState
+        if (Objects.equals(installedConstruction, construction)
+                && Objects.equals(installedCrs, crsState)
                 && installedRequiresHistory == requiresHistory
-                && (!requiresHistory || installedHistory == historyConstruction)
+                && (!requiresHistory || Objects.equals(installedHistory, historyConstruction))
                 && context.isReady()) {
             return;
         }
@@ -319,7 +320,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                                     .targetProofOrThrow()
                                     .targetNodeWeights()
                                     .isEmpty())) {
-                // Install only a changed immutable input. Unchanged rounds need no weight scan or signing write lock.
+                // Singleton reads may reparse equal records. Install only changed values, without rebuilding weights or
+                // taking the signing write lock.
                 installSigningConstruction(active, hintsStore.getCrsStateFor(active), activeHistoryConstruction);
             }
         }
@@ -460,7 +462,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext()));
         registry.register(new V073HintsSchema(library, component.signingContext()));
-        registry.register(new V079HintsSchema(library, component.signingContext()));
+        registry.register(new V079HintsSchema(library));
     }
 
     @Override

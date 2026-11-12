@@ -1025,6 +1025,58 @@ class HandleWorkflowTest {
     }
 
     @Test
+    void repeatedInvalidGenerationsAreLoggedOnceWhileHistoryContinuesAndResetAfterRecovery() {
+        givenTssEnabledEmptyRounds();
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(HintsConstruction.DEFAULT, null));
+        final var currentFailure = new AtomicReference<RuntimeException>(failure);
+        willAnswer(_ -> {
+                    if (currentFailure.get() != null) {
+                        throw currentFailure.get();
+                    }
+                    return null;
+                })
+                .given(hintsService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any());
+        final var logs = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
+        try {
+            for (int i = 1; i <= 3; i++) {
+                given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(i));
+                subject.handleRound(state, round, txn -> {});
+            }
+            assertEquals(
+                    1,
+                    logs.errorLogs().stream()
+                            .filter(message ->
+                                    message.contains("Cannot advance hinTS with the current generation snapshot"))
+                            .count());
+            verify(historyService, times(3))
+                    .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+            currentFailure.set(null);
+            given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(4));
+            subject.handleRound(state, round, txn -> {});
+            currentFailure.set(failure);
+            given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(5));
+            subject.handleRound(state, round, txn -> {});
+
+            assertEquals(
+                    2,
+                    logs.errorLogs().stream()
+                            .filter(message ->
+                                    message.contains("Cannot advance hinTS with the current generation snapshot"))
+                            .count());
+            verify(historyService, times(5))
+                    .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+            verify((CommittableWritableStates) state.getWritableStates(HintsService.NAME), times(5))
+                    .commit();
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
     void unrelatedHintsFailureStillAbortsTheTssReconciliationAction() {
         givenTssEnabledEmptyRounds();
         willThrow(new IllegalStateException("unrelated local failure"))
@@ -1075,6 +1127,40 @@ class HandleWorkflowTest {
 
         verify(hintsService).setActiveConstruction(active, CRSState.DEFAULT);
         verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+    }
+
+    @Test
+    void switchingFromCompatibilityToStrictModeClearsTheCapturedHintsCallback() throws Exception {
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "false", "tss.forceMockSignatures", "false"));
+        final var installedCallback = new AtomicReference<OnHintsFinished>();
+        willAnswer(invocation -> {
+                    installedCallback.set(invocation.getArgument(0));
+                    return null;
+                })
+                .given(hintsService)
+                .onFinishedConstruction(any());
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        assertNotNull(installedCallback.get());
+
+        final var strictConfig = HederaTestConfigBuilder.create()
+                .withValue("tss.hintsEnabled", true)
+                .withValue("tss.historyEnabled", true)
+                .withValue("tss.forceMockSignatures", false)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(strictConfig, 2L));
+        configure.invoke(subject, state, new AtomicReference<>());
+
+        assertNull(installedCallback.get());
+        final var order = inOrder(hintsService);
+        order.verify(hintsService).onFinishedConstruction(any(OnHintsFinished.class));
+        order.verify(hintsService).onFinishedConstruction(null);
     }
 
     private void givenTssEnabledEmptyRounds() {
@@ -2064,9 +2150,10 @@ class HandleWorkflowTest {
         verify(schedIter, times(2)).remove();
     }
 
-    @Test
-    void completedWeightRotationRecordsTheDispatchConsensusTime() throws Exception {
-        given(hintsService.requiresHistoryWeights()).willReturn(true);
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void completedWeightRotationWaitsForHistoryAndRecordsDispatchTime(final boolean mockSignatures) throws Exception {
+        given(hintsService.requiresHistoryWeights()).willReturn(!mockSignatures);
         final var activeRosterHash = Bytes.wrap("ACTIVE");
         final var candidateRosterHash = Bytes.wrap("CANDIDATE");
         final var activeRoster = Roster.newBuilder()
@@ -2102,7 +2189,13 @@ class HandleWorkflowTest {
                 BLOCKS,
                 BlockStreamWriterMode.FILE,
                 emptyList(),
-                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+                Map.of(
+                        "tss.hintsEnabled",
+                        "true",
+                        "tss.historyEnabled",
+                        "true",
+                        "tss.forceMockSignatures",
+                        "" + mockSignatures));
         final var field = HandleWorkflow.class.getDeclaredField("inFlightDispatch");
         field.setAccessible(true);
         field.set(subject, dispatch);
@@ -2112,10 +2205,32 @@ class HandleWorkflowTest {
         configure.invoke(subject, state, new AtomicReference<>());
         final var callback = ArgumentCaptor.forClass(OnProofFinished.class);
         verify(historyService).onFinishedConstruction(callback.capture());
+        if (mockSignatures) {
+            final var hintsCallback = ArgumentCaptor.forClass(OnHintsFinished.class);
+            verify(hintsService).onFinishedConstruction(hintsCallback.capture());
+            final var completedHintsStore = mock(WritableHintsStore.class);
+            prepared.stub(completedHintsStore);
+
+            hintsCallback.getValue().accept(completedHintsStore, prepared.next(), mock(HintsContext.class));
+
+            // Mock signatures relax the signing denominator, but both persistent generations still adopt together.
+            assertEquals(prepared.next(), completedHintsStore.getNextConstruction());
+            assertEquals(prepared.active(), completedHintsStore.getActiveConstruction());
+            verify(hintsService, never()).handoff(any(), any(), any(), any());
+            verify(hintsService, never()).handoff(any(), any(), any(), any(), any());
+            verify(historyStore, never()).handoff(any(), any(), any(), any());
+        }
         try (final var hintsStores =
                 mockConstruction(WritableHintsStoreImpl.class, (store, _) -> prepared.stub(store))) {
             callback.getValue().onFinished(historyStore, prepared.history(), new TreeMap<>());
             verify(historyStore).handoff(activeRoster, candidateRoster, candidateRosterHash, boundary);
+            verify(hintsService)
+                    .handoff(
+                            same(hintsStores.constructed().getFirst()),
+                            eq(activeRoster),
+                            eq(candidateRoster),
+                            eq(candidateRosterHash),
+                            any());
             verify(historyService).setLatestHistoryProof(prepared.history().targetProofOrThrow());
             assertEquals(1, hintsStores.constructed().size());
         }

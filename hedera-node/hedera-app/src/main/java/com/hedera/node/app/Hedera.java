@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
@@ -1005,8 +1006,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                             .equals(active.hintsSchemeOrThrow()
                                     .preprocessedKeysOrThrow()
                                     .verificationKey())) {
-                if (!com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible(
-                        history.targetProofOrThrow())) {
+                if (!isWrapsExtensible(history.targetProofOrThrow())) {
                     throw new IllegalStateException("Cannot recover history snapshot #" + history.constructionId()
                             + " for hinTS #" + active.constructionId() + " (target " + active.targetRosterHash()
                             + "): legacy proof is not WRAPS-extensible; restore a verified snapshot or reset TSS");

@@ -7,6 +7,7 @@ import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -30,6 +31,7 @@ import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -443,16 +445,38 @@ class HintsServiceImplTest {
     }
 
     @Test
-    void unchangedReconciliationInstallsSigningGenerationOnlyOnce() {
+    void equalReparsedRecordsInstallSigningGenerationOnlyOnce() throws Exception {
         final var construction = signingConstruction();
         final var history = HintsGenerationTestUtils.historyFor(construction);
-        given(hintsStore.getActiveConstruction()).willReturn(construction);
-        given(hintsStore.getCrsStateFor(construction)).willReturn(CRSState.DEFAULT);
+        final var crs = CRSState.newBuilder()
+                .ceremonyId(1L)
+                .numParties(8)
+                .stage(COMPLETED)
+                .crs(Bytes.wrap("persisted CRS"))
+                .build();
+        final var firstConstruction =
+                HintsConstruction.PROTOBUF.parse(HintsConstruction.PROTOBUF.toBytes(construction));
+        final var secondConstruction =
+                HintsConstruction.PROTOBUF.parse(HintsConstruction.PROTOBUF.toBytes(construction));
+        final var firstCrs = CRSState.PROTOBUF.parse(CRSState.PROTOBUF.toBytes(crs));
+        final var secondCrs = CRSState.PROTOBUF.parse(CRSState.PROTOBUF.toBytes(crs));
+        final var firstHistory =
+                HistoryProofConstruction.PROTOBUF.parse(HistoryProofConstruction.PROTOBUF.toBytes(history));
+        final var secondHistory =
+                HistoryProofConstruction.PROTOBUF.parse(HistoryProofConstruction.PROTOBUF.toBytes(history));
+        assertNotSame(firstConstruction, secondConstruction);
+        assertNotSame(firstCrs, secondCrs);
+        assertNotSame(firstHistory, secondHistory);
+        assertEquals(firstConstruction, secondConstruction);
+        assertEquals(firstCrs, secondCrs);
+        assertEquals(firstHistory, secondHistory);
+        given(hintsStore.getActiveConstruction()).willReturn(firstConstruction, secondConstruction);
+        given(hintsStore.getCrsStateFor(construction)).willReturn(firstCrs, secondCrs);
         given(context.isReady()).willReturn(true);
         given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
         given(component.controllers()).willReturn(controllers);
 
-        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, history);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, firstHistory);
         subject.reconcile(
                 activeRosters,
                 hintsStore,
@@ -460,10 +484,25 @@ class HintsServiceImplTest {
                 CONSENSUS_NOW.plusSeconds(1),
                 tssConfig,
                 true,
-                history);
+                secondHistory);
 
-        verify(context)
-                .setConstruction(construction, CRSState.DEFAULT, HintsGenerationWeights.from(construction, history));
+        verify(context).setConstruction(construction, crs, HintsGenerationWeights.from(construction, history));
+        final var differentHistory = history.copyBuilder()
+                .targetRosterHash(Bytes.wrap("different generation"))
+                .build();
+        final var reparsedDifferentHistory =
+                HistoryProofConstruction.PROTOBUF.parse(HistoryProofConstruction.PROTOBUF.toBytes(differentHistory));
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.reconcile(
+                        activeRosters,
+                        hintsStore,
+                        CONSENSUS_NOW.plusSeconds(2),
+                        CONSENSUS_NOW.plusSeconds(2),
+                        tssConfig,
+                        true,
+                        reparsedDifferentHistory));
+        verify(context).setConstruction(construction, crs, HintsGenerationWeights.from(construction, history));
     }
 
     @Test

@@ -124,9 +124,9 @@ public class HintsControllers {
                 configurationSupplier.get().getConfigData(TssConfig.class));
         final HintsGenerationWeights sourceGeneration;
         if (sourceInputsResolved
-                && resolvedHints == activeHintsConstruction
+                && Objects.equals(resolvedHints, activeHintsConstruction)
                 && resolvedRequiresHistory == requiresHistory
-                && (!requiresHistory || resolvedHistory == activeHistoryConstruction)) {
+                && (!requiresHistory || Objects.equals(resolvedHistory, activeHistoryConstruction))) {
             sourceGeneration = resolvedSourceGeneration;
         } else {
             sourceGeneration = activeHintsConstruction != null && activeHintsConstruction.hasHintsScheme()

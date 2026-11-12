@@ -8,9 +8,9 @@ rotations, so a current platform roster is not a substitute for the committed ge
 Let `F` be the complete generation weight and `S` the weight represented in its hinTS scheme. Relative to the
 previous main-branch behavior:
 
-| Operation | Previous requirement | New requirement |
-| --- | --- | --- |
-| Preprocessing adoption | At least `S/3` eligible vote weight | At least `F/3` eligible vote weight |
+|         Operation          |          Previous requirement          |            New requirement             |
+|----------------------------|----------------------------------------|----------------------------------------|
+| Preprocessing adoption     | At least `S/3` eligible vote weight    | At least `F/3` eligible vote weight    |
 | Block signing, divisor two | Strictly more than `S/2` signer weight | Strictly more than `F/2` signer weight |
 
 Threshold comparisons retain their existing strictness and integer rounding. For example, `F=7, S=5` changes the
@@ -30,7 +30,8 @@ The node logs an activation warning when `S <= 5F/6`, once for that generation r
 
 ## Compatibility and legacy state
 
-History-disabled and mock-signature configurations retain their previous scheme-based behavior. Fresh genesis
+History-disabled and mock-signature configurations retain their previous scheme-based behavior. With history
+enabled, mock-signature rotations still promote hinTS and history together. Fresh genesis
 initializes TSS singleton values in its first handled round; runtime restoration must not read those values before
 that round. These compatibility paths do not claim full-generation enforcement.
 

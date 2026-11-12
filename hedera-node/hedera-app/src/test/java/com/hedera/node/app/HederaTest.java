@@ -29,12 +29,14 @@ import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
+import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
+import com.hedera.node.app.hints.schemas.V079HintsSchema;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
@@ -58,11 +60,14 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
+import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
@@ -414,9 +419,12 @@ final class HederaTest {
                 .when(hintsService)
                 .setActiveConstruction(any(), any(), any());
 
+        validateHintsSchema(active, crs);
+        verifyNoInteractions(hintsService);
         initializeHintsSigning(active, crs, prepared.history());
 
         verify(hintsService).setActiveConstruction(active, crs, prepared.history());
+        verify(hintsService, never()).setActiveConstruction(any(), any());
     }
 
     @Test
@@ -495,15 +503,42 @@ final class HederaTest {
     void restoresSchemeSigningInCompatibleConfigurations(final boolean historyEnabled, final boolean forceMock)
             throws ReflectiveOperationException {
         final var prepared = new PreparedTssHandoff(Bytes.wrap("compatible-roster"));
-        final var active = prepared.next();
+        final var active = prepared.next().copyBuilder().crsId(1L).build();
         final var crs = completedBootstrapCrs();
         final var hintsService = serviceOfType(HintsService.class);
         clearInvocations(hintsService);
 
+        validateHintsSchema(active, crs);
+        verifyNoInteractions(hintsService);
         initializeHintsSigning(active, crs, HistoryProofConstruction.DEFAULT, historyEnabled, forceMock);
 
         verify(hintsService).setActiveConstruction(active, crs);
         verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+    }
+
+    private static void validateHintsSchema(final HintsConstruction active, final CRSState crs) {
+        final var library = mock(HintsLibrary.class);
+        when(library.crsPartySize(crs.crs())).thenReturn(crs.numParties());
+        final var migration = mock(MigrationContext.class);
+        when(migration.newStates())
+                .thenReturn(new MapWritableStates(Map.of(
+                        V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID,
+                        unmodifiedSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID, active),
+                        V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID,
+                        unmodifiedSingleton(
+                                V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID, HintsConstruction.DEFAULT),
+                        V060HintsSchema.CRS_STATE_STATE_ID,
+                        unmodifiedSingleton(V060HintsSchema.CRS_STATE_STATE_ID, crs),
+                        V079HintsSchema.NEXT_CRS_STATE_ID,
+                        unmodifiedSingleton(V079HintsSchema.NEXT_CRS_STATE_ID, CRSState.DEFAULT))));
+
+        new V079HintsSchema(library).restart(migration);
+    }
+
+    private static <T> FunctionWritableSingletonState<T> unmodifiedSingleton(final int id, final T value) {
+        return new FunctionWritableSingletonState<>(id, "HintsService." + id, () -> value, _ -> {
+            throw new AssertionError("Validating a complete hinTS schema must not change it");
+        });
     }
 
     private static CRSState completedBootstrapCrs() {

@@ -216,6 +216,7 @@ public class HandleWorkflow {
     private boolean checkedForTransplant;
 
     private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
+    private final ThrottledLogging hintsGenerationFailureLogging = new ThrottledLogging();
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -1229,7 +1230,7 @@ public class HandleWorkflow {
                 hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
                     if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
                         hintsService.setActiveConstruction(construction, hintsStore.getCrsStateFor(construction));
-                    } else {
+                    } else if (!tssConfig.historyEnabled()) {
                         final var rosters = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
                         if (rosters.candidateIsWeightRotation()) {
                             hintsService.handoff(
@@ -1240,6 +1241,9 @@ public class HandleWorkflow {
                         }
                     }
                 });
+            } else {
+                // A compatibility callback captures its earlier policy; discard it when strict mode takes over.
+                hintsService.onFinishedConstruction(null);
             }
 
             if (tssConfig.historyEnabled()) {
@@ -1537,10 +1541,13 @@ public class HandleWorkflow {
                                 HintsGenerationWeights.requiresHistory(tssConfig)
                                         ? readableHistoryStore.getActiveConstruction()
                                         : null);
+                        hintsGenerationFailureLogging.reset();
                     } catch (HintsGenerationWeights.InvalidGenerationException e) {
-                        logger.error(
-                                "Cannot advance hinTS with the current generation snapshot; history reconciliation will continue",
-                                e);
+                        if (hintsGenerationFailureLogging.shouldLog(e)) {
+                            logger.error(
+                                    "Cannot advance hinTS with the current generation snapshot; history reconciliation will continue",
+                                    e);
+                        }
                     }
                 });
                 if (tssConfig.historyEnabled()) {
