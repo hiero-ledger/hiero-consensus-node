@@ -49,6 +49,7 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
@@ -339,6 +340,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
 
     private static <V> MapChangeValue mapChangeValueFor(@NonNull final V value) {
         return switch (value) {
+            case HintsKeyWitnessRecord witnessRecord ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.HINTS_KEY_WITNESS_RECORD_VALUE, witnessRecord));
             case Node node -> new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NODE_VALUE, node));
             case NodeId nodeId ->
                 new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.NODE_ID_VALUE, nodeId));

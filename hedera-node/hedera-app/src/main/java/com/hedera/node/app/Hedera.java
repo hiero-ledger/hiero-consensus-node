@@ -25,6 +25,7 @@ import static java.util.concurrent.CompletableFuture.completedFuture;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTimeOf;
@@ -774,10 +775,24 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 blockStreamManager().notifyFatalEvent();
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
 
+                // Capture and stage the exact ISS-round block for the halting ISS (no-op unless
+                // failureBlockStaging.issBlockStagingEnabled, or if the detection path already staged it).
+                // This MUST run before the block node connections are shut down: in gRPC mode a closed ISS block lives
+                // only in the in-memory buffer that their shutdown clears, so resolving it afterwards would find
+                // nothing. It only WRITES the artifact to failureBlockStaging.issBlockDir; a separate uploader ships it
+                // (see FailureBlockStagingConfig for the DevOps deployment prerequisites).
+                app.issDetectionStagingCoordinator().stageDetectedIssOnFailure();
+
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }
+                // The open/pending blocks flushed above are on disk; stage them for the deployment's uploader (no-op
+                // unless failureBlockStaging.triageStagingEnabled), grouped under the SAME per-incident folder as the
+                // exact ISS block so one incident is one directory.
+                app.triageBlockStagingCoordinator()
+                        .stageFlushedTriageBlocks(
+                                app.issDetectionStagingCoordinator().currentIncidentFolder());
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
             case FREEZING -> {
@@ -1933,11 +1948,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     hintsService,
                     previousRoster,
                     adoptedRoster,
-                    preparedRosterHash)) {
+                    preparedRosterHash,
+                    requireNonNull(
+                            consensusTimestampOf(initState), "Roster adoption requires a consensus timestamp"))) {
                 throw new IllegalStateException("Prepared TSS constructions failed to promote with the adopted roster");
             }
         } else if (tssConfig.historyEnabled()) {
-            writableHistoryStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash);
+            writableHistoryStore.handoff(
+                    previousRoster, adoptedRoster, adoptedRosterHash, consensusTimestampOf(initState));
         } else if (tssConfig.hintsEnabled()
                 && !hintsService.handoff(writableHintsStore, previousRoster, adoptedRoster, preparedRosterHash)) {
             throw new IllegalStateException("Prepared hinTS construction failed to promote with the adopted roster");

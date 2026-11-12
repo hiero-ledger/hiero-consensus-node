@@ -17,6 +17,8 @@ workloads used fewer than run_benchmarks.py's --max-load CPUs during the measure
 - jmh_latency_samples, quiet only: latency samples of the whole run;
 - jmh_allocation_bytes_per_op: alloc.norm;
 - jmh_gc_discarded_passes: measured.gc.discardedPasses, passes dropped because a collection hit them;
+- jmh_saturation_discarded_passes, quiet only: measured.saturation.discardedPasses of a pipeline benchmark, passes
+  dropped because the pipeline did not keep up, which the load can cause;
 - jmh_other_load_cpus: CPUs used by other workloads during the measurement;
 - jmh_attempts: how many attempts the parameter set needed;
 - jmh_run_seconds: wall-clock time of the published attempt's JMH invocation, which sets the nightly job's time budget.
@@ -45,7 +47,8 @@ from benchmark_runs import read_environment, read_properties, read_run_index
 
 LATENCY = {"latency.mean": "mean", "latency.min": "min", "latency.p50": "p50", "latency.p90": "p90",
            "latency.p99": "p99", "latency.p99.9": "p99.9", "latency.p99.99": "p99.99", "latency.max": "max"}
-LOAD_DEPENDENT = {"latency.samples": "jmh_latency_samples"}
+LOAD_DEPENDENT = {"latency.samples": "jmh_latency_samples",
+                  "measured.saturation.discardedPasses": "jmh_saturation_discarded_passes"}
 LOAD_INDEPENDENT = {"alloc.norm": "jmh_allocation_bytes_per_op",
                     "measured.gc.discardedPasses": "jmh_gc_discarded_passes"}
 SLOTS = {True: "quiet", False: "loaded", None: "unknown"}

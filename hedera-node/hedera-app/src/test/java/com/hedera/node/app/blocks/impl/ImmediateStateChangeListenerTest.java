@@ -45,6 +45,8 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
 import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
@@ -325,6 +327,37 @@ class ImmediateStateChangeListenerTest {
         final var restored = StateChange.PROTOBUF.parse(StateChange.PROTOBUF.toBytes(change));
         assertEquals(V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID, restored.stateId());
         assertEquals(provenance, BlockStreamUtils.queuePushFor(restored.queuePushOrThrow()));
+    }
+
+    @Test
+    void witnessMapChangesCanBeReplayedWithoutLosingFields() throws Exception {
+        final var key = new ProtoLong(2L);
+        final var record = HintsKeyWitnessRecord.newBuilder()
+                .provenance(HintsKeyProvenance.newBuilder()
+                        .sourceHintsConstructionId(1L)
+                        .targetHintsConstructionId(2L)
+                        .targetVerificationKey(com.hedera.pbj.runtime.io.buffer.Bytes.wrap("new"))
+                        .build())
+                .activationTime(com.hedera.hapi.node.base.Timestamp.newBuilder()
+                        .seconds(123)
+                        .build())
+                .witness(HintsKeyWitness.newBuilder()
+                        .targetHintsConstructionId(2L)
+                        .timestamp(com.hedera.hapi.node.base.Timestamp.newBuilder()
+                                .seconds(124)
+                                .build())
+                        .siblingHash(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[32]))
+                        .signature(com.hedera.pbj.runtime.io.buffer.Bytes.wrap("signature"))
+                        .build())
+                .build();
+        final int stateId = com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
+        listener.mapUpdateChange(stateId, key, record);
+        final var restored = StateChange.PROTOBUF.parse(
+                StateChange.PROTOBUF.toBytes(listener.getStateChanges().getFirst()));
+        assertEquals(stateId, restored.stateId());
+        assertEquals(key, BlockStreamUtils.mapKeyFor(restored.mapUpdateOrThrow().keyOrThrow()));
+        assertEquals(
+                record, BlockStreamUtils.mapValueFor(restored.mapUpdateOrThrow().valueOrThrow()));
     }
 
     @Test
