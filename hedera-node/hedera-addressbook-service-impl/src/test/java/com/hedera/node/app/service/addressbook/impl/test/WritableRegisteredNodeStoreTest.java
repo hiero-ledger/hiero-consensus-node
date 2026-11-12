@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Key;
@@ -123,6 +124,18 @@ class WritableRegisteredNodeStoreTest {
         assertEquals(REGISTERED_NODE, writableState.get(NODE_ENTITY_NUM));
         verify(writableEntityIdStore).incrementHighestNodeIdAndGet();
         verify(writableEntityIdStore).incrementEntityTypeCount(EntityType.REGISTERED_NODE);
+    }
+
+    @Test
+    void putWithExplicitIdStoresNodeAndRaisesHighestNodeIdWithoutIncrementing() {
+        assertFalse(writableState.contains(NODE_ENTITY_NUM));
+
+        subject.putWithExplicitId(REGISTERED_NODE);
+
+        assertEquals(REGISTERED_NODE, writableState.get(NODE_ENTITY_NUM));
+        verify(writableEntityIdStore).incrementEntityTypeCount(EntityType.REGISTERED_NODE);
+        verify(writableEntityIdStore).updateHighestNodeIdIfLarger(NODE_ID);
+        verify(writableEntityIdStore, never()).incrementHighestNodeIdAndGet();
     }
 
     @Test
