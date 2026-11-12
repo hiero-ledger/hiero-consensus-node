@@ -185,10 +185,7 @@ separately from the pause.
 Instead of copying the indexes in memory, a copy can keep today's snapshot and map the snapshot's index files with
 `FileChannel.map(MapMode.PRIVATE, offset, length, arena)` instead of loading them. Mapping only sets up page tables. An
 entry is read from the file when it's first accessed, and a write goes to a private copy of its page, never to the
-file. [`LongListDiskSegment`](https://github.com/hiero-ledger/hiero-consensus-node/blob/4f374d96047c51b5c44a08320cbd5ad8859657c8/platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java),
-added in [#25903](https://github.com/hiero-ledger/hiero-consensus-node/pull/25903) for fast upgrades and removed in
-[#28198](https://github.com/hiero-ledger/hiero-consensus-node/issues/28198), mapped index chunks this way, with
-`MapMode.READ_WRITE`. A `PRIVATE` variant of it can back the copy's three indexes.
+file.
 
 Pros:
 - Loading the indexes, most of the rebuild, takes milliseconds: about 4,400 mapped 8 MiB chunks per data source.
@@ -222,9 +219,9 @@ Things to get right:
 ([`AbstractLongList.java:515`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java#L515))
 puts every value at an offset of 4 mod 8. `LongListSegment` reads and updates values with volatile access and
 `compareAndSet`
-([`LongListSegment.java:219`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java#L219)),
-which need 8-byte alignment. The copy's index files need `LongListDiskSegment`'s layout, value `i` at a fixed
-offset, with the header padded to a page, so every chunk starts on a page boundary. These files are temporary and
+([`LongListSegment.java:278`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java#L278)),
+which need 8-byte alignment. The copy's index files need a layout with value `i` at a fixed offset and the header
+padded to a page, so every chunk starts on a page boundary. These files are temporary and
 read only by the process that wrote them, so their format can change freely. Saved states keep today's format.
 2. **The mapped files must never change.** `PRIVATE` keeps the copy's writes out of the files. But on Linux, pages
 the copy hasn't written yet show later changes made to the file by anyone else, and truncating the file makes the
@@ -236,8 +233,8 @@ A snapshot that is only mapped by the same process doesn't need it. Without it, 
 at memory speed, until the kernel starts throttling dirty pages. How fast 37 GB can be written this way in the
 node's cgroup has to be measured.
 4. **The right `map()` overload.** `FileChannel.map(mode, position, size)` returns a `MappedByteBuffer`, limited to
-2 GiB. The overload with an `Arena` returns a `MemorySegment`. Map each chunk in its own shared arena, as
-`LongListDiskSegment` did, so chunks below the valid range can be unmapped one by one.
+2 GiB. The overload with an `Arena` returns a `MemorySegment`. Map each chunk in its own shared arena, so chunks
+below the valid range can be unmapped one by one.
 5. **Memory accounting.** Mapped pages are charged to the container's cgroup as page cache. The kernel can reclaim
 them, so they don't lead to OOM kills, but they count towards the container's memory usage. They don't appear in
 NMT or the MerkleDB off-heap metrics, so memory monitoring has to include file-backed memory.
