@@ -430,7 +430,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         };
 
         // Leaves are supplied the way the reconnect learner supplies them: through a blocking iterator, which
-        // the hashing task consumes on the hasher's only thread
+        // waits for more leaves while the hasher has a single thread
         final ConcurrentBlockingIterator<VirtualLeafBytes> iterator = new ConcurrentBlockingIterator<>(16);
         final VirtualHasher hasher = new VirtualHasher(singleThreadConfig);
         try {
