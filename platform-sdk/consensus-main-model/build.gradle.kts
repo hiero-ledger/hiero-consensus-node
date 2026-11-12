@@ -4,5 +4,5 @@ plugins {
     id("org.hiero.gradle.feature.publish-artifactregistry")
 }
 
-description = "Consensus Main Model - the model objects needed to interact with the consensus main module."
-
+description =
+    "Consensus Main Model - the model objects needed to interact with the consensus main module."
