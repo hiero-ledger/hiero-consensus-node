@@ -20,7 +20,7 @@ class BlockStreamConfigTest {
                     .getOrCreateConfig()
                     .getConfigData(BlockStreamConfig.class);
             assertThat(defaults.stateChangePartialsEnabled()).isFalse();
-            assertThat(defaults.stateChangePartialMinSaving()).isEqualTo(64);
+            assertThat(defaults.stateChangePartialMinSaving()).isEqualTo(16);
             final var enabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                     .withValue("blockStream.streamMode", mode.name())
                     .withValue("blockStream.enableStateChangePartials", true)
