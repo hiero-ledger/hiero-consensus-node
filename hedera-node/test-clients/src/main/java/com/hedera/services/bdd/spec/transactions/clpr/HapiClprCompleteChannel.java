@@ -26,6 +26,7 @@ public class HapiClprCompleteChannel extends HapiTxnOp<HapiClprCompleteChannel> 
     private byte[] channelId;
     private byte[] publicKey;
     private byte[] signature;
+    private java.util.function.UnaryOperator<byte[]> ownerSigner;
     private ClprSignatureScheme signatureScheme = ClprSignatureScheme.ED25519;
     private Optional<String> verifierContractName = Optional.empty();
     private Optional<ContractID> verifierContractId = Optional.empty();
@@ -47,6 +48,31 @@ public class HapiClprCompleteChannel extends HapiTxnOp<HapiClprCompleteChannel> 
     public HapiClprCompleteChannel signature(final byte[] signature) {
         this.signature = signature;
         return this;
+    }
+
+    /**
+     * Signs the completion body with the given owner signer once all fields are known; the
+     * signature covers the channel id, verifier contract and both proofs.
+     */
+    public HapiClprCompleteChannel signedWith(final java.util.function.UnaryOperator<byte[]> ownerSigner) {
+        this.ownerSigner = ownerSigner;
+        return this;
+    }
+
+    /** Mirrors {@code ClprCompleteChannelHandler.completeChannelSigningMessage}. */
+    public static byte[] completeChannelSigningMessage(
+            final byte[] channelId,
+            final ContractID verifierContract,
+            final byte[] configProofBytes,
+            final byte[] endpointManifestProofBytes) {
+        final var out = new java.io.ByteArrayOutputStream();
+        out.writeBytes("hiero.clpr.complete-channel.v1".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        out.writeBytes(channelId);
+        out.writeBytes(
+                com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf(verifierContract.toByteArray()));
+        out.writeBytes(com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf(configProofBytes));
+        out.writeBytes(com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf(endpointManifestProofBytes));
+        return com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf(out.toByteArray());
     }
 
     public HapiClprCompleteChannel signatureScheme(final ClprSignatureScheme scheme) {
@@ -114,6 +140,14 @@ public class HapiClprCompleteChannel extends HapiTxnOp<HapiClprCompleteChannel> 
                             }
                             if (endpointManifestProofBytes != null) {
                                 b.setEndpointManifestProofBytes(ByteString.copyFrom(endpointManifestProofBytes));
+                            }
+                            if (ownerSigner != null) {
+                                final var message = completeChannelSigningMessage(
+                                        b.getChannelId().toByteArray(),
+                                        b.getVerifierContract(),
+                                        b.getConfigProofBytes().toByteArray(),
+                                        b.getEndpointManifestProofBytes().toByteArray());
+                                b.setSignature(ByteString.copyFrom(ownerSigner.apply(message)));
                             }
                         });
         return b -> b.setClprCompleteChannel(opBody);

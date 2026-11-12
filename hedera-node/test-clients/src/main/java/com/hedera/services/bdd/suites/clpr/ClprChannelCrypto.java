@@ -24,6 +24,7 @@ final class ClprChannelCrypto {
     private final byte[] publicKey;
     private final byte[] commitment;
     private final byte[] signature;
+    private final byte[] secretKey;
     private final byte[] connectorSalt;
     private final byte[] connectorId;
     private final byte[] connectorCommitment;
@@ -39,7 +40,7 @@ final class ClprChannelCrypto {
         // Generate Ed25519 key pair
         final var seed = new byte[Ed25519.SEED_BYTES];
         rng.nextBytes(seed);
-        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
+        secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
         publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
         Ed25519.newKeypair(publicKey, secretKey, seed);
 
@@ -76,6 +77,16 @@ final class ClprChannelCrypto {
 
     byte[] commitment() {
         return commitment;
+    }
+
+    /**
+     * Signs a 32-byte channel-completion message (see
+     * {@code HapiClprCompleteChannel#completeChannelSigningMessage}) with this channel's owner key.
+     */
+    byte[] signMessage(final byte[] messageHash) {
+        final var sig = new byte[Ed25519.SIGNATURE_BYTES];
+        Ed25519.sign(sig, messageHash, secretKey);
+        return sig;
     }
 
     byte[] signature() {

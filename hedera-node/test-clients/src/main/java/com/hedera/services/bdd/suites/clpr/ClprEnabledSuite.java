@@ -518,7 +518,7 @@ public class ClprEnabledSuite {
                 clprCompleteChannel()
                         .channelId(crypto.channelId())
                         .publicKey(crypto.publicKey())
-                        .signature(crypto.signature())
+                        .signedWith(crypto::signMessage)
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(
