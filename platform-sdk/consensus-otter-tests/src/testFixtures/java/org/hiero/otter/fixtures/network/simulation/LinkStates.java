@@ -73,6 +73,15 @@ final class LinkStates {
          * @param second the rank of the other node of the link
          */
         void linkWentDown(int first, int second);
+
+        /**
+         * Called for a link that is up when one of its nodes restarts. The link has been up all along, but the restarted
+         * node has to establish the connection again.
+         *
+         * @param first  the rank of the node of the link that comes first in roster order
+         * @param second the rank of the other node of the link
+         */
+        void linkRestarted(int first, int second);
     }
 
     /**
@@ -244,8 +253,8 @@ final class LinkStates {
     }
 
     /**
-     * Tells the listener about every link of a node that is up, as if each of them had just come up, which is what
-     * happens when the node restarts.
+     * Tells the listener about every link of a node that is up, because the node has restarted and has to establish
+     * each of those connections again.
      *
      * @param node     the rank of the node
      * @param listener is told about every link of the node that is up, in rank order of the peer
@@ -253,7 +262,7 @@ final class LinkStates {
     void restartLinksOf(final int node, @NonNull final LinkListener listener) {
         for (int peer = 0; peer < nodeCount; peer++) {
             if (peer != node && linkUp[node][peer]) {
-                listener.linkCameUp(Math.min(node, peer), Math.max(node, peer));
+                listener.linkRestarted(Math.min(node, peer), Math.max(node, peer));
             }
         }
     }

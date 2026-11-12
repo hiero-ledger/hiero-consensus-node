@@ -26,8 +26,8 @@ final class PendingSubmissions {
     private final List<List<PlatformEvent>> submissions;
 
     /**
-     * The order the submissions are drained in on the current tick. A shuffled copy of the ranks in rank order, reused
-     * across ticks so that producing it does not allocate.
+     * The order the submissions are drained in on the current tick. It starts in rank order, and every tick shuffles the
+     * order of the previous tick in place, so that producing it does not allocate.
      */
     private final List<Integer> order;
 
@@ -38,9 +38,13 @@ final class PendingSubmissions {
      */
     PendingSubmissions(final int nodeCount) {
         submissions = new ArrayList<>(nodeCount);
-        order = new ArrayList<>(nodeCount);
         for (int rank = 0; rank < nodeCount; rank++) {
             submissions.add(new ArrayList<>());
+        }
+
+        order = new ArrayList<>(nodeCount);
+        for (int rank = 0; rank < nodeCount; rank++) {
+            order.add(rank);
         }
     }
 
@@ -61,18 +65,16 @@ final class PendingSubmissions {
      * isolating it, or narrowing its bandwidth - is not always paired with the same position in the schedule. A fixed
      * order would let one node's events systematically precede another's for a whole run.
      *
-     * <p>Shuffling still leaves the result reproducible, because it depends only on the random number generator and on
-     * the ranks it starts from, neither of which is affected by how the nodes interleaved their submissions.
+     * <p>Each order is a shuffle of the previous one, which is as uniformly random as a shuffle of the ranks in rank
+     * order. It still leaves the result reproducible, because it depends only on the random number generator, which
+     * every previous order was drawn from too, and on the rank order the first one starts from, neither of which is
+     * affected by how the nodes interleaved their submissions.
      *
      * @param random the random number generator to draw the order from
      * @return the ranks of the nodes in the order to drain them in, which is only valid until the next call
      */
     @NonNull
     List<Integer> shuffledOrder(@NonNull final Random random) {
-        order.clear();
-        for (int rank = 0; rank < submissions.size(); rank++) {
-            order.add(rank);
-        }
         Collections.shuffle(order, random);
         return order;
     }

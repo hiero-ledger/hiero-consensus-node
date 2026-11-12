@@ -4,9 +4,8 @@ package org.hiero.otter.fixtures.network.simulation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.IntFunction;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The events that have been transmitted onto the simulated network but not yet delivered, held per directed connection
@@ -29,9 +28,9 @@ import org.hiero.consensus.model.node.NodeId;
 public class InFlightEvents extends InFlightConnections<EventInTransit> {
 
     /**
-     * Gives the current event window of a node, which decides which events are ancient for it.
+     * Gives the current event window of a node by its rank, which decides which events are ancient for it.
      */
-    private final Function<NodeId, EventWindow> eventWindows;
+    private final IntFunction<EventWindow> eventWindows;
 
     /**
      * The connections into the receiver currently being delivered to whose next event has arrived, ordered by the
@@ -48,14 +47,14 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
      *
      * @param nodeCount    the number of nodes in the network; their ranks are {@code 0} to {@code nodeCount - 1}
      * @param connected    reports whether the connection from a sender to a receiver is currently up
-     * @param eventWindows gives the current event window of a node
+     * @param eventWindows gives the current event window of a node by its rank
      * @param start        the instant arrival times are measured from, which should be close to the start of the
      *                     simulation
      */
     public InFlightEvents(
             final int nodeCount,
             @NonNull final ConnectionCheck connected,
-            @NonNull final Function<NodeId, EventWindow> eventWindows,
+            @NonNull final IntFunction<EventWindow> eventWindows,
             @NonNull final Instant start) {
         super(nodeCount, connected, start);
         this.eventWindows = Objects.requireNonNull(eventWindows);
@@ -83,7 +82,6 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
      */
     @Override
     void deliverArrived(@NonNull final Instant now, final int receiverRank, @NonNull final EventReceiver receiver) {
-        final NodeId receiverId = receiver.getNodeId();
         final long nowNanos = nanosSinceStart(now);
 
         // empty after every call that returns normally; cleared in case a previous call ended with an exception
@@ -100,7 +98,7 @@ public class InFlightEvents extends InFlightConnections<EventInTransit> {
         while (!connectionsByEarliestEvent.isEmpty()) {
             final InFlightQueue<EventInTransit> earliestConnection = connectionsByEarliestEvent.top();
             final EventInTransit head = earliestConnection.peek();
-            if (eventWindows.apply(receiverId).isAncient(head.event())) {
+            if (eventWindows.apply(receiverRank).isAncient(head.event())) {
                 // the event waited so long that the receiver would discard it, so it is not offered
                 earliestConnection.poll();
             } else if (receiver.receiveEvent(head.event())) {

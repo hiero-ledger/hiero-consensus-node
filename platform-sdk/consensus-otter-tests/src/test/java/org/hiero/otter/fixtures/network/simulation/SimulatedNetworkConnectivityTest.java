@@ -499,6 +499,80 @@ class SimulatedNetworkConnectivityTest {
     }
 
     @Test
+    @DisplayName("an event a node lacks is sent to it when its link to a node that has the event comes back")
+    void lackedEventIsSentWhenLinkComesBack() {
+        final Map<ConnectionKey, ConnectionState> partial = connections(true);
+        cut(partial, NODE_0, NODE_2);
+        cut(partial, NODE_1, NODE_2);
+        network.setConnections(partial);
+
+        // node 0's copy to node 2 is held, and node 1 does not forward the event to node 2 while their link is down
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(100);
+        forward(event, NODE_1);
+        tickTo(101);
+
+        // the link of node 1 and node 2 comes back, the one of node 0 and node 2 stays down
+        final Map<ConnectionKey, ConnectionState> healed = connections(true);
+        cut(healed, NODE_0, NODE_2);
+        network.setConnections(healed);
+        tickTo(102);
+        tickTo(3000);
+
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
+    }
+
+    @Test
+    @DisplayName("an event a node lacks is sent to it when its link comes back to a node that has just restarted")
+    void lackedEventIsSentWhenLinkComesBackToRestartedNode() {
+        final Map<ConnectionKey, ConnectionState> partial = connections(true);
+        cut(partial, NODE_0, NODE_2);
+        cut(partial, NODE_1, NODE_2);
+        network.setConnections(partial);
+
+        // node 0's copy to node 2 is held, and node 1 does not forward the event to node 2 while their link is down
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(100);
+        forward(event, NODE_1);
+        tickTo(101);
+
+        // node 1 restarts, and before the next tick its link to node 2 comes back
+        network.nodeRestarted(NODE_1);
+        final Map<ConnectionKey, ConnectionState> healed = connections(true);
+        cut(healed, NODE_0, NODE_2);
+        network.setConnections(healed);
+        tickTo(102);
+        tickTo(3000);
+
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
+    }
+
+    @Test
+    @DisplayName("an event sent again to a restarted node goes by sync, even from its creator")
+    void eventsAreSentAgainBySync() {
+        network.setConnections(uniform(Duration.ofMillis(20), true));
+
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(2000);
+        assertThat(node1.receivedEvents).hasSize(1);
+
+        network.nodeRestarted(NODE_1);
+        tickTo(2001);
+        tickTo(4000);
+
+        // 2001 + 250 hold-back + 40 round trip + 50 half the pause + 20 latency, which is later than the reconnect
+        // delay
+        assertThat(node1.receivedEvents).hasSize(2);
+        assertThat(node1.receivedEvents.get(1).getSenderId()).isEqualTo(NODE_0);
+        assertThat(node1.receivedEvents.get(1).getTimeReceived()).isEqualTo(at(2361));
+    }
+
+    @Test
     @DisplayName("what is in flight on another link than the one that goes down is left alone")
     void otherInFlightEventsAreNotRerouted() {
         network.setConnections(unevenConnections());

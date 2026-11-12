@@ -170,6 +170,16 @@ final class ArrivalTimes {
     }
 
     /**
+     * Converts an instant to a time in nanoseconds since the start of the simulation.
+     *
+     * @param instant the instant
+     * @return the time
+     */
+    long nanosOf(@NonNull final Instant instant) {
+        return InFlightQueue.nanosSince(start, instant);
+    }
+
+    /**
      * Converts a time in nanoseconds since the start of the simulation to an instant.
      *
      * @param nanos the time

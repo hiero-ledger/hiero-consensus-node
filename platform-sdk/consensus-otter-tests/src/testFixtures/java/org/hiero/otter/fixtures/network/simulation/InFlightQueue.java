@@ -6,9 +6,9 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * What is in flight on one directed connection, handed out in order of arrival time whatever order it was added in.
@@ -179,12 +179,22 @@ final class InFlightQueue<T extends InTransit> {
     @NonNull
     @SuppressWarnings("unchecked")
     List<T> drain() {
-        final List<T> drained = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            drained.add((T) items[i]);
-        }
+        // a copy of the used slots, because clear() empties the array itself
+        final List<T> drained = (List<T>) (List<?>) Arrays.asList(Arrays.copyOf(items, size));
         clear();
         return drained;
+    }
+
+    /**
+     * Hands everything in the queue to an action, in no particular order, and leaves it in the queue.
+     *
+     * @param action what to do with each item
+     */
+    @SuppressWarnings("unchecked")
+    void forEach(@NonNull final Consumer<? super T> action) {
+        for (int i = 0; i < size; i++) {
+            action.accept((T) items[i]);
+        }
     }
 
     /**
