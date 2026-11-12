@@ -191,6 +191,14 @@ jobs:
           ref: ${{ inputs.ref }}
           token: ${{ secrets.github-token2 }}
 
+      - name: Checkout target PBJ Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: pbj
+          repository: "hashgraph/pbj-releases"
+          ref: "release/0.15"
+          token: ${{ secrets.github-token2 }}
+
       - name: Checkout target BN Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -333,6 +341,13 @@ jobs:
           hederahash="$(git -C target_consensus_node rev-parse HEAD)"
           echo "sha=${hederahash}" >> "${GITHUB_OUTPUT}"
           echo "hederahash=${hederahash}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+
+      - name: Build PBJ
+        run: |
+          set +x
+          cd "${{ github.workspace }}"/pbj/pbj-core
+          ./gradlew clean versionAsSpecified -PnewVersion=0.15.14
+          ./gradlew assemble publishToMavenLocal
 
       - name: Compile
         run: |
