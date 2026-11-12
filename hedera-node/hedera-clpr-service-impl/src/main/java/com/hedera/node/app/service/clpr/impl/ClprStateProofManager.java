@@ -13,6 +13,7 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -26,6 +27,7 @@ import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -501,6 +503,62 @@ public class ClprStateProofManager {
                 "[CLPR-BUNDLE-BUILD] endpoint manifest leaf included conn={} manifestPath={}", channelId, manifestPath);
     }
 
+    /**
+     * Returns the limits a bundle for the peer is built to: the peer's throttles, bounded by this ledger's own.
+     *
+     * <p>The peer publishes the throttles it accepts, but nothing bounds them from above, so a bundle built to them
+     * alone could be as large as the peer asks over an outbound queue of any length. This ledger's own throttles, which
+     * bound every bundle it accepts, also bound every bundle it builds:
+     * <ul>
+     *   <li>{@code max_messages_per_bundle} is the smaller of the two; the local one is always positive, so a bundle
+     *       still carries at least one message.</li>
+     *   <li>{@code max_sync_bytes} is the peer's, capped by the local one, but never below what one message of the
+     *       size this ledger admits for the peer needs, with its proof (the spec §1.1 bound
+     *       {@link ClprThrottlesValidator} applies). A message admitted to the outbound queue therefore always fits a
+     *       bundle, and the channel cannot stall on it.</li>
+     * </ul>
+     *
+     * @param peerThrottles the peer's throttles
+     * @param localThrottles this ledger's throttles, or {@code null} if it has none, which leaves the peer's in force
+     * @return the throttles to build the bundle to
+     */
+    @NonNull
+    public static ClprThrottles boundedByLocalThrottles(
+            @NonNull final ClprThrottles peerThrottles, @Nullable final ClprThrottles localThrottles) {
+        requireNonNull(peerThrottles);
+        if (localThrottles == null) {
+            return peerThrottles;
+        }
+        // The payload limit messages for the peer were admitted under, as ClprServiceApiImpl.sendMessage applies it
+        final long admittedPayloadBytes = peerThrottles.maxMessagePayloadBytes() > 0
+                ? peerThrottles.maxMessagePayloadBytes()
+                : localThrottles.maxMessagePayloadBytes();
+        final long syncBytesCeiling = Math.max(
+                localThrottles.maxSyncBytes(), admittedPayloadBytes + ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES);
+        return peerThrottles
+                .copyBuilder()
+                .maxMessagesPerBundle(
+                        Math.min(peerThrottles.maxMessagesPerBundle(), localThrottles.maxMessagesPerBundle()))
+                .maxSyncBytes(Math.min(peerThrottles.maxSyncBytes(), syncBytesCeiling))
+                .build();
+    }
+
+    /**
+     * Reads this ledger's throttles from the snapshot the bundle is proven from.
+     *
+     * @param binaryState the snapshot's state
+     * @return the throttles, or {@code null} if the ledger configuration or its throttles are absent
+     */
+    @Nullable
+    private static ClprThrottles localThrottles(@NonNull final BinaryState binaryState) throws ParseException {
+        final var raw = binaryState.getSingleton(LEDGER_CONFIGURATION_STATE_ID);
+        if (raw == null) {
+            return null;
+        }
+        final var ledgerConfig = ClprLedgerConfiguration.PROTOBUF.parseStrict(raw.toReadableSequentialData());
+        return ledgerConfig.throttles();
+    }
+
     private BundleProof buildProof(
             @NonNull final BinaryState binaryState,
             @NonNull final BlockProvenSnapshot snapshot,
@@ -508,10 +566,12 @@ public class ClprStateProofManager {
             final long firstMessageId,
             @NonNull final ClprThrottles peerThrottles,
             final boolean allowPureAck,
-            final boolean includeEndpointManifest) {
+            final boolean includeEndpointManifest)
+            throws ParseException {
 
-        final int maxMessages = peerThrottles.maxMessagesPerBundle();
-        final long maxSyncBytes = peerThrottles.maxSyncBytes();
+        final var limits = boundedByLocalThrottles(peerThrottles, localThrottles(binaryState));
+        final int maxMessages = limits.maxMessagesPerBundle();
+        final long maxSyncBytes = limits.maxSyncBytes();
         final long maxBundlePayloadBytes = maxSyncBytes - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
         log.debug(
                 "[CLPR-BUNDLE-BUILD] start conn={} firstMessageId={} maxMessages={} maxSyncBytes={} "

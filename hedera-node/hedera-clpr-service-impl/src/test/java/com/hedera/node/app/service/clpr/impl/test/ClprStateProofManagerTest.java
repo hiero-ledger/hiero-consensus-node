@@ -9,8 +9,10 @@ import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
+import com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
@@ -36,6 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class ClprStateProofManagerTest {
+    private static final long MIB = 1024L * 1024L;
 
     @Mock
     private BlockProvenSnapshotProvider snapshotProvider;
@@ -160,6 +163,86 @@ class ClprStateProofManagerTest {
         given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willThrow(new IllegalStateException("boom"));
 
         assertThat(subject.buildManifestStateProofWithValue()).isNull();
+    }
+
+    @Test
+    @DisplayName("Without local throttles, a bundle is built to the peer's")
+    void peerThrottlesApplyWithoutLocalOnes() {
+        final var peer = throttles(1_000, 4 * MIB, 1024L * MIB);
+
+        assertThat(ClprStateProofManager.boundedByLocalThrottles(peer, null)).isEqualTo(peer);
+    }
+
+    @Test
+    @DisplayName("Messages per bundle are capped at the smaller of the peer's and the local limit")
+    void capsMessagesPerBundleAtTheLocalLimit() {
+        final var local = throttles(10, MIB, 2 * MIB);
+
+        assertThat(ClprStateProofManager.boundedByLocalThrottles(throttles(1_000, MIB, 2 * MIB), local)
+                        .maxMessagesPerBundle())
+                .isEqualTo(10);
+        assertThat(ClprStateProofManager.boundedByLocalThrottles(throttles(5, MIB, 2 * MIB), local)
+                        .maxMessagesPerBundle())
+                .isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("Sync bytes are capped at the local limit, and a smaller peer limit is kept")
+    void capsSyncBytesAtTheLocalLimit() {
+        final var local = throttles(10, MIB, 2 * MIB);
+
+        assertThat(ClprStateProofManager.boundedByLocalThrottles(throttles(10, MIB, 1024L * MIB), local)
+                        .maxSyncBytes())
+                .isEqualTo(2 * MIB);
+        assertThat(ClprStateProofManager.boundedByLocalThrottles(throttles(10, MIB / 2, MIB), local)
+                        .maxSyncBytes())
+                .isEqualTo(MIB);
+    }
+
+    @Test
+    @DisplayName("Sync bytes are never capped below what one message the peer's payload limit admits needs")
+    void neverCapsSyncBytesBelowOneAdmittedMessage() {
+        // The peer admits 4 MiB messages, more than the local 2 MiB sync limit carries
+        final var peer = throttles(10, 4 * MIB, 1024L * MIB);
+        final var local = throttles(10, MIB, 2 * MIB);
+
+        assertThat(ClprStateProofManager.boundedByLocalThrottles(peer, local).maxSyncBytes())
+                .isEqualTo(4 * MIB + ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES);
+    }
+
+    @Test
+    @DisplayName("Without a peer payload limit, the local one bounds the messages admitted")
+    void usesTheLocalPayloadLimitWhenThePeerHasNone() {
+        final var local = throttles(10, MIB, 2 * MIB);
+
+        assertThat(ClprStateProofManager.boundedByLocalThrottles(throttles(10, 0, 1024L * MIB), local)
+                        .maxSyncBytes())
+                .isEqualTo(2 * MIB);
+    }
+
+    @Test
+    @DisplayName("The peer's other throttles are kept")
+    void keepsThePeersOtherThrottles() {
+        final var peer = throttles(1_000, MIB, 1024L * MIB)
+                .copyBuilder()
+                .maxQueueDepth(77)
+                .maxGasPerMessage(88L)
+                .build();
+
+        final var bounded = ClprStateProofManager.boundedByLocalThrottles(peer, throttles(10, MIB, 2 * MIB));
+
+        assertThat(bounded.maxQueueDepth()).isEqualTo(77);
+        assertThat(bounded.maxGasPerMessage()).isEqualTo(88L);
+        assertThat(bounded.maxMessagePayloadBytes()).isEqualTo(MIB);
+    }
+
+    private static ClprThrottles throttles(
+            final int maxMessagesPerBundle, final long maxMessagePayloadBytes, final long maxSyncBytes) {
+        return ClprThrottles.newBuilder()
+                .maxMessagesPerBundle(maxMessagesPerBundle)
+                .maxMessagePayloadBytes((int) maxMessagePayloadBytes)
+                .maxSyncBytes(maxSyncBytes)
+                .build();
     }
 
     /** Stubs the snapshot and BinaryState so buildSingletonProof produces a real StateProof. */
