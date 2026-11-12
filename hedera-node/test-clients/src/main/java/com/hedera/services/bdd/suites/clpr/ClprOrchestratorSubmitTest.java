@@ -91,7 +91,7 @@ public class ClprOrchestratorSubmitTest {
         final var bundleBytes =
                 Bytes.wrap(toBundleProofBytes(ClprChannelStatus.ACTIVE, 0L, 0L, new byte[32], List.of(probe)));
         return hapiTest(
-                overriding("clpr.minLockedStake", String.valueOf(MIN_LOCKED_STAKE)),
+                overriding("clpr.minLockedStakeTinycents", "0"),
                 // Fund the self node's account (account 3 in embedded) so the inbound
                 // ClprSubmitBundle transaction — submitted by the node and paying with its
                 // own account — can cover gas for the verifier contract dispatch.

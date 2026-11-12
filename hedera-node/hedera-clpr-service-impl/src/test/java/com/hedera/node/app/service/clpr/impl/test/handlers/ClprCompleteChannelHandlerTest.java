@@ -1,20 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_COMMITMENT_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.hapi.utils.keys.Ed25519Utils.keyFrom;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
+import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
 import static org.mockito.BDDMockito.then;
@@ -46,11 +53,15 @@ import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifi
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.sun.jna.ptr.IntByReference;
@@ -67,6 +78,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAEngine;
+import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -124,8 +137,17 @@ class ClprCompleteChannelHandlerTest {
     @Mock
     private PureChecksContext pureChecksContext;
 
-    @Mock
+    @Mock(extraInterfaces = FeeContext.class)
     private HandleContext handleContext;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
+
+    @Mock
+    private StreamBuilder streamBuilder;
+
+    @Mock
+    private ResourcePriceCalculator priceCalculator;
 
     @Mock
     private StoreFactory storeFactory;
@@ -152,6 +174,7 @@ class ClprCompleteChannelHandlerTest {
     @BeforeEach
     void setUp() {
         subject = new ClprCompleteChannelHandler(verifierFactory, channelLifecycle);
+        lenient().when(handleContext.simpleFeesSchedule()).thenReturn(FeeSchedule.DEFAULT);
         lenient().when(verifierFactory.getVerifier(any())).thenReturn(new PassThroughClprVerifier());
 
         // Channel state
@@ -439,6 +462,61 @@ class ClprCompleteChannelHandlerTest {
         assertThat(stored.hasEndpointManifest()).isTrue();
         assertThat(stored.endpointManifestOrThrow().endpoints()).isEmpty();
         then(channelLifecycle).should().onChannelActivated(CHANNEL_ID);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void chargesOnlyBytesOfPersistedChannelAndHonorsTheOfferedFee(final boolean affordable) {
+        final int includedBytes = 8_192;
+        final long maxFee = 100L;
+        final long prepaid = 80L;
+        final var largerConfig = PEER_CONFIG
+                .copyBuilder()
+                .initialTrustAnchor(Bytes.wrap(new byte[9_000]))
+                .build();
+        final var txn = validEcdsaTxnWithPeerConfig(largerConfig)
+                .copyBuilder()
+                .transactionFee(maxFee)
+                .build();
+        commitmentStore.put(ECDSA_COMMITMENT);
+        setupHandleContext(txn);
+        setupVerifierAccount(true);
+        given(handleContext.simpleFeesSchedule())
+                .willReturn(FeeSchedule.newBuilder()
+                        .services(makeService(
+                                "Clpr",
+                                makeServiceFee(
+                                        CLPR_COMPLETE_CHANNEL,
+                                        100L,
+                                        makeExtraIncluded(Extra.STATE_BYTES, includedBytes))))
+                        .build());
+        final var rate = (FeeContext) handleContext;
+        given(rate.tinybarsFromTinycents(100L)).willReturn(prepaid);
+        given(rate.tinybarsFromTinycents(org.mockito.ArgumentMatchers.longThat(amount -> amount > 100L)))
+                .willReturn(affordable ? maxFee : maxFee + 1);
+        given(handleContext.resourcePriceCalculator()).willReturn(priceCalculator);
+        given(priceCalculator.resourcePricesFor(CLPR_COMPLETE_CHANNEL, DEFAULT))
+                .willReturn(FunctionalityResourcePrices.PREPAID_RESOURCE_PRICES);
+        given(handleContext.savepointStack()).willReturn(savepointStack);
+        given(savepointStack.getBaseBuilder(StreamBuilder.class)).willReturn(streamBuilder);
+        given(streamBuilder.isUserDispatch()).willReturn(true);
+        given(streamBuilder.transactionFee()).willReturn(prepaid);
+
+        if (affordable) {
+            given(handleContext.tryToChargePayer(20L)).willReturn(true);
+            subject.handle(handleContext);
+            final var stored = channelStore.getChannel(CHANNEL_ID);
+            assertThat(stored).isNotNull();
+            final long billedBytes = ClprChannel.PROTOBUF.measureRecord(stored) - includedBytes;
+            then(rate).should().tinybarsFromTinycents(100L + billedBytes * 100_000L);
+            then(handleContext).should().tryToChargePayer(20L);
+        } else {
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(INSUFFICIENT_TX_FEE));
+            assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+            then(handleContext).should(never()).tryToChargePayer(anyLong());
+        }
     }
 
     @ParameterizedTest
