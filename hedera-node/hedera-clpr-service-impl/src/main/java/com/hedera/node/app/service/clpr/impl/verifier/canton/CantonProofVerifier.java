@@ -164,6 +164,7 @@ public final class CantonProofVerifier implements ClprVerifier {
             try {
                 queue = context.storeFactory().readableStore(ReadableMessageQueueStore.class);
             } catch (final RuntimeException e) {
+                log.error("Failed to get message queue store for outbound lookup", e);
                 throw CantonProofException.serviceCallFailed("message queue unavailable: " + e.getMessage());
             }
             final var stored = queue.getMessage(Bytes.wrap(channelId), messageId);
