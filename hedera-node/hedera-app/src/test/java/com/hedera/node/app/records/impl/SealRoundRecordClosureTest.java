@@ -4,6 +4,7 @@ package com.hedera.node.app.records.impl;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.mockito.Mockito.times;
@@ -12,7 +13,11 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.MigrationWrappedHashes;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.fixtures.AppTestBase;
@@ -22,6 +27,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.spi.WritableSingletonStateBase;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
@@ -37,6 +43,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SealRoundRecordClosureTest extends AppTestBase {
     private static final Bytes RUNNING_HASH = Bytes.wrap(new byte[48]);
+    private static final List<MigrationWrappedHashes> WRAPPED_HASHES = List.of(MigrationWrappedHashes.newBuilder()
+            .blockNumber(3L)
+            .consensusTimestampHash(RUNNING_HASH)
+            .outputItemsTreeRootHash(RUNNING_HASH)
+            .build());
 
     @Mock
     private BlockHashSigner blockHashSigner;
@@ -102,6 +113,48 @@ class SealRoundRecordClosureTest extends AppTestBase {
 
         verify(ctx.lifecycle, times(0)).onOpenBlock(ctx.state);
         verify(ctx.lifecycle, times(0)).onCloseBlock(ctx.state);
+    }
+
+    @Test
+    void keepsMigrationVoteHandledWhileNoRecordBlockIsOpenInBothMode() {
+        final var ctx = newContext("BOTH");
+        final var t1 = Instant.ofEpochSecond(1_000L, 1);
+        final var t2 = t1.plusSeconds(5);
+        final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
+                .previousWrappedRecordBlockRootHash(RUNNING_HASH)
+                .build();
+
+        ctx.manager.startUserTransaction(t1, ctx.state);
+        ctx.manager.closeCurrentRecordFileIfOpen(ctx.state);
+
+        // A vote is handled after the block close, so the manager's cached BlockInfo does not have it
+        final var blockInfoState =
+                ctx.state.getWritableStates(BlockRecordService.NAME).<BlockInfo>getSingleton(BLOCKS_STATE_ID);
+        final var votes = List.of(NodeMigrationRootHashVote.newBuilder()
+                .nodeId(new NodeId(1L))
+                .vote(vote)
+                .build());
+        blockInfoState.put(requireNonNull(blockInfoState.get())
+                .copyBuilder()
+                .votingComplete(false)
+                .votingCompletionDeadlineBlockNumber(13L)
+                .migrationRootHashVotes(votes)
+                .migrationWrappedHashes(WRAPPED_HASHES)
+                .build());
+        ((WritableSingletonStateBase<BlockInfo>) blockInfoState).commit();
+
+        ctx.manager.startUserTransaction(t2, ctx.state);
+        assertVotingDataKept(blockInfoState.get(), votes);
+
+        ctx.manager.closeCurrentRecordFileIfOpen(ctx.state);
+        assertVotingDataKept(blockInfoState.get(), votes);
+    }
+
+    private static void assertVotingDataKept(final BlockInfo blockInfo, final List<NodeMigrationRootHashVote> votes) {
+        assertThat(blockInfo.migrationRootHashVotes()).isEqualTo(votes);
+        assertThat(blockInfo.migrationWrappedHashes()).isEqualTo(WRAPPED_HASHES);
+        assertThat(blockInfo.votingComplete()).isFalse();
+        assertThat(blockInfo.votingCompletionDeadlineBlockNumber()).isEqualTo(13L);
     }
 
     private Context newContext(final String streamMode) {
