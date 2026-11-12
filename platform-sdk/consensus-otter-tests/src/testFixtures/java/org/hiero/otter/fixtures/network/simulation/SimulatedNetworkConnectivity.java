@@ -53,7 +53,7 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * network: it is created when the network starts and discarded when the network is shut down. A network with other
  * nodes, for example after a roster change, is run by a new instance.
  */
-public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.LinkListener {
+public class SimulatedNetworkConnectivity implements GossipNetwork, NetworkView, LinkStates.LinkListener {
 
     /**
      * The random number generator to use for simulating network delays.
@@ -147,6 +147,11 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * Decides which copies of the submitted events are sent.
      */
     private final EventRouter router;
+
+    /**
+     * Follow the gossip for add-ons, such as the estimate of duplicate events, in the order they were added.
+     */
+    private final List<NetworkObserver> observers = new ArrayList<>();
 
     /**
      * Constructor using the default production broadcast and sync settings, in which a node receives copies of its own
@@ -348,7 +353,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
     @Override
     public void submitEvent(@NonNull final PlatformEvent event) {
         final NodeId submitter = requireNonNull(event.getSenderId(), "a submitted event must have its sender set");
-        pendingSubmissions.submit(rankOf(submitter), event);
+        pendingSubmissions.submit(requireRankOf(submitter), event);
     }
 
     /**
@@ -361,7 +366,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * thread scheduler decide all of that and break determinism, so the submissions are held and scheduled here
      * instead.
      *
-     * @param now the current time, in nanoseconds since the start
+     * @param now the time everything scheduled was sent at, the time of the previous tick, in nanoseconds since the start
      */
     private void scheduleSubmittedEvents(final long now) {
         for (int receiver = 0; receiver < roster.size(); receiver++) {
@@ -376,6 +381,9 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
                 // simulating gossip. Only a node submitting the same event again is ignored.
                 final TrackedEvent tracked = trackedEvents.addIfUnique(event, sender);
                 if (tracked != null) {
+                    for (int i = 0, n = observers.size(); i < n; i++) {
+                        observers.get(i).eventSubmitted(event, sender, now);
+                    }
                     router.sendSubmission(tracked, sender, now);
                 }
             }
@@ -388,7 +396,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * {@link EventRouter#resendTo(TrackedEvent, int, long)}. This runs before the submissions of the current tick are
      * scheduled, which reach the restarted nodes on their own.
      *
-     * @param now the current time, in nanoseconds since the start
+     * @param now the time everything scheduled was sent at, the time of the previous tick, in nanoseconds since the start
      */
     private void replayEventLog(final long now) {
         for (int receiver = 0; receiver < roster.size(); receiver++) {
@@ -412,7 +420,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      */
     @Override
     public void updateEventWindow(@NonNull final NodeId nodeId, @NonNull final EventWindow eventWindow) {
-        eventWindows.report(rankOf(nodeId), eventWindow);
+        eventWindows.report(requireRankOf(nodeId), eventWindow);
     }
 
     /**
@@ -435,15 +443,18 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * @param now the new time
      */
     public void tick(@NonNull final Instant now) {
+        // Everything submitted since the previous tick was sent at the time of the previous tick: the nodes run right
+        // after the network in every tick, at the same instant.
+        final long sendTime = currentTime;
         currentTime = InFlightQueue.nanosSince(start, now);
         // The oldest event window is applied first, so that the window the tracked events are discarded by matches the
         // range of birth rounds the log still accepts when the submissions are appended.
         applyOldestEventWindow();
-        // Events are delivered before new ones are scheduled, so that an event always spends at least one tick in
-        // flight. Scheduling first would let a connection configured with no latency deliver an event in the same
-        // tick it was sent, with no simulated time passing in between.
+        // Submissions are scheduled at the time they were sent, and before delivery, so that an event spends exactly
+        // its latency in flight, rounded up to whole ticks, and not one extra tick. An event still spends at least one
+        // tick in flight, because it was sent at the previous tick.
+        scheduleForDelivery(sendTime);
         deliverArrived(now);
-        scheduleForDelivery(currentTime);
     }
 
     /**
@@ -485,7 +496,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * which goes first decides the arrival times of both, and the same seed only reproduces a run if it is always the
      * same.
      *
-     * @param now the current time, in nanoseconds since the start
+     * @param now the time everything scheduled was sent at, the time of the previous tick, in nanoseconds since the start
      */
     private void scheduleForDelivery(final long now) {
         if (!links.connectionsInitialized()) {
@@ -496,6 +507,115 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
         scheduleEventWindows(now);
         replayEventLog(now);
         scheduleSubmittedEvents(now);
+        for (int i = 0, n = observers.size(); i < n; i++) {
+            observers.get(i).scheduled(now);
+        }
+    }
+
+    /**
+     * Adds an observer that follows the gossip, for an add-on such as the estimate of duplicate events. It reads the
+     * state of the network through this network, as a {@link NetworkView}. Must be added before any event is
+     * submitted. Observers are told about everything in the order they were added.
+     *
+     * @param observer the observer
+     */
+    public void addObserver(@NonNull final NetworkObserver observer) {
+        observers.add(requireNonNull(observer));
+    }
+
+    // NetworkView: the state of this network, read by a NetworkObserver
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int nodeCount() {
+        return roster.size();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public NodeId nodeId(final int rank) {
+        return roster.nodeIdAtIndex(rank);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int rankOf(@NonNull final NodeId nodeId) {
+        return roster.index(nodeId);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long latency(final int sender, final int receiver) {
+        return links.latency(sender, receiver);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isLinkUp(final int a, final int b) {
+        return links.isLinkUp(a, b);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long usableFrom(final int a, final int b) {
+        return links.usableFrom(a, b);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isBroadcastMode(final int a, final int b, final long now) {
+        return links.isBroadcastMode(a, b, now);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public EventWindow eventWindow(final int rank) {
+        return eventWindows.latest(rank);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long firstArrival(@NonNull final PlatformEvent event, final int node) {
+        final TrackedEvent tracked = trackedEvents.find(event);
+        return tracked == null ? Long.MAX_VALUE : tracked.earliestArrival(node);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public BroadcastConfig broadcastConfig() {
+        return broadcastConfig;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public SyncConfig syncConfig() {
+        return syncConfig;
     }
 
     /**
@@ -505,7 +625,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      *
      * <p>This takes the newly reported windows from {@link #eventWindows}.
      *
-     * @param now the current time, in nanoseconds since the start
+     * @param now the time everything scheduled was sent at, the time of the previous tick, in nanoseconds since the start
      */
     private void scheduleEventWindows(final long now) {
         final int nodeCount = roster.size();
@@ -558,7 +678,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      */
     @Override
     public void nodeRestarted(@NonNull final NodeId nodeId) {
-        final int node = rankOf(nodeId);
+        final int node = requireRankOf(nodeId);
         restartedNodes.add(node);
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
             inFlight.clearIncoming(node);
@@ -573,7 +693,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * @return the rank of the node
      * @throws IllegalArgumentException if the node is not part of the network
      */
-    private int rankOf(@NonNull final NodeId nodeId) {
+    private int requireRankOf(@NonNull final NodeId nodeId) {
         final int rank = roster.index(nodeId);
         if (rank < 0) {
             throw new IllegalArgumentException("Node " + nodeId + " is not part of the network");

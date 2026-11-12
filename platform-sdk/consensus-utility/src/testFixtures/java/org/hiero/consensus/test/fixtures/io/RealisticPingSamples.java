@@ -4,9 +4,9 @@ package org.hiero.consensus.test.fixtures.io;
 public class RealisticPingSamples {
 
     /**
-     * Magic constant to indicate that connection between two nodes in mainnet is broken; for now, a big ping
-     * to simulate sync through other peers, in future might change to a special marker value (like -1) to indicate
-     * a broken connection.
+     * Magic constant to indicate that two nodes in mainnet have no connection, so that they exchange events only
+     * through other peers. Its value is a big ping, for a user of the matrix that cannot leave a connection out; the
+     * Otter predefined ping topology leaves such a connection out.
      */
     public static final int BROKEN = 999;
 

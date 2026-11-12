@@ -9,6 +9,7 @@ import static org.hiero.otter.fixtures.network.simulation.TestRosters.rosterOf;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -83,6 +84,46 @@ class SimulatedNetworkConnectivityTest {
 
         assertThat(node1.receivedEvents).hasSize(1);
         assertThat(node1.receivedEvents.getFirst().getDescriptor()).isEqualTo(event.getDescriptor());
+    }
+
+    @Test
+    @DisplayName(
+            "every observer is told about the first submission of an event by each node, and about every scheduling")
+    void observersFollowTheNetwork() {
+        network.setConnections(connections(true));
+        final List<String> first = new ArrayList<>();
+        final List<String> second = new ArrayList<>();
+        network.addObserver(recordingObserver(first));
+        network.addObserver(recordingObserver(second));
+
+        final PlatformEvent event = submit(NODE_0);
+        // submitted again by the same node, which is ignored
+        forward(event, NODE_0);
+        forward(event, NODE_1);
+        tickTo(1);
+
+        // the submissions are scheduled one node at a time, in a shuffled order
+        assertThat(first.subList(0, 2)).containsExactlyInAnyOrder("node 0 submitted at 0", "node 1 submitted at 0");
+        assertThat(first.subList(2, first.size())).containsExactly("scheduled at 0");
+        assertThat(second).isEqualTo(first);
+    }
+
+    /**
+     * Creates an observer that records what it is told, with times in milliseconds.
+     */
+    @NonNull
+    private static NetworkObserver recordingObserver(@NonNull final List<String> record) {
+        return new NetworkObserver() {
+            @Override
+            public void eventSubmitted(@NonNull final PlatformEvent event, final int submitter, final long now) {
+                record.add("node " + submitter + " submitted at " + now / 1_000_000);
+            }
+
+            @Override
+            public void scheduled(final long now) {
+                record.add("scheduled at " + now / 1_000_000);
+            }
+        };
     }
 
     @Test
@@ -328,15 +369,16 @@ class SimulatedNetworkConnectivityTest {
     void ownEventArrivesAfterLatency() {
         network.setConnections(connections(true));
 
+        // submitted before the first tick, so sent at the start
         final PlatformEvent event = submit(NODE_0);
         tickTo(1);
-        tickTo(100);
+        tickTo(99);
         assertThat(node1.receivedEvents).isEmpty();
-        tickTo(101);
+        tickTo(100);
 
         assertThat(node1.receivedEvents).hasSize(1);
         assertThat(event.getTimeReceived()).isNotNull();
-        assertThat(node1.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(101));
+        assertThat(node1.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(100));
     }
 
     @Test
@@ -348,12 +390,12 @@ class SimulatedNetworkConnectivityTest {
         forward(create(NODE_0), NODE_1);
         tickTo(1);
         // 250 hold-back + 200 round trip + 50 half the pause + 100 latency
-        tickTo(600);
+        tickTo(599);
         assertThat(forwardedBy(node2, NODE_1)).isEmpty();
-        tickTo(601);
+        tickTo(600);
 
         assertThat(forwardedBy(node2, NODE_1)).hasSize(1);
-        assertThat(forwardedBy(node2, NODE_1).getFirst().getTimeReceived()).isEqualTo(at(601));
+        assertThat(forwardedBy(node2, NODE_1).getFirst().getTimeReceived()).isEqualTo(at(600));
     }
 
     @Test
@@ -365,7 +407,7 @@ class SimulatedNetworkConnectivityTest {
         submit(NODE_0);
         tickTo(1);
         tickTo(2000);
-        assertThat(node1.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(1).plusNanos(1_502_500_000L));
+        assertThat(node1.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(0).plusNanos(1_502_500_000L));
 
         // the round trip falls to 200 ms
         tickTo(10_000);
@@ -377,13 +419,13 @@ class SimulatedNetworkConnectivityTest {
         tickTo(39_991);
         tickTo(41_000);
         assertThat(node1.receivedEvents.get(1).getTimeReceived())
-                .isEqualTo(at(39_991).plusNanos(302_500_000L));
+                .isEqualTo(at(39_990).plusNanos(302_500_000L));
 
         // back in broadcast mode: only the latency
         submit(NODE_0);
         tickTo(41_001);
         tickTo(42_000);
-        assertThat(node1.receivedEvents.get(2).getTimeReceived()).isEqualTo(at(41_101));
+        assertThat(node1.receivedEvents.get(2).getTimeReceived()).isEqualTo(at(41_100));
     }
 
     @Test
@@ -399,10 +441,10 @@ class SimulatedNetworkConnectivityTest {
         tickTo(22);
         tickTo(1000);
 
-        // creator's copy: 1 + 250. forwarded copy would be: 22 + 250 + 240 + 50 + 120
+        // creator's copy: 0 + 250. forwarded copy would be: 21 + 250 + 240 + 50 + 120
         assertThat(node2.receivedEvents).hasSize(1);
         assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_0);
-        assertThat(node2.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(251));
+        assertThat(node2.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(250));
     }
 
     @Test
@@ -421,10 +463,10 @@ class SimulatedNetworkConnectivityTest {
         tickTo(22);
         tickTo(5000);
 
-        // forwarded copy: 22 + 250 + 240 + 50 + 120. creator's copy, not in broadcast mode: 1 + 2000 + 2.5 + 1000
+        // forwarded copy: 21 + 250 + 240 + 50 + 120. creator's copy, not in broadcast mode: 0 + 2000 + 2.5 + 1000
         assertThat(node2.receivedEvents).hasSize(2);
         assertThat(node2.receivedEvents.get(0).getSenderId()).isEqualTo(NODE_1);
-        assertThat(node2.receivedEvents.get(0).getTimeReceived()).isEqualTo(at(682));
+        assertThat(node2.receivedEvents.get(0).getTimeReceived()).isEqualTo(at(681));
         assertThat(node2.receivedEvents.get(1).getSenderId()).isEqualTo(NODE_0);
     }
 
@@ -565,11 +607,11 @@ class SimulatedNetworkConnectivityTest {
         tickTo(2001);
         tickTo(4000);
 
-        // 2001 + 250 hold-back + 40 round trip + 50 half the pause + 20 latency, which is later than the reconnect
+        // 2000 + 250 hold-back + 40 round trip + 50 half the pause + 20 latency, which is later than the reconnect
         // delay
         assertThat(node1.receivedEvents).hasSize(2);
         assertThat(node1.receivedEvents.get(1).getSenderId()).isEqualTo(NODE_0);
-        assertThat(node1.receivedEvents.get(1).getTimeReceived()).isEqualTo(at(2361));
+        assertThat(node1.receivedEvents.get(1).getTimeReceived()).isEqualTo(at(2360));
     }
 
     @Test
@@ -589,7 +631,7 @@ class SimulatedNetworkConnectivityTest {
 
         assertThat(node2.receivedEvents).hasSize(1);
         assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_0);
-        assertThat(node2.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(251));
+        assertThat(node2.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(250));
     }
 
     @Test

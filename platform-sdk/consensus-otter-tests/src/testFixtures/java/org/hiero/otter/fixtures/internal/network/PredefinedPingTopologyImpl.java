@@ -22,6 +22,9 @@ import org.hiero.otter.fixtures.network.PredefinedPingTopologyConfiguration;
 /**
  * An implementation of {@link MeshTopology} which represents specific ping times between various nodes. To be used
  * with measurements taken from real networks, to best simulate the timings in them.
+ *
+ * <p>A ping of {@link RealisticPingSamples#BROKEN} stands for two nodes that have no connection at all, as in the real
+ * network the matrix was measured in, so their link is down.
  */
 public class PredefinedPingTopologyImpl implements MeshTopology {
 
@@ -143,10 +146,11 @@ public class PredefinedPingTopologyImpl implements MeshTopology {
     @Override
     @NonNull
     public ConnectionState getConnectionData(@NonNull final MiniNode sender, @NonNull final MiniNode receiver) {
-        // latency is half of ping
+        // latency is half of ping; computed in nanos so that odd pings are not truncated to whole milliseconds
+        final int pingMillis = configuration.pingMatrix()[allNodes.indexOf(sender)][allNodes.indexOf(receiver)];
         return new ConnectionState(
-                true,
-                Duration.ofMillis(configuration.pingMatrix()[allNodes.indexOf(sender)][allNodes.indexOf(receiver)] / 2),
+                pingMillis != RealisticPingSamples.BROKEN,
+                Duration.ofNanos(pingMillis * 1_000_000L / 2),
                 configuration.jitter(),
                 configuration.bandwidth());
     }
