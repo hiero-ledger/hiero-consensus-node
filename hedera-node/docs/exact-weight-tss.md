@@ -242,6 +242,37 @@ Rebuilds use that same cutoff through signing and retries. An older unfinished s
 this cutoff is replaced with a fresh construction ID before replay, discarding its obsolete votes and
 messages while preserving any completed active proof.
 
+### Canonical WRAPS books
+
+WRAPS signs and proves against the canonical book of a committed TSS generation. That book lists every member in
+node-id order with its listed weight and its frozen selected Schnorr key, or the sentinel identity key for a member
+without one. It does not depend on which members took part in the generation's hinTS scheme.
+1. A grounding construction (genesis, or a fresh genesis) signs with its own target book.
+2. An incremental construction signs with its predecessor's book. It rebuilds that book from the predecessor's
+`HistoryProof.target_node_weights` and `target_proof_keys`, and checks it against the predecessor's address book
+hash before any signing work.
+3. R1 freezes only when the frozen set has strictly more than half of the book's effective weight, where identity
+keys count for nothing. A rotation that certifies hinTS key provenance also needs strictly more than one third of
+the source hinTS weight. Excluding a node never reduces either total, and only nodes with positive weight under
+both may sign.
+4. Only the source nodes' proof votes count, whether handled live or replayed from state.
+
+Reconciliation enriches a proof written before `target_node_weights` existed in place. It uses the first weights,
+from the following sources, that reproduce the proof's committed address book hash:
+1. the generation's own target roster;
+2. the active hinTS scheme's party weights, which equal the generation's listed weights when every member took part;
+3. the current or candidate platform roster.
+
+Weights that do not reproduce the hash are never used. If no source does, the node logs an ERROR, and every
+incremental construction fails with `Invalid canonical WRAPS source book`. Recovery then needs a fresh genesis WRAPS
+proof, which is only possible before block proofs carry the chain of trust (see below). Otherwise it needs a
+coordinated reset. Before upgrading a network whose active generation came from a weight rotation the platform never
+adopted, check that one of these sources still exists.
+
+Signing attempts in flight at the upgrade replay under these rules. If an R1 set was frozen under the earlier sparse
+threshold, or exclusions were persisted under the earlier feasibility rule, the attempt fails recoverably, and its
+retry starts with no exclusions.
+
 ### Integration with protocol components
 
 The TSS system is then just the combination of the `HintsService` and `HistoryService` with the `RosterService`; with

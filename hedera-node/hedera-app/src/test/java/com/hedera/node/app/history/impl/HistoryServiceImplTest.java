@@ -3,9 +3,11 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -13,23 +15,33 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -37,8 +49,10 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
+import com.hedera.node.app.history.schemas.V0800HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
@@ -46,11 +60,19 @@ import com.hedera.node.internal.network.NodeTssMetadata;
 import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.state.lifecycle.SchemaRegistry;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicReference;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,6 +87,14 @@ class HistoryServiceImplTest {
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
     private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+    private static final TssConfig MOCK_SIGNING_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("tss.forceMockSignatures", true)
+            .getOrCreateConfig()
+            .getConfigData(TssConfig.class);
+    private static final TssConfig REAL_SIGNING_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("tss.forceMockSignatures", false)
+            .getOrCreateConfig()
+            .getConfigData(TssConfig.class);
 
     @Mock
     private AppContext appContext;
@@ -108,7 +138,19 @@ class HistoryServiceImplTest {
     @Mock
     private KeyProvenanceSigner sourceSigner;
 
+    @Mock
+    private HistorySubmissions submissions;
+
     private HistoryServiceImpl subject;
+
+    @Test
+    void registersTheWitnessSchemaAlongsideExistingHistorySchemas() {
+        withMockSubject();
+        final var registry = mock(SchemaRegistry.class);
+        subject.registerSchemas(registry);
+        verify(registry).register(isA(V0800HistorySchema.class));
+        verify(registry, times(4)).register(any());
+    }
 
     @Test
     void metadataAsExpected() {
@@ -174,6 +216,111 @@ class HistoryServiceImplTest {
     }
 
     @Test
+    void reconciliationAndCapturedWitnessReachConsensusSubmissionAndStopAfterStateAccepts() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+        final var witness = eligibleWitness();
+        final var record = pendingWitnessRecord();
+        given(store.keyProvenanceWithWitnesses())
+                .willAnswer(ignored -> List.of(record).iterator());
+        given(component.submissions()).willReturn(submissions);
+        given(submissions.submitKeyWitness(witness)).willReturn(CompletableFuture.completedFuture(null));
+        final var work = new java.util.ArrayList<Runnable>();
+        given(component.executor()).willReturn(work::add);
+        final var verifier = mock(HintsKeyWitnessVerifier.class);
+        given(component.witnessVerifier()).willReturn(verifier);
+        given(verifier.verify(witness, CURRENT_VK)).willReturn(true);
+
+        reconcileWitnesses(REAL_SIGNING_CONFIG, CONSENSUS_NOW);
+        subject.publishKeyWitness(CURRENT_VK, witness);
+        verifyNoInteractions(submissions, verifier);
+        assertEquals(1, work.size());
+        work.removeFirst().run();
+        verify(submissions).submitKeyWitness(witness);
+
+        given(store.getKeyWitnessRecord(7))
+                .willReturn(record.copyBuilder().witness(witness).build());
+        reconcileWitnesses(REAL_SIGNING_CONFIG, CONSENSUS_NOW.plusSeconds(30));
+        subject.publishKeyWitness(CURRENT_VK, witness);
+        verifyNoMoreInteractions(submissions);
+    }
+
+    @Test
+    void mockSigningSkipsWitnessStateReadsAndDropsRetainedLocalCandidates() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+
+        reconcileWitnesses(MOCK_SIGNING_CONFIG, CONSENSUS_NOW);
+        subject.publishKeyWitness(CURRENT_VK, eligibleWitness());
+        // Legacy book recovery still checks the active proof; mock signing skips all witness state reads.
+        verify(store).getActiveConstruction();
+        verifyNoMoreInteractions(store);
+        verifyNoInteractions(submissions);
+
+        given(store.keyProvenanceWithWitnesses())
+                .willAnswer(ignored -> List.of(pendingWitnessRecord()).iterator());
+        reconcileWitnesses(REAL_SIGNING_CONFIG, CONSENSUS_NOW.plusSeconds(1));
+        reconcileWitnesses(MOCK_SIGNING_CONFIG, CONSENSUS_NOW.plusSeconds(2));
+        subject.publishKeyWitness(CURRENT_VK, eligibleWitness());
+        verifyNoInteractions(submissions);
+        verify(store).keyProvenanceWithWitnesses();
+    }
+
+    @Test
+    void localWitnessFailureDoesNotAbortControllerReconciliation() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, REAL_SIGNING_CONFIG, false, CURRENT_VK))
+                .willReturn(HistoryProofConstruction.DEFAULT);
+        given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
+        given(component.controllers()).willReturn(controllers);
+        given(controllers.getOrCreateFor(
+                        activeRosters,
+                        HistoryProofConstruction.DEFAULT,
+                        store,
+                        HintsConstruction.DEFAULT,
+                        HistoryProofConstruction.DEFAULT,
+                        REAL_SIGNING_CONFIG,
+                        null))
+                .willReturn(controller);
+        given(store.keyProvenanceWithWitnesses()).willThrow(new IllegalStateException("local refresh failed"));
+
+        assertDoesNotThrow(() -> subject.reconcile(
+                activeRosters,
+                CURRENT_VK,
+                store,
+                CONSENSUS_NOW,
+                REAL_SIGNING_CONFIG,
+                true,
+                HintsConstruction.DEFAULT,
+                false));
+
+        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, REAL_SIGNING_CONFIG);
+    }
+
+    private void reconcileWitnesses(final TssConfig config, final Instant now) {
+        subject.reconcile(activeRosters, CURRENT_VK, store, now, config, true, completedHints(7, CURRENT_VK), false);
+    }
+
+    private static HintsKeyWitness eligibleWitness() {
+        return HintsKeyWitness.newBuilder()
+                .targetHintsConstructionId(7)
+                .timestamp(asTimestamp(CONSENSUS_NOW.minusSeconds(1)))
+                .siblingHash(Bytes.wrap(new byte[32]))
+                .signature(Bytes.wrap(new byte[SIGNATURE_LENGTH]))
+                .build();
+    }
+
+    private static HintsKeyWitnessRecord pendingWitnessRecord() {
+        return HintsKeyWitnessRecord.newBuilder()
+                .provenance(HintsKeyProvenance.newBuilder()
+                        .targetHintsConstructionId(7)
+                        .targetVerificationKey(CURRENT_VK))
+                .activationTime(asTimestamp(CONSENSUS_NOW.minusSeconds(2)))
+                .build();
+    }
+
+    @Test
     void noopReconciliationIfBootstrapHasProof() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
@@ -220,6 +367,210 @@ class HistoryServiceImplTest {
                 false);
 
         verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, DEFAULT_TSS_CONFIG);
+    }
+
+    @Test
+    void persistsVerifiedLegacyBookBeforeItsRosterIsPrunedAndTheNodeRestarts() throws Exception {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        final var generationHash = Bytes.wrap("previous-tss-generation-roster");
+        final var bookHash = Bytes.wrap("committed-book-hash");
+        final var original = legacyGeneration(generationHash, bookHash);
+        final var persisted = new AtomicReference<>(original);
+        final var roster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(2L).weight(20L).build(),
+                RosterEntry.newBuilder().nodeId(7L).weight(30L).build()));
+        final var retainedRoster = new AtomicReference<>(roster);
+        given(store.getActiveConstruction()).willAnswer(_ -> persisted.get());
+        given(activeRosters.findRelatedRoster(generationHash)).willAnswer(_ -> retainedRoster.get());
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any())).willReturn(bookHash.toByteArray());
+        given(store.completeProof(anyLong(), any())).willAnswer(invocation -> {
+            final HistoryProof enriched = invocation.getArgument(1);
+            final var construction =
+                    persisted.get().copyBuilder().targetProof(enriched).build();
+            persisted.set(construction);
+            return construction;
+        });
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, CURRENT_VK))
+                .willAnswer(_ -> {
+                    assertFalse(persisted
+                            .get()
+                            .targetProofOrThrow()
+                            .targetNodeWeights()
+                            .isEmpty());
+                    return persisted.get();
+                });
+
+        // Snapshot recovery is consensus work even on a node that cannot currently submit transactions.
+        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, null, false);
+        final var expectedWeights = new TreeMap<>(Map.of(2L, 20L, 7L, 30L));
+        assertEquals(
+                expectedWeights,
+                HistoryProofAddressBooks.targetWeights(persisted.get().targetProofOrThrow())
+                        .orElseThrow());
+
+        // The next ordinary candidate update can now remove the old roster safely. Restore only persisted bytes.
+        retainedRoster.set(null);
+        persisted.set(
+                HistoryProofConstruction.PROTOBUF.parse(HistoryProofConstruction.PROTOBUF.toBytes(persisted.get())));
+        subject = new HistoryServiceImpl(component);
+        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null, false);
+
+        verify(store, times(1)).completeProof(anyLong(), any());
+        verify(library, times(1)).hashAddressBook(any());
+        verify(activeRosters, times(1)).findRelatedRoster(generationHash);
+        assertEquals(
+                original.targetProofOrThrow().targetProofKeys(),
+                persisted.get().targetProofOrThrow().targetProofKeys());
+        assertEquals(
+                bookHash,
+                persisted.get().targetProofOrThrow().targetHistoryOrThrow().addressBookHash());
+        verifyNoInteractions(controllers, controller);
+    }
+
+    @Test
+    void recoversLegacyBookDuringHandoffWithoutWaitingForAnotherCandidateOrSourceSigner() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+        final var generationHash = Bytes.wrap("previous-tss-generation-roster");
+        final var bookHash = Bytes.wrap("committed-book-hash");
+        final var original = legacyGeneration(generationHash, bookHash);
+        final var roster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(2L).weight(20L).build(),
+                RosterEntry.newBuilder().nodeId(7L).weight(30L).build()));
+        given(store.getActiveConstruction()).willReturn(original);
+        given(activeRosters.findRelatedRoster(generationHash)).willReturn(roster);
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any())).willReturn(bookHash.toByteArray());
+
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, null, false, null, 9L);
+
+        final var expected = original.targetProofOrThrow()
+                .copyBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(2L, 20L, 7L, 30L))))
+                .build();
+        verify(store).completeProof(original.constructionId(), expected);
+        verifyNoInteractions(controllers, controller, sourceSigner);
+    }
+
+    @Test
+    void missingLegacyGenerationRosterDoesNotFallBackToThePlatformSource() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        final var generationHash = Bytes.wrap("pruned-tss-generation-roster");
+        final var platformHash = Bytes.wrap("stale-platform-roster");
+        final var original = legacyGeneration(generationHash, Bytes.wrap("committed-book-hash"))
+                .copyBuilder()
+                .sourceRosterHash(platformHash)
+                .build();
+        given(store.getActiveConstruction()).willReturn(original);
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, CURRENT_VK))
+                .willReturn(original);
+
+        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null, false);
+
+        verify(activeRosters).findRelatedRoster(generationHash);
+        verify(activeRosters, never()).findRelatedRoster(platformHash);
+        verify(store, never()).completeProof(anyLong(), any());
+        verifyNoInteractions(component, controllers, controller);
+        assertTrue(original.targetProofOrThrow().targetNodeWeights().isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void legacyRecoveryPreservesTrustRootWhenGenerationWeightsDoNotMatchTheCommitment(final boolean isActive) {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        final var generationHash = Bytes.wrap("previous-tss-generation-roster");
+        final var original = legacyGeneration(generationHash, Bytes.wrap("committed-book-hash"));
+        final var wrongWeights = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(2L).weight(999L).build(),
+                RosterEntry.newBuilder().nodeId(7L).weight(1L).build()));
+        given(store.getActiveConstruction()).willReturn(original);
+        given(activeRosters.findRelatedRoster(generationHash)).willReturn(wrongWeights);
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any()))
+                .willReturn(Bytes.wrap("different-book-hash").toByteArray());
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, CURRENT_VK))
+                .willReturn(original);
+
+        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, isActive, null, false);
+
+        verify(store, never()).completeProof(anyLong(), any());
+        assertTrue(original.targetProofOrThrow().targetNodeWeights().isEmpty());
+        verifyNoInteractions(controllers, controller);
+    }
+
+    @Test
+    void recoversLegacyBookFromTheActiveHintsSchemeOnceItsRosterIsPruned() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+        final var generationHash = Bytes.wrap("pruned-tss-generation-roster");
+        final var bookHash = Bytes.wrap("committed-book-hash");
+        final var original = legacyGeneration(generationHash, bookHash);
+        // Every member of the generation took part in its hinTS scheme, which stores their exact listed weights
+        final var hints = HintsConstruction.newBuilder()
+                .constructionId(9L)
+                .hintsScheme(
+                        HintsScheme.newBuilder().nodePartyIds(new NodePartyId(2L, 1, 20L), new NodePartyId(7L, 2, 30L)))
+                .build();
+        given(store.getActiveConstruction()).willReturn(original);
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any())).willAnswer(invocation -> {
+            final HistoryLibrary.AddressBook book = invocation.getArgument(0);
+            return Arrays.equals(book.weights(), new long[] {20L, 30L})
+                    ? bookHash.toByteArray()
+                    : Bytes.wrap("another-book-hash").toByteArray();
+        });
+
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, hints, false);
+
+        final var expected = original.targetProofOrThrow()
+                .copyBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(2L, 20L, 7L, 30L))))
+                .build();
+        verify(activeRosters).findRelatedRoster(generationHash);
+        verify(store).completeProof(original.constructionId(), expected);
+    }
+
+    @Test
+    void unverifiedPlatformWeightsAreNeverAdoptedAndARejectedSourceIsHashedOnce() {
+        withMockSubject();
+        given(activeRosters.phase()).willReturn(HANDOFF);
+        final var original =
+                legacyGeneration(Bytes.wrap("pruned-tss-generation-roster"), Bytes.wrap("committed-book-hash"));
+        final var platformRoster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(2L).weight(21L).build(),
+                RosterEntry.newBuilder().nodeId(7L).weight(30L).build()));
+        given(store.getActiveConstruction()).willReturn(original);
+        given(activeRosters.currentRoster()).willReturn(platformRoster);
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any()))
+                .willReturn(Bytes.wrap("another-book-hash").toByteArray());
+        final var logs = new LogCaptor(LogManager.getLogger(HistoryServiceImpl.class));
+        try {
+            for (int round = 0; round < 3; round++) {
+                subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, null, false);
+            }
+            assertEquals(1, logs.errorLogs().size());
+        } finally {
+            logs.stopCapture();
+        }
+        verify(store, never()).completeProof(anyLong(), any());
+        // Weights that do not reproduce the commitment never will, so they are hashed only once
+        verify(library, times(1)).hashAddressBook(any());
+    }
+
+    private static HistoryProofConstruction legacyGeneration(final Bytes rosterHash, final Bytes bookHash) {
+        return HistoryProofConstruction.newBuilder()
+                .constructionId(42L)
+                .targetRosterHash(rosterHash)
+                .targetProof(HistoryProof.newBuilder()
+                        .targetHistory(new History(bookHash, CURRENT_VK))
+                        .targetProofKeys(new ProofKey(2L, Bytes.wrap("historical-key")))
+                        .uncompressedWrapsProof(Bytes.wrap("uncompressed-proof")))
+                .build();
     }
 
     @Test
@@ -468,7 +819,11 @@ class HistoryServiceImplTest {
                         false,
                         sourceSigner,
                         9));
-        verifyNoInteractions(store, component, controllers, controller);
+        // The independent legacy-book maintenance may read active state before source validation;
+        // rejecting the source still creates no construction or controller and performs no writes.
+        verify(store, times(5)).getActiveConstruction();
+        verifyNoMoreInteractions(store);
+        verifyNoInteractions(component, controllers, controller);
     }
 
     @Test
@@ -581,6 +936,7 @@ class HistoryServiceImplTest {
     }
 
     private void withMockSubject() {
+        lenient().when(store.keyProvenanceWithWitnesses()).thenAnswer(ignored -> java.util.Collections.emptyIterator());
         subject = new HistoryServiceImpl(component);
     }
 

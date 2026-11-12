@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -66,6 +67,11 @@ public final class NoOpDependencies {
      * - This simulation matches production behavior exactly (SHA-384 hash path)
      */
     public static class RealisticBlockHashSigner implements BlockHashSigner {
+        @Override
+        public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+            // Benchmark signatures do not belong to adopted hinTS constructions.
+        }
+
         @Override
         public boolean isReady() {
             return true;

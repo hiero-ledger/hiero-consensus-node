@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_256;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.history.impl.WritableHistoryStoreImpl.CURRENT_WRAPS_PROTOCOL_VERSION;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
 import static java.util.Objects.requireNonNull;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -23,10 +27,13 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doReturn;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -34,7 +41,9 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.ProofKeySet;
+import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
@@ -66,7 +75,9 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
@@ -159,6 +170,7 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
         given(activeRosters.targetRosterHash()).willReturn(B_ROSTER_HASH);
         final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(B_ROSTER_HASH)
                 .build();
@@ -174,10 +186,12 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.sourceRosterHash()).willReturn(B_ROSTER_HASH);
         given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
         final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(B_ROSTER_HASH)
                 .build();
         final var next = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .sourceRosterHash(B_ROSTER_HASH)
                 .targetRosterHash(C_ROSTER_HASH)
                 .build();
@@ -214,6 +228,7 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.sourceRosterHash()).willReturn(B_ROSTER_HASH);
         given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
         final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(2L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(B_ROSTER_HASH)
@@ -258,10 +273,16 @@ class WritableHistoryStoreImplTest {
 
     @Test
     void canSetAssemblyStartTimeIfConstructionIdExists() {
-        final var nextConstruction =
-                HistoryProofConstruction.newBuilder().constructionId(456L).build();
+        final var nextConstruction = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                .constructionId(456L)
+                .build();
         setConstructions(
-                HistoryProofConstruction.newBuilder().constructionId(123L).build(), nextConstruction);
+                HistoryProofConstruction.newBuilder()
+                        .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                        .constructionId(123L)
+                        .build(),
+                nextConstruction);
         assertSame(nextConstruction, subject.getNextConstruction());
 
         assertThrows(IllegalArgumentException.class, () -> subject.setAssemblyTime(0L, CONSENSUS_NOW));
@@ -290,12 +311,18 @@ class WritableHistoryStoreImplTest {
     @Test
     void canSetTargetProof() {
         setConstructions(
-                HistoryProofConstruction.newBuilder().constructionId(123L).build(),
-                HistoryProofConstruction.newBuilder().constructionId(456L).build());
+                HistoryProofConstruction.newBuilder()
+                        .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                        .constructionId(123L)
+                        .build(),
+                HistoryProofConstruction.newBuilder()
+                        .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                        .constructionId(456L)
+                        .build());
 
         final var proofKey = new ProofKey(123L, Bytes.wrap("DOODLE"));
         final var proof = new HistoryProof(
-                List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY, Bytes.EMPTY);
+                List.of(proofKey), History.DEFAULT, ChainOfTrustProof.DEFAULT, Bytes.EMPTY, Bytes.EMPTY, List.of());
         subject.completeProof(456L, proof);
 
         final var construction = this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
@@ -305,6 +332,7 @@ class WritableHistoryStoreImplTest {
     @Test
     void restartWrapsSigningPurgesMessagesAndIncrementsRetryCount() {
         final var failedConstruction = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(123L)
                 .failureReason("Still missing messages from R1 nodes [2] after end of grace period for phase R2")
                 .wrapsRetryCount(1)
@@ -344,7 +372,11 @@ class WritableHistoryStoreImplTest {
     @Test
     void restartWrapsSigningCanGiveR1AGracePeriod() {
         setConstructions(
-                HistoryProofConstruction.newBuilder().constructionId(123L).build(), HistoryProofConstruction.DEFAULT);
+                HistoryProofConstruction.newBuilder()
+                        .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                        .constructionId(123L)
+                        .build(),
+                HistoryProofConstruction.DEFAULT);
         final var graceEnd = CONSENSUS_NOW.plusSeconds(10);
 
         final var updated =
@@ -358,6 +390,7 @@ class WritableHistoryStoreImplTest {
     @Test
     void excludeFromWrapsSigningAddsToTheExcludedNodes() {
         final var construction = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(123L)
                 .wrapsSigningState(WrapsSigningState.newBuilder().phase(R2).build())
                 .wrapsExcludedNodeIds(List.of(3L))
@@ -375,11 +408,13 @@ class WritableHistoryStoreImplTest {
     @Test
     void purgingStateAfterHandoffHasTrueExpectedEffectIfSomethingHappened() {
         final var activeConstruction = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(123L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
                 .build();
         final var nextConstruction = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(456L)
                 .targetRosterHash(C_ROSTER_HASH)
                 .build();
@@ -394,7 +429,7 @@ class WritableHistoryStoreImplTest {
         final var publicationsBefore = subject.getProofKeyPublications(Set.of(0L));
         assertEquals(1, publicationsBefore.size());
 
-        subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH);
+        subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, CONSENSUS_NOW);
 
         assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
 
@@ -413,18 +448,20 @@ class WritableHistoryStoreImplTest {
     @Test
     void handoffRefusesEvenCompleteConstructionWithMismatchedRosterHash() {
         final var activeConstruction = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(123L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
                 .build();
         final var nextConstruction = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(456L)
                 .targetRosterHash(C_ROSTER_HASH)
                 .targetProof(HistoryProof.DEFAULT)
                 .build();
         setConstructions(activeConstruction, nextConstruction);
 
-        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH));
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH, CONSENSUS_NOW));
         assertSame(activeConstruction, this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID));
         assertSame(nextConstruction, this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
     }
@@ -432,11 +469,15 @@ class WritableHistoryStoreImplTest {
     @Test
     void provenanceSurvivesProofPhasesAndQueuesExactlyOnceAtAdoption() throws Exception {
         assertFalse(subject.keyProvenance().hasNext());
+        assertNull(subject.getKeyWitnessRecord(2L));
         final var metadata = Bytes.wrap("next-vk");
         final var provenance = provenance(metadata);
-        final var active =
-                HistoryProofConstruction.newBuilder().constructionId(1L).build();
+        final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                .constructionId(1L)
+                .build();
         final var next = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(2L)
                 .targetMetadata(metadata)
                 .targetRosterHash(C_ROSTER_HASH)
@@ -446,7 +487,7 @@ class WritableHistoryStoreImplTest {
 
         final var unsigned = provenance.copyBuilder().signature(Bytes.EMPTY).build();
         subject.bindKeyProvenance(2L, unsigned);
-        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH));
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, CONSENSUS_NOW));
         subject.failForReason(2L, "retry WRAPS");
         subject.restartWrapsSigning(2L, new TreeSet<>(), new TreeSet<>(), null);
         assertEquals(unsigned, subject.getNextConstruction().keyProvenanceOrThrow());
@@ -464,22 +505,223 @@ class WritableHistoryStoreImplTest {
         final var restored = HistoryProofConstruction.PROTOBUF.parse(
                 HistoryProofConstruction.PROTOBUF.toBytes(subject.getNextConstruction()));
         assertEquals(provenance, restored.keyProvenanceOrThrow());
-        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH));
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, A_ROSTER_HASH, CONSENSUS_NOW));
         assertFalse(subject.keyProvenance().hasNext());
 
-        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH));
+        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, CONSENSUS_NOW));
         commit(states -> {});
         subject = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
         assertEquals(provenance, subject.getActiveConstruction().keyProvenanceOrThrow());
+        final var pending = subject.getKeyWitnessRecord(2L);
+        assertEquals(provenance, pending.provenanceOrThrow());
+        assertEquals(asTimestamp(CONSENSUS_NOW), pending.activationTimeOrThrow());
+        assertFalse(pending.hasWitness());
         assertEquals(HistoryProofConstruction.DEFAULT, subject.getNextConstruction());
         final var queue = subject.keyProvenance();
         assertEquals(provenance, queue.next());
         assertFalse(queue.hasNext());
-        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH));
-        assertFalse(subject.handoff(A_ROSTER, null, null));
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, CONSENSUS_NOW));
+        assertFalse(subject.handoff(A_ROSTER, null, null, null));
         final var afterRetry = subject.keyProvenance();
         afterRetry.next();
         assertFalse(afterRetry.hasNext());
+    }
+
+    @Test
+    void witnessesAreFirstAcceptedImmutableAndSurviveRestart() throws Exception {
+        adoptWitnessGeneration(2L, CONSENSUS_NOW);
+        final var witness = witness(2L, CONSENSUS_NOW.plusSeconds(1));
+        assertTrue(subject.setKeyWitness(witness));
+        assertFalse(subject.setKeyWitness(witness));
+        assertFalse(subject.setKeyWitness(witness.copyBuilder()
+                .signature(Bytes.wrap("other valid signature"))
+                .build()));
+        commit(states -> {});
+        subject = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        final var persisted = subject.getKeyWitnessRecord(2L);
+        assertEquals(witness, persisted.witnessOrThrow());
+        assertEquals(
+                persisted, HintsKeyWitnessRecord.PROTOBUF.parse(HintsKeyWitnessRecord.PROTOBUF.toBytes(persisted)));
+        final var records = subject.keyProvenanceWithWitnesses();
+        assertEquals(persisted, records.next());
+        assertFalse(records.hasNext());
+    }
+
+    @Test
+    void rejectedPublishersAreRecordedOncePerNodeAndOnlyOnPendingAdoptedGenerations() throws Exception {
+        assertFalse(subject.markWitnessRejected(2L, 7L));
+        assertNull(subject.getKeyWitnessRecord(2L));
+        adoptWitnessGeneration(2L, CONSENSUS_NOW);
+        assertTrue(subject.markWitnessRejected(2L, 7L));
+        assertFalse(subject.markWitnessRejected(2L, 7L));
+        assertTrue(subject.markWitnessRejected(2L, 3L));
+        commit(states -> {});
+        subject = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        final var persisted = subject.getKeyWitnessRecord(2L);
+        assertEquals(List.of(7L, 3L), persisted.rejectedNodeIds());
+        assertTrue(persisted.hasProvenance());
+        assertTrue(persisted.hasActivationTime());
+        assertFalse(persisted.hasWitness());
+        assertEquals(
+                persisted, HintsKeyWitnessRecord.PROTOBUF.parse(HintsKeyWitnessRecord.PROTOBUF.toBytes(persisted)));
+
+        // A recorded node never blocks the first valid witness, and a completed record takes no further marks
+        assertTrue(subject.setKeyWitness(witness(2L, CONSENSUS_NOW.plusSeconds(1))));
+        assertFalse(subject.markWitnessRejected(2L, 99L));
+        assertEquals(List.of(7L, 3L), subject.getKeyWitnessRecord(2L).rejectedNodeIds());
+    }
+
+    @Test
+    void witnessEligibilityUsesStoredActivationRatherThanCurrentGeneration() {
+        adoptWitnessGeneration(2L, CONSENSUS_NOW);
+        assertFalse(subject.setKeyWitness(witness(2L, CONSENSUS_NOW.minusNanos(1))));
+        assertFalse(subject.setKeyWitness(witness(2L, CONSENSUS_NOW)));
+        adoptWitnessGeneration(3L, CONSENSUS_NOW.plusSeconds(10));
+        // A delayed publication is still valid for the retired generation it names.
+        assertTrue(subject.setKeyWitness(witness(2L, CONSENSUS_NOW.plusSeconds(1))));
+        final var records = subject.keyProvenanceWithWitnesses();
+        final var first = records.next();
+        final var second = records.next();
+        assertEquals(2L, first.provenanceOrThrow().targetHintsConstructionId());
+        assertTrue(first.hasWitness());
+        assertEquals(3L, second.provenanceOrThrow().targetHintsConstructionId());
+        assertFalse(second.hasWitness());
+        assertFalse(records.hasNext());
+    }
+
+    @Test
+    void malformedAndUnadoptedWitnessesDoNotCreateState() {
+        final var validShape = witness(2L, CONSENSUS_NOW.plusSeconds(1));
+        assertFalse(subject.setKeyWitness(validShape));
+        assertNull(subject.getKeyWitnessRecord(2L));
+        adoptWitnessGeneration(2L, CONSENSUS_NOW);
+        for (final var malformed : List.of(
+                HintsKeyWitness.DEFAULT,
+                validShape.copyBuilder().targetHintsConstructionId(0L).build(),
+                validShape
+                        .copyBuilder()
+                        .timestamp((com.hedera.hapi.node.base.Timestamp) null)
+                        .build(),
+                validShape
+                        .copyBuilder()
+                        .timestamp(validShape
+                                .timestampOrThrow()
+                                .copyBuilder()
+                                .nanos(-1)
+                                .build())
+                        .build(),
+                validShape
+                        .copyBuilder()
+                        .timestamp(validShape
+                                .timestampOrThrow()
+                                .copyBuilder()
+                                .nanos(1_000_000_000)
+                                .build())
+                        .build(),
+                validShape
+                        .copyBuilder()
+                        .timestamp(validShape
+                                .timestampOrThrow()
+                                .copyBuilder()
+                                .seconds(Long.MAX_VALUE)
+                                .build())
+                        .build(),
+                validShape.copyBuilder().signature(Bytes.EMPTY).build(),
+                validShape.copyBuilder().siblingHash(Bytes.wrap(new byte[31])).build(),
+                validShape
+                        .copyBuilder()
+                        .hashAlgorithm(com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384)
+                        .build())) {
+            assertFalse(subject.setKeyWitness(malformed));
+            assertFalse(subject.getKeyWitnessRecord(2L).hasWitness());
+        }
+    }
+
+    @Test
+    void newAdoptionCannotOmitItsActivationBoundary() {
+        final var link = provenance(Bytes.wrap("next-vk"));
+        final var next = HistoryProofConstruction.newBuilder()
+                .constructionId(2L)
+                .targetRosterHash(C_ROSTER_HASH)
+                .keyProvenance(link)
+                .targetProof(HistoryProof.DEFAULT)
+                .build();
+        setConstructions(HistoryProofConstruction.DEFAULT, next);
+        assertThrows(NullPointerException.class, () -> subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, null));
+        assertFalse(subject.keyProvenance().hasNext());
+        assertNull(subject.getKeyWitnessRecord(2L));
+        assertEquals(next, subject.getNextConstruction());
+        assertEquals(HistoryProofConstruction.DEFAULT, subject.getActiveConstruction());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void duplicateAdoptionFailsBeforeAnyStateChanges(final boolean conflicting) {
+        adoptWitnessGeneration(2L, CONSENSUS_NOW);
+        final var adopted = subject.getActiveConstruction();
+        final var record = subject.getKeyWitnessRecord(2L);
+        final var next = conflicting
+                ? adopted.copyBuilder()
+                        .keyProvenance(adopted.keyProvenanceOrThrow()
+                                .copyBuilder()
+                                .targetVerificationKey(Bytes.wrap("different"))
+                                .build())
+                        .build()
+                : adopted;
+        setConstructions(adopted, next);
+        assertThrows(
+                IllegalStateException.class,
+                () -> subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, CONSENSUS_NOW.plusSeconds(1)));
+        final var queue = subject.keyProvenance();
+        assertEquals(adopted.keyProvenanceOrThrow(), queue.next());
+        assertFalse(queue.hasNext());
+        assertEquals(record, subject.getKeyWitnessRecord(2L));
+        assertEquals(adopted, subject.getActiveConstruction());
+        assertEquals(next, subject.getNextConstruction());
+    }
+
+    @Test
+    void historicalCompanionWithoutKnownBoundaryAllowsHistoricalBackfill() {
+        // Migration alone may create pending records without a known historical activation time.
+        final var legacy = HintsKeyWitnessRecord.newBuilder()
+                .provenance(provenance(Bytes.wrap("legacy-vk")))
+                .build();
+        state.getWritableStates(HistoryService.NAME)
+                .<ProtoLong, HintsKeyWitnessRecord>get(HINTS_KEY_WITNESSES_STATE_ID)
+                .put(new ProtoLong(2L), legacy);
+        final var oldWitness = witness(2L, CONSENSUS_NOW.minusSeconds(86_400));
+        assertTrue(subject.setKeyWitness(oldWitness));
+        assertFalse(subject.getKeyWitnessRecord(2L).hasActivationTime());
+        assertEquals(oldWitness, subject.getKeyWitnessRecord(2L).witnessOrThrow());
+    }
+
+    private void adoptWitnessGeneration(final long targetId, final Instant activationTime) {
+        final var link = provenance(Bytes.wrap("key-" + targetId))
+                .copyBuilder()
+                .sourceHintsConstructionId(targetId - 1)
+                .targetHintsConstructionId(targetId)
+                .historyConstructionId(targetId)
+                .build();
+        setConstructions(
+                subject.getActiveConstruction(),
+                HistoryProofConstruction.newBuilder()
+                        .constructionId(targetId)
+                        .targetRosterHash(C_ROSTER_HASH)
+                        .targetMetadata(link.targetVerificationKey())
+                        .keyProvenance(link)
+                        .targetProof(HistoryProof.DEFAULT)
+                        .build());
+        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, activationTime));
+    }
+
+    private static HintsKeyWitness witness(final long targetId, final Instant timestamp) {
+        return HintsKeyWitness.newBuilder()
+                .targetHintsConstructionId(targetId)
+                .timestamp(asTimestamp(timestamp))
+                .siblingHash(Bytes.wrap(new byte[32]))
+                .signature(Bytes.wrap("verified signature"))
+                .hashAlgorithm(SHA2_256)
+                .build();
     }
 
     @Test
@@ -489,6 +731,7 @@ class WritableHistoryStoreImplTest {
         setConstructions(
                 HistoryProofConstruction.DEFAULT,
                 HistoryProofConstruction.newBuilder()
+                        .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                         .constructionId(2L)
                         .targetMetadata(metadata)
                         .build());
@@ -531,12 +774,13 @@ class WritableHistoryStoreImplTest {
     @Test
     void genesisDoesNotInventPreviousKeyProvenance() {
         final var genesis = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(1L)
                 .targetProof(HistoryProof.DEFAULT)
                 .build();
         setConstructions(genesis, HistoryProofConstruction.DEFAULT);
         assertFalse(subject.keyProvenance().hasNext());
-        assertFalse(subject.handoff(A_ROSTER, null, null));
+        assertFalse(subject.handoff(A_ROSTER, null, null, null));
         assertEquals(genesis, subject.getActiveConstruction());
         assertFalse(subject.keyProvenance().hasNext());
     }
@@ -544,15 +788,17 @@ class WritableHistoryStoreImplTest {
     @Test
     void historyOnlyReanchorDoesNotAppendAnEpochTransition() {
         final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(1L)
                 .targetProof(HistoryProof.DEFAULT)
                 .build();
         final var reanchor = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(2L)
                 .targetProof(HistoryProof.DEFAULT)
                 .build();
         setConstructions(active, reanchor);
-        assertTrue(subject.handoff(A_ROSTER, null, null));
+        assertTrue(subject.handoff(A_ROSTER, null, null, null));
         assertEquals(reanchor, subject.getActiveConstruction());
         assertFalse(subject.keyProvenance().hasNext());
     }
@@ -567,11 +813,13 @@ class WritableHistoryStoreImplTest {
         final var metadata = Bytes.wrap("next-vk");
         final var expected = provenance(metadata);
         final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(1L)
                 .targetRosterHash(B_ROSTER_HASH)
                 .targetProof(HistoryProof.DEFAULT)
                 .build();
         final var old = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(2L)
                 .sourceRosterHash(B_ROSTER_HASH)
                 .targetRosterHash(C_ROSTER_HASH)
@@ -601,11 +849,13 @@ class WritableHistoryStoreImplTest {
         final var metadata = Bytes.wrap("next-vk");
         final var expected = provenance(metadata);
         final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(1L)
                 .targetRosterHash(B_ROSTER_HASH)
                 .targetProof(HistoryProof.DEFAULT)
                 .build();
         final var pending = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(2L)
                 .sourceRosterHash(B_ROSTER_HASH)
                 .targetRosterHash(C_ROSTER_HASH)
@@ -649,6 +899,11 @@ class WritableHistoryStoreImplTest {
         assertFalse(replacement.hasTargetProof());
         assertFalse(replacement.hasKeyProvenance());
         assertEquals(active, subject.getActiveConstruction());
+        // Even a fully signed completed candidate has no adoption or witness record when replaced.
+        assertFalse(subject.keyProvenance().hasNext());
+        assertNull(subject.getKeyWitnessRecord(expected.targetHintsConstructionId()));
+        assertFalse(subject.setKeyWitness(witness(expected.targetHintsConstructionId(), CONSENSUS_NOW.plusSeconds(1))));
+        assertNull(subject.getKeyWitnessRecord(expected.targetHintsConstructionId()));
     }
 
     @Test
@@ -659,6 +914,7 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
         final var key = Bytes.wrap("same-vk");
         final var completed = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(1L)
                 .sourceRosterHash(C_ROSTER_HASH)
                 .targetRosterHash(C_ROSTER_HASH)
@@ -737,14 +993,21 @@ class WritableHistoryStoreImplTest {
 
     @Test
     void rebindingCompletedTargetPreservesProofAndSourceIdentity() {
+        final var frozenProof = HistoryProof.newBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(0L, 10L, 1L, 20L))))
+                .targetProofKeys(new ProofKey(0L, Bytes.wrap("historical-key")))
+                .build();
         final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(123L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(B_ROSTER_HASH)
-                .targetProof(HistoryProof.DEFAULT)
+                .targetProof(frozenProof)
                 .build();
-        final var next =
-                HistoryProofConstruction.newBuilder().constructionId(124L).build();
+        final var next = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                .constructionId(124L)
+                .build();
         setConstructions(active, next);
         assertFalse(subject.rebindActiveTargetRosterHash(A_ROSTER_HASH, C_ROSTER_HASH));
         assertEquals(active, subject.getActiveConstruction());
@@ -757,6 +1020,73 @@ class WritableHistoryStoreImplTest {
         setConstructions(incomplete, next);
         assertFalse(subject.rebindActiveTargetRosterHash(B_ROSTER_HASH, C_ROSTER_HASH));
         assertEquals(incomplete, subject.getActiveConstruction());
+    }
+
+    @Test
+    void canonicalBooksSurviveDailyCandidateReplacementAndRestartWithoutPlatformAdoption() throws Exception {
+        final var firstProof = HistoryProof.newBuilder()
+                .targetNodeWeights(
+                        HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(0L, 10L, 1L, 20L, 2L, 30L))))
+                .targetProofKeys(new ProofKey(0L, Bytes.wrap("first-key")))
+                .build();
+        final var firstGeneration = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                .constructionId(1L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .targetProof(firstProof)
+                .build();
+        setConstructions(firstGeneration, HistoryProofConstruction.DEFAULT);
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        // The platform stays on A while daily candidates B, C, and D replace one another.
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
+        given(activeRosters.findRelatedRoster(C_ROSTER_HASH)).willReturn(C_ROSTER);
+
+        final var secondGeneration = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false);
+        assertEquals(firstProof, subject.getActiveConstruction().targetProofOrThrow());
+        assertNull(activeRosters.findRelatedRoster(B_ROSTER_HASH));
+        assertArrayEquals(
+                new long[] {10L, 20L, 30L},
+                HistoryProofAddressBooks.targetBook(
+                                subject.getActiveConstruction().targetProofOrThrow())
+                        .weights());
+
+        final var secondProof = HistoryProof.newBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(1L, 21L, 2L, 31L))))
+                .targetProofKeys(new ProofKey(1L, Bytes.wrap("second-key")))
+                .build();
+        subject.completeProof(secondGeneration.constructionId(), secondProof);
+        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, CONSENSUS_NOW));
+        final var thirdRosterHash = Bytes.wrap("D");
+        given(activeRosters.targetRosterHash()).willReturn(thirdRosterHash);
+        given(activeRosters.findRelatedRoster(thirdRosterHash)).willReturn(C_ROSTER);
+        given(activeRosters.findRelatedRoster(C_ROSTER_HASH)).willReturn(null);
+        assertNull(activeRosters.findRelatedRoster(C_ROSTER_HASH));
+        subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW.plusSeconds(86_400), TSS_CONFIG, false);
+        // A later corrected/publication key cannot change the previously committed selected key or sentinel.
+        subject.setProofKey(1L, Bytes.wrap("later-corrected-key"), CONSENSUS_NOW.plusSeconds(86_401));
+        subject.setProofKey(2L, Bytes.wrap("later-key-for-sentinel-seat"), CONSENSUS_NOW.plusSeconds(86_401));
+        commit(_ -> {});
+        final var restarted = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        final var restoredProof = HistoryProof.PROTOBUF.parse(
+                HistoryProof.PROTOBUF.toBytes(restarted.getActiveConstruction().targetProofOrThrow()));
+
+        assertEquals(secondProof, restoredProof);
+        assertArrayEquals(
+                new long[] {1L, 2L},
+                HistoryProofAddressBooks.targetBook(restoredProof).nodeIds());
+        assertArrayEquals(
+                new long[] {21L, 31L},
+                HistoryProofAddressBooks.targetBook(restoredProof).weights());
+        assertArrayEquals(
+                Bytes.wrap("second-key").toByteArray(),
+                HistoryProofAddressBooks.targetBook(restoredProof).publicKeys()[0]);
+        assertArrayEquals(
+                HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(),
+                HistoryProofAddressBooks.targetBook(restoredProof).publicKeys()[1]);
+        assertEquals(A_ROSTER_HASH, restarted.getActiveConstruction().sourceRosterHash());
+        assertEquals(thirdRosterHash, restarted.getNextConstruction().targetRosterHash());
     }
 
     private void commit(@NonNull final Consumer<WritableStates> mutation) {
@@ -800,6 +1130,7 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
         given(activeRosters.findRelatedRoster(A_ROSTER_HASH)).willReturn(Roster.DEFAULT);
         final var completed = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(1L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
@@ -833,12 +1164,14 @@ class WritableHistoryStoreImplTest {
         final var oldMetadata = Bytes.wrap("OLD_VK");
         final var newMetadata = Bytes.wrap("NEW_VK");
         final var active = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(1L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
                 .targetProof(HistoryProof.DEFAULT)
                 .build();
         final var obsoleteBuilder = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(2L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(C_ROSTER_HASH)
@@ -893,6 +1226,7 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
         givenARosterLookup();
         final var obsolete = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(7L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
@@ -918,6 +1252,8 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
         final var metadata = Bytes.wrap("VK");
         final var completed = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                .wrapsProtocolVersion(0)
                 .constructionId(7L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
@@ -940,6 +1276,7 @@ class WritableHistoryStoreImplTest {
         givenARosterLookup();
         final var metadata = Bytes.wrap("VK");
         final var legacy = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(7L)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
@@ -985,7 +1322,11 @@ class WritableHistoryStoreImplTest {
     @Test
     void proofKeyCutoffSurvivesSigningFailureAndRetry() {
         setConstructions(
-                HistoryProofConstruction.newBuilder().constructionId(123L).build(), HistoryProofConstruction.DEFAULT);
+                HistoryProofConstruction.newBuilder()
+                        .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
+                        .constructionId(123L)
+                        .build(),
+                HistoryProofConstruction.DEFAULT);
         subject.setAssemblyTime(123L, CONSENSUS_NOW);
         subject.updateWrapsSigningState(123L, b -> b.phase(R1));
         assertFalse(subject.getActiveConstruction().hasAssemblyStartTime());
@@ -1003,6 +1344,7 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
         given(activeRosters.findRelatedRoster(A_ROSTER_HASH)).willReturn(A_ROSTER);
         final var old = HistoryProofConstruction.newBuilder()
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .constructionId(123)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
@@ -1019,5 +1361,207 @@ class WritableHistoryStoreImplTest {
         assertFalse(restarted.hasWrapsSigningState());
         assertTrue(subject.getVotes(123, Set.of(0L)).isEmpty());
         assertEquals(restarted, subject.getActiveConstruction());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"collecting", "assembly", "R1", "R2", "R3", "AGGREGATE", "failed"})
+    void incompatibleBootstrapAttemptGetsAFreshIdAndCannotReplayOldVotesOrMessages(final String stage)
+            throws Exception {
+        final var metadata = Bytes.wrap("same-verification-key");
+        final var roster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(0L).weight(80L).build(),
+                RosterEntry.newBuilder().nodeId(1L).weight(10L).build(),
+                RosterEntry.newBuilder().nodeId(2L).weight(10L).build()));
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.findRelatedRoster(A_ROSTER_HASH)).willReturn(roster);
+        final var oldBuilder = HistoryProofConstruction.newBuilder()
+                .constructionId(42L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .targetMetadata(metadata)
+                .proofKeyCutoffTime(asTimestamp(CONSENSUS_NOW))
+                .wrapsProtocolVersion(0);
+        switch (stage) {
+            case "collecting" -> oldBuilder.gracePeriodEndTime(asTimestamp(CONSENSUS_NOW));
+            case "assembly" -> oldBuilder.assemblyStartTime(asTimestamp(CONSENSUS_NOW));
+            case "failed" -> oldBuilder.failureReason("legacy signing attempt failed");
+            default ->
+                oldBuilder.wrapsSigningState(WrapsSigningState.newBuilder().phase(WrapsPhase.valueOf(stage)));
+        }
+        setConstructions(oldBuilder.build(), HistoryProofConstruction.DEFAULT);
+        subject.addProofVote(0L, 42L, DEFAULT_VOTE);
+        subject.addProofVote(
+                1L, 42L, HistoryProofVote.newBuilder().congruentNodeId(0L).build());
+        subject.addProofVote(
+                2L, 42L, HistoryProofVote.newBuilder().congruentNodeId(99L).build());
+        for (long nodeId = 0; nodeId < 3; nodeId++) {
+            subject.addWrapsMessage(
+                    42L, new WrapsMessagePublication(nodeId, Bytes.wrap("legacy-message"), R1, CONSENSUS_NOW));
+        }
+
+        final var replacement =
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, metadata);
+
+        assertEquals(43L, replacement.constructionId());
+        assertEquals(CURRENT_WRAPS_PROTOCOL_VERSION, replacement.wrapsProtocolVersion());
+        assertEquals(metadata, replacement.targetMetadata());
+        assertTrue(replacement.hasGracePeriodEndTime());
+        assertFalse(replacement.hasProofKeyCutoffTime());
+        assertFalse(replacement.hasWrapsSigningState());
+        assertFalse(replacement.hasFailureReason());
+        assertFalse(replacement.hasKeyProvenance());
+        assertTrue(subject.getVotes(42L, Set.of(0L, 1L, 2L)).isEmpty());
+        assertTrue(subject.getWrapsMessagePublications(42L, Set.of(0L, 1L, 2L)).isEmpty());
+        assertTrue(subject.getVotes(43L, Set.of(0L, 1L, 2L)).isEmpty());
+        assertNull(subject.getLedgerId());
+
+        // The old node-zero vote must not occupy its fresh slot when that node now carries weight 80.
+        subject.addProofVote(0L, 43L, DEFAULT_VOTE);
+        subject.setAssemblyTime(43L, CONSENSUS_NOW.plusSeconds(1));
+        subject.updateWrapsSigningState(43L, builder -> builder.phase(R1));
+        final var markedSigning = subject.getActiveConstruction();
+        commit(_ -> {});
+        final var restored = HistoryProofConstruction.PROTOBUF.parse(
+                HistoryProofConstruction.PROTOBUF.toBytes(subject.getActiveConstruction()));
+        assertEquals(markedSigning, restored);
+        final var restarted = new WritableHistoryStoreImpl(state.getWritableStates(HistoryService.NAME));
+        assertEquals(
+                markedSigning,
+                restarted.getOrCreateConstruction(
+                        activeRosters, CONSENSUS_NOW.plusSeconds(2), TSS_CONFIG, false, metadata));
+        assertEquals(DEFAULT_VOTE, restarted.getVotes(43L, Set.of(0L)).get(0L));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void incompatibleFullyBoundSuccessorIsReplacedWithoutChangingTheCompletedGeneration(final boolean freshGenesis) {
+        final var metadata = Bytes.wrap("same-verification-key");
+        final var legacyProof = HistoryProof.newBuilder()
+                .targetHistory(new History(Bytes.wrap("unchanged-book-hash"), metadata))
+                .targetNodeWeights(
+                        HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(0L, 1L, 1L, 49L, 2L, 50L))))
+                .targetProofKeys(new ProofKey(0L, Bytes.wrap("historical-key")))
+                .build();
+        final var active = HistoryProofConstruction.newBuilder()
+                .constructionId(10L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .targetProof(legacyProof)
+                .wrapsProtocolVersion(0)
+                .build();
+        final var targetHash = freshGenesis ? A_ROSTER_HASH : C_ROSTER_HASH;
+        final var expectedBinding = provenance(metadata)
+                .copyBuilder()
+                .historyConstructionId(11L)
+                .signature(Bytes.EMPTY)
+                .build();
+        final var oldBuilder = HistoryProofConstruction.newBuilder()
+                .constructionId(11L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(targetHash)
+                .targetMetadata(metadata)
+                .proofKeyCutoffTime(asTimestamp(CONSENSUS_NOW))
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(WrapsPhase.AGGREGATE))
+                .wrapsProtocolVersion(0);
+        if (!freshGenesis) {
+            oldBuilder.keyProvenance(expectedBinding);
+        }
+        setConstructions(active, oldBuilder.build());
+        subject.setLedgerId(LEDGER_ID);
+        given(activeRosters.phase()).willReturn(freshGenesis ? BOOTSTRAP : TRANSITION);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(targetHash);
+        final var roster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(0L).weight(80L).build(),
+                RosterEntry.newBuilder().nodeId(1L).weight(10L).build(),
+                RosterEntry.newBuilder().nodeId(2L).weight(10L).build()));
+        given(activeRosters.findRelatedRoster(A_ROSTER_HASH)).willReturn(roster);
+        if (!freshGenesis) {
+            given(activeRosters.findRelatedRoster(C_ROSTER_HASH)).willReturn(roster);
+        }
+        subject.addProofVote(0L, 11L, DEFAULT_VOTE);
+        subject.addProofVote(
+                1L, 11L, HistoryProofVote.newBuilder().congruentNodeId(0L).build());
+        subject.addProofVote(
+                2L, 11L, HistoryProofVote.newBuilder().congruentNodeId(99L).build());
+        subject.addWrapsMessage(11L, new WrapsMessagePublication(0L, Bytes.wrap("legacy-message"), R1, CONSENSUS_NOW));
+
+        final var replacement = subject.getOrCreateConstruction(
+                activeRosters,
+                CONSENSUS_NOW,
+                TSS_CONFIG,
+                freshGenesis,
+                metadata,
+                freshGenesis ? null : expectedBinding);
+
+        assertEquals(12L, replacement.constructionId());
+        assertEquals(CURRENT_WRAPS_PROTOCOL_VERSION, replacement.wrapsProtocolVersion());
+        assertSame(active, subject.getActiveConstruction());
+        assertSame(legacyProof, subject.getActiveConstruction().targetProofOrThrow());
+        assertEquals(0, subject.getActiveConstruction().wrapsProtocolVersion());
+        assertEquals(LEDGER_ID, subject.getLedgerId());
+        assertTrue(subject.getVotes(11L, Set.of(0L, 1L, 2L)).isEmpty());
+        assertTrue(subject.getWrapsMessagePublications(11L, Set.of(0L)).isEmpty());
+        if (!freshGenesis) {
+            subject.bindKeyProvenance(
+                    replacement.constructionId(),
+                    expectedBinding
+                            .copyBuilder()
+                            .historyConstructionId(replacement.constructionId())
+                            .build());
+            assertEquals(
+                    replacement.constructionId(),
+                    subject.getNextConstruction().keyProvenanceOrThrow().historyConstructionId());
+        }
+        final var retained = subject.getOrCreateConstruction(
+                activeRosters,
+                CONSENSUS_NOW.plusSeconds(1),
+                TSS_CONFIG,
+                freshGenesis,
+                metadata,
+                freshGenesis ? null : expectedBinding);
+        assertEquals(replacement.constructionId(), retained.constructionId());
+    }
+
+    @Test
+    void replacementCanPurgeRetainedSnapshotSendersWhenTheLegacyRosterHashesNoLongerResolve() {
+        final var metadata = Bytes.wrap("same-verification-key");
+        final var snapshot = HistoryProof.newBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(0L, 10L, 9L, 90L))))
+                .build();
+        final var active = HistoryProofConstruction.newBuilder()
+                .constructionId(10L)
+                .targetRosterHash(B_ROSTER_HASH)
+                .targetProof(snapshot)
+                .build();
+        final var obsolete = HistoryProofConstruction.newBuilder()
+                .constructionId(11L)
+                .sourceRosterHash(Bytes.wrap("unavailable-old-source-hash"))
+                .targetRosterHash(Bytes.wrap("unavailable-old-target-hash"))
+                .targetMetadata(metadata)
+                .proofKeyCutoffTime(asTimestamp(CONSENSUS_NOW))
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R1))
+                .build();
+        setConstructions(active, obsolete);
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
+        doReturn(null).when(activeRosters).findRelatedRoster(obsolete.sourceRosterHash());
+        doReturn(null).when(activeRosters).findRelatedRoster(obsolete.targetRosterHash());
+        given(activeRosters.findRelatedRoster(A_ROSTER_HASH)).willReturn(A_ROSTER);
+        given(activeRosters.findRelatedRoster(C_ROSTER_HASH)).willReturn(C_ROSTER);
+        subject.addProofVote(
+                9L, 11L, HistoryProofVote.newBuilder().congruentNodeId(0L).build());
+        subject.addWrapsMessage(11L, new WrapsMessagePublication(9L, Bytes.wrap("legacy-message"), R1, CONSENSUS_NOW));
+
+        final var replacement =
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false, metadata);
+
+        assertEquals(12L, replacement.constructionId());
+        assertTrue(subject.getVotes(11L, Set.of(9L)).isEmpty());
+        assertTrue(subject.getWrapsMessagePublications(11L, Set.of(9L)).isEmpty());
+        assertSame(active, subject.getActiveConstruction());
     }
 }

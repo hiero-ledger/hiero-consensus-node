@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.sei.verif
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mockConstruction;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -69,7 +70,13 @@ class SeiVerifyBundleTranslatorTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject.callFrom(attempt)).isInstanceOf(SeiVerifyBundleCall.class);
+        // Constructor args are (enhancement, gasCalculator, bundlePayload, trustAnchor, channelContext); check that
+        // the decoded channelContext reaches the call instead of being dropped.
+        try (final var calls = mockConstruction(
+                SeiVerifyBundleCall.class,
+                (mock, context) -> assertThat(context.arguments().get(4)).isEqualTo(channelContext))) {
+            assertThat(subject.callFrom(attempt)).isSameAs(calls.constructed().getFirst());
+        }
     }
 
     @Test

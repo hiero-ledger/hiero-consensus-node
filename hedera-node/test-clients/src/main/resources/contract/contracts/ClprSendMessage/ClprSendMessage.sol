@@ -13,7 +13,8 @@ pragma solidity ^0.8.0;
 contract ClprSendMessage {
     address constant CLPR_PRECOMPILE = address(0x16e);
 
-    /// Enqueue a cross-ledger message via the CLPR system contract.
+    /// Enqueue a cross-ledger message via the CLPR system contract, attaching this contract's balance (including
+    /// any value sent with this call) to cover its sendMessage fee; the system contract collects only that fee.
     /// @param channelId       32-byte channel identifier
     /// @param connectorId        32-byte connector identifier
     ///                           (= keccak256(channelId || pubKey || salt))
@@ -25,8 +26,8 @@ contract ClprSendMessage {
         bytes32 connectorId,
         bytes calldata targetApplication,
         bytes calldata messageData
-    ) external returns (uint64 messageId) {
-        (bool success, bytes memory result) = CLPR_PRECOMPILE.call(
+    ) external payable returns (uint64 messageId) {
+        (bool success, bytes memory result) = CLPR_PRECOMPILE.call{value: address(this).balance}(
             abi.encodeWithSignature(
                 "sendMessage(bytes32,bytes32,bytes,bytes)",
                 channelId,
