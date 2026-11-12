@@ -31,11 +31,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -49,6 +48,7 @@ import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.ClassicCreatesCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
@@ -66,7 +66,6 @@ import org.mockito.Mock;
  */
 public class ClassicCreatesCallTest extends CallTestBase {
 
-    private static final org.hyperledger.besu.datatypes.Address FRAME_SENDER_ADDRESS = EIP_1014_ADDRESS;
     // Matches the default contracts.keys.legacyActivations
     private static final long LEGACY_ACTIVATION_NUM = 1062784L;
 
@@ -78,6 +77,9 @@ public class ClassicCreatesCallTest extends CallTestBase {
 
     @Mock
     private BlockValues blockValues;
+
+    @Mock
+    private ProxyWorldUpdater updater;
 
     private static final TransactionBody PRETEND_CREATE_TOKEN = TransactionBody.newBuilder()
             .tokenCreation(TokenCreateTransactionBody.newBuilder()
@@ -417,7 +419,7 @@ public class ClassicCreatesCallTest extends CallTestBase {
                         .adminKey(AN_ED25519_KEY)
                         .build())
                 .build();
-        final var strategy = new AccountAuthorizingVerificationStrategy(SENDER_ID, key -> INVALID);
+        final var strategy = new AccountAuthorizingVerificationStrategy(SENDER_ID, _ -> INVALID);
         final var legacyCaller = mock(MessageFrame.class);
         given(legacyCaller.getRecipientAddress()).willReturn(asLongZeroAddress(LEGACY_ACTIVATION_NUM));
         given(legacyCaller.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
