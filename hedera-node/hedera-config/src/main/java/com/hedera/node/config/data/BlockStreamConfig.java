@@ -108,7 +108,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableStateChangePartials,
 
-        @ConfigProperty(defaultValue = "64") @Min(0) @NetworkProperty
+        @ConfigProperty(defaultValue = "16") @Min(0) @NetworkProperty
         int stateChangePartialMinSaving) {
 
     /** Whether this stream can emit canonical partial state updates. */
