@@ -27,6 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
@@ -89,6 +90,10 @@ public final class VirtualMapLearner {
 
     private final ConcurrentBlockingIterator<VirtualLeafBytes> reconnectIterator =
             new ConcurrentBlockingIterator<>(MAX_RECONNECT_HASHING_BUFFER_SIZE);
+
+    /// Number of dirty leaves supplied to the hasher, but not hashed yet: leaves in [#reconnectIterator] plus
+    /// leaf hashing tasks that haven't run yet. Each of them is held in memory.
+    private final LongAdder unhashedLeaves = new LongAdder();
 
     private volatile CompletableFuture<Hash> reconnectHashingFuture;
     private volatile FutureTask<Void> leafDeletionTask;
@@ -244,6 +249,8 @@ public final class VirtualMapLearner {
      * @param leaf the leaf record received from the teacher; must not be null
      */
     public void dirtyLeafReceived(@NonNull final VirtualLeafBytes<?> leaf) {
+        // Counted before it's supplied, so the hasher can't report it hashed before it's counted
+        unhashedLeaves.increment();
         try {
             reconnectIterator.supply(leaf);
         } catch (final MerkleSynchronizationException e) {
@@ -272,12 +279,11 @@ public final class VirtualMapLearner {
         return reconnectFlusher.getStatus();
     }
 
-    /// Returns the number of leaf hashing tasks created by the reconnect hashing, but not run yet. Each task
-    /// holds its leaf in memory.
+    /// Returns the number of dirty leaves supplied to the hasher, but not hashed yet, see [#unhashedLeaves].
     ///
-    /// @return the number of leaf hashing tasks that are created, but not run yet
-    public long getPendingLeafHashTasks() {
-        return hasher.getPendingLeafTasks();
+    /// @return the number of dirty leaves supplied to the hasher, but not hashed yet
+    public long getUnhashedLeaves() {
+        return unhashedLeaves.sum();
     }
 
     /**
@@ -410,7 +416,12 @@ public final class VirtualMapLearner {
      */
     private void startReconnectHashingThread(final long firstLeafPath, final long lastLeafPath) {
         final DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(dataSource);
-        final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader);
+        final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader) {
+            @Override
+            public void onLeafHashed(@NonNull final VirtualLeafBytes<?> leaf) {
+                unhashedLeaves.decrement();
+            }
+        };
 
         reconnectHashingFuture = hasher.hashAsync(
                         dataSource.getHashChunkHeight(),

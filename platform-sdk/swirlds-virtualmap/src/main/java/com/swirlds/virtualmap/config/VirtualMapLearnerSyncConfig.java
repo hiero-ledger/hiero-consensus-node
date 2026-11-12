@@ -41,9 +41,8 @@ import java.time.Duration;
  *                                               increases heap usage.
  * @param leafBacklogThrottleThreshold           The learner stops requesting leaves while its leaf backlog is at this
  *                                               threshold or above. The backlog is the number of leaf requests whose
- *                                               responses aren't applied yet, plus leaf hashing tasks that haven't
- *                                               run yet. Leaves in the hashing buffer between them aren't counted, the
- *                                               buffer has its own fixed size. This bounds the memory used by leaves
+ *                                               responses aren't applied yet, plus leaves supplied to the hasher, but
+ *                                               not hashed yet. This bounds the memory used by leaves
  *                                               waiting for hashing, when leaves are received faster than they are
  *                                               hashed, for example when hashing threads are blocked on flusher
  *                                               backpressure. Each leaf takes a few hundred bytes of heap.

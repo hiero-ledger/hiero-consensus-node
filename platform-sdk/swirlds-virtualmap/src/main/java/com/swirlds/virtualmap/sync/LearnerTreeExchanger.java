@@ -65,12 +65,11 @@ public final class LearnerTreeExchanger {
 
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
-    /// While the leaf backlog, [#unappliedLeafRequests] plus leaf hashing tasks that haven't run yet, is at this
-    /// threshold or above, [#getNextPathToSend()] doesn't return leaf paths. Flusher backpressure throttles both
-    /// receiving and hashing, but it doesn't keep hashing up with receiving. Without this threshold, leaves that
-    /// are received faster than they are hashed pile up in memory, either in [#responses] or in hashing tasks.
-    /// Leaves in the hashing buffer between the applier and the hasher aren't counted, the buffer has its own
-    /// fixed size.
+    /// While the leaf backlog, [#unappliedLeafRequests] plus leaves supplied to the hasher but not hashed yet, is
+    /// at this threshold or above, [#getNextPathToSend()] doesn't return leaf paths. Flusher backpressure
+    /// throttles both receiving and hashing, but it doesn't keep hashing up with receiving. Without this
+    /// threshold, leaves that are received faster than they are hashed pile up in memory, either in [#responses]
+    /// or in the hasher.
     private final int leafBacklogThrottleThreshold;
 
     /// Number of leaf requests sent to the teacher, whose responses are not applied yet. Equals the size of
@@ -166,7 +165,7 @@ public final class LearnerTreeExchanger {
         synchronized (this) {
             // Backpressure: don't request more leaves until some of the requested ones are hashed. Checked
             // under the lock, so concurrent senders can't overshoot the threshold
-            if (unappliedLeafRequests.get() + vmapLearner.getPendingLeafHashTasks() >= leafBacklogThrottleThreshold) {
+            if (unappliedLeafRequests.get() + vmapLearner.getUnhashedLeaves() >= leafBacklogThrottleThreshold) {
                 return NodeTraversalOrder.PATH_NOT_AVAILABLE_YET;
             }
             // If the last leaf path is sent, all subsequent calls to getNextPathToSend()
@@ -323,18 +322,18 @@ public final class LearnerTreeExchanger {
         void log(final long now, final Long headPath, final long headWaitStart) {
             lastLogNanos = now;
             final long unapplied = unappliedLeafRequests.get();
-            final long pendingHashTasks = vmapLearner.getPendingLeafHashTasks();
+            final long unhashed = vmapLearner.getUnhashedLeaves();
             logger.info(
                     RECONNECT.getMarker(),
                     "Learner leaf pipeline: appliedLeaves={}, leafBacklog={} (throttle threshold {}), "
-                            + "unappliedLeafRequests={}, pendingLeafHashTasks={}, responsesWaiting={}, "
+                            + "unappliedLeafRequests={}, unhashedLeaves={}, responsesWaiting={}, "
                             + "applyMillis={}, parkedMillis={}, waitingForPath={}, waitingMillis={}, "
                             + "hashingBuffer={}, chunk status: {}, flusher: {}",
                     appliedLeaves,
-                    unapplied + pendingHashTasks,
+                    unapplied + unhashed,
                     leafBacklogThrottleThreshold,
                     unapplied,
-                    pendingHashTasks,
+                    unhashed,
                     responses.size(),
                     TimeUnit.NANOSECONDS.toMillis(applyNanos),
                     TimeUnit.NANOSECONDS.toMillis(parkedNanos),
