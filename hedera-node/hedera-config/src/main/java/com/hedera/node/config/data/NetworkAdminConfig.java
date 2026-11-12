@@ -72,4 +72,5 @@ public record NetworkAdminConfig(
         @ConfigProperty(defaultValue = "true") @NodeProperty boolean preserveStateWeightsDuringOverride,
         @ConfigProperty(defaultValue = "true") boolean createCandidateRosterOnPrepareUpgrade,
         // Config for high volume throttles
-        @ConfigProperty(defaultValue = "true") @NodeProperty boolean highVolumeThrottlesEnabled) {}
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean highVolumeThrottlesEnabled) {}

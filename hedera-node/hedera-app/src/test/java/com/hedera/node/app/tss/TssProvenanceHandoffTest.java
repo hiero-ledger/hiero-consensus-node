@@ -6,6 +6,7 @@ import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_
 import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.*;
 import static com.hedera.node.app.history.schemas.V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -38,6 +39,7 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.CommittableWritableStates;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,6 +48,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class TssProvenanceHandoffTest {
+    private static final Instant ACTIVATION_TIME = Instant.ofEpochSecond(1_800_000_000L);
     private static final Bytes ROSTER_HASH = Bytes.wrap("roster");
     private static final Bytes SOURCE_KEY = Bytes.wrap("source-key");
     private static final Bytes TARGET_KEY = Bytes.wrap("target-key");
@@ -66,6 +69,11 @@ class TssProvenanceHandoffTest {
 
         assertTrue(handoff(stack));
         assertEquals(first, historyIn(stack).keyProvenance().next());
+        assertEquals(first, historyIn(stack).getKeyWitnessRecord(2).provenance());
+        assertEquals(
+                ACTIVATION_TIME.getEpochSecond(),
+                historyIn(stack).getKeyWitnessRecord(2).activationTimeOrThrow().seconds());
+        assertFalse(historyIn(stack).getKeyWitnessRecord(2).hasWitness());
         assertEquals(2L, hintsIn(stack).getActiveConstruction().constructionId());
         assertEquals(2L, historyIn(stack).getActiveConstruction().constructionId());
         assertFalse(historyIn(state).keyProvenance().hasNext());
@@ -73,6 +81,7 @@ class TssProvenanceHandoffTest {
         // A later failure in this same transaction reverts the queue and both promotions.
         stack.rollbackFullStack();
         assertFalse(historyIn(stack).keyProvenance().hasNext());
+        assertNull(historyIn(stack).getKeyWitnessRecord(2));
         assertEquals(1L, historyIn(stack).getActiveConstruction().constructionId());
         assertEquals(1L, hintsIn(stack).getActiveConstruction().constructionId());
         assertEquals(2L, historyIn(stack).getNextConstruction().constructionId());
@@ -81,6 +90,7 @@ class TssProvenanceHandoffTest {
         assertTrue(handoff(stack));
         stack.commitFullStack();
         assertEquals(2L, historyIn(state).getActiveConstruction().constructionId());
+        assertEquals(first, historyIn(state).getKeyWitnessRecord(2).provenance());
         assertEquals(2L, hintsIn(state).getActiveConstruction().constructionId());
         assertEquals(HistoryProofConstruction.DEFAULT, historyIn(state).getNextConstruction());
         assertEquals(HintsConstruction.DEFAULT, hintsIn(state).getNextConstruction());
@@ -97,6 +107,8 @@ class TssProvenanceHandoffTest {
         assertFalse(links.hasNext());
         assertEquals(3L, hintsIn(state).getActiveConstruction().constructionId());
         assertEquals(3L, historyIn(state).getActiveConstruction().constructionId());
+        assertEquals(second, historyIn(state).getKeyWitnessRecord(3).provenance());
+        assertEquals(first, historyIn(state).getKeyWitnessRecord(2).provenance());
     }
 
     private boolean handoff(final SavepointStackImpl stack) {
@@ -107,7 +119,8 @@ class TssProvenanceHandoffTest {
                 hintsService,
                 Roster.DEFAULT,
                 Roster.DEFAULT,
-                ROSTER_HASH);
+                ROSTER_HASH,
+                ACTIVATION_TIME);
     }
 
     private WritableHistoryStoreImpl historyIn(final com.swirlds.state.State state) {
@@ -145,7 +158,8 @@ class TssProvenanceHandoffTest {
                         PROOF_KEY_SETS_STATE_ID, new ConcurrentHashMap<>(),
                         PROOF_VOTES_STATE_ID, new ConcurrentHashMap<>(),
                         WRAPS_MESSAGE_HISTORIES_STATE_ID, new ConcurrentHashMap<>(),
-                        HINTS_KEY_PROVENANCE_STATE_ID, new ConcurrentLinkedDeque<>()));
+                        HINTS_KEY_PROVENANCE_STATE_ID, new ConcurrentLinkedDeque<>(),
+                        HINTS_KEY_WITNESSES_STATE_ID, new ConcurrentHashMap<>()));
         state.addService(
                 HintsService.NAME,
                 Map.of(
