@@ -1,36 +1,25 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Per-test timings from the JUnit report artifacts of sampled MATS runs.
+"""Per-test timings from the JUnit report artifacts a run's HAPI/Otter shards upload (TEST-*.xml, kept 7 days).
 
-Each HAPI/Otter shard uploads its TEST-*.xml files as an artifact kept for 7 days. This script samples a few
-successful PR runs per day, downloads those artifacts, and writes per-class and slowest-test timings to a jsonl
-file that is merged by (run, shard), so re-running is safe and older rows are kept.
-
-Rows (kind): "shard" (totals per shard and run), "class" (classes taking >= 2 s), "case" (slowest 30 tests per shard).
-Class times are wall-clock per class. HAPI classes run concurrently on a shared network, so they overlap and the sum
-exceeds the shard's duration: read them as relative weight, not as additive minutes.
-
-Usage: test_timings.py --out FILE [--days 6] [--per-day 2]
+Used by run_metrics.py. Rows (kind): "shard" (totals per shard), "class" (slowest classes) and "case" (slowest 30 tests
+per shard). Results that Gradle restored from its build cache are counted in the shard row but get no class or case
+rows. Class times are wall-clock per class; HAPI classes run concurrently on a shared network, so they overlap and
+their sum exceeds the shard's duration.
 """
-import argparse
 import importlib.util
 import io
-import json
 import os
 import re
-import statistics
-import sys
 import time
 import urllib.error
 import urllib.request
 import zipfile
 import xml.etree.ElementTree as ET
-from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PR_CHECKS_WORKFLOW_ID = 291484377
 ARTIFACT_RE = re.compile(r"^(HAPI Test .+ Reports|.+ Otter Tests Report|Falcon Tests Report)$")
 MAX_ZIP_BYTES = 40 * 1024 * 1024
 MAX_MEMBER_BYTES = 300 * 1024 * 1024
@@ -150,21 +139,6 @@ def rows_for_artifact(run_id, day, sha, shard, data, run_created_at, top_classes
     return rows
 
 
-def sample_runs(raw_runs, repo, per_day):
-    """Successful first-attempt PR runs from branches in this repo (not forks), spread across each day."""
-    ok = [r for r in raw_runs if r["status"] == "completed" and r["conclusion"] == "success" and r["run_attempt"] == 1
-          and r["event"] == "pull_request" and r["head_repository"]["full_name"] == repo]
-    by_day = defaultdict(list)
-    for r in ok:
-        by_day[r["created_at"][:10]].append(r)
-    picked = []
-    for day, rs in sorted(by_day.items()):
-        rs.sort(key=lambda r: r["id"])
-        n = min(per_day, len(rs))
-        picked += [rs[round(i * (len(rs) - 1) / max(n - 1, 1))] for i in range(n)] if n > 1 else [rs[len(rs) // 2]]
-    return list({r["id"]: r for r in picked}.values())
-
-
 def shard_artifacts(run_id):
     """Non-expired shard report artifacts of a run; if a re-run attempt uploaded a name twice, the newest wins."""
     arts = collect.get(f"{collect.API}/actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
@@ -180,84 +154,3 @@ def test_rows_for_run(run, top_classes=None, workers=1):
         return rows_for_artifact(run["id"], run["created_at"][:10], run["head_sha"], a["name"], download_zip(a["id"]), run["created_at"], top_classes)
     with ThreadPoolExecutor(workers) as pool:
         return [row for rows in pool.map(one, shard_artifacts(run["id"])) for row in rows]
-
-
-def process_run(run):
-    return run["id"], test_rows_for_run(run)
-
-
-def merge(path, new_rows):
-    """Replace rows for every (run, shard) present in new_rows; keep everything else."""
-    replaced = {(r["run_id"], r["shard"]) for r in new_rows}
-    old = []
-    if os.path.exists(path):
-        with open(path) as f:
-            old = [r for r in map(json.loads, f) if (r["run_id"], r["shard"]) not in replaced]
-    rows = sorted(old + new_rows, key=lambda r: (r["day"], r["run_id"], r["shard"], r["kind"], -r.get("seconds", 0)))
-    with open(path, "w") as f:
-        for r in rows:
-            f.write(json.dumps(r, separators=(",", ":")) + "\n")
-    return len(rows)
-
-
-def summarize(rows, top_classes=15, top_cases=25):
-    """Aggregate sampled rows for the report: per shard, the classes with the largest mean time across the runs that
-    actually executed that shard (runs served entirely from the build cache are counted separately)."""
-    shards = defaultdict(lambda: {"runs": set(), "cached_runs": 0, "suite_seconds": [], "tests": []})
-    executed = defaultdict(set)
-    for r in rows:
-        if r["kind"] == "shard":
-            s = shards[r["shard"]]
-            if r["classes"] - r["cached_classes"] == 0:
-                s["cached_runs"] += 1
-                continue
-            s["runs"].add(r["run_id"])
-            s["suite_seconds"].append(r["suite_seconds"])
-            s["tests"].append(r["tests"])
-            executed[r["shard"]].add(r["run_id"])
-    classes = defaultdict(lambda: defaultdict(list))
-    cases = defaultdict(list)
-    for r in rows:
-        if r["kind"] == "class":
-            classes[r["shard"]][r["class"]].append(r["seconds"])
-        elif r["kind"] == "case":
-            cases[(r["shard"], r["class"], r["case"])].append(r["seconds"])
-    out = {"days": [min(r["day"] for r in rows), max(r["day"] for r in rows)] if rows else None, "shards": [], "cases": []}
-    for shard, s in sorted(((k, v) for k, v in shards.items() if v["runs"]), key=lambda kv: -statistics.fmean(kv[1]["suite_seconds"])):
-        n = len(s["runs"])
-        mean_total = statistics.fmean(s["suite_seconds"])
-        top = sorted(classes[shard].items(), key=lambda cv: -sum(cv[1]) / n)[:top_classes]
-        out["shards"].append({
-            "shard": shard, "runs": n, "cached_runs": s["cached_runs"], "tests": round(statistics.fmean(s["tests"])),
-            "suite_minutes": mean_total / 60,
-            "classes": [{"class": c, "mean_s": sum(v) / n, "max_s": max(v), "share": (sum(v) / n) / mean_total}
-                        for c, v in top]})
-    for (shard, cls, case), v in sorted(cases.items(), key=lambda kv: -statistics.fmean(kv[1]))[:top_cases]:
-        out["cases"].append({"shard": shard, "class": cls, "case": case, "mean_s": statistics.fmean(v), "n": len(v)})
-    return out
-
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--days", type=int, default=6, help="artifacts expire after 7 days; more than 6 loses the oldest")
-    ap.add_argument("--per-day", type=int, default=2)
-    args = ap.parse_args()
-    t0 = time.time()
-    start = datetime.now(timezone.utc) - timedelta(days=args.days)
-    runs = collect._list_window(PR_CHECKS_WORKFLOW_ID, start, datetime.now(timezone.utc) + timedelta(seconds=2))
-    picked = sample_runs(runs, collect.REPO, args.per_day)
-    print(f"[tests] {len(runs)} PR runs in window, sampling {len(picked)} ({args.per_day}/day)", flush=True)
-    new_rows, done = [], 0
-    with ThreadPoolExecutor(4) as pool:
-        for run_id, rows in pool.map(process_run, picked):
-            new_rows += rows
-            done += 1
-            print(f"[tests] {done}/{len(picked)} run {run_id}: {sum(r['kind'] == 'shard' for r in rows)} shards "
-                  f"({time.time() - t0:.0f}s)", flush=True)
-    total = merge(args.out, new_rows)
-    print(f"[done] {len(new_rows)} new rows, {total} in {args.out}")
-
-
-if __name__ == "__main__":
-    sys.exit(main())

@@ -1,30 +1,21 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Collect run + job timing data for the MATS and XTS entry-point workflows.
-
-Writes <out>/runs.jsonl and <out>/jobs.jsonl. Resumable: runs whose jobs are already in
-jobs.jsonl are skipped. Fails loudly on any unexpected API response.
-
-Usage: collect.py --out DIR [--days 90] [--workers 32]
+"""GitHub Actions API helpers for run_metrics.py: authenticated GET with rate-limit handling and bounded retries on
+transient errors, plus the run and job shapes the rest of the metrics code uses. Fails loudly on anything unexpected.
 """
-import argparse
 import http.client
 import json
-import math
 import os
 import subprocess
-import sys
 import threading
 import time
 import urllib.error
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta, timezone
 
 REPO = "hiero-ledger/hiero-consensus-node"
 API = f"https://api.github.com/repos/{REPO}"
 
-# workflow id -> (name, suite). Suite is what the report groups by.
+# workflow id -> (name, suite). Suite is what the consumers group by. Add an entry before publishing run metrics from a new workflow.
 WORKFLOWS = {
     291484377: ("600: PR Checks", "MATS"),
     297070668: ("000: MATS Dry Run", "MATS"),
@@ -94,34 +85,6 @@ def get(url):
             time.sleep(2 * attempt)
 
 
-def _list_window(wf_id, start, end):
-    """All runs created in [start, end). The API caps any query at 1000 results, so split windows that hit the cap."""
-    q = f"created={start.strftime('%Y-%m-%dT%H:%M:%SZ')}..{(end - timedelta(seconds=1)).strftime('%Y-%m-%dT%H:%M:%SZ')}"
-    first = get(f"{API}/actions/workflows/{wf_id}/runs?{q}&per_page=100&page=1")
-    total = first["total_count"]
-    if total > 1000:
-        mid = start + (end - start) / 2
-        return _list_window(wf_id, start, mid) + _list_window(wf_id, mid, end)
-    runs, page, data = list(first["workflow_runs"]), 1, first
-    while len(runs) < total:
-        page += 1
-        data = get(f"{API}/actions/workflows/{wf_id}/runs?{q}&per_page=100&page={page}")
-        if not data["workflow_runs"]:
-            raise RuntimeError(f"workflow {wf_id}: got {len(runs)} of {total} runs for {q}")
-        runs += data["workflow_runs"]
-    return runs
-
-
-def list_runs(wf_id, since):
-    start = datetime.strptime(since, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    end = datetime.now(timezone.utc) + timedelta(seconds=2)
-    runs = _list_window(wf_id, start, end)
-    ids = {r["id"] for r in runs}
-    if len(ids) != len(runs):
-        raise RuntimeError(f"workflow {wf_id}: duplicate runs across windows")
-    return runs
-
-
 def slim_run(r, wf_id):
     return {k: r[k] for k in ("id", "name", "event", "head_branch", "head_sha", "status", "conclusion",
                               "run_attempt", "created_at", "run_started_at", "updated_at", "html_url",
@@ -150,56 +113,3 @@ def fetch_jobs(run):
         if len(jobs) >= data["total_count"] or not data["jobs"]:
             return jobs
         page += 1
-
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--days", type=int, default=90)
-    ap.add_argument("--workers", type=int, default=32)
-    args = ap.parse_args()
-    os.makedirs(args.out, exist_ok=True)
-    since = (datetime.now(timezone.utc) - timedelta(days=args.days)).strftime("%Y-%m-%d")
-    t0 = time.time()
-
-    runs = []
-    for wf_id, (name, _) in WORKFLOWS.items():
-        rs = list_runs(wf_id, since)
-        print(f"[runs] {name}: {len(rs)} runs since {since} ({time.time() - t0:.0f}s)", flush=True)
-        runs += [slim_run(r, wf_id) for r in rs]
-    with open(os.path.join(args.out, "runs.jsonl"), "w") as f:
-        for r in runs:
-            f.write(json.dumps(r) + "\n")
-
-    jobs_path = os.path.join(args.out, "jobs.jsonl")
-    done = set()
-    if os.path.exists(jobs_path):
-        with open(jobs_path) as f:
-            done = {json.loads(l)["run_id"] for l in f if l.strip()}
-        # a run with zero jobs leaves no trace; tracked separately below
-    marker = os.path.join(args.out, "empty_runs.txt")
-    if os.path.exists(marker):
-        with open(marker) as f:
-            done |= {int(x) for x in f.read().split()}
-    todo = [r for r in runs if r["id"] not in done and r["status"] == "completed"]
-    print(f"[jobs] {len(todo)} completed runs to fetch ({len(done)} already cached)", flush=True)
-
-    n = 0
-    with open(jobs_path, "a") as out, open(marker, "a") as empty, ThreadPoolExecutor(args.workers) as pool:
-        futs = {pool.submit(fetch_jobs, r): r for r in todo}
-        for fut in as_completed(futs):
-            r = futs[fut]
-            jobs = fut.result()  # raises -> loud failure
-            if not jobs:
-                empty.write(f"{r['id']}\n")
-            for j in jobs:
-                out.write(json.dumps(j) + "\n")
-            n += 1
-            if n % 50 == 0 or n == len(todo):
-                out.flush(); empty.flush()
-                print(f"[jobs] {n}/{len(todo)} runs ({time.time() - t0:.0f}s, api remaining {_rate['remaining']})", flush=True)
-    print(f"[done] {len(runs)} runs in {time.time() - t0:.0f}s")
-
-
-if __name__ == "__main__":
-    sys.exit(main())
