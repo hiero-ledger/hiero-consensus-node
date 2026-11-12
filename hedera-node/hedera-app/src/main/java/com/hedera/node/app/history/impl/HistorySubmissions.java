@@ -3,6 +3,7 @@ package com.hedera.node.app.history.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsPhase;
@@ -48,6 +49,19 @@ public class HistorySubmissions extends TssSubmissions {
                         .phase(WrapsPhase.R1)
                         .build()),
                 onFailure);
+    }
+
+    /** Publishes a block-signing witness independently of any in-progress history construction. */
+    public CompletableFuture<Void> submitKeyWitness(@NonNull final HintsKeyWitness witness) {
+        requireNonNull(witness);
+        return submitIfActive(
+                b -> b.historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
+                        .keyWitness(witness)
+                        .build()),
+                (body, reason) -> logger.warn(
+                        "Failed to submit block-signing witness for hinTS construction #{} ({})",
+                        witness.targetHintsConstructionId(),
+                        reason));
     }
 
     /**
