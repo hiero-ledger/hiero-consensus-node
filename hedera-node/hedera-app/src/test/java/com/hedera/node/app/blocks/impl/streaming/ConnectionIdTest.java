@@ -122,6 +122,7 @@ class ConnectionIdTest {
     void testCorrelationId() {
         final ConnectionId streamingId = new ConnectionId(37, ConnectionType.BLOCK_STREAMING, 6);
         final ConnectionId serviceId = new ConnectionId(37, ConnectionType.SERVER_STATUS, 41);
+        final ConnectionId observingId = new ConnectionId(37, ConnectionType.ACK_OBSERVING, 1);
 
         assertThat(streamingId.toString())
                 .matches("N37-STR6" + JVM_SUFFIX_PATTERN)
@@ -129,6 +130,9 @@ class ConnectionIdTest {
         assertThat(serviceId.toString())
                 .matches("N37-SVC41" + JVM_SUFFIX_PATTERN)
                 .isEqualTo("N37-SVC41" + ConnectionId.JVM_SUFFIX);
+        assertThat(observingId.toString())
+                .matches("N37-OBS1" + JVM_SUFFIX_PATTERN)
+                .isEqualTo("N37-OBS1" + ConnectionId.JVM_SUFFIX);
     }
 
     @Test

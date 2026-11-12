@@ -3,7 +3,9 @@ package com.hedera.node.app.service.clpr.impl.verifier;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
@@ -11,6 +13,7 @@ import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FE
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -35,10 +38,12 @@ import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -309,6 +314,13 @@ public class EvmClprVerifier implements ClprVerifier {
             throws HandleException {
         final var gasLimit =
                 context.configuration().getConfigData(ClprConfig.class).verifierGasLimit();
+        if (gasLimit <= 0) {
+            throw new HandleException(INSUFFICIENT_GAS);
+        }
+        if (gasLimit
+                > context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction()) {
+            throw new HandleException(MAX_GAS_LIMIT_EXCEEDED);
+        }
         final var functionParameters = Bytes.wrap(callData);
         final var syntheticBody = TransactionBody.newBuilder()
                 .contractCall(ContractCallTransactionBody.newBuilder()
@@ -331,15 +343,17 @@ public class EvmClprVerifier implements ClprVerifier {
         if (!gasAccounting.prepayVerifier(payer, gasLimit)) {
             throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
         }
-        HookDispatchStreamBuilder result = null;
+        final var gasUsage = new ContractGasUsage();
+        final var dispatchMetadata = new DispatchMetadata(CLPR_DISPATCH_METADATA);
+        dispatchMetadata.putMetadata(CONTRACT_GAS_USAGE, gasUsage);
         try {
-            result = context.dispatch(stepDispatch(
+            final var result = context.dispatch(stepDispatch(
                     context.payer(),
                     syntheticBody,
                     HookDispatchStreamBuilder.class,
                     NOOP_SIGNED_TX_CUSTOMIZER,
                     REMOVABLE,
-                    CLPR_DISPATCH_METADATA,
+                    dispatchMetadata,
                     DISPATCH_ONLY_NOOP_FEE_CHARGING));
             if (result == null) {
                 throw new HandleException(failureCode);
@@ -370,7 +384,7 @@ public class EvmClprVerifier implements ClprVerifier {
                     shortHex(MiscCryptoUtils.keccak256DigestOf(evmResult)));
             return evmResult;
         } finally {
-            gasAccounting.settle(payer, gasLimit, result);
+            gasAccounting.settleVerifierWithGasUsage(payer, gasLimit, gasUsage);
         }
     }
 

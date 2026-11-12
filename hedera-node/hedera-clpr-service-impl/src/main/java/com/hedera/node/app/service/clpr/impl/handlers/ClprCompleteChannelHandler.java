@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_COMMITMENT_MISMATC
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
@@ -30,6 +29,7 @@ import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
+import com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
@@ -161,8 +161,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         } catch (final HandleException failure) {
             throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
         } catch (final RuntimeException failure) {
-            log.error("Unexpected failure while handling CLPR transaction", failure);
-            throw ClprGasAccounting.preservingChargesOnRollback(context, new HandleException(FAIL_INVALID));
+            throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
         }
     }
 
@@ -396,6 +395,8 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // orchestrator dials, so it must honor the same bound applied to the seeded cache below.
         channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
+        ClprFeeCalculator.settleCompleteChannelFee(
+                context, 0L, Math.toIntExact(ClprChannel.PROTOBUF.measureRecord(channel)));
         channelStore.put(channel);
         log.debug(
                 "[ClprCompleteChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "

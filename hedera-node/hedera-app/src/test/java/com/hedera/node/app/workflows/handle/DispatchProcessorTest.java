@@ -22,12 +22,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.UNNECESSARY;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
+import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.DuplicateStatus.NO_DUPLICATE;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.ServiceFeeStatus.UNABLE_TO_PAY_SERVICE_FEE;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newCreatorError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +45,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
@@ -59,11 +62,14 @@ import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -82,6 +88,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -433,8 +440,13 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(dispatch.requiredKeys()).willReturn(Set.of(Key.DEFAULT));
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(FAILED_VERIFICATION);
+        final var executingAccountRequirement = KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT);
+        final var otherAccountRequirement = KeyRequirement.forAccount(CREATOR_ACCOUNT_ID, Key.DEFAULT);
+        given(dispatch.requiredKeyRequirements())
+                .willReturn(new java.util.LinkedHashSet<>(
+                        java.util.List.of(executingAccountRequirement, otherAccountRequirement)));
+        given(keyVerifier.verificationFor(executingAccountRequirement)).willReturn(PASSED_VERIFICATION);
+        given(keyVerifier.verificationFor(otherAccountRequirement)).willReturn(FAILED_VERIFICATION);
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
@@ -444,6 +456,8 @@ class DispatchProcessorTest {
 
         verifyTrackedFeePayments();
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
+        verify(keyVerifier).verificationFor(executingAccountRequirement);
+        verify(keyVerifier).verificationFor(otherAccountRequirement);
         verify(recordBuilder).status(INVALID_SIGNATURE);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
@@ -460,8 +474,8 @@ class DispatchProcessorTest {
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(dispatch.requiredKeys()).willReturn(Set.of(Key.DEFAULT));
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(PASSED_VERIFICATION);
+        given(dispatch.requiredKeyRequirements()).willReturn(Set.of(KeyRequirement.forKey(Key.DEFAULT)));
+        given(keyVerifier.verificationFor(KeyRequirement.forKey(Key.DEFAULT))).willReturn(PASSED_VERIFICATION);
         given(dispatch.hollowAccounts()).willReturn(Set.of(HOLLOW));
         given(keyVerifier.verificationFor(HOLLOW.alias())).willReturn(FAILED_VERIFICATION);
         given(dispatch.txnCategory()).willReturn(USER);
@@ -635,6 +649,37 @@ class DispatchProcessorTest {
     }
 
     @Test
+    void blockFullScheduledChargesPayerThrottleFeesWithoutExecuting() throws ThrottleException {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        subject.processDispatch(dispatch, null, true);
+
+        verifyTrackedFeePayments();
+        verify(dispatcher, never()).dispatchHandle(context);
+        verify(dispatchUsageManager, never()).screenForCapacity(dispatch);
+        verify(recordBuilder).status(com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS);
+        // The full fee charged up front is rolled back, and the scheduled payer re-charged without the service fee
+        verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
+        verify(feeAccumulator)
+                .chargeFee(PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
+        // A scheduled execution never charges the node that submitted its triggering transaction
+        verify(feeAccumulator, never()).chargeFees(any(), any(), any(), any());
+        verify(opWorkflowMetrics).incrementThrottled(CRYPTO_TRANSFER);
+        assertFinished();
+    }
+
+    @Test
     void blockFullEthTxnRecordsEthereumHashWithoutExecuting() throws ThrottleException {
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.handleContext()).willReturn(context);
@@ -777,25 +822,70 @@ class DispatchProcessorTest {
         assertFinished();
     }
 
-    @Test
-    void failInvalidWaivesServiceFee() {
+    @ParameterizedTest
+    @EnumSource(
+            value = HederaFunctionality.class,
+            names = {"CRYPTO_TRANSFER", "CLPR_COMPLETE_CHANNEL", "CLPR_SUBMIT_BUNDLE"})
+    void unexpectedFailureBeforeExecutionWaivesServiceFeeAndRaisesAlert(final HederaFunctionality functionality) {
+        givenUnexpectedFailure(functionality, new IllegalStateException("Unexpected failure before execution"));
+        final var logs = new LogCaptor(LogManager.getLogger(DispatchProcessor.class));
+        try {
+            subject.processDispatch(dispatch);
+
+            verifyUnexpectedFailureFeesAndStatus();
+            verifyNoInteractions(context);
+            assertThat(logs.errorLogs()).anyMatch(message -> message.contains(ALERT_MESSAGE));
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = HederaFunctionality.class,
+            names = {"CRYPTO_TRANSFER", "CLPR_COMPLETE_CHANNEL", "CLPR_SUBMIT_BUNDLE"})
+    void unexpectedFailureReplaysExecutedChargesAfterRollbackWithoutServiceFee(
+            final HederaFunctionality functionality) {
+        final var failure = new RollbackAwareException(
+                new IllegalStateException("Unexpected failure after execution"),
+                (_, rollbackContext) -> rollbackContext.tryToCharge(PAYER_ACCOUNT_ID, 4L));
+        givenUnexpectedFailure(functionality, failure);
+        final var logs = new LogCaptor(LogManager.getLogger(DispatchProcessor.class));
+        try {
+            subject.processDispatch(dispatch);
+
+            verifyUnexpectedFailureFeesAndStatus();
+            final var order = inOrder(stack, feeAccumulator, context);
+            order.verify(stack).rollbackFullStack();
+            order.verify(feeAccumulator)
+                    .chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+            order.verify(context).tryToCharge(PAYER_ACCOUNT_ID, 4L);
+            assertThat(logs.errorLogs()).anyMatch(message -> message.contains(ALERT_MESSAGE));
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    private void givenUnexpectedFailure(final HederaFunctionality functionality, final RuntimeException failure) {
+        final var txnInfo = new TransactionInfo(
+                SignedTransaction.DEFAULT, TXN_BODY, SignatureMap.DEFAULT, Bytes.EMPTY, functionality, null);
         given(dispatch.fees()).willReturn(FEES);
         given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatchValidator.validateFeeChargingScenario(dispatch))
                 .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
-        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.txnInfo()).willReturn(txnInfo);
         given(dispatch.handleContext()).willReturn(context);
-        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
-        doThrow(new IllegalStateException()).when(dispatcher).dispatchHandle(context);
+        givenAuthorization(txnInfo);
+        doThrow(failure).when(dispatcher).dispatchHandle(context);
         given(dispatch.txnCategory()).willReturn(USER);
         doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
         doCallRealMethod().when(dispatch).category();
         doCallRealMethod().when(dispatch).feeChargingOrElse(any());
         given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+    }
 
-        subject.processDispatch(dispatch);
-
+    private void verifyUnexpectedFailureFeesAndStatus() {
         verifyTrackedFeePayments();
         verify(recordBuilder).status(FAIL_INVALID);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
@@ -816,8 +906,11 @@ class DispatchProcessorTest {
         given(dispatch.handleContext()).willReturn(context);
         given(dispatch.txnCategory()).willReturn(USER);
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(dispatch.requiredKeys()).willReturn(Set.of(Key.DEFAULT));
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(PASSED_VERIFICATION);
+        final var payerRequirement = KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT);
+        final var creatorRequirement = KeyRequirement.forAccount(CREATOR_ACCOUNT_ID, Key.DEFAULT);
+        given(dispatch.requiredKeyRequirements()).willReturn(Set.of(payerRequirement, creatorRequirement));
+        given(keyVerifier.verificationFor(payerRequirement)).willReturn(PASSED_VERIFICATION);
+        given(keyVerifier.verificationFor(creatorRequirement)).willReturn(PASSED_VERIFICATION);
         given(dispatch.hollowAccounts()).willReturn(Set.of(HOLLOW));
         given(keyVerifier.verificationFor(HOLLOW.alias())).willReturn(PASSED_VERIFICATION);
         givenAuthorization(CONTRACT_TXN_INFO);
@@ -830,6 +923,8 @@ class DispatchProcessorTest {
         subject.processDispatch(dispatch);
 
         verifyUtilization();
+        verify(keyVerifier).verificationFor(payerRequirement);
+        verify(keyVerifier).verificationFor(creatorRequirement);
         verify(platformStateUpdates).handleTxBody(stack, CONTRACT_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder, times(2)).status(SUCCESS);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);

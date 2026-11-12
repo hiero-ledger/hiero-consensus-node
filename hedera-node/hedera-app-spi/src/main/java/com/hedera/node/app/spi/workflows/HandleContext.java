@@ -217,6 +217,8 @@ public interface HandleContext {
              * Set by the app after capacity screening and passed only to the direct verifier child.
              */
             CLPR_GAS_RESERVATION,
+            /** Caller-owned billed-gas report that remains available after child-dispatch rollback. */
+            CONTRACT_GAS_USAGE,
             /**
              * Boolean marker set by the app when dispatching a trusted internal system transaction.
              * Never populate this from a submitted transaction or propagate it to child dispatches.

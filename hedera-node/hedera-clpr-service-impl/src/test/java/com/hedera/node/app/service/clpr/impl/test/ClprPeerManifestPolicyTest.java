@@ -13,6 +13,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ClprPeerManifestPolicyTest {
     @Test
@@ -22,6 +24,18 @@ class ClprPeerManifestPolicyTest {
         assertThat(bounded.endpoints()).hasSize(2);
         assertThat(bounded.version()).isEqualTo(manifest.version());
         assertThat(bounded.serviceAddress()).isEqualTo(manifest.serviceAddress());
+    }
+
+    @Test
+    void countLimitAboveEndpointCountRetainsEveryEndpointInDeclaredOrder() {
+        final var first =
+                ClprEndpoint.newBuilder().accountId(Bytes.wrap(new byte[] {1})).build();
+        final var second =
+                ClprEndpoint.newBuilder().accountId(Bytes.wrap(new byte[] {2})).build();
+        final var manifest = manifest(List.of(first, second));
+
+        assertThat(boundedManifest(manifest, 100)).isSameAs(manifest);
+        assertThat(boundedManifest(manifest, 100).endpoints()).containsExactly(first, second);
     }
 
     @Test
@@ -77,6 +91,59 @@ class ClprPeerManifestPolicyTest {
                 .tlsCertificate(Bytes.wrap(new byte[certificateBytes + 1]))
                 .build()));
         assertThat(boundedManifest(tooLarge, 0).endpoints()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {128, 255})
+    void twoByteEndpointLengthPrefixCountsTowardTheStorageCeiling(final int serializedEndpointBytes) {
+        int certificateBytes = serializedEndpointBytes;
+        ClprEndpoint endpoint;
+        do {
+            endpoint = ClprEndpoint.newBuilder()
+                    .tlsCertificate(Bytes.wrap(new byte[--certificateBytes]))
+                    .build();
+        } while (ClprEndpoint.PROTOBUF.measureRecord(endpoint) > serializedEndpointBytes);
+        assertThat(ClprEndpoint.PROTOBUF.measureRecord(endpoint)).isEqualTo(serializedEndpointBytes);
+
+        // One byte remains after the first entry. An empty second entry needs two bytes
+        // (tag and zero length), so undercounting the first entry's length prefix admits it incorrectly.
+        final var expected = manifestWithSerializedSize(List.of(endpoint), MAX_STORED_MANIFEST_BYTES - 1);
+        final var tooLarge = expected.copyBuilder()
+                .endpoints(List.of(endpoint, ClprEndpoint.DEFAULT))
+                .build();
+        assertThat(ClprEndpointManifest.PROTOBUF.toBytes(tooLarge).length()).isEqualTo(MAX_STORED_MANIFEST_BYTES + 1);
+
+        final var bounded = boundedManifest(tooLarge, 100);
+        assertThat(bounded).isEqualTo(expected);
+        assertThat(ClprEndpointManifest.PROTOBUF.toBytes(bounded).length()).isEqualTo(MAX_STORED_MANIFEST_BYTES - 1);
+    }
+
+    @Test
+    void framingExactlyAtTheCeilingIsAllowedButOneByteOverIsRejected() {
+        final var exact = manifestWithSerializedSize(List.of(), MAX_STORED_MANIFEST_BYTES);
+        assertThat(boundedManifest(exact, 100)).isSameAs(exact);
+
+        final var tooLarge = exact.copyBuilder()
+                .serviceAddress(Bytes.wrap(new byte[(int) exact.serviceAddress().length() + 1]))
+                .build();
+        assertThat(ClprEndpointManifest.PROTOBUF.toBytes(tooLarge).length()).isEqualTo(MAX_STORED_MANIFEST_BYTES + 1);
+        assertThatThrownBy(() -> boundedManifest(tooLarge, 100))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Peer manifest framing exceeds storage limit");
+    }
+
+    private static ClprEndpointManifest manifestWithSerializedSize(
+            final List<ClprEndpoint> endpoints, final int serializedBytes) {
+        int addressBytes = serializedBytes;
+        ClprEndpointManifest manifest;
+        do {
+            manifest = manifest(endpoints)
+                    .copyBuilder()
+                    .serviceAddress(Bytes.wrap(new byte[--addressBytes]))
+                    .build();
+        } while (ClprEndpointManifest.PROTOBUF.measureRecord(manifest) > serializedBytes);
+        assertThat(ClprEndpointManifest.PROTOBUF.toBytes(manifest).length()).isEqualTo(serializedBytes);
+        return manifest;
     }
 
     private static ClprEndpointManifest manifest(final List<ClprEndpoint> endpoints) {

@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -36,7 +37,9 @@ import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
@@ -118,6 +121,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
     @Test
     void delegatesToCreatedComponentAndExposesSuccess() {
+        final var gasUsage = new ContractGasUsage();
+        given(context.dispatchMetadata()).willReturn(new DispatchMetadata(CONTRACT_GAS_USAGE, gasUsage));
         given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
@@ -149,10 +154,13 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         givenNoTraceDataSizeLimitExceeded();
 
         assertDoesNotThrow(() -> subject.handle(context));
+        assertThat(gasUsage.gasUsed()).isEqualTo(expectedOutcome.txResult().gasUsed());
     }
 
     @Test
     void delegatesToCreatedComponentAndThrowsOnFailure() {
+        final var gasUsage = new ContractGasUsage();
+        given(context.dispatchMetadata()).willReturn(new DispatchMetadata(CONTRACT_GAS_USAGE, gasUsage));
         given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
@@ -183,6 +191,22 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         givenNoTraceDataSizeLimitExceeded();
 
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
+        assertThat(gasUsage.gasUsed()).isEqualTo(expectedOutcome.txResult().gasUsed());
+    }
+
+    @Test
+    void failureBeforeAnEvmOutcomeLeavesGasUsageUnreported() {
+        final var gasUsage = new ContractGasUsage();
+        given(context.dispatchMetadata()).willReturn(new DispatchMetadata(CONTRACT_GAS_USAGE, gasUsage));
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
+                .willReturn(component);
+        given(component.contextTransactionProcessor()).willReturn(processor);
+        given(processor.call()).willThrow(new IllegalStateException("Before EVM execution"));
+
+        assertThrows(IllegalStateException.class, () -> subject.handle(context));
+
+        assertThat(gasUsage.gasUsed()).isZero();
+        verify(context, never()).savepointStack();
     }
 
     private void givenNoTraceDataSizeLimitExceeded() {

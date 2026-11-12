@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.regression.system;
 
+import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.history.schemas.V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static com.hedera.services.bdd.junit.TestTags.WRAPS;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
@@ -15,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTraffi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsPattern;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.untilHgcaaLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -26,8 +30,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -38,8 +48,10 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.utilops.lifecycle.ops.TryToStartNodesOp;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -168,6 +180,23 @@ public class WrapsHandoffsTest implements LifecycleTest {
     @Order(1)
     final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
         return hapiTest(
+                sourcingContextual(spec -> {
+                    if (spec.startupProperties().getBoolean("blockStream.enableCutover")) {
+                        return doAdhoc(() -> {});
+                    }
+                    // The preceding fresh-genesis test deliberately restarts with mock signing. Restore real
+                    // signing before the weight rotation so this test exercises the entire production wrapper,
+                    // publication, consensus admission and state-change externalization path.
+                    return blockingOrder(
+                            prepareFakeUpgrade(),
+                            sourcing(() -> upgradeKeepingPorts(
+                                    CURRENT_CONFIG_VERSION.get() + 1,
+                                    Map.of(
+                                            "tss.needsFreshGenesisWrapsProof",
+                                            "false",
+                                            "tss.forceMockSignatures",
+                                            "false"))));
+                }),
                 doingContextual(spec -> {
                     StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
                     StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
@@ -193,7 +222,51 @@ public class WrapsHandoffsTest implements LifecycleTest {
                                 STAKE_PERIOD_DURATION.plus(WRAPS_PROOF_TIMEOUT),
                                 LOG_POLL_INTERVAL,
                                 () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
-                        .loggingOff());
+                        .loggingOff(),
+                streamMustIncludePassWithReplayFrom(spec -> adoptedKeyWithDurableWitness(), WRAPS_PROOF_TIMEOUT)
+                        .stopAfterFirstSuccess());
+    }
+
+    private static BlockStreamAssertion adoptedKeyWithDurableWitness() {
+        final var adoptions = new HashMap<Long, HintsKeyProvenance>();
+        final var records = new HashMap<Long, HintsKeyWitnessRecord>();
+        final var verifier = new HintsKeyWitnessVerifier(new HintsLibraryImpl());
+        return block -> {
+            for (final var item : block.items()) {
+                if (!item.hasStateChanges()) {
+                    continue;
+                }
+                for (final var change : item.stateChangesOrThrow().stateChanges()) {
+                    if (change.stateId() == HINTS_KEY_PROVENANCE_STATE_ID && change.hasQueuePush()) {
+                        final var link = change.queuePushOrThrow().hintsKeyProvenanceElementOrThrow();
+                        adoptions.put(link.targetHintsConstructionId(), link);
+                    } else if (change.stateId() == HINTS_KEY_WITNESSES_STATE_ID && change.hasMapUpdate()) {
+                        final var update = change.mapUpdateOrThrow();
+                        final var record = update.valueOrThrow().hintsKeyWitnessRecordValueOrThrow();
+                        assertEquals(
+                                record.provenanceOrThrow().targetHintsConstructionId(),
+                                update.keyOrThrow().protoLongKey());
+                        records.put(record.provenanceOrThrow().targetHintsConstructionId(), record);
+                    }
+                }
+            }
+            for (final var record : records.values()) {
+                final var link = record.provenanceOrThrow();
+                if (record.hasWitness() && adoptions.containsKey(link.targetHintsConstructionId())) {
+                    assertEquals(adoptions.get(link.targetHintsConstructionId()), link);
+                    assertTrue(
+                            record.hasActivationTime(), "New adoption must retain its consensus activation boundary");
+                    final var witness = record.witnessOrThrow();
+                    assertEquals(link.targetHintsConstructionId(), witness.targetHintsConstructionId());
+                    assertTrue(
+                            asInstant(witness.timestampOrThrow()).isAfter(asInstant(record.activationTimeOrThrow())));
+                    assertTrue(verifier.verifyCertificate(link, link.sourceVerificationKey()));
+                    assertTrue(verifier.verify(witness, link.targetVerificationKey()));
+                    return true;
+                }
+            }
+            return false;
+        };
     }
 
     /**

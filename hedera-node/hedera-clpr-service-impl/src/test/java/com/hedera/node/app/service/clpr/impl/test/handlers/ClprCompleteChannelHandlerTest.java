@@ -58,11 +58,13 @@ import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -596,16 +598,15 @@ class ClprCompleteChannelHandlerTest {
         setupVerifierAccount(true);
         givenUnitGasPrice(handleContext);
         given(handleContext.tryToCharge(PAYER_ID, 1000L)).willReturn(true);
-        final var result = mock(StreamBuilder.class);
-        given(result.hasContractResult()).willReturn(true);
-        given(result.getGasUsedForContractTxn()).willReturn(400L);
+        final var result = new ContractGasUsage();
+        result.recordGasUsed(400L);
         given(verifierFactory.getVerifier(any())).willReturn(new PassThroughClprVerifier() {
             @Override
             public VerifiedConfig verifyConfig(
                     final Bytes proof, final Bytes channelId, final Bytes manifestProof, final HandleContext context) {
                 final var accounting = ClprGasAccounting.forContext(context);
                 assertThat(accounting.prepayVerifier(context.payer(), 1000L)).isTrue();
-                accounting.settle(context.payer(), 1000L, result);
+                accounting.settleVerifierWithGasUsage(context.payer(), 1000L, result);
                 return super.verifyConfig(proof, channelId, manifestProof, context);
             }
         });
@@ -615,15 +616,20 @@ class ClprCompleteChannelHandlerTest {
                     .willThrow(new IllegalStateException("Unexpected store failure after verifier execution"));
         }
         if (failureMode > 0) {
-            final var failure = org.junit.jupiter.api.Assertions.assertThrows(
-                    HandleException.class, () -> subject.handle(handleContext));
-            assertThat(failure.getStatus())
-                    .isEqualTo(
-                            failureMode == 1
-                                    ? CLPR_VERIFIER_CONFIG_FAILED
-                                    : com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID);
             final var rollbackContext = mock(HandleContext.class);
-            failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
+            if (failureMode == 1) {
+                final var failure = org.junit.jupiter.api.Assertions.assertThrows(
+                        HandleException.class, () -> subject.handle(handleContext));
+                assertThat(failure.getStatus()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+                failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
+            } else {
+                final var failure = org.junit.jupiter.api.Assertions.assertThrows(
+                        RollbackAwareException.class, () -> subject.handle(handleContext));
+                assertThat(failure.getCause())
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("Unexpected store failure after verifier execution");
+                failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
+            }
             verify(rollbackContext).tryToCharge(PAYER_ID, 400L);
             verify(handleContext, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
             assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
@@ -633,8 +639,23 @@ class ClprCompleteChannelHandlerTest {
         }
     }
 
+    @Test
+    void unexpectedFailureBeforeEvmWorkPropagatesWithoutChangingWorkflowFeeSemantics() {
+        setupHandleContext(validEcdsaTxn());
+        final var failure = new IllegalStateException("Unexpected store failure before verifier execution");
+        given(storeFactory.writableStore(WritablePendingCommitmentStore.class)).willThrow(failure);
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).isSameAs(failure);
+
+        verify(verifierFactory, never()).getVerifier(any());
+        verify(handleContext, never()).tryToCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
     private static void givenUnitGasPrice(final HandleContext context) {
         given(context.dispatchMetadata()).willReturn(new HandleContext.DispatchMetadata(new HashMap<>()));
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
         given(context.getGasPriceInTinycents()).willReturn(1L);
         final var prices = mock(ResourcePriceCalculator.class);
         given(context.resourcePriceCalculator()).willReturn(prices);

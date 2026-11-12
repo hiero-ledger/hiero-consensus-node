@@ -82,12 +82,14 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -132,7 +134,7 @@ class ClprDeepDiveBundleAuditTest {
             AccountID.newBuilder().accountNum(8888).build();
     // Per-message gas ceiling used by the default test config; the application callbacks
     // (onClprMessage / onClprResponse) are dispatched with this budget (spec §1.1 max_gas_per_message).
-    private static final long TEST_MAX_GAS_PER_MESSAGE = 15_000_000L;
+    private static final long TEST_MAX_GAS_PER_MESSAGE = 1_000_000L;
     // Connector execution charge, mirrored into the test config in setupHandleContext():
     //   worstCaseCharge = messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100
     // (see ClprSubmitBundleHandler worstCaseCharge). Kept as named constants so the charge
@@ -826,6 +828,7 @@ class ClprDeepDiveBundleAuditTest {
             putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
             final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
             setupHandleContext(bundle, true);
+            putConnector();
 
             subject.handle(handleContext);
 
@@ -1199,6 +1202,7 @@ class ClprDeepDiveBundleAuditTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         subject.handle(handleContext);
 
@@ -1213,6 +1217,7 @@ class ClprDeepDiveBundleAuditTest {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
+        putConnector();
 
         // Make dispatch throw — callback is best-effort
         given(handleContext.dispatch(any(DispatchOptions.class)))
@@ -2614,9 +2619,11 @@ class ClprDeepDiveBundleAuditTest {
                     .willReturn(
                             ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
             given(handleContext.tryToCharge(PAYER_ID, 1000L)).willReturn(true);
-            final var result = mock(StreamBuilder.class);
-            given(result.hasContractResult()).willReturn(true);
-            given(result.getGasUsedForContractTxn()).willReturn(400L);
+            final var stack = mock(HandleContext.SavepointStack.class);
+            given(handleContext.savepointStack()).willReturn(stack);
+            given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
+            final var gasUsage = new ContractGasUsage();
+            gasUsage.recordGasUsed(400L);
             final var manifest = ClprEndpointManifest.newBuilder()
                     .version(1)
                     .serviceAddress(invalidManifest ? Bytes.wrap(new byte[16_384]) : Bytes.EMPTY)
@@ -2626,7 +2633,7 @@ class ClprDeepDiveBundleAuditTest {
             given(mockVerifier.verifyBundle(any(), any(), any(), any())).willAnswer(invocation -> {
                 final var accounting = ClprGasAccounting.forContext(handleContext);
                 assertThat(accounting.prepayVerifier(PAYER_ID, 1000L)).isTrue();
-                accounting.settle(PAYER_ID, 1000L, result);
+                accounting.settleVerifierWithGasUsage(PAYER_ID, 1000L, gasUsage);
                 return content;
             });
 
@@ -2635,23 +2642,23 @@ class ClprDeepDiveBundleAuditTest {
                         .when(channelLifecycle)
                         .seedPeerEndpoints(any(), any());
             }
-            if (failureMode > 0) {
+            if (failureMode == 1) {
                 final var failure = org.junit.jupiter.api.Assertions.assertThrows(
                         HandleException.class, () -> subject.handle(handleContext));
-                assertThat(failure.getStatus())
-                        .isEqualTo(
-                                failureMode == 1
-                                        ? CLPR_BUNDLE_VERIFICATION_FAILED
-                                        : com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID);
+                assertThat(failure.getStatus()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
                 final var rollbackContext = mock(HandleContext.class);
                 failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
                 verify(rollbackContext).tryToCharge(PAYER_ID, 400L);
-                if (failureMode == 1) {
-                    verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
-                    verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
-                } else {
-                    verify(handleContext).refundHandlerCharge(PAYER_ID, 600L);
-                }
+                verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
+                verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
+            } else if (failureMode == 2) {
+                final var failure = org.junit.jupiter.api.Assertions.assertThrows(
+                        RollbackAwareException.class, () -> subject.handle(handleContext));
+                assertThat(failure.getCause()).isInstanceOf(IllegalStateException.class);
+                final var rollbackContext = mock(HandleContext.class);
+                failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
+                verify(rollbackContext).tryToCharge(PAYER_ID, 400L);
+                verify(handleContext).refundHandlerCharge(PAYER_ID, 600L);
             } else {
                 subject.handle(handleContext);
                 verify(handleContext).refundHandlerCharge(PAYER_ID, 600L);
@@ -3099,6 +3106,14 @@ class ClprDeepDiveBundleAuditTest {
                 .getOrCreateConfig();
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
+        lenient()
+                .when(handleContext.dispatchMetadata())
+                .thenReturn(new HandleContext.DispatchMetadata(new java.util.HashMap<>()));
+        final var feeStack = org.mockito.Mockito.mock(HandleContext.SavepointStack.class);
+        lenient().when(handleContext.savepointStack()).thenReturn(feeStack);
+        lenient()
+                .when(feeStack.getBaseBuilder(StreamBuilder.class))
+                .thenReturn(org.mockito.Mockito.mock(StreamBuilder.class));
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
@@ -3129,6 +3144,7 @@ class ClprDeepDiveBundleAuditTest {
         // Mock dispatch for application calls — default to SUCCESS
         lenient().when(handleContext.dispatch(any(DispatchOptions.class))).thenReturn(dispatchResult);
         lenient().when(dispatchResult.status()).thenReturn(ResponseCodeEnum.SUCCESS);
+        lenient().when(dispatchResult.hasContractResult()).thenReturn(true);
         lenient().when(dispatchResult.getEvmCallResult()).thenReturn(Bytes.EMPTY);
         // Mock entity factory for staking account
         lenient().when(entityIdFactory.newAccountId(803L)).thenReturn(STAKING_ACCOUNT);
