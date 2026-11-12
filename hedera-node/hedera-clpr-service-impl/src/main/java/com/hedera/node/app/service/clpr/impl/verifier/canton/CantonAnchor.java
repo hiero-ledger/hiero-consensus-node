@@ -106,7 +106,11 @@ public final class CantonAnchor {
         return v;
     }
 
-    private static void writeWord(final ByteArrayOutputStream out, final long value) {
+    // Package-private (not private) only so the same-package test can reach the guard directly.
+    static void writeWord(final ByteArrayOutputStream out, final long value) {
+        if (value < 0) {
+            throw new IllegalArgumentException("ABI word must be non-negative, was " + value);
+        }
         writeWord(out, Long.toString(value));
     }
 

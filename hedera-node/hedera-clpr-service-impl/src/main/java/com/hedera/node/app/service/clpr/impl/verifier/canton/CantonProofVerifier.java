@@ -28,10 +28,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
- * Canton proof verification. This class currently holds the Merkle opening ({@code _openTree} of the reference
- * {@code CantonVerifier.sol}); later tasks add bundle-level verification.
+ * Canton proof verification. This class currently holds the Merkle opening ({@code _openTree} of the Solidity
+ * reference implementation.
  *
  * <p><b>Opening.</b> {@code opening = RLP[submitterMetadataHash, commonMetadata, participantMetadataHash, view,
  * path]}, where a leaf is RLP {@code [salt, bytes]}, the view RLP {@code [viewCommonData, viewParticipantData]}
@@ -40,6 +42,7 @@ import java.util.Objects;
  * {@code UntypedVersionedMessage} wrapper and parsed without it.
  */
 public final class CantonProofVerifier implements ClprVerifier {
+    private static final Logger log = LogManager.getLogger(CantonProofVerifier.class);
 
     /** Bundle proof: {@code [verdict, opening, createdIndex, mediatorSet, rotations, manifest, payloads]}. */
     private static final int BUNDLE_FIELDS = 7;
@@ -112,7 +115,7 @@ public final class CantonProofVerifier implements ClprVerifier {
     // ── ClprVerifier ───────────────────────────────────────────────────────
 
     /**
-     * Config verification ({@code verifyConfig} of the reference) is not part of PR A.
+     * Not yet implemented.
      *
      * @throws HandleException always, with {@code CLPR_VERIFIER_CONFIG_FAILED}
      */
@@ -163,6 +166,7 @@ public final class CantonProofVerifier implements ClprVerifier {
         } catch (final CantonProofException e) {
             throw new HandleException(e.responseCode());
         } catch (final RuntimeException e) {
+            log.error("Unexpected error verifying bundle", e);
             // The reference reverts on any malformed input; so does this.
             throw new HandleException(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED);
         }
@@ -175,8 +179,8 @@ public final class CantonProofVerifier implements ClprVerifier {
      * mediatorSet, rotations, manifest, payloads]}.
      *
      * <p><b>Rotations (PR A).</b> {@code rotations} must be empty ({@code 0x80} or {@code 0xc0}, as the reference's
-     * {@code isEmpty}); anything else throws {@code RotationsNotSupported}, as applying topology rotations is PR B.
-     * With empty rotations the reference's {@code verifyBundleVerdict} still completes a pending Logical
+     * {@code isEmpty}); anything else throws {@code RotationsNotSupported}, as applying topology rotations is a future
+     * task. With empty rotations the reference's {@code verifyBundleVerdict} still completes a pending Logical
      * Synchronizer Upgrade when the verdict's request id is above the anchor's upgrade time (the verdict is then
      * checked against the successor synchronizer and a new anchor is returned), and that is ported here.
      *
@@ -550,10 +554,6 @@ public final class CantonProofVerifier implements ClprVerifier {
      * which holds the queue metadata after the write and the manifest hash that it carried. Any choice is accepted
      * (the app alone signs its channel, {@code ClprService} checks the ids and running hash, and
      * {@link #checkPayload} binds every message to the app).
-     *
-     * <p>{@code wroteMessages} is kept for parity with the reference, where it selects the metadata's
-     * {@code lastMessageId}/{@code lastMessageRunningHash}; {@link ClprQueueMetadata} has no such fields (they are
-     * {@code nextMessageId - 1} and {@code sentRunningHash}), so it does not change the result.
      */
     @NonNull
     public static WriteResult readWrite(
