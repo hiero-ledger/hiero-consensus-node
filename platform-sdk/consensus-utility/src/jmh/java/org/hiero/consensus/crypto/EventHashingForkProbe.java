@@ -47,7 +47,11 @@ import org.openjdk.jmh.annotations.Warmup;
  *   <li>{@link Serial}: {@code -XX:+UseSerialGC}, so the garbage collector moves the objects on one thread and at
  *   points that depend only on the allocation;</li>
  *   <li>{@link BatchSerial}: both. The benchmark runs on one thread, so the forks then differ only in their addresses
- *   and in their physical memory.</li>
+ *   and in their physical memory;</li>
+ *   <li>{@link Logged}: the flags of {@link Baseline} and a compile log per fork
+ *   ({@code compile-pid<process id>.log}), written into the results directory of the calibration workflow, which
+ *   uploads it. The log's header holds the fork's start time ({@code time_ms}), which joins it with the fork's result;
+ *   its {@code nmethod} elements hold where each compilation lies in the code cache.</li>
  * </ul>
  * The flags are diagnostics: they change what is measured, so only the spread between the forks of a variant counts,
  * not its level. If the levels stay with both flags, the cause lies outside the JVM's own state; if they go, the
@@ -194,4 +198,17 @@ public abstract class EventHashingForkProbe {
             value = 10,
             jvmArgsAppend = {"-Xms1g", "-Xmx1g", "-XX:+AlwaysPreTouch", "-Xbatch", "-XX:+UseSerialGC"})
     public static class BatchSerial extends EventHashingForkProbe {}
+
+    /** The forks of {@link Baseline}, each with a compile log. The path is relative to the workflow's directory. */
+    @Fork(
+            value = 10,
+            jvmArgsAppend = {
+                "-Xms1g",
+                "-Xmx1g",
+                "-XX:+AlwaysPreTouch",
+                "-XX:+UnlockDiagnosticVMOptions",
+                "-XX:+LogCompilation",
+                "-XX:LogFile=build/benchmark-calibration/compile-%p.log"
+            })
+    public static class Logged extends EventHashingForkProbe {}
 }
