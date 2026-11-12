@@ -424,17 +424,16 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
-    public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
+    public Path flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof);
         if (state == State.OPEN) {
+            final Path pendingPath = nodeScopedBlockDir.resolve(BlockFileUtils.pendingFileName(blockNumber));
             try {
                 writableStreamingData.close();
-                Files.move(
-                        nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber)),
-                        nodeScopedBlockDir.resolve(BlockFileUtils.pendingFileName(blockNumber)));
+                Files.move(nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber)), pendingPath);
             } catch (IOException e) {
                 logger.error("Error flushing pending block #{}", blockNumber, e);
-                return;
+                return null;
             } finally {
                 state = State.CLOSED;
             }
@@ -447,36 +446,36 @@ public class FileBlockItemWriter implements BlockItemWriter {
             logger.info(
                     "Flushed pending block #{} ({}, {})",
                     blockNumber,
-                    nodeScopedBlockDir.resolve(BlockFileUtils.pendingFileName(blockNumber)),
+                    pendingPath,
                     pendingProofPath(nodeScopedBlockDir, blockNumber));
+            return pendingPath;
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
+            return null;
         }
     }
 
     @Override
-    public void flushIncompleteBlock() {
+    public Path flushIncompleteBlock() {
         // Persist the open, unproven block as a ".open.zstd" triage artifact: close the stream and rename the
         // partially-written ".blk.zstd" to ".open.zstd". We deliberately write no ".mf" completion marker and no
         // ".pnd.json" proof sidecar, so this block is never treated as a finished block nor picked up by pending-block
         // recovery. Best-effort: never throws.
         if (state != State.OPEN) {
             logger.warn("Cannot flush incomplete block #{} in non-OPEN state '{}'", blockNumber, state);
-            return;
+            return null;
         }
+        final Path incompletePath = nodeScopedBlockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber));
         try {
             writableStreamingData.close();
-            Files.move(
-                    nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber)),
-                    nodeScopedBlockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber)));
-            logger.info(
-                    "Flushed incomplete block #{} for triage to {}",
-                    blockNumber,
-                    nodeScopedBlockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber)));
+            Files.move(nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber)), incompletePath);
+            logger.info("Flushed incomplete block #{} for triage to {}", blockNumber, incompletePath);
+            return incompletePath;
         } catch (final Exception e) {
             // Catch everything (not just IOException): per the BlockItemWriter contract this is best-effort and must
             // not throw, since the caller is already on the catastrophic-failure path.
             logger.error("Error flushing incomplete block #{}", blockNumber, e);
+            return null;
         } finally {
             state = State.CLOSED;
         }

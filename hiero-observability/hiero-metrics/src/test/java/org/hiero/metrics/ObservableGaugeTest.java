@@ -8,6 +8,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 import org.hiero.metrics.core.Label;
@@ -43,6 +46,173 @@ public class ObservableGaugeTest extends MetricBaseTest<ObservableGauge, Observa
         List<String> seen = new ArrayList<>();
         export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
         assertThat(seen).containsExactly("[a]");
+    }
+
+    @Test
+    void testRemoveIfRemovesMatchingSuppliers() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("node", "type").build();
+        gauge.observe(() -> 1L, "node", "1", "type", "a");
+        gauge.observe(() -> 2L, "node", "3", "type", "a");
+        gauge.observe(() -> 3.0, "node", "3", "type", "b");
+
+        assertThat(gauge.removeIf(labelValues -> "3".equals(labelValues.get("node"))))
+                .isEqualTo(2);
+        assertThat(gauge.removeIf(labelValues -> "3".equals(labelValues.get("node"))))
+                .as("nothing left to remove")
+                .isZero();
+        assertThat(exportedLabels(gauge)).containsExactly("[1,a]");
+
+        // removed labels can be observed again and are appended
+        gauge.observe(() -> 4L, "node", "3", "type", "a");
+        assertThat(exportedLabels(gauge)).containsExactly("[1,a]", "[3,a]");
+    }
+
+    @Test
+    void testRemoveIfDoesNotAffectStartedIteration() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        gauge.observe(() -> 1L, "label", "a");
+        gauge.observe(() -> 2L, "label", "b");
+
+        Iterator<MeasurementSnapshot> export = snapshotOf(gauge).iterator();
+        gauge.removeIf(labelValues -> "a".equals(labelValues.get("label")));
+
+        List<String> seen = new ArrayList<>();
+        export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
+        assertThat(seen).containsExactly("[a]", "[b]");
+        assertThat(exportedLabels(gauge)).containsExactly("[b]");
+    }
+
+    @Test
+    void testRemoveIfThrowsWhenNoDynamicLabelsDefined() {
+        ObservableGauge gauge = emptyMetricBuilder().build();
+
+        assertThatThrownBy(() -> gauge.removeIf(_ -> true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("This metric has no dynamic labels, so it can be removed only from the metric registry");
+    }
+
+    @Test
+    void testRemoveIfNullFilterThrows() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+
+        assertThatThrownBy(() -> gauge.removeIf(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("filter must not be null");
+    }
+
+    @Test
+    void testObserveDuplicateDoesNotCallSupplier() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        gauge.observe(() -> 1L, "label", "a");
+        AtomicInteger calls = new AtomicInteger();
+
+        assertThatThrownBy(() -> gauge.observe(() -> (long) calls.incrementAndGet(), "label", "a"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("A measurement with the same label values already exists");
+        assertThat(calls).hasValue(0);
+    }
+
+    @Test
+    void testObserveWithThrowingSupplierDoesNotReserveLabelValues() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+
+        assertThatThrownBy(() -> gauge.observe(
+                        () -> {
+                            throw new IllegalStateException("source closed");
+                        },
+                        "label",
+                        "a"))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(exportedLabels(gauge)).isEmpty();
+
+        gauge.observe(() -> 1L, "label", "a");
+        assertThat(exportedLabels(gauge)).containsExactly("[a]");
+    }
+
+    @Test
+    void testRemovedSupplierIsNotCalledByLaterExports() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        AtomicInteger removedCalls = new AtomicInteger();
+        gauge.observe(() -> (long) removedCalls.incrementAndGet(), "label", "a");
+        gauge.observe(() -> 2L, "label", "b");
+
+        assertThat(gauge.removeIf(labelValues -> "a".equals(labelValues.get("label"))))
+                .isEqualTo(1);
+        final int callsAtRemoval = removedCalls.get();
+
+        new MetricSnapshotVerifier(gauge).add(2L, "label", "b").verify();
+        assertThat(removedCalls).as("removed supplier is not called").hasValue(callsAtRemoval);
+    }
+
+    @Test
+    void testRemoveIfCallsFilterWithoutLock() {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        gauge.observe(() -> 1L, "label", "a");
+        AtomicInteger removedByOtherThread = new AtomicInteger();
+
+        int removed = gauge.removeIf(_ -> {
+            // removing the same supplier in another thread would block, if the filter held the map bin lock
+            removedByOtherThread.set(CompletableFuture.supplyAsync(() -> gauge.removeIf(_ -> true))
+                    .orTimeout(1, TimeUnit.SECONDS)
+                    .join());
+            return true;
+        });
+
+        assertThat(removedByOtherThread).hasValue(1);
+        assertThat(removed).as("already removed by the other thread").isZero();
+    }
+
+    @Test
+    void testConcurrentObserveAndRemoveKeepSnapshotConsistent() throws InterruptedException {
+        ObservableGauge gauge =
+                emptyMetricBuilder().addDynamicLabelNames("label").build();
+        final int threadCount = 4;
+        final int iterations = 20_000;
+        final int labelsCount = 5;
+
+        // a broken lock duplicates snapshots only until the next removal, so every export is checked
+        ThreadUtils.runConcurrentAndCheck(
+                threadCount,
+                Duration.ofSeconds(10),
+                threadIdx -> () -> {
+                    for (int i = 0; i < iterations; i++) {
+                        final String label = "v" + (i % labelsCount);
+                        if ((i + threadIdx) % 2 == 0) {
+                            try {
+                                gauge.observe(() -> 1L, "label", label);
+                            } catch (IllegalArgumentException alreadyObserved) {
+                                // another thread observed it first
+                            }
+                        } else {
+                            gauge.removeIf(labelValues -> label.equals(labelValues.get("label")));
+                        }
+                    }
+                },
+                () -> assertThat(exportedLabels(gauge))
+                        .as("export has duplicate labels")
+                        .doesNotHaveDuplicates());
+
+        List<String> exported = exportedLabels(gauge);
+        assertThat(exported).doesNotHaveDuplicates();
+        assertThat(gauge.removeIf(_ -> true))
+                .as("exported suppliers are the observed ones")
+                .isEqualTo(exported.size());
+        assertThat(exportedLabels(gauge))
+                .as("no removed supplier left in the snapshot")
+                .isEmpty();
+    }
+
+    private List<String> exportedLabels(ObservableGauge gauge) {
+        List<String> labels = new ArrayList<>();
+        snapshotOf(gauge).forEach(s -> labels.add(s.getDynamicLabelValues().toString()));
+        return labels;
     }
 
     @Test

@@ -46,6 +46,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
@@ -271,6 +272,8 @@ class BlockStreamManagerImplTest {
                 case "numBlockSizeCircuitBreakerTrips" -> blockSizeCircuitBreakerTripsCounter;
                 case "numMaxBlockSizeThrottleRejections",
                         "maxBlockSizeThrottleRejectedBytes",
+                        "numMaxBlockSizeThrottleScheduledRejections",
+                        "maxBlockSizeThrottleScheduledRejectedBytes",
                         "numSignedTxnsInSizeLimitedBlocks" ->
                     throttleCounters.computeIfAbsent(counterConfig.getName(), name -> mock(Counter.class));
                 default -> indirectProofsCounter;
@@ -801,6 +804,34 @@ class BlockStreamManagerImplTest {
         verify(throttleCounters.get("numSignedTxnsInSizeLimitedBlocks"), times(2))
                 .add(1L);
         verify(throttleGauges.get("bytesAtMaxBlockSizeCutoff")).set(longThat(bytes -> bytes > 1L));
+    }
+
+    @Test
+    void scheduledRejectionsAreCountedSeparatelyFromSubmittedRejections() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        assertTrue(subject.hasReachedMaxBlockSize());
+        final var items = List.of(FAKE_SIGNED_TRANSACTION);
+
+        subject.recordScheduledTransaction(items, true);
+        subject.recordScheduledTransaction(items, false);
+
+        final long batchBytes = Block.PROTOBUF.measureRecord(new Block(items));
+        verify(throttleCounters.get("numMaxBlockSizeThrottleScheduledRejections"))
+                .increment();
+        verify(throttleCounters.get("maxBlockSizeThrottleScheduledRejectedBytes"))
+                .add(batchBytes);
+        verifyNoInteractions(throttleCounters.get("numMaxBlockSizeThrottleRejections"));
+        verifyNoInteractions(throttleCounters.get("maxBlockSizeThrottleRejectedBytes"));
     }
 
     @Test
@@ -3780,6 +3811,80 @@ class BlockStreamManagerImplTest {
         assertFalse(closed);
         verify(aWriter).flushIncompleteBlock();
         verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void fatalEventSignalledDuringNormalCloseStillFlushesForTriage() {
+        // #4 race: catastrophic failure is signalled AFTER endRoundInternal's own fatalShutdownRequested check — here
+        // during the normal block close, via onCloseBlock. endRound's finally must still capture the block for triage
+        // (and complete the fatal-shutdown future) instead of leaving it unflushed while awaitFatalShutdown stalls.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        // Leave the signature future pending (do NOT invoke the consumer) so the just-closed block stays in the
+        // pending queue at finally-time; it is what the triage flush must then capture.
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        // The fatal flag flips to true DURING the close, after endRoundInternal already read it as false.
+        doAnswer(inv -> {
+                    subject.notifyFatalEvent();
+                    return null;
+                })
+                .when(lifecycle)
+                .onCloseBlock(any());
+        final var flushedPath = java.nio.file.Path.of("0000000000000000001.pnd.zstd");
+        given(aWriter.flushPendingBlock(any())).willReturn(flushedPath);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO);
+
+        // endRound's finally captured the still-pending block for triage and exposed its path for upload.
+        verify(aWriter).flushPendingBlock(any());
+        final var flushed = subject.flushedTriageBlockFiles();
+        assertEquals(1, flushed.size());
+        assertEquals(flushedPath, flushed.get(0));
+    }
+
+    @Test
+    void flushedTriageBlockFilesExposesTheFlushedOpenBlockPath() {
+        // The triage flush records the path the writer wrote, so the ISS-block-upload pipeline can find it.
+        final java.nio.file.Path issPath = java.nio.file.Path.of("0000000000000000007.iss.zstd");
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(aWriter.flushIncompleteBlock()).willReturn(issPath);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        // Nothing flushed yet
+        assertTrue(subject.flushedTriageBlockFiles().isEmpty());
+
+        subject.notifyFatalEvent();
+        subject.endRound(state, ROUND_NO);
+
+        // After the flush, the open block's path is exposed for upload
+        final var flushed = subject.flushedTriageBlockFiles();
+        assertEquals(1, flushed.size());
+        assertEquals(issPath, flushed.get(0));
     }
 
     @Test
