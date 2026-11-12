@@ -12,6 +12,7 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SE
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,12 +23,14 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -168,16 +171,23 @@ class WrapsProtocolUpgradeTest {
     private static WritableHistoryStoreImpl store(
             final HistoryProofConstruction active, final HistoryProofConstruction next) {
         return new WritableHistoryStoreImpl(new MapWritableStates(Map.of(
-                ACTIVE_PROOF_CONSTRUCTION_STATE_ID, singleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID, active),
-                NEXT_PROOF_CONSTRUCTION_STATE_ID, singleton(NEXT_PROOF_CONSTRUCTION_STATE_ID, next),
-                LEDGER_ID_STATE_ID, singleton(LEDGER_ID_STATE_ID, new ProtoBytes(LEDGER_ID)),
-                PROOF_KEY_SETS_STATE_ID, new MapWritableKVState<>(PROOF_KEY_SETS_STATE_ID, "proofKeys"),
-                PROOF_VOTES_STATE_ID, new MapWritableKVState<>(PROOF_VOTES_STATE_ID, "votes"),
+                ACTIVE_PROOF_CONSTRUCTION_STATE_ID,
+                singleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID, active),
+                NEXT_PROOF_CONSTRUCTION_STATE_ID,
+                singleton(NEXT_PROOF_CONSTRUCTION_STATE_ID, next),
+                LEDGER_ID_STATE_ID,
+                singleton(LEDGER_ID_STATE_ID, new ProtoBytes(LEDGER_ID)),
+                PROOF_KEY_SETS_STATE_ID,
+                new MapWritableKVState<>(PROOF_KEY_SETS_STATE_ID, "proofKeys"),
+                PROOF_VOTES_STATE_ID,
+                new MapWritableKVState<>(PROOF_VOTES_STATE_ID, "votes"),
                 WRAPS_MESSAGE_HISTORIES_STATE_ID,
-                        new MapWritableKVState<>(WRAPS_MESSAGE_HISTORIES_STATE_ID, "messages"),
+                new MapWritableKVState<>(WRAPS_MESSAGE_HISTORIES_STATE_ID, "messages"),
                 HINTS_KEY_PROVENANCE_STATE_ID,
-                        ListWritableQueueState.<HintsKeyProvenance>builder(HINTS_KEY_PROVENANCE_STATE_ID, "provenance")
-                                .build())));
+                ListWritableQueueState.<HintsKeyProvenance>builder(HINTS_KEY_PROVENANCE_STATE_ID, "provenance")
+                        .build(),
+                HINTS_KEY_WITNESSES_STATE_ID,
+                new MapWritableKVState<ProtoLong, HintsKeyWitnessRecord>(HINTS_KEY_WITNESSES_STATE_ID, "witnesses"))));
     }
 
     private static <T> FunctionWritableSingletonState<T> singleton(final int id, final T initial) {

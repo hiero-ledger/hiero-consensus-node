@@ -13,6 +13,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -25,6 +26,7 @@ import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.history.schemas.V0730HistorySchema;
 import com.hedera.node.app.history.schemas.V0790HistorySchema;
+import com.hedera.node.app.history.schemas.V0800HistorySchema;
 import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
@@ -43,6 +45,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -57,6 +60,17 @@ public class HistoryServiceImpl implements HistoryService {
     private final HistoryServiceComponent component;
 
     private final Supplier<Network> genesisNetworkSupplier;
+
+    private final KeyWitnessPublisher witnessPublisher;
+
+    private CompletableFuture<Void> submitKeyWitness(final HintsKeyWitness witness) {
+        return component.submissions().submitKeyWitness(witness);
+    }
+
+    private CompletableFuture<Boolean> verifyKeyWitness(final HintsKeyWitness witness, final Bytes verificationKey) {
+        return CompletableFuture.supplyAsync(
+                () -> component.witnessVerifier().verify(witness, verificationKey), component.executor());
+    }
 
     /**
      * If not null, the proof of the history ending at the current roster.
@@ -99,6 +113,8 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
         this.component = DaggerHistoryServiceComponent.factory().create(library, appContext, executor, metrics, this);
+        this.witnessPublisher = new KeyWitnessPublisher(
+                this::submitKeyWitness, this::verifyKeyWitness, new KeyWitnessMetrics(metrics)::update);
     }
 
     @VisibleForTesting
@@ -111,6 +127,7 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final HistoryServiceComponent component, @NonNull final Supplier<Network> genesisNetworkSupplier) {
         this.component = requireNonNull(component);
         this.genesisNetworkSupplier = requireNonNull(genesisNetworkSupplier);
+        this.witnessPublisher = new KeyWitnessPublisher(this::submitKeyWitness, this::verifyKeyWitness);
     }
 
     @Override
@@ -234,6 +251,20 @@ public class HistoryServiceImpl implements HistoryService {
                 // No-op
             }
         }
+        // Publication is local best-effort work and must not roll back the controller's consensus changes.
+        try {
+            if (tssConfig.forceMockSignatures()) {
+                witnessPublisher.stop();
+            } else {
+                witnessPublisher.reconcile(
+                        historyStore,
+                        now,
+                        isActive,
+                        activeHintsConstruction == null ? 0 : activeHintsConstruction.constructionId());
+            }
+        } catch (RuntimeException e) {
+            logger.warn("Failed to reconcile local hinTS witness publication", e);
+        }
     }
 
     /**
@@ -325,7 +356,13 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        witnessPublisher.offer(verificationKey, witness);
+    }
+
+    @Override
     public void stop() {
+        witnessPublisher.stop();
         component.controllers().stop();
     }
 
@@ -356,6 +393,7 @@ public class HistoryServiceImpl implements HistoryService {
         registry.register(new V071HistorySchema(this));
         registry.register(new V0730HistorySchema(this));
         registry.register(new V0790HistorySchema(this));
+        registry.register(new V0800HistorySchema(this));
     }
 
     @Override

@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
+import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
@@ -12,6 +13,7 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SE
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
@@ -19,6 +21,8 @@ import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -27,6 +31,7 @@ import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
@@ -40,8 +45,10 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -65,6 +72,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     private static final Logger log = LogManager.getLogger(WritableHistoryStoreImpl.class);
 
     private final WritableQueueState<HintsKeyProvenance> keyProvenance;
+    private final WritableKVState<ProtoLong, HintsKeyWitnessRecord> keyWitnesses;
     private final WritableSingletonState<ProtoBytes> ledgerId;
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
     private final WritableSingletonState<HistoryProofConstruction> activeConstruction;
@@ -75,6 +83,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public WritableHistoryStoreImpl(@NonNull final WritableStates states) {
         super(states);
         this.keyProvenance = states.getQueue(HINTS_KEY_PROVENANCE_STATE_ID);
+        this.keyWitnesses = states.get(HINTS_KEY_WITNESSES_STATE_ID);
         this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
@@ -365,7 +374,10 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     @Override
     public boolean handoff(
-            @NonNull final Roster fromRoster, @Nullable final Roster toRoster, @Nullable final Bytes toRosterHash) {
+            @NonNull final Roster fromRoster,
+            @Nullable final Roster toRoster,
+            @Nullable final Bytes toRosterHash,
+            @Nullable final Instant activationTime) {
         requireNonNull(fromRoster);
         final var upcomingConstruction = requireNonNull(nextConstruction.get());
         // A WRAPS proof binds the hash of its target address book; so a handoff can only adopt
@@ -385,7 +397,20 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         // The queue and paired constructions use the same writable savepoint. A failed
         // transaction rolls them back together; retries cannot enqueue the cleared next slot.
         if (upcomingConstruction.hasKeyProvenance()) {
-            keyProvenance.add(upcomingConstruction.keyProvenanceOrThrow());
+            requireNonNull(activationTime, "A newly adopted signing generation requires its activation time");
+            final var provenance = upcomingConstruction.keyProvenanceOrThrow();
+            final var key = new ProtoLong(provenance.targetHintsConstructionId());
+            final var existing = keyWitnesses.get(key);
+            if (existing != null) {
+                throw new IllegalStateException("A signing generation cannot be adopted more than once");
+            }
+            keyProvenance.add(provenance);
+            keyWitnesses.put(
+                    key,
+                    HintsKeyWitnessRecord.newBuilder()
+                            .provenance(provenance)
+                            .activationTime(asTimestamp(activationTime))
+                            .build());
         }
         // The next construction is becoming the active one; so purge obsolete votes now
         final var obsoleteConstruction = requireNonNull(activeConstruction.get());
@@ -404,6 +429,61 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         // And finally, make the next construction the active one
         activeConstruction.put(upcomingConstruction);
         nextConstruction.put(HistoryProofConstruction.DEFAULT);
+        return true;
+    }
+
+    @Override
+    public boolean setKeyWitness(@NonNull final HintsKeyWitness witness) {
+        requireNonNull(witness);
+        if (witness.targetHintsConstructionId() <= 0
+                || !witness.hasTimestamp()
+                || witness.timestampOrThrow().nanos() < 0
+                || witness.timestampOrThrow().nanos() >= 1_000_000_000
+                || witness.signature().length() == 0) {
+            return false;
+        }
+        final int hashLength = switch (witness.hashAlgorithm()) {
+            case SHA2_256 -> 32;
+            case SHA2_384 -> 48;
+            default -> 0;
+        };
+        if (hashLength == 0 || witness.siblingHash().length() != hashLength) {
+            return false;
+        }
+        final Instant witnessTime;
+        try {
+            witnessTime = asInstant(witness.timestampOrThrow());
+        } catch (DateTimeException e) {
+            return false;
+        }
+        final var key = new ProtoLong(witness.targetHintsConstructionId());
+        final var existing = keyWitnesses.get(key);
+        if (existing == null
+                || existing.hasWitness()
+                || !existing.hasProvenance()
+                || existing.provenanceOrThrow().targetHintsConstructionId() != witness.targetHintsConstructionId()) {
+            return false;
+        }
+        if (existing.hasActivationTime() && !witnessTime.isAfter(asInstant(existing.activationTimeOrThrow()))) {
+            return false;
+        }
+        keyWitnesses.put(key, existing.copyBuilder().witness(witness).build());
+        return true;
+    }
+
+    @Override
+    public boolean markWitnessRejected(final long targetHintsConstructionId, final long nodeId) {
+        final var key = new ProtoLong(targetHintsConstructionId);
+        final var existing = keyWitnesses.get(key);
+        if (existing == null
+                || existing.hasWitness()
+                || !existing.hasProvenance()
+                || existing.rejectedNodeIds().contains(nodeId)) {
+            return false;
+        }
+        final var rejected = new ArrayList<>(existing.rejectedNodeIds());
+        rejected.add(nodeId);
+        keyWitnesses.put(key, existing.copyBuilder().rejectedNodeIds(rejected).build());
         return true;
     }
 
