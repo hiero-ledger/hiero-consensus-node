@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
@@ -91,6 +92,36 @@ class CantonAnchorTest {
         final var a = new CantonAnchor.Anchor(
                 longString, 7L, 3, filled(1), filled(2), filled(3), longString + "x", 99L, 5, longString + "yy");
         assertAnchorEquals(a, CantonAnchor.decode(CantonAnchor.encode(a)));
+    }
+
+    @Test
+    void writeWordRejectsNegative() {
+        final var out = new ByteArrayOutputStream();
+        assertThrows(IllegalArgumentException.class, () -> CantonAnchor.writeWord(out, -1L));
+        assertEquals(0, out.size());
+    }
+
+    @Test
+    void writeWordEncodesNonNegativeAsBigEndianWord() {
+        final var out = new ByteArrayOutputStream();
+        CantonAnchor.writeWord(out, 32L);
+        final byte[] word = out.toByteArray();
+        assertEquals(32, word.length);
+        assertArrayEquals(new byte[31], Arrays.copyOfRange(word, 0, 31));
+        assertEquals(0x20, word[31]);
+    }
+
+    @Test
+    void uint64WithHighBitSetStillRoundTrips() {
+        final var a = full(); // lastRequestId == -1L, i.e. 0xFFFFFFFFFFFFFFFF unsigned
+        final byte[] encoded = CantonAnchor.encode(a);
+        final byte[] word = Arrays.copyOfRange(encoded, 32, 64);
+        final byte[] expected = new byte[32];
+        Arrays.fill(expected, 24, 32, (byte) 0xFF);
+        assertArrayEquals(expected, word);
+        final var decoded = CantonAnchor.decode(encoded);
+        assertEquals(-1L, decoded.lastRequestId());
+        assertAnchorEquals(a, decoded);
     }
 
     @Test

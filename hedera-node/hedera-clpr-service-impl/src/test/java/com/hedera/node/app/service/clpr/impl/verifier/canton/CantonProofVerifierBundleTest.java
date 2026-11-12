@@ -30,8 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
+import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -46,7 +45,7 @@ import org.junit.jupiter.api.Test;
  *   <li>REAL: the verdict typed content ({@code verdict-typed-content.hex}) is the real Canton verdict, including
  *       its physical synchronizer id and request id; only its 32-byte root hash is replaced (same length) by the
  *       root of the constructed tree, since the real root belongs to the encrypted transaction.
- *   <li>CONSTRUCTED: the mediator (a fresh BouncyCastle Ed25519 key, threshold 1 of 1) signing that verdict, the
+ *   <li>CONSTRUCTED: the mediator (a fresh libsodium Ed25519 key, threshold 1 of 1) signing that verdict, the
  *       packed mediator set, the anchor, the opening (root view, path {@code [[[],[]]]}), the view common data,
  *       the view participant data with its {@code Channel} contract ({@link CantonWriteTest} shapes), the DATA /
  *       REPLY payloads (PBJ-encoded {@code ClprMessagePayload}) and the endpoint manifest (PBJ-encoded).
@@ -685,20 +684,20 @@ class CantonProofVerifierBundleTest {
                 .toByteArray();
     }
 
-    private record Med(Ed25519PrivateKeyParameters priv, byte[] pub, byte[] fp) {
+    private record Med(byte[] secret, byte[] pub, byte[] fp) {
         static Med of(final int seed) {
-            final byte[] s = new byte[32];
+            final byte[] s = new byte[Ed25519.SEED_BYTES];
             Arrays.fill(s, (byte) seed);
-            final var priv = new Ed25519PrivateKeyParameters(s, 0);
-            final byte[] pub = priv.generatePublicKey().getEncoded();
-            return new Med(priv, pub, sha(pub));
+            final byte[] pub = new byte[Ed25519.PUBLIC_KEY_BYTES];
+            final byte[] secret = new byte[Ed25519.SECRET_KEY_BYTES];
+            Ed25519.newKeypair(pub, secret, s);
+            return new Med(secret, pub, sha(pub));
         }
 
         byte[] sign(final byte[] message) {
-            final var signer = new Ed25519Signer();
-            signer.init(true, priv);
-            signer.update(message, 0, message.length);
-            return signer.generateSignature();
+            final byte[] sig = new byte[Ed25519.SIGNATURE_BYTES];
+            Ed25519.sign(sig, message, secret);
+            return sig;
         }
 
         /** Packed set layout of CantonMediators: one Ed25519 member with one current key, threshold 1. */

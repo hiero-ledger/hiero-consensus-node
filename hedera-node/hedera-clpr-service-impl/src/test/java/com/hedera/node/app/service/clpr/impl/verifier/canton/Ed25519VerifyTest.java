@@ -4,15 +4,13 @@ package com.hedera.node.app.service.clpr.impl.verifier.canton;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.security.SecureRandom;
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
+import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.Test;
 
 /**
  * Tests for {@link Ed25519Verify}.
  *
- * <p>The round-trip vector is CONSTRUCTED with BouncyCastle's Ed25519 implementation. A real
+ * <p>The round-trip vector is CONSTRUCTED with the repo's libsodium Ed25519 binding. A real
  * signature over the fixture's Ed25519 mediator message would be preferable, but the signed message
  * for {@code verdict-mediator-sig.hex} is assembled by later verdict-verifier tasks (the gas-fixture
  * provenance does not pin which bytes that signature covers), so this task verifies the primitive
@@ -71,15 +69,17 @@ class Ed25519VerifyTest {
     private record Keys(byte[] pub, byte[] priv) {}
 
     private static Keys generate() {
-        final var priv = new Ed25519PrivateKeyParameters(new SecureRandom());
-        final Ed25519PublicKeyParameters pub = priv.generatePublicKey();
-        return new Keys(pub.getEncoded(), priv.getEncoded());
+        final byte[] seed = new byte[Ed25519.SEED_BYTES];
+        new SecureRandom().nextBytes(seed);
+        final byte[] pub = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] secret = new byte[Ed25519.SECRET_KEY_BYTES];
+        Ed25519.newKeypair(pub, secret, seed);
+        return new Keys(pub, secret);
     }
 
-    private static byte[] sign(final byte[] privEncoded, final byte[] message) {
-        final var signer = new Ed25519Signer();
-        signer.init(true, new Ed25519PrivateKeyParameters(privEncoded, 0));
-        signer.update(message, 0, message.length);
-        return signer.generateSignature();
+    private static byte[] sign(final byte[] secretKey, final byte[] message) {
+        final byte[] sig = new byte[Ed25519.SIGNATURE_BYTES];
+        Ed25519.sign(sig, message, secretKey);
+        return sig;
     }
 }

@@ -54,8 +54,8 @@ import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
  *   offset 16: endpointManifestVersion (uint64) — not part of the queue metadata; ignored here
  *   + (with messages) the last message's running-hash slot (a separate keccak, message-queue mapping)
  * </pre>
- * The five Channel slots cluster within a 16-wide window; {@link #reorderQueueSlots} isolates them
- * from the message running-hash outlier before decoding.
+ * Every slot key is recomputed from the channel id ({@link EvmChannelContext#orderQueueSlots}), so the proof
+ * is bound to the channel being verified.
  *
  * <p>Verification steps:
  * <ol>
@@ -126,21 +126,12 @@ public final class BesuQbftVerifier {
     // The relay proves 5 Channel-struct slots — keccak(connId,15)+{1,2,4,5,16} = status|nextMsgId,
     // acked|received|reply, sentRunningHash, receivedRunningHash, endpointManifestVersion — plus, when
     // the bundle carries messages, the running-hash slot of the last message. So a bundle proves 5
-    // (ACK-only) or 6 (with messages) storage slots. The five Channel slots cluster within a
-    // 16-wide window (offsets 1..16); the message running-hash slot is a far keccak outlier.
+    // (ACK-only) or 6 (with messages) storage slots.
     private static final int CHANNEL_STORAGE_SLOTS = 5;
-    // max(offset)-min(offset) across the proven Channel slots = 16 - 1 = 15.
-    private static final int CHANNEL_SLOT_CLUSTER_SPAN = 15;
 
-    // SC-189 storage layout of the `_channels` mapping and the proven Channel-struct field
-    // offsets, used for EXACT slot-key matching when the channelId is threaded into verifyBundle
-    // (base = keccak256(channelId(32) || uint256(CHANNELS_MAPPING_SLOT))).
-    private static final int CHANNELS_MAPPING_SLOT = 15;
-    private static final int CHANNEL_OFFSET_STATUS_NEXTMSGID = 1;
-    private static final int CHANNEL_OFFSET_ACKED_RECEIVED = 2;
-    private static final int CHANNEL_OFFSET_SENT_RUNNING_HASH = 4;
-    private static final int CHANNEL_OFFSET_RECEIVED_RUNNING_HASH = 5;
-    private static final int CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = 16;
+    /** Length in bytes of a CLPR channel id. */
+    private static final int CHANNEL_ID_LENGTH = 32;
+
     // After reordering into the queue-metadata positional layout, decodeQueueMetadata sees 5 slots
     // (ACK-only) or 6 (with the message running-hash appended): the 4 queue-metadata slots, the proven
     // endpointManifestVersion slot (offset 16), and optionally the last-message running-hash slot.
@@ -189,32 +180,20 @@ public final class BesuQbftVerifier {
     }
 
     /**
-     * Decode and structurally verify a QBFT bundle payload, returning the proven block hash and
-     * the (verbatim) protobuf-serialized {@code ClprBundleContent} bytes pulled from the proof's
-     * final RLP item.
+     * Decode and verify a QBFT bundle payload, binding the proven Channel storage slots to
+     * {@code channelId}. The four queue-metadata slots and the {@code endpointManifestVersion} slot are
+     * identified by recomputing their canonical storage keys — {@code keccak256(channelId || 15)} (the
+     * {@code _channels} mapping base) plus field offsets {@code {1,2,4,5}} and {@code 16}. The optional
+     * sixth slot must match this channel's last-message running-hash key, derived from the proven
+     * next-message ID. Missing, duplicate, or unrelated storage slots are rejected.
      *
      * @param bundlePayload the RLP-encoded payload as produced by
      *     {@code QbftBundleConstructor.PayloadRlpEncoder.encodeQbftBundlePayload}
-     * @param trustAnchor opaque trust-anchor material; reserved for future block-header
-     *     authentication, currently unused
-     * @return the verified block hash plus the protobuf-serialized {@code ClprBundleContent}
+     * @param trustAnchor the RLP-encoded trusted validator set
+     * @param channelId the 32-byte id of the channel the bundle is submitted to
+     * @return the verified block hash, the protobuf-serialized {@code ClprBundleContent}, the proven
+     *     queue metadata and any proven trust-anchor or endpoint-manifest advance
      * @throws ProofException if RLP decoding fails or any structural check is violated
-     */
-    @NonNull
-    public VerifiedBundle verifyBundle(@NonNull final byte[] bundlePayload, @NonNull final byte[] trustAnchor) {
-        return verifyBundle(bundlePayload, trustAnchor, new byte[0]);
-    }
-
-    /**
-     * As {@link #verifyBundle(byte[], byte[])}, additionally binding the proven Channel storage
-     * slots to {@code channelId} for <em>exact</em> slot-key matching. When {@code channelId} is
-     * a 32-byte id, the four queue-metadata slots and the (optional) message running-hash slot are
-     * identified by recomputing their canonical storage keys — {@code keccak256(channelId || 15)}
-     * (the {@code _channels} mapping base) plus field offsets {@code {1,2,4,5}} and {@code 16} for
-     * {@code endpointManifestVersion} — rather than by the connId-less span heuristic
-     * ({@link #reorderQueueSlots}). Any proven slot that matches none of the expected Channel keys
-     * is taken to be the last message's running-hash slot; more than one such leftover is a hard error.
-     * An empty {@code channelId} (legacy, non-manifest callers) falls back to the span heuristic.
      */
     @NonNull
     public VerifiedBundle verifyBundle(
@@ -222,8 +201,8 @@ public final class BesuQbftVerifier {
         Objects.requireNonNull(bundlePayload, "bundlePayload");
         Objects.requireNonNull(trustAnchor, "trustAnchor");
         Objects.requireNonNull(channelId, "channelId");
-        if (channelId.length != 0 && channelId.length != 32) {
-            throw ProofException.besuQbft("channelId must be empty or 32 bytes, got " + channelId.length);
+        if (channelId.length != CHANNEL_ID_LENGTH) {
+            throw ProofException.besuQbft("channelId must be " + CHANNEL_ID_LENGTH + " bytes, got " + channelId.length);
         }
 
         final List<byte[]> trustAnchorValidators = decodeValidatorSet(trustAnchor, "trustAnchor");
@@ -377,15 +356,12 @@ public final class BesuQbftVerifier {
                         HEX.formatHex(provenValue32),
                         entry.proofNodes().length);
             }
-            // Reorder the sorted slots into the positional layout decodeQueueMetadata expects:
-            // [status|nextMsgId, acked|received|reply, sentRunningHash, receivedRunningHash] and — when a
-            // message is present — the last-message running hash. The 5 Channel slots cluster (min..max
-            // span == 15); the message running-hash slot is a far keccak outlier, and the cluster's 5th
-            // slot (endpointManifestVersion) is not part of the queue metadata and is dropped.
-            final byte[][] orderedQueueSlots = channelId.length == 32
-                    ? matchQueueSlotsByConnId(slotKeys, provenSlotValues, channelId)
-                    : reorderQueueSlots(slotKeys, provenSlotValues);
-            queueMetadata = decodeQueueMetadata(orderedQueueSlots);
+            // Match the proven slots to the channel's canonical slot keys and lay them out in the order
+            // decodeQueueMetadata expects: [status|nextMsgId, acked|received|reply, sentRunningHash,
+            // receivedRunningHash, endpointManifestVersion] and — when a message is present — the
+            // last-message running hash.
+            queueMetadata =
+                    decodeQueueMetadata(EvmChannelContext.orderQueueSlots(slotKeys, provenSlotValues, channelId));
             log.debug(
                     "BesuQbftProofVerifier.verifyBundle queueMetadata: nextMessageId={}, receivedMessageId={}, status={}, sentRunningHash=0x{}, receivedRunningHash=0x{}, lastMessageRunningHash=0x{}",
                     queueMetadata.nextMessageId(),
@@ -417,6 +393,11 @@ public final class BesuQbftVerifier {
         // otherwise it is empty/meaningless and verification fails. (Mirrors the Ethereum verifier.)
         if (storageProof.isEmpty() && bundleContentBytes.length == 0 && newEndpointManifestBytes.length == 0) {
             throw ProofException.besuQbft("bundle has no queue metadata, no content, and no endpoint-manifest advance");
+        }
+        // Content (messages or relayed metadata) is only meaningful against proven queue state: without the
+        // Channel storage proof nothing in the content could be checked against the peer's state.
+        if (storageProof.isEmpty() && bundleContentBytes.length != 0) {
+            throw ProofException.besuQbft("bundle carries content but no Channel storage proof");
         }
 
         return new VerifiedBundle(
@@ -474,7 +455,7 @@ public final class BesuQbftVerifier {
             @NonNull final byte[] configPayload, @NonNull final byte[] endpointManifestProofBytes) {
         Objects.requireNonNull(configPayload, "configPayload");
         Objects.requireNonNull(endpointManifestProofBytes, "endpointManifestProofBytes");
-        log.info(
+        log.debug(
                 "BesuQbftProofVerifier.verifyConfigPayload ENTER: {} bytes, endpointManifestProof={} bytes",
                 configPayload.length,
                 endpointManifestProofBytes.length);
@@ -534,15 +515,15 @@ public final class BesuQbftVerifier {
 
         // --- 2. Extract all validators from genesis extra-data ----------------------------
         final List<byte[]> genesisValidators = extractValidators(genesisHeaderItem);
-        log.info("BesuQbftProofVerifier.verifyConfigPayload: genesisValidators={}", genesisValidators.size());
+        log.debug("BesuQbftProofVerifier.verifyConfigPayload: genesisValidators={}", genesisValidators.size());
 
         // --- 3. Verify QBFT committed seal on current header against the genesis validator set ---
         verifyQbftSealAgainstValidatorSet(currentHeaderItem, genesisValidators);
-        log.info("BesuQbftProofVerifier.verifyConfigPayload: QBFT committed seal verified");
+        log.debug("BesuQbftProofVerifier.verifyConfigPayload: QBFT committed seal verified");
 
         // --- 4. Read service_address directly from the ledger configuration -
         final byte[] contractAddress20 = extractServiceAddress(payload.ledgerConfiguration());
-        log.info("BesuQbftProofVerifier.verifyConfigPayload: service_address=0x{}", HEX.formatHex(contractAddress20));
+        log.debug("BesuQbftProofVerifier.verifyConfigPayload: service_address=0x{}", HEX.formatHex(contractAddress20));
 
         // --- 5. Verify account proof against current block's state root -------------------
         final byte[][] accountProof = payload.clprServiceAccountProof().stream()
@@ -552,7 +533,7 @@ public final class BesuQbftVerifier {
         final byte[] accountRlp = Mpt.get(stateRoot32, accountKey, accountProof)
                 .orElseThrow(() -> ProofException.besuQbft("CLPR service account absent from state trie"));
         final Account provenAccount = Account.decode(accountRlp);
-        log.info(
+        log.debug(
                 "BesuQbftProofVerifier.verifyConfigPayload: account proof verified: storageRoot=0x{}",
                 HEX.formatHex(provenAccount.storageRoot32()));
 
@@ -587,7 +568,7 @@ public final class BesuQbftVerifier {
         if (!Arrays.equals(expectedValue32, provenValue32)) {
             throw ProofException.besuQbft("service_address storage slot does not match proven value");
         }
-        log.info(
+        log.debug(
                 "BesuQbftProofVerifier.verifyConfigPayload: service_address slot verified: key=0x{} value=0x{}",
                 HEX.formatHex(SERVICE_ADDR_STORAGE_SLOT),
                 HEX.formatHex(provenValue32));
@@ -610,7 +591,7 @@ public final class BesuQbftVerifier {
                 ? new byte[0]
                 : verifyConfigEndpointManifestProof(endpointManifestProofBytes, genesisValidators, contractAddress20);
 
-        log.info(
+        log.debug(
                 "BesuQbftProofVerifier.verifyConfigPayload EXIT: SUCCESS blockHash=0x{} chainId={} initialTrustAnchor({} bytes)=0x{} initialTrustAnchorId({} bytes)=0x{} endpointManifest={} bytes",
                 HEX.formatHex(blockHash32),
                 ledgerCfg.chainId(),
@@ -1101,165 +1082,8 @@ public final class BesuQbftVerifier {
     // -----------------------------------------------------------------------------------
 
     /**
-     * Reorders the (key-sorted) proven storage slots into the positional layout
-     * {@link #decodeQueueMetadata} expects. The relay proves the 5 Channel-struct slots
-     * {@code keccak(connId,15)+{1,2,4,5,16}} — which cluster within a 16-wide window (min..max span
-     * {@value #CHANNEL_SLOT_CLUSTER_SPAN}) — plus, for a message bundle, the last-message running-hash
-     * slot, a far keccak outlier. This verifier has no {@code channelId} to recompute the exact
-     * slot keys, so it identifies the cluster as the 5-slot window whose span equals
-     * {@value #CHANNEL_SLOT_CLUSTER_SPAN} and treats the leftover entry as the message running hash.
-     *
-     * <p>Within the ascending cluster the fields sit at fixed positions: 0 = {@code status|nextMsgId},
-     * 1 = {@code acked|received|reply}, 2 = {@code sentRunningHash}, 3 = {@code receivedRunningHash},
-     * 4 = {@code endpointManifestVersion}.
-     *
-     * @return a 5-slot array (ACK-only) or 6-slot array (with the message running hash appended)
-     */
-    @NonNull
-    private static byte[][] reorderQueueSlots(
-            @NonNull final byte[][] slotKeys, @NonNull final byte[][] provenSlotValues) {
-        final int n = slotKeys.length; // CHANNEL_STORAGE_SLOTS (ACK-only) or +1 (with a message)
-        final boolean hasMessage = n == CHANNEL_STORAGE_SLOTS + 1;
-        // Locate the cluster start. With no outlier (ACK-only) it starts at 0; otherwise the outlier
-        // is either the first or the last sorted entry, so exactly one of the two candidate 5-windows
-        // has the cluster span.
-        int clusterStart = 0;
-        if (hasMessage) {
-            final BigInteger spanFromZero =
-                    new BigInteger(1, slotKeys[CHANNEL_STORAGE_SLOTS - 1]).subtract(new BigInteger(1, slotKeys[0]));
-            clusterStart = spanFromZero.equals(BigInteger.valueOf(CHANNEL_SLOT_CLUSTER_SPAN)) ? 0 : 1;
-            final BigInteger clusterSpan = new BigInteger(1, slotKeys[clusterStart + CHANNEL_STORAGE_SLOTS - 1])
-                    .subtract(new BigInteger(1, slotKeys[clusterStart]));
-            if (!clusterSpan.equals(BigInteger.valueOf(CHANNEL_SLOT_CLUSTER_SPAN))) {
-                throw ProofException.besuQbft(
-                        "could not locate the Channel storage-slot cluster (span " + clusterSpan + ")");
-            }
-        }
-        final byte[][] out = new byte[hasMessage ? STORAGE_PROOF_MAX_ENTRIES : STORAGE_PROOF_MIN_ENTRIES][];
-        out[SP_INDEX_CHANNEL_STATUS_NEXTMSGID] = provenSlotValues[clusterStart];
-        out[SP_INDEX_CHANNEL_RECEIVED_MSG_ID] = provenSlotValues[clusterStart + 1];
-        out[SP_INDEX_CHANNEL_SENT_RUNNING_HASH] = provenSlotValues[clusterStart + 2];
-        out[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH] = provenSlotValues[clusterStart + 3];
-        // clusterStart+4 is endpointManifestVersion (offset 16) — carried so the receiver can learn the
-        // peer's cached view of our manifest version from PROVEN state (spec §4.5). Never taken from
-        // relayed content, which a relay could inflate to suppress our manifest re-pushes.
-        out[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION] = provenSlotValues[clusterStart + 4];
-        if (hasMessage) {
-            final int msgHashIdx = clusterStart == 0 ? CHANNEL_STORAGE_SLOTS : 0; // the entry outside the cluster
-            out[SP_INDEX_LAST_MSG_RUNNING_HASH] = provenSlotValues[msgHashIdx];
-        }
-        return out;
-    }
-
-    /**
-     * Reorders the proven storage slots into the queue-metadata positional layout by <em>exact</em>
-     * slot-key matching against the canonical SC-189 Channel storage keys derived from
-     * {@code channelId32} — superseding the connId-less span heuristic in {@link #reorderQueueSlots}.
-     * The {@code _channels} mapping base is {@code keccak256(channelId(32) || uint256(15))}; the
-     * four queue-metadata fields sit at offsets {@code {1,2,4,5}}, {@code endpointManifestVersion} at
-     * {@code 16} (carried through from proven state). Any proven key matching none of the five is taken
-     * to be the last message's running-hash slot; a second such leftover, or a missing required queue
-     * slot, is a hard error (fail-safe — the verifier never silently mis-decodes).
-     *
-     * @return a 5-slot array (ACK-only) or 6-slot array (with the message running hash appended)
-     */
-    @NonNull
-    private static byte[][] matchQueueSlotsByConnId(
-            @NonNull final byte[][] slotKeys,
-            @NonNull final byte[][] provenSlotValues,
-            @NonNull final byte[] channelId32) {
-        final int n = slotKeys.length; // CHANNEL_STORAGE_SLOTS (ACK-only) or +1 (with a message)
-        final boolean hasMessage = n == CHANNEL_STORAGE_SLOTS + 1;
-        final byte[] base = MiscCryptoUtils.keccak256DigestOf(concat(channelId32, uint256Bytes(CHANNELS_MAPPING_SLOT)));
-        final byte[] kStatus = addToBytes32(base, CHANNEL_OFFSET_STATUS_NEXTMSGID);
-        final byte[] kReceived = addToBytes32(base, CHANNEL_OFFSET_ACKED_RECEIVED);
-        final byte[] kSentHash = addToBytes32(base, CHANNEL_OFFSET_SENT_RUNNING_HASH);
-        final byte[] kRecvHash = addToBytes32(base, CHANNEL_OFFSET_RECEIVED_RUNNING_HASH);
-        final byte[] kManifestVer = addToBytes32(base, CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION);
-
-        final byte[][] out = new byte[hasMessage ? STORAGE_PROOF_MAX_ENTRIES : STORAGE_PROOF_MIN_ENTRIES][];
-        int messageHashIdx = -1;
-        for (int i = 0; i < n; i++) {
-            final byte[] key = slotKeys[i];
-            if (Arrays.equals(key, kStatus)) {
-                out[SP_INDEX_CHANNEL_STATUS_NEXTMSGID] = provenSlotValues[i];
-            } else if (Arrays.equals(key, kReceived)) {
-                out[SP_INDEX_CHANNEL_RECEIVED_MSG_ID] = provenSlotValues[i];
-            } else if (Arrays.equals(key, kSentHash)) {
-                out[SP_INDEX_CHANNEL_SENT_RUNNING_HASH] = provenSlotValues[i];
-            } else if (Arrays.equals(key, kRecvHash)) {
-                out[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH] = provenSlotValues[i];
-            } else if (Arrays.equals(key, kManifestVer)) {
-                // endpointManifestVersion (offset 16) — carried from PROVEN state (spec §4.5), never
-                // from relayed content; see reorderQueueSlots for the rationale.
-                out[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION] = provenSlotValues[i];
-            } else if (messageHashIdx < 0) {
-                messageHashIdx = i; // candidate last-message running-hash slot
-            } else {
-                throw ProofException.besuQbft("bundle proves an unexpected storage slot 0x" + HEX.formatHex(key)
-                        + " for channelId 0x" + HEX.formatHex(channelId32));
-            }
-        }
-        if (out[SP_INDEX_CHANNEL_STATUS_NEXTMSGID] == null
-                || out[SP_INDEX_CHANNEL_RECEIVED_MSG_ID] == null
-                || out[SP_INDEX_CHANNEL_SENT_RUNNING_HASH] == null
-                || out[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH] == null
-                || out[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION] == null) {
-            throw ProofException.besuQbft(
-                    "bundle storage proof is missing a required Channel queue-metadata slot for channelId 0x"
-                            + HEX.formatHex(channelId32));
-        }
-        if (hasMessage) {
-            if (messageHashIdx < 0) {
-                throw ProofException.besuQbft(
-                        "6-slot bundle has no message running-hash slot outside the Channel cluster for channelId 0x"
-                                + HEX.formatHex(channelId32));
-            }
-            out[SP_INDEX_LAST_MSG_RUNNING_HASH] = provenSlotValues[messageHashIdx];
-        } else if (messageHashIdx >= 0) {
-            throw ProofException.besuQbft("5-slot bundle proves a non-Channel storage slot 0x"
-                    + HEX.formatHex(slotKeys[messageHashIdx]) + " for channelId 0x"
-                    + HEX.formatHex(channelId32));
-        }
-        return out;
-    }
-
-    /** Concatenates two byte arrays. */
-    private static byte[] concat(@NonNull final byte[] a, @NonNull final byte[] b) {
-        final byte[] out = new byte[a.length + b.length];
-        System.arraycopy(a, 0, out, 0, a.length);
-        System.arraycopy(b, 0, out, a.length, b.length);
-        return out;
-    }
-
-    /** 32-byte big-endian encoding of a small non-negative {@code value} (&le; 255). */
-    private static byte[] uint256Bytes(final int value) {
-        if (value < 0 || value > 0xff) {
-            throw new IllegalArgumentException("uint256Bytes only supports 0..255, got " + value);
-        }
-        final byte[] out = new byte[32];
-        out[31] = (byte) value;
-        return out;
-    }
-
-    /** Returns {@code base32 + offset} as a new 32-byte big-endian value. Throws on overflow. */
-    private static byte[] addToBytes32(@NonNull final byte[] base32, final int offset) {
-        final byte[] out = base32.clone();
-        int carry = offset;
-        for (int i = 31; i >= 0 && carry != 0; i--) {
-            final int sum = (out[i] & 0xff) + (carry & 0xff);
-            out[i] = (byte) (sum & 0xff);
-            carry = (carry >>> 8) + (sum >>> 8);
-        }
-        if (carry != 0) {
-            throw new IllegalStateException("bytes32 overflow adding offset " + offset);
-        }
-        return out;
-    }
-
-    /**
      * Decode a {@link QueueMetadata} from the 5 or 6 storage-slot values produced by
-     * {@link #reorderQueueSlots}, in this positional order:
+     * {@link EvmChannelContext#orderQueueSlots}, in this positional order:
      * <ol>
      *   <li>index 0 — packed slot: {@code verifier(20) | status(1) | nextMessageId(8)}.</li>
      *   <li>index 1 — packed slot: {@code ackedMessageId(8) | receivedMessageId(8) | nextExpectedReplyId(8)}.</li>
