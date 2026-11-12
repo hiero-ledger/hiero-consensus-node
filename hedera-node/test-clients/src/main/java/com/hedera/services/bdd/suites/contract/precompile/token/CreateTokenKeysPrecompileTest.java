@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -23,11 +24,14 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hedera.services.bdd.spec.queries.token.HapiGetTokenInfo;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -50,6 +54,7 @@ public class CreateTokenKeysPrecompileTest {
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
     private static final BigInteger SUPPLY_KEY_TYPE = BigInteger.valueOf(0x10);
     private static final BigInteger METADATA_KEY_TYPE = BigInteger.valueOf(0x80);
+    private static final String NEW_KEY = "createTokenKey";
     private static final String FUNGIBLE_167 = "createFungibleToken";
     private static final String NON_FUNGIBLE_167 = "createNonFungibleToken";
     private static final String FUNGIBLE_16C = "createFungibleTokenWithMetadata";
@@ -62,15 +67,21 @@ public class CreateTokenKeysPrecompileTest {
     @HapiTest
     @DisplayName("a defined key type creates a fungible token at 0x167")
     public Stream<DynamicTest> definedKeyTypeCreatesFungibleToken() {
-        return Stream.of(creating("definedKeyFungible167", FUNGIBLE_167, false, newKey ->
-                new Tuple[] {keyEntry(SUPPLY_KEY_TYPE, newKey)}));
+        return Stream.of(creatingWithKey(
+                "definedKeyFungible167",
+                FUNGIBLE_167,
+                newKey -> new Tuple[] {keyEntry(SUPPLY_KEY_TYPE, newKey)},
+                token -> token.searchKeysGlobally().hasSupplyKey(NEW_KEY)));
     }
 
     @HapiTest
     @DisplayName("a defined key type creates a non-fungible token at 0x167")
     public Stream<DynamicTest> definedKeyTypeCreatesNonFungibleToken() {
-        return Stream.of(creating("definedKeyNonFungible167", NON_FUNGIBLE_167, false, newKey ->
-                new Tuple[] {keyEntry(SUPPLY_KEY_TYPE, newKey)}));
+        return Stream.of(creatingWithKey(
+                "definedKeyNonFungible167",
+                NON_FUNGIBLE_167,
+                newKey -> new Tuple[] {keyEntry(SUPPLY_KEY_TYPE, newKey)},
+                token -> token.searchKeysGlobally().hasSupplyKey(NEW_KEY)));
     }
 
     @HapiTest
@@ -82,15 +93,22 @@ public class CreateTokenKeysPrecompileTest {
     @HapiTest
     @DisplayName("undefined bits next to a defined one still create a fungible token at 0x167")
     public Stream<DynamicTest> strayUndefinedBitNextToDefinedBitCreatesFungibleToken() {
-        return Stream.of(creating("strayBit167", FUNGIBLE_167, false, newKey ->
-                new Tuple[] {keyEntry(BigInteger.valueOf(0x110), newKey)}));
+        // 0x110 = supply (0x10) plus the undefined 0x100, so the supply key is set and the stray bit ignored
+        return Stream.of(creatingWithKey(
+                "strayBit167",
+                FUNGIBLE_167,
+                newKey -> new Tuple[] {keyEntry(BigInteger.valueOf(0x110), newKey)},
+                token -> token.searchKeysGlobally().hasSupplyKey(NEW_KEY)));
     }
 
     @HapiTest
     @DisplayName("the metadata key type is defined at 0x16c")
     public Stream<DynamicTest> metadataKeyTypeCreatesFungibleTokenAt16c() {
-        return Stream.of(creating(
-                "metadataKey16c", FUNGIBLE_16C, false, newKey -> new Tuple[] {keyEntry(METADATA_KEY_TYPE, newKey)}));
+        return Stream.of(creatingWithKey(
+                "metadataKey16c",
+                FUNGIBLE_16C,
+                newKey -> new Tuple[] {keyEntry(METADATA_KEY_TYPE, newKey)},
+                token -> token.searchKeysGlobally().hasMetadataKey(NEW_KEY)));
     }
 
     @HapiTest
@@ -137,19 +155,52 @@ public class CreateTokenKeysPrecompileTest {
             @NonNull final String function,
             final boolean rejected,
             @NonNull final Function<byte[], Tuple[]> entries) {
-        final var newKey = "createTokenKey";
+        return creating(tag, function, rejected, entries, null);
+    }
+
+    /**
+     * Calls the given create function with the entries, expecting SUCCESS, and asserts on the token it created, so a
+     * key is checked to have been applied and not only that the call succeeded.
+     */
+    private DynamicTest creatingWithKey(
+            @NonNull final String tag,
+            @NonNull final String function,
+            @NonNull final Function<byte[], Tuple[]> entries,
+            @NonNull final Consumer<HapiGetTokenInfo> createdTokenAsserts) {
+        return creating(tag, function, false, entries, createdTokenAsserts);
+    }
+
+    private DynamicTest creating(
+            @NonNull final String tag,
+            @NonNull final String function,
+            final boolean rejected,
+            @NonNull final Function<byte[], Tuple[]> entries,
+            @Nullable final Consumer<HapiGetTokenInfo> createdTokenAsserts) {
         final var txnName = tag + "Txn";
+        final var tokenName = tag + "Token";
         return namedHapiTest(
                 tag,
-                newKeyNamed(newKey).shape(SIMPLE),
+                newKeyNamed(NEW_KEY).shape(SIMPLE),
                 withOpContext((spec, _) -> allRunFor(
                         spec,
                         createTokenKeysContract
-                                .call(function, (Object) entries.apply(ed25519Of(spec, newKey)))
+                                .call(function, (Object) entries.apply(ed25519Of(spec, NEW_KEY)))
                                 .via(txnName)
                                 .sending(HTS_FEE)
                                 .gas(GAS_NEEDED))),
-                returnedByCreate(txnName, function, rejected ? INVALID_TRANSACTION_BODY : SUCCESS));
+                returnedByCreate(txnName, function, rejected ? INVALID_TRANSACTION_BODY : SUCCESS),
+                withOpContext((spec, _) -> {
+                    if (createdTokenAsserts != null) {
+                        final var createdToken = getTokenInfo(tokenName);
+                        createdTokenAsserts.accept(createdToken);
+                        allRunFor(
+                                spec,
+                                getTxnRecord(txnName)
+                                        .exposingTokenCreationsTo(
+                                                ids -> spec.registry().saveTokenId(tokenName, ids.getFirst())),
+                                createdToken);
+                    }
+                }));
     }
 
     private static HapiGetTxnRecord returnedByCreate(
