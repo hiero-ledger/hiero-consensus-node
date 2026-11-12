@@ -191,6 +191,31 @@ public class SyncMetrics {
             .withDescription("Number of times per second reading from a peer was paused by the byte shaper");
     private final CountPerSecond rpcReadThrottled;
 
+    private static final CountPerSecond.Config BROADCAST_EVENTS_HELD_BACK_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsHeldBack")
+            .withUnit("hz")
+            .withDescription(
+                    "Number of events per second not broadcast to a peer because they are far future for the peer");
+    private final CountPerSecond broadcastEventsHeldBack;
+
+    private static final CountPerSecond.Config SYNC_EVENTS_HELD_BACK_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "syncEventsHeldBack")
+            .withUnit("hz")
+            .withDescription("Number of events per second not sent in a sync because they are far future for the peer");
+    private final CountPerSecond syncEventsHeldBack;
+
+    private static final CountPerSecond.Config FAR_FUTURE_BROADCAST_EVENTS_REJECTED_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "farFutureBroadcastEventsRejected")
+            .withUnit("hz")
+            .withDescription("Number of far future events per second received via broadcast that were dropped");
+    private final CountPerSecond farFutureBroadcastEventsRejected;
+
+    private static final CountPerSecond.Config FAR_FUTURE_SYNC_EVENTS_REJECTED_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "farFutureSyncEventsRejected")
+            .withUnit("hz")
+            .withDescription("Number of far future events per second received via sync that were dropped");
+    private final CountPerSecond farFutureSyncEventsRejected;
+
     private final AverageStat syncIndicatorDiff;
     private final AverageStat eventRecRate;
     private final AverageStat knownSetSize;
@@ -296,6 +321,10 @@ public class SyncMetrics {
                 "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
                 FORMAT_10_0);
         rpcReadThrottled = new CountPerSecond(metrics, RPC_READ_THROTTLED_CONFIG);
+        broadcastEventsHeldBack = new CountPerSecond(metrics, BROADCAST_EVENTS_HELD_BACK_CONFIG);
+        syncEventsHeldBack = new CountPerSecond(metrics, SYNC_EVENTS_HELD_BACK_CONFIG);
+        farFutureBroadcastEventsRejected = new CountPerSecond(metrics, FAR_FUTURE_BROADCAST_EVENTS_REJECTED_CONFIG);
+        farFutureSyncEventsRejected = new CountPerSecond(metrics, FAR_FUTURE_SYNC_EVENTS_REJECTED_CONFIG);
 
         readThrottleTime = new AverageAndMax(
                 metrics,
@@ -531,7 +560,8 @@ public class SyncMetrics {
      */
     public SyncPhase reportSyncPhase(@NonNull final NodeId node, @NonNull final SyncPhase syncPhase) {
         final PhaseTimer<SyncPhase> phaseMetric = syncPhasePerNode.computeIfAbsent(
-                node, nodeId -> new PhaseTimerBuilder<>(metrics, time, PLATFORM_CATEGORY, SyncPhase.class)
+                node,
+                nodeId -> new PhaseTimerBuilder<>(metrics, time, PLATFORM_CATEGORY, SyncPhase.class)
                         .enableFractionalMetrics()
                         .setInitialPhase(SyncPhase.OUTSIDE_OF_RPC)
                         .setMetricsNamePrefix(String.format("sync_phase_%02d", nodeId.id()))
@@ -650,5 +680,35 @@ public class SyncMetrics {
     public void rpcReadThrottled(final long nanos) {
         rpcReadThrottled.count();
         readThrottleTime.update(nanos / 1000);
+    }
+
+    /**
+     * Increases the counter of broadcast events held back because they are far future for a peer.
+     */
+    public void broadcastEventHeldBack() {
+        broadcastEventsHeldBack.count();
+    }
+
+    /**
+     * Increases the counter of sync events held back because they are far future for a peer.
+     *
+     * @param numHeldback the number of events held back
+     */
+    public void syncEventsHeldBack(final int numHeldback) {
+        syncEventsHeldBack.count(numHeldback);
+    }
+
+    /**
+     * Increases the counter of broadcast events received that were rejected because they are far future for this node.
+     */
+    public void receivedBroadcastedFarFutureEvent() {
+        farFutureBroadcastEventsRejected.count();
+    }
+
+    /**
+     * Increases the counter of sync events received that were rejected because they are far future for this node.
+     */
+    public void receivedSyncFarFutureEvent() {
+        farFutureSyncEventsRejected.count();
     }
 }

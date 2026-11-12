@@ -64,7 +64,7 @@ class TestResourceArgumentsProvider : CommandLineArgumentProvider {
                 ?: ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
 
         logger.lifecycle(
-            "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
+            "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m",
         )
 
         return listOf(
@@ -101,6 +101,40 @@ val unitTest =
 // The default test task runs HAPI suites from src/main; keep unit tests in its verification path.
 tasks.test { dependsOn(unitTest) }
 
+// Tests start the block node CITR deploys, block-node-version in .citr-env (a BLOCK_NODE_VERSION
+// environment variable overrides it), minus the v that ghcr tags and Maven versions lack
+val blockNodeVersion: Provider<String> =
+    providers
+        .environmentVariable("BLOCK_NODE_VERSION")
+        .filter { it.isNotBlank() }
+        .orElse(
+            providers
+                .fileContents(
+                    layout.settingsDirectory.file(".github/workflows/support/citr/.citr-env"),
+                )
+                .asText
+                .map { citrEnv ->
+                    citrEnv
+                        .lines()
+                        .firstOrNull { it.startsWith("block-node-version=") }
+                        ?.substringAfter("=")
+                        ?: throw GradleException("block-node-version is missing from .citr-env")
+                },
+        )
+        .map { it.trim().removePrefix("v") }
+        .map { version ->
+            if (!Regex("""\d+\.\d+\.\d+(-[A-Za-z0-9.]+)?""").matches(version)) {
+                throw GradleException(
+                    "Block node version '$version' isn't like v0.45.1 or v0.46.0-rc2",
+                )
+            }
+            version
+        }
+
+tasks.withType<Test>().configureEach {
+    systemProperty("hapi.spec.blocknode.version", blockNodeVersion.get())
+}
+
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
 tasks.register<JavaExec>("runTestClient") {
@@ -113,7 +147,7 @@ tasks.register<JavaExec>("runTestClient") {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|CLPR|MULTINETWORK|WRAPS|CUTOVER|NODE_STAKING)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|ISS_GRPC|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|CLPR|MULTINETWORK|WRAPS|CUTOVER|NODE_STAKING)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -123,7 +157,7 @@ val prCheckTags =
         "hapiTestCryptoSerial" to "(CRYPTO&SERIAL)",
         "hapiTestToken" to "TOKEN",
         "hapiTestTokenSerial" to "(TOKEN&SERIAL)",
-        "hapiTestRestart" to "RESTART|UPGRADE",
+        "hapiTestRestart" to "(RESTART|UPGRADE)&!PRE_CUTOVER",
         "hapiTestSmartContract" to "SMART_CONTRACT",
         "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
         "hapiTestNDReconnect" to "ND_RECONNECT",
@@ -132,6 +166,7 @@ val prCheckTags =
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
+        "hapiTestIssGrpc" to "ISS_GRPC",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to miscTags,
         "hapiTestGenesisSubProcess" to "GENESIS_SUBPROCESS",
@@ -144,7 +179,7 @@ val prCheckTags =
         "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
         "hapiTestClpr" to "CLPR",
-        "hapiTestBlockHashingSha256" to "BLOCK_HASHING|STREAM_VALIDATION",
+        "hapiTestPreCutover" to "PRE_CUTOVER|BLOCK_HASHING",
         "hapiTestClprMultinetwork" to "MULTINETWORK",
         "hapiTestNodeStaking" to "(NODE_STAKING)&!(SERIAL)",
         "hapiTestNodeStakingSerial" to "(NODE_STAKING&SERIAL)",
@@ -158,7 +193,9 @@ val prRemoteCheckTags =
             it.key in
                 listOf(
                     "hapiTestIss",
+                    "hapiTestIssGrpc",
                     "hapiTestRestart",
+                    "hapiTestPreCutover",
                     "hapiTestNodeStaking",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
@@ -192,42 +229,44 @@ val prCheckStartPorts =
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
         "hapiTestClpr" to "29600",
-        "hapiTestBlockHashingSha256" to "29800",
+        "hapiTestPreCutover" to "29800",
         "hapiTestGenesisSubProcess" to "30000",
         "hapiTestNodeStaking" to "30200",
         "hapiTestTimeConsumingSerial" to "30400",
+        "hapiTestIssGrpc" to "30600",
     )
 val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,block.stateproof.verification.enabled=true",
         "hapiTestToken" to
             "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCrypto" to
-            "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCryptoSerial" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
-        "hapiTestSmartContract" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
-        // tss.historyEnabled=false by config default; with the new branch default of true the
-        // genesis chain-of-trust proof (and its real-crypto signatures, since this test sets
-        // forceMockSignatures=false) needs to make progress concurrently with multi-restart
-        // pressure. The interaction is fragile enough that DabEnabledUpgradeTest's upgrade flows
-        // start timing out as the network falls behind. Pin historyEnabled to its main-branch
-        // value here to preserve the test's original (hints-only) TSS surface.
+            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
+        "hapiTestSmartContract" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. With history enabled,
+        // the genesis chain-of-trust proof must progress under that pressure, and
+        // DabEnabledUpgradeTest's upgrades start timing out, so it keeps a hints-only TSS surface
         "hapiTestRestart" to
-            "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+        // The pre-cutover world mainnet runs until it cuts over (BOTH with wrapped record blocks)
+        // for the jumpstart and wrapped record hash tests, plus the hapiTestRestart pins they had
+        "hapiTestPreCutover" to
+            "blockStream.streamMode=BOTH,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMisc" to
-            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+        // Starts in the pre-cutover world, which TssCutoverTest leaves only by its TSS settings;
+        // FILE_AND_GRPC keeps a file drain while the block node rejects the genesis WRAPS blocks
         "hapiTestCutover" to
-            "blockStream.writerMode=FILE_AND_GRPC,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+            "blockStream.streamMode=BOTH,blockStream.writerMode=FILE_AND_GRPC,blockStream.enableCutover=false,blockStream.streamWrappedRecordBlocks=true,blockStream.buffer.isBufferPersistenceEnabled=false,tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
@@ -237,25 +276,21 @@ val prCheckPropOverrides =
         "hapiTestSimpleFees" to
             "fees.simpleFeesEnabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,hooks.hooksEnabled=true",
         "hapiTestSimpleFeesSerial" to "fees.simpleFeesEnabled=true",
-        "hapiTestIss" to "blockStream.writerMode=FILE",
-        "hapiTestBlockHashingSha256" to
-            "blockStream.digestType=SHA_256,blockStream.streamWrappedRecordBlocks=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestNodeStaking" to
-            "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestNodeStakingSerial" to
-            "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        // Genesis networks get no block node, so they keep a FILE writer
+        "hapiTestGenesisSubProcess" to "blockStream.writerMode=FILE",
+        "hapiTestNodeStaking" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestNodeStakingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestNDReconnect" to "block.stateproof.verification.enabled=true",
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestClpr" to
-            "tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
-        "hapiTestClprEmbedded" to "tss.forceMockSignatures=true",
+        "hapiTestClpr" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         // The TSS fixtures' WRAPS history proof is set up as one large genesis
         // savepoint; disable the block size circuit breaker so genesis output is not
-        // suppressed and the block stream can be validated
+        // suppressed and the block stream can be validated. Multi-network nets get no block
+        // node, so they keep a FILE writer
         "hapiTestClprMultinetwork" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.maxBlockSizeBytes=0",
+            "blockStream.writerMode=FILE,tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.maxBlockSizeBytes=0",
     )
 
 // Overridable per-task DEFAULTS. Unlike prCheckPropOverrides (delivered as node environment
@@ -263,49 +298,47 @@ val prCheckPropOverrides =
 // node's application.properties (ordinal 100) — on by default, but a spec can still override
 // them with overriding(...) / @ConfigOverride (network-properties override, ordinal 101).
 // Used to enable CLPR by default for the CLPR tasks while letting the few negative suites
-// disable it per-spec.
+// disable it per-spec. CLPR uses the production gas ceiling so escrow does not reserve the
+// much larger transaction gas allowance used by general HAPI contract tests.
 val prCheckDefaultOverrides =
     mapOf(
-        "hapiTestClpr" to "clpr.enabled=true",
-        "hapiTestClprEmbedded" to "clpr.enabled=true",
-        "hapiTestClprMultinetwork" to "clpr.enabled=true",
+        "hapiTestClpr" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
+        "hapiTestClprEmbedded" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
+        "hapiTestClprMultinetwork" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
     )
-// Pins needed only while the production block stream and TSS defaults are pre-cutover; the
-// testnet profile replaces them. FUTURE: delete when those defaults switch to the cutover values.
-val preCutoverDefaultsOverrides =
-    mapOf(
-        "hapiTestAdhoc" to "tss.forceMockSignatures=false",
-        "hapiTestCrypto" to "tss.forceMockSignatures=false",
-        "hapiTestCryptoSerial" to "tss.forceMockSignatures=false",
-        // writerMode=FILE_AND_GRPC (here and on hapiTestMisc) is what attaches a block node
-        "hapiTestSmartContract" to "blockStream.writerMode=FILE_AND_GRPC,tss.historyEnabled=false",
-        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
-        "hapiTestRestart" to "tss.forceMockSignatures=false",
-        "hapiTestMisc" to "blockStream.writerMode=FILE_AND_GRPC",
-        "hapiTestWraps" to "tss.forceMockSignatures=false",
-        "hapiTestNodeStaking" to "tss.forceMockSignatures=false",
-    )
-// -PhapiTestConfigProfile=testnet (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks with the
-// cutover values below instead of the production defaults (used by XTS 829)
+// -PhapiTestConfigProfile=pre-cutover (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks in the
+// pre-cutover world MATS ran before the defaults switched (used by XTS 829)
 val hapiTestConfigProfile =
     providers
         .gradleProperty("hapiTestConfigProfile")
         .orElse(providers.environmentVariable("HAPI_TEST_CONFIG_PROFILE"))
         .getOrElse("")
-// The cutover block stream and TSS values (planned for testnet; FUTURE: the production defaults)
-val cutoverConfigValues =
+// The pre-cutover production defaults (the writer is FILE_AND_GRPC in both worlds)
+val preCutoverConfigValues =
     mapOf(
-        "blockStream.streamMode" to "BLOCKS",
-        "blockStream.writerMode" to "GRPC",
-        "blockStream.enableCutover" to "true",
-        "blockStream.streamWrappedRecordBlocks" to "false",
-        "blockStream.buffer.isBufferPersistenceEnabled" to "true",
-        "tss.forceMockSignatures" to "false",
+        "blockStream.streamMode" to "BOTH",
+        "blockStream.enableCutover" to "false",
+        "blockStream.streamWrappedRecordBlocks" to "true",
+        "blockStream.buffer.isBufferPersistenceEnabled" to "false",
+        "tss.forceMockSignatures" to "true",
+    )
+// The pins these tasks had while the pre-cutover values were the defaults
+val preCutoverTaskOverrides =
+    mapOf(
+        "hapiTestAdhoc" to "tss.forceMockSignatures=false",
+        "hapiTestCrypto" to "tss.forceMockSignatures=false",
+        "hapiTestCryptoSerial" to "tss.forceMockSignatures=false",
+        "hapiTestSmartContract" to "tss.historyEnabled=false",
+        "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
+        "hapiTestRestart" to "tss.forceMockSignatures=false",
+        "hapiTestWraps" to "tss.forceMockSignatures=false",
+        "hapiTestNodeStaking" to "tss.forceMockSignatures=false",
+        "hapiTestClprMultinetwork" to "tss.forceMockSignatures=false",
     )
 val profileOverrides: Map<String, String> =
     when (hapiTestConfigProfile) {
         "" -> emptyMap()
-        "testnet" -> cutoverConfigValues
+        "pre-cutover" -> preCutoverConfigValues
         else -> throw GradleException("Unknown hapiTestConfigProfile '$hapiTestConfigProfile'")
     }
 // These tasks deliberately run another world: records-only, pre-cutover, or per-test pins
@@ -314,17 +347,9 @@ val profileExemptTasks =
         "hapiTestMiscRecords",
         "hapiTestMiscRecordsSerial",
         "hapiTestCutover",
+        "hapiTestPreCutover",
         "hapiTestBlockNodeCommunication",
-    )
-// Under the profile these keep a FILE writer: genesis and multi-network nets get no block node,
-// hapiTestClpr's mock signatures stalled its network against a real block node, and the block
-// node still rejects SHA-256 hashes (it requires 48-byte SHA-384)
-val profileFileWriterTasks =
-    setOf(
-        "hapiTestGenesisSubProcess",
-        "hapiTestClpr",
-        "hapiTestClprMultinetwork",
-        "hapiTestBlockHashingSha256",
+        "hapiTestIssGrpc",
     )
 
 fun profileAppliesTo(name: String, remote: Boolean) =
@@ -335,27 +360,24 @@ fun String.toOverrideMap(): Map<String, String> =
         .filter { it.isNotBlank() }
         .associate { it.substringBefore("=") to it.substringAfter("=") }
 
-// The testnet profile (if active) or else the pre-cutover pins, with prCheckPropOverrides on top;
-// embedded networks have no block node and only fake TSS, so they keep FILE and mock signatures
+// The pre-cutover profile and its task pins (if active), with prCheckPropOverrides on top; embedded
+// networks have no block node and only fake TSS, so they keep FILE and mock signatures
 fun hapiTestOverrides(name: String, embedded: Boolean, remote: Boolean): Map<String, String> {
     val overrides = linkedMapOf<String, String>()
-    val withProfile = profileAppliesTo(name, remote)
-    if (withProfile) {
+    if (profileAppliesTo(name, remote)) {
         overrides.putAll(profileOverrides)
-    } else {
-        preCutoverDefaultsOverrides[name]?.let { overrides.putAll(it.toOverrideMap()) }
+        preCutoverTaskOverrides[name]?.let { overrides.putAll(it.toOverrideMap()) }
     }
     prCheckPropOverrides[name]?.let { overrides.putAll(it.toOverrideMap()) }
-    if (withProfile && (embedded || name in profileFileWriterTasks)) {
+    if (embedded) {
         overrides["blockStream.writerMode"] = "FILE"
-    }
-    if (withProfile && embedded) {
         overrides["tss.forceMockSignatures"] = "true"
     }
     return overrides
 }
 
 // hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
+// hapiTestPreCutover keeps these settings for the restart tests it took over from hapiTestRestart.
 // hapiTestClprMultinetwork restarts single nodes while their peers keep running; OBSERVING lets a
 // restarted node learn its latest self event from them before creating new ones, so it does not
 // branch.
@@ -363,12 +385,19 @@ val prCheckPlatformOverrides =
     mapOf(
         "hapiTestRestart" to
             "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s",
+        "hapiTestPreCutover" to
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s",
         "hapiTestClprMultinetwork" to "platformStatus.observingStatusDelay=10s",
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
 // We don't want to run stream or log validation for these tasks
 val prCheckWithoutStreamAndLogValidation =
-    setOf("hapiTestIss", "hapiTestBlockNodeCommunication", "hapiTestGenesisSubProcess") + clprTasks
+    setOf(
+        "hapiTestIss",
+        "hapiTestIssGrpc",
+        "hapiTestBlockNodeCommunication",
+        "hapiTestGenesisSubProcess",
+    ) + clprTasks
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     mapOf(
@@ -388,12 +417,11 @@ val prCheckNetSizeOverrides =
         // peak memory within the dedicated runner pool's limits
         "hapiTestWraps" to "3",
         "hapiTestCutover" to "3",
-        "hapiTestBlockHashingSha256" to "3",
         "hapiTestNodeStaking" to "3",
     )
 // Caps a concurrent task's JUnit pool: the fixed strategy adds compensation threads
 // while tests block, up to parallelism + 256
-val prCheckJunitMaxPoolSizes = mapOf("hapiTestToken" to 32)
+val prCheckJunitMaxPoolSizes = mapOf("hapiTestToken" to 32, "hapiTestAtomicBatch" to 32)
 
 val embeddedBaseTags =
     mapOf(
@@ -462,7 +490,7 @@ fun registerTestSubprocess(name: String, ciTagExpression: String) {
         name,
         ciTagExpression,
         "none()|!(EMBEDDED|REPEATABLE)",
-        ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS",
+        ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC",
         ciDefaultTagsWithoutStreamAndLogValidation = ")&!(EMBEDDED|REPEATABLE",
         excludeTags = "CONCURRENT_SUBPROCESS_VALIDATION",
         junitParallelMode = "same_thread",
@@ -486,8 +514,8 @@ fun registerTestSubprocessConcurrent(name: String, ciTagExpression: String) {
     tasks.registerHapiTest(
         name,
         ciTagExpression,
-        "none()|!(EMBEDDED|REPEATABLE|ISS)",
-        ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS",
+        "none()|!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC)",
+        ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC",
         ciDefaultTagsWithoutStreamAndLogValidation = ")&!(EMBEDDED|REPEATABLE",
         excludeTags = "SERIAL&!CONCURRENT_SUBPROCESS_VALIDATION",
         junitParallelMode = "concurrent",
@@ -520,8 +548,9 @@ fun registerTestEmbedded(name: String, ciTagExpression: String) {
     tasks.registerHapiTest(
         name,
         ciTagExpression,
-        "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|CLPR|MULTINETWORK)",
-        ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|CLPR|MULTINETWORK",
+        "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|ISS_GRPC|CLPR|MULTINETWORK)",
+        ciDefaultTags =
+            "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ISS_GRPC|CLPR|MULTINETWORK",
         // Tell our launcher to target a concurrent embedded network
         embeddedMode = "concurrent",
         junitParallelMode = "same_thread",
@@ -539,9 +568,9 @@ fun registerTestRepeatable(name: String, ciTagExpression: String) {
     tasks.registerHapiTest(
         name,
         ciTagExpression,
-        "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS|MULTINETWORK)",
+        "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS|ISS_GRPC|MULTINETWORK)",
         ciDefaultTags =
-            "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|EMBEDDED|MULTINETWORK",
+            "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ISS_GRPC|EMBEDDED|MULTINETWORK",
         embeddedMode = "repeatable",
         pinFileWriterAndMockSignatures = true,
     )
@@ -587,7 +616,7 @@ fun TaskContainer.registerHapiTest(
             "--enable-native-access=" +
                 "com.hedera.common.nativesupport," +
                 "com.hedera.cryptography.libsecp256k1," +
-                "com.hedera.cryptography.libsodium"
+                "com.hedera.cryptography.libsodium",
         )
         // Isolate each subtask's working directory so logs are not overwritten
         systemProperty("hapi.spec.subtask.name", name)
@@ -669,7 +698,7 @@ fun TaskContainer.registerHapiTest(
                             name in prCheckWithoutStreamAndLogValidation
                     )
                         "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
-                    else "(${ciTagExpression}${ciDefaultTags})"
+                    else "(${ciTagExpression}${ciDefaultTags})",
                 )
             }
             if (excludeTags != null) {

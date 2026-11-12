@@ -1,5 +1,5 @@
-citr-solo-version=v0.95.0
-adhoc-solo-version=v0.95.0
+citr-solo-version=v0.96.0
+adhoc-solo-version=v0.96.0
 adhoc-xts-solo-version=v0.91.0
 cutover-solo-version=v0.91.0
 citr-mirror-node-version=0.165.0-alpha2
@@ -9,4 +9,4 @@ block-node-version=v0.46.0
 bn-mirror-node-version=v0.165.2-rc1
 json-rpc-relay-version=v0.81.0-rc1
 mirror-node-explorer-version=v26.2.0
-nlg-version=0.15.0
+nlg-version=0.15.3

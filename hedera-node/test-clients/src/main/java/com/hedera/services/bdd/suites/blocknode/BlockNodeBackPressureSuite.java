@@ -59,22 +59,28 @@ public class BlockNodeBackPressureSuite {
                         })
             })
     @Order(1)
-    final Stream<DynamicTest> backPressureAppliedWhenBlocksAndFileAndGrpc() {
+    final Stream<DynamicTest> noBackPressureWhenBlocksAndFileAndGrpc() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(5),
-                // Capture the time before shutting down: the buffer can saturate and log backpressure
-                // during the container's shutdown/drain phase, before shutDownImmediately() returns.
                 doingContextual(spec -> time.set(Instant.now())),
                 blockNode(0).shutDownImmediately(),
+                // Back pressure would stall at 15 unacked blocks; 20 more show the full buffer prunes them instead.
+                // Not waiting for Saturated: pruning holds the count at 14 of 15 unless a check lands between blocks
+                waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
+                        Duration.ofMinutes(2),
                         Duration.ofMinutes(1),
-                        Duration.ofMinutes(1),
-                        "Block buffer is saturated; backpressure is being enabled",
-                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated")),
-                waitForAny(byNodeId(0), Duration.ofSeconds(30), PlatformStatus.CHECKING));
+                        "Block buffer has become unhealthy")),
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0), "Block buffer is saturated; backpressure is being enabled", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0),
+                        "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated",
+                        Duration.ofSeconds(0)),
+                waitForActive(byNodeId(0), Duration.ofSeconds(30)));
     }
 
     @HapiTest
@@ -91,6 +97,8 @@ public class BlockNodeBackPressureSuite {
                             "15",
                             "blockStream.streamMode",
                             "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
                             "tss.forceMockSignatures",
@@ -212,7 +220,7 @@ public class BlockNodeBackPressureSuite {
                 // matter how long it polls. An acknowledgement proves the connection is up and the
                 // buffer is draining, so the saturation asserted below is caused by the shutdown.
                 awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), "BlockAcknowledgement received for block", Duration.ofMinutes(2)),
+                        byNodeId(0), "Acknowledgement received for block", Duration.ofMinutes(2)),
                 doingContextual(spec -> time.set(Instant.now())),
                 blockNode(0).shutDownImmediately(),
                 // With REAL block nodes (Docker containers), shutdown takes ~15s before the
@@ -275,6 +283,8 @@ public class BlockNodeBackPressureSuite {
                             "3",
                             "blockStream.streamMode",
                             "BLOCKS",
+                            "blockStream.writerMode",
+                            "GRPC",
                             "blockStream.streamWrappedRecordBlocks",
                             "false",
                             "tss.forceMockSignatures",

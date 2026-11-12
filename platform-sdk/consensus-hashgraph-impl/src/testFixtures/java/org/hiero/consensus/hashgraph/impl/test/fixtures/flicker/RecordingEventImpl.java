@@ -17,19 +17,19 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * recomputes every non-terminal event on each decided round, so a value can be created and destroyed entirely inside
  * one {@code addEvent} call. Overriding the mutators puts the observation point inside that call instead of after it.
  * <p>
- * Two properties make the subclass safe, both checked against the code:
+ * Overriding is safe for two reasons:
  * <ul>
- *     <li>{@link EventImpl}'s constructor sets {@code mark} directly and calls no overridable mutator, so there is no
- *         "the override runs before the subclass is initialized" hazard.</li>
- *     <li>{@code ConsensusImpl} sits in a different package, so it reaches {@code EventImpl} only through public
- *         methods — which virtual dispatch intercepts.</li>
+ *     <li>{@link EventImpl}'s constructor calls none of the overridden methods, so none of them runs before this
+ *         class's fields are set.</li>
+ *     <li>{@code ConsensusImpl} is in a different package, so it can only change an event through public methods,
+ *         and those calls reach the overrides.</li>
  * </ul>
  * <p>
  * Each override decides for itself whether to emit before or after {@code super}, and the choice is not uniform:
  * <ul>
  *     <li>{@code setWitness} and {@code setRoundCreated} emit <b>after</b>. They report a value being established,
  *         which can still be read once the call has returned.</li>
- *     <li>{@code clearMetadata} emits <b>before</b>. It reports values being destroyed, so reading them afterwards
+ *     <li>{@code clearMetadata} emits <b>before</b>. It reports values being destroyed, so reading them afterward
  *         would report the wipe rather than what was wiped.</li>
  * </ul>
  * {@code setWitness}'s choice is also load-bearing for a second reason: {@code calculateAndVote} calls
