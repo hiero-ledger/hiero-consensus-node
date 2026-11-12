@@ -116,15 +116,20 @@ public abstract class UpdateCommonDecoder {
                 && tokenExpiry.autoRenewPeriod().seconds() != 0) {
             txnBodyBuilder.autoRenewPeriod(tokenExpiry.autoRenewPeriod());
         }
-        final var preemptingStatus = TokenKeyUtils.addTokenKeys(tokenKeys, withMetadata, txnBodyBuilder);
-        if (withMetadata) {
-            final Bytes tokenMetadata = hederaToken.size() > 9 ? Bytes.wrap((byte[]) hederaToken.get(9)) : null;
-            if (tokenMetadata != null && tokenMetadata.length() > 0) {
-                txnBodyBuilder.metadata(tokenMetadata);
+
+        try {
+            final var preemptingStatus = TokenKeyUtils.addTokenKeys(tokenKeys, withMetadata, txnBodyBuilder);
+            if (withMetadata) {
+                final Bytes tokenMetadata = hederaToken.size() > 9 ? Bytes.wrap((byte[]) hederaToken.get(9)) : null;
+                if (tokenMetadata != null && tokenMetadata.length() > 0) {
+                    txnBodyBuilder.metadata(tokenMetadata);
+                }
             }
+            return new TokenTransactionBodyWrapper(
+                    TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build(), preemptingStatus);
+        } catch (IllegalArgumentException ignore) {
+            return TokenTransactionBodyWrapper.EMPTY;
         }
-        return new TokenTransactionBodyWrapper(
-                TransactionBody.newBuilder().tokenUpdate(txnBodyBuilder).build(), preemptingStatus);
     }
 
     protected abstract TokenTransactionBodyWrapper decodeTokenUpdateKeys(@NonNull final HtsCallAttempt attempt);

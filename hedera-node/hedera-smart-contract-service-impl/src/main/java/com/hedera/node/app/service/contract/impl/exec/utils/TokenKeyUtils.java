@@ -18,6 +18,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+// TODO Glib: add unit tests coverage.
 public final class TokenKeyUtils {
 
     private static final int KEY_TYPE = 0;

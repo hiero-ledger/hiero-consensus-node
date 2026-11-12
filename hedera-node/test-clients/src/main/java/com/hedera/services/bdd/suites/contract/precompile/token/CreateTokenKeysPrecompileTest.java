@@ -3,14 +3,17 @@ package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -19,8 +22,12 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -47,7 +54,8 @@ public class CreateTokenKeysPrecompileTest {
     private static final String NON_FUNGIBLE_167 = "createNonFungibleToken";
     private static final String FUNGIBLE_16C = "createFungibleTokenWithMetadata";
 
-    // Forwards an arbitrary TokenKey[] to the create functions at 0x167 and 0x16c, reverting unless they succeed
+    // Forwards an arbitrary TokenKey[] to the create functions at 0x167 and 0x16c, returning the response code of the
+    // precompile
     @Contract(contract = "TokenKeysContract", creationGas = 2_000_000L)
     static SpecContract createTokenKeysContract;
 
@@ -120,8 +128,9 @@ public class CreateTokenKeysPrecompileTest {
     }
 
     /**
-     * Calls the given create function with the entries, expecting either success or, if {@code rejected}, a revert
-     * with INVALID_TRANSACTION_BODY.
+     * Calls the given create function with the entries. The contract does not revert on a rejection, so the call must
+     * succeed and return the response code of the precompile, SUCCESS or, if {@code rejected}, INVALID_TRANSACTION_BODY,
+     * which is also the status of the child record.
      */
     private DynamicTest creating(
             @NonNull final String tag,
@@ -129,6 +138,7 @@ public class CreateTokenKeysPrecompileTest {
             final boolean rejected,
             @NonNull final Function<byte[], Tuple[]> entries) {
         final var newKey = "createTokenKey";
+        final var txnName = tag + "Txn";
         return namedHapiTest(
                 tag,
                 newKeyNamed(newKey).shape(SIMPLE),
@@ -136,13 +146,30 @@ public class CreateTokenKeysPrecompileTest {
                         spec,
                         createTokenKeysContract
                                 .call(function, (Object) entries.apply(ed25519Of(spec, newKey)))
+                                .via(txnName)
                                 .sending(HTS_FEE)
-                                .gas(GAS_NEEDED)
-                                .andAssert(txn -> {
-                                    if (rejected) {
-                                        txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TRANSACTION_BODY);
-                                    }
-                                }))));
+                                .gas(GAS_NEEDED))),
+                returnedByCreate(txnName, function, rejected ? INVALID_TRANSACTION_BODY : SUCCESS));
+    }
+
+    private static HapiGetTxnRecord returnedByCreate(
+            @NonNull final String txnName, @NonNull final String function, @NonNull final ResponseCodeEnum status) {
+        return getTxnRecord(txnName)
+                .andAllChildRecords()
+                .hasPriority(recordWith()
+                        .status(SUCCESS)
+                        .contractCallResult(resultWith()
+                                .resultViaFunctionName(
+                                        function, "TokenKeysContract", _ -> returned -> hasCode(returned, status))))
+                .hasChildRecords(recordWith().status(status));
+    }
+
+    // The create functions return (responseCode, tokenAddress); only the code is checked, since SUCCESS means created
+    private static Optional<Throwable> hasCode(
+            @NonNull final Object[] returned, @NonNull final ResponseCodeEnum status) {
+        return (long) returned[0] == status.getNumber()
+                ? Optional.empty()
+                : Optional.of(new AssertionError("Expected " + status + " but returned " + Arrays.toString(returned)));
     }
 
     private static byte[] ed25519Of(@NonNull final HapiSpec spec, @NonNull final String keyName) {

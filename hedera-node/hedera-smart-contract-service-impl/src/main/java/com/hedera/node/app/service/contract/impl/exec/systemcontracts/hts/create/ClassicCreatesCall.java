@@ -94,7 +94,7 @@ public class ClassicCreatesCall extends AbstractCall {
      * @param syntheticCreate the body of synthetic create operation
      * @param verificationStrategy the verification strategy to use
      * @param spender the spender account id
-     * @param preemptingFailureStatus if not null, the status to revert with instead of dispatching the create
+     * @param preemptingFailureStatus if not null, the status to return instead of dispatching the create
      */
     public ClassicCreatesCall(
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
@@ -122,6 +122,15 @@ public class ClassicCreatesCall extends AbstractCall {
                     INVALID_TRANSACTION_BODY,
                     false);
         }
+        if (preemptingFailureStatus != null) {
+            // Report the failure without dispatching or collecting the fee, so nothing of the create is applied
+            return completionWith(
+                    FIXED_GAS_COST,
+                    systemContractOperations()
+                            .externalizePreemptedDispatch(syntheticCreate, preemptingFailureStatus, TOKEN_CREATE),
+                    RC_AND_ADDRESS_ENCODER.encode(
+                            Tuple.of((long) preemptingFailureStatus.protoOrdinal(), ZERO_ADDRESS)));
+        }
         final var timestampSeconds = frame.getBlockValues().getTimestamp();
         final var timestamp = Timestamp.newBuilder().seconds(timestampSeconds).build();
         final var syntheticCreateWithId = syntheticCreate
@@ -148,10 +157,6 @@ public class ClassicCreatesCall extends AbstractCall {
         final var validity = validityOfSynth(op);
         if (validity != OK) {
             return gasOnly(revertResult(validity, FIXED_GAS_COST), validity, true);
-        }
-        // Checked after the other validity failures, so none of those statuses is hidden by this one
-        if (preemptingFailureStatus != null) {
-            return gasOnly(revertResult(preemptingFailureStatus, FIXED_GAS_COST), preemptingFailureStatus, true);
         }
 
         // Choose a dispatch verification strategy based on whether the legacy activation address is active

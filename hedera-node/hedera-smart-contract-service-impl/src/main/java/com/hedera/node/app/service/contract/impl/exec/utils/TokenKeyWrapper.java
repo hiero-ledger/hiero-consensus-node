@@ -3,15 +3,12 @@ package com.hedera.node.app.service.contract.impl.exec.utils;
 
 public record TokenKeyWrapper(int keyType, KeyValueWrapper key) {
 
-    /**
-     * Key type bits that select a token key at the 0x167 address: admin, KYC, freeze, wipe, supply, fee schedule
-     * and pause.
-     */
+    // Key type bits that select a token key at the 0x167 address: admin, KYC, freeze, wipe, supply, fee schedule and
+    // pause.
     public static final int KEY_TYPES_167 = 0x7F;
 
-    /**
-     * Key type bits that select a token key at the 0x16c address: admin, KYC, freeze, wipe, supply, fee schedule, pause and metadata key
-     */
+    // Key type bits that select a token key at the 0x16c address: admin, KYC, freeze, wipe, supply, fee schedule, pause
+    // and metadata key
     public static final int KEY_TYPES_16C = 0xFF;
 
     public boolean isUsedForAdminKey() {

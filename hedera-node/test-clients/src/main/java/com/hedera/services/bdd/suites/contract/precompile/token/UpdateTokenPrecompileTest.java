@@ -4,6 +4,8 @@ package com.hedera.services.bdd.suites.contract.precompile.token;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecKey.Type.SECP_256K1;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -37,6 +39,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
@@ -63,6 +66,8 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecKey;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.function.Function;
@@ -153,8 +158,9 @@ public class UpdateTokenPrecompileTest {
                                 .call("updateTokenKeys", token, new Tuple[] {
                                     keyEntry(BigInteger.valueOf(0x10), ed25519Of(spec, "unauthorizedNewSupply"))
                                 })
-                                .gas(GAS_NEEDED)
-                                .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_SIGNATURE)))),
+                                .via("unauthorizedTxn")
+                                .gas(GAS_NEEDED))),
+                returnedByUpdate("unauthorizedTxn", "updateTokenKeys", INVALID_SIGNATURE),
                 token.getInfo().andAssert(info -> info.hasSupplyKey(token.name())));
     }
 
@@ -319,6 +325,7 @@ public class UpdateTokenPrecompileTest {
             final boolean rejected,
             @NonNull final Function<byte[][], Tuple[]> entries) {
         final var newKey = tag + "NewKey";
+        final var txnName = tag + "Txn";
         return namedHapiTest(
                 tag,
                 newKeyNamed(newKey),
@@ -328,12 +335,9 @@ public class UpdateTokenPrecompileTest {
                                 .call(function, sharedAuthorizedToken, entries.apply(new byte[][] {
                                     ed25519Of(spec, newKey)
                                 }))
-                                .gas(GAS_NEEDED)
-                                .andAssert(txn -> {
-                                    if (rejected) {
-                                        txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TRANSACTION_BODY);
-                                    }
-                                }))),
+                                .via(txnName)
+                                .gas(GAS_NEEDED))),
+                returnedByUpdate(txnName, function, rejected ? INVALID_TRANSACTION_BODY : SUCCESS),
                 // Role keys are looked up by token name: the supply key is the original one, the rest were never set
                 sharedAuthorizedToken
                         .getInfo()
@@ -349,6 +353,23 @@ public class UpdateTokenPrecompileTest {
                 sharedAuthorizedToken
                         .getInfo()
                         .andAssert(info -> info.searchKeysGlobally().hasAdminKey(SHARED_TOKEN_MANAGED_KEY)));
+    }
+
+    /**
+     * The contract does not revert on a rejection, so the call must succeed and return the response code of the
+     * precompile, which is also the status of the child record.
+     */
+    private static HapiGetTxnRecord returnedByUpdate(
+            @NonNull final String txnName, @NonNull final String function, @NonNull final ResponseCodeEnum status) {
+        return getTxnRecord(txnName)
+                .andAllChildRecords()
+                .hasPriority(recordWith()
+                        .status(SUCCESS)
+                        .contractCallResult(resultWith()
+                                .resultViaFunctionName(function, "TokenKeysContract", isLiteralResult(new Object[] {
+                                    (long) status.getNumber()
+                                }))))
+                .hasChildRecords(recordWith().status(status));
     }
 
     private static byte[] ed25519Of(@NonNull final HapiSpec spec, @NonNull final String keyName) {
