@@ -15,7 +15,7 @@ import static org.mockito.Mockito.lenient;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateNFTsMetadataTranslator;
@@ -33,7 +33,7 @@ class UpdateDecoderTest {
     @Mock
     private HtsCallAttempt attempt;
 
-    private UpdateDecoder subject = new UpdateDecoder();
+    private final UpdateDecoder subject = new UpdateDecoder();
 
     @Mock
     private AddressIdConverter addressIdConverter;

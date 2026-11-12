@@ -12,7 +12,6 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -32,7 +31,6 @@ public final class TokenKeyUtils {
 
     private TokenKeyUtils() {}
 
-    // TODO Glib; move AddressIdConverter to utils
     /**
      * Decodes the {@code TokenKey[]} of a token create or update call, keeping the entries in call order.
      * A contract id or delegatable contract id of zero is treated as unset.
