@@ -55,7 +55,10 @@ import org.openjdk.jmh.annotations.Warmup;
  *   <li>{@link EmptyCall}: the flags of {@link Baseline}, but every second measurement iteration times an empty call,
  *   {@code resume()} directly followed by {@code lap()}, and hashes the event after it. Run it with one warmup
  *   iteration ({@code -wi 1}): the iterations of a fork are then hash, empty, hash, empty. If a fork whose hashes are
- *   slow also has slow empty calls, the fork is slow in the timing, not in the hasher.</li>
+ *   slow also has slow empty calls, the fork is slow in the timing, not in the hasher;</li>
+ *   <li>{@link DigestWriter} and {@link Buffered}: the flags of {@link Logged}, with {@link PbjStreamHasher} in its
+ *   mode {@code digest} or {@code buffer}, which this branch adds to it. They test whether another way of feeding the
+ *   digest gives the hasher the same compilation in every fork.</li>
  * </ul>
  * The flags are diagnostics: they change what is measured, so only the spread between the forks of a variant counts,
  * not its level. If the levels stay with both flags, the cause lies outside the JVM's own state; if they go, the
@@ -264,6 +267,34 @@ public abstract class EventHashingForkProbe {
                 "-XX:LogFile=build/benchmark-calibration/compile-%p.log"
             })
     public static class Logged extends EventHashingForkProbe {}
+
+    /** The forks of {@link Logged}, with the hasher writing straight into the digest. */
+    @Fork(
+            value = 10,
+            jvmArgsAppend = {
+                "-Xms1g",
+                "-Xmx1g",
+                "-XX:+AlwaysPreTouch",
+                "-Dprobe.hasher=digest",
+                "-XX:+UnlockDiagnosticVMOptions",
+                "-XX:+LogCompilation",
+                "-XX:LogFile=build/benchmark-calibration/compile-%p.log"
+            })
+    public static class DigestWriter extends EventHashingForkProbe {}
+
+    /** The forks of {@link Logged}, with the hasher writing into a buffer first. */
+    @Fork(
+            value = 10,
+            jvmArgsAppend = {
+                "-Xms1g",
+                "-Xmx1g",
+                "-XX:+AlwaysPreTouch",
+                "-Dprobe.hasher=buffer",
+                "-XX:+UnlockDiagnosticVMOptions",
+                "-XX:+LogCompilation",
+                "-XX:LogFile=build/benchmark-calibration/compile-%p.log"
+            })
+    public static class Buffered extends EventHashingForkProbe {}
 
     /** The forks of {@link Baseline}, with every second measurement iteration timing empty calls. */
     @Fork(
