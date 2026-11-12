@@ -941,6 +941,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
+        initializeHintsSigning(state);
+
         initializePendingTransactions(state, trigger);
 
         // Perform any service initialization that has to be postponed until Dagger is available
@@ -970,6 +972,46 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // It is possible a network interrupt could make a node reconnect in a window where
         // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
         new HintsLibraryImpl().resetCache();
+    }
+
+    private void initializeHintsSigning(@NonNull final State state) {
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        if (!tssConfig.hintsEnabled()) {
+            return;
+        }
+        if (!tssConfig.historyEnabled()) {
+            throw new IllegalStateException("hinTS signing requires history generation snapshots");
+        }
+        final var hintsStore = new ReadableHintsStoreImpl(
+                state.getReadableStates(HintsService.NAME),
+                new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME)));
+        final var active = hintsStore.getActiveConstruction();
+        if (active.hasHintsScheme()) {
+            final var historyStore = new ReadableHistoryStoreImpl(state.getReadableStates(HistoryService.NAME));
+            final var history = historyStore.getActiveConstruction();
+            // Legacy books are recovered and persisted in consensus before thresholds or signing use them.
+            if (history.hasTargetProof()
+                    && history.targetProofOrThrow().targetNodeWeights().isEmpty()
+                    && history.targetRosterHash().equals(active.targetRosterHash())
+                    && history.targetProofOrThrow().hasTargetHistory()
+                    && history.targetProofOrThrow()
+                            .targetHistoryOrThrow()
+                            .metadata()
+                            .equals(active.hintsSchemeOrThrow()
+                                    .preprocessedKeysOrThrow()
+                                    .verificationKey())) {
+                return;
+            }
+            // Resume unfinished bootstrap history after restart, without enabling scheme-only signing.
+            if (!history.hasTargetProof()
+                    && active.sourceRosterHash().equals(active.targetRosterHash())
+                    && (history.constructionId() == 0
+                            || (history.sourceRosterHash().equals(history.targetRosterHash())
+                                    && history.targetRosterHash().equals(active.targetRosterHash())))) {
+                return;
+            }
+            hintsService.setActiveConstruction(active, hintsStore.getCrsStateFor(active), history);
+        }
     }
 
     /**
@@ -1957,7 +1999,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             writableHistoryStore.handoff(
                     previousRoster, adoptedRoster, adoptedRosterHash, consensusTimestampOf(initState));
         } else if (tssConfig.hintsEnabled()
-                && !hintsService.handoff(writableHintsStore, previousRoster, adoptedRoster, preparedRosterHash)) {
+                && !hintsService.handoff(
+                        writableHintsStore,
+                        previousRoster,
+                        adoptedRoster,
+                        preparedRosterHash,
+                        readableHistoryStore.getActiveConstruction())) {
             throw new IllegalStateException("Prepared hinTS construction failed to promote with the adopted roster");
         }
         if (tssConfig.hintsEnabled()) {

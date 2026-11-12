@@ -50,6 +50,14 @@ public class FakeHistoryService implements HistoryService {
     }
 
     @Override
+    public void recoverActiveBook(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeConstruction) {
+        delegate.recoverActiveBook(activeRosters, historyStore, activeConstruction);
+    }
+
+    @Override
     public void reconcile(
             @NonNull final ActiveRosters activeRosters,
             @Nullable final Bytes currentMetadata,

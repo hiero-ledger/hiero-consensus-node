@@ -9,8 +9,6 @@ import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_I
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.hints.CRSStage;
@@ -165,7 +163,7 @@ class V079HintsSchemaTest {
     }
 
     @Test
-    void restartRestoresSigningOnlyWithTheBoundActiveCrs() {
+    void restartDefersSigningUntilTheMatchingHistoryGenerationIsAvailable() {
         givenBoundActiveScheme(4);
         given(library.crsPartySize(CRS)).willReturn(4);
         subject.restart(ctx);
@@ -175,7 +173,7 @@ class V079HintsSchemaTest {
                         .withValue("tss.hintsEnabled", "true")
                         .getOrCreateConfig());
         subject.restart(ctx);
-        verify(signingContext, times(2)).setConstruction(active.get(), activeCrs.get());
+        verifyNoInteractions(signingContext);
     }
 
     @Test
@@ -222,7 +220,7 @@ class V079HintsSchemaTest {
 
         subject.restart(ctx);
 
-        verify(signingContext).setConstruction(active.get(), activeCrs.get());
+        verifyNoInteractions(signingContext);
         assertEquals(64, activeCrs.get().numParties());
         assertEquals(
                 62, active.get().hintsSchemeOrThrow().nodePartyIds().getFirst().partyId());

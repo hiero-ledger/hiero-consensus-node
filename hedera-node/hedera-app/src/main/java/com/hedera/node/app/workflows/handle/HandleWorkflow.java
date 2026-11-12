@@ -41,6 +41,7 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -1224,22 +1225,6 @@ public class HandleWorkflow {
             @NonNull final State state, @NonNull final AtomicReference<LedgerIdContext> setLedgerIdContext) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
-            hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
-                // On finishing the genesis construction, use it immediately no matter what
-                if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstruction(construction, hintsStore.getCrsStateFor(construction));
-                } else if (!tssConfig.historyEnabled()) {
-                    // When not using history proofs, completing a weight rotation is also immediately actionable
-                    final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                    if (rosterStore.candidateIsWeightRotation()) {
-                        hintsService.handoff(
-                                hintsStore,
-                                requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()));
-                    }
-                }
-            });
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction, targetNodeWeights) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
@@ -1248,6 +1233,7 @@ public class HandleWorkflow {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
+                        initializeHintsSigningForHistory(state, construction);
                         // And set the ledger id if needed
                         if (historyStore.getLedgerId() == null) {
                             final var ledgerId = historyService.ledgerIdOf(proof);
@@ -1291,6 +1277,7 @@ public class HandleWorkflow {
                                 null)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
+                            initializeHintsSigningForHistory(state, historyStore.getActiveConstruction());
                             // The ledger id is that of the history a genesis proof grounds its chain of
                             // trust in; it must be in state before any proof extending the chain is voted on
                             final var proof = construction.targetProofOrThrow();
@@ -1310,6 +1297,15 @@ public class HandleWorkflow {
                 });
             }
         }
+    }
+
+    private void initializeHintsSigningForHistory(
+            @NonNull final State state, @NonNull final HistoryProofConstruction historyConstruction) {
+        final var hintsStore = new ReadableHintsStoreImpl(
+                state.getReadableStates(HintsService.NAME),
+                new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME)));
+        final var activeHints = hintsStore.getActiveConstruction();
+        hintsService.setActiveConstruction(activeHints, hintsStore.getCrsStateFor(activeHints), historyConstruction);
     }
 
     /**
@@ -1509,6 +1505,18 @@ public class HandleWorkflow {
                                     freshGenesisRequested));
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
+                if (tssConfig.historyEnabled()) {
+                    // Recover the source generation before either signing or preprocessing votes can
+                    // require its complete denominator. The hinTS reconciliation below reads the update.
+                    doStreamingOnlyKvChanges(
+                            historyWritableStates,
+                            null,
+                            () -> historyService.recoverActiveBook(
+                                    activeRosters,
+                                    new WritableHistoryStoreImpl(historyWritableStates),
+                                    new ReadableHintsStoreImpl(hintsWritableStates, entityCounters)
+                                            .getActiveConstruction()));
+                }
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
                 doStreamingOnlyKvChanges(
@@ -1520,7 +1528,8 @@ public class HandleWorkflow {
                                 roundTimestamp,
                                 workTime,
                                 tssConfig,
-                                isActive));
+                                isActive,
+                                readableHistoryStore.getActiveConstruction()));
                 if (tssConfig.historyEnabled()) {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);

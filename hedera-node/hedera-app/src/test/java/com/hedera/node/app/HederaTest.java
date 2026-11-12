@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.mockStatic;
@@ -23,11 +24,13 @@ import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
@@ -65,6 +68,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.InstantSource;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -268,7 +272,8 @@ final class HederaTest {
                     .put(activeProofConstruction);
             verify((CommittableWritableStates) hintsStates).commit();
             verify((CommittableWritableStates) historyStates).commit();
-            verify(hintsService).setActiveConstruction(activeHintsConstruction, activeCrs);
+            verify(hintsService, never())
+                    .setActiveConstruction(activeHintsConstruction, activeCrs, activeProofConstruction);
             verify(historyService).setLatestHistoryProof(proof);
             assertThat(TssKeyFiles.readBlsPrivateKey(config, 1L)).contains(importedBlsKey);
             assertThat(TssKeyFiles.readSchnorrKeyPair(config, 1L)).contains(importedSchnorrKeys);
@@ -279,7 +284,9 @@ final class HederaTest {
     @ValueSource(booleans = {false, true})
     void restartAdoptionRequiresAndForwardsTheSnapshotConsensusTime(final boolean missingTime) throws Exception {
         final var boundary = Instant.ofEpochSecond(1_800_000_000L, 456);
-        final var roster = Roster.DEFAULT;
+        final var roster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+                .build();
         final var prepared = new PreparedTssHandoff(RosterUtils.hash(roster).getBytes());
         final var state = mock(State.class, RETURNS_DEEP_STUBS);
         final var writableStates = mock(
@@ -291,7 +298,7 @@ final class HederaTest {
                 "configProvider",
                 new ConfigProviderImpl(false, null, Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true")));
         final var hintsService = serviceOfType(HintsService.class);
-        when(hintsService.handoff(any(), any(), any(), any())).thenReturn(true);
+        when(hintsService.handoff(any(), any(), any(), any(), any())).thenReturn(true);
         try (final var platformState = mockStatic(PlatformStateUtils.class);
                 final var coordinator = mockStatic(TssHandoffCoordinator.class);
                 final var readableHistory =
@@ -335,6 +342,144 @@ final class HederaTest {
                         .handoff(roster, roster, prepared.rosterHash(), boundary);
             }
             platformState.verify(() -> PlatformStateUtils.consensusTimestampOf(state));
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void restartDefersCompletedBootstrapHintsUntilMatchingGenesisHistoryIsComplete(final boolean historyStarted)
+            throws ReflectiveOperationException {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("bootstrap-roster"));
+        final var active = prepared.next()
+                .copyBuilder()
+                .sourceRosterHash(prepared.rosterHash())
+                .crsId(1L)
+                .build();
+        final var unfinishedHistory = historyStarted
+                ? HistoryProofConstruction.newBuilder()
+                        .constructionId(2L)
+                        .sourceRosterHash(prepared.rosterHash())
+                        .targetRosterHash(prepared.rosterHash())
+                        .build()
+                : HistoryProofConstruction.DEFAULT;
+        final var hintsService = serviceOfType(HintsService.class);
+        clearInvocations(hintsService);
+
+        initializeHintsSigning(active, completedBootstrapCrs(), unfinishedHistory);
+
+        verifyNoInteractions(hintsService);
+    }
+
+    @Test
+    void restartInitializesCompletedHintsWithItsExactCompletedHistorySnapshot() throws ReflectiveOperationException {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("bootstrap-roster"));
+        final var active = prepared.next()
+                .copyBuilder()
+                .sourceRosterHash(prepared.rosterHash())
+                .crsId(1L)
+                .build();
+        final var crs = completedBootstrapCrs();
+        final var hintsService = serviceOfType(HintsService.class);
+        clearInvocations(hintsService);
+        doAnswer(invocation -> {
+                    HintsGenerationWeights.from(invocation.getArgument(0), invocation.getArgument(2));
+                    return null;
+                })
+                .when(hintsService)
+                .setActiveConstruction(any(), any(), any());
+
+        initializeHintsSigning(active, crs, prepared.history());
+
+        verify(hintsService).setActiveConstruction(active, crs, prepared.history());
+    }
+
+    @Test
+    void restartDefersMatchedCompletedLegacyHistoryUntilItsCanonicalSnapshotIsRecovered()
+            throws ReflectiveOperationException {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("completed-roster"));
+        final var legacyHistory = prepared.history()
+                .copyBuilder()
+                .targetProof(
+                        prepared.history().targetProofOrThrow().copyBuilder().targetNodeWeights(List.of()))
+                .build();
+        final var hintsService = serviceOfType(HintsService.class);
+        clearInvocations(hintsService);
+
+        initializeHintsSigning(prepared.next(), completedBootstrapCrs(), legacyHistory);
+
+        verifyNoInteractions(hintsService);
+    }
+
+    @Test
+    void restartRejectsCompletedHistoryFromAnotherGenerationWithoutSchemeOnlyFallback() {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("bootstrap-roster"));
+        final var active = prepared.next()
+                .copyBuilder()
+                .sourceRosterHash(prepared.rosterHash())
+                .crsId(1L)
+                .build();
+        final var mismatchedHistory = prepared.history()
+                .copyBuilder()
+                .targetRosterHash(Bytes.wrap("different-generation"))
+                .build();
+        final var hintsService = serviceOfType(HintsService.class);
+        final var crs = completedBootstrapCrs();
+        clearInvocations(hintsService);
+        doAnswer(invocation -> {
+                    HintsGenerationWeights.from(invocation.getArgument(0), invocation.getArgument(2));
+                    return null;
+                })
+                .when(hintsService)
+                .setActiveConstruction(any(), any(), any());
+
+        final var error = assertThrows(
+                InvocationTargetException.class, () -> initializeHintsSigning(active, crs, mismatchedHistory));
+
+        assertThat(error.getCause()).isInstanceOf(IllegalArgumentException.class);
+        verify(hintsService).setActiveConstruction(active, crs, mismatchedHistory);
+    }
+
+    @Test
+    void hintsSigningRequiresHistorySnapshots() throws ReflectiveOperationException {
+        setHederaField(
+                "configProvider",
+                new ConfigProviderImpl(false, null, Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "false")));
+        final var state = mock(State.class);
+        final var initialize = Hedera.class.getDeclaredMethod("initializeHintsSigning", State.class);
+        initialize.setAccessible(true);
+        final var failure = assertThrows(InvocationTargetException.class, () -> initialize.invoke(hedera, state));
+        assertThat(failure.getCause())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("history generation snapshots");
+        verifyNoInteractions(state);
+    }
+
+    private static CRSState completedBootstrapCrs() {
+        return CRSState.newBuilder()
+                .ceremonyId(1L)
+                .numParties(8)
+                .stage(CRSStage.COMPLETED)
+                .crs(Bytes.wrap(new byte[304 + 288 * 8]))
+                .build();
+    }
+
+    private void initializeHintsSigning(
+            final HintsConstruction active, final CRSState crs, final HistoryProofConstruction history)
+            throws ReflectiveOperationException {
+        setHederaField(
+                "configProvider",
+                new ConfigProviderImpl(false, null, Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true")));
+        final var state = mock(State.class, RETURNS_DEEP_STUBS);
+        try (final var hintsStores = mockConstruction(ReadableHintsStoreImpl.class, (store, _) -> {
+                    when(store.getActiveConstruction()).thenReturn(active);
+                    when(store.getCrsStateFor(active)).thenReturn(crs);
+                });
+                final var historyStores = mockConstruction(
+                        ReadableHistoryStoreImpl.class,
+                        (store, _) -> when(store.getActiveConstruction()).thenReturn(history))) {
+            final var initialize = Hedera.class.getDeclaredMethod("initializeHintsSigning", State.class);
+            initialize.setAccessible(true);
+            initialize.invoke(hedera, state);
         }
     }
 

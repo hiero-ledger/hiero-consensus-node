@@ -91,6 +91,19 @@ public interface HistoryService extends Service, OnProofFinished {
     boolean isReady();
 
     /**
+     * Persists a legacy active proof's complete membership only when available generation weights
+     * reproduce its committed address-book hash. Run before consumers resolve signing or vote weights.
+     *
+     * @param activeRosters the available rosters
+     * @param historyStore the history store in which to preserve the recovered snapshot
+     * @param activeConstruction the persisted active hinTS construction, if any
+     */
+    void recoverActiveBook(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull WritableHistoryStore historyStore,
+            @Nullable HintsConstruction activeConstruction);
+
+    /**
      * Reconciles the history of roster proofs with the given active rosters and metadata, if known.
      *
      * @param activeRosters the active rosters

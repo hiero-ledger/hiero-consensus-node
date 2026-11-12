@@ -264,14 +264,36 @@ from the following sources, that reproduce the proof's committed address book ha
 3. the current or candidate platform roster.
 
 Weights that do not reproduce the hash are never used. If no source does, the node logs an ERROR, and every
-incremental construction fails with `Invalid canonical WRAPS source book`. Recovery then needs a fresh genesis WRAPS
-proof, which is only possible before block proofs carry the chain of trust (see below). Otherwise it needs a
-coordinated reset. Before upgrading a network whose active generation came from a weight rotation the platform never
+incremental construction fails with `Invalid canonical WRAPS source book`. Recovery requires restoring a complete snapshot that reproduces the committed hash or a
+coordinated reset. A fresh genesis WRAPS proof is permitted only before block proofs carry the chain of trust
+(see below), and is not by itself a recovery path when new hinTS preprocessing votes still need the missing source
+generation denominator. Before upgrading a network whose active generation came from a weight rotation the platform never
 adopted, check that one of these sources still exists.
 
 Signing attempts in flight at the upgrade replay under these rules. If an R1 set was frozen under the earlier sparse
 threshold, or exclusions were persisted under the earlier feasibility rule, the attempt fails recoverably, and its
 retry starts with no exclusions.
+
+### Implemented full-generation thresholds
+
+This signing path requires history whenever hinTS is enabled; startup rejects a hinTS-only configuration.
+Preprocessing vote eligibility and vote weight come from the adopted hinTS scheme. The vote threshold is
+at least one third of that generation's complete listed weight, recovered from the matching completed history
+proof's `target_node_weights` snapshot. Platform roster weights are not substituted for missing parties: a daily
+weight rotation may already be active in TSS while the platform still uses the previous weights.
+
+Block-signature aggregation uses the same complete generation total. With the production signing divisor of two,
+a signature must have strictly more than half that total. Native verification measures fractions against the weight
+inside the hinTS key, so the node verifies with the equivalent per-key fraction `fullWeight / (2 * schemeWeight)`.
+Both full weight and verification fraction remain frozen in each active/previous signing snapshot through handoff.
+Runtime signing is installed only after a matching completed history book is available, including on restart.
+
+The threshold metadata described below remains a protocol requirement, not a claim about the current composite
+signature format. Current WRAPS metadata carries only the hinTS key, and hiero-cryptography's composite `TSS.verifyTSS`
+uses half the weight committed in that key. Therefore node-side enforcement does not prevent a coalition above half
+of a sparse scheme from producing a signature that outside verifiers accept. Authenticating the minimum threshold
+alongside the key and updating the library, block-node, mirror-node, and CLPR verifiers requires a coordinated
+follow-up. This change does not alter the composite wire format or re-anchor existing trust roots.
 
 ### Integration with protocol components
 
@@ -349,6 +371,9 @@ upgrade, ship the upgrade with:
 ```
 tss.needsFreshGenesisWrapsProof=true
 ```
+
+This presumes the active hinTS generation still has a recoverable complete history snapshot for any preprocessing
+votes needed before proving. The setting does not bypass generation-weight validation or restore a pruned source book.
 
 The network then builds a new genesis proof over its current roster, holding any candidate roster back until it is
 done, and resumes roster transitions from the new proof. When it completes, a `LedgerIdPublication` transaction

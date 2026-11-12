@@ -182,7 +182,7 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(tssConfig);
         // Recovery must also run between transitions, before a later stake-period transaction can
         // replace the candidate that still holds this generation's complete weighted membership.
-        preserveLegacyActiveBook(activeRosters, historyStore, activeHintsConstruction);
+        recoverActiveBook(activeRosters, historyStore, activeHintsConstruction);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 if (targetHintsConstructionId > 0) {
@@ -277,10 +277,13 @@ public class HistoryServiceImpl implements HistoryService {
      * hinTS scheme stores the generation's exact weights for its parties, so it reproduces the book whenever
      * every member took part; the platform rosters reproduce it when only transport details changed.
      */
-    private void preserveLegacyActiveBook(
+    @Override
+    public void recoverActiveBook(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final WritableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction) {
+        requireNonNull(activeRosters);
+        requireNonNull(historyStore);
         final var active = historyStore.getActiveConstruction();
         if (active == null || !active.hasTargetProof()) {
             return;

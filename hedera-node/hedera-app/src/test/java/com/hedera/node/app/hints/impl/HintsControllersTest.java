@@ -17,6 +17,10 @@ import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
+import com.hedera.hapi.node.state.history.History;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -54,6 +58,9 @@ class HintsControllersTest {
     private static final PreprocessingVote VOTE = PreprocessingVote.newBuilder()
             .preprocessedKeys(new PreprocessedKeys(Bytes.wrap("AK"), Bytes.wrap("VK")))
             .build();
+    private static final Bytes GENERATION_HASH = Bytes.wrap("active-tss-generation");
+    private static final PreprocessedKeys SOURCE_KEYS =
+            new PreprocessedKeys(Bytes.wrap("source-ak"), Bytes.wrap("source-vk"));
 
     @Mock
     private Executor executor;
@@ -186,24 +193,103 @@ class HintsControllersTest {
 
     @Test
     void activeSchemeWeightsStillDecideVoteWeightAfterWeightRotation() {
-        // The scheme's seven parties now weigh 20 each, so the total is 140 plus the 30 of the three other nodes
+        // All ten generation members weigh 20, even though the platform roster still lists 10 each.
         final var votingController = votingControllerWithSchemePartyWeight(20L);
 
-        // Two nodes hold 40 of that 170 weight, which is less than one third
-        for (long nodeId = 0; nodeId < 2; nodeId++) {
+        // Three nodes hold 60 of the generation's 200 weight, which is less than one third.
+        for (long nodeId = 0; nodeId < 3; nodeId++) {
             assertTrue(votingController.addPreprocessingVote(nodeId, VOTE, hintsStore));
         }
         verify(hintsStore, never()).setHintsScheme(eq(2L), any(), any(), any());
 
-        // A third node brings the votes to 60, which is at least one third
-        assertTrue(votingController.addPreprocessingVote(2L, VOTE, hintsStore));
+        assertTrue(votingController.addPreprocessingVote(3L, VOTE, hintsStore));
         verify(hintsStore).setHintsScheme(eq(2L), eq(VOTE.preprocessedKeysOrThrow()), any(), any());
     }
 
+    @Test
+    void decreasingGenerationWeightsDoNotMakeAdoptionUnreachable() {
+        final var votingController = votingControllerWithSchemePartyWeight(1L);
+
+        // The complete generation weighs 10, so four eligible votes suffice. Mixing seven scheme
+        // weights with three stale platform weights would require 13, above all seven eligible votes.
+        for (long nodeId = 0; nodeId < 3; nodeId++) {
+            assertTrue(votingController.addPreprocessingVote(nodeId, VOTE, hintsStore));
+        }
+        verify(hintsStore, never()).setHintsScheme(eq(2L), any(), any(), any());
+
+        assertTrue(votingController.addPreprocessingVote(3L, VOTE, hintsStore));
+        verify(hintsStore).setHintsScheme(eq(2L), eq(VOTE.preprocessedKeysOrThrow()), any(), any());
+    }
+
+    @Test
+    void omittedGenerationMembersDoNotContributeVoteWeight() {
+        final var votingController = votingControllerWithSchemePartyWeight(1L);
+
+        assertTrue(votingController.addPreprocessingVote(7L, VOTE, hintsStore));
+        assertTrue(votingController.addPreprocessingVote(8L, VOTE, hintsStore));
+        assertTrue(votingController.addPreprocessingVote(9L, VOTE, hintsStore));
+        for (long nodeId = 0; nodeId < 3; nodeId++) {
+            assertTrue(votingController.addPreprocessingVote(nodeId, VOTE, hintsStore));
+        }
+        verify(hintsStore, never()).setHintsScheme(eq(2L), any(), any(), any());
+
+        assertTrue(votingController.addPreprocessingVote(3L, VOTE, hintsStore));
+        verify(hintsStore).setHintsScheme(eq(2L), eq(VOTE.preprocessedKeysOrThrow()), any(), any());
+    }
+
+    @Test
+    void completedSourceSchemeRequiresMatchingHistorySnapshot() {
+        final var activeHints = sourceConstruction(1L);
+        final var activeHistory = sourceHistory(1L);
+
+        assertThrows(
+                NullPointerException.class,
+                () -> subject.getOrCreateFor(activeRosters, ONE_CONSTRUCTION, hintsStore, activeHints));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.getOrCreateFor(
+                        activeRosters,
+                        ONE_CONSTRUCTION,
+                        hintsStore,
+                        activeHints,
+                        activeHistory
+                                .copyBuilder()
+                                .targetRosterHash(Bytes.wrap("other-generation"))
+                                .build()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.getOrCreateFor(
+                        activeRosters,
+                        ONE_CONSTRUCTION,
+                        hintsStore,
+                        activeHints,
+                        activeHistory
+                                .copyBuilder()
+                                .targetProof(activeHistory
+                                        .targetProofOrThrow()
+                                        .copyBuilder()
+                                        .targetHistory(new History(Bytes.EMPTY, Bytes.wrap("other-key")))
+                                        .build())
+                                .build()));
+    }
+
+    @Test
+    void cachedControllerDoesNotBypassSourceSnapshotValidation() {
+        votingControllerWithSchemePartyWeight(1L);
+
+        assertThrows(
+                NullPointerException.class,
+                () -> subject.getOrCreateFor(
+                        activeRosters,
+                        HintsConstruction.newBuilder().constructionId(2L).build(),
+                        hintsStore,
+                        sourceConstruction(1L)));
+    }
+
     /**
-     * Returns the controller for a construction in a network of ten nodes with roster weight 10, where
-     * nodes 7, 8, and 9 hold no party in the active hinTS scheme and every other node holds a party with
-     * the given weight.
+     * Returns the controller for a construction in a network of ten nodes whose platform weights are
+     * still 10 but whose committed generation gives every node the requested weight. Nodes 7, 8, and 9
+     * hold no party in the active hinTS scheme.
      */
     private HintsController votingControllerWithSchemePartyWeight(final long partyWeight) {
         final var sourceRosterHash = Bytes.wrap("source");
@@ -217,14 +303,7 @@ class HintsControllersTest {
         given(rosterStore.get(sourceRosterHash)).willReturn(roster);
         given(rosterStore.get(targetRosterHash)).willReturn(roster);
         final var rosters = ActiveRosters.from(rosterStore, false, () -> false, null);
-        final var activeConstruction = HintsConstruction.newBuilder()
-                .constructionId(1L)
-                .hintsScheme(new HintsScheme(
-                        PreprocessedKeys.DEFAULT,
-                        LongStream.range(0, 7)
-                                .mapToObj(nodeId -> new NodePartyId(nodeId, (int) nodeId + 1, partyWeight))
-                                .toList()))
-                .build();
+        final var activeConstruction = sourceConstruction(partyWeight);
         final var nextConstruction = HintsConstruction.newBuilder()
                 .constructionId(2L)
                 .crsId(1L)
@@ -241,7 +320,32 @@ class HintsControllersTest {
                         .copyBuilder()
                         .hintsScheme(new HintsScheme(VOTE.preprocessedKeysOrThrow(), List.of()))
                         .build());
-        return subject.getOrCreateFor(rosters, nextConstruction, hintsStore, activeConstruction);
+        return subject.getOrCreateFor(
+                rosters, nextConstruction, hintsStore, activeConstruction, sourceHistory(partyWeight));
+    }
+
+    private static HintsConstruction sourceConstruction(final long weight) {
+        return HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .targetRosterHash(GENERATION_HASH)
+                .hintsScheme(new HintsScheme(
+                        SOURCE_KEYS,
+                        LongStream.range(0, 7)
+                                .mapToObj(nodeId -> new NodePartyId(nodeId, (int) nodeId + 1, weight))
+                                .toList()))
+                .build();
+    }
+
+    private static HistoryProofConstruction sourceHistory(final long weight) {
+        return HistoryProofConstruction.newBuilder()
+                .targetRosterHash(GENERATION_HASH)
+                .targetProof(HistoryProof.newBuilder()
+                        .targetHistory(new History(Bytes.EMPTY, SOURCE_KEYS.verificationKey()))
+                        .targetNodeWeights(LongStream.range(0, 10)
+                                .mapToObj(nodeId -> new ProofNodeWeight(nodeId, weight))
+                                .toList())
+                        .build())
+                .build();
     }
 
     private void setController(final HintsController controller) throws Exception {

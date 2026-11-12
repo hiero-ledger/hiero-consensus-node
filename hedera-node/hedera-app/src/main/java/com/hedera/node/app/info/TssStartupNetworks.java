@@ -302,8 +302,13 @@ public final class TssStartupNetworks {
         requireNonNull(activeProofConstruction);
         requireNonNull(hintsService);
         requireNonNull(historyService);
-        if (activeHintsConstruction.hasHintsScheme()) {
-            hintsService.setActiveConstruction(activeHintsConstruction, activeCrs);
+        if (activeHintsConstruction.hasHintsScheme()
+                && activeProofConstruction.hasTargetProof()
+                && !activeProofConstruction
+                        .targetProofOrThrow()
+                        .targetNodeWeights()
+                        .isEmpty()) {
+            hintsService.setActiveConstruction(activeHintsConstruction, activeCrs, activeProofConstruction);
             log.info(
                     "Installed dev-only hinTS runtime construction #{} from startup network (verificationKeyBytes={})",
                     activeHintsConstruction.constructionId(),
@@ -413,7 +418,8 @@ public final class TssStartupNetworks {
                 .hintsSchemeOrThrow()
                 .nodePartyIds()
                 .forEach(nodePartyId -> metadata.compute(
-                        nodePartyId.nodeId(), (nodeId, nodeMetadata) -> builderFor(nodeMetadata, nodeId)
+                        nodePartyId.nodeId(),
+                        (nodeId, nodeMetadata) -> builderFor(nodeMetadata, nodeId)
                                 .partyId(nodePartyId.partyId())
                                 .tssWeight(nodePartyId.partyWeight())
                                 .build()));
@@ -438,7 +444,8 @@ public final class TssStartupNetworks {
         hintsStore
                 .getHintsKeyPublications(nodeIds, active.numParties(), active.crsId())
                 .forEach(publication -> metadata.compute(
-                        publication.nodeId(), (nodeId, nodeMetadata) -> builderFor(nodeMetadata, nodeId)
+                        publication.nodeId(),
+                        (nodeId, nodeMetadata) -> builderFor(nodeMetadata, nodeId)
                                 .partyId(publication.partyId())
                                 .hintsKey(publication.hintsKey())
                                 .build()));
@@ -458,8 +465,9 @@ public final class TssStartupNetworks {
         historyStore
                 .getProofKeyPublications(nodeIds)
                 .forEach(publication -> publicKeys.putIfAbsent(publication.nodeId(), publication.proofKey()));
-        publicKeys.forEach((nodeId, proofKey) ->
-                metadata.compute(nodeId, (ignore, nodeMetadata) -> builderFor(nodeMetadata, nodeId)
+        publicKeys.forEach((nodeId, proofKey) -> metadata.compute(
+                nodeId,
+                (ignore, nodeMetadata) -> builderFor(nodeMetadata, nodeId)
                         .schnorrPublicKey(proofKey)
                         .build()));
     }

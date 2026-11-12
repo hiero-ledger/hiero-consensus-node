@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -169,12 +170,14 @@ class HintsServiceImplTest {
     }
 
     @Test
-    void stopsControllersWorkWhenAsked() {
+    void stopsControllersAndClearsSigningGenerationsWhenAsked() {
         given(component.controllers()).willReturn(controllers);
+        given(component.signingContext()).willReturn(context);
 
         subject.stop();
 
         verify(controllers).stop();
+        verify(context).clear();
     }
 
     @Test
@@ -350,7 +353,7 @@ class HintsServiceImplTest {
                 .willReturn(construction);
         given(component.controllers()).willReturn(controllers);
         given(hintsStore.getActiveConstruction()).willReturn(HintsConstruction.DEFAULT);
-        given(controllers.getOrCreateFor(activeRosters, construction, hintsStore, HintsConstruction.DEFAULT))
+        given(controllers.getOrCreateFor(activeRosters, construction, hintsStore, HintsConstruction.DEFAULT, null))
                 .willReturn(controller);
 
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
@@ -358,11 +361,47 @@ class HintsServiceImplTest {
         verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
     }
 
+    private static HintsConstruction signingConstruction() {
+        return HintsConstruction.newBuilder()
+                .targetRosterHash(Bytes.wrap("signing generation"))
+                .constructionId(123L)
+                .crsId(1)
+                .numParties(8)
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap("aggregation"), Bytes.wrap("verification")),
+                        List.of(new NodePartyId(0, 1, 1))))
+                .build();
+    }
+
+    @Test
+    void rejectsMismatchedHistoryBeforePromotingTheHintsStore() {
+        final var candidate = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(candidate)
+                .copyBuilder()
+                .targetRosterHash(Bytes.wrap("a different generation"))
+                .build();
+        given(hintsStore.getNextConstruction()).willReturn(candidate);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, history));
+
+        verify(hintsStore, never()).handoff(any(), any(), any());
+        verifyNoInteractions(component, context);
+    }
+
     @Test
     void handoffDoesNothingWhenStoreReportsNoChange() {
+        final var candidate = signingConstruction();
+        given(hintsStore.getNextConstruction()).willReturn(candidate);
         given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(false);
 
-        assertFalse(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
+        assertFalse(subject.handoff(
+                hintsStore,
+                Roster.DEFAULT,
+                Roster.DEFAULT,
+                Bytes.EMPTY,
+                HintsGenerationTestUtils.historyFor(candidate)));
 
         verify(hintsStore).handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY);
         verify(component, never()).signingContext();
@@ -370,19 +409,16 @@ class HintsServiceImplTest {
 
     @Test
     void handoffUpdatesSigningContextWhenStoreChanges() {
-        final var construction = HintsConstruction.newBuilder()
-                .constructionId(123L)
-                .crsId(1)
-                .numParties(8)
-                .hintsScheme(HintsScheme.DEFAULT)
-                .build();
+        final var construction = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(construction);
+        given(hintsStore.getNextConstruction()).willReturn(construction);
         given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(true);
         given(hintsStore.getActiveConstruction()).willReturn(construction);
         given(component.signingContext()).willReturn(context);
 
-        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
+        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, history));
 
-        verify(context).setConstruction(construction, null);
+        verify(context).setConstruction(construction, null, HintsGenerationWeights.from(construction, history));
     }
 
     @Test
@@ -469,8 +505,6 @@ class HintsServiceImplTest {
         } else {
             given(writableStates.<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID))
                     .willReturn(hintsKeys);
-            given(component.signingContext()).willReturn(context);
-            given(crsState.get()).willReturn(startupCrsState);
         }
 
         assertTrue(subject.doGenesisSetup(writableStates, config, 7));
@@ -492,7 +526,7 @@ class HintsServiceImplTest {
         } else {
             verify(activeConstructionState).put(activeConstruction);
             verify(crsState).put(startupCrsState);
-            verify(context).setConstruction(activeConstruction, startupCrsState);
+            verifyNoInteractions(context);
             verify(hintsKeys)
                     .put(
                             new HintsPartyId(0, 8, 1),
@@ -600,7 +634,7 @@ class HintsServiceImplTest {
         given(component.controllers()).willReturn(controllers);
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
         verify(controllers).stop();
-        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any());
+        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any(), isNull());
         verify(hintsStore, never()).allocateCrsId();
         verify(hintsStore, never()).setCrsState(any());
         verify(hintsStore, never()).setNextCrsState(any());
@@ -630,7 +664,7 @@ class HintsServiceImplTest {
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
         verify(controllers).stop();
-        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any());
+        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any(), isNull());
         verify(hintsStore, never()).allocateCrsId();
         verify(hintsStore, never()).setCrsState(any());
         verify(hintsStore, never()).setNextCrsState(any());
@@ -658,7 +692,7 @@ class HintsServiceImplTest {
         assertEquals(
                 List.of(new com.hedera.hapi.node.state.hints.CrsContributor(42, 7)),
                 selected.get().contributors());
-        verify(controllers).getOrCreateFor(eq(activeRosters), any(), eq(hintsStore), eq(persisted));
+        verify(controllers).getOrCreateFor(eq(activeRosters), any(), eq(hintsStore), eq(persisted), isNull());
         verifyNoInteractions(context);
     }
 
@@ -687,10 +721,11 @@ class HintsServiceImplTest {
                 .willReturn(upcoming);
         given(hintsStore.getCrsState()).willReturn(activeCrs);
         lenient().when(hintsStore.getActiveConstruction()).thenReturn(old);
-        given(hintsStore.bindConstructionToCrs(eq(2L), anyLong(), anyInt())).willAnswer(inv -> upcoming.copyBuilder()
-                .crsId((long) inv.getArgument(1))
-                .numParties((int) inv.getArgument(2))
-                .build());
+        given(hintsStore.bindConstructionToCrs(eq(2L), anyLong(), anyInt()))
+                .willAnswer(inv -> upcoming.copyBuilder()
+                        .crsId((long) inv.getArgument(1))
+                        .numParties((int) inv.getArgument(2))
+                        .build());
         given(hintsStore.getCrsStateFor(any())).willAnswer(inv -> selected.get());
         lenient()
                 .when(hintsStore.startHintsKeyGracePeriod(eq(2L), any(), any()))
@@ -708,7 +743,7 @@ class HintsServiceImplTest {
                 .when(hintsStore)
                 .setNextCrsState(any());
         given(component.controllers()).willReturn(controllers);
-        given(controllers.getOrCreateFor(any(), any(), any(), any())).willReturn(controller);
+        given(controllers.getOrCreateFor(any(), any(), any(), any(), isNull())).willReturn(controller);
         lenient().when(tssConfig.crsUpdateContributionTime()).thenReturn(Duration.ofSeconds(10));
         lenient().when(tssConfig.transitionHintsKeyGracePeriod()).thenReturn(Duration.ofSeconds(300));
         return selected;

@@ -19,7 +19,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -39,7 +38,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
- * complete construction, if there is one. See {@link #setConstruction(HintsConstruction, CRSState)}
+ * complete construction, if there is one. See {@link #setConstruction(HintsConstruction, CRSState, HintsGenerationWeights)}
  * for the ways the context can have a construction set.
  */
 @Singleton
@@ -92,7 +91,8 @@ public class HintsContext {
             @NonNull Bytes verificationKey,
             @NonNull Map<Long, Integer> nodePartyIds,
             @NonNull Map<Long, Long> nodeWeights,
-            long totalWeight) {
+            long totalWeight,
+            @NonNull HintsGenerationWeights generationWeights) {
         private ConstructionSnapshot {
             requireNonNull(construction);
             requireNonNull(crsState);
@@ -100,6 +100,15 @@ public class HintsContext {
             requireNonNull(verificationKey);
             requireNonNull(nodePartyIds);
             requireNonNull(nodeWeights);
+            requireNonNull(generationWeights);
+        }
+
+        private boolean hasSameSigningMaterial(final ConstructionSnapshot other) {
+            return construction.crsId() == other.construction.crsId()
+                    && construction.numParties() == other.construction.numParties()
+                    && construction.hintsSchemeOrThrow().equals(other.construction.hintsSchemeOrThrow())
+                    && crsState.crs().equals(other.crsState.crs())
+                    && generationWeights.fullWeights().equals(other.generationWeights.fullWeights());
         }
     }
 
@@ -127,10 +136,13 @@ public class HintsContext {
      *
      * @param construction the construction to start using for signing
      * @param crsState the completed CRS bound to that construction
+     * @param generationWeights the complete committed generation and eligible hinTS party weights
      * @throws IllegalArgumentException if either construction does not have a hinTS scheme
      */
     public synchronized void setConstruction(
-            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+            @NonNull final HintsConstruction construction,
+            @NonNull final CRSState crsState,
+            @NonNull final HintsGenerationWeights generationWeights) {
         requireNonNull(construction);
         if (!construction.hasHintsScheme()) {
             throw new IllegalArgumentException(
@@ -147,12 +159,21 @@ public class HintsContext {
                 || construction.numParties() != crsState.numParties()) {
             throw new IllegalArgumentException("Construction must be bound to its completed CRS");
         }
-        final var newSnapshot = snapshotOf(construction, crsState);
+        final var newSnapshot = snapshotOf(construction, crsState, requireNonNull(generationWeights));
         final var writeLock = constructionLock.writeLock();
         writeLock.lock();
         try {
             final var current = constructionSnapshots;
             final var currentActive = current.active();
+            if (currentActive != null && currentActive.constructionId() == newSnapshot.constructionId()) {
+                if (!currentActive.hasSameSigningMaterial(newSnapshot)) {
+                    throw new IllegalArgumentException(
+                            "An active hinTS construction cannot change its signing generation");
+                }
+                // A transport-only target rebinding or repeated initialization must preserve an existing window.
+                constructionSnapshots = new ConstructionSnapshots(newSnapshot, current.previous());
+                return;
+            }
             final boolean activeChanged =
                     currentActive != null && currentActive.constructionId() != newSnapshot.constructionId();
             final boolean canEnterMixedMode = activeChanged && lastStartedBlock != NO_BLOCK_STARTED;
@@ -164,6 +185,19 @@ public class HintsContext {
                     clearMixedMode();
                 }
             }
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    /** Clears signing generations before restoring a learned state, including its mixed handoff window. */
+    public synchronized void clear() {
+        final var writeLock = constructionLock.writeLock();
+        writeLock.lock();
+        try {
+            constructionSnapshots = ConstructionSnapshots.EMPTY;
+            lastStartedBlock = NO_BLOCK_STARTED;
+            clearMixedMode();
         } finally {
             writeLock.unlock();
         }
@@ -351,7 +385,7 @@ public class HintsContext {
                 snapshot.crsState(),
                 blockHash,
                 threshold,
-                divisor,
+                snapshot.generationWeights().verificationFraction(divisor),
                 snapshot.aggregationKey(),
                 snapshot.nodePartyIds(),
                 snapshot.nodeWeights(),
@@ -361,14 +395,15 @@ public class HintsContext {
     }
 
     private @NonNull ConstructionSnapshot snapshotOf(
-            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+            @NonNull final HintsConstruction construction,
+            @NonNull final CRSState crsState,
+            @NonNull final HintsGenerationWeights generationWeights) {
         final var scheme = construction.hintsSchemeOrThrow();
         final var preprocessedKeys = scheme.preprocessedKeysOrThrow();
-        final Map<Long, Long> nodeWeights = new HashMap<>();
-        long totalWeight = 0L;
-        for (final var nodePartyId : scheme.nodePartyIds()) {
-            totalWeight += nodePartyId.partyWeight();
-            nodeWeights.put(nodePartyId.nodeId(), nodePartyId.partyWeight());
+        final var schemeWeights =
+                scheme.nodePartyIds().stream().collect(toMap(NodePartyId::nodeId, NodePartyId::partyWeight));
+        if (!generationWeights.matches(construction) || !schemeWeights.equals(generationWeights.schemeWeights())) {
+            throw new IllegalArgumentException("Generation weights do not match the hinTS scheme");
         }
         return new ConstructionSnapshot(
                 construction.constructionId(),
@@ -377,8 +412,9 @@ public class HintsContext {
                 preprocessedKeys.aggregationKey(),
                 preprocessedKeys.verificationKey(),
                 Map.copyOf(asNodePartyIds(scheme.nodePartyIds())),
-                Map.copyOf(nodeWeights),
-                totalWeight);
+                generationWeights.schemeWeights(),
+                generationWeights.totalWeight(),
+                generationWeights);
     }
 
     /**
@@ -450,7 +486,7 @@ public class HintsContext {
         private final long constructionId;
         private final CRSState crsState;
         private final long thresholdWeight;
-        private final long thresholdDenominator;
+        private final HintsGenerationWeights.ThresholdFraction verificationFraction;
         private final Bytes blockHash;
         private final Bytes aggregationKey;
         private final Bytes verificationKey;
@@ -468,7 +504,7 @@ public class HintsContext {
                 @NonNull final CRSState crsState,
                 @NonNull final Bytes blockHash,
                 final long thresholdWeight,
-                final long thresholdDenominator,
+                @NonNull final HintsGenerationWeights.ThresholdFraction verificationFraction,
                 @NonNull final Bytes aggregationKey,
                 @NonNull final Map<Long, Integer> partyIds,
                 @NonNull final Map<Long, Long> nodeWeights,
@@ -480,7 +516,7 @@ public class HintsContext {
             this.crsState = requireNonNull(crsState);
             this.thresholdWeight = thresholdWeight;
             this.validateSignature = validateSignature;
-            this.thresholdDenominator = thresholdDenominator;
+            this.verificationFraction = requireNonNull(verificationFraction);
             requireNonNull(onCompletion);
             this.blockHash = requireNonNull(blockHash);
             this.aggregationKey = requireNonNull(aggregationKey);
@@ -599,7 +635,11 @@ public class HintsContext {
                 final boolean valid = aggregatedSignature != null
                         && (!validateSignature
                                 || library.verifyAggregate(
-                                        aggregatedSignature, blockHash, verificationKey, 1L, thresholdDenominator));
+                                        aggregatedSignature,
+                                        blockHash,
+                                        verificationKey,
+                                        verificationFraction.numerator(),
+                                        verificationFraction.denominator()));
                 if (valid) {
                     future.complete(aggregatedSignature);
                     final long elapsedNanos = System.nanoTime() - startNanos;

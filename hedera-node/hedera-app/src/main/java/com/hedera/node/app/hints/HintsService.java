@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toMap;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
@@ -109,7 +110,10 @@ public interface HintsService extends Service {
      *
      * @param construction the active construction to use for signing
      */
-    void setActiveConstruction(@NonNull HintsConstruction construction, @NonNull CRSState crsState);
+    void setActiveConstruction(
+            @NonNull HintsConstruction construction,
+            @NonNull CRSState crsState,
+            @NonNull HistoryProofConstruction historyConstruction);
 
     /**
      * Whether the signer is ready.
@@ -155,7 +159,8 @@ public interface HintsService extends Service {
             @NonNull WritableHintsStore hintsStore,
             @NonNull Roster previousRoster,
             @NonNull Roster adoptedRoster,
-            @NonNull Bytes adoptedRosterHash);
+            @NonNull Bytes adoptedRosterHash,
+            @NonNull HistoryProofConstruction historyConstruction);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward
@@ -198,6 +203,16 @@ public interface HintsService extends Service {
             @NonNull Instant crsWorkTime,
             @NonNull TssConfig tssConfig,
             boolean isActive);
+
+    /** Advances construction work with the matching complete source-generation history snapshot. */
+    void reconcile(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Instant now,
+            @NonNull Instant crsWorkTime,
+            @NonNull TssConfig tssConfig,
+            boolean isActive,
+            @Nullable HistoryProofConstruction activeHistoryConstruction);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.

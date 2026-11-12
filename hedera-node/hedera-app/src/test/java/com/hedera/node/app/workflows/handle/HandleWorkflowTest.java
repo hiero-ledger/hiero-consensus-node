@@ -8,6 +8,7 @@ import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGR
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
@@ -80,10 +81,16 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -1975,13 +1982,13 @@ class HandleWorkflowTest {
                         .build());
         given(rosters.get(new ProtoBytes(activeRosterHash))).willReturn(activeRoster);
         given(rosters.get(new ProtoBytes(candidateRosterHash))).willReturn(candidateRoster);
-        final var prepared = new PreparedTssHandoff(candidateRosterHash);
+        final var prepared = new PreparedTssHandoff(candidateRosterHash, 2L);
         final var historyStore = mock(WritableHistoryStore.class);
         prepared.stub(historyStore);
         final var boundary = NOW.plusSeconds(5).plusNanos(123);
         given(historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash, boundary))
                 .willReturn(true);
-        given(hintsService.handoff(any(), eq(activeRoster), eq(candidateRoster), eq(candidateRosterHash)))
+        given(hintsService.handoff(any(), eq(activeRoster), eq(candidateRoster), eq(candidateRosterHash), any()))
                 .willReturn(true);
         final var dispatch = mock(Dispatch.class, RETURNS_DEEP_STUBS);
         given(dispatch.consensusNow()).willReturn(boundary);
@@ -2078,13 +2085,48 @@ class HandleWorkflowTest {
         final var beforeEvents = Instant.ofEpochSecond(1_234_600L, 100);
         final var afterEvents = beforeEvents.plusSeconds(1);
         final var ledgerId = Bytes.wrap("LEDGER_ID");
+        final var targetRosterHash = Bytes.wrap("generation roster");
+        final var verificationKey = Bytes.wrap("generation verification key");
+        final var activeHints = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .targetRosterHash(targetRosterHash)
+                .crsId(1L)
+                .numParties(4)
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap("aggregation key"), verificationKey),
+                        List.of(new NodePartyId(0L, 1, 1L))))
+                .build();
+        final var activeCrs = CRSState.newBuilder()
+                .ceremonyId(1L)
+                .numParties(4)
+                .stage(CRSStage.COMPLETED)
+                .crs(Bytes.wrap("generation CRS"))
+                .build();
+        final var hintsStates = mock(ReadableStates.class);
+        final ReadableSingletonState<HintsConstruction> activeHintsState = mock(ReadableSingletonState.class);
+        final ReadableSingletonState<CRSState> activeCrsState = mock(ReadableSingletonState.class);
+        given(hintsStates.getSingleton(
+                        com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(mock(ReadableSingletonState.class));
+        given(hintsStates.getSingleton(com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID))
+                .willReturn(mock(ReadableSingletonState.class));
+        given(state.getReadableStates(HintsService.NAME)).willReturn(hintsStates);
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(mock(ReadableStates.class));
+        given(hintsStates.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .willReturn(activeHintsState);
+        given(activeHintsState.get()).willReturn(activeHints);
+        given(hintsStates.<CRSState>getSingleton(CRS_STATE_STATE_ID)).willReturn(activeCrsState);
+        given(activeCrsState.get()).willReturn(activeCrs);
         final var proof = HistoryProof.newBuilder()
                 .targetHistory(History.newBuilder()
                         .addressBookHash(Bytes.wrap("ADDRESS_BOOK_HASH"))
+                        .metadata(verificationKey)
                         .build())
+                .targetNodeWeights(new ProofNodeWeight(0L, 1L))
                 .build();
         final var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(1L)
+                .targetRosterHash(targetRosterHash)
                 .targetProof(proof)
                 .build();
         final var historyStore = mock(WritableHistoryStore.class);
@@ -2175,6 +2217,7 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
+        verify(hintsService).setActiveConstruction(activeHints, activeCrs, construction);
         final var consTimes = assignedConsTimes.getAllValues();
         assertEquals(2, consTimes.size(), "Expected the node fee payment and the ledger id publication to dispatch");
         final var nodeFeeConsTime = consTimes.getFirst();
