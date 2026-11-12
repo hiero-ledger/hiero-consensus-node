@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -37,6 +38,7 @@ import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
@@ -65,6 +67,11 @@ public final class NoOpDependencies {
      * - This simulation matches production behavior exactly (SHA-384 hash path)
      */
     public static class RealisticBlockHashSigner implements BlockHashSigner {
+        @Override
+        public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+            // Benchmark signatures do not belong to adopted hinTS constructions.
+        }
+
         @Override
         public boolean isReady() {
             return true;
@@ -112,10 +119,14 @@ public final class NoOpDependencies {
         public void closeCompleteBlock() {}
 
         @Override
-        public void flushPendingBlock(@NonNull PendingProof pendingProof) {}
+        public Path flushPendingBlock(@NonNull PendingProof pendingProof) {
+            return null;
+        }
 
         @Override
-        public void flushIncompleteBlock() {}
+        public Path flushIncompleteBlock() {
+            return null;
+        }
     }
 
     /** No-op StoreMetricsService - can be used with real BoundaryStateChangeListener */
