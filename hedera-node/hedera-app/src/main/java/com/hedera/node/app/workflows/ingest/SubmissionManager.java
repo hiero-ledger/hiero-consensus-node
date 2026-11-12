@@ -8,10 +8,12 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.StatsConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -74,6 +76,11 @@ public class SubmissionManager {
 
     private final ConfigProvider configProvider;
 
+    /** Counts the user transactions submitted here until they land in an event, for quiescence */
+    private final TxPipelineTracker txPipelineTracker;
+
+    private final boolean quiescenceEnabled;
+
     /**
      * Create a new {@code SubmissionManager} instance.
      *
@@ -81,16 +88,23 @@ public class SubmissionManager {
      * @param deduplicationCache used to prevent submission of duplicate transactions
      * @param configProvider the {@link ConfigProvider}
      * @param metrics             metrics related to submissions
+     * @param txPipelineTracker counts the user transactions submitted here until they land in an event
      */
     @Inject
     public SubmissionManager(
             @NonNull final TransactionPoolNexus transactionPool,
             @NonNull final DeduplicationCache deduplicationCache,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final TxPipelineTracker txPipelineTracker) {
         this.transactionPool = requireNonNull(transactionPool);
         this.submittedTxns = requireNonNull(deduplicationCache);
         this.configProvider = requireNonNull(configProvider);
+        this.txPipelineTracker = requireNonNull(txPipelineTracker);
+        this.quiescenceEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(QuiescenceConfig.class)
+                .enabled();
 
         final var statsConfig = configProvider.getConfiguration().getConfigData(StatsConfig.class);
         this.platformTxnRejections =
@@ -101,7 +115,8 @@ public class SubmissionManager {
     }
 
     /**
-     * Submit a transaction to the {@link Platform}.
+     * Submit a transaction to the {@link Platform}. A user transaction, that is one submitted without priority, also
+     * starts counting toward quiescence once the transaction pool accepts it.
      *
      * @param txBody the {@link TransactionBody} that should be submitted to the platform
      * @param serializedSignedTx the bytes of the data that should be submitted
@@ -143,6 +158,11 @@ public class SubmissionManager {
                         serializedSignedTx, dropAfter(txBody, innerBodies));
             }
             if (success) {
+                // Counted where it enters the pool, so whatever later counts a user transaction out (it lands, goes
+                // stale or is dropped) finds it counted in, whoever submitted it
+                if (!priority && quiescenceEnabled) {
+                    txPipelineTracker.incrementInFlight();
+                }
                 submittedTxns.add(txId);
                 for (final var innerBody : innerBodies) {
                     submittedTxns.add(innerBody.transactionIDOrThrow());

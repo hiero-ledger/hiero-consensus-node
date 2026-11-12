@@ -22,6 +22,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.fixtures.AppTestBase;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -63,6 +64,8 @@ final class SubmissionManagerTest extends AppTestBase {
     private DeduplicationCache deduplicationCache;
     /** Configuration */
     private ConfigProvider config;
+    /** A real tracker, so tests can read what was counted toward quiescence */
+    private final TxPipelineTracker txPipelineTracker = new TxPipelineTracker();
 
     @BeforeEach
     void setUp() {
@@ -73,13 +76,17 @@ final class SubmissionManagerTest extends AppTestBase {
     @DisplayName("Null cannot be provided as any of the constructor args")
     @SuppressWarnings("ConstantConditions")
     void testConstructorWithIllegalParameters() {
-        assertThatThrownBy(() -> new SubmissionManager(null, deduplicationCache, config, metrics))
+        assertThatThrownBy(() -> new SubmissionManager(null, deduplicationCache, config, metrics, txPipelineTracker))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SubmissionManager(transactionPool, null, config, metrics))
+        assertThatThrownBy(() -> new SubmissionManager(transactionPool, null, config, metrics, txPipelineTracker))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SubmissionManager(transactionPool, deduplicationCache, null, metrics))
+        assertThatThrownBy(() ->
+                        new SubmissionManager(transactionPool, deduplicationCache, null, metrics, txPipelineTracker))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new SubmissionManager(transactionPool, deduplicationCache, config, null))
+        assertThatThrownBy(() ->
+                        new SubmissionManager(transactionPool, deduplicationCache, config, null, txPipelineTracker))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new SubmissionManager(transactionPool, deduplicationCache, config, metrics, null))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -113,7 +120,8 @@ final class SubmissionManagerTest extends AppTestBase {
         void setup() {
             bytes = randomBytes(25);
             when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
-            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(
+                    transactionPool, deduplicationCache, config, mockedMetrics, txPipelineTracker);
             txBody = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder()
                             .transactionValidStart(asTimestamp(Instant.now()))
@@ -203,7 +211,8 @@ final class SubmissionManagerTest extends AppTestBase {
         @BeforeEach
         void setup() {
             when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
-            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+            submissionManager = new SubmissionManager(
+                    transactionPool, deduplicationCache, config, mockedMetrics, txPipelineTracker);
 
             // Create main transaction bytes
             mainBytes = randomBytes(25);
@@ -364,7 +373,8 @@ final class SubmissionManagerTest extends AppTestBase {
                     new FakeTime());
             realPool.updatePlatformStatus(PlatformStatus.ACTIVE);
 
-            final var submissionManager = new SubmissionManager(realPool, deduplicationCache, config, mockedMetrics);
+            final var submissionManager =
+                    new SubmissionManager(realPool, deduplicationCache, config, mockedMetrics, txPipelineTracker);
 
             // When the platform has been unhealthy for 2 seconds (exceeding 1s threshold)
             realPool.reportUnhealthyDuration(Duration.ofSeconds(2));
@@ -385,7 +395,7 @@ final class SubmissionManagerTest extends AppTestBase {
             tolerantPool.updatePlatformStatus(PlatformStatus.ACTIVE);
 
             final var submissionManager =
-                    new SubmissionManager(tolerantPool, deduplicationCache, config, mockedMetrics);
+                    new SubmissionManager(tolerantPool, deduplicationCache, config, mockedMetrics, txPipelineTracker);
 
             // When the platform has been unhealthy for 2 seconds (would fail with 1s default)
             tolerantPool.reportUnhealthyDuration(Duration.ofSeconds(2));
@@ -420,8 +430,8 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("A transaction is dropped once past its expiry plus the default 30s margin")
         void dropTimeIsExpiryPlusDefaultMargin() throws PreCheckException {
             when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
-            final var submissionManager =
-                    new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+            final var submissionManager = new SubmissionManager(
+                    transactionPool, deduplicationCache, config, mockedMetrics, txPipelineTracker);
 
             submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
 
@@ -436,7 +446,8 @@ final class SubmissionManagerTest extends AppTestBase {
                     transactionPool,
                     deduplicationCache,
                     configWith("hedera.transaction.expiredPoolDropMarginSecs", 5),
-                    mockedMetrics);
+                    mockedMetrics,
+                    txPipelineTracker);
 
             submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
 
@@ -452,7 +463,8 @@ final class SubmissionManagerTest extends AppTestBase {
                     transactionPool,
                     deduplicationCache,
                     configWith("hedera.transaction.expiredPoolDropMarginSecs", 0),
-                    mockedMetrics);
+                    mockedMetrics,
+                    txPipelineTracker);
             final var body = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder()
                             .transactionValidStart(Timestamp.newBuilder()
@@ -485,7 +497,8 @@ final class SubmissionManagerTest extends AppTestBase {
                     transactionPool,
                     deduplicationCache,
                     configWith("hedera.transaction.dropExpiredFromPool", false),
-                    mockedMetrics);
+                    mockedMetrics,
+                    txPipelineTracker);
 
             submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
 
@@ -496,8 +509,8 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("An atomic batch is dropped by the earliest expiry of its outer and inner transactions")
         void batchUsesEarliestExpiry() throws PreCheckException {
             when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
-            final var submissionManager =
-                    new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+            final var submissionManager = new SubmissionManager(
+                    transactionPool, deduplicationCache, config, mockedMetrics, txPipelineTracker);
             final var innerWithoutDuration = TransactionBody.newBuilder()
                     .transactionID(TransactionID.newBuilder()
                             .transactionValidStart(asTimestamp(VALID_START.minusSeconds(100)))
@@ -524,8 +537,8 @@ final class SubmissionManagerTest extends AppTestBase {
         @Test
         @DisplayName("Priority transactions are submitted without a drop time")
         void priorityTransactionsGetNoDropTime() throws PreCheckException {
-            final var submissionManager =
-                    new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
+            final var submissionManager = new SubmissionManager(
+                    transactionPool, deduplicationCache, config, mockedMetrics, txPipelineTracker);
 
             submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, true);
 
@@ -546,7 +559,8 @@ final class SubmissionManagerTest extends AppTestBase {
                     time,
                     dropped -> drops.add(dropped));
             pool.updatePlatformStatus(PlatformStatus.ACTIVE);
-            final var submissionManager = new SubmissionManager(pool, deduplicationCache, config, mockedMetrics);
+            final var submissionManager =
+                    new SubmissionManager(pool, deduplicationCache, config, mockedMetrics, txPipelineTracker);
             final var expired = Bytes.wrap(new byte[] {1});
             final var stillValid = Bytes.wrap(new byte[] {2});
             submissionManager.submit(bodyValidFor(VALID_START, 120), expired, false);
@@ -584,6 +598,138 @@ final class SubmissionManagerTest extends AppTestBase {
             final var configuration =
                     HederaTestConfigBuilder.create().withValue(name, value).getOrCreateConfig();
             return () -> new VersionedConfigImpl(configuration, 1);
+        }
+    }
+
+    @Nested
+    @DisplayName("Tests for counting submitted transactions toward quiescence")
+    class QuiescenceCountTest extends AppTestBase {
+        private static final Instant VALID_START = Instant.parse("2026-11-10T22:19:06.690Z");
+
+        @Mock
+        private Metrics mockedMetrics;
+
+        @Mock
+        private SpeedometerMetric platformTxnRejections;
+
+        private final Bytes bytes = Bytes.wrap(new byte[] {1, 2, 3});
+
+        private ConfigProvider quiescenceEnabled;
+
+        @BeforeEach
+        void setup() {
+            when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
+            final var configuration = HederaTestConfigBuilder.create()
+                    .withValue("quiescence.enabled", true)
+                    .getOrCreateConfig();
+            quiescenceEnabled = () -> new VersionedConfigImpl(configuration, 1);
+        }
+
+        @Test
+        @DisplayName("A user transaction is counted once the pool accepts it")
+        void countsUserTransactionOnceThePoolAcceptsIt() throws PreCheckException {
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
+            final var submissionManager = submissionManagerWith(transactionPool, quiescenceEnabled);
+
+            submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
+
+            assertEquals(1, txPipelineTracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Nothing is counted while quiescence is disabled")
+        void countsNothingWhileQuiescenceIsDisabled() throws PreCheckException {
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
+            final var submissionManager = submissionManagerWith(transactionPool, config);
+
+            submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
+
+            assertEquals(0, txPipelineTracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("A transaction the pool rejects is not counted")
+        void doesNotCountTransactionThePoolRejects() {
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(false);
+            final var submissionManager = submissionManagerWith(transactionPool, quiescenceEnabled);
+
+            assertThatThrownBy(() -> submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
+            assertEquals(0, txPipelineTracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("A duplicate is not counted")
+        void doesNotCountDuplicate() {
+            final var body = bodyValidFor(VALID_START, 120);
+            when(deduplicationCache.contains(body.transactionIDOrThrow())).thenReturn(true);
+            final var submissionManager = submissionManagerWith(transactionPool, quiescenceEnabled);
+
+            assertThatThrownBy(() -> submissionManager.submit(body, bytes, false))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", DUPLICATE_TRANSACTION);
+            assertEquals(0, txPipelineTracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("A priority transaction is left for its submitter to count")
+        void leavesPriorityTransactionForItsSubmitterToCount() throws PreCheckException {
+            final var submissionManager = submissionManagerWith(transactionPool, quiescenceEnabled);
+
+            submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, true);
+
+            verify(transactionPool).submitPriorityTransaction(bytes);
+            assertEquals(0, txPipelineTracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("A dropped transaction that no caller counted, like a query payment, takes only its own count")
+        void droppedTransactionNoCallerCountedTakesOnlyItsOwnCount() throws PreCheckException {
+            final var time = new FakeTime(VALID_START, Duration.ZERO);
+            // As Hedera wires the pool: a dropped transaction stops counting toward quiescence
+            final var pool = new TransactionPoolNexus(
+                    new TransactionLimits(6_144, 245_760),
+                    100_000,
+                    TransactionPoolNexus.DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION,
+                    new NoOpMetrics(),
+                    time,
+                    txPipelineTracker::countDropped);
+            pool.updatePlatformStatus(PlatformStatus.ACTIVE);
+            final var submissionManager = submissionManagerWith(pool, quiescenceEnabled);
+            final var payment = Bytes.wrap(new byte[] {1});
+            final var live = Bytes.wrap(new byte[] {2});
+            // Both are submitted as the query workflow submits a payment: with no counting by the caller
+            submissionManager.submit(bodyValidFor(VALID_START, 15), payment, false);
+            submissionManager.submit(bodyValidFor(VALID_START.plusSeconds(1), 120), live, false);
+            assertEquals(2, txPipelineTracker.estimateTxPipelineCount());
+
+            // The payment is 15s past its drop time (expiry + 30s), the live transaction still valid
+            time.tick(Duration.ofSeconds(60));
+
+            assertEquals(
+                    List.of(live),
+                    pool.getTransactionsForEvent().stream()
+                            .map(TimestampedTransaction::transaction)
+                            .toList());
+            // The live transaction keeps its count until its event is pre-handled
+            assertEquals(1, txPipelineTracker.estimateTxPipelineCount());
+        }
+
+        private SubmissionManager submissionManagerWith(
+                final TransactionPoolNexus pool, final ConfigProvider configProvider) {
+            return new SubmissionManager(pool, deduplicationCache, configProvider, mockedMetrics, txPipelineTracker);
+        }
+
+        private TransactionBody bodyValidFor(final Instant validStart, final long seconds) {
+            return TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(asTimestamp(validStart))
+                            .build())
+                    .transactionValidDuration(com.hedera.hapi.node.base.Duration.newBuilder()
+                            .seconds(seconds)
+                            .build())
+                    .build();
         }
     }
 }
