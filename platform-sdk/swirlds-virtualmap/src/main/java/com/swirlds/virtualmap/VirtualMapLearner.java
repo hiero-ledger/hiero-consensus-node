@@ -27,7 +27,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
@@ -40,7 +39,7 @@ import org.hiero.base.crypto.Hash;
  * <p>Lifecycle:
  * <ul>
  *     <li>Constructor {@link #VirtualMapLearner(VirtualMap, int)}</li>
- *     <li>When synchronization starts, the teacher first sends its current leaf path range and triggers {@link #init(long, long)}.</li>
+ *     <li>When synchronization starts, the teacher first sends its current leaf path range and triggers {@link #init(long, long, Runnable)}.</li>
  *     <li>On successful reconnect completion, the reconnect framework calls {@link #finish()} to finalize synchronization and return new {@link VirtualMap}.</li>
  *     <li>If reconnect fails before successful completion, the caller/reconnect orchestration code is responsible for aborting the reconnect attempt and cleaning up resources associated with the failed attempt via {@link #abortOnException()}.</li>
  * </ul>
@@ -90,10 +89,6 @@ public final class VirtualMapLearner {
 
     private final ConcurrentBlockingIterator<VirtualLeafBytes> reconnectIterator =
             new ConcurrentBlockingIterator<>(MAX_RECONNECT_HASHING_BUFFER_SIZE);
-
-    /// Number of dirty leaves supplied to the hasher, but not hashed yet: leaves in [#reconnectIterator] plus
-    /// leaf hashing tasks that haven't run yet. Each of them is held in memory.
-    private final LongAdder unhashedLeaves = new LongAdder();
 
     private volatile CompletableFuture<Hash> reconnectHashingFuture;
     private volatile FutureTask<Void> leafDeletionTask;
@@ -204,8 +199,10 @@ public final class VirtualMapLearner {
      *
      * @param firstLeafPath first leaf path in the teacher tree
      * @param lastLeafPath  last leaf path in the teacher tree
+     * @param onLeafHashed  called once for every dirty leaf, after the leaf is hashed, on a hashing thread
      */
-    public void init(final long firstLeafPath, final long lastLeafPath) {
+    public void init(final long firstLeafPath, final long lastLeafPath, @NonNull final Runnable onLeafHashed) {
+        requireNonNull(onLeafHashed, "onLeafHashed must not be null");
         updateStage(Stage.NEW, Stage.INITIALIZING);
 
         logger.info(
@@ -219,7 +216,7 @@ public final class VirtualMapLearner {
         reconnectFlusher.init(firstLeafPath, lastLeafPath);
 
         startLeafDeletionThread(firstLeafPath, lastLeafPath);
-        startReconnectHashingThread(firstLeafPath, lastLeafPath);
+        startReconnectHashingThread(firstLeafPath, lastLeafPath, onLeafHashed);
 
         updateStage(Stage.INITIALIZING, Stage.INITIALIZED);
     }
@@ -249,8 +246,6 @@ public final class VirtualMapLearner {
      * @param leaf the leaf record received from the teacher; must not be null
      */
     public void dirtyLeafReceived(@NonNull final VirtualLeafBytes<?> leaf) {
-        // Counted before it's supplied, so the hasher can't report it hashed before it's counted
-        unhashedLeaves.increment();
         try {
             reconnectIterator.supply(leaf);
         } catch (final MerkleSynchronizationException e) {
@@ -277,13 +272,6 @@ public final class VirtualMapLearner {
     @NonNull
     public String getFlusherStatus() {
         return reconnectFlusher.getStatus();
-    }
-
-    /// Returns the number of dirty leaves supplied to the hasher, but not hashed yet, see [#unhashedLeaves].
-    ///
-    /// @return the number of dirty leaves supplied to the hasher, but not hashed yet
-    public long getUnhashedLeaves() {
-        return unhashedLeaves.sum();
     }
 
     /**
@@ -413,13 +401,15 @@ public final class VirtualMapLearner {
      *
      * @param firstLeafPath first leaf path in the reconnected tree
      * @param lastLeafPath  last leaf path in the reconnected tree
+     * @param onLeafHashed  called once for every dirty leaf, after the leaf is hashed
      */
-    private void startReconnectHashingThread(final long firstLeafPath, final long lastLeafPath) {
+    private void startReconnectHashingThread(
+            final long firstLeafPath, final long lastLeafPath, @NonNull final Runnable onLeafHashed) {
         final DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(dataSource);
         final ReconnectHashListener hashListener = new ReconnectHashListener(reconnectFlusher, hashChunkPreloader) {
             @Override
             public void onLeafHashed(@NonNull final VirtualLeafBytes<?> leaf) {
-                unhashedLeaves.decrement();
+                onLeafHashed.run();
             }
         };
 

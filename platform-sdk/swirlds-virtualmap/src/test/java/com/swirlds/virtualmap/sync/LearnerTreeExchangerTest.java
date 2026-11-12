@@ -6,18 +6,25 @@ import static com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder.PATH_
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,7 +34,8 @@ class LearnerTreeExchangerTest {
     private static final long FIRST_LEAF_PATH = 7;
     private static final long LAST_LEAF_PATH = 14;
 
-    private final AtomicLong unhashedLeaves = new AtomicLong();
+    // The callback the exchanger passes to the learner, to be called when a leaf is hashed
+    private final AtomicReference<Runnable> onLeafHashed = new AtomicReference<>();
 
     private VirtualMapLearner learner;
     private NodeTraversalOrder traversalOrder;
@@ -36,7 +44,12 @@ class LearnerTreeExchangerTest {
     void setUp() {
         learner = mock(VirtualMapLearner.class);
         when(learner.getOriginalMetadata()).thenReturn(new VirtualMap.Metadata());
-        when(learner.getUnhashedLeaves()).thenAnswer(_ -> unhashedLeaves.get());
+        doAnswer(invocation -> {
+                    onLeafHashed.set(invocation.getArgument(2));
+                    return null;
+                })
+                .when(learner)
+                .init(anyLong(), anyLong(), any());
 
         // No internal nodes to request, leaves are requested in path order
         traversalOrder = mock(NodeTraversalOrder.class);
@@ -99,18 +112,28 @@ class LearnerTreeExchangerTest {
     }
 
     @Test
-    @DisplayName("Leaves supplied to the hasher, but not hashed yet count towards the backlog")
-    void unhashedLeavesCountTowardsBacklog() {
-        final LearnerTreeExchanger exchanger = createExchanger(3);
-        unhashedLeaves.set(2);
+    @DisplayName("Dirty leaves count towards the backlog after they are applied, till they are hashed")
+    void dirtyLeavesCountTowardsBacklogTillHashed() throws InterruptedException {
+        final LearnerTreeExchanger exchanger = createExchanger(2);
         assertEquals(7, exchanger.getNextPathToSend());
-        assertEquals(PATH_NOT_AVAILABLE_YET, exchanger.getNextPathToSend());
-
-        // Hashing caught up
-        unhashedLeaves.set(0);
         assertEquals(8, exchanger.getNextPathToSend());
-        assertEquals(9, exchanger.getNextPathToSend());
-        assertEquals(PATH_NOT_AVAILABLE_YET, exchanger.getNextPathToSend());
-        verify(traversalOrder, times(3)).getNextLeafPathToSend();
+
+        final Thread applier = new Thread(() -> exchanger.applierLoop(new CountDownLatch(0)));
+        applier.start();
+        try {
+            final VirtualLeafBytes<?> leaf = new VirtualLeafBytes<>(7, Bytes.wrap(new byte[] {7}), Bytes.EMPTY);
+            exchanger.responseReceived(new PullVirtualTreeResponse(7, false, -1, -1, leaf));
+            verify(learner, timeout(10_000)).dirtyLeafReceived(leaf);
+            // Applied, but not hashed yet
+            assertEquals(PATH_NOT_AVAILABLE_YET, exchanger.getNextPathToSend());
+
+            onLeafHashed.get().run();
+            assertEquals(9, exchanger.getNextPathToSend());
+            assertEquals(PATH_NOT_AVAILABLE_YET, exchanger.getNextPathToSend());
+            verify(traversalOrder, times(3)).getNextLeafPathToSend();
+        } finally {
+            applier.interrupt();
+            applier.join();
+        }
     }
 }

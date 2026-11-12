@@ -40,9 +40,8 @@ import java.time.Duration;
  *                                               interval leaves many small files behind, while a large interval
  *                                               increases heap usage.
  * @param leafBacklogThrottleThreshold           The learner stops requesting leaves while its leaf backlog is at this
- *                                               threshold or above. The backlog is the number of leaf requests whose
- *                                               responses aren't applied yet, plus leaves supplied to the hasher, but
- *                                               not hashed yet. This bounds the memory used by leaves
+ *                                               threshold or above. The backlog is the number of leaves requested from
+ *                                               the teacher, but not hashed yet. This bounds the memory used by leaves
  *                                               waiting for hashing, when leaves are received faster than they are
  *                                               hashed, for example when hashing threads are blocked on flusher
  *                                               backpressure. Each leaf takes a few hundred bytes of heap.

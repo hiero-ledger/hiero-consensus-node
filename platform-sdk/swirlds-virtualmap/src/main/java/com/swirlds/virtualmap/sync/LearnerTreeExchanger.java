@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.LockSupport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,16 +65,16 @@ public final class LearnerTreeExchanger {
 
     private final AtomicBoolean lastLeafSent = new AtomicBoolean(false);
 
-    /// While the leaf backlog, [#unappliedLeafRequests] plus leaves supplied to the hasher but not hashed yet, is
-    /// at this threshold or above, [#getNextPathToSend()] doesn't return leaf paths. Flusher backpressure
-    /// throttles both receiving and hashing, but it doesn't keep hashing up with receiving. Without this
-    /// threshold, leaves that are received faster than they are hashed pile up in memory, either in [#responses]
-    /// or in the hasher.
+    /// While the [#leafBacklog] is at this threshold or above, [#getNextPathToSend()] doesn't return leaf paths.
+    /// Flusher backpressure throttles both receiving and hashing, but it doesn't keep hashing up with receiving.
+    /// Without this threshold, leaves that are received faster than they are hashed pile up in memory, either in
+    /// [#responses] or in the hasher.
     private final int leafBacklogThrottleThreshold;
 
-    /// Number of leaf requests sent to the teacher, whose responses are not applied yet. Equals the size of
-    /// [#anticipatedLeafPaths], which is not used directly as the deque size is O(n).
-    private final AtomicLong unappliedLeafRequests = new AtomicLong();
+    /// Number of leaves requested from the teacher, but not hashed yet. Incremented when a leaf is requested, and
+    /// decremented when a clean leaf response is applied, or when a dirty leaf is hashed. Hashed leaves may still
+    /// wait in the flusher, but there they are bounded by flusher backpressure.
+    private final LongAdder leafBacklog = new LongAdder();
 
     /**
      * How often the applier thread logs the state of the leaf pipeline (responses waiting, hashing buffer,
@@ -129,7 +129,7 @@ public final class LearnerTreeExchanger {
                 vmapLearner.getOriginalMetadata().getLastLeafPath(),
                 firstLeafPath,
                 lastLeafPath);
-        vmapLearner.init(firstLeafPath, lastLeafPath);
+        vmapLearner.init(firstLeafPath, lastLeafPath, leafBacklog::decrement);
         handleResponse(rootResponse);
     }
 
@@ -165,7 +165,7 @@ public final class LearnerTreeExchanger {
         synchronized (this) {
             // Backpressure: don't request more leaves until some of the requested ones are hashed. Checked
             // under the lock, so concurrent senders can't overshoot the threshold
-            if (unappliedLeafRequests.get() + vmapLearner.getUnhashedLeaves() >= leafBacklogThrottleThreshold) {
+            if (leafBacklog.sum() >= leafBacklogThrottleThreshold) {
                 return NodeTraversalOrder.PATH_NOT_AVAILABLE_YET;
             }
             // If the last leaf path is sent, all subsequent calls to getNextPathToSend()
@@ -178,7 +178,7 @@ public final class LearnerTreeExchanger {
                 assert (leafPath < 0) || isLeafOnTeacher(leafPath);
                 if (leafPath > 0) {
                     anticipatedLeafPaths.add(leafPath);
-                    unappliedLeafRequests.incrementAndGet();
+                    leafBacklog.increment();
                 }
             }
             return leafPath;
@@ -254,7 +254,6 @@ public final class LearnerTreeExchanger {
             final long applyStart = System.nanoTime();
             handleResponse(r);
             anticipatedLeafPaths.remove();
-            unappliedLeafRequests.decrementAndGet();
             status.applied(applyStart, System.nanoTime());
         }
 
@@ -276,7 +275,6 @@ public final class LearnerTreeExchanger {
             }
             final long applyStart = System.nanoTime();
             handleResponse(r);
-            unappliedLeafRequests.decrementAndGet();
             status.applied(applyStart, System.nanoTime());
         }
         status.log(System.nanoTime(), null, 0);
@@ -321,19 +319,15 @@ public final class LearnerTreeExchanger {
 
         void log(final long now, final Long headPath, final long headWaitStart) {
             lastLogNanos = now;
-            final long unapplied = unappliedLeafRequests.get();
-            final long unhashed = vmapLearner.getUnhashedLeaves();
             logger.info(
                     RECONNECT.getMarker(),
                     "Learner leaf pipeline: appliedLeaves={}, leafBacklog={} (throttle threshold {}), "
-                            + "unappliedLeafRequests={}, unhashedLeaves={}, responsesWaiting={}, "
+                            + "responsesWaiting={}, "
                             + "applyMillis={}, parkedMillis={}, waitingForPath={}, waitingMillis={}, "
                             + "hashingBuffer={}, chunk status: {}, flusher: {}",
                     appliedLeaves,
-                    unapplied + unhashed,
+                    leafBacklog.sum(),
                     leafBacklogThrottleThreshold,
-                    unapplied,
-                    unhashed,
                     responses.size(),
                     TimeUnit.NANOSECONDS.toMillis(applyNanos),
                     TimeUnit.NANOSECONDS.toMillis(parkedNanos),
@@ -366,6 +360,9 @@ public final class LearnerTreeExchanger {
                 // Here, on the applier in FIFO order, do only the ordered hash-feed. May block if
                 // hashing is slower than ingest.
                 vmapLearner.dirtyLeafReceived(leaf);
+            } else {
+                // A clean leaf isn't hashed, so it leaves the backlog here
+                leafBacklog.decrement();
             }
             stats.incrementLeafData(isClean);
         } else {
