@@ -19,6 +19,8 @@ import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -56,6 +58,7 @@ class ClprPeerSelectorTest {
     private NetworkInfo networkInfo;
 
     private ClprPeerSelector subject;
+    private final AtomicLong nanoTime = new AtomicLong();
 
     @BeforeEach
     void setUp() {
@@ -71,7 +74,7 @@ class ClprPeerSelectorTest {
                 .when(versionedConfig.getConfigData(GrpcConfig.class))
                 .thenReturn(
                         new GrpcConfig(GRPC_PORT, 50212, true, 50213, 60211, 60212, 4_194_304, 4_194_304, 4_194_304));
-        subject = new ClprPeerSelector(configProvider, networkInfo);
+        subject = new ClprPeerSelector(configProvider, networkInfo, nanoTime::get);
     }
 
     @Nested
@@ -158,6 +161,20 @@ class ClprPeerSelectorTest {
             assertThat(subject.selectEndpoint(channel(), List.of(self, PEER_2)).peerId())
                     .isEqualTo(PEER_2_ID);
             assertThat(subject.selectEndpoint(channel(), List.of(self))).isNull();
+        }
+
+        @Test
+        void mappedIpv4SelfEndpointIsSkipped() {
+            assertThat(subject.selectEndpoint(channel(), List.of(endpoint("::ffff:127.0.0.1"))))
+                    .isNull();
+        }
+
+        @Test
+        void malformedDestinationRetainsItsRetryKey() {
+            final var selected = subject.selectEndpoint(channel(), List.of(endpoint("not-an-address")));
+
+            assertThat(selected).isNotNull();
+            assertThat(selected.peerId()).isEqualTo("not-an-address:" + PEER_PORT);
         }
 
         @Test
@@ -253,6 +270,146 @@ class ClprPeerSelectorTest {
             assertThat((double) highCount / trials).isCloseTo(1.0 / 1.8, offset(0.05));
             assertThat((double) midCount / trials).isCloseTo(0.7 / 1.8, offset(0.05));
             assertThat((double) lowCount / trials).isCloseTo(0.1 / 1.8, offset(0.05));
+        }
+    }
+
+    @Nested
+    @DisplayName("per-peer retry delays")
+    class RetryDelays {
+
+        @BeforeEach
+        void configureRetryDelays() {
+            given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(ClprConfigBuilder.newBuilder()
+                            .enabled(true)
+                            .syncPeerExclusionEnabled(false)
+                            .retryInitialDelayMs(1_000)
+                            .retryMaxDelayMs(5_000)
+                            .build());
+        }
+
+        @Test
+        void failuresIncreaseDelayToCapAndKeepAllowingFurtherAttempts() {
+            // Continue well beyond retryMaxAttempts: a failed endpoint remains eligible after each bounded delay.
+            for (final long delayMs : new long[] {1_000, 2_000, 4_000, 5_000, 5_000, 5_000, 5_000, 5_000}) {
+                subject.recordFailure(PEER_1_ID);
+                assertThat(subject.selectEndpoint(channel(), List.of(PEER_1))).isNull();
+
+                advanceMillis(delayMs - 1);
+                assertThat(subject.selectEndpoint(channel(), List.of(PEER_1))).isNull();
+
+                advanceMillis(1);
+                assertThat(subject.selectEndpoint(channel(), List.of(PEER_1)).peerId())
+                        .isEqualTo(PEER_1_ID);
+            }
+        }
+
+        @Test
+        void aDelayedPeerDoesNotDelayOtherEndpoints() {
+            subject.recordFailure(PEER_1_ID);
+
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1, PEER_2))
+                            .peerId())
+                    .isEqualTo(PEER_2_ID);
+        }
+
+        @Test
+        void mappedIpv4SpellingsShareRetryDelay() {
+            assertAliasesShareRetryDelay(
+                    PEER_1_ID, List.of(endpoint("10.0.0.1"), endpoint("::ffff:10.0.0.1"), endpoint("::ffff:a00:1")));
+        }
+
+        @Test
+        void compressedAndExpandedIpv6SpellingsShareRetryDelay() {
+            assertAliasesShareRetryDelay(
+                    "2001:db8::1:" + PEER_PORT,
+                    List.of(endpoint("2001:db8::1"), endpoint("2001:0DB8:0000:0000:0000:0000:0000:0001")));
+        }
+
+        @Test
+        void successClearsPendingDelayAndRestartsAtInitialDelay() {
+            subject.recordFailure(PEER_1_ID);
+            subject.recordFailure(PEER_1_ID);
+            subject.recordSuccess(PEER_1_ID);
+
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1)).peerId())
+                    .isEqualTo(PEER_1_ID);
+
+            subject.recordFailure(PEER_1_ID);
+            advanceMillis(999);
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1))).isNull();
+            advanceMillis(1);
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1)).peerId())
+                    .isEqualTo(PEER_1_ID);
+        }
+
+        @Test
+        void updatedMaximumDelayCapsTheNextFailure() {
+            subject.recordFailure(PEER_1_ID);
+            given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(ClprConfigBuilder.newBuilder()
+                            .enabled(true)
+                            .syncPeerExclusionEnabled(false)
+                            .retryInitialDelayMs(1_000)
+                            .retryMaxDelayMs(500)
+                            .build());
+
+            subject.recordFailure(PEER_1_ID);
+            advanceMillis(499);
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1))).isNull();
+            advanceMillis(1);
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1)).peerId())
+                    .isEqualTo(PEER_1_ID);
+        }
+
+        @Test
+        void retryDelayHandlesMonotonicClockWraparound() {
+            nanoTime.set(Long.MAX_VALUE - TimeUnit.MILLISECONDS.toNanos(500));
+            subject.recordFailure(PEER_1_ID);
+
+            advanceMillis(999);
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1))).isNull();
+            advanceMillis(1);
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1)).peerId())
+                    .isEqualTo(PEER_1_ID);
+        }
+
+        @Test
+        void enabledCircuitBreakerStillDefersAttemptsAfterRetryDelay() {
+            given(versionedConfig.getConfigData(ClprConfig.class))
+                    .willReturn(ClprConfigBuilder.newBuilder()
+                            .enabled(true)
+                            .syncPeerExclusionEnabled(true)
+                            .retryMaxAttempts(1)
+                            .retryInitialDelayMs(1_000)
+                            .retryMaxDelayMs(5_000)
+                            .build());
+            subject.recordFailure(PEER_1_ID);
+
+            advanceMillis(5_000);
+
+            assertThat(subject.getCircuitBreaker(PEER_1_ID).state()).isEqualTo(CircuitBreaker.State.OPEN);
+            assertThat(subject.selectEndpoint(channel(), List.of(PEER_1))).isNull();
+        }
+
+        private void advanceMillis(final long millis) {
+            nanoTime.addAndGet(TimeUnit.MILLISECONDS.toNanos(millis));
+        }
+
+        private void assertAliasesShareRetryDelay(final String peerId, final List<ClprEndpoint> aliases) {
+            final var selected = subject.selectEndpoint(channel(), aliases);
+            assertThat(selected).isNotNull();
+            assertThat(selected.peerId()).isEqualTo(peerId);
+
+            subject.recordFailure(selected.peerId());
+
+            assertThat(subject.selectEndpoint(channel(), aliases)).isNull();
+            for (final var alias : aliases) {
+                assertThat(subject.selectEndpoint(channel(), List.of(alias))).isNull();
+            }
+
+            advanceMillis(1_000);
+            assertThat(subject.selectEndpoint(channel(), aliases).peerId()).isEqualTo(peerId);
         }
     }
 

@@ -218,7 +218,8 @@ When initiating a sync for a Channel, the endpoint must select a peer endpoint f
 
 **Selection algorithm:**
 
-1. **Filter.** Remove endpoints that are marked as unreachable (circuit breaker open — see Section 13).
+1. **Filter.** Defer endpoints until their next retry time. When `clpr.syncPeerExclusionEnabled=true`, also
+   remove endpoints whose circuit breaker is open (see Section 13).
 2. **Randomize.** From the remaining candidates, select one using weighted random selection.
 3. **Weight factors:**
    - **Base weight:** Equal for all candidates (ensures randomization).
@@ -231,6 +232,18 @@ When initiating a sync for a Channel, the endpoint must select a peer endpoint f
 `(channel_id, peer_endpoint_account_id)`. This table is not persisted to state — it is rebuilt from scratch
 on node restart. Entries decay over time (exponential decay with a half-life of `clpr.reputationDecaySeconds`,
 default: 300 seconds).
+
+**Outbound destinations.** CLPR endpoint addresses MUST be numeric IPv4 or IPv6 literals, without DNS names or
+IPv6 scope identifiers, and ports MUST be in `1..65535`. Before creating a client, the node validates the destination
+and passes the parsed socket address directly to the transport. Ordinary public unicast destinations are accepted
+by default. For IPv6, this means `2000::/3`, excluding the IETF special-purpose range `2001::/23`, documentation
+ranges `2001:db8::/32` and `3fff::/20`, and the 6to4 range `2002::/16`.
+Deployments using other unicast ranges, including local or private networks, MUST explicitly list them in the node-local
+`clpr.additionalPeerEndpointCidrs` setting, for example `127.0.0.1/32,10.0.0.0/24`. The default is an empty set.
+Unspecified and multicast destinations remain invalid. These checks apply independently of
+`clpr.syncPeerExclusionEnabled` and do not change the peer manifest stored in consensus state.
+When the client cache observes a changed CIDR setting on its next lookup, it retires existing transports before
+validating the requested destination and creating a client under the new setting.
 
 ## 3.3 Concurrency Model
 
@@ -642,12 +655,13 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 
 ## 9.3 Peer Selection Parameters
 
-|            Parameter            |   Type   | Default |                         Description                         |
-|---------------------------------|----------|---------|-------------------------------------------------------------|
-| `clpr.reputationDecaySeconds`   | `int`    | `300`   | Half-life for peer reputation score decay.                  |
-| `clpr.reputationSuccessBonus`   | `double` | `1.0`   | Reputation score added for a successful sync.               |
-| `clpr.reputationFailurePenalty` | `double` | `5.0`   | Reputation score subtracted for a failed sync.              |
-| `clpr.recentPeerPenaltyFactor`  | `double` | `0.5`   | Weight multiplier for a peer selected on the previous tick. |
+|             Parameter              |     Type      | Default |                                           Description                                            |
+|------------------------------------|---------------|---------|--------------------------------------------------------------------------------------------------|
+| `clpr.reputationDecaySeconds`      | `int`         | `300`   | Half-life for peer reputation score decay.                                                       |
+| `clpr.reputationSuccessBonus`      | `double`      | `1.0`   | Reputation score added for a successful sync.                                                    |
+| `clpr.reputationFailurePenalty`    | `double`      | `5.0`   | Reputation score subtracted for a failed sync.                                                   |
+| `clpr.recentPeerPenaltyFactor`     | `double`      | `0.5`   | Weight multiplier for a peer selected on the previous tick.                                      |
+| `clpr.additionalPeerEndpointCidrs` | `Set<String>` | empty   | Node-local IPv4/IPv6 CIDRs for additional peer destinations, such as a local or private network. |
 
 ## 9.4 Retry Parameters
 
@@ -864,14 +878,15 @@ within the node process.
 
 ## 13.1 Retry Strategy
 
-Transient failures (network timeouts, gRPC `UNAVAILABLE`, ingest throttling) are retried with **exponential
-backoff with jitter**:
+Failed syncs are retried with **capped exponential delay**, including connection failures and stream timeouts:
 
 ```
-delay = min(retryInitialDelayMs * 2^attempt + random(0, retryInitialDelayMs), retryMaxDelayMs)
+delay = min(retryInitialDelayMs * 2^attempt, retryMaxDelayMs)
 ```
 
-The maximum number of consecutive retries before opening the circuit breaker is `retryMaxAttempts`.
+Retry pacing remains active when `clpr.syncPeerExclusionEnabled=false`. Successful syncs reset the delay.
+The `clpr.syncTimeoutSeconds` deadline covers the complete streaming exchange. When peer exclusion is enabled,
+the maximum number of consecutive retries before opening the circuit breaker is `retryMaxAttempts`.
 
 ## 13.2 Circuit Breaker Pattern
 
@@ -890,14 +905,15 @@ Each peer endpoint has an independent circuit breaker with three states:
 ```
 
 - **CLOSED:** Normal operation. Failures increment a counter.
-- **OPEN:** All sync attempts to this peer are skipped. After `circuitBreakerCooldownSeconds`, transition to
+- **OPEN:** When peer exclusion is enabled, sync attempts to this peer are skipped. After
+  `circuitBreakerCooldownSeconds`, transition to
   HALF-OPEN.
 - **HALF-OPEN:** A single probe sync is attempted. If it succeeds, transition to CLOSED. If it fails, transition
   back to OPEN.
 
 ## 13.3 Channel-Level Resilience
 
-When all peer endpoints for a Channel have open circuit breakers:
+When peer exclusion is enabled and all peer endpoints for a Channel have open circuit breakers:
 
 1. Outbound messages continue to queue (up to `max_queue_depth`).
 2. The orchestrator continues probing (via half-open circuit breakers) on each tick.

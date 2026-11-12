@@ -14,6 +14,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -64,6 +65,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -564,6 +566,29 @@ class ClprStreamingSynchronizerTest {
             synchronize(channel(6L, 0L, 0L));
 
             thenFailureIsRecorded();
+        }
+
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        void unconfiguredLocalDestinationRecordsFailureBeforeCreatingChannel(final boolean useTls) {
+            final var localEndpoint = endpoint()
+                    .copyBuilder()
+                    .tlsCertificate(useTls ? Bytes.wrap("certificate") : Bytes.EMPTY)
+                    .build();
+            given(peerSelector.selectEndpoint(any(), any())).willReturn(new SelectedPeer(PEER_ID, localEndpoint));
+            final var realCache = new ClprEndpointClientCache(configProvider);
+            subject = new ClprStreamingSynchronizer(
+                    configProvider, bundleSubmitter, stateProofManager, realCache, peerSelector);
+
+            try (final var transport = mockStatic(ClprEndpointClientImpl.class)) {
+                synchronize(channel(6L, 0L, 0L));
+
+                transport.verifyNoInteractions();
+                thenFailureIsRecorded();
+                verifyNoInteractions(stateProofManager, bundleSubmitter, client, streamingCall);
+            } finally {
+                realCache.shutdownAll();
+            }
         }
     }
 

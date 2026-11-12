@@ -124,7 +124,9 @@ apply circuit-breaker / retry policy (`clpr.retryInitialDelayMs`,
 `clpr.circuitBreakerCooldownSeconds`); decay peer reputation
 (`clpr.reputationDecaySeconds`). Open circuit breakers remove peers from the candidate
 set only when `clpr.syncPeerExclusionEnabled=true`; the default false setting keeps those
-signals observational and never declines to initiate a sync on that basis.
+signals observational. Failed syncs still defer the next attempt using capped exponential delay between
+`clpr.retryInitialDelayMs` and `clpr.retryMaxDelayMs`, independently of the exclusion flag. Successful syncs
+reset that delay, so an unavailable endpoint is retried periodically rather than on every scheduler tick.
 - Each bundle the peer streams back is handed to `ClprBundleSubmitter` to ingest the peer's
 outbound (i.e. our inbound) messages.
 
@@ -135,6 +137,23 @@ Outbound gRPC client. Netty + grpc-java `ClientCalls` for the bidirectional-stre
 are pre-serialised `ClprStreamingSyncPayload` bytes — so the client does not need the protobuf service stub
 generated. `sync(timeout)` returns a `ClprStreamingSyncCall`; the deadline covers the whole multi-bundle exchange,
 not a single message.
+
+Peer destinations must be numeric IPv4 or IPv6 literals with a port in `1..65535`; DNS names and scoped IPv6
+addresses are not accepted. The client validates the address before creating a channel and dials the resulting
+socket address directly. By default, outbound sync uses ordinary public unicast addresses. The default IPv6 range
+is `2000::/3`, excluding IETF special-purpose `2001::/23`, documentation `2001:db8::/32` and `3fff::/20`, and
+6to4 `2002::/16`. A node that intentionally syncs over other unicast ranges, including local or private networks,
+lists those ranges in the node-local `clpr.additionalPeerEndpointCidrs` setting. For example:
+
+```properties
+clpr.additionalPeerEndpointCidrs=127.0.0.1/32,10.0.0.0/24
+```
+
+The setting is empty by default and does not alter the peer's stored manifest. Choose ranges that match the
+deployment; unspecified and multicast destinations remain invalid. Endpoint validation applies to both TLS and
+plaintext clients, independently of `clpr.syncPeerExclusionEnabled`.
+On the next client lookup after this setting changes, the cache retires all existing transports before validating
+the requested destination and creating a client under the new setting.
 
 ## Wiring (Dagger)
 

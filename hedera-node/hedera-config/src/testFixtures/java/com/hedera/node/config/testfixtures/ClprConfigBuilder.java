@@ -3,6 +3,7 @@ package com.hedera.node.config.testfixtures;
 
 import com.hedera.node.config.data.ClprConfig;
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * Test-only fluent builder for {@link ClprConfig}. Each field is initialized to the
@@ -28,6 +29,7 @@ public final class ClprConfigBuilder {
     private long retryMaxDelayMs = 30_000L;
     private int retryMaxAttempts = 5;
     private int circuitBreakerCooldownSeconds = 120;
+    private Set<String> additionalPeerEndpointCidrs = Set.of();
     private boolean syncPeerExclusionEnabled = false;
     private int connectorQueueQuotaPct = 50;
     private long sendMessageFeeTinycents = 1_000_000_000L;
@@ -139,6 +141,11 @@ public final class ClprConfigBuilder {
         return this;
     }
 
+    public ClprConfigBuilder additionalPeerEndpointCidrs(final Set<String> additionalPeerEndpointCidrs) {
+        this.additionalPeerEndpointCidrs = Set.copyOf(additionalPeerEndpointCidrs);
+        return this;
+    }
+
     public ClprConfigBuilder syncPeerExclusionEnabled(final boolean syncPeerExclusionEnabled) {
         this.syncPeerExclusionEnabled = syncPeerExclusionEnabled;
         return this;
@@ -219,6 +226,7 @@ public final class ClprConfigBuilder {
                 retryMaxDelayMs,
                 retryMaxAttempts,
                 circuitBreakerCooldownSeconds,
+                additionalPeerEndpointCidrs,
                 syncPeerExclusionEnabled,
                 connectorQueueQuotaPct,
                 sendMessageFeeTinycents,
