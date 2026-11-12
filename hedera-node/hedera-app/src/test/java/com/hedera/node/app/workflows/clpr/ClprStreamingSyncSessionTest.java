@@ -112,12 +112,11 @@ class ClprStreamingSyncSessionTest {
         }
 
         @Test
-        @DisplayName("an unparseable message is rejected as INVALID_ARGUMENT")
+        @DisplayName("an unparseable message is rejected as INVALID_ARGUMENT, without the parser's detail")
         void rejectsMalformedMessage() {
             assertThatThrownBy(() -> session.onMessage(Bytes.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF})))
                     .isInstanceOf(StatusRuntimeException.class)
-                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                    .isEqualTo(Status.Code.INVALID_ARGUMENT);
+                    .hasMessage("INVALID_ARGUMENT: Invalid ClprStreamingSyncPayload");
         }
 
         @Test
@@ -126,30 +125,32 @@ class ClprStreamingSyncSessionTest {
 
             assertThatThrownBy(() -> session.onMessage(request))
                     .isInstanceOf(StatusRuntimeException.class)
-                    .hasMessageContaining("Invalid ClprStreamingSyncPayload")
-                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                    .isEqualTo(Status.Code.INVALID_ARGUMENT);
+                    .hasMessage("INVALID_ARGUMENT: Invalid ClprStreamingSyncPayload");
             verifyNoInteractions(stateAccessor, bundleSubmitter, stateProofManager);
         }
 
         @Test
         @DisplayName("an unknown channel is rejected as NOT_FOUND")
         void rejectsUnknownChannel() {
-            mockState(null, () -> assertThatThrownBy(
-                            () -> session.onMessage(bytes(payload(CHANNEL_ID, request(0L), null))))
-                    .isInstanceOf(StatusRuntimeException.class)
-                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                    .isEqualTo(Status.Code.NOT_FOUND));
+            mockState(
+                    null,
+                    () -> assertThatThrownBy(() -> session.onMessage(bytes(payload(CHANNEL_ID, request(0L), null))))
+                            .isInstanceOf(StatusRuntimeException.class)
+                            .extracting(e ->
+                                    ((StatusRuntimeException) e).getStatus().getCode())
+                            .isEqualTo(Status.Code.NOT_FOUND));
         }
 
         @Test
         @DisplayName("a CLOSED local channel is rejected as FAILED_PRECONDITION")
         void rejectsClosedChannel() {
-            mockState(channel(ClprChannelStatus.CLOSED, 6L, 0L, 0L), () -> assertThatThrownBy(
-                            () -> session.onMessage(bytes(payload(CHANNEL_ID, request(0L), null))))
-                    .isInstanceOf(StatusRuntimeException.class)
-                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                    .isEqualTo(Status.Code.FAILED_PRECONDITION));
+            mockState(
+                    channel(ClprChannelStatus.CLOSED, 6L, 0L, 0L),
+                    () -> assertThatThrownBy(() -> session.onMessage(bytes(payload(CHANNEL_ID, request(0L), null))))
+                            .isInstanceOf(StatusRuntimeException.class)
+                            .extracting(e ->
+                                    ((StatusRuntimeException) e).getStatus().getCode())
+                            .isEqualTo(Status.Code.FAILED_PRECONDITION));
         }
     }
 
@@ -472,14 +473,17 @@ class ClprStreamingSyncSessionTest {
      */
     private void mockState(@Nullable final ClprChannel channel, final Runnable body) {
         given(channelStore.getChannel(CHANNEL_ID)).willReturn(channel);
-        try (var storeFactory = mockConstruction(ReadableStoreFactoryImpl.class, (mock, ctx) -> given(
-                                mock.readableStore(ReadableChannelStore.class))
-                        .willReturn(channelStore));
-                var manifestStore = mockConstruction(ReadableEndpointManifestStoreImpl.class, (mock, ctx) -> lenient()
-                        .when(mock.get())
-                        .thenReturn(ClprEndpointManifest.newBuilder()
-                                .version(LOCAL_MANIFEST_VERSION)
-                                .build()))) {
+        try (var storeFactory = mockConstruction(
+                        ReadableStoreFactoryImpl.class,
+                        (mock, ctx) -> given(mock.readableStore(ReadableChannelStore.class))
+                                .willReturn(channelStore));
+                var manifestStore = mockConstruction(
+                        ReadableEndpointManifestStoreImpl.class,
+                        (mock, ctx) -> lenient()
+                                .when(mock.get())
+                                .thenReturn(ClprEndpointManifest.newBuilder()
+                                        .version(LOCAL_MANIFEST_VERSION)
+                                        .build()))) {
             body.run();
         }
     }

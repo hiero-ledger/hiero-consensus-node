@@ -336,8 +336,9 @@ public class ClprStreamingSyncSession {
             message = ClprStreamingSyncPayload.PROTOBUF.parseStrict(requestBytes);
         } catch (final Exception e) {
             logger.warn("{}Failed to parse ClprStreamingSyncPayload", tag, e);
+            // The parser's message stays in this node's log; the caller learns only that the payload is invalid
             throw new StatusRuntimeException(
-                    Status.INVALID_ARGUMENT.withDescription("Invalid ClprStreamingSyncPayload: " + e.getMessage()));
+                    Status.INVALID_ARGUMENT.withDescription("Invalid ClprStreamingSyncPayload"));
         }
 
         final var messageChannelId = message.channelId();
