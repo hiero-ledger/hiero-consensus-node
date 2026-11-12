@@ -28,6 +28,14 @@ they can depend on. Adding a module, a dependency or an export isn't significant
 - changes the behaviour of shared test infrastructure (Turtle, Otter, Falcon, the simulated network) that other tests
   rely on
 
+**Reuse and shared components:**
+
+- adds a capability that overlaps existing code, without saying why that code isn't extended or reused. Search the
+  codebase for it and name what you find. Whether to write it from scratch is the team's question; for a single
+  helper, it is a structure finding instead ([structure.md](structure.md), topic 3).
+- makes a capability that only some users need a fixed part of a shared component, so that every user carries it.
+  Ask whether it could be opt-in.
+
 **Shape of the PR**, which makes the decisions above harder to see:
 
 - it adds an ADR or KB decision together with the code that the decision is about
@@ -58,11 +66,14 @@ In author mode the report goes to the author before review is requested.
 
 ## Example
 
-#28209, "chore: Use Falcon to measure simulated C2C for different network configurations". 1,333 lines added in 16
-files, stacked on #28053, which is also open. The linked issue, #28190, is two sentences: move `NetworkSimulationTest`
-to Falcon mini-nodes so the `consensus-network-simulation` module can be removed. It has no discussion. The PR makes
-decisions the issue doesn't mention, and doesn't touch that module:
+#28209, "chore: Use Falcon to measure simulated C2C for different network configurations": 1,333 lines added in 16
+files. The linked issue, #28190, is two sentences, with no discussion. The reviewer wanted a design discussion first for
+two reasons:
 
-- the simulated network, which Turtle shares, now delivers each hop one tick earlier. Every Turtle test changes timing;
-  `DocExamplesTest` reaches round 69 instead of 68.
-- a new creation-to-consensus latency benchmark and its recorder, about 1,200 lines in Otter.
+- **Overlap with existing code.** It adds `ConsensusLatencyRecorder` and `ConsensusLatencyResult`, about 400 lines, to
+  record latencies into a `LatencyHistogram` and report them. `LatencyRecorder` in `consensus-benchmark-tools` already
+  does that for benchmarks. The PR uses its `LatencyHistogram` but writes a new recorder beside it. The team should
+  decide whether to write it from scratch or to extend `LatencyRecorder`.
+- **Always on, rarely needed.** `FalconNetwork` creates a `ConsensusLatencyRecorder` for every network and passes it to
+  every `FalconNode` and `FalconMiniNode`. Every node feeds it its created events and solders it to its consensus round
+  output, although about 99% of Falcon tests don't use it.

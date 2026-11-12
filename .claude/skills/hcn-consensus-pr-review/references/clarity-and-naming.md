@@ -3,12 +3,29 @@
 Reviews are how engineers learn the code. Code that a human can't understand without the author's session isn't ready,
 even if it is correct.
 
-Clarity and naming findings are never dropped or downgraded. None of them blocks merge on its own: each one can be fixed
-in this PR, or in a follow-up PR or ticket if another push isn't worth a CI cycle.
+## The bar
+
+A clarity or naming item is a finding only if an engineer on the consensus team, reading the code, would:
+
+1. **come away believing something false:** a doc or javadoc that contradicts the code, or a name that suggests the
+   wrong thing; or
+2. **be unable to work out what it means** from the file, even after rereading.
+
+Not findings: wording that is awkward but can be worked out on a second read, local variable names that don't mislead,
+and rewrites that only polish.
+
+Findings that meet the bar are never downgraded for being "minor". None of them blocks merge on its own: each one can be
+fixed in this PR, or in a follow-up PR or ticket if another push isn't worth a CI cycle.
+
+**Example:** #28195. A review listed 14 clarity and naming items, and the reviewer was overwhelmed by the list. Three met
+the bar: `operations.md` said saturation discards are published when they aren't; a `@throws` said a method throws in a
+case where it does nothing; and "counts" meant both "will be added" and "has been added" in the class's central rule.
+The other 11 were awkward sentences, local names, an unnamed repository and an error message.
 
 ## The two readers
 
-Two subagents read the PR without its context. Each has a different blind spot, so the skill uses both.
+Two subagents read the PR without its context. Each has a different blind spot, so the skill uses both. Both report only
+items that meet [the bar](#the-bar).
 
 Neither is told the purpose of the change. They stand in for an engineer who opens the file later, without the PR
 description, the ticket or the rest of a stack. Code that only makes sense once the purpose is known is what they are
@@ -96,7 +113,8 @@ the author disagreed: the paragraphs explained, with measurements, why the code 
 but not this PR. The two readers know less than that. If a reader stumbles only because it doesn't know the domain, it
 isn't a finding.
 
-**Finding when** that engineer would have to reread a sentence, or would misread it.
+**Finding when** that engineer would misread a sentence, or can't work out what it means even after rereading. Having
+to read it twice isn't enough.
 
 **The finding:**
 
@@ -191,9 +209,12 @@ The canonical terms are in the [glossary](/platform-sdk/docs/consensus-layer/glo
   - `idle` (#28081): describes the situation, not the value, which is a position in the backoff schedule.
 - **Stale after a refactor:** it describes the old design. Example: `latestGenerations` after the move to sequence
   numbers (#27959).
-- **Inconsistent:**
+- **Inconsistent,** so that a reader would take one thing for two, or two things for one:
   - a parameter doesn't match the field it sets (#27744)
   - the same concept has a different name in a sibling class (#27973)
+
+**Not a finding:** a local variable name that doesn't mislead, even if a longer name would be clearer. Example: `first`
+and `last` for the latencies of the first and last quarters (#28195).
 
 **Question when:**
 

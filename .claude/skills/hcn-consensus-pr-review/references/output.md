@@ -23,7 +23,9 @@ to someone who doesn't know the code. If it can't be, drop it. Example: #28195, 
 check's limit depends on pass length. The expansion, with its table of overloads and its fix options, confused both the
 reviewer and the PR author, and in plain words the question had no concrete cost.
 
-There is no cap on the number of findings. Keep each one short instead.
+There is no cap on findings in general; keep each one short. Clarity and naming has a cap of five, the most misleading
+first. If more meet the bar ([clarity-and-naming.md](clarity-and-naming.md#the-bar)), one line says how many more there
+are, and the user can ask for them.
 
 ## Severity
 
@@ -116,17 +118,18 @@ Review stopped: this PR makes decisions the team would normally agree on before 
 nothing shows that it did.
 
 Decisions in this PR:
-1. SimulatedNetworkConnectivity.java: the simulated network, which Turtle shares, delivers each hop one
-   tick earlier. Every Turtle test changes timing.
-2. ConsensusLatencyBenchmark.java and ConsensusLatencyRecorder.java: a new creation-to-consensus latency
-   benchmark in Otter.
+1. ConsensusLatencyRecorder.java, ConsensusLatencyResult.java: a new recorder of latencies into a
+   LatencyHistogram. LatencyRecorder in consensus-benchmark-tools already does that for benchmarks.
+   Write a new one, or extend LatencyRecorder?
+2. FalconNetwork.java, FalconNode.java, FalconMiniNode.java: every Falcon node now feeds a latency
+   recorder, although most Falcon tests don't use it. Should it be opt-in?
 
 Question for the author: where were these discussed? The linked issue #28190 only asks to move
-NetworkSimulationTest to Falcon, and this PR doesn't change that module.
+NetworkSimulationTest to Falcon.
 ```
 
-Each decision names its file and, in one line, its effect. No findings, no orientation and no follow-up block. If the
-author says the design was discussed, the review continues.
+Each decision names its files, its effect, and the choice the team should make. No findings, no orientation and no
+follow-up block. If the author says the design was discussed, the review continues.
 
 ## Follow-up block
 
