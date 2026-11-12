@@ -222,6 +222,7 @@ public class MetricsFileWriterTest {
 
             String first = exporter.export(defaultWriter);
             long ts1 = exporter.lastTimestamp;
+            assertThat(first).isEqualTo("# TYPE test_counter_total counter\n" + "test_counter_total 1 " + ts1 + "\n");
 
             // A metric registered between snapshots must get its metadata in the next snapshot,
             // also when it is sorted before the metrics already described.
@@ -231,7 +232,6 @@ public class MetricsFileWriterTest {
             String second = exporter.export(defaultWriter);
             long ts2 = exporter.lastTimestamp;
 
-            assertThat(first).isEqualTo("# TYPE test_counter_total counter\n" + "test_counter_total 1 " + ts1 + "\n");
             assertThat(second)
                     .isEqualTo("# TYPE late_gauge gauge\n" + "late_gauge 5 " + ts2 + "\n" + "test_counter_total 1 "
                             + ts2 + "\n");

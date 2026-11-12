@@ -111,13 +111,11 @@ class MeasurementsTest {
         TestMetric metric = TestMetric.builder("label").build();
         Measurements<AtomicLong> measurements = metric.measurements();
 
-        assertThat(rebuiltSnapshots(measurements))
-                .as("collected by the first export")
-                .isEmpty();
-        assertThat(rebuiltSnapshots(measurements)).as("nothing changed").isNull();
+        assertThat(rebuiltSnapshots(metric)).as("collected by the first export").isEmpty();
+        assertThat(rebuiltSnapshots(metric)).as("nothing changed").isNull();
 
         measurements.computeIfAbsent(labels("a"), _ -> new AtomicLong());
-        assertThat(rebuiltSnapshots(measurements)).as("added").hasSize(1);
+        assertThat(rebuiltSnapshots(metric)).as("added").hasSize(1);
 
         measurements.computeIfAbsent(labels("a"), _ -> new AtomicLong());
         assertThat(measurements.putIfAbsent(labels("a"), new AtomicLong())).isFalse();
@@ -126,13 +124,13 @@ class MeasurementsTest {
                 }))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(metric.removeIf(_ -> false)).isZero();
-        assertThat(rebuiltSnapshots(measurements))
+        assertThat(rebuiltSnapshots(metric))
                 .as("lookups, failed additions and removing nothing do not change the measurements")
                 .isNull();
 
         assertThat(metric.removeIf(_ -> true)).isEqualTo(1);
-        assertThat(rebuiltSnapshots(measurements)).as("removed").isEmpty();
-        assertThat(rebuiltSnapshots(measurements)).as("nothing changed").isNull();
+        assertThat(rebuiltSnapshots(metric)).as("removed").isEmpty();
+        assertThat(rebuiltSnapshots(metric)).as("nothing changed").isNull();
     }
 
     @Test
@@ -142,10 +140,10 @@ class MeasurementsTest {
         measurements.computeIfAbsent(labels("a"), _ -> new AtomicLong());
 
         // the export clears the flag before reading the measurements, so a change made after it is collected again
-        assertThat(rebuiltSnapshots(measurements)).hasSize(1);
+        assertThat(rebuiltSnapshots(metric)).hasSize(1);
         measurements.computeIfAbsent(labels("b"), _ -> new AtomicLong());
 
-        assertThat(rebuiltSnapshots(measurements)).hasSize(2);
+        assertThat(rebuiltSnapshots(metric)).hasSize(2);
     }
 
     @Test
@@ -187,9 +185,7 @@ class MeasurementsTest {
     @Test
     void testRemoveIfDoesNotRemoveEqualMeasurementAddedAgainBeforeExport() {
         // no export ran, so entries have no snapshots and differ only by their measurements, which are equal by value
-        Measurements<ValueMeasurement> measurements = new Measurements<>((_, _) -> {
-            throw new AssertionError("snapshots are created only by exports");
-        });
+        Measurements<ValueMeasurement> measurements = new Measurements<>(() -> {});
         measurements.putIfAbsent(labels("a"), new ValueMeasurement(1));
         ValueMeasurement addedAgain = new ValueMeasurement(1);
 
@@ -208,23 +204,18 @@ class MeasurementsTest {
 
     @Test
     void testFailedSnapshotCreationIsRetriedByNextExport() {
-        AtomicInteger factoryCalls = new AtomicInteger();
-        Measurements<AtomicLong> measurements = new Measurements<>((measurement, labelValues) -> {
-            if (factoryCalls.incrementAndGet() == 1) {
-                throw new IllegalStateException("snapshot creation failed");
-            }
-            return new LongMeasurementSnapshot(labelValues, measurement::get);
-        });
-        measurements.putIfAbsent(labels("a"), new AtomicLong());
+        TestMetric metric = TestMetric.builder("label").build();
+        metric.failingCreations.set(1);
+        metric.measurements().putIfAbsent(labels("a"), new AtomicLong());
 
-        assertThatThrownBy(() -> rebuiltSnapshots(measurements))
+        assertThatThrownBy(() -> rebuiltSnapshots(metric))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("snapshot creation failed");
 
-        assertThat(rebuiltSnapshots(measurements))
-                .as("the failed export leaves the measurements marked")
+        assertThat(rebuiltSnapshots(metric))
+                .as("the failed export leaves the metric snapshot marked")
                 .hasSize(1);
-        assertThat(rebuiltSnapshots(measurements)).as("nothing changed").isNull();
+        assertThat(rebuiltSnapshots(metric)).as("nothing changed").isNull();
     }
 
     @Test
@@ -304,14 +295,15 @@ class MeasurementsTest {
         return new LabelValues("label", value);
     }
 
-    // updates the snapshots like an export: returns them if they were rebuilt, or null if nothing changed
-    private static List<MeasurementSnapshot> rebuiltSnapshots(Measurements<?> measurements) {
-        SnapshotList<MeasurementSnapshot> snapshots = measurements.snapshots();
-        if (!snapshots.update()) {
+    // updates the metric snapshot like an export: returns its measurement snapshots if they were rebuilt,
+    // or null if nothing changed
+    private static List<MeasurementSnapshot> rebuiltSnapshots(Metric<?> metric) {
+        MetricSnapshot snapshot = metric.snapshot();
+        if (!snapshot.update()) {
             return null;
         }
         List<MeasurementSnapshot> rebuilt = new ArrayList<>();
-        snapshots.forEach(rebuilt::add);
+        snapshot.forEach(rebuilt::add);
         return rebuilt;
     }
 
@@ -328,6 +320,8 @@ class MeasurementsTest {
     private static final class TestMetric extends Metric<AtomicLong> {
 
         private final AtomicInteger snapshotsCreated = new AtomicInteger();
+        // number of next snapshot creations that fail
+        private final AtomicInteger failingCreations = new AtomicInteger();
 
         private TestMetric(Builder builder) {
             super(builder);
@@ -340,6 +334,9 @@ class MeasurementsTest {
         @Override
         protected @NonNull MeasurementSnapshot createMeasurementSnapshot(
                 @NonNull AtomicLong measurement, @NonNull LabelValues labelValues) {
+            if (failingCreations.getAndUpdate(failing -> Math.max(0, failing - 1)) > 0) {
+                throw new IllegalStateException("snapshot creation failed");
+            }
             snapshotsCreated.incrementAndGet();
             return new LongMeasurementSnapshot(labelValues, measurement::get);
         }
@@ -356,7 +353,7 @@ class MeasurementsTest {
             }
 
             @Override
-            protected TestMetric buildMetric() {
+            protected @NonNull TestMetric buildMetric() {
                 return new TestMetric(this);
             }
         }

@@ -26,7 +26,7 @@ If no dynamic labels are defined for the metric, then it will have a single meas
 
 The base `Metric` keeps the measurements of both in a [Measurements](../src/main/java/org/hiero/metrics/core/Measurements.java) container,
 which it creates in its constructor and subclasses access by `measurements()`.
-Subclasses only implement `createMeasurementSnapshot(...)`: the container marks the measurements as changed when they are added or removed,
+Subclasses only implement `createMeasurementSnapshot(...)`: the container notifies the metric when measurements are added or removed, which marks its `MetricSnapshot`, if the metric is exported,
 and the export creates the snapshot of each measurement the first time it collects it, so a metric implementation never manages snapshots itself.
 Application threads adding measurements therefore never create snapshots or read measurement values for export:
 value suppliers of an `ObservableGauge` and export getters of a `GaugeAdapter` are called only by exports.

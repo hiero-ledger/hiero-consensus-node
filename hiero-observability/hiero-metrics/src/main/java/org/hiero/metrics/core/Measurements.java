@@ -4,7 +4,6 @@ package org.hiero.metrics.core;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -15,12 +14,12 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
- * Concurrent container of the measurements of a {@link Metric} by their dynamic label values,
- * which keeps the snapshots exported for the measurements in sync with them.
+ * Concurrent container of the measurements of a {@link Metric} by their dynamic label values.
  * <p>
  * The {@link Metric} constructor creates the container, and subclasses keep all their measurements in it,
- * accessing it by {@link Metric#measurements()}. Adding or removing measurements only changes the map and marks
- * the measurements as changed, so the next export rebuilds the metric snapshot from this container.
+ * accessing it by {@link Metric#measurements()}. Adding or removing measurements only changes the map and notifies
+ * the metric, which marks its {@link MetricSnapshot}, if it is exported, so the next export rebuilds the measurement
+ * snapshots from this container.
  * The export creates the snapshot of a measurement the first time it collects it, so application threads never
  * create snapshots or call the code reading measurement values, and a metric that is not exported has no snapshots.
  * A measurement of a metric with no dynamic labels is kept under empty label values.
@@ -29,22 +28,18 @@ import java.util.function.Predicate;
  */
 public final class Measurements<M> {
 
-    private static final Comparator<MeasurementSnapshot> BY_LABEL_VALUES =
-            (first, second) -> LabelValues.compare(first.getDynamicLabelValues(), second.getDynamicLabelValues());
-
     private final ConcurrentHashMap<LabelValues, Entry<M>> entries = new ConcurrentHashMap<>();
 
-    private final BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory;
-
-    // marked by any thread after measurements are added or removed, rebuilt and updated by exports
-    private final SnapshotList<MeasurementSnapshot> snapshots;
+    // called by any thread after measurements are added or removed
+    private final Runnable onChange;
 
     /**
      * Package private, because it is created only by the {@link Metric} constructor.
+     *
+     * @param onChange called after measurements are added or removed, to mark the metric snapshot as changed
      */
-    Measurements(@NonNull BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory) {
-        this.snapshotFactory = Objects.requireNonNull(snapshotFactory, "snapshot factory must not be null");
-        this.snapshots = new SnapshotList<>(BY_LABEL_VALUES, this::collectSnapshots, MeasurementSnapshot::update);
+    Measurements(@NonNull Runnable onChange) {
+        this.onChange = Objects.requireNonNull(onChange, "on change callback must not be null");
     }
 
     /**
@@ -144,24 +139,18 @@ public final class Measurements<M> {
     }
 
     /**
-     * Returns the snapshots of the measurements exported by the metric snapshot, sorted by their dynamic label values.
-     * Package private, because it is used only by the {@link MetricSnapshot} of the metric, which exports them.
-     *
-     * @return the snapshot list of the measurements, never {@code null}
-     */
-    @NonNull
-    SnapshotList<MeasurementSnapshot> snapshots() {
-        return snapshots;
-    }
-
-    /**
      * Collects the snapshots of the current measurements, creating the snapshots of measurements collected for the
-     * first time. Called only by the {@link SnapshotList} rebuild during export, one export at a time.
-     * If creating a snapshot fails, the snapshot list stays marked, so the next export collects them again.
+     * first time with the given factory, and reusing them afterwards.
+     * Package private, because it is called only by the {@link MetricSnapshot} of the metric when an export rebuilds
+     * its list of measurement snapshots, one export at a time.
+     * If creating a snapshot fails, the list stays marked, so the next export collects them again.
      *
+     * @param snapshotFactory creates the snapshot of a measurement collected for the first time
      * @return the snapshots in iteration order of the map
      */
-    private List<MeasurementSnapshot> collectSnapshots() {
+    @NonNull
+    List<MeasurementSnapshot> collectSnapshots(
+            @NonNull BiFunction<? super M, LabelValues, MeasurementSnapshot> snapshotFactory) {
         final List<MeasurementSnapshot> collected = new ArrayList<>(entries.size());
         for (Entry<M> entry : entries.values()) {
             collected.add(entry.snapshot(snapshotFactory));
@@ -170,7 +159,7 @@ public final class Measurements<M> {
     }
 
     private void markChanged() {
-        snapshots.markChanged();
+        onChange.run();
     }
 
     /**
@@ -194,6 +183,7 @@ public final class Measurements<M> {
             this.measurement = Objects.requireNonNull(measurement, "measurement must not be null");
         }
 
+        // lazy init snapshot or reuse the existing one, so a measurement that is not exported has no snapshot
         private MeasurementSnapshot snapshot(
                 BiFunction<? super M, LabelValues, ? extends MeasurementSnapshot> snapshotFactory) {
             if (snapshot == null) {
