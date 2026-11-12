@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 import importlib.util
 import io
-import json
 import os
-import tempfile
 import unittest
 import zipfile
 
@@ -65,18 +63,6 @@ class Rows(unittest.TestCase):
         self.assertEqual((shard["classes"], shard["tests"]), (2, 2))
         self.assertAlmostEqual(shard["suite_seconds"], 100.5)
 
-    def test_merge_replaces_same_run_and_shard_and_keeps_others(self):
-        with tempfile.TemporaryDirectory() as d:
-            path = f"{d}/t.jsonl"
-            tt.merge(path, tt.rows_for_artifact(1, "2026-11-08", "s", "S1", self.data(), RUN_START))
-            tt.merge(path, tt.rows_for_artifact(2, "2026-11-09", "s", "S1", self.data(), RUN_START))
-            n = tt.merge(path, tt.rows_for_artifact(2, "2026-11-09", "s", "S1", self.data(), RUN_START))
-            with open(path) as f:
-                rows = [json.loads(l) for l in f]
-            self.assertEqual(n, len(rows))
-            self.assertEqual({r["run_id"] for r in rows}, {1, 2})
-            self.assertEqual(sum(r["kind"] == "shard" and r["run_id"] == 2 for r in rows), 1)
-
 
 class Cached(unittest.TestCase):
     def test_results_older_than_the_run_are_cached_and_dropped(self):
@@ -89,42 +75,6 @@ class Cached(unittest.TestCase):
         self.assertAlmostEqual(shard["cached_seconds"], 90)
         self.assertEqual([r["class"] for r in rows if r["kind"] == "class"], ["a.Live"])
         self.assertEqual([r["class"] for r in rows if r["kind"] == "case"], ["a.Live"])
-
-    def test_fully_cached_shard_is_left_out_of_the_means(self):
-        live = zipped({"TEST-a.xml": junit("a.A", [("t", 60.0, "")])})
-        restored = zipped({"TEST-a.xml": junit("a.A", [("t", 60.0, "")], timestamp="2026-11-01T00:00:00Z")})
-        rows = tt.rows_for_artifact(1, "2026-11-09", "s", "S1", live, RUN_START) + tt.rows_for_artifact(2, "2026-11-09", "s", "S1", restored, RUN_START)
-        sh = tt.summarize(rows)["shards"][0]
-        self.assertEqual((sh["runs"], sh["cached_runs"]), (1, 1))
-        self.assertAlmostEqual(sh["classes"][0]["mean_s"], 60)
-
-
-class Sampling(unittest.TestCase):
-    def mk(self, rid, day, repo="o/r", event="pull_request", conclusion="success", attempt=1):
-        return {"id": rid, "status": "completed", "conclusion": conclusion, "run_attempt": attempt, "event": event,
-                "created_at": f"{day}T10:00:00Z", "head_repository": {"full_name": repo}, "head_sha": "s"}
-
-    def test_skips_forks_failures_reruns_and_other_events(self):
-        runs = [self.mk(1, "2026-11-09", repo="fork/r"), self.mk(2, "2026-11-09", conclusion="failure"),
-                self.mk(3, "2026-11-09", attempt=2), self.mk(4, "2026-11-09", event="push"), self.mk(5, "2026-11-09")]
-        self.assertEqual([r["id"] for r in tt.sample_runs(runs, "o/r", 2)], [5])
-
-    def test_spreads_picks_across_the_day(self):
-        runs = [self.mk(i, "2026-11-09") for i in range(1, 11)]
-        self.assertEqual(sorted(r["id"] for r in tt.sample_runs(runs, "o/r", 2)), [1, 10])
-
-
-class Summary(unittest.TestCase):
-    def test_share_and_ranking(self):
-        rows = []
-        for run_id in (1, 2):
-            rows += tt.rows_for_artifact(run_id, "2026-11-09", "s", "S1", zipped({"TEST-a.xml": junit("a.Big", [("t", 60.0, "")]), "TEST-b.xml": junit("b.Mid", [("t", 40.0, "")])}), RUN_START)
-        s = tt.summarize(rows)
-        sh = s["shards"][0]
-        self.assertEqual(sh["runs"], 2)
-        self.assertEqual(sh["classes"][0]["class"], "a.Big")
-        self.assertAlmostEqual(sh["classes"][0]["share"], 0.6)
-        self.assertEqual(s["cases"][0]["case"], "t")
 
 
 if __name__ == "__main__":

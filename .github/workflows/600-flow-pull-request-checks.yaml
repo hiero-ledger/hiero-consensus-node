@@ -193,8 +193,8 @@ jobs:
 
   publish-run-metrics:
     # Writes this run's jobs, step timings and per-test timings to an artifact while all of that still exists
-    # (the API drops step detail after ~18 days and JUnit reports after 7). ingest.py in .github/ci-metrics loads it
-    # into a local SQLite database. Never gates the PR: nothing depends on it and it may fail without effect.
+    # (the API drops step detail after ~18 days and JUnit reports after 7). See .github/ci-metrics/README.md.
+    # Never gates the PR: nothing depends on it and it may fail without effect.
     name: Publish Run Metrics
     runs-on: hl-cn-default-lin-sm
     needs:
