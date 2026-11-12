@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
 
@@ -212,6 +211,26 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         }
     }
 
+    @Override
+    final void onActiveStateTransition() {
+        if (!isRequestClientActive()) {
+            logger.warn(
+                    "{} Connection transitioned to ACTIVE but the request pipeline has not been established; closing connection",
+                    this);
+            close(CloseReason.INTERNAL_ERROR, false, EndStream.Code.ERROR);
+            return;
+        }
+
+        startWorkerThread();
+
+        connectionManager.notifyConnectionActive(this);
+    }
+
+    /**
+     * Start the internal worker thread for the connection.
+     */
+    abstract void startWorkerThread();
+
     /**
      * Calculate the timeout to use for sending a request, based on the size of the request.
      *
@@ -260,19 +279,19 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
     }
 
     @Override
-    public void onSubscribe(final Flow.Subscription subscription) {
+    public final void onSubscribe(final Flow.Subscription subscription) {
         logger.debug("{} OnSubscribe invoked", this);
         subscription.request(Long.MAX_VALUE);
     }
 
     @Override
-    public void clientEndStreamReceived() {
+    public final void clientEndStreamReceived() {
         logger.debug("{} Client End Stream received", this);
         Pipeline.super.clientEndStreamReceived();
     }
 
     @Override
-    public void onError(final Throwable throwable) {
+    public final void onError(final Throwable throwable) {
         if (currentState().isTerminal()) {
             return; // ignore errors when this connection is in a terminal state
         }
@@ -294,7 +313,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
     }
 
     @Override
-    public void onComplete() {
+    public final void onComplete() {
         metrics.recordConnectionOnComplete();
 
         if (currentState() == ConnectionState.CLOSED) {
@@ -331,7 +350,11 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         }
 
         if (endStreamCode != null) {
-            sendEndStream(endStreamCode);
+            try {
+                sendEndStream(endStreamCode);
+            } catch (final Exception _) {
+                // we are closing the connection, ignore failures
+            }
         }
 
         if (!updateConnectionState(connectionState, ConnectionState.CLOSING)) {
@@ -473,7 +496,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         // no-op
     }
 
-    private void sendEndStream(@NonNull final PublishStreamRequest.EndStream.Code endStreamCode) {
+    private void sendEndStream(@NonNull final EndStream.Code endStreamCode) {
         requireNonNull(endStreamCode);
 
         if (isEndStreamSent.get()) {

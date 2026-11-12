@@ -51,6 +51,7 @@ import com.hedera.node.app.service.token.impl.handlers.TokenAirdropHandler;
 import com.hedera.node.app.service.token.records.TokenAirdropStreamBuilder;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -403,7 +404,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         var sigVerificationMock = mock(SignatureVerification.class);
-        given(keyVerifier.verificationFor(any())).willReturn(sigVerificationMock);
+        given(keyVerifier.verificationFor(any(KeyRequirement.class))).willReturn(sigVerificationMock);
         given(handleContext.keyVerifier()).willReturn(keyVerifier);
         mockSimpleFeeCalculator();
         given(handleContext.tryToChargePayer(anyLong())).willReturn(true);
@@ -541,7 +542,7 @@ class TokenAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
 
         var sigVerificationMock = mock(SignatureVerification.class);
-        given(keyVerifier.verificationFor(any())).willReturn(sigVerificationMock);
+        given(keyVerifier.verificationFor(any(KeyRequirement.class))).willReturn(sigVerificationMock);
         given(handleContext.keyVerifier()).willReturn(keyVerifier);
 
         mockSimpleFeeCalculator();

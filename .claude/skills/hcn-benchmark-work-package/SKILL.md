@@ -65,7 +65,7 @@ check the first night after the merge.
 | Step | What | Ends when | Commands |
 |------|------|-----------|----------|
 | 1 | **Fix:** seeded inputs generated outside the measured calls; fresh copies per pass if the code changes its input; an exact output check after every invocation; things to check from the issue resolved. | A run with two forks exits 0, so every pass of both forks produced the expected output. | [steps-1-3.md](references/steps-1-3.md#step-1-fix) |
-| 2 | **Latency:** `LatencyRecorder` times every call, `LatencyProfiler` reports. | The JSON has `latency.mean`, p50 to p99.99, max, `alloc.norm`, and no discarded pass; a run without the profiler exits 1. | [steps-1-3.md](references/steps-1-3.md#step-2-latency) |
+| 2 | **Latency:** `LatencyRecorder` times every call, or `PipelineTimer` every item through a pipeline; `LatencyProfiler` reports. | The JSON has `latency.mean`, p50 to p99.99, max, `alloc.norm`, and no discarded pass; a run without the profiler exits 1. | [steps-1-3.md](references/steps-1-3.md#step-2-latency) |
 | 3 | **Profile** a run with async-profiler. | `profile-regions.sh`: the code under test takes nearly all of the measured region, the timing under 1%, and the measured region shows no locks, waiting, or handoffs. | [steps-1-3.md](references/steps-1-3.md#step-3-profile) |
 | 4 | **Track:** the module applies the tracking plugin and names the benchmark. | `jmhTracked` writes a manifest that names it, and the driver runs every parameter set from it. | [steps-4-6.md](references/steps-4-6.md#step-4-track) |
 | 5 | **Smoke run.** | `jmhSmoke` passes, a rerun is up to date, and after deleting its output it comes from the cache. | [steps-4-6.md](references/steps-4-6.md#step-5-smoke-run) |
