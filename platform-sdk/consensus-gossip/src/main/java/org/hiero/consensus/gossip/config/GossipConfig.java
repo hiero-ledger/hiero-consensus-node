@@ -42,7 +42,7 @@ public record GossipConfig(
         @ConfigProperty(defaultValue = "5") int connectionServerThreadPriority,
         @ConfigProperty(defaultValue = "60s") Duration hangingThreadDuration,
 
-        @Min(FAR_FUTURE_EVENT_FILTER_DISABLED) @ConfigProperty(defaultValue = "" + FAR_FUTURE_EVENT_FILTER_DISABLED)
+        @Min(FAR_FUTURE_EVENT_FILTER_DISABLED) @ConfigProperty(defaultValue = "10")
         int farFutureEventOffset) {
 
     /** The value of {@code farFutureEventOffset} that disables far future event filtering. */
