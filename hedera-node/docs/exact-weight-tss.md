@@ -242,6 +242,57 @@ Rebuilds use that same cutoff through signing and retries. An older unfinished s
 this cutoff is replaced with a fresh construction ID before replay, discarding its obsolete votes and
 messages while preserving any completed active proof.
 
+### Canonical WRAPS books
+
+WRAPS signs and proves against the canonical book of a committed TSS generation. That book lists every member in
+node-id order with its listed weight and its frozen selected Schnorr key, or the sentinel identity key for a member
+without one. It does not depend on which members took part in the generation's hinTS scheme.
+1. A grounding construction (genesis, or a fresh genesis) signs with its own target book.
+2. An incremental construction signs with its predecessor's book. It rebuilds that book from the predecessor's
+`HistoryProof.target_node_weights` and `target_proof_keys`, and checks it against the predecessor's address book
+hash before any signing work.
+3. R1 freezes only when the frozen set has strictly more than half of the book's effective weight, where identity
+keys count for nothing. Only nodes with positive effective weight in that canonical book may sign.
+4. Only the source nodes' proof votes count, whether handled live or replayed from state.
+
+Reconciliation enriches a proof written before `target_node_weights` existed in place. It uses the first weights,
+from the following sources, that reproduce the proof's committed address book hash:
+1. the generation's own target roster;
+2. the active hinTS scheme's party weights, which equal the generation's listed weights when every member took part;
+3. the current or candidate platform roster.
+
+Weights that do not reproduce the hash are never used. If no source does, the node logs an ERROR, and every
+incremental construction fails with `Invalid canonical WRAPS source book`. Recovery then needs a fresh genesis WRAPS
+proof, which is only possible before block proofs carry the chain of trust (see below). Otherwise it needs a
+coordinated reset. Before upgrading a network whose active generation came from a weight rotation the platform never
+adopted, check that one of these sources still exists.
+
+Unfinished attempts from the earlier WRAPS protocol receive a fresh construction ID before replay. This clears
+obsolete signing messages and proof votes while preserving the completed active proof and its committed trust root.
+Current attempts retain their construction ID across restart.
+
+### Release/0.79 backport scope
+
+The backport of [#28215](https://github.com/hiero-ledger/hiero-consensus-node/pull/28215) includes selected prerequisites
+from [#27891](https://github.com/hiero-ledger/hiero-consensus-node/pull/27891): deterministic selection of usable,
+nonduplicate proof keys, and validation of the expected target history and selected keys for every rotation.
+These checks keep the persisted canonical snapshots consistent with the book expected by consensus.
+
+Selected prerequisites from [#27450](https://github.com/hiero-ledger/hiero-consensus-node/pull/27450) include
+deterministic WRAPS aggregate-signature validation, recoverable aggregation failures, and abstention when a node's
+local Schnorr key differs from its selected key. Aggregation and verification run during consensus-round
+reconciliation, including on inactive nodes, with a successful aggregate cached per attempt. This is the WRAPS
+signature used to construct a history proof; per-block hinTS signature aggregation is unchanged.
+
+During key collection, an active node republishes its local key when its selected target key is missing or stale.
+This includes when all target keys are already present and assembly can start immediately. Republishing does not delay assembly.
+An existing key's replacement is staged for a subsequent construction; it cannot change the current selected
+book or a predecessor's committed snapshot. Extending that predecessor still requires enough remaining eligible
+signers, or recovery of the original private key.
+
+Bad-R1/R2 message validation and signer exclusions remain outside this backport. Repeated unusable messages can
+still exhaust the WRAPS retry budget. Even the full #27450 leaves invalid R3 shares capable of exhausting retries.
+
 ### Integration with protocol components
 
 The TSS system is then just the combination of the `HintsService` and `HistoryService` with the `RosterService`; with

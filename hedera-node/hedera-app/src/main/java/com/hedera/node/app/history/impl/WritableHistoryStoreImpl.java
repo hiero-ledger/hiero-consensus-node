@@ -40,7 +40,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -53,6 +55,8 @@ import org.apache.logging.log4j.Logger;
  * Default implementation of {@link WritableHistoryStore}.
  */
 public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implements WritableHistoryStore {
+    /** The protocol for attempts with canonical WRAPS books and separate source hinTS authority. */
+    public static final int CURRENT_WRAPS_PROTOCOL_VERSION = 1;
 
     private static final Logger log = LogManager.getLogger(WritableHistoryStoreImpl.class);
 
@@ -98,7 +102,9 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         }
         var construction = getConstructionFor(activeRosters);
         final boolean requiresReplacement = construction != null
-                && ((metadata != null && requiresNewMetadataBinding(construction, metadata))
+                && ((!isCompleted(construction)
+                                && construction.wrapsProtocolVersion() != CURRENT_WRAPS_PROTOCOL_VERSION)
+                        || (metadata != null && requiresNewMetadataBinding(construction, metadata))
                         || ((construction.hasWrapsSigningState() || construction.hasFailureReason())
                                 && !construction.hasProofKeyCutoffTime()));
         // An unfinished bootstrap construction has no active proof to preserve. Replace it in place,
@@ -332,6 +338,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             final boolean replaceActive) {
         var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(newConstructionId())
+                .wrapsProtocolVersion(CURRENT_WRAPS_PROTOCOL_VERSION)
                 .sourceRosterHash(sourceRosterHash)
                 .targetRosterHash(targetRosterHash)
                 .targetMetadata(metadata)
@@ -340,7 +347,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         if (replaceActive || requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
             if (replaceActive) {
                 final var obsolete = requireNonNull(activeConstruction.get());
-                purgePublications(obsolete.constructionId(), requireNonNull(lookup.apply(obsolete.sourceRosterHash())));
+                purgeObsoletePublications(obsolete, sourceRosterHash, targetRosterHash, lookup);
             }
             activeConstruction.put(construction);
             logNewConstruction(construction, InSlot.ACTIVE, sourceRosterHash, targetRosterHash);
@@ -348,8 +355,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             if (!requireNonNull(nextConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
                 // Before switching to the new construction, purge the existing one's votes and signatures
                 final var extantConstruction = requireNonNull(nextConstruction.get());
-                final var sourceRoster = requireNonNull(lookup.apply(extantConstruction.sourceRosterHash()));
-                purgePublications(extantConstruction.constructionId(), sourceRoster);
+                purgeObsoletePublications(extantConstruction, sourceRosterHash, targetRosterHash, lookup);
             }
             nextConstruction.put(construction);
             logNewConstruction(construction, InSlot.NEXT, sourceRosterHash, targetRosterHash);
@@ -402,6 +408,41 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     private void purgePublications(final long constructionId, @NonNull final Roster sourceRoster) {
         sourceRoster.rosterEntries().forEach(entry -> {
             final var key = new ConstructionNodeId(constructionId, entry.nodeId());
+            votes.remove(key);
+            wrapsMessageHistories.remove(key);
+        });
+    }
+
+    /**
+     * Removes known publications of an obsolete attempt without requiring its old roster hash to remain
+     * resolvable after candidate pruning or digest re-keying. The fresh construction id is the isolation
+     * boundary: even a legacy row whose sender is no longer in any retained membership cannot be replayed.
+     */
+    private void purgeObsoletePublications(
+            @NonNull final HistoryProofConstruction obsolete,
+            @NonNull final Bytes sourceRosterHash,
+            @NonNull final Bytes targetRosterHash,
+            @NonNull final Function<Bytes, Roster> lookup) {
+        final var nodeIds = new TreeSet<Long>();
+        Stream.of(obsolete.sourceRosterHash(), obsolete.targetRosterHash(), sourceRosterHash, targetRosterHash)
+                .filter(hash -> hash.length() > 0)
+                .distinct()
+                .map(lookup)
+                .filter(Objects::nonNull)
+                .forEach(roster -> roster.rosterEntries().forEach(entry -> nodeIds.add(entry.nodeId())));
+        final var active = getActiveConstruction();
+        if (active.hasTargetProof()) {
+            final var proof = active.targetProofOrThrow();
+            proof.targetNodeWeights().forEach(entry -> nodeIds.add(entry.nodeId()));
+            proof.targetProofKeys().forEach(key -> nodeIds.add(key.nodeId()));
+        }
+        if (obsolete.hasTargetProof()) {
+            final var proof = obsolete.targetProofOrThrow();
+            proof.targetNodeWeights().forEach(entry -> nodeIds.add(entry.nodeId()));
+            proof.targetProofKeys().forEach(key -> nodeIds.add(key.nodeId()));
+        }
+        nodeIds.forEach(nodeId -> {
+            final var key = new ConstructionNodeId(obsolete.constructionId(), nodeId);
             votes.remove(key);
             wrapsMessageHistories.remove(key);
         });
