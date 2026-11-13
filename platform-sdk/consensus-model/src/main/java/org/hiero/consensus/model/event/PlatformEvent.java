@@ -560,8 +560,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
         return getHash().hashCode();
     }
 
+    @Nullable
     @Override
-    @NonNull
     public Hash getHash() {
         return metadata.getHash();
     }

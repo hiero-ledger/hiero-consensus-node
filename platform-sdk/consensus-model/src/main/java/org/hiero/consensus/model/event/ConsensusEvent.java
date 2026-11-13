@@ -17,8 +17,7 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
 public interface ConsensusEvent extends Event {
 
     /**
-     * Returns the transactions in this event, which have all reached consensus, in consensus order. Each
-     * invocation returns a new immutable list. This method is thread safe.
+     * Returns an immutable list of transactions in this event, which have all reached consensus. This method is thread safe.
      *
      * @return a list of consensus transaction
      */
@@ -27,7 +26,8 @@ public interface ConsensusEvent extends Event {
     List<? extends ConsensusTransaction> getTransactions();
 
     /**
-     * Returns the hash of this event.
+     * Returns the hash of this event. The value will never be null, because the hash is always set prior to the
+     * event reaching consensus.
      *
      * @return the hash of the metadata of this event
      */

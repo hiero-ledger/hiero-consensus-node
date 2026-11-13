@@ -53,7 +53,7 @@ public interface Event {
      * Returns an immutable list of all the parents of this event (selfParent + otherParents).
      * This method is thread safe.
      *
-     * @return a consensus transaction iterator
+     * @return the descriptors of this event's parents, self parent first if it has one
      */
     @NonNull
     List<EventDescriptorWrapper> getAllParents();
