@@ -5,6 +5,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.virtualmap.MerklePathUtils.INVALID_PATH;
 import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.swirlds.virtualmap.MerkleHasher;
@@ -20,16 +21,20 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.concurrent.ThreadLocalStorage;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
@@ -372,9 +377,13 @@ public final class VirtualHasher {
         }
     }
 
-    /**
-     * Executes {@link #hash(int, LongFunction, Iterator, long, long, VirtualHashListener)} asynchronously.
-     */
+    /// Executes [#hash(int, LongFunction, Iterator, long, long, VirtualHashListener)] asynchronously, on a new
+    /// thread.
+    ///
+    /// The dirty leaves are consumed on that thread, not in the hashing pool, so the iterator may block while it
+    /// waits for more leaves. The leaf hashing tasks keep running in the hashing pool in the meantime. If the
+    /// iterator blocked a hashing thread instead, with a single hashing thread no leaf would be hashed until the
+    /// iterator ends, and a caller that waits for leaves to be hashed before supplying more would wait forever.
     public CompletableFuture<Hash> hashAsync(
             final int hashChunkHeight,
             final @NonNull LongFunction<VirtualHashChunk> hashChunkPreloader,
@@ -382,10 +391,18 @@ public final class VirtualHasher {
             final long firstLeafPath,
             final long lastLeafPath,
             final @Nullable VirtualHashListener listener) {
+        requireNonNull(hashChunkPreloader);
+        // Consumes the dirty leaves on the current thread and submits hashing tasks to the hashing pool
+        final Supplier<ChunkHashTask> hashing =
+                () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, hashingPool);
+        // Runs the hashing on a new thread, so a blocked leaf iterator never holds a hashing pool thread
+        final Executor newThread = runnable -> new ThreadConfiguration(getStaticThreadManager())
+                .setSingleThreadName(CompositeThreadNameProvider.create("virtualmap", "async-hasher"))
+                .setRunnable(runnable)
+                .build()
+                .start();
         return CompletableFuture.supplyAsync(
-                () -> hash(
-                        hashChunkHeight, hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, listener),
-                hashingPool);
+                () -> hash(hashChunkHeight, firstLeafPath, lastLeafPath, listener, hashing), newThread);
     }
 
     /**
@@ -425,7 +442,27 @@ public final class VirtualHasher {
             final long lastLeafPath,
             final @Nullable VirtualHashListener listener) {
         requireNonNull(hashChunkPreloader);
+        final ForkJoinPool pool =
+                Thread.currentThread() instanceof ForkJoinWorkerThread thread ? thread.getPool() : hashingPool;
+        // Consumes the dirty leaves in a task of the pool, which also runs the hashing tasks
+        final Supplier<ChunkHashTask> hashing = () -> pool.invoke(ForkJoinTask.adapt(
+                () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
+        return hash(hashChunkHeight, firstLeafPath, lastLeafPath, listener, hashing);
+    }
 
+    /// Notifies the listener, runs the given hashing, waits for all its tasks, and returns the root hash. Used by
+    /// both [#hash(int, LongFunction, Iterator, long, long, VirtualHashListener)] and
+    /// [#hashAsync(int, LongFunction, Iterator, long, long, VirtualHashListener)], which run [#hashImpl] on
+    /// different threads.
+    ///
+    /// @param hashing runs [#hashImpl] and returns the root task, or null if there are no dirty leaves
+    @SuppressWarnings("rawtypes")
+    private Hash hash(
+            final int hashChunkHeight,
+            final long firstLeafPath,
+            final long lastLeafPath,
+            final @Nullable VirtualHashListener listener,
+            final @NonNull Supplier<ChunkHashTask> hashing) {
         this.defaultChunkHeight = hashChunkHeight;
 
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
@@ -437,11 +474,7 @@ public final class VirtualHasher {
         // Let the listener know we have started hashing.
         this.listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
-        final ForkJoinPool pool =
-                Thread.currentThread() instanceof ForkJoinWorkerThread thread ? thread.getPool() : hashingPool;
-
-        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(
-                () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
+        final ChunkHashTask rootTask = hashing.get();
         if (rootTask != null) {
             try {
                 rootTask.get();

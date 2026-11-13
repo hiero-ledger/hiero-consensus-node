@@ -12,6 +12,7 @@ import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeReceiveTask;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeSendTask;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
@@ -43,6 +44,13 @@ public class LearningSynchronizer {
     private static final Logger logger = LogManager.getLogger(LearningSynchronizer.class);
 
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
+
+    /// The maximum number of hash chunks that hold requested dirty leaves, but can't be flushed yet, because the
+    /// hasher can't compute their hashes until more leaves arrive. At each of the two leaf ranks, that's the chunk
+    /// with the newest dirty leaf, and the chunk with the first dirty leaf, which is hashed only after the last
+    /// leaf arrives. The threshold keeps room for this many full chunks, see
+    /// [#leafBacklogThrottleThreshold(VirtualMapLearner)].
+    private static final int MAX_UNFINISHED_HASH_CHUNKS = 4;
 
     private final ThreadManager threadManager;
     private final VirtualMapLearnerSyncConfig syncConfig;
@@ -90,18 +98,51 @@ public class LearningSynchronizer {
     private LearnerTreeExchanger buildLearnerExchanger(
             final VirtualMapLearner vmapLearner, final LearnerSyncMetrics syncMetrics) {
         final VirtualMapConfig virtualMapConfig = vmapLearner.getVirtualMapConfig();
-        final NodeTraversalOrder traversalOrder =
-                switch (virtualMapConfig.reconnectMode()) {
-                    case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> new TopToBottomTraversalOrder();
-                    case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> new TwoPhasePessimisticTraversalOrder();
-                    case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new ParallelSyncTraversalOrder();
-                    default ->
-                        throw new UnsupportedOperationException("Unknown reconnect mode: "
-                                + virtualMapConfig.reconnectMode()
-                                + ". Supported modes: PULL_TOP_TO_BOTTOM,"
-                                + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
-                };
-        return new LearnerTreeExchanger(vmapLearner, traversalOrder, syncMetrics);
+        final NodeTraversalOrder traversalOrder = switch (virtualMapConfig.reconnectMode()) {
+            case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM -> new TopToBottomTraversalOrder();
+            case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC -> new TwoPhasePessimisticTraversalOrder();
+            case VirtualMapReconnectMode.PULL_PARALLEL_SYNC -> new ParallelSyncTraversalOrder();
+            default ->
+                throw new UnsupportedOperationException("Unknown reconnect mode: "
+                        + virtualMapConfig.reconnectMode()
+                        + ". Supported modes: PULL_TOP_TO_BOTTOM,"
+                        + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
+        };
+        return new LearnerTreeExchanger(
+                vmapLearner, traversalOrder, syncMetrics, leafBacklogThrottleThreshold(vmapLearner));
+    }
+
+    /// Returns the leaf backlog threshold for the given learner: the configured one, or a larger one, if the
+    /// configured one could stop the reconnect for good.
+    ///
+    /// Dirty leaves leave the backlog only when their hash chunk is flushed. The hasher finishes a chunk only when
+    /// it knows every slot of it, and it learns that a slot is clean only when a later dirty leaf at the same rank
+    /// skips it. So at each leaf rank, up to two chunks with dirty leaves can stay unfinished for long: the one
+    /// with the first dirty leaf, whose earlier slots are known to be clean only after the last leaf, and the one
+    /// with the newest dirty leaf. The chunk with leaves at both leaf ranks is one of these whenever it holds
+    /// backlog leaves. A chunk holds at most as many leaves as it has hashes, so these 4 chunks hold at most
+    /// `4 * 2^chunkHeight` backlog leaves. With `flushInterval` more, the backlog always holds enough finished
+    /// chunks to fill a batch, so a flush always starts, and the learner never stops for good.
+    ///
+    /// @param vmapLearner the learner
+    /// @return the threshold to use
+    private int leafBacklogThrottleThreshold(@NonNull final VirtualMapLearner vmapLearner) {
+        final int configured = syncConfig.leafBacklogThrottleThreshold();
+        final long minimum = (long) syncConfig.flushInterval()
+                + MAX_UNFINISHED_HASH_CHUNKS * VirtualHashChunk.getChunkSize(vmapLearner.getHashChunkHeight());
+        if (configured >= minimum) {
+            return configured;
+        }
+        final int threshold = (int) Math.min(minimum, Integer.MAX_VALUE);
+        logger.warn(
+                RECONNECT.getMarker(),
+                "reconnect.learner.leafBacklogThrottleThreshold {} is too small for flushInterval {} and hash chunk"
+                        + " height {}, using {} instead",
+                configured,
+                syncConfig.flushInterval(),
+                vmapLearner.getHashChunkHeight(),
+                threshold);
+        return threshold;
     }
 
     /**

@@ -3,8 +3,14 @@ package com.swirlds.virtualmap.config;
 
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.validation.ConfigViolation;
+import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Positive;
+import com.swirlds.config.extensions.validators.DefaultConfigViolation;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 
 /**
@@ -39,6 +45,17 @@ import java.time.Duration;
  *                                               store, and reconnect data files are rarely compacted, so a small
  *                                               interval leaves many small files behind, while a large interval
  *                                               increases heap usage.
+ * @param leafBacklogThrottleThreshold           The learner stops requesting leaves while its leaf backlog is at this
+ *                                               threshold or above. The backlog is the number of leaves requested from
+ *                                               the teacher, but not stored to disk yet together with their hashes.
+ *                                               Leaves leave the backlog only when they are flushed, so the threshold
+ *                                               must be at least twice {@code flushInterval}, otherwise the backlog may
+ *                                               never fill a flush. This is checked when the configuration is built. A
+ *                                               reconnect may use a larger threshold, if the hash chunks of the map are
+ *                                               large compared to {@code flushInterval}. This bounds the memory used by
+ *                                               leaves waiting for hashing or flushing, when leaves are received faster
+ *                                               than they are hashed, for example when hashing threads are blocked on
+ *                                               flusher backpressure. Each leaf takes a few hundred bytes of heap.
  */
 // spotless:off
 @ConfigData("reconnect.learner")
@@ -49,5 +66,28 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "60s") Duration asyncStreamIdleTimeout,
         @ConfigProperty(defaultValue = "10000") @Positive @Max(1073741824) int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
-        @ConfigProperty(defaultValue = "2000000") @Positive int flushInterval) {}
+        @ConfigProperty(defaultValue = "2000000") @Positive int flushInterval,
+        @ConfigProperty(defaultValue = "4000000") @Positive @ConstraintMethod("validateLeafBacklogThrottleThreshold") int leafBacklogThrottleThreshold) {
 // spotless:on
+
+    private static final String LEAF_BACKLOG_THROTTLE_THRESHOLD = "reconnect.learner.leafBacklogThrottleThreshold";
+
+    /// Checks that [#leafBacklogThrottleThreshold()] is at least twice [#flushInterval()]. Dirty leaves leave the
+    /// learner's leaf backlog only when they are flushed, and a flush starts only when the flusher has collected
+    /// `flushInterval` items, so a smaller backlog may never fill a flush. Twice the interval also leaves room
+    /// for the next flush to fill up while the current one is running.
+    ///
+    /// @param configuration the configuration
+    /// @return a violation, or null if the threshold is valid
+    @Nullable
+    public ConfigViolation validateLeafBacklogThrottleThreshold(@NonNull final Configuration configuration) {
+        if (leafBacklogThrottleThreshold >= 2L * flushInterval) {
+            return null;
+        }
+        return new DefaultConfigViolation(
+                LEAF_BACKLOG_THROTTLE_THRESHOLD,
+                Integer.toString(leafBacklogThrottleThreshold),
+                true,
+                "must be at least twice reconnect.learner.flushInterval (" + flushInterval + ")");
+    }
+}
