@@ -292,3 +292,22 @@ jobs:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       regression-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+
+  # Never gates the run: nothing depends on it and a failure inside it does not fail this run. See docs/ci-metrics.md.
+  publish-run-metrics:
+    name: Publish Run Metrics
+    needs:
+      - extract-citr-vars
+      - verify-citr-vars
+      - compute-solo-ge-0440
+      - parameters
+      - extract-jdk-version
+      - state-validator-uberjar
+      - xts-execution
+      - xts-optional-execution
+    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    uses: ./.github/workflows/865-call-publish-run-metrics.yaml
+    with:
+      context: >-
+        ${{ format('{{"ref_name":"{0}","head_sha":"{1}"}}',
+        github.ref_name, github.sha) }}

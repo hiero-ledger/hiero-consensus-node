@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "600: [FLOW] PR Checks"
+# The event action (opened, synchronize, labeled, reopened) goes in the run title so it is queryable through the
+# runs API (display_title). It shows which runs are re-triggers of a commit that already ran. See .github/ci-metrics.
+run-name: "PR #${{ github.event.pull_request.number }} ${{ github.event.action }}: ${{ github.event.pull_request.title }}"
 on:
   pull_request:
     types:
@@ -154,6 +157,14 @@ jobs:
           {
             echo "## PR Check Summary"
             echo ""
+            echo "### Run context"
+            echo "- **Event action:** ${{ github.event.action }}"
+            echo "- **Head commit:** ${{ github.event.pull_request.head.sha }}"
+            echo "- **Docs only:** ${{ needs.detect-change-type.outputs.docs-only }}"
+            echo "- **Tests enabled:** ${{ needs.detect-change-type.outputs.enable-tests }}"
+            echo "- **Workflow files changed:** ${{ needs.detect-change-type.outputs.workflow-files-changed }}"
+            echo "- **Smart contracts changed:** ${{ needs.detect-change-type.outputs.smart-contracts-changed }}"
+            echo ""
             if [[ "${{ needs.detect-change-type.outputs.docs-only }}" == "true" ]]; then
               echo "> **Docs-only PR detected.** Unit, integration, HAPI, otter, determinism, and dependency checks were skipped. Build and Spotless still ran."
               echo ""
@@ -179,3 +190,23 @@ jobs:
                 echo "------------------------------------"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
+
+  # Never gates the PR: nothing depends on it and a failure inside it does not fail this run. Always runs (also for runs
+  # cancelled by a newer push) so that cancelled runs are recorded too. See docs/ci-metrics.md.
+  publish-run-metrics:
+    name: Publish Run Metrics
+    needs:
+      - detect-change-type
+      - extract-jdk-version
+      - mats-pr-checks
+      - workflow-unit-tests
+      - ci-complete
+      - report-summary
+    if: ${{ always() && github.event.repository.visibility == 'public' && github.event.pull_request.head.repo.full_name == github.repository }}
+    uses: ./.github/workflows/865-call-publish-run-metrics.yaml
+    with:
+      context: >-
+        ${{ format('{{"action":"{0}","head_sha":"{1}","docs_only":"{2}","enable_tests":"{3}","workflow_files_changed":"{4}","smart_contracts_changed":"{5}","failure_mode":"{6}"}}',
+        github.event.action, github.event.pull_request.head.sha, needs.detect-change-type.outputs.docs-only,
+        needs.detect-change-type.outputs.enable-tests, needs.detect-change-type.outputs.workflow-files-changed,
+        needs.detect-change-type.outputs.smart-contracts-changed, needs.mats-pr-checks.outputs.failure-mode) }}

@@ -382,3 +382,23 @@ jobs:
           webhook-type: incoming-webhook
           payload-templated: true
           payload-file-path: slack_payload_summary.json
+
+  # Never gates the run: nothing depends on it and a failure inside it does not fail this run. See docs/ci-metrics.md.
+  publish-run-metrics:
+    name: Publish Run Metrics
+    needs:
+      - extract-citr-vars
+      - verify-citr-vars
+      - compute-solo-ge-0440
+      - parameters
+      - extract-jdk-version
+      - candidate-info
+      - xts-optional-execution
+      - report-success
+      - report-failure
+    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    uses: ./.github/workflows/865-call-publish-run-metrics.yaml
+    with:
+      context: >-
+        ${{ format('{{"ref":"{0}","ref_name":"{1}","tested_commit":"{0}"}}',
+        inputs.ref, github.ref_name) }}
