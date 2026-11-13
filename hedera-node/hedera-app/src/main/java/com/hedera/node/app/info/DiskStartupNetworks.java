@@ -5,8 +5,10 @@ import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.addressbook.impl.ReadableRegisteredNodeStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
@@ -34,9 +36,11 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -254,8 +258,28 @@ public class DiskStartupNetworks implements StartupNetworks {
                         infoTypes.contains(InfoType.NODE_DETAILS) ? node : null));
             });
             network.nodeMetadata(nodeMetadata);
+            if (infoTypes.contains(InfoType.NODE_DETAILS)) {
+                network.registeredNodes(registeredNodesFrom(state, entityIdStore));
+            }
             return network.build();
         });
+    }
+
+    /**
+     * Returns all registered nodes in the given state, in ascending order of id.
+     *
+     * @param state the state to read from
+     * @param entityIdStore the entity id store of the state, which bounds the registered node ids
+     * @return the registered nodes in state
+     */
+    private static List<RegisteredNode> registeredNodesFrom(
+            @NonNull final State state, @NonNull final ReadableEntityIdStoreImpl entityIdStore) {
+        final var registeredNodeStore =
+                new ReadableRegisteredNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityIdStore);
+        return LongStream.range(0, entityIdStore.peekAtNextNodeId())
+                .mapToObj(registeredNodeStore::get)
+                .filter(Objects::nonNull)
+                .toList();
     }
 
     private static EnumSet<InfoType> withoutTss(@NonNull final Set<InfoType> infoTypes) {

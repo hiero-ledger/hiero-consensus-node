@@ -6,6 +6,8 @@ import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V073AddressBookSchema.REGISTERED_NODES_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
@@ -15,8 +17,11 @@ import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -24,6 +29,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
@@ -34,6 +40,7 @@ import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
@@ -319,6 +326,41 @@ class DiskStartupNetworksTest {
         }
     }
 
+    @Test
+    void writesRegisteredNodesOnlyWithNodeDetails() throws IOException, ParseException {
+        final var registeredNode = RegisteredNode.newBuilder()
+                .registeredNodeId(100L)
+                .adminKey(Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build())
+                .description("block-node-1")
+                .serviceEndpoint(List.of(RegisteredServiceEndpoint.newBuilder()
+                        .domainName("bn1.example.com")
+                        .port(40840)
+                        .requiresTls(true)
+                        .blockNode(RegisteredServiceEndpoint.BlockNodeEndpoint.newBuilder()
+                                .endpointApi(List.of(RegisteredServiceEndpoint.BlockNodeEndpoint.BlockNodeApi.PUBLISH))
+                                .build())
+                        .build()))
+                .build();
+        final var network =
+                NETWORK.copyBuilder().registeredNodes(List.of(registeredNode)).build();
+        final var state = stateContainingInfoFrom(network);
+
+        final var fullLoc = tempDir.resolve("full-network.json");
+        DiskStartupNetworks.writeNetworkInfo(state, fullLoc, EnumSet.allOf(InfoType.class));
+        try (final var fin = Files.newInputStream(fullLoc)) {
+            Assertions.assertThat(Network.JSON.parse(new ReadableStreamingData(fin)))
+                    .isEqualTo(network);
+        }
+
+        final var rosterLoc = tempDir.resolve("roster-network.json");
+        DiskStartupNetworks.writeNetworkInfo(state, rosterLoc, EnumSet.of(InfoType.ROSTER));
+        try (final var fin = Files.newInputStream(rosterLoc)) {
+            Assertions.assertThat(
+                            Network.JSON.parse(new ReadableStreamingData(fin)).registeredNodes())
+                    .isEmpty();
+        }
+    }
+
     private void putJsonAt(@NonNull final String fileName) throws IOException {
         putJsonAt(fileName, NETWORK);
     }
@@ -356,6 +398,7 @@ class DiskStartupNetworksTest {
                 InitTrigger.GENESIS);
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
+        addRegisteredNodeInfo(state, network);
         final var writableStates = state.getWritableStates(PlatformStateService.NAME);
         writableStates.getSingleton(PLATFORM_STATE_STATE_ID).put(PlatformState.DEFAULT);
         ((CommittableWritableStates) writableStates).commit();
@@ -383,6 +426,23 @@ class DiskStartupNetworksTest {
         final var nodes = writableStates.<EntityNumber, Node>get(NODES_STATE_ID);
         metadata.forEach(node -> nodes.put(new EntityNumber(node.nodeId()), node));
         ((CommittableWritableStates) writableStates).commit();
+    }
+
+    private void addRegisteredNodeInfo(@NonNull final FakeState state, @NonNull final Network network) {
+        if (network.registeredNodes().isEmpty()) {
+            return;
+        }
+        final var addressBookStates = state.getWritableStates(AddressBookService.NAME);
+        final var registeredNodes = addressBookStates.<EntityNumber, RegisteredNode>get(REGISTERED_NODES_STATE_ID);
+        network.registeredNodes().forEach(node -> registeredNodes.put(new EntityNumber(node.registeredNodeId()), node));
+        ((CommittableWritableStates) addressBookStates).commit();
+        final var entityIdStates = state.getWritableStates(EntityIdService.NAME);
+        final long highestNodeId = network.registeredNodes().stream()
+                .mapToLong(RegisteredNode::registeredNodeId)
+                .max()
+                .orElseThrow();
+        entityIdStates.<NodeId>getSingleton(HIGHEST_NODE_ID_STATE_ID).put(new NodeId(highestNodeId));
+        ((CommittableWritableStates) entityIdStates).commit();
     }
 
     private Configuration givenConfig() {

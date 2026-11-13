@@ -21,6 +21,7 @@ package com.hedera.node.internal.network;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/state/addressbook/node.proto";
+import "services/state/addressbook/registered_node.proto";
 import "services/state/hints/hints_types.proto";
 import "services/state/history/history_types.proto";
 import "services/state/roster/roster.proto";
@@ -77,6 +78,26 @@ message Network {
    * and public TSS roster material from a single JSON file.
    */
   repeated NodeTssMetadata node_tss_metadata = 5;
+
+  /**
+   * The registered (non-consensus) nodes in the network.
+   * <p>
+   * At genesis, each listed registered node SHALL be created with exactly
+   * the given `registered_node_id`, before any consensus node is created, so
+   * that a consensus node's `associated_registered_node` list MAY reference it.
+   * <p>
+   * On a network transplant, each listed registered node SHALL be created if
+   * absent from state, or updated to match if present. If this list is not
+   * empty, each registered node in state but not in this list SHALL be deleted.
+   * If this list is empty, registered nodes and consensus node associations
+   * already in state SHALL be left unchanged.
+   * <p>
+   * Registered node identifiers share an identifier space with consensus
+   * nodes, so a `registered_node_id` MUST NOT match the node id of any
+   * consensus node in this network or in state.<br/>
+   * This field is OPTIONAL.
+   */
+  repeated com.hedera.hapi.node.state.addressbook.RegisteredNode registered_nodes = 6;
 }
 
 /**

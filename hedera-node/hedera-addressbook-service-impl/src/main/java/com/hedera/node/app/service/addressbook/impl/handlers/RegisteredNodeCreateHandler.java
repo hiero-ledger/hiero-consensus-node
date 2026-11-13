@@ -3,11 +3,15 @@ package com.hedera.node.app.service.addressbook.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
@@ -64,14 +68,28 @@ public class RegisteredNodeCreateHandler implements TransactionHandler {
         final var storeFactory = handleContext.storeFactory();
         final var registeredNodeStore = storeFactory.writableStore(WritableRegisteredNodeStore.class);
 
-        final var registeredNodeId = registeredNodeStore.peekAtNextNodeId();
-        final var node = new RegisteredNode.Builder()
-                .registeredNodeId(registeredNodeId)
+        final var builder = new RegisteredNode.Builder()
                 .adminKey(op.adminKeyOrThrow())
                 .description(op.description())
-                .serviceEndpoint(op.serviceEndpoint())
-                .build();
-        registeredNodeStore.putAndIncrement(node);
+                .serviceEndpoint(op.serviceEndpoint());
+
+        final long registeredNodeId;
+        // System-dispatched creation (e.g., from a genesis or override network) must use the explicit
+        // registered node id given in the dispatch metadata, which shares an id space with consensus nodes
+        final var maybeSystemTxnDispatchEntityNum =
+                handleContext.dispatchMetadata().getMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class);
+        if (maybeSystemTxnDispatchEntityNum.isPresent()) {
+            registeredNodeId = maybeSystemTxnDispatchEntityNum.get();
+            final var nodeStore = storeFactory.readableStore(ReadableNodeStore.class);
+            validateTrue(nodeStore.get(registeredNodeId) == null, INVALID_REGISTERED_NODE_ID);
+            validateTrue(registeredNodeStore.get(registeredNodeId) == null, INVALID_REGISTERED_NODE_ID);
+            registeredNodeStore.putWithExplicitId(
+                    builder.registeredNodeId(registeredNodeId).build());
+        } else {
+            registeredNodeId = registeredNodeStore.peekAtNextNodeId();
+            registeredNodeStore.putAndIncrement(
+                    builder.registeredNodeId(registeredNodeId).build());
+        }
 
         final var recordBuilder =
                 handleContext.savepointStack().getBaseBuilder(RegisteredNodeCreateStreamBuilder.class);

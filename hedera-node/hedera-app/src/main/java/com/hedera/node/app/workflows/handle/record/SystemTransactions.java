@@ -30,9 +30,13 @@ import static org.hiero.consensus.node.NodeUtilities.formatNodeName;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.node.addressbook.AssociatedRegisteredNodeList;
 import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeDeleteTransactionBody;
+import com.hedera.hapi.node.addressbook.RegisteredNodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
@@ -42,6 +46,8 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody;
+import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
@@ -70,6 +76,7 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.ClprLedgerConfigurationFile;
@@ -116,6 +123,7 @@ import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -132,15 +140,22 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -386,6 +401,26 @@ public class SystemTransactions {
             }
         }
 
+        // Create any registered nodes in the genesis network, before the consensus nodes that may associate them
+        final var genesisNetwork = maybeGenesisNetwork(config);
+        final var consensusNodeIds =
+                networkInfo.addressBook().stream().map(NodeInfo::nodeId).collect(Collectors.toSet());
+        final var genesisRegisteredNodes =
+                genesisNetwork.map(Network::registeredNodes).orElse(List.of());
+        final Set<Long> genesisRegisteredNodeIds = new HashSet<>();
+        for (final var registeredNode : usableRegisteredNodes(genesisRegisteredNodes, consensusNodeIds, config)) {
+            dispatchSynthRegisteredNodeCreation(systemContext, registeredNode);
+            genesisRegisteredNodeIds.add(registeredNode.registeredNodeId());
+        }
+        final var registeredNodeIdsInState = registeredNodeIdsInState(state, genesisRegisteredNodeIds);
+        final Map<Long, List<Long>> genesisAssociations = genesisNetwork
+                .map(network -> network.nodeMetadata().stream()
+                        .filter(NodeMetadata::hasNode)
+                        .map(NodeMetadata::nodeOrThrow)
+                        .collect(Collectors.toMap(
+                                Node::nodeId, Node::associatedRegisteredNode, (first, second) -> first)))
+                .orElse(Map.of());
+
         // Create the address book nodes
         final var stakingConfig = config.getConfigData(StakingConfig.class);
         final var numStoredPeriods = stakingConfig.rewardHistoryNumStoredPeriods();
@@ -398,6 +433,10 @@ public class SystemTransactions {
             }
             final var hapiEndpoints =
                     nodeInfo.hapiEndpoints().isEmpty() ? UNKNOWN_HAPI_ENDPOINT : nodeInfo.hapiEndpoints();
+            final var associatedRegisteredNodes = associationsIn(
+                    registeredNodeIdsInState,
+                    nodeInfo.nodeId(),
+                    genesisAssociations.getOrDefault(nodeInfo.nodeId(), List.of()));
             onSuccess.set(dispatch -> {
                 final var stack = dispatch.stack();
                 final var writableStakingInfoStore = new WritableStakingInfoStore(
@@ -428,7 +467,8 @@ public class SystemTransactions {
                                 .gossipEndpoint(nodeInfo.gossipEndpoints())
                                 .gossipCaCertificate(nodeInfo.sigCertBytes())
                                 .serviceEndpoint(hapiEndpoints)
-                                .declineReward(true);
+                                .declineReward(true)
+                                .associatedRegisteredNode(associatedRegisteredNodes);
                         Optional.ofNullable(nodeInfo.grpcCertHash()).ifPresent(nodeCreate::grpcCertificateHash);
                         b.nodeCreate(nodeCreate.build());
                     },
@@ -772,11 +812,57 @@ public class SystemTransactions {
                     .map(NodeMetadata::rosterEntryOrThrow)
                     .map(RosterEntry::nodeId)
                     .toList();
+            // Create or update the override network's registered nodes before any consensus node that may
+            // associate them; if the override network lists no registered nodes, leave those in state as is
+            final var config = configProvider.getConfiguration();
+            final var overrideRegisteredNodes = network.get().registeredNodes();
+            final var reconcileRegisteredNodes = !overrideRegisteredNodes.isEmpty()
+                    && config.getConfigData(NodesConfig.class).registeredNodesEnabled();
+            final Set<Long> consensusNodeIds = new HashSet<>(overrideNodes);
+            network.get().nodeMetadata().stream()
+                    .filter(NodeMetadata::hasNode)
+                    .map(meta -> meta.nodeOrThrow().nodeId())
+                    .forEach(consensusNodeIds::add);
+            final var initialNextNodeId = readableStoreFactory
+                    .readableStore(ReadableEntityIdStore.class)
+                    .peekAtNextNodeId();
+            LongStream.range(0, initialNextNodeId)
+                    .filter(id -> nodeStore.get(id) != null)
+                    .forEach(consensusNodeIds::add);
+            final var initialRegisteredNodeStore =
+                    readableStoreFactory.readableStore(ReadableRegisteredNodeStore.class);
+            final Set<Long> overrideRegisteredNodeIds = new HashSet<>();
+            for (final var registeredNode : usableRegisteredNodes(overrideRegisteredNodes, consensusNodeIds, config)) {
+                final var registeredNodeId = registeredNode.registeredNodeId();
+                if (initialRegisteredNodeStore.get(registeredNodeId) == null) {
+                    dispatchSynthRegisteredNodeCreation(systemContext, registeredNode);
+                    log.info("Registered node {} is new in override network and is being created", registeredNodeId);
+                } else {
+                    systemContext.dispatchAdmin(b -> b.memo("Synthetic registered node update")
+                            .registeredNodeUpdate(RegisteredNodeUpdateTransactionBody.newBuilder()
+                                    .registeredNodeId(registeredNodeId)
+                                    .adminKey(registeredNode.adminKey())
+                                    .description(registeredNode.description())
+                                    .serviceEndpoint(registeredNode.serviceEndpoint())
+                                    .build()));
+                    log.info(
+                            "Registered node {} in state is part of the override network and is being updated",
+                            registeredNodeId);
+                }
+                overrideRegisteredNodeIds.add(registeredNodeId);
+            }
+            // Consensus nodes may only associate registered nodes that exist in state; and, when reconciling,
+            // only those that are also in the override network (since all others are about to be deleted)
+            final var associableRegisteredNodeIds = reconcileRegisteredNodes
+                    ? registeredNodeIdsInState(state, overrideRegisteredNodeIds)
+                    : registeredNodeIdsInState(state, nodeIdsUpToNext(state));
             for (final var meta : network.get().nodeMetadata()) {
                 final var node = meta.node();
                 if (node == null) {
                     continue;
                 }
+                final var associatedRegisteredNodes =
+                        associationsIn(associableRegisteredNodeIds, node.nodeId(), node.associatedRegisteredNode());
                 final var currentNode = nodeStore.get(node.nodeId());
                 if (currentNode == null || currentNode.deleted()) {
                     // Node is new in the override roster, dispatch a node creation transaction
@@ -792,24 +878,29 @@ public class SystemTransactions {
                                             .declineReward(node.declineReward())
                                             .grpcProxyEndpoint(node.grpcProxyEndpoint())
                                             .grpcCertificateHash(node.grpcCertificateHash())
+                                            .associatedRegisteredNode(associatedRegisteredNodes)
                                             .build())
                                     .build(),
                             node.nodeId());
                     log.info("Node {} is new in override network and is being created", node.nodeId());
                 } else {
                     // Node is in the override roster and in current state, dispatch a node update transaction
-                    systemContext.dispatchAdmin(b -> b.memo("Synthetic node update")
-                            .nodeUpdate(NodeUpdateTransactionBody.newBuilder()
-                                    .nodeId(node.nodeId())
-                                    .adminKey(node.adminKey())
-                                    .description(node.description())
-                                    .gossipEndpoint(node.gossipEndpoint())
-                                    .gossipCaCertificate(node.gossipCaCertificate())
-                                    .serviceEndpoint(node.serviceEndpoint())
-                                    .declineReward(node.declineReward())
-                                    .grpcProxyEndpoint(node.grpcProxyEndpoint())
-                                    .grpcCertificateHash(node.grpcCertificateHash())
-                                    .build()));
+                    final var nodeUpdate = NodeUpdateTransactionBody.newBuilder()
+                            .nodeId(node.nodeId())
+                            .adminKey(node.adminKey())
+                            .description(node.description())
+                            .gossipEndpoint(node.gossipEndpoint())
+                            .gossipCaCertificate(node.gossipCaCertificate())
+                            .serviceEndpoint(node.serviceEndpoint())
+                            .declineReward(node.declineReward())
+                            .grpcProxyEndpoint(node.grpcProxyEndpoint())
+                            .grpcCertificateHash(node.grpcCertificateHash());
+                    if (reconcileRegisteredNodes) {
+                        nodeUpdate.associatedRegisteredNodeList(
+                                new AssociatedRegisteredNodeList(associatedRegisteredNodes));
+                    }
+                    systemContext.dispatchAdmin(
+                            b -> b.memo("Synthetic node update").nodeUpdate(nodeUpdate.build()));
                     log.info("Node {} in state is part of the override network and is being updated", node.nodeId());
                 }
             }
@@ -828,10 +919,155 @@ public class SystemTransactions {
                     log.info("Node {} in state is not part of the override network and is being marked deleted", i);
                 }
             }
+            // Only after no remaining consensus node can still associate them, delete the registered nodes in
+            // state that are not in the override network
+            if (reconcileRegisteredNodes) {
+                for (final long registeredNodeId : registeredNodeIdsInState(state, nodeIdsUpToNext(state))) {
+                    if (!overrideRegisteredNodeIds.contains(registeredNodeId)) {
+                        systemContext.dispatchAdmin(b -> b.memo("Synthetic registered node deletion")
+                                .registeredNodeDelete(RegisteredNodeDeleteTransactionBody.newBuilder()
+                                        .registeredNodeId(registeredNodeId)
+                                        .build()));
+                        log.info(
+                                "Registered node {} in state is not part of the override network and is being deleted",
+                                registeredNodeId);
+                    }
+                }
+            }
             log.info("Roster transplant completed, node updates dispatched");
             return true;
         }
         return false;
+    }
+
+    /**
+     * Returns the genesis network, if one is available.
+     *
+     * @param config the configuration to use
+     * @return the genesis network, if available
+     */
+    private Optional<Network> maybeGenesisNetwork(@NonNull final Configuration config) {
+        try {
+            return Optional.of(startupNetworks.genesisNetworkOrThrow(config));
+        } catch (IllegalStateException e) {
+            log.debug("No genesis startup network available for registered nodes", e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Returns the registered nodes in the given startup network list that can be created or updated with their
+     * given ids; that is, those whose id is neither used by a consensus node nor by an earlier registered node
+     * in the list. Returns no registered nodes if registered nodes are disabled.
+     *
+     * @param registeredNodes the registered nodes from a startup network
+     * @param consensusNodeIds the ids already used by consensus nodes
+     * @param config the configuration to use
+     * @return the usable registered nodes, in list order
+     */
+    private static List<RegisteredNode> usableRegisteredNodes(
+            @NonNull final List<RegisteredNode> registeredNodes,
+            @NonNull final Set<Long> consensusNodeIds,
+            @NonNull final Configuration config) {
+        if (registeredNodes.isEmpty()) {
+            return List.of();
+        }
+        if (!config.getConfigData(NodesConfig.class).registeredNodesEnabled()) {
+            log.warn(
+                    "Ignoring {} registered node(s) in startup network since registered nodes are disabled",
+                    registeredNodes.size());
+            return List.of();
+        }
+        final Set<Long> usedIds = new HashSet<>(consensusNodeIds);
+        final List<RegisteredNode> usable = new ArrayList<>();
+        for (final var registeredNode : registeredNodes) {
+            final var registeredNodeId = registeredNode.registeredNodeId();
+            if (usedIds.add(registeredNodeId)) {
+                usable.add(registeredNode);
+            } else {
+                log.error(
+                        "Ignoring registered node {} in startup network since its id is already used by another node",
+                        registeredNodeId);
+            }
+        }
+        return usable;
+    }
+
+    /**
+     * Dispatches a synthetic creation of the given registered node with its given id.
+     *
+     * @param systemContext the system context to dispatch in
+     * @param registeredNode the registered node to create
+     */
+    private static void dispatchSynthRegisteredNodeCreation(
+            @NonNull final SystemContext systemContext, @NonNull final RegisteredNode registeredNode) {
+        systemContext.dispatchCreation(
+                b -> b.memo("Synthetic registered node creation")
+                        .registeredNodeCreate(RegisteredNodeCreateTransactionBody.newBuilder()
+                                .adminKey(registeredNode.adminKey())
+                                .description(registeredNode.description())
+                                .serviceEndpoint(registeredNode.serviceEndpoint())
+                                .build())
+                        .build(),
+                registeredNode.registeredNodeId());
+    }
+
+    /**
+     * Returns every id a consensus or registered node in the given state could have; that is, all ids
+     * less than the next node id.
+     *
+     * @param state the state to read from
+     * @return the possible node ids, in ascending order
+     */
+    private static List<Long> nodeIdsUpToNext(@NonNull final State state) {
+        final var nextNodeId = new ReadableStoreFactoryImpl(state)
+                .readableStore(ReadableEntityIdStore.class)
+                .peekAtNextNodeId();
+        return LongStream.range(0, nextNodeId).boxed().toList();
+    }
+
+    /**
+     * Returns the given candidate ids that are ids of registered nodes in the given state.
+     *
+     * @param state the state to read from
+     * @param candidateIds the candidate registered node ids
+     * @return the ids of registered nodes in state, in ascending order
+     */
+    private static SortedSet<Long> registeredNodeIdsInState(
+            @NonNull final State state, @NonNull final Collection<Long> candidateIds) {
+        if (candidateIds.isEmpty()) {
+            return Collections.emptySortedSet();
+        }
+        final var registeredNodeStore =
+                new ReadableStoreFactoryImpl(state).readableStore(ReadableRegisteredNodeStore.class);
+        return candidateIds.stream()
+                .filter(id -> registeredNodeStore.get(id) != null)
+                .collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    /**
+     * Returns the given consensus node's associations with registered nodes, dropping (with a warning) any
+     * association with a registered node not in the given set; so a consensus node is never left uncreated or
+     * un-updated just because its startup network entry references a missing registered node.
+     *
+     * @param registeredNodeIds the ids of the registered nodes that may be associated
+     * @param nodeId the consensus node id
+     * @param associations the consensus node's associations from the startup network
+     * @return the associations with registered nodes in the given set, in their original order
+     */
+    private static List<Long> associationsIn(
+            @NonNull final Set<Long> registeredNodeIds, final long nodeId, @NonNull final List<Long> associations) {
+        final var present =
+                associations.stream().filter(registeredNodeIds::contains).toList();
+        if (present.size() < associations.size()) {
+            log.warn(
+                    "Dropping association(s) of node{} with missing registered node(s) {}",
+                    nodeId,
+                    associations.stream()
+                            .filter(id -> !registeredNodeIds.contains(id))
+                            .toList());
+        }
+        return present;
     }
 
     private void maybeWriteGenesisTssPrivateKeys(@NonNull final Configuration config) {
