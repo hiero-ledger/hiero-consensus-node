@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
@@ -13,6 +14,7 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -27,6 +29,7 @@ import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.clpr.ClprControlMessage;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
@@ -40,6 +43,7 @@ import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ValidatedBundle;
 import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
+import com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
@@ -51,6 +55,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -92,6 +97,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     /** Function selector for onClprResponse(bytes32,uint64,uint8,bytes) = 0x3b74550e */
     private static final byte[] ON_CLPR_RESPONSE_SELECTOR = new byte[] {0x3b, 0x74, 0x55, 0x0e};
+
+    private static DispatchMetadata callbackMetadata(final ContractGasUsage usage) {
+        final var metadata = new DispatchMetadata(CLPR_DISPATCH_METADATA);
+        metadata.putMetadata(CONTRACT_GAS_USAGE, usage);
+        return metadata;
+    }
 
     // A CLPR transaction may dispatch several EVM calls in one transactional unit, so their written storage
     // slots must be traced explicitly for the block stream to say which call wrote which value
@@ -137,18 +148,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var deferredPeerEndpoints = new DeferredPeerEndpoints();
         final var gasAccounting = ClprGasAccounting.forContext(context);
         try {
-            if (!gasAccounting.reserveParentGas()) {
-                throw new HandleException(com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE);
-            }
             handleBundle(context, deferredPeerEndpoints, gasAccounting);
             gasAccounting.refundUnusedGas();
             deferredPeerEndpoints.seedInto(channelLifecycle);
         } catch (final HandleException failure) {
             throw gasAccounting.preservingChargesOnRollback(failure);
         } catch (final RuntimeException failure) {
-            log.error("CLPR bundle failed after gas reservation", failure);
-            throw gasAccounting.preservingChargesOnRollback(
-                    new HandleException(com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID));
+            throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
         }
     }
 
@@ -244,18 +250,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     return svc == null ? "?" : svc.ipAddress() + ":" + svc.port();
                                 })
                                 .collect(Collectors.joining(", ", "[", "]")));
-                // Apply this ledger's max_peer_endpoints policy before storing, mirroring
-                // ClprCompleteChannel — the peer's declared list must not override our storage
-                // bound (spec §3.10.5). Zero means no limit; entries beyond it are dropped in order.
-                final int rawPeerLimit = throttles.maxPeerEndpoints();
-                final var incomingEndpoints = newEndpointManifest.endpoints();
-                final var truncatedEndpoints = rawPeerLimit > 0 && incomingEndpoints.size() > rawPeerLimit
-                        ? incomingEndpoints.subList(0, rawPeerLimit)
-                        : incomingEndpoints;
-                final var storedManifest = newEndpointManifest
-                        .copyBuilder()
-                        .endpoints(truncatedEndpoints)
-                        .build();
+                // Bound the same serialized manifest state as channel completion, including certificate bytes.
+                final ClprEndpointManifest storedManifest;
+                try {
+                    storedManifest =
+                            ClprPeerManifestPolicy.boundedManifest(newEndpointManifest, throttles.maxPeerEndpoints());
+                } catch (final IllegalArgumentException e) {
+                    throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+                }
+                final var truncatedEndpoints = storedManifest.endpoints();
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());
@@ -433,6 +436,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         long pendingCallbacks = newMessages.stream()
                 .filter(payload -> payload.hasMessage() || payload.hasMessageReply())
                 .count();
+        // Reserve before reversible connector reimbursements or slashing payouts can fund the payer.
+        // The EVM verifier already reserves this same escrow when verification executes contract code.
+        if (pendingCallbacks > 0 && !gasAccounting.reserveParentGas()) {
+            throw new HandleException(INSUFFICIENT_PAYER_BALANCE);
+        }
         for (int i = 0; i < newMessages.size(); i++) {
             final var payload = newMessages.get(i);
             final long callbackGasLimit;
@@ -614,7 +622,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         if (!gasAccounting.prepay(gasPayer, gasLimit)) {
                             throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
                         }
-                        HookDispatchStreamBuilder gasResult = null;
+                        final var gasUsage = new ContractGasUsage();
                         try {
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch ENTER conn={} receivedMsgId={} "
@@ -628,9 +636,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     syntheticBody,
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
-                                    CLPR_DISPATCH_METADATA,
+                                    callbackMetadata(gasUsage),
                                     ON));
-                            gasResult = result;
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch RETURNED conn={} receivedMsgId={} "
                                             + "target={} status={}",
@@ -712,7 +719,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     e.getMessage());
                             replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                         } finally {
-                            final long actualGasFee = gasAccounting.settle(gasPayer, gasLimit, gasResult);
+                            final long actualGasFee = gasAccounting.settleWithGasUsage(gasPayer, gasLimit, gasUsage);
                             final long unusedReimbursement = gasAccounting.costForGas(gasLimit) - actualGasFee;
                             if (unusedReimbursement > 0) {
                                 tokenServiceApi.transferFromTo(context.payer(), gasPayer, unusedReimbursement);
@@ -830,14 +837,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         if (!gasAccounting.prepay(callbackGasPayer, gasLimit)) {
                             throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
                         }
-                        HookDispatchStreamBuilder gasResult = null;
+                        final var gasUsage = new ContractGasUsage();
                         try {
-                            gasResult = context.dispatch(stepDispatch(
+                            context.dispatch(stepDispatch(
                                     callbackAccount.accountIdOrThrow(),
                                     syntheticBody,
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
-                                    CLPR_DISPATCH_METADATA,
+                                    callbackMetadata(gasUsage),
                                     ON));
                             log.debug(
                                     "[ClprSubmitBundle] onClprResponse dispatch SUCCESS to sender={} replyTargetId={}",
@@ -852,7 +859,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     replyTargetId,
                                     e.getMessage());
                         } finally {
-                            final long actualGasFee = gasAccounting.settle(callbackGasPayer, gasLimit, gasResult);
+                            final long actualGasFee =
+                                    gasAccounting.settleWithGasUsage(callbackGasPayer, gasLimit, gasUsage);
                             final long unusedReimbursement = callbackGasFee - actualGasFee;
                             if (unusedReimbursement > 0) {
                                 callbackTokenApi.transferFromTo(context.payer(), callbackGasPayer, unusedReimbursement);

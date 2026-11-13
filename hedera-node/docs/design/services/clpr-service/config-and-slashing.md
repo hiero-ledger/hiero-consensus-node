@@ -241,9 +241,17 @@ and endpoint incentives.
 
 ### Per-message charge on successful dispatch
 
-Application execution gas is paid to the network by the original bundle payer before
-any EVM execution. The parent holds the full transaction gas allowance until completion,
+Application execution gas is paid to the network by the original bundle payer through
+one escrow created immediately before the first EVM dispatch. Early validation failures
+create no escrow. Bundles reserve before processing DATA or response payloads,
+including before reversible connector compensation or slashing payouts. This prevents
+those transfers from backing the parent's gas payment, even when a callback is later
+skipped. The parent holds the full transaction gas allowance until completion,
 then refunds unused fees. A later parent rollback retains payment for executed gas.
+Verifier billing is capped at 300,000 units and collected only once, even when the native
+fee calculator also settles byte charges. Already charged base/byte fees count against
+the payer's signed maximum together with the escrow. CLPR imposes no additional
+endpoint misbehavior penalty.
 
 For each new inbound DATA message with a funded connector, the connector reimburses
 actual callback gas plus flat execution compensation and the progress reward:

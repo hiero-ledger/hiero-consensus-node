@@ -91,6 +91,7 @@ public record ClprConfig(
         // Maximum fee the node will pay when submitting an inbound bundle for consensus. A bundle is exempt from node
         // and network fees and pays $0.01 + PROCESSING_BYTES per bundle byte + verifier gas, so a bundle at the
         // default 4 MiB max_sync_bytes costs about $0.46 at the proposal's byte and gas rates.
+        // The cap must also cover the shared verifier/callback gas reservation before execution.
         @ConfigProperty(defaultValue = "100000000000") @NetworkProperty
         long nodeSubmitBundleMaxFee,
 

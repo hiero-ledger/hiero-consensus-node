@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_COMMITMENT_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
@@ -25,10 +26,13 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
@@ -42,25 +46,32 @@ import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteChannelHandler;
 import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
+import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -74,6 +85,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -640,6 +652,114 @@ class ClprCompleteChannelHandlerTest {
         assertThat(stored.status()).isEqualTo(ClprChannelStatus.ACTIVE);
         assertThat(stored.endpointManifestVersion()).isEqualTo(7L);
         assertThat(stored.endpointManifestOrThrow()).isEqualTo(peerManifest);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2})
+    void verifierGasIsRefundedOnSuccessAndPreservedAfterLateFailure(final int failureMode) {
+        final boolean invalidManifest = failureMode == 1;
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(7)
+                .serviceAddress(invalidManifest ? Bytes.wrap(new byte[16_384]) : PEER_CONFIG.serviceAddress())
+                .build();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("clpr.verifierGasLimit", 1000L)
+                .withValue("contracts.maxGasPerTransaction", 1000L)
+                .getOrCreateConfig();
+        setupHandleContext(validEcdsaTxnWithManifest(manifest), config);
+        setupVerifierAccount(true);
+        givenUnitGasPrice(handleContext);
+        given(handleContext.tryToCharge(PAYER_ID, 1000L)).willReturn(true);
+        final var result = new ContractGasUsage();
+        result.recordGasUsed(400L);
+        given(verifierFactory.getVerifier(any())).willReturn(new PassThroughClprVerifier() {
+            @Override
+            public VerifiedConfig verifyConfig(
+                    final Bytes proof, final Bytes channelId, final Bytes manifestProof, final HandleContext context) {
+                final var accounting = ClprGasAccounting.forContext(context);
+                assertThat(accounting.prepayVerifier(context.payer(), 1000L)).isTrue();
+                accounting.settleVerifierWithGasUsage(context.payer(), 1000L, result);
+                return super.verifyConfig(proof, channelId, manifestProof, context);
+            }
+        });
+
+        if (failureMode == 2) {
+            given(smartContractServiceApi.getContractBytecode(VERIFIER_CONTRACT_ID))
+                    .willThrow(new IllegalStateException("Unexpected store failure after verifier execution"));
+        }
+        if (failureMode > 0) {
+            final var rollbackContext = mock(HandleContext.class);
+            if (failureMode == 1) {
+                final var failure = org.junit.jupiter.api.Assertions.assertThrows(
+                        HandleException.class, () -> subject.handle(handleContext));
+                assertThat(failure.getStatus()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+                failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
+            } else {
+                final var failure = org.junit.jupiter.api.Assertions.assertThrows(
+                        RollbackAwareException.class, () -> subject.handle(handleContext));
+                assertThat(failure.getCause())
+                        .isInstanceOf(IllegalStateException.class)
+                        .hasMessage("Unexpected store failure after verifier execution");
+                failure.maybeReplay(mock(FeeCharging.Context.class), rollbackContext);
+            }
+            verify(rollbackContext).tryToCharge(PAYER_ID, 400L);
+            verify(handleContext, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+            assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
+        } else {
+            subject.handle(handleContext);
+            verify(handleContext).refundHandlerCharge(PAYER_ID, 600L);
+        }
+    }
+
+    @Test
+    void unexpectedFailureBeforeEvmWorkPropagatesWithoutChangingWorkflowFeeSemantics() {
+        setupHandleContext(validEcdsaTxn());
+        final var failure = new IllegalStateException("Unexpected store failure before verifier execution");
+        given(storeFactory.writableStore(WritablePendingCommitmentStore.class)).willThrow(failure);
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).isSameAs(failure);
+
+        verify(verifierFactory, never()).getVerifier(any());
+        verify(handleContext, never()).tryToCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    private static void givenUnitGasPrice(final HandleContext context) {
+        given(context.dispatchMetadata()).willReturn(new HandleContext.DispatchMetadata(new HashMap<>()));
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
+        given(context.getGasPriceInTinycents()).willReturn(1L);
+        final var prices = mock(ResourcePriceCalculator.class);
+        given(context.resourcePriceCalculator()).willReturn(prices);
+        given(prices.resourcePricesFor(CONTRACT_CALL, DEFAULT))
+                .willReturn(new FunctionalityResourcePrices(FeeData.DEFAULT, 1L));
+        final var rates = mock(ExchangeRateInfo.class);
+        given(context.exchangeRateInfo()).willReturn(rates);
+        given(rates.activeRate(any()))
+                .willReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
+    }
+
+    @Test
+    void oversizedVerifierCertificateIsNeitherStoredNorCached() {
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var oversized = ClprEndpoint.newBuilder()
+                .tlsCertificate(Bytes.wrap(new byte[65_536]))
+                .build();
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(7)
+                .serviceAddress(PEER_CONFIG.serviceAddress())
+                .endpoints(oversized)
+                .build();
+        setupHandleContext(validEcdsaTxnWithManifest(manifest));
+        setupVerifierAccount(true);
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).endpointManifestOrThrow().endpoints())
+                .isEmpty();
+        then(channelLifecycle).should().seedPeerEndpoints(CHANNEL_ID, List.of());
     }
 
     @Test

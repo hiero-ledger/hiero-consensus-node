@@ -113,7 +113,10 @@ message ClprThrottles {
 
     /**
      * Maximum number of peer endpoints this ledger will cache per Channel
-     * from the remote ClprEndpointManifest. Zero means no limit.
+     * from the remote ClprEndpointManifest. Zero means no endpoint-count limit.
+     * Independent storage-byte limits still apply: Hiero retains a declared-order
+     * endpoint prefix whose complete serialized manifest is at most 16,384 bytes,
+     * including certificates, account identifiers, addresses, and protobuf framing.
      */
     uint32 max_peer_endpoints = 7;
 }

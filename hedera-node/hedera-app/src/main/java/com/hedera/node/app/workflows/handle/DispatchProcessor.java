@@ -30,6 +30,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -234,6 +235,10 @@ public class DispatchProcessor {
             }
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
+            if (e instanceof RollbackAwareException replayable) {
+                replayable.maybeReplay(
+                        dispatch.feeChargingOrElse(appFeeCharging).customized(dispatch), dispatch.handleContext());
+            }
         }
         if (!success && details != null) {
             details.replay(dispatch.handleContext()::dispatch);

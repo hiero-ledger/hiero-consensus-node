@@ -2,23 +2,32 @@
 package com.hedera.node.app.service.clpr.impl;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_ACCOUNTING;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.RollbackAwareException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.FeesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 
 /** Pays network gas fees independently of the synthetic EVM sender and bounds a CLPR transaction's total gas. */
 public final class ClprGasAccounting {
+    /** The native verifier billing ceiling, independent of the shared execution limit. */
+    public static final long MAX_BILLED_VERIFIER_GAS = 300_000L;
+
     private final HandleContext context;
     private final AccountID parentPayer;
     private final long totalGas;
@@ -29,6 +38,7 @@ public final class ClprGasAccounting {
     private long remainingGas;
     private boolean verifierAccounted;
     private boolean verifierAllowanceReserved;
+    private long remainingVerifierBillingGas = MAX_BILLED_VERIFIER_GAS;
     private Long gasPrice;
 
     private ClprGasAccounting(@NonNull final HandleContext context) {
@@ -63,7 +73,19 @@ public final class ClprGasAccounting {
     /** Prepays the whole transaction allowance from the original payer before any EVM work. */
     public boolean reserveParentGas() {
         if (prepaid) return true;
-        final long fee = costForGas(totalGas);
+        final long billableGas = context.body() != null && context.body().hasClprCompleteChannel()
+                ? Math.min(totalGas, MAX_BILLED_VERIFIER_GAS)
+                : totalGas;
+        final long fee = costForGas(billableGas);
+        if (fee > 0) {
+            final var builder = context.savepointStack().getBaseBuilder(StreamBuilder.class);
+            if (builder.isUserDispatch()) {
+                // Base and byte fees also count against the signed maximum.
+                final long offered = context.body().transactionFee();
+                final long charged = builder.transactionFee();
+                validateTrue(charged <= offered && fee <= offered - charged, INSUFFICIENT_TX_FEE);
+            }
+        }
         if (fee > 0 && !context.tryToCharge(parentPayer, fee)) return false;
         reservedFee = fee;
         prepaid = true;
@@ -92,6 +114,13 @@ public final class ClprGasAccounting {
             throw new IllegalArgumentException("Negative gas allowance");
         }
         if (gasPrice == null) {
+            final var schedule = context.simpleFeesSchedule();
+            final var contractFee = schedule == null ? null : lookupServiceFee(schedule, CONTRACT_CALL);
+            if (context.configuration().getConfigData(FeesConfig.class).simpleFeesAreFree()
+                    || (contractFee != null && contractFee.free())) {
+                gasPrice = 0L;
+                return 0;
+            }
             final long tinycents = context.getGasPriceInTinycents();
             if (tinycents == 0) {
                 gasPrice = 0L;
@@ -120,6 +149,9 @@ public final class ClprGasAccounting {
 
     /** Prepays verifier gas; its actual use then counts toward the same transaction cap. */
     public boolean prepayVerifier(@NonNull final AccountID payer, final long gasLimit) {
+        validateTrue(gasLimit > 0, INSUFFICIENT_GAS);
+        validateTrue(!refunded, FAIL_INVALID);
+        validateTrue(gasLimit <= remainingGas, MAX_GAS_LIMIT_EXCEEDED);
         final boolean prepaid = prepay(payer, gasLimit);
         if (prepaid) {
             verifierAccounted = true;
@@ -127,18 +159,29 @@ public final class ClprGasAccounting {
         return prepaid;
     }
 
-    /** Refunds unused gas; only known pre-execution throttles are free when no contract result exists. */
-    public long settle(@NonNull final AccountID payer, final long gasLimit, @Nullable final StreamBuilder result) {
-        final long gasUsed;
-        if (result != null && result.hasContractResult()) {
-            gasUsed = Math.clamp(result.getGasUsedForContractTxn(), 0, gasLimit);
-        } else if (result != null
-                && (result.status() == THROTTLED_AT_CONSENSUS || result.status() == CONSENSUS_GAS_EXHAUSTED)) {
-            gasUsed = 0;
-        } else {
-            // An unknown missing result still consumes the full reservation to prevent unbilled work.
-            gasUsed = gasLimit;
-        }
+    /** Whether the shared escrow owns the verifier fee, preventing duplicate native settlement. */
+    public static boolean hasVerifierAccounting(@NonNull final HandleContext context) {
+        final var metadata = context.dispatchMetadata();
+        final var accounting =
+                metadata == null ? null : metadata.getMetadataIfPresent(CLPR_GAS_ACCOUNTING, ClprGasAccounting.class);
+        return accounting != null && accounting.verifierAccounted;
+    }
+
+    /** Bills reported callback gas independently of cleared record/block stream builders. */
+    public long settleWithGasUsage(
+            @NonNull final AccountID payer, final long gasLimit, @NonNull final ContractGasUsage usage) {
+        return settleGas(Math.clamp(usage.gasUsed(), 0, gasLimit));
+    }
+
+    /** Bills verifier execution once, sharing the native operation's 300,000-unit ceiling. */
+    public long settleVerifierWithGasUsage(
+            @NonNull final AccountID payer, final long gasLimit, @NonNull final ContractGasUsage usage) {
+        final long billedGas = Math.min(Math.clamp(usage.gasUsed(), 0, gasLimit), remainingVerifierBillingGas);
+        remainingVerifierBillingGas -= billedGas;
+        return settleGas(billedGas);
+    }
+
+    private long settleGas(final long gasUsed) {
         // Consume every granted gas unit for capacity, independently of billed EVM refunds.
         final long actualFee = costForGas(gasUsed);
         spentFee = Math.addExact(spentFee, actualFee);
@@ -168,6 +211,20 @@ public final class ClprGasAccounting {
         final var accounting =
                 metadata == null ? null : metadata.getMetadataIfPresent(CLPR_GAS_ACCOUNTING, ClprGasAccounting.class);
         return accounting == null ? failure : accounting.preservingChargesOnRollback(failure);
+    }
+
+    /** Preserves the ordinary internal-error service-fee waiver and platform alert. */
+    public static RuntimeException preservingChargesOnRollback(
+            @NonNull final HandleContext context, @NonNull final RuntimeException failure) {
+        final var metadata = context.dispatchMetadata();
+        final var accounting =
+                metadata == null ? null : metadata.getMetadataIfPresent(CLPR_GAS_ACCOUNTING, ClprGasAccounting.class);
+        if (accounting == null || accounting.spentFee == 0 || failure instanceof RollbackAwareException) {
+            return failure;
+        }
+        final long actualFee = accounting.spentFee;
+        return new RollbackAwareException(
+                failure, (fees, rollbackContext) -> rollbackContext.tryToCharge(accounting.parentPayer, actualFee));
     }
 
     /** Retains payment for executed gas when a later parent failure rolls back application state. */

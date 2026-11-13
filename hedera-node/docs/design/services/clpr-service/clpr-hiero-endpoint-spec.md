@@ -548,10 +548,14 @@ Peer endpoints come from the peer ledger's **endpoint manifest**. There is no en
 its endpoints, each with a service endpoint and TLS CA certificate. The peer's manifest is proven and cached on the
 Channel record (`Channel.endpoint_manifest` / `endpoint_manifest_version`):
 
-- at `completeChannel`, from the proven manifest returned by `verifyConfig`, truncated to this ledger's
-  `max_peer_endpoints`;
+- at `completeChannel`, from the proven manifest returned by `verifyConfig`, retaining the declared-order
+  prefix that fits both this ledger's `max_peer_endpoints` and the 16,384-byte serialized manifest ceiling;
 - mid-life, when a `submitBundle` verifier response carries a `new_endpoint_manifest` whose version strictly
-  advances the stored one.
+  advances the stored one, applying the same count and byte bounds.
+
+Zero `max_peer_endpoints` disables only the count bound. The byte ceiling always applies, including to
+certificate, account, address, and protobuf-framing bytes. See [Peer manifest storage ceiling](#peer-manifest-storage-ceiling)
+for oversized-entry handling and configuration migration.
 
 ## 7.3 Reciprocity-Based Peer Selection
 
@@ -1090,3 +1094,47 @@ but the impact on the node's transaction throughput budget must be evaluated.
 | V-6 | `LedgerIdentityChangeListener` SPI fires on all roster change types (join, leave, key rotation).                                               | Verify SPI contract and existing listeners.                         |
 | V-7 | The ingest pipeline can handle `submitBundle` as a new transaction type without special handling.                                              | Verify transaction dispatch and throttle configuration.             |
 | V-8 | Proof construction from `VirtualMap`-backed state can complete within 2 seconds for typical queue depths.                                      | Benchmark required.                                                 |
+
+### Peer manifest storage ceiling
+
+Channel completion and manifest-update bundles retain only the declared endpoint prefix
+that fits both `max_peer_endpoints` and a 16 KiB serialized `ClprEndpointManifest` ceiling.
+The 16,384-byte `MAX_STORED_MANIFEST_BYTES` value is a consensus protocol constant, not
+a node-local configuration setting. Changing it changes transaction acceptance and retained
+state, so it requires a coordinated protocol upgrade.
+The byte ceiling includes certificates, account identifiers, addresses, and protobuf framing,
+and applies even when `max_peer_endpoints` is zero. Oversized endpoint entries and all
+following entries are discarded before state or peer-cache writes. Oversized manifest
+framing (the service address and version alone) rejects the entire transaction. For a
+`submitBundle`, this intentionally rolls back the bundle's messages and acknowledgements
+as well as its manifest update; the handler does not silently skip an invalid manifest and
+partially apply the bundle.
+
+The bundled ledger configuration sets `max_peer_endpoints` to 100. This default seeds
+ledgers that use the bundled configuration at genesis. A node-local configuration file
+keeps its own value, and existing ledger state is not rewritten by changing the bundled
+resource. Updating an existing ledger's count limit requires a configuration update or
+an upgrade file that explicitly sets `maxPeerEndpoints`. The byte ceiling applies to
+existing ledgers independently of that migration, including ledgers whose count limit
+remains zero. These bounds limit retained state; they do not replace the planned fee
+model for retained storage.
+
+Verifier execution is separately paid by the transaction payer at the ordinary
+`ContractCall` gas price, including congestion and the active exchange rate. The payer
+must cover the gas reservation before the verifier is dispatched. Successful parent
+transactions refund unused gas; a failed parent replays the charge for gas already
+consumed after state rollback, so a later invalid manifest cannot erase execution fees.
+The contract handler reports billed gas before child rollback can clear record fields,
+so billing is identical in BLOCKS, RECORDS, and BOTH stream modes. A dispatch that fails
+before producing an EVM outcome, including a pre-execution throttle, bills zero gas.
+A reverted execution still pays its reported gas.
+
+Verifier billing is capped at 300,000 gas units across the parent operation. This is a
+billing ceiling, not an execution allowance: verifier and callback gas grants still share
+one parent execution budget. The shared escrow owns verifier billing; native fee
+settlement detects that ownership and does not collect the same verifier gas again.
+Base and applicable byte fees remain part of the normal fee schedule. For user dispatches,
+fees already charged plus the gas reservation cannot exceed the signed `transactionFee`,
+on success or rollback. CLPR imposes no additional endpoint misbehavior penalty.
+Unexpected internal errors retain the normal service-fee waiver and
+platform alert while replaying payment for executed gas.

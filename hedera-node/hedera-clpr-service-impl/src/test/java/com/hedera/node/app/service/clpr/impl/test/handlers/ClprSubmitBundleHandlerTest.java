@@ -10,11 +10,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
@@ -79,11 +81,13 @@ import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
@@ -843,14 +847,21 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
-    void dataAndResponseExecutionPayActualNetworkGas(final boolean response) {
+    @org.junit.jupiter.params.provider.CsvSource({
+        "false, SUCCESS",
+        "true, SUCCESS",
+        "false, CONTRACT_REVERT_EXECUTED",
+        "true, CONTRACT_REVERT_EXECUTED"
+    })
+    void dataAndResponseExecutionPayActualNetworkGas(final boolean response, final ResponseCodeEnum status) {
         putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
         if (response) putOutboundDataMessage(1);
         final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
         putConnector();
         pricedGasContext();
+        // Response delivery is best-effort and consumes its gas report without inspecting status.
+        lenient().when(dispatchResult.status()).thenReturn(status);
 
         subject.handle(handleContext);
 
@@ -879,7 +890,8 @@ class ClprSubmitBundleHandlerTest {
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
         putConnector();
         pricedGasContext();
-        given(dispatchResult.status()).willReturn(status);
+        // Response delivery is best-effort and consumes its gas report without inspecting status.
+        lenient().when(dispatchResult.status()).thenReturn(status);
         given(dispatchResult.hasContractResult()).willReturn(false);
 
         final long initialBalance = WORST_CASE_CHARGE + 10_000_000L;
@@ -945,6 +957,27 @@ class ClprSubmitBundleHandlerTest {
         verify(handleContext).refundHandlerCharge(PAYER_ID, 1600L);
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void fundedConnectorCannotFinanceAnUnderfundedParentsGasEscrow(final boolean response) {
+        putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+        if (response) putOutboundDataMessage(1);
+        final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+        putConnector();
+        pricedGasContext();
+        given(handleContext.tryToCharge(PAYER_ID, 2000L)).willReturn(false);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_PAYER_BALANCE));
+
+        verify(handleContext).tryToCharge(PAYER_ID, 2000L);
+        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
+    }
+
     private void pricedGasContext() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", true)
@@ -964,6 +997,9 @@ class ClprSubmitBundleHandlerTest {
                         .build());
         given(handleContext.getGasPriceInTinycents()).willReturn(2L);
         given(handleContext.tryToCharge(any(), anyLong())).willReturn(true);
+        final var stack = org.mockito.Mockito.mock(HandleContext.SavepointStack.class);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(org.mockito.Mockito.mock(StreamBuilder.class));
         final var prices = org.mockito.Mockito.mock(com.hedera.node.app.spi.fees.ResourcePriceCalculator.class);
         given(handleContext.resourcePriceCalculator()).willReturn(prices);
         given(prices.resourcePricesFor(any(), any()))
@@ -977,6 +1013,16 @@ class ClprSubmitBundleHandlerTest {
                         .centEquiv(1)
                         .build());
         lenient().when(dispatchResult.getGasUsedForContractTxn()).thenReturn(100L);
+        lenient().when(handleContext.dispatch(any(DispatchOptions.class))).thenAnswer(invocation -> {
+            final DispatchOptions<?> options = invocation.getArgument(0);
+            if (dispatchResult.hasContractResult()) {
+                options.dispatchMetadata()
+                        .getMetadata(CONTRACT_GAS_USAGE, ContractGasUsage.class)
+                        .orElseThrow()
+                        .recordGasUsed(dispatchResult.getGasUsedForContractTxn());
+            }
+            return dispatchResult;
+        });
     }
 
     @Nested
@@ -1455,6 +1501,54 @@ class ClprSubmitBundleHandlerTest {
         // Neither data message should be deleted
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 3)).isNotNull();
+    }
+
+    @Test
+    void bundleDoesNotRequireHeadroomForAnEndpointPenalty() {
+        final long alreadyCharged = 300;
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        setupHandleContext(
+                validSingleDataBundle()
+                        .copyBuilder()
+                        .transactionFee(alreadyCharged)
+                        .build(),
+                true);
+        final var builder = handleContext.savepointStack().getBaseBuilder(StreamBuilder.class);
+        lenient().when(builder.isUserDispatch()).thenReturn(true);
+        lenient().when(builder.transactionFee()).thenReturn(alreadyCharged);
+
+        subject.handle(handleContext);
+
+        verify(verifierFactory).getVerifier(any());
+        verify(handleContext, never()).tryToCharge(any(), anyLong());
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+    }
+
+    @Test
+    void orderingViolationDoesNotAddAPenaltyToTheRecordedFee() {
+        final long alreadyCharged = 300;
+        final long offered = alreadyCharged;
+        putOutboundDataMessage(1);
+        putOutboundDataMessage(3);
+        putChannel(ClprChannelStatus.ACTIVE, 4, 0, ZERO_HASH);
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(replyPayload(3)))
+                        .copyBuilder()
+                        .transactionFee(offered)
+                        .build(),
+                true);
+        final var recordedFee = new java.util.concurrent.atomic.AtomicLong(alreadyCharged);
+        final var builder = handleContext.savepointStack().getBaseBuilder(StreamBuilder.class);
+        lenient().when(builder.isUserDispatch()).thenReturn(true);
+        lenient().when(builder.transactionFee()).thenAnswer(_ -> recordedFee.get());
+
+        subject.handle(handleContext);
+
+        assertThat(recordedFee).hasValue(offered);
+        verify(handleContext, never()).tryToCharge(any(), anyLong());
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
     }
 
     @Test
@@ -2919,6 +3013,19 @@ class ClprSubmitBundleHandlerTest {
         }
 
         @Test
+        void internalFailureBeforeEvmWorkKeepsItsOriginalExceptionAndDoesNotChargeGas() {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload())), true);
+            final var failure = new IllegalStateException("Before verifier execution");
+            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willThrow(failure);
+
+            assertThatThrownBy(() -> subject.handle(handleContext)).isSameAs(failure);
+
+            verify(handleContext, never()).tryToCharge(any(), anyLong());
+            verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
+        }
+
+        @Test
         @DisplayName("verifyBundle() reverts — bundle rejected, channel state unchanged")
         void verifyBundleRevertsRejectsBundle() {
             putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
@@ -3356,6 +3463,11 @@ class ClprSubmitBundleHandlerTest {
         lenient()
                 .when(handleContext.dispatchMetadata())
                 .thenReturn(new HandleContext.DispatchMetadata(new java.util.HashMap<>()));
+        final var feeStack = org.mockito.Mockito.mock(HandleContext.SavepointStack.class);
+        lenient().when(handleContext.savepointStack()).thenReturn(feeStack);
+        lenient()
+                .when(feeStack.getBaseBuilder(StreamBuilder.class))
+                .thenReturn(org.mockito.Mockito.mock(StreamBuilder.class));
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
