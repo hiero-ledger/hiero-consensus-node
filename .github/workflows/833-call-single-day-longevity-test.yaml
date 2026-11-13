@@ -83,6 +83,9 @@ on:
       github-token:
         required: true
         description: "GitHub Authorization Token for the workflow"
+      github-token2:
+        required: true
+        description: "GitHub Authorization Token for the workflow"
       chewie-host:
         required: true
         description: "Chewie Host"
@@ -201,6 +204,14 @@ jobs:
           repository: "hiero-ledger/hiero-block-node"
           path: target_block_node
           ref: ${{ inputs.bnref }}
+
+      - name: Checkout NLG Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hashgraph/network-load-generator
+          ref: "420-heliswap-relay-test-suite"
+          token: ${{ secrets.github-token2 }}
+          path: NLG
 
       - name: Checkout Solo Code
         if: false
@@ -614,6 +625,14 @@ jobs:
           export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
           task solo:mirror-node
 
+      - name: Add Relay Node
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export RELAY_VERSION="${{ inputs.relayref }}"
+          task solo:relay
+
       - name: Solo logs
         if: ${{ !cancelled() && always() }}
         env:
@@ -684,6 +703,18 @@ jobs:
           # Schedule the pods onto the Chewie allocation's machines
           "${{ github.workspace }}"/.github/workflows/support/chewie/apply-allocation-scheduling.sh nlg-values.yaml || exit 1
 
+      - name: Build NLG test
+        run: |
+          set +x
+          set +e
+          export JAVA_OPTS="-Xmx62g -Dfile.encoding=UTF-8 -Djava.awt.headless=true -Dkotlin.daemon.jvm.options=-Xmx48g"
+          ulimit -n 4096
+          cd "${{ github.workspace }}"/NLG
+          git log -1
+          ./gradlew --no-daemon assemble
+          cd build/libs
+          tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
+
       - name: Deploy NLG test
         run: |
           set +x
@@ -697,6 +728,8 @@ jobs:
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
 
       - name: JDK25 for NLG pod
         run: |
@@ -783,16 +816,18 @@ jobs:
             apply ${pod} ${target} "${list_of_ips}"
           done
 
-      - name: Start Longevity test
+      - name: Start HeliSwapRpcLoadTest test
         run: |
           run_NLGDebugparams="-XX:+UseZGC -XX:MaxDirectMemorySize=1G -Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')
           n=$(expr ${{ inputs.nlg-accounts }} / 1000)
           NLG_c=32
 
-          test=LongevityLoadTest
+          test=HeliSwapRpcLoadTest
+          relayIP=`sh "${GITHUB_WORKSPACE}"/node_control/kubectlt -n "${{ env.namespace }}" get svc | grep 'relay-1' | grep 7546 | awk '{print $3}'`
+          relayUrl=http://${relayIP}:7546
 
-          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }} -relay $relayUrl"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \

@@ -64,9 +64,14 @@ on:
         description: "If true, skip tag and notifications"
       enable-chaos:
         required: false
-        default: true
+        default: false
         type: boolean
         description: "Enable Chaos"
+      perf:
+        required: false
+        default: ""
+        description: "Expected duration of all tests in minutes"
+        type: string
 
 defaults:
   run:
@@ -284,6 +289,7 @@ jobs:
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
+      github-token2: ${{ inputs.perf }}
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
