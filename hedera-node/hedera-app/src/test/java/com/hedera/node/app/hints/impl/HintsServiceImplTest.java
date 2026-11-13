@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -284,12 +285,14 @@ class HintsServiceImplTest {
     @Test
     void signCreatesSigningSubmitsPartialSignatureAndRemovesFromMapOnCompletion() {
         final var blockHash = Bytes.wrap("block-hash".getBytes());
-        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
+        final var attemptId = new SigningAttemptId(blockHash, 123L);
+        final var signings = new ConcurrentHashMap<SigningAttemptId, HintsContext.Signing>();
         given(component.signingContext()).willReturn(context);
         given(context.isReady()).willReturn(true);
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(context.constructionIdOrThrow()).willReturn(123L);
         given(signing.constructionId()).willReturn(123L);
         given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
         given(context.newSigningForActiveConstruction(eq(blockHash), any(Runnable.class)))
@@ -299,26 +302,27 @@ class HintsServiceImplTest {
 
         assertSame(signing, returned.signing());
         assertSame(submissionFuture, returned.submissionFuture());
-        assertSame(signing, signings.get(blockHash));
+        assertSame(signing, signings.get(attemptId));
         final var onCompletion = ArgumentCaptor.forClass(Runnable.class);
         verify(context).newSigningForActiveConstruction(eq(blockHash), onCompletion.capture());
         verify(submissions).submitPartialSignature(123L, blockHash);
 
         onCompletion.getValue().run();
 
-        assertFalse(signings.containsKey(blockHash));
+        assertFalse(signings.containsKey(attemptId));
     }
 
     @Test
     void signReusesExistingSigningForSameBlockHash() {
         final var blockHash = Bytes.wrap("same-hash".getBytes());
-        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
-        signings.put(blockHash, signing);
+        final var signings = new ConcurrentHashMap<SigningAttemptId, HintsContext.Signing>();
+        signings.put(new SigningAttemptId(blockHash, 123L), signing);
         given(component.signingContext()).willReturn(context);
         given(context.isReady()).willReturn(true);
         given(component.signings()).willReturn(signings);
         given(component.submissions()).willReturn(submissions);
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(context.constructionIdOrThrow()).willReturn(123L);
         given(signing.constructionId()).willReturn(123L);
         given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
 
@@ -328,6 +332,33 @@ class HintsServiceImplTest {
         assertSame(submissionFuture, returned.submissionFuture());
         verify(context, never()).newSigningForActiveConstruction(any(), any(Runnable.class));
         verify(submissions).submitPartialSignature(123L, blockHash);
+    }
+
+    @Test
+    void signDoesNotReuseExistingSigningOpenedUnderAnotherConstruction() {
+        final var blockHash = Bytes.wrap("same-hash".getBytes());
+        final var signings = new ConcurrentHashMap<SigningAttemptId, HintsContext.Signing>();
+        final var peerOpenedSigning = mock(HintsContext.Signing.class);
+        signings.put(new SigningAttemptId(blockHash, 122L), peerOpenedSigning);
+        given(component.signingContext()).willReturn(context);
+        given(context.isReady()).willReturn(true);
+        given(component.signings()).willReturn(signings);
+        given(component.submissions()).willReturn(submissions);
+        final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
+        given(context.constructionIdOrThrow()).willReturn(123L);
+        given(signing.constructionId()).willReturn(123L);
+        given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
+        given(context.newSigningForActiveConstruction(eq(blockHash), any(Runnable.class)))
+                .willReturn(signing);
+
+        final var returned = subject.sign(blockHash);
+
+        assertSame(signing, returned.signing());
+        assertSame(signing, signings.get(new SigningAttemptId(blockHash, 123L)));
+        assertSame(peerOpenedSigning, signings.get(new SigningAttemptId(blockHash, 122L)));
+        verifyNoInteractions(peerOpenedSigning);
+        verify(submissions).submitPartialSignature(123L, blockHash);
+        verify(submissions, never()).submitPartialSignature(122L, blockHash);
     }
 
     @Test

@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -21,6 +22,7 @@ import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.RsaContext;
+import com.hedera.node.app.hints.impl.SigningAttemptId;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -46,6 +48,7 @@ class HintsPartialSignatureHandlerTest {
     private static final Bytes CRS = Bytes.wrap("crs");
     private static final Bytes MESSAGE = Bytes.wrap("msg");
     private static final Bytes PARTIAL_SIGNATURE = Bytes.wrap("sig");
+    private static final SigningAttemptId ATTEMPT_ID = new SigningAttemptId(MESSAGE, CONSTRUCTION_ID);
 
     private static final HintsPartialSignatureTransactionBody OP = HintsPartialSignatureTransactionBody.newBuilder()
             .constructionId(CONSTRUCTION_ID)
@@ -95,7 +98,7 @@ class HintsPartialSignatureHandlerTest {
     @Mock
     private RsaContext.Signing rsaSigning;
 
-    private ConcurrentMap<Bytes, BlockHashSigning> signings;
+    private ConcurrentMap<SigningAttemptId, HintsContext.Signing> signings;
 
     private ConcurrentMap<Bytes, BlockHashSigning> rsaSignings;
 
@@ -199,7 +202,7 @@ class HintsPartialSignatureHandlerTest {
         verify(hintsContext).validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class));
         verify(hintsContext).newSigningForConstruction(eq(MESSAGE), eq(CONSTRUCTION_ID), any(Runnable.class));
         verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE);
-        assertSame(signing, signings.get(MESSAGE));
+        assertSame(signing, signings.get(ATTEMPT_ID));
     }
 
     @Test
@@ -207,7 +210,7 @@ class HintsPartialSignatureHandlerTest {
         given(tssConfig.useDeterministicHintsSignatures()).willReturn(false);
         given(signing.validatePartial(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class)))
                 .willReturn(true);
-        signings.put(MESSAGE, signing);
+        signings.put(ATTEMPT_ID, signing);
 
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
 
@@ -217,18 +220,23 @@ class HintsPartialSignatureHandlerTest {
     }
 
     @Test
-    void preHandleNonDeterministicMismatchedExistingSigningDoesNotIncorporate() {
+    void preHandleNonDeterministicOpensOwnSigningBesideOneUnderAnotherConstruction() {
+        final var otherAttemptId = new SigningAttemptId(MESSAGE, CONSTRUCTION_ID + 1);
+        final var otherSigning = mock(HintsContext.Signing.class);
         given(tssConfig.useDeterministicHintsSignatures()).willReturn(false);
-        given(signing.constructionId()).willReturn(CONSTRUCTION_ID + 1);
         given(hintsContext.validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class)))
                 .willReturn(true);
-        signings.put(MESSAGE, signing);
+        given(hintsContext.newSigningForConstruction(eq(MESSAGE), eq(CONSTRUCTION_ID), any(Runnable.class)))
+                .willReturn(signing);
+        signings.put(otherAttemptId, otherSigning);
 
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
 
         verify(hintsContext).validate(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class));
-        verify(hintsContext, never()).newSigningForConstruction(any(), anyLong(), any());
-        verify(signing, never()).incorporateValid(any(), anyLong(), any());
+        verify(signing).incorporateValid(CRS, NODE_ID, PARTIAL_SIGNATURE);
+        assertSame(signing, signings.get(ATTEMPT_ID));
+        assertSame(otherSigning, signings.get(otherAttemptId));
+        verifyNoInteractions(otherSigning);
     }
 
     @Test
@@ -433,7 +441,7 @@ class HintsPartialSignatureHandlerTest {
         given(tssConfig.useDeterministicHintsSignatures()).willReturn(true);
         given(signing.validatePartial(eq(NODE_ID), eq(CRS), any(HintsPartialSignatureTransactionBody.class)))
                 .willReturn(true);
-        signings.put(MESSAGE, signing);
+        signings.put(ATTEMPT_ID, signing);
 
         subject.handle(handleContext);
 
@@ -464,7 +472,7 @@ class HintsPartialSignatureHandlerTest {
                 .willReturn(signing);
 
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
-        assertSame(signing, signings.get(MESSAGE));
+        assertSame(signing, signings.get(ATTEMPT_ID));
 
         completionCaptor.getValue().run();
 
@@ -481,7 +489,7 @@ class HintsPartialSignatureHandlerTest {
                 .willReturn(signing);
 
         subject.handle(handleContext);
-        assertSame(signing, signings.get(MESSAGE));
+        assertSame(signing, signings.get(ATTEMPT_ID));
 
         completionCaptor.getValue().run();
 

@@ -102,8 +102,8 @@ class HintsPreparationLivenessTest {
         signingContext.setConstruction(
                 active.construction(), active.crsState(), HintsGenerationTestUtils.weightsFor(active.construction()));
         final var signing = signingContext.newSigningForActiveConstruction(MESSAGE, () -> {});
-        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
-        signings.put(MESSAGE, signing);
+        final var signings = new ConcurrentHashMap<SigningAttemptId, HintsContext.Signing>();
+        signings.put(new SigningAttemptId(MESSAGE, signing.constructionId()), signing);
         final var handler = new HintsPartialSignatureHandler(
                 Duration.ofSeconds(2), signings, new ConcurrentHashMap<>(), signingContext, mock(RsaContext.class));
         final var context = mock(PreHandleContext.class);

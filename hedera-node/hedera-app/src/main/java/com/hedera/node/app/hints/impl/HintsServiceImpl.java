@@ -154,17 +154,15 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         if (!isReady()) {
             throw new IllegalStateException("hinTS service not ready to sign block hash " + blockHash);
         }
-        final var blockHashSigning = component
+        final var context = component.signingContext();
+        // Keyed by the active construction, so an attempt a peer opened under another one is never reused
+        final var attemptId = new SigningAttemptId(blockHash, context.constructionIdOrThrow());
+        final var signing = component
                 .signings()
                 .computeIfAbsent(
-                        blockHash,
-                        b -> component
-                                .signingContext()
-                                .newSigningForActiveConstruction(
-                                        b, () -> component.signings().remove(blockHash)));
-        if (!(blockHashSigning instanceof HintsContext.Signing signing)) {
-            throw new IllegalStateException("hinTS signing required for block hash " + blockHash);
-        }
+                        attemptId,
+                        id -> context.newSigningForActiveConstruction(
+                                blockHash, () -> component.signings().remove(id)));
         // Submit under the construction captured by the signing attempt, not whatever construction is active after a
         // possible handoff.
         final var submissionFuture =
