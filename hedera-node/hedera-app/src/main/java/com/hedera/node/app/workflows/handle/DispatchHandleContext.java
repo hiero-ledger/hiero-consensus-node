@@ -204,6 +204,12 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
 
     @NonNull
     @Override
+    public TransactionCategory transactionCategory() {
+        return transactionCategory;
+    }
+
+    @NonNull
+    @Override
     public AccountID payer() {
         return payerId;
     }
@@ -238,6 +244,19 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             feeAccumulator.refundFee(accountId, amount);
         } else {
             feeCharging.refund(accountId, this, new Fees(0, amount, 0));
+        }
+    }
+
+    @Override
+    public void refundHandlerCharge(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot refund negative amount " + amount);
+        }
+        if (feeCharging.bypassForExtraHandlerCharges()) {
+            feeAccumulator.refundFee(accountId, amount);
+        } else {
+            feeCharging.refund(accountId, this, new Fees(0, 0, amount));
         }
     }
 
@@ -628,7 +647,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     public TransactionCategory category() {
         // When the DispatchHandleContext is used as a fee charging context, always report
         // CHILD category to stay backward compatible with the calls made to FeeAccumulator
-        // when it was invoked directly
+        // when it was invoked directly. Handler authorization uses transactionCategory() instead.
         return CHILD;
     }
 

@@ -157,6 +157,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
@@ -341,6 +342,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void failsFastOnNegativeAmounts() {
         assertThrows(IllegalArgumentException.class, () -> subject.tryToChargePayer(-123L));
         assertThrows(IllegalArgumentException.class, () -> subject.refundBestEffort(payerId, -123L));
+        assertThrows(IllegalArgumentException.class, () -> subject.refundHandlerCharge(payerId, -123L));
     }
 
     @Test
@@ -357,6 +359,23 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         subject.refundBestEffort(payerId, 123L);
 
         verify(feeCharging).refund(payerId, subject, new Fees(0, 123L, 0));
+    }
+
+    @Test
+    void handlerGasRefundUsesTheSameFeeComponentAsTryToCharge() {
+        subject.refundHandlerCharge(payerId, 123L);
+
+        verify(feeCharging).refund(payerId, subject, new Fees(0, 0, 123L));
+    }
+
+    @Test
+    void handlerGasRefundUsesNetworkAccumulatorWhenExtraChargesBypassStrategy() {
+        given(feeCharging.bypassForExtraHandlerCharges()).willReturn(true);
+
+        subject.refundHandlerCharge(payerId, 123L);
+
+        verify(feeAccumulator).refundFee(payerId, 123L);
+        verify(feeCharging, never()).refund(any(), any(), any());
     }
 
     @Test
@@ -1014,6 +1033,16 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Test
     void category_isChild_forFeeChargingContext() {
         assertThat(subject.category()).isEqualTo(CHILD);
+    }
+
+    @ParameterizedTest
+    @EnumSource(HandleContext.TransactionCategory.class)
+    void transactionCategoryReturnsActualCategoryWhileFeeChargingRemainsChild(
+            final HandleContext.TransactionCategory category) {
+        final var context = createContext(CRYPTO_TRANSFER_TXN_BODY, category);
+
+        assertThat(context.transactionCategory()).isEqualTo(category);
+        assertThat(context.category()).isEqualTo(CHILD);
     }
 
     @Test

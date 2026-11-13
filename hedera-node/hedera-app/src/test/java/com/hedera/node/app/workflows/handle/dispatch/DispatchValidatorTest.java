@@ -61,6 +61,7 @@ import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
@@ -861,7 +862,9 @@ class DispatchValidatorTest {
                         .tinybarBalance(123L)
                         .build());
         lenient().when(dispatch.keyVerifier()).thenReturn(keyVerifier);
-        lenient().when(keyVerifier.verificationFor(Key.DEFAULT)).thenReturn(PASSED_VERIFICATION);
+        lenient()
+                .when(keyVerifier.verificationFor(KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT)))
+                .thenReturn(PASSED_VERIFICATION);
         lenient()
                 .when(recordCache.hasDuplicate(BATCH_TXN_BODY.transactionIDOrThrow(), CREATOR_NODE_ID.id()))
                 .thenReturn(HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE);
@@ -951,12 +954,14 @@ class DispatchValidatorTest {
 
     private void givenValidPayerSig() {
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(PASSED_VERIFICATION);
+        given(keyVerifier.verificationFor(KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT)))
+                .willReturn(PASSED_VERIFICATION);
     }
 
     private void givenInvalidPayerSig() {
         given(dispatch.keyVerifier()).willReturn(keyVerifier);
-        given(keyVerifier.verificationFor(Key.DEFAULT)).willReturn(FAILED_VERIFICATION);
+        given(keyVerifier.verificationFor(KeyRequirement.forAccount(PAYER_ACCOUNT_ID, Key.DEFAULT)))
+                .willReturn(FAILED_VERIFICATION);
     }
 
     private void givenChildDispatch() {

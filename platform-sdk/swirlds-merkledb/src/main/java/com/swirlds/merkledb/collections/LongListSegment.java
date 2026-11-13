@@ -2,6 +2,7 @@
 package com.swirlds.merkledb.collections;
 
 import static java.lang.Math.toIntExact;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
@@ -15,6 +16,10 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * A {@link LongList} that stores its contents off-heap via {@link MemorySegment}s backed by
@@ -123,6 +128,60 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
             throws IOException {
         super(longsPerChunk, capacity, reservedBufferSize);
         loadFromFile(file);
+    }
+
+    /// {@inheritDoc}
+    ///
+    /// The copy is in memory and has the same chunk size and reserved buffer size. Every non-empty
+    /// chunk is copied into a new chunk by a separate task run on the given executor. This method
+    /// returns, once all tasks are complete.
+    @NonNull
+    @Override
+    public LongListSegment copy(@NonNull final Executor executor) {
+        return new LongListSegment(this, executor);
+    }
+
+    /// Creates a copy of the given list, see [#copy(Executor)].
+    ///
+    /// @param source the list to copy
+    /// @param executor the executor to copy chunks on
+    private LongListSegment(@NonNull final LongListSegment source, @NonNull final Executor executor) {
+        super(source.longsPerChunk, source.capacity, source.reservedBufferSize);
+        requireNonNull(executor);
+        final List<CompletableFuture<Void>> tasks = new ArrayList<>();
+        try {
+            for (int i = 0; i < source.chunkList.length(); i++) {
+                final SegmentChunk sourceChunk = source.chunkList.get(i);
+                if (sourceChunk != null) {
+                    final int chunkIndex = i;
+                    tasks.add(CompletableFuture.runAsync(() -> copyChunk(sourceChunk, chunkIndex), executor));
+                }
+            }
+            // allOf() completes once all tasks complete, even if some of them fail. join() isn't interruptible
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+        } catch (final Throwable e) {
+            // If a submission failed, wait for the tasks submitted before it, so no chunk is allocated
+            // after this copy is closed
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new))
+                    .exceptionally(_ -> null)
+                    .join();
+            // Don't leak the chunks allocated so far, e.g. if there isn't enough off-heap memory
+            close();
+            throw e;
+        }
+        size.set(source.size.get());
+        minValidIndex.set(source.minValidIndex.get());
+        maxValidIndex.set(source.maxValidIndex.get());
+    }
+
+    /// Copies a chunk of the source list into a new chunk of this list.
+    ///
+    /// @param sourceChunk the chunk to copy
+    /// @param chunkIndex the index of the chunk in the chunk list
+    private void copyChunk(@NonNull final SegmentChunk sourceChunk, final int chunkIndex) {
+        final SegmentChunk chunk = createChunk();
+        chunkList.set(chunkIndex, chunk);
+        MemorySegment.copy(sourceChunk.segment(), 0, chunk.segment(), 0, memoryChunkSize);
     }
 
     // =========================================================================

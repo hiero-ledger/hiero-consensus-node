@@ -4,10 +4,8 @@ package org.hiero.base.crypto.engine;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
-import java.security.Security;
 import java.util.List;
 import java.util.Objects;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.DigestType;
@@ -20,11 +18,6 @@ import org.hiero.base.crypto.VerificationStatus;
 import org.hiero.base.io.SelfSerializable;
 
 public class CryptoEngine implements Cryptography {
-
-    static {
-        // Register the BouncyCastle Provider instance with the JVM
-        Security.addProvider(new BouncyCastleProvider());
-    }
 
     /**
      * The digest provider instance that is used to generate hashes of SelfSerializable objects.
