@@ -2,6 +2,7 @@
 package com.hedera.node.app.hints.impl;
 
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
+import static com.hedera.node.app.hints.impl.HintsGenerationTestUtils.weightsFor;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -200,16 +201,16 @@ class HintsSigningHandoffHijackTest {
 
     private void givenHandoffInsideBlockTen() {
         // The node is signing under the old construction...
-        hintsContext.setConstruction(
-                construction(OLD_CONSTRUCTION_ID, OLD_AGGREGATION_KEY, OLD_VERIFICATION_KEY), CRS_STATE);
+        final var oldConstruction = construction(OLD_CONSTRUCTION_ID, OLD_AGGREGATION_KEY, OLD_VERIFICATION_KEY);
+        hintsContext.setConstruction(oldConstruction, CRS_STATE, weightsFor(oldConstruction));
         hintsContext.onBlockStarted(10L);
         // ...and then, inside a round of block 10, hands off to the new construction and its history proof
         historyService.setLatestHistoryProof(HistoryProof.newBuilder()
                 .targetHistory(History.newBuilder().metadata(NEW_VERIFICATION_KEY))
                 .chainOfTrustProof(NEW_CHAIN_OF_TRUST_PROOF)
                 .build());
-        hintsContext.setConstruction(
-                construction(NEW_CONSTRUCTION_ID, NEW_AGGREGATION_KEY, NEW_VERIFICATION_KEY), CRS_STATE);
+        final var newConstruction = construction(NEW_CONSTRUCTION_ID, NEW_AGGREGATION_KEY, NEW_VERIFICATION_KEY);
+        hintsContext.setConstruction(newConstruction, CRS_STATE, weightsFor(newConstruction));
         assertTrue(blockHashSigner.isReady());
     }
 
@@ -246,6 +247,7 @@ class HintsSigningHandoffHijackTest {
             final long constructionId, final Bytes aggregationKey, final Bytes verificationKey) {
         return HintsConstruction.newBuilder()
                 .constructionId(constructionId)
+                .targetRosterHash(Bytes.wrap("ROSTER_" + constructionId))
                 .crsId(1L)
                 .numParties(32)
                 .hintsScheme(new HintsScheme(new PreprocessedKeys(aggregationKey, verificationKey), NODE_PARTY_IDS))

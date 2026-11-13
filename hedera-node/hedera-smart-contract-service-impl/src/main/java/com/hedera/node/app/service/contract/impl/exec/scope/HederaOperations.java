@@ -161,6 +161,19 @@ public interface HederaOperations {
      */
     void collectHtsFee(@NonNull AccountID payerId, long amount);
 
+    /** Collects a CLPR attached-value fee. A false result requires the caller to revert the frame. */
+    boolean collectClprFee(@NonNull AccountID payerId, long amount);
+
+    /** Adds committed CLPR attached-value fees to the transaction record. */
+    default void recordClprFees(final long amount) {
+        throw new UnsupportedOperationException("This scope cannot record CLPR fees");
+    }
+
+    /** Whether the native CLPR handler is dispatching verification covered by the native fee. */
+    default boolean isClprVerifierDispatch() {
+        return false;
+    }
+
     /**
      * Collects the given fee from the given account, for initial gas charging, so
      * it can be replayed on revert.

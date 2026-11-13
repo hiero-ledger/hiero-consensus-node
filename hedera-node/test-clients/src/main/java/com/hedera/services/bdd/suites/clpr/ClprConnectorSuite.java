@@ -34,7 +34,7 @@ import org.junit.jupiter.api.Tag;
  *       {@code connector_id = keccak256(channel_id || public_key || salt)}, verifies the
  *       commitment, verifies the signature over
  *       {@code keccak256(connector_id || service_address)}, checks the connector contract is
- *       a deployed contract, verifies {@code locked_stake >= clpr.minLockedStake}, then
+ *       a deployed contract, verifies {@code locked_stake} meets the USD minimum using the active exchange rate, then
  *       creates the Connector in active state.</li>
  * </ul>
  *

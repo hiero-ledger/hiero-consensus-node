@@ -7,14 +7,17 @@ import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -30,6 +33,7 @@ import com.hedera.hapi.node.state.hints.HintsPartyId;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -156,6 +160,9 @@ class HintsServiceImplTest {
     @BeforeEach
     void setUp() {
         subject = new HintsServiceImpl(component, library);
+        lenient().when(component.signingContext()).thenReturn(context);
+        lenient().when(context.requiresHistory()).thenReturn(true);
+        lenient().when(tssConfig.historyEnabled()).thenReturn(true);
         lenient().when(hintsStore.getCrsState()).thenReturn(CRSState.DEFAULT);
         lenient().when(activeRosters.targetRoster()).thenReturn(Roster.DEFAULT);
         lenient()
@@ -170,12 +177,14 @@ class HintsServiceImplTest {
     }
 
     @Test
-    void stopsControllersWorkWhenAsked() {
+    void stopsControllersAndClearsSigningGenerationsWhenAsked() {
         given(component.controllers()).willReturn(controllers);
+        given(component.signingContext()).willReturn(context);
 
         subject.stop();
 
         verify(controllers).stop();
+        verify(context).clear();
     }
 
     @Test
@@ -381,7 +390,7 @@ class HintsServiceImplTest {
                 .willReturn(construction);
         given(component.controllers()).willReturn(controllers);
         given(hintsStore.getActiveConstruction()).willReturn(HintsConstruction.DEFAULT);
-        given(controllers.getOrCreateFor(activeRosters, construction, hintsStore, HintsConstruction.DEFAULT))
+        given(controllers.getOrCreateFor(activeRosters, construction, hintsStore, HintsConstruction.DEFAULT, null))
                 .willReturn(controller);
 
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
@@ -389,31 +398,274 @@ class HintsServiceImplTest {
         verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
     }
 
+    private static HintsConstruction signingConstruction() {
+        return HintsConstruction.newBuilder()
+                .targetRosterHash(Bytes.wrap("signing generation"))
+                .constructionId(123L)
+                .crsId(1)
+                .numParties(8)
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap("aggregation"), Bytes.wrap("verification")),
+                        List.of(new NodePartyId(0, 1, 1))))
+                .build();
+    }
+
     @Test
-    void handoffDoesNothingWhenStoreReportsNoChange() {
-        given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(false);
+    void rejectsMismatchedHistoryBeforePromotingTheHintsStore() {
+        final var candidate = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(candidate)
+                .copyBuilder()
+                .targetRosterHash(Bytes.wrap("a different generation"))
+                .build();
+        given(hintsStore.getNextConstruction()).willReturn(candidate);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, history));
+
+        verify(hintsStore, never()).handoff(any(), any(), any());
+        verify(context, never()).setConstruction(any(), any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false,false", "false,true", "true,true"})
+    void compatibilityServiceOverloadsActivateAndHandOffWithoutHistory(
+            final boolean historyEnabled, final boolean forceMockSignatures) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tss.historyEnabled", historyEnabled)
+                .withValue("tss.forceMockSignatures", forceMockSignatures)
+                .getOrCreateConfig();
+        given(context.requiresHistory())
+                .willReturn(HintsGenerationWeights.requiresHistory(config.getConfigData(TssConfig.class)));
+        final var construction = signingConstruction();
+        final var weights = HintsGenerationWeights.forScheme(construction);
+        assertFalse(subject.requiresHistoryWeights());
+
+        subject.setActiveConstruction(construction, CRSState.DEFAULT);
+        given(hintsStore.getActiveConstruction()).willReturn(construction);
+        given(hintsStore.getCrsStateFor(construction)).willReturn(CRSState.DEFAULT);
+        given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(true);
+
+        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
+
+        verify(context, times(2)).setConstruction(construction, CRSState.DEFAULT, weights);
+    }
+
+    @Test
+    void compatibilityHandoffWithNoCandidateRetainsLegacyNoOp() {
+        given(context.requiresHistory()).willReturn(false);
 
         assertFalse(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
 
+        verify(hintsStore, never()).getNextConstruction();
+        verify(context, never()).setConstruction(any(), any(), any());
+    }
+
+    @Test
+    void strictServiceOverloadsRejectMissingHistoryBeforeActivationOrMutation() {
+        final var construction = signingConstruction();
+        assertTrue(subject.requiresHistoryWeights());
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.setActiveConstruction(construction, CRSState.DEFAULT));
+        given(hintsStore.getNextConstruction()).willReturn(construction);
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
+        verify(hintsStore, never()).handoff(any(), any(), any());
+        verify(context, never()).setConstruction(any(), any(), any());
+    }
+
+    @Test
+    void equalReparsedRecordsInstallSigningGenerationOnlyOnce() throws Exception {
+        final var construction = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(construction);
+        final var crs = CRSState.newBuilder()
+                .ceremonyId(1L)
+                .numParties(8)
+                .stage(COMPLETED)
+                .crs(Bytes.wrap("persisted CRS"))
+                .build();
+        final var firstConstruction =
+                HintsConstruction.PROTOBUF.parse(HintsConstruction.PROTOBUF.toBytes(construction));
+        final var secondConstruction =
+                HintsConstruction.PROTOBUF.parse(HintsConstruction.PROTOBUF.toBytes(construction));
+        final var firstCrs = CRSState.PROTOBUF.parse(CRSState.PROTOBUF.toBytes(crs));
+        final var secondCrs = CRSState.PROTOBUF.parse(CRSState.PROTOBUF.toBytes(crs));
+        final var firstHistory =
+                HistoryProofConstruction.PROTOBUF.parse(HistoryProofConstruction.PROTOBUF.toBytes(history));
+        final var secondHistory =
+                HistoryProofConstruction.PROTOBUF.parse(HistoryProofConstruction.PROTOBUF.toBytes(history));
+        assertNotSame(firstConstruction, secondConstruction);
+        assertNotSame(firstCrs, secondCrs);
+        assertNotSame(firstHistory, secondHistory);
+        assertEquals(firstConstruction, secondConstruction);
+        assertEquals(firstCrs, secondCrs);
+        assertEquals(firstHistory, secondHistory);
+        given(hintsStore.getActiveConstruction()).willReturn(firstConstruction, secondConstruction);
+        given(hintsStore.getCrsStateFor(construction)).willReturn(firstCrs, secondCrs);
+        given(context.isReady()).willReturn(true);
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
+        given(component.controllers()).willReturn(controllers);
+
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, firstHistory);
+        subject.reconcile(
+                activeRosters,
+                hintsStore,
+                CONSENSUS_NOW.plusSeconds(1),
+                CONSENSUS_NOW.plusSeconds(1),
+                tssConfig,
+                true,
+                secondHistory);
+
+        verify(context).setConstruction(construction, crs, HintsGenerationWeights.from(construction, history));
+        final var differentHistory = history.copyBuilder()
+                .targetRosterHash(Bytes.wrap("different generation"))
+                .build();
+        final var reparsedDifferentHistory =
+                HistoryProofConstruction.PROTOBUF.parse(HistoryProofConstruction.PROTOBUF.toBytes(differentHistory));
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.reconcile(
+                        activeRosters,
+                        hintsStore,
+                        CONSENSUS_NOW.plusSeconds(2),
+                        CONSENSUS_NOW.plusSeconds(2),
+                        tssConfig,
+                        true,
+                        reparsedDifferentHistory));
+        verify(context).setConstruction(construction, crs, HintsGenerationWeights.from(construction, history));
+    }
+
+    @Test
+    void signingInstallRejectionStopsPreprocessingAndPreservesTheInstalledSigningGeneration() {
+        final var active = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(active);
+        final var crs = CRSState.newBuilder()
+                .ceremonyId(1)
+                .numParties(8)
+                .stage(COMPLETED)
+                .crs(Bytes.wrap("active CRS"))
+                .build();
+        given(component.controllers()).willReturn(controllers);
+        given(hintsStore.getActiveConstruction()).willReturn(active);
+        given(hintsStore.getCrsStateFor(active)).willReturn(crs);
+        given(context.isReady()).willReturn(true);
+        subject.setActiveConstruction(active, crs, history);
+        final var invalid = history.copyBuilder()
+                .targetRosterHash(Bytes.wrap("other generation"))
+                .build();
+
+        assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> subject.reconcile(
+                        activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, invalid));
+
+        verify(controllers).stop();
+        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any(), any());
+        verify(context, never()).clear();
+        verify(context).setConstruction(active, crs, HintsGenerationWeights.from(active, history));
+        assertTrue(subject.isReady());
+
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.HANDOFF);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, history);
+        // Recovery reuses the still-installed signing material, retaining already-open signing attempts.
+        verify(context).setConstruction(active, crs, HintsGenerationWeights.from(active, history));
+        verify(context, never()).clear();
+    }
+
+    @Test
+    void sourceResolutionRejectionStopsPreprocessingAndValidRecoveryCanAdvanceAgain() {
+        final var active = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(active);
+        final var missingSnapshot = history.copyBuilder()
+                .targetProof(history.targetProofOrThrow()
+                        .copyBuilder()
+                        .targetNodeWeights(List.of())
+                        .build())
+                .build();
+        final var failure = assertThrows(
+                HintsGenerationWeights.InvalidGenerationException.class,
+                () -> HintsGenerationWeights.from(active, missingSnapshot));
+        final var next = HintsConstruction.newBuilder()
+                .constructionId(124)
+                .crsId(1)
+                .numParties(8)
+                .preprocessingStartTime(asTimestamp(CONSENSUS_NOW))
+                .build();
+        final var crs = CRSState.newBuilder()
+                .ceremonyId(1)
+                .numParties(8)
+                .stage(COMPLETED)
+                .crs(Bytes.wrap("active CRS"))
+                .build();
+        given(component.controllers()).willReturn(controllers);
+        given(hintsStore.getActiveConstruction()).willReturn(active);
+        given(activeRosters.phase()).willReturn(ActiveRosters.Phase.TRANSITION);
+        given(hintsStore.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+                .willReturn(next);
+        given(hintsStore.getCrsState()).willReturn(crs);
+        given(hintsStore.getCrsStateFor(next)).willReturn(crs);
+        given(controllers.getOrCreateFor(activeRosters, next, hintsStore, active, missingSnapshot))
+                .willThrow(failure);
+
+        assertSame(
+                failure,
+                assertThrows(
+                        HintsGenerationWeights.InvalidGenerationException.class,
+                        () -> subject.reconcile(
+                                activeRosters,
+                                hintsStore,
+                                CONSENSUS_NOW,
+                                CONSENSUS_NOW,
+                                tssConfig,
+                                true,
+                                missingSnapshot)));
+
+        verify(controllers).stop();
+        verify(context, never()).clear();
+        verify(context, never()).setConstruction(any(), any(), any());
+        verify(controller, never()).advanceConstruction(any(), any(), anyBoolean());
+
+        given(hintsStore.getCrsStateFor(active)).willReturn(crs);
+        given(controllers.getOrCreateFor(activeRosters, next, hintsStore, active, history))
+                .willReturn(controller);
+        subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, CONSENSUS_NOW, tssConfig, true, history);
+
+        verify(context).setConstruction(active, crs, HintsGenerationWeights.from(active, history));
+        verify(controller).advanceConstruction(CONSENSUS_NOW, hintsStore, true);
+        verify(context, never()).clear();
+    }
+
+    @Test
+    void handoffDoesNothingWhenStoreReportsNoChange() {
+        final var candidate = signingConstruction();
+        given(hintsStore.getNextConstruction()).willReturn(candidate);
+        given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(false);
+
+        assertFalse(subject.handoff(
+                hintsStore,
+                Roster.DEFAULT,
+                Roster.DEFAULT,
+                Bytes.EMPTY,
+                HintsGenerationTestUtils.historyFor(candidate)));
+
         verify(hintsStore).handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY);
-        verify(component, never()).signingContext();
+        verify(context, never()).setConstruction(any(), any(), any());
     }
 
     @Test
     void handoffUpdatesSigningContextWhenStoreChanges() {
-        final var construction = HintsConstruction.newBuilder()
-                .constructionId(123L)
-                .crsId(1)
-                .numParties(8)
-                .hintsScheme(HintsScheme.DEFAULT)
-                .build();
+        final var construction = signingConstruction();
+        final var history = HintsGenerationTestUtils.historyFor(construction);
+        given(hintsStore.getNextConstruction()).willReturn(construction);
         given(hintsStore.handoff(Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY)).willReturn(true);
         given(hintsStore.getActiveConstruction()).willReturn(construction);
         given(component.signingContext()).willReturn(context);
 
-        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY));
+        assertTrue(subject.handoff(hintsStore, Roster.DEFAULT, Roster.DEFAULT, Bytes.EMPTY, history));
 
-        verify(context).setConstruction(construction, null);
+        verify(context).setConstruction(construction, null, HintsGenerationWeights.from(construction, history));
     }
 
     @Test
@@ -500,8 +752,6 @@ class HintsServiceImplTest {
         } else {
             given(writableStates.<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID))
                     .willReturn(hintsKeys);
-            given(component.signingContext()).willReturn(context);
-            given(crsState.get()).willReturn(startupCrsState);
         }
 
         assertTrue(subject.doGenesisSetup(writableStates, config, 7));
@@ -523,7 +773,7 @@ class HintsServiceImplTest {
         } else {
             verify(activeConstructionState).put(activeConstruction);
             verify(crsState).put(startupCrsState);
-            verify(context).setConstruction(activeConstruction, startupCrsState);
+            verifyNoInteractions(context);
             verify(hintsKeys)
                     .put(
                             new HintsPartyId(0, 8, 1),
@@ -631,7 +881,7 @@ class HintsServiceImplTest {
         given(component.controllers()).willReturn(controllers);
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
         verify(controllers).stop();
-        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any());
+        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any(), isNull());
         verify(hintsStore, never()).allocateCrsId();
         verify(hintsStore, never()).setCrsState(any());
         verify(hintsStore, never()).setNextCrsState(any());
@@ -661,7 +911,7 @@ class HintsServiceImplTest {
         subject.reconcile(activeRosters, hintsStore, CONSENSUS_NOW, tssConfig, true);
 
         verify(controllers).stop();
-        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any());
+        verify(controllers, never()).getOrCreateFor(any(), any(), any(), any(), isNull());
         verify(hintsStore, never()).allocateCrsId();
         verify(hintsStore, never()).setCrsState(any());
         verify(hintsStore, never()).setNextCrsState(any());
@@ -689,7 +939,7 @@ class HintsServiceImplTest {
         assertEquals(
                 List.of(new com.hedera.hapi.node.state.hints.CrsContributor(42, 7)),
                 selected.get().contributors());
-        verify(controllers).getOrCreateFor(eq(activeRosters), any(), eq(hintsStore), eq(persisted));
+        verify(controllers).getOrCreateFor(eq(activeRosters), any(), eq(hintsStore), eq(persisted), isNull());
         verifyNoInteractions(context);
     }
 
@@ -740,7 +990,7 @@ class HintsServiceImplTest {
                 .when(hintsStore)
                 .setNextCrsState(any());
         given(component.controllers()).willReturn(controllers);
-        given(controllers.getOrCreateFor(any(), any(), any(), any())).willReturn(controller);
+        given(controllers.getOrCreateFor(any(), any(), any(), any(), isNull())).willReturn(controller);
         lenient().when(tssConfig.crsUpdateContributionTime()).thenReturn(Duration.ofSeconds(10));
         lenient().when(tssConfig.transitionHintsKeyGracePeriod()).thenReturn(Duration.ofSeconds(300));
         return selected;

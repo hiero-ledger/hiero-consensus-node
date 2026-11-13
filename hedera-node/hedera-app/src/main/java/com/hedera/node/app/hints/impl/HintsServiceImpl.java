@@ -16,6 +16,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.CrsContributor;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
@@ -43,6 +44,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -62,6 +64,17 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
 
     private final Supplier<Network> genesisNetworkSupplier;
     private long unsupportedConstructionId = -1;
+
+    @Nullable
+    private HintsConstruction installedConstruction;
+
+    @Nullable
+    private CRSState installedCrs;
+
+    @Nullable
+    private HistoryProofConstruction installedHistory;
+
+    private boolean installedRequiresHistory;
 
     @Nullable
     private OnHintsFinished cb;
@@ -187,9 +200,39 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
-    public void setActiveConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
-        requireNonNull(construction);
-        component.signingContext().setConstruction(construction, crsState);
+    public boolean requiresHistoryWeights() {
+        return component.signingContext().requiresHistory();
+    }
+
+    @Override
+    public void setActiveConstruction(
+            @NonNull final HintsConstruction construction,
+            @NonNull final CRSState crsState,
+            @Nullable final HistoryProofConstruction historyConstruction) {
+        installSigningConstruction(construction, crsState, historyConstruction);
+    }
+
+    private void installSigningConstruction(
+            @NonNull final HintsConstruction construction,
+            @NonNull final CRSState crsState,
+            @Nullable final HistoryProofConstruction historyConstruction) {
+        final var context = component.signingContext();
+        final boolean requiresHistory = context.requiresHistory();
+        if (Objects.equals(installedConstruction, construction)
+                && Objects.equals(installedCrs, crsState)
+                && installedRequiresHistory == requiresHistory
+                && (!requiresHistory || Objects.equals(installedHistory, historyConstruction))
+                && context.isReady()) {
+            return;
+        }
+        final var generationWeights = requiresHistory
+                ? HintsGenerationWeights.from(construction, historyConstruction)
+                : HintsGenerationWeights.forScheme(construction);
+        context.setConstruction(construction, crsState, generationWeights);
+        installedConstruction = construction;
+        installedCrs = crsState;
+        installedHistory = requiresHistory ? historyConstruction : null;
+        installedRequiresHistory = requiresHistory;
         logger.info("Initialized hinTS signing context from active construction #{}", construction.constructionId());
     }
 
@@ -198,16 +241,32 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
-            @NonNull final Bytes adoptedRosterHash) {
+            @NonNull final Bytes adoptedRosterHash,
+            @Nullable final HistoryProofConstruction historyConstruction) {
         requireNonNull(hintsStore);
         requireNonNull(previousRoster);
         requireNonNull(adoptedRoster);
         requireNonNull(adoptedRosterHash);
+        final var context = component.signingContext();
+        final boolean requiresHistory = context.requiresHistory();
+        // Real history must be checked before either service promotes state. Compatibility retains the
+        // legacy no-op behavior when there is no next construction to hand off.
+        final var generationWeights = requiresHistory
+                ? HintsGenerationWeights.from(hintsStore.getNextConstruction(), historyConstruction)
+                : null;
         if (hintsStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash)) {
             final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
-            component
-                    .signingContext()
-                    .setConstruction(activeConstruction, hintsStore.getCrsStateFor(activeConstruction));
+            final var crsState = hintsStore.getCrsStateFor(activeConstruction);
+            context.setConstruction(
+                    activeConstruction,
+                    crsState,
+                    requiresHistory
+                            ? requireNonNull(generationWeights)
+                            : HintsGenerationWeights.forScheme(activeConstruction));
+            installedConstruction = activeConstruction;
+            installedCrs = crsState;
+            installedHistory = requiresHistory ? historyConstruction : null;
+            installedRequiresHistory = requiresHistory;
             logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
             return true;
         }
@@ -232,11 +291,67 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final Instant crsWorkTime,
             @NonNull final TssConfig tssConfig,
             final boolean isActive) {
+        reconcile(activeRosters, hintsStore, now, crsWorkTime, tssConfig, isActive, null);
+    }
+
+    @Override
+    public void reconcile(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            @NonNull final Instant crsWorkTime,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
+        try {
+            reconcileConstruction(
+                    activeRosters, hintsStore, now, crsWorkTime, tssConfig, isActive, activeHistoryConstruction);
+        } catch (HintsGenerationWeights.InvalidGenerationException e) {
+            // Signing installation can reject the generation before the controller factory is reached.
+            // Preserve existing signing attempts while stopping all preprocessing work and vote admission.
+            component.controllers().stop();
+            throw e;
+        }
+    }
+
+    @Override
+    public void activateSigning(
+            @NonNull final ReadableHintsStore hintsStore,
+            @NonNull final TssConfig tssConfig,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
+        requireNonNull(hintsStore);
+        requireNonNull(tssConfig);
+        final var active = hintsStore.getActiveConstruction();
+        if (active != null && active.hasHintsScheme()) {
+            final boolean requiresHistory = HintsGenerationWeights.requiresHistory(tssConfig);
+            if (!requiresHistory
+                    || (activeHistoryConstruction != null
+                            && activeHistoryConstruction.hasTargetProof()
+                            && !activeHistoryConstruction
+                                    .targetProofOrThrow()
+                                    .targetNodeWeights()
+                                    .isEmpty())) {
+                // Singleton reads may reparse equal records. Install only changed values, without rebuilding weights or
+                // taking the signing write lock.
+                installSigningConstruction(active, hintsStore.getCrsStateFor(active), activeHistoryConstruction);
+            }
+        }
+    }
+
+    private void reconcileConstruction(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            @NonNull final Instant crsWorkTime,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(hintsStore);
         requireNonNull(now);
         requireNonNull(crsWorkTime);
         requireNonNull(tssConfig);
+        activateSigning(hintsStore, tssConfig, activeHistoryConstruction);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 var construction = hintsStore.getOrCreateConstruction(activeRosters, now, tssConfig);
@@ -267,7 +382,12 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                 construction = startKeyCollectionIfReady(activeRosters, hintsStore, construction, now, tssConfig);
                 final var controller = component
                         .controllers()
-                        .getOrCreateFor(activeRosters, construction, hintsStore, hintsStore.getActiveConstruction());
+                        .getOrCreateFor(
+                                activeRosters,
+                                construction,
+                                hintsStore,
+                                hintsStore.getActiveConstruction(),
+                                activeHistoryConstruction);
                 controller.advanceCrsWork(crsWorkTime, hintsStore, isActive);
                 if (hintsStore.getCrsStateFor(construction).stage() != COMPLETED) {
                     return;
@@ -369,7 +489,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext()));
         registry.register(new V073HintsSchema(library, component.signingContext()));
-        registry.register(new V079HintsSchema(library, component.signingContext()));
+        registry.register(new V079HintsSchema(library));
     }
 
     @Override
@@ -382,15 +502,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         final var maybeGenesisNetwork = genesisTssNetwork(configuration);
         if (maybeGenesisNetwork.isPresent()) {
             logger.warn("Initializing dev-only hinTS genesis state and runtime from startup network JSON");
-            final var activeConstruction = TssStartupNetworks.initializeHintsState(
-                    writableStates, maybeGenesisNetwork.orElseThrow(), configuration);
-            if (activeConstruction.hasHintsScheme()) {
-                setActiveConstruction(
-                        activeConstruction,
-                        requireNonNull(writableStates
-                                .<CRSState>getSingleton(CRS_STATE_STATE_ID)
-                                .get()));
-            }
+            TssStartupNetworks.initializeHintsState(writableStates, maybeGenesisNetwork.orElseThrow(), configuration);
+            // Signing is restored after the matching history proof has also been initialized.
             return true;
         }
         writableStates
@@ -428,6 +541,10 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     @Override
     public void stop() {
         component.controllers().stop();
+        component.signingContext().clear();
+        installedConstruction = null;
+        installedCrs = null;
+        installedHistory = null;
     }
 
     /**

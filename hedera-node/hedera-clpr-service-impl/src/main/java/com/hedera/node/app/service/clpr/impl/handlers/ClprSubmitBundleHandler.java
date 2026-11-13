@@ -6,6 +6,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATIO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.tinycentsToTinybars;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
@@ -17,7 +19,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCus
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.TupleType;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -49,7 +50,6 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
@@ -132,7 +132,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         // Step 1b refreshes the node-local peer endpoint cache. That cache is in-memory, so the full-stack rollback
-        // of a later penalizing HandleException would not undo it; the refresh is therefore applied only once the
+        // of a later HandleException would not undo it; the refresh is therefore applied only once the
         // bundle has been handled without an exception.
         final var deferredPeerEndpoints = new DeferredPeerEndpoints();
         final var gasAccounting = ClprGasAccounting.forContext(context);
@@ -158,7 +158,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             @NonNull final ClprGasAccounting gasAccounting)
             throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
-        final var nodeAccountId = context.body().transactionIDOrThrow().accountIDOrThrow();
         log.debug(
                 "[ClprSubmitBundle] doHandle ENTER conn={} bundleBytes={} creatorNode={} payer={}",
                 op.channelId(),
@@ -167,7 +166,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 context.payer());
         final var configuration = context.configuration();
         final var clprConfig = configuration.getConfigData(ClprConfig.class);
-        final var penaltyAmount = clprConfig.endpointMisbehaviorPenaltyTinybars();
+        final var activeRate = context.exchangeRateInfo().activeRate(context.consensusNow());
+        final long progressRewardTinybars =
+                tinycentsToTinybars(clprConfig.progressRewardTinycents(), fromPbj(activeRate));
         final var storeFactory = context.storeFactory();
 
         final var connectorStore = storeFactory.writableStore(WritableConnectorStore.class);
@@ -197,18 +198,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var throttles = ledgerConfig.throttlesOrThrow();
         log.debug(
                 "[ClprSubmitBundle] ledger config conn={} maxSyncBytes={} maxMessagesPerBundle={} "
-                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} endpointMarginPercent={}",
+                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} progressRewardTinycents={}",
                 channelId,
                 throttles.maxSyncBytes(),
                 throttles.maxMessagesPerBundle(),
                 throttles.maxMessagePayloadBytes(),
                 throttles.maxGasPerMessage(),
                 clprConfig.messageExecutionCost(),
-                clprConfig.endpointMarginPercent());
+                clprConfig.progressRewardTinycents());
 
         // Complete node validation before any state mutation or application dispatch. The
         // validator is independent of handling so endpoints can reuse it with locally verified content.
-        final var validated = verifyAndValidateBundle(context, channel, ledgerConfig, nodeAccountId, penaltyAmount);
+        final var validated = verifyAndValidateBundle(context, channel, ledgerConfig);
         final var bundleContent = validated.content();
         final var metadata = bundleContent.metadata();
         final var newTrustAnchor = bundleContent.newTrustAnchor();
@@ -315,7 +316,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         try {
             replyValidation = bundleValidator.validateReplies(channel, validated, messageQueueStore);
         } catch (final PreCheckException e) {
-            // Ineffective acknowledgement progress and local corruption do not incur a node penalty.
             if (e.responseCode() == CLPR_INTERNAL_STATE_CORRUPTION) {
                 // Consensus reads consistent state, so unlike before gossip, a missing slot here is real
                 log.error(
@@ -331,7 +331,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         switch (replyValidation) {
             case ReplyValidation.AckedThrough(final long lastAckedMessageId) -> newAckedMessageId = lastAckedMessageId;
             case ReplyValidation.OrderingViolated(final long expectedMessageId, final long repliedMessageId) -> {
-                // A protocol violation by the submitting node, handled by pausing the channel and penalizing it
+                // The peer ledger's replies are out of order (spec §4.5): pause the channel until a correctly
+                // ordered bundle arrives. The submitting node relayed proven peer state and is not penalized.
                 log.info(
                         "[ClprSubmitBundle] step8 reply out of order conn={} expectedMsgId={} repliedMsgId={} "
                                 + "currentStatus={}",
@@ -343,7 +344,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     channelStore.put(channel.copyBuilder()
                             .status(ClprChannelStatus.PAUSED)
                             .build());
-                    context.tryToCharge(nodeAccountId, penaltyAmount);
                 }
                 return;
             }
@@ -511,9 +511,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             continue;
                         }
                         // Endpoint compensation remains separate from the network fee for EVM work.
-                        final var executionCost = clprConfig.messageExecutionCost();
-                        final var margin = Math.multiplyExact(executionCost, clprConfig.endpointMarginPercent()) / 100;
-                        final var endpointCharge = Math.addExact(executionCost, margin);
+                        final var endpointCharge =
+                                Math.addExact(clprConfig.messageExecutionCost(), progressRewardTinybars);
                         final var worstCaseCharge = Math.addExact(endpointCharge, gasAccounting.costForGas(gasLimit));
 
                         // Validate the connector has sufficient balance before dispatching.
@@ -544,7 +543,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     connectorAccount != null,
                                     connectorAccount == null ? null : connectorAccount.tinybarBalance(),
                                     worstCaseCharge);
-                            final var slashResult = ClprSlashingUtils.applySlash(connector, clprConfig, connectorStore);
+                            final var slashResult =
+                                    ClprSlashingUtils.applySlash(connector, clprConfig, connectorStore, activeRate);
                             ClprSlashingUtils.reimburseEndpoint(
                                     slashResult.penaltyAmount(),
                                     context.payer(),
@@ -895,8 +895,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
                         if (replyStatus == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
                                 || replyStatus == ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED) {
-                            final var slashResult =
-                                    ClprSlashingUtils.applySlash(sourceConnector, clprConfig, connectorStore);
+                            final var slashResult = ClprSlashingUtils.applySlash(
+                                    sourceConnector, clprConfig, connectorStore, activeRate);
                             final var tokenServiceApi = storeFactory.serviceApi(TokenServiceApi.class);
                             final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
                             ClprSlashingUtils.reimburseEndpoint(
@@ -1275,10 +1275,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
      * before any state is modified or any message is dispatched.
      *
      * <p>A failed node-level check (payload size, the trust-anchor invariant, or
-     * {@link ClprBundleValidator#validate}) fails the transaction and, after the framework rolls back
-     * its state changes, charges the submitting node {@code penaltyAmount} on a best-effort basis, so
-     * the penalty persists independently of the failed transaction. A failure to resolve or run the
-     * verifier fails the transaction without that penalty.
+     * {@link ClprBundleValidator#validate}) fails the transaction. As the CLPR spec requires (§2.1.2, §4.2 Step 1),
+     * a rejected bundle costs the submitting node only its transaction fee; CLPR imposes no additional
+     * endpoint penalty.
      *
      * <p>Once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
      * endpoint-manifest version (spec §4.5) is recorded, even if a later check rejects the bundle.
@@ -1286,17 +1285,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
      * @param context the handle context
      * @param channel the channel before this bundle is applied
      * @param ledgerConfig this ledger's configuration
-     * @param nodeAccountId the submitting node's account, which pays the penalty
-     * @param penaltyAmount the endpoint misbehavior penalty in tinybars; zero disables it
      * @return the validated bundle
      * @throws HandleException if the proof cannot be verified or a node-level check fails
      */
     private ValidatedBundle verifyAndValidateBundle(
             @NonNull final HandleContext context,
             @NonNull final ClprChannel channel,
-            @NonNull final ClprLedgerConfiguration ledgerConfig,
-            @NonNull final AccountID nodeAccountId,
-            final long penaltyAmount) {
+            @NonNull final ClprLedgerConfiguration ledgerConfig) {
         try {
             final var payload = context.body().clprSubmitBundleOrThrow().bundlePayload();
             bundleValidator.validatePayloadSize(payload, ledgerConfig.throttlesOrThrow());
@@ -1315,16 +1310,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             }
             return bundleValidator.validate(channel, content, ledgerConfig);
         } catch (final PreCheckException e) {
-            // Charge after rollback so the penalty persists independently of a rejected bundle.
-            throw new HandleException(e.responseCode(), (feeChargingContext, ignored) -> {
-                if (penaltyAmount > 0) {
-                    try {
-                        feeChargingContext.charge(nodeAccountId, new Fees(0, penaltyAmount, 0), null);
-                    } catch (final Exception ignoredChargeFailure) {
-                        // Best effort: the submitting endpoint may be insolvent.
-                    }
-                }
-            });
+            throw new HandleException(e.responseCode());
         }
     }
 

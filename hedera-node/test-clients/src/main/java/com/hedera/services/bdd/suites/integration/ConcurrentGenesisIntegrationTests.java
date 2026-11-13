@@ -30,6 +30,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePa
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -44,6 +45,8 @@ import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.TransactionResult;
@@ -52,8 +55,13 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.schemas.V059HintsSchema;
+import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.schemas.V071HistorySchema;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -82,6 +90,28 @@ public class ConcurrentGenesisIntegrationTests {
     @BeforeAll
     static void setupAll() {
         gossipCertificates = generateX509Certificates(2);
+    }
+
+    @GenesisHapiTest(
+            bootstrapOverrides = {
+                @ConfigOverride(key = "tss.hintsEnabled", value = "true"),
+                @ConfigOverride(key = "tss.historyEnabled", value = "true"),
+                @ConfigOverride(key = "tss.forceMockSignatures", value = "true")
+            })
+    @DisplayName("genesis initializes TSS singletons before runtime restoration")
+    final Stream<DynamicTest> genesisInitializesTssSingletonsBeforeRuntimeRestoration() {
+        // The extension starts a new real Hedera/FakeState through GENESIS before this spec runs.
+        // Its first handled round initializes these singletons; startup must not read their null values earlier.
+        return hapiTest(cryptoCreate("genesisStartupProbe").balance(1L), withOpContext((spec, log) -> {
+            assertTrue(spec.embeddedHederaOrThrow().hedera().systemEntitiesCreated());
+            final var state = spec.embeddedStateOrThrow();
+            assertNotNull(state.getReadableStates(HintsService.NAME)
+                    .getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
+                    .get());
+            assertNotNull(state.getReadableStates(HistoryService.NAME)
+                    .getSingleton(V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                    .get());
+        }));
     }
 
     @GenesisHapiTest

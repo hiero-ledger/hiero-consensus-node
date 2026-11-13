@@ -1,9 +1,17 @@
 # Explicit hinTS key provenance
 
 Each hinTS signing generation authorizes its successor by signing the successor's
-verification key. This supplements the WRAPS chain of trust with an explicit
-sequence of adjacent-key signatures. It does not replace the ledger ID or WRAPS
-proof as the network's trust anchor.
+verification key. Native Hiero verifiers still trust the ledger ID and use WRAPS
+to authenticate the current signing key. For CLPR peers using the compact EVM
+Hiero verifier, the channel starts from a trusted hinTS key hash and follows
+these predecessor certificates instead of verifying WRAPS. Adoption witnesses
+prove that a batch endpoint used its key to sign a block.
+
+A channel retains the trust assumptions of its current anchor until it advances.
+If more than one third of a retired roster's signing weight is compromised
+later, it can forge proofs for channels still anchored to that roster's key.
+See [CLPR sync](services/clpr-service/sync-workflow.md#outbound-proof-format)
+for format negotiation and catch-up.
 
 ## Signed message and identity
 
