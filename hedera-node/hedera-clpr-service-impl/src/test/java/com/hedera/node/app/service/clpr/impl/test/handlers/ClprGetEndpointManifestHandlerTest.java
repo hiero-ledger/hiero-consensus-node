@@ -89,10 +89,11 @@ class ClprGetEndpointManifestHandlerTest {
     }
 
     @Test
-    @DisplayName("should not require node payment (free query)")
-    void doesNotRequireNodePayment() {
-        assertThat(subject.requiresNodePayment(ResponseType.ANSWER_ONLY)).isFalse();
+    @DisplayName("should require node payment for an answer, and quote its cost (paid query)")
+    void requiresNodePaymentForAnswer() {
+        assertThat(subject.requiresNodePayment(ResponseType.ANSWER_ONLY)).isTrue();
         assertThat(subject.requiresNodePayment(ResponseType.COST_ANSWER)).isFalse();
+        assertThat(subject.needsAnswerOnlyCost(ResponseType.COST_ANSWER)).isTrue();
     }
 
     @Test

@@ -107,6 +107,13 @@ class Artifacts(unittest.TestCase):
         self.real = (tt.collect.get, tt.download_zip)
         self.addCleanup(lambda: (setattr(tt.collect, "get", self.real[0]), setattr(tt, "download_zip", self.real[1])))
 
+    def test_report_artifact_names_include_suffixed_ones_and_exclude_logs(self):
+        for name in ("HAPI Test (Misc) Reports", "HAPI Test (Misc) (Pre-cutover configs) Reports", "HAPI Test (Misc) Reports run-2",
+                     "Fast Otter Tests Report", "Falcon Tests Report"):
+            self.assertTrue(tt.ARTIFACT_RE.match(name), name)
+        for name in ("HAPI Test (Misc) Network Logs", "HAPI Test (Misc) Failure Artifacts", "Unit Test Report", "run-metrics"):
+            self.assertFalse(tt.ARTIFACT_RE.match(name), name)
+
     def test_artifact_list_is_paginated_and_newest_wins(self):
         pages = {1: [{"id": i, "name": f"HAPI Test (S{i % 3}) Reports", "expired": False} for i in range(1, 101)],
                  2: [{"id": 500, "name": "HAPI Test (S1) Reports", "expired": False},

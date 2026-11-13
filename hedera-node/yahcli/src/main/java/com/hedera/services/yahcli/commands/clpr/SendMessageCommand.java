@@ -39,7 +39,8 @@ public class SendMessageCommand implements Callable<Integer> {
             + "{\"name\":\"targetApplication\",\"type\":\"bytes\"},"
             + "{\"name\":\"messageData\",\"type\":\"bytes\"}"
             + "],"
-            + "\"outputs\":[{\"name\":\"messageId\",\"type\":\"uint64\"}]}";
+            + "\"outputs\":[{\"name\":\"messageId\",\"type\":\"uint64\"}],"
+            + "\"stateMutability\":\"payable\"}";
 
     @ParentCommand
     ClprCommand clprCommand;
@@ -92,6 +93,14 @@ public class SendMessageCommand implements Callable<Integer> {
     String messageDataFile;
 
     @Option(
+            names = {"--value"},
+            paramLabel = "<tinybars>",
+            defaultValue = "100000000",
+            description = "Tinybars sent with the call, which the wrapper attaches to cover the CLPR sendMessage fee "
+                    + "(default 100000000, i.e. 1 HBAR; only the fee is collected).")
+    long value;
+
+    @Option(
             names = {"--gas"},
             paramLabel = "<gas>",
             defaultValue = "300000",
@@ -117,6 +126,7 @@ public class SendMessageCommand implements Callable<Integer> {
 
         final var op = contractCallWithFunctionAbi(
                         contract, SEND_MESSAGE_ABI, channelId, connectorId, targetApplication, messageData)
+                .sending(value)
                 .gas(gas);
 
         final var delegate = new ClprTxnSuite(config, "ClprSendMessage", op);

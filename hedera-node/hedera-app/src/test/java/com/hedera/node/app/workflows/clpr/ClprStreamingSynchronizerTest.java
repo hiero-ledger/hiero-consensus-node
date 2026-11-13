@@ -189,7 +189,7 @@ class ClprStreamingSynchronizerTest {
             subject = new ClprStreamingSynchronizer(
                     configProvider,
                     bundleSubmitter,
-                    new ClprStateProofManager(snapshotProvider, tssVerifier, configProvider),
+                    new ClprStateProofManager(snapshotProvider, tssVerifier, configProvider, (proof, anchor) -> false),
                     clientCache,
                     peerSelector,
                     3);

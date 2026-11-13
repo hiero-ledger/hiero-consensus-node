@@ -12,8 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListHeap;
-import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -554,8 +552,8 @@ class DataFileCollectionCompactionTest {
             store.close();
 
             // Restore
-            final LongListOffHeap index2 =
-                    new LongListOffHeap(snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0);
+            final LongListSegment index2 =
+                    new LongListSegment(snapshotDir.resolve("index.ll"), numValues, numFiles * numValues, 0);
             final DataFileCollection store2 =
                     new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, snapshotDir, storeName, null);
             // Check index size
@@ -569,6 +567,7 @@ class DataFileCollectionCompactionTest {
                 assertEquals(i + 1, value[1]);
             }
             store2.close();
+            index2.close();
 
             // Check exceptions from the compaction thread
             f.get();
@@ -579,7 +578,7 @@ class DataFileCollectionCompactionTest {
     @DisplayName("Restore with inconsistent index")
     void testInconsistentIndex() throws Exception {
         final int MAXKEYS = 100;
-        final LongList index = new LongListOffHeap(MAXKEYS / 10, MAXKEYS, 0);
+        final LongList index = new LongListSegment(MAXKEYS / 10, MAXKEYS, 0);
         String storeName = "testInconsistentIndex";
         final Path testDir = tempFileDir.resolve(storeName);
         final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
@@ -639,7 +638,7 @@ class DataFileCollectionCompactionTest {
         }
 
         // Create a new data collection from the snapshot
-        LongList index2 = new LongListOffHeap(savedIndex, MAXKEYS / 10, MAXKEYS, 0);
+        LongList index2 = new LongListSegment(savedIndex, MAXKEYS / 10, MAXKEYS, 0);
         final DataFileCollection store2 = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, snapshot, storeName, null);
 
         // Merge all files with redundant records
@@ -668,6 +667,8 @@ class DataFileCollectionCompactionTest {
             compactor.compactFiles(indexUpdater2, filesToMerge2, 1);
         } finally {
             store2.close();
+            index2.close();
+            index.close();
         }
     }
 
@@ -686,7 +687,7 @@ class DataFileCollectionCompactionTest {
         final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
         // Create a LongList to act as bucket index
-        final LongListHeap index = new LongListHeap(
+        final LongListSegment index = new LongListSegment(
                 DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
                 bucketCount,
                 DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
@@ -733,6 +734,7 @@ class DataFileCollectionCompactionTest {
         }
 
         store.close();
+        index.close();
     }
 
     @Test
@@ -743,7 +745,7 @@ class DataFileCollectionCompactionTest {
         final Path testDir = tempFileDir.resolve(storeName);
         final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
-        final LongListHeap index = new LongListHeap(
+        final LongListSegment index = new LongListSegment(
                 DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
                 bucketCount,
                 DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
@@ -783,6 +785,7 @@ class DataFileCollectionCompactionTest {
                 "All entries should have distinct locations (no dedup for sanitized entries)");
 
         store.close();
+        index.close();
     }
 
     @Test
@@ -795,7 +798,7 @@ class DataFileCollectionCompactionTest {
         final Path testDir = tempFileDir.resolve(storeName);
         final DataFileCollection store = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, testDir, storeName, null);
 
-        final LongListHeap index = new LongListHeap(
+        final LongListSegment index = new LongListSegment(
                 DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
                 bucketCount,
                 DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
@@ -844,6 +847,7 @@ class DataFileCollectionCompactionTest {
                 "Output should not exceed input with dedup on mixed entries");
 
         store.close();
+        index.close();
     }
 
     private static List<DataFileReader> getFilesToMerge(DataFileCollection store) {

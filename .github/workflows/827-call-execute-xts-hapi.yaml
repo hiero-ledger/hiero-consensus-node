@@ -66,8 +66,12 @@ permissions:
 
 jobs:
   hapi-tests-bn-comms:
-    uses: ./.github/workflows/844-call-execute-hapi-bn-communication.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "BN Comms"
+      gradle-tasks: >-
+        hapiTestBlockNodeCommunication
+      runner: "hl-cn-hapi-bn-lin-xl"
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -80,8 +84,18 @@ jobs:
 
   hapi-tests-wraps:
     if: ${{ inputs.enable-hapi-tests-wraps == 'true' }}
-    uses: ./.github/workflows/845-call-execute-hapi-wraps.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Wraps"
+      gradle-tasks: >-
+        hapiTestWraps
+      # Dedicated runner pool sized for WRAPS proof construction, which uses every
+      # available core and a few GiB of off-heap memory per proving node
+      runner: "hl-cn-hapi-wraps-lin-lg"
+      # Each subtask spins up its own subprocess network and constructs WRAPS proofs
+      timeout-minutes: 120
+      # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
+      node-pool-mib: "12288"
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -94,8 +108,16 @@ jobs:
 
   hapi-tests-cutover:
     if: ${{ inputs.enable-hapi-tests-cutover == 'true' }}
-    uses: ./.github/workflows/846-call-execute-hapi-cutover.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Cutover"
+      gradle-tasks: >-
+        hapiTestCutover
+      runner: "hl-cn-hapi-wraps-lin-lg"
+      # The upgrade boundary that enables TSS constructs a genesis WRAPS proof
+      timeout-minutes: 60
+      # Cap each node JVM's share of the heap pool (4 GiB x 3 nodes) on the shared pod
+      node-pool-mib: "12288"
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}

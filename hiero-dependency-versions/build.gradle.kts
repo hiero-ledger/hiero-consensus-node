@@ -22,7 +22,19 @@ val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.34.1"
 val prometheusSimpleclient = "0.16.0"
-val blockNodeProtobufSources = "0.45.0-rc5"
+// The one Block Node pin is block-node-version in .citr-env; Maven versions lack its v
+val blockNodeProtobufSources =
+    providers
+        .fileContents(layout.settingsDirectory.file(".github/workflows/support/citr/.citr-env"))
+        .asText
+        .get()
+        .lines()
+        .firstOrNull { it.startsWith("block-node-version=") }
+        ?.substringAfter("=")
+        ?.trim()
+        ?.removePrefix("v")
+        ?.takeIf { it.isNotEmpty() }
+        ?: throw GradleException("block-node-version is missing from .citr-env")
 val testContainers = "2.0.5"
 val tuweni = "2.7.2"
 val vertx = "4.5.30"

@@ -19,9 +19,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -167,6 +169,45 @@ class IngestWorkflowImplTest extends AppTestBase {
         assertThat(response.cost()).isZero();
         // And that the transaction and its bytes were actually passed to the submission manager
         verify(submissionManager).submit(eq(transactionBody), any(), eq(false));
+    }
+
+    @Test
+    @DisplayName(
+            "With quiescence enabled, the workflow counts pre-flight only; the submission manager counts in flight")
+    void leavesInFlightCountToSubmissionManager() throws PreCheckException, ParseException {
+        final var quiescenceEnabled = new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("quiescence.enabled", true)
+                        .getOrCreateConfig(),
+                1L);
+        when(configProvider.getConfiguration()).thenReturn(quiescenceEnabled);
+        final var transactionInfo = new TransactionInfo(
+                signedTx,
+                transactionBody,
+                SignatureMap.newBuilder().build(),
+                randomBytes(100),
+                HederaFunctionality.CONSENSUS_CREATE_TOPIC,
+                SignedTransaction.PROTOBUF.toBytes(signedTx));
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(eq(state), eq(requestBuffer), eq(quiescenceEnabled), any());
+        workflow = new IngestWorkflowImpl(
+                stateAccessor, ingestChecker, submissionManager, txPipelineTracker, configProvider);
+
+        workflow.submitTransaction(requestBuffer, responseBuffer);
+
+        assertThat(parseResponse(responseBuffer).nodeTransactionPrecheckCode()).isEqualTo(OK);
+        final var inOrder = inOrder(txPipelineTracker, submissionManager);
+        inOrder.verify(txPipelineTracker).incrementPreFlight();
+        inOrder.verify(submissionManager).submit(eq(transactionBody), any(), eq(false));
+        inOrder.verify(txPipelineTracker).decrementPreFlight();
+        // Counting it again here would leave the count one too high for good
+        verifyNoMoreInteractions(txPipelineTracker);
     }
 
     @Nested

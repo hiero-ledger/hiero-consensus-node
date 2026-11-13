@@ -6,7 +6,6 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKL
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
@@ -102,31 +101,32 @@ class DataFileReaderCloseTest {
                     new DataFileWriter("test", testDir, i, Instant.now(), INITIAL_COMPACTION_LEVEL);
             Path filePath = writer.getPath();
             final DataFileMetadata metadata = writer.getMetadata();
-            final LongList index = new LongListOffHeap(COUNT / 10, COUNT, COUNT / 10);
-            index.updateValidRange(0, i);
-            index.put(
-                    0,
-                    writer.storeDataItem(
-                            o -> {
-                                o.writeLong(fi);
-                                o.writeLong(fi * 2 + 1);
-                            },
-                            2 * Long.BYTES));
-            final DataFileReader reader = new DataFileReader(DEFAULT_MERKLE_DB_CONFIG, filePath, metadata);
-            // Check the item in parallel to finish writing
-            IntStream.of(0, 1).parallel().forEach(t -> {
-                try {
-                    if (t == 1) {
-                        writer.close();
-                    } else {
-                        final BufferedData itemBytes = reader.readDataItem(index.get(0));
-                        Assertions.assertEquals(fi, itemBytes.readLong());
-                        Assertions.assertEquals(fi * 2 + 1, itemBytes.readLong());
+            try (final LongList index = new LongListSegment(COUNT / 10, COUNT, COUNT / 10)) {
+                index.updateValidRange(0, i);
+                index.put(
+                        0,
+                        writer.storeDataItem(
+                                o -> {
+                                    o.writeLong(fi);
+                                    o.writeLong(fi * 2 + 1);
+                                },
+                                2 * Long.BYTES));
+                final DataFileReader reader = new DataFileReader(DEFAULT_MERKLE_DB_CONFIG, filePath, metadata);
+                // Check the item in parallel to finish writing
+                IntStream.of(0, 1).parallel().forEach(t -> {
+                    try {
+                        if (t == 1) {
+                            writer.close();
+                        } else {
+                            final BufferedData itemBytes = reader.readDataItem(index.get(0));
+                            Assertions.assertEquals(fi, itemBytes.readLong());
+                            Assertions.assertEquals(fi * 2 + 1, itemBytes.readLong());
+                        }
+                    } catch (final IOException e) {
+                        throw new RuntimeException(e);
                     }
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
+                });
+            }
         }
     }
 }

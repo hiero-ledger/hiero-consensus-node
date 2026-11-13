@@ -3,9 +3,13 @@ package com.hedera.node.app.workflows.clpr;
 
 import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
+import com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.BlockProvenStateAccessor;
+import com.swirlds.metrics.api.Metrics;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -30,6 +34,13 @@ public abstract class ClprSyncWorkflowInjectionModule {
 
     @Binds
     abstract ClprSynchronizer bindClprSynchronizer(ClprStreamingSynchronizer clprSynchronizer);
+
+    @Provides
+    @Singleton
+    static ClprHieroProofSupport provideHieroProofSupport(final Metrics metrics) {
+        final var library = new HintsLibraryImpl();
+        return new ClprHieroProofSelfCheck(library, new HintsKeyWitnessVerifier(library), metrics);
+    }
 
     @Provides
     @Singleton

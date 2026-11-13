@@ -20,7 +20,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ARTIFACT_RE = re.compile(r"^(HAPI Test .+ Reports|.+ Otter Tests Report|Falcon Tests Report)$")
+# 874 appends an optional artifact-suffix after "Reports", so allow text after it
+ARTIFACT_RE = re.compile(r"^(HAPI Test .+ Reports( .+)?|.+ Otter Tests Report|Falcon Tests Report)$")
 MAX_ZIP_BYTES = 40 * 1024 * 1024
 MAX_MEMBER_BYTES = 300 * 1024 * 1024
 MAX_TOTAL_BYTES = 1024 * 1024 * 1024
