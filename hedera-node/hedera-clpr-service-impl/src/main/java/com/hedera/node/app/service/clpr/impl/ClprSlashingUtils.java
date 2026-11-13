@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
-import static com.hedera.node.app.hapi.utils.fee.FeeConstants.tinycentsToTinybars;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
-import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -68,7 +65,6 @@ public final class ClprSlashingUtils {
      * @param connector the connector to slash
      * @param config the CLPR configuration
      * @param connectorStore the writable connector store
-     * @param rate the active exchange rate at the transaction consensus time
      * @return the slash result
      */
     @SuppressWarnings("exports")
@@ -76,12 +72,10 @@ public final class ClprSlashingUtils {
     public static SlashResult applySlash(
             @NonNull final ClprConnector connector,
             @NonNull final ClprConfig config,
-            @NonNull final WritableConnectorStore connectorStore,
-            @NonNull final ExchangeRate rate) {
+            @NonNull final WritableConnectorStore connectorStore) {
         requireNonNull(connector);
         requireNonNull(config);
         requireNonNull(connectorStore);
-        requireNonNull(rate);
 
         final var newSlashCount = connector.slashCount() + 1;
 
@@ -94,10 +88,7 @@ public final class ClprSlashingUtils {
         }
 
         final var penalty = computePenalty(
-                tinycentsToTinybars(config.slashBasePenaltyTinycents(), fromPbj(rate)),
-                config.slashMultiplier(),
-                connector.slashCount(),
-                connector.lockedStake());
+                config.slashBasePenalty(), config.slashMultiplier(), connector.slashCount(), connector.lockedStake());
         final var newLockedStake = connector.lockedStake() - penalty;
 
         final var updated = connector

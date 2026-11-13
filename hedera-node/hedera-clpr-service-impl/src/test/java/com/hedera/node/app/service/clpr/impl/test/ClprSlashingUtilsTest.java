@@ -12,7 +12,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -27,8 +26,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -37,8 +34,6 @@ class ClprSlashingUtilsTest {
 
     private static final long BASE_PENALTY = 10_000_000L; // 0.1 hbar
     private static final int MULTIPLIER = 2;
-    private static final ExchangeRate UNIT_RATE =
-            ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build();
 
     private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[32]);
     private static final Bytes CONNECTOR_ID = Bytes.wrap(new byte[] {10, 20, 30});
@@ -75,7 +70,7 @@ class ClprSlashingUtilsTest {
         connectorStore = new WritableConnectorStore(writableStates);
 
         config = HederaTestConfigBuilder.create()
-                .withValue("clpr.slashBasePenaltyTinycents", "10000000")
+                .withValue("clpr.slashBasePenalty", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
                 .withValue("clpr.stakingAccount", STAKING_ACCOUNT_NUM)
@@ -153,7 +148,7 @@ class ClprSlashingUtilsTest {
                 .build();
         connectorStore.put(connector);
 
-        final var result = ClprSlashingUtils.applySlash(connector, config, connectorStore, UNIT_RATE);
+        final var result = ClprSlashingUtils.applySlash(connector, config, connectorStore);
 
         assertThat(result.banned()).isFalse();
         assertThat(result.penaltyAmount()).isEqualTo(10_000_000L);
@@ -167,27 +162,6 @@ class ClprSlashingUtilsTest {
         assertThat(persisted.lockedStake()).isEqualTo(90_000_000L);
     }
 
-    @ParameterizedTest
-    @CsvSource({"5, 20000000000", "10, 10000000000", "20, 5000000000"})
-    void usdBasePenaltyUsesActiveRate(final int centEquiv, final long expectedPenalty) {
-        final var usdConfig = HederaTestConfigBuilder.createConfig().getConfigData(ClprConfig.class);
-        final long lockedStake = 1_000_000_000_000L;
-        final var connector = ClprConnector.newBuilder()
-                .channelId(CHANNEL_ID)
-                .connectorId(CONNECTOR_ID)
-                .lockedStake(lockedStake)
-                .slashCount(0)
-                .build();
-        connectorStore.put(connector);
-        final var rate =
-                ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(centEquiv).build();
-
-        final var result = ClprSlashingUtils.applySlash(connector, usdConfig, connectorStore, rate);
-
-        assertThat(result.penaltyAmount()).isEqualTo(expectedPenalty);
-        assertThat(result.updatedConnector().lockedStake()).isEqualTo(lockedStake - expectedPenalty);
-    }
-
     @Test
     @DisplayName("applySlash at ban threshold forfeits remaining stake and removes connector")
     void applySlashAtBanThresholdRemovesConnector() {
@@ -199,7 +173,7 @@ class ClprSlashingUtilsTest {
                 .build();
         connectorStore.put(connector);
 
-        final var result = ClprSlashingUtils.applySlash(connector, config, connectorStore, UNIT_RATE);
+        final var result = ClprSlashingUtils.applySlash(connector, config, connectorStore);
 
         assertThat(result.banned()).isTrue();
         assertThat(result.updatedConnector()).isNull();
