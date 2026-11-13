@@ -217,10 +217,12 @@ jobs:
           sparse-checkout: .github/ci-metrics
           persist-credentials: false
 
-      - name: Setup Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
+      # The runner image's Python: on the hl-cn runners, setup-python installs a build that needs a newer glibc than
+      # the image has (same pattern as 007, 822, 823 and 905)
+      - name: Install Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3
 
       - name: Collect Run Metrics
         env:
