@@ -62,7 +62,8 @@ public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver 
             @NonNull final Path rootOutputDirectory,
             @NonNull final TurtleTransactionGenerator transactionGenerator,
             final boolean useRandomNodeIds) {
-        super(random, timeManager, transactionGenerator, useRandomNodeIds);
+        // Turtle nodes receive forwarded copies of their own events, so that tests exercise the safety net of OBSERVING
+        super(random, timeManager, transactionGenerator, useRandomNodeIds, true);
         this.turtleTransactionGenerator = requireNonNull(transactionGenerator);
         this.logging = requireNonNull(logging);
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);

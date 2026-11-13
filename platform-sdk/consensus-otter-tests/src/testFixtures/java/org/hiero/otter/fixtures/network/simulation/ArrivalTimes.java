@@ -19,7 +19,11 @@ import org.hiero.consensus.gossip.config.SyncConfig;
  * previous one of the same kind on the same connection. That clamp keeps each kind of route in order.
  *
  * <p>Picking draws from the random number generator, so the order arrival times are picked in is part of what a seed
- * reproduces.
+ * reproduces. A picked arrival time only counts for the clamp once it is committed, so that a copy that turns out not
+ * to be sent does not hold up the ones after it. The average and earliest possible arrival times can be had without a
+ * draw.
+ *
+ * <p>Arrival times are only picked while there is connection data, which then contains every connection.
  *
  * <p>Nodes are identified by their rank, which is their index in the roster. Times are nanoseconds since the start of
  * the simulation, except for the arrival times handed out, which are instants.
@@ -84,8 +88,7 @@ final class ArrivalTimes {
     }
 
     /**
-     * Picks the time something put onto a connection now arrives at the other end. Only called while there is
-     * connection data, which then contains every connection.
+     * Picks the time something put onto a connection now arrives at the other end.
      *
      * @param sender   the rank of the node at the sending end of the connection
      * @param receiver the rank of the node at the receiving end of the connection
@@ -96,6 +99,24 @@ final class ArrivalTimes {
     @NonNull
     Instant decideNextArrivalTime(
             final int sender, final int receiver, @NonNull final MessageRoute kind, final long now) {
+        final long arrival = propose(sender, receiver, kind, now);
+        commit(sender, receiver, kind, arrival);
+        return instantOf(arrival);
+    }
+
+    /**
+     * Picks the time something put onto a connection now would arrive at the other end, like
+     * {@link #decideNextArrivalTime(int, int, MessageRoute, long)}, but leaves it to the caller to decide whether it is put onto the
+     * connection at all. The jitter is drawn either way; the arrival time only becomes the last one of its kind on the
+     * connection once it is passed to {@link #commit(int, int, MessageRoute, long)}.
+     *
+     * @param sender   the rank of the node at the sending end of the connection
+     * @param receiver the rank of the node at the receiving end of the connection
+     * @param kind     the route over which the message is sent
+     * @param now      the current time
+     * @return the time of arrival in nanoseconds
+     */
+    long propose(final int sender, final int receiver, @NonNull final MessageRoute kind, final long now) {
         // Simulate network latency and jitter using truncated Gaussian distribution
         final double sigma = links.jitterSigma(sender, receiver);
         final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
@@ -105,7 +126,68 @@ final class ArrivalTimes {
         }
 
         // Ensure arrival time is always incremental within a kind of route
-        return start.plusNanos(clamp.clamp(sender, receiver, kind, arrivalTime));
+        return clamp.peek(sender, receiver, kind, arrivalTime);
+    }
+
+    /**
+     * Records that something with the given arrival time is put onto a connection.
+     *
+     * @param sender   the rank of the node at the sending end of the connection
+     * @param receiver the rank of the node at the receiving end of the connection
+     * @param kind     the route over which the message is sent
+     * @param arrival  the arrival time, as returned by {@link #propose(int, int, MessageRoute, long)}
+     */
+    void commit(final int sender, final int receiver, @NonNull final MessageRoute kind, final long arrival) {
+        clamp.commit(sender, receiver, kind, arrival);
+    }
+
+    /**
+     * The earliest time something put onto a connection now can arrive, whatever jitter is drawn. No draw is made.
+     *
+     * @param sender   the rank of the node at the sending end of the connection
+     * @param receiver the rank of the node at the receiving end of the connection
+     * @param kind     the route over which the message is sent
+     * @param now      the current time
+     * @return the earliest time of arrival in nanoseconds
+     */
+    long earliestPossible(final int sender, final int receiver, @NonNull final MessageRoute kind, final long now) {
+        final double sigma = links.jitterSigma(sender, receiver);
+        return expected(sender, receiver, kind, now) - (long) (3 * sigma);
+    }
+
+    /**
+     * The time something put onto a connection now arrives at the other end on average, without jitter. No draw is made.
+     *
+     * @param sender   the rank of the node at the sending end of the connection
+     * @param receiver the rank of the node at the receiving end of the connection
+     * @param kind     the route over which the message is sent
+     * @param now      the current time
+     * @return the average time of arrival in nanoseconds
+     */
+    long expected(final int sender, final int receiver, @NonNull final MessageRoute kind, final long now) {
+        final long arrivalTime = now + links.latency(sender, receiver);
+        return kind == MessageRoute.SYNC ? arrivalTime + syncDelay(sender, receiver, now) : arrivalTime;
+    }
+
+    /**
+     * Converts an instant to a time in nanoseconds since the start of the simulation.
+     *
+     * @param instant the instant
+     * @return the time
+     */
+    long nanosOf(@NonNull final Instant instant) {
+        return InFlightQueue.nanosSince(start, instant);
+    }
+
+    /**
+     * Converts a time in nanoseconds since the start of the simulation to an instant.
+     *
+     * @param nanos the time
+     * @return the instant
+     */
+    @NonNull
+    Instant instantOf(final long nanos) {
+        return start.plusNanos(nanos);
     }
 
     /**

@@ -42,10 +42,35 @@ final class ArrivalTimeClamp {
      * @return the time the copy arrives
      */
     long clamp(final int senderRank, final int receiverRank, @NonNull final MessageRoute kind, final long proposed) {
-        final long[] lastByReceiver = lastArrivalTimes[kind.ordinal()][senderRank];
-        final long last = lastByReceiver[receiverRank];
-        final long arrival = proposed < last ? last + 1 : proposed;
-        lastByReceiver[receiverRank] = arrival;
+        final long arrival = peek(senderRank, receiverRank, kind, proposed);
+        commit(senderRank, receiverRank, kind, arrival);
         return arrival;
+    }
+
+    /**
+     * Gets the arrival time {@link #clamp(int, int, MessageRoute, long)} would return, without recording it as the
+     * last one handed out. For a copy that may turn out not to be sent.
+     *
+     * @param senderRank   the rank of the node at the sending end of the connection
+     * @param receiverRank the rank of the node at the receiving end of the connection
+     * @param kind         the kind of copy
+     * @param proposed     the arrival time the copy would have without clamping
+     * @return the time the copy would arrive
+     */
+    long peek(final int senderRank, final int receiverRank, @NonNull final MessageRoute kind, final long proposed) {
+        final long last = lastArrivalTimes[kind.ordinal()][senderRank][receiverRank];
+        return proposed < last ? last + 1 : proposed;
+    }
+
+    /**
+     * Records the arrival time of a copy that is sent as the last one handed out.
+     *
+     * @param senderRank   the rank of the node at the sending end of the connection
+     * @param receiverRank the rank of the node at the receiving end of the connection
+     * @param kind         the kind of copy
+     * @param arrival      the time the copy arrives, as returned by {@link #peek(int, int, MessageRoute, long)}
+     */
+    void commit(final int senderRank, final int receiverRank, @NonNull final MessageRoute kind, final long arrival) {
+        lastArrivalTimes[kind.ordinal()][senderRank][receiverRank] = arrival;
     }
 }

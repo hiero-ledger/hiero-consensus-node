@@ -344,8 +344,8 @@ class SimulatedGossipTests {
         }
 
         @Override
-        public void resetCursor(@NonNull final NodeId nodeId) {
-            connectivity.resetCursor(nodeId);
+        public void nodeRestarted(@NonNull final NodeId nodeId) {
+            connectivity.nodeRestarted(nodeId);
         }
     }
 

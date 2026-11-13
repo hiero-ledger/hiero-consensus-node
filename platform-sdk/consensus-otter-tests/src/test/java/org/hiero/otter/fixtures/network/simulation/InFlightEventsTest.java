@@ -63,7 +63,7 @@ class InFlightEventsTest {
         return new InFlightEvents(
                 nodeIds.size(),
                 (sender, receiver) -> !downConnections.contains(Map.entry(NodeId.of(sender), NodeId.of(receiver))),
-                nodeId -> eventWindow,
+                rank -> eventWindow,
                 START);
     }
 

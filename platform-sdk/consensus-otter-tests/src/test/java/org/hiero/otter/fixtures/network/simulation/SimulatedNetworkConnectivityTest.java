@@ -59,11 +59,15 @@ class SimulatedNetworkConnectivityTest {
     }
 
     private void createNetwork(final long seed) {
+        createNetwork(seed, true);
+    }
+
+    private void createNetwork(final long seed, final boolean echoes) {
         node0 = new RecordingReceiver(NODE_0);
         node1 = new RecordingReceiver(NODE_1);
         node2 = new RecordingReceiver(NODE_2);
         network = new SimulatedNetworkConnectivity(
-                new Random(seed), START, rosterOf(NODE_0, NODE_1, NODE_2), List.of(node0, node1, node2));
+                new Random(seed), START, rosterOf(NODE_0, NODE_1, NODE_2), List.of(node0, node1, node2), echoes);
         now = 0;
         network.tick(at(0));
     }
@@ -213,7 +217,7 @@ class SimulatedNetworkConnectivityTest {
         tickTo(200);
         assertThat(node1.receivedEvents).hasSize(1);
 
-        network.resetCursor(NODE_1);
+        network.nodeRestarted(NODE_1);
         node1.receivedEvents.clear();
         final long restarted = now;
         tickTo(restarted + 1);
@@ -228,7 +232,7 @@ class SimulatedNetworkConnectivityTest {
     @DisplayName("a restart does not delay links between the other nodes")
     void restartLeavesOtherLinksAlone() {
         network.setConnections(connections(true));
-        network.resetCursor(NODE_1);
+        network.nodeRestarted(NODE_1);
 
         submit(NODE_0);
         tickTo(1);
@@ -268,7 +272,7 @@ class SimulatedNetworkConnectivityTest {
         tickTo(101);
         node1.receivedEventWindows.clear();
 
-        network.resetCursor(NODE_1);
+        network.nodeRestarted(NODE_1);
         final long restarted = now;
 
         tickTo(restarted + MIN_RECONNECT_DELAY_MILLIS - 1);
@@ -341,7 +345,7 @@ class SimulatedNetworkConnectivityTest {
         network.setConnections(connections(true));
 
         // only the forwarded copy is submitted: the creator itself is not part of this test
-        forward(submit(NODE_0), NODE_1);
+        forward(create(NODE_0), NODE_1);
         tickTo(1);
         // 250 hold-back + 200 round trip + 50 half the pause + 100 latency
         tickTo(600);
@@ -383,13 +387,9 @@ class SimulatedNetworkConnectivityTest {
     }
 
     @Test
-    @DisplayName("the receiver gets the creator's copy before a copy forwarded along a faster path")
-    void creatorsCopyArrivesFirst() {
-        final Map<ConnectionKey, ConnectionState> uneven = new HashMap<>();
-        setLatency(uneven, NODE_0, NODE_2, 250);
-        setLatency(uneven, NODE_0, NODE_1, 20);
-        setLatency(uneven, NODE_1, NODE_2, 120);
-        network.setConnections(uneven);
+    @DisplayName("a forwarded copy that cannot arrive before the creator's copy is not sent")
+    void laterForwardedCopyIsNotSent() {
+        network.setConnections(unevenConnections());
 
         final PlatformEvent event = submit(NODE_0);
         tickTo(1);
@@ -399,12 +399,253 @@ class SimulatedNetworkConnectivityTest {
         tickTo(22);
         tickTo(1000);
 
-        // creator's copy: 1 + 250. forwarded copy: 22 + 250 + 240 + 50 + 120
+        // creator's copy: 1 + 250. forwarded copy would be: 22 + 250 + 240 + 50 + 120
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_0);
+        assertThat(node2.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(251));
+    }
+
+    @Test
+    @DisplayName("a forwarded copy that arrives before the creator's copy is sent, and the creator's copy still is")
+    void earlierForwardedCopyIsSent() {
+        final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
+        setLatency(connections, NODE_0, NODE_1, 20);
+        setLatency(connections, NODE_0, NODE_2, 1000);
+        setLatency(connections, NODE_1, NODE_2, 120);
+        network.setConnections(connections);
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(21);
+        forward(event, NODE_1);
+        tickTo(22);
+        tickTo(5000);
+
+        // forwarded copy: 22 + 250 + 240 + 50 + 120. creator's copy, not in broadcast mode: 1 + 2000 + 2.5 + 1000
         assertThat(node2.receivedEvents).hasSize(2);
-        assertThat(node2.receivedEvents.get(0).getSenderId()).isEqualTo(NODE_0);
-        assertThat(node2.receivedEvents.get(0).getTimeReceived()).isEqualTo(at(251));
-        assertThat(node2.receivedEvents.get(1).getSenderId()).isEqualTo(NODE_1);
-        assertThat(node2.receivedEvents.get(1).getTimeReceived()).isEqualTo(at(682));
+        assertThat(node2.receivedEvents.get(0).getSenderId()).isEqualTo(NODE_1);
+        assertThat(node2.receivedEvents.get(0).getTimeReceived()).isEqualTo(at(682));
+        assertThat(node2.receivedEvents.get(1).getSenderId()).isEqualTo(NODE_0);
+    }
+
+    @Test
+    @DisplayName("a forwarded copy that arrives after the one forwarded before it is not sent")
+    void laterForwardedCopyAfterForwardedCopyIsNotSent() {
+        network.setConnections(connections(true));
+
+        // the creator is not part of this test
+        final PlatformEvent event = create(NODE_0);
+        forward(event, NODE_1);
+        tickTo(1);
+        tickTo(1000);
+        forward(event, NODE_2);
+        tickTo(1001);
+        tickTo(3000);
+
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
+        // node 1 is sent the copy of node 2, because the one that it forwarded itself does not count
+        assertThat(node0.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("what is in flight on a link that goes down is sent again by a node that has it")
+    void inFlightEventsAreReroutedWhenLinkGoesDown() {
+        network.setConnections(unevenConnections());
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(21);
+        forward(event, NODE_1);
+        tickTo(22);
+        tickTo(100);
+        assertThat(node2.receivedEvents).isEmpty();
+
+        // the creator's copy to node 2 is in flight; the forwarded copy was not sent, as it would arrive later
+        final Map<ConnectionKey, ConnectionState> cut = unevenConnections();
+        cut(cut, NODE_0, NODE_2);
+        network.setConnections(cut);
+        tickTo(101);
+        tickTo(2000);
+
+        // 100 + 250 hold-back + 240 round trip + 50 half the pause + 120 latency
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
+        assertThat(node2.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(760));
+    }
+
+    @Test
+    @DisplayName("what is in flight on a link that goes down is held if no node that has it can send it again")
+    void inFlightEventsAreHeldWhenNoOtherNodeHasThem() {
+        network.setConnections(unevenConnections());
+
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(100);
+
+        // only node 0 has the event, and it can reach nobody over a link that is up
+        final Map<ConnectionKey, ConnectionState> cut = unevenConnections();
+        cut(cut, NODE_0, NODE_2);
+        network.setConnections(cut);
+        tickTo(101);
+        tickTo(3000);
+        assertThat(node2.receivedEvents).isEmpty();
+
+        network.setConnections(unevenConnections());
+        tickTo(3001);
+        tickTo(8000);
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_0);
+    }
+
+    @Test
+    @DisplayName("an event a node lacks is sent to it when its link to a node that has the event comes back")
+    void lackedEventIsSentWhenLinkComesBack() {
+        final Map<ConnectionKey, ConnectionState> partial = connections(true);
+        cut(partial, NODE_0, NODE_2);
+        cut(partial, NODE_1, NODE_2);
+        network.setConnections(partial);
+
+        // node 0's copy to node 2 is held, and node 1 does not forward the event to node 2 while their link is down
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(100);
+        forward(event, NODE_1);
+        tickTo(101);
+
+        // the link of node 1 and node 2 comes back, the one of node 0 and node 2 stays down
+        final Map<ConnectionKey, ConnectionState> healed = connections(true);
+        cut(healed, NODE_0, NODE_2);
+        network.setConnections(healed);
+        tickTo(102);
+        tickTo(3000);
+
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
+    }
+
+    @Test
+    @DisplayName("an event a node lacks is sent to it when its link comes back to a node that has just restarted")
+    void lackedEventIsSentWhenLinkComesBackToRestartedNode() {
+        final Map<ConnectionKey, ConnectionState> partial = connections(true);
+        cut(partial, NODE_0, NODE_2);
+        cut(partial, NODE_1, NODE_2);
+        network.setConnections(partial);
+
+        // node 0's copy to node 2 is held, and node 1 does not forward the event to node 2 while their link is down
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(100);
+        forward(event, NODE_1);
+        tickTo(101);
+
+        // node 1 restarts, and before the next tick its link to node 2 comes back
+        network.nodeRestarted(NODE_1);
+        final Map<ConnectionKey, ConnectionState> healed = connections(true);
+        cut(healed, NODE_0, NODE_2);
+        network.setConnections(healed);
+        tickTo(102);
+        tickTo(3000);
+
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
+    }
+
+    @Test
+    @DisplayName("an event sent again to a restarted node goes by sync, even from its creator")
+    void eventsAreSentAgainBySync() {
+        network.setConnections(uniform(Duration.ofMillis(20), true));
+
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(2000);
+        assertThat(node1.receivedEvents).hasSize(1);
+
+        network.nodeRestarted(NODE_1);
+        tickTo(2001);
+        tickTo(4000);
+
+        // 2001 + 250 hold-back + 40 round trip + 50 half the pause + 20 latency, which is later than the reconnect
+        // delay
+        assertThat(node1.receivedEvents).hasSize(2);
+        assertThat(node1.receivedEvents.get(1).getSenderId()).isEqualTo(NODE_0);
+        assertThat(node1.receivedEvents.get(1).getTimeReceived()).isEqualTo(at(2361));
+    }
+
+    @Test
+    @DisplayName("what is in flight on another link than the one that goes down is left alone")
+    void otherInFlightEventsAreNotRerouted() {
+        network.setConnections(unevenConnections());
+
+        submit(NODE_0);
+        tickTo(1);
+        tickTo(100);
+
+        final Map<ConnectionKey, ConnectionState> cut = unevenConnections();
+        cut(cut, NODE_1, NODE_2);
+        network.setConnections(cut);
+        tickTo(101);
+        tickTo(2000);
+
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_0);
+        assertThat(node2.receivedEvents.getFirst().getTimeReceived()).isEqualTo(at(251));
+    }
+
+    @Test
+    @DisplayName("with echoes a node is sent a forwarded copy of its own event once")
+    void echoesAreSentOnce() {
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(200);
+        forward(event, NODE_1);
+        forward(event, NODE_2);
+        tickTo(201);
+        tickTo(3000);
+
+        assertThat(node0.receivedEvents).hasSize(1);
+        assertThat(node0.receivedEvents.getFirst().getSenderId()).isNotEqualTo(NODE_0);
+    }
+
+    @Test
+    @DisplayName("without echoes a node is sent no forwarded copy of its own event")
+    void noEchoesAreSent() {
+        createNetwork(0, false);
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(200);
+        forward(event, NODE_1);
+        forward(event, NODE_2);
+        tickTo(201);
+        tickTo(3000);
+
+        assertThat(node0.receivedEvents).isEmpty();
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName(
+            "the sender of an event is the node that submitted it, even if the same instance is submitted by others")
+    void senderIsTakenAtSubmission() {
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = create(NODE_0);
+        event.setSenderId(NODE_2);
+        network.submitEvent(event);
+        event.setSenderId(NODE_1);
+        network.submitEvent(event);
+        tickTo(1);
+        tickTo(3000);
+
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(node1.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_2);
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
     }
 
     @Test
@@ -453,7 +694,7 @@ class SimulatedNetworkConnectivityTest {
         assertThat(node1.receivedEvents).hasSize(2);
         assertThat(node2.receivedEvents).hasSize(1);
 
-        network.resetCursor(NODE_1);
+        network.nodeRestarted(NODE_1);
         tickTo(2001);
         tickTo(6000);
 
@@ -471,7 +712,7 @@ class SimulatedNetworkConnectivityTest {
         tickTo(1);
         tickTo(2000);
 
-        network.resetCursor(NODE_1);
+        network.nodeRestarted(NODE_1);
         submit(NODE_0);
         tickTo(2001);
         tickTo(6000);
@@ -481,16 +722,38 @@ class SimulatedNetworkConnectivityTest {
     }
 
     /**
+     * Creates an event of a node, without submitting it.
+     */
+    @NonNull
+    private static PlatformEvent create(@NonNull final NodeId creator) {
+        final PlatformEvent event =
+                new TestingEventBuilder(new Random()).setCreatorId(creator).build();
+        new DefaultEventHasher().hashEvent(event);
+        return event;
+    }
+
+    /**
      * Creates and submits an event from a node.
      */
     @NonNull
     private PlatformEvent submit(@NonNull final NodeId creator) {
-        final PlatformEvent event =
-                new TestingEventBuilder(new Random()).setCreatorId(creator).build();
-        new DefaultEventHasher().hashEvent(event);
+        final PlatformEvent event = create(creator);
         event.setSenderId(creator);
         network.submitEvent(event);
         return event;
+    }
+
+    /**
+     * Connections of which the one from node 0 to node 2 is slow, and the other two fast enough to send an event over
+     * node 1 in broadcast mode.
+     */
+    @NonNull
+    private static Map<ConnectionKey, ConnectionState> unevenConnections() {
+        final Map<ConnectionKey, ConnectionState> uneven = new HashMap<>();
+        setLatency(uneven, NODE_0, NODE_2, 250);
+        setLatency(uneven, NODE_0, NODE_1, 20);
+        setLatency(uneven, NODE_1, NODE_2, 120);
+        return uneven;
     }
 
     /**
