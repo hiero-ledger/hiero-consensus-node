@@ -97,7 +97,8 @@ class CantonProofVerifierConfigTest {
         assertThat(c.throttles().maxLocalEndpoints()).isEqualTo(20);
         assertThat(c.throttles().maxPeerEndpoints()).isEqualTo(30);
 
-        final CantonAnchor.Anchor a = CantonAnchor.decode(c.initialTrustAnchor().toByteArray());
+        final CantonAnchor.Anchor a =
+                CantonAnchor.Anchor.decode(c.initialTrustAnchor().toByteArray());
         assertThat(a.synchronizerId()).isEqualTo(SYNC);
         assertThat(a.lastRequestId()).isEqualTo(VERDICT.requestId());
         assertThat(a.mediatorGroup()).isEqualTo(GROUP);

@@ -66,7 +66,7 @@ class CantonAnchorTest {
 
     @Test
     void decodesSolidityEncodedFull() {
-        final var a = CantonAnchor.decode(HEX.parseHex(FULL_HEX));
+        final var a = CantonAnchor.Anchor.decode(HEX.parseHex(FULL_HEX));
         assertAnchorEquals(full(), a);
         // unsigned semantics
         assertEquals("18446744073709551615", Long.toUnsignedString(a.lastRequestId()));
@@ -77,13 +77,13 @@ class CantonAnchorTest {
 
     @Test
     void decodesSolidityEncodedMinimal() {
-        assertAnchorEquals(minimal(), CantonAnchor.decode(HEX.parseHex(MINIMAL_HEX)));
+        assertAnchorEquals(minimal(), CantonAnchor.Anchor.decode(HEX.parseHex(MINIMAL_HEX)));
     }
 
     @Test
     void encodeMatchesSolidityBytes() {
-        assertEquals(FULL_HEX, HEX.formatHex(CantonAnchor.encode(full())));
-        assertEquals(MINIMAL_HEX, HEX.formatHex(CantonAnchor.encode(minimal())));
+        assertEquals(FULL_HEX, HEX.formatHex(full().encode()));
+        assertEquals(MINIMAL_HEX, HEX.formatHex(minimal().encode()));
     }
 
     @Test
@@ -91,7 +91,7 @@ class CantonAnchorTest {
         final var longString = new Anchor32().s; // multi-word string tail (> 32 bytes)
         final var a = new CantonAnchor.Anchor(
                 longString, 7L, 3, filled(1), filled(2), filled(3), longString + "x", 99L, 5, longString + "yy");
-        assertAnchorEquals(a, CantonAnchor.decode(CantonAnchor.encode(a)));
+        assertAnchorEquals(a, CantonAnchor.Anchor.decode(a.encode()));
     }
 
     @Test
@@ -114,12 +114,12 @@ class CantonAnchorTest {
     @Test
     void uint64WithHighBitSetStillRoundTrips() {
         final var a = full(); // lastRequestId == -1L, i.e. 0xFFFFFFFFFFFFFFFF unsigned
-        final byte[] encoded = CantonAnchor.encode(a);
+        final byte[] encoded = a.encode();
         final byte[] word = Arrays.copyOfRange(encoded, 32, 64);
         final byte[] expected = new byte[32];
         Arrays.fill(expected, 24, 32, (byte) 0xFF);
         assertArrayEquals(expected, word);
-        final var decoded = CantonAnchor.decode(encoded);
+        final var decoded = CantonAnchor.Anchor.decode(encoded);
         assertEquals(-1L, decoded.lastRequestId());
         assertAnchorEquals(a, decoded);
     }
@@ -129,7 +129,7 @@ class CantonAnchorTest {
         final byte[] ok = HEX.parseHex(MINIMAL_HEX);
         for (final int len : new int[] {0, 1, 31, 13 * 32 - 1}) {
             final byte[] shortBytes = Arrays.copyOf(ok, len);
-            final var ex = assertThrows(CantonProofException.class, () -> CantonAnchor.decode(shortBytes));
+            final var ex = assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(shortBytes));
             assertEquals("InvalidTrustAnchor", ex.errorName());
         }
     }
@@ -138,7 +138,7 @@ class CantonAnchorTest {
     void truncatedTailThrowsInvalidTrustAnchor() {
         final byte[] full = HEX.parseHex(FULL_HEX);
         final byte[] cut = Arrays.copyOf(full, full.length - 32);
-        final var ex = assertThrows(CantonProofException.class, () -> CantonAnchor.decode(cut));
+        final var ex = assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(cut));
         assertEquals("InvalidTrustAnchor", ex.errorName());
     }
 
@@ -146,10 +146,10 @@ class CantonAnchorTest {
     void dirtyUintHighBitsRejected() {
         final byte[] bad = HEX.parseHex(MINIMAL_HEX);
         bad[32] = 1; // lastRequestId word, top byte nonzero (exceeds uint64)
-        assertThrows(CantonProofException.class, () -> CantonAnchor.decode(bad));
+        assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(bad));
         final byte[] bad2 = HEX.parseHex(MINIMAL_HEX);
         bad2[64 + 27] = 1; // mediatorGroup word, byte above uint32
-        assertThrows(CantonProofException.class, () -> CantonAnchor.decode(bad2));
+        assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(bad2));
     }
 
     @Test
@@ -157,7 +157,7 @@ class CantonAnchorTest {
         final byte[] bad = HEX.parseHex(MINIMAL_HEX);
         bad[31] = (byte) 0xFF;
         bad[30] = (byte) 0xFF; // synchronizerId offset far beyond the input
-        assertThrows(CantonProofException.class, () -> CantonAnchor.decode(bad));
+        assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(bad));
     }
 
     private static final class Anchor32 {

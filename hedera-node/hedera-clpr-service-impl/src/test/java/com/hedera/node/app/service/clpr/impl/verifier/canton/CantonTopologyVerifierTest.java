@@ -54,17 +54,18 @@ class CantonTopologyVerifierTest {
 
     private static byte[] anchor(
             final String synchronizerId, final byte[] namespace, final byte[] ownerSet, final byte[] mediatorSet) {
-        return CantonAnchor.encode(new CantonAnchor.Anchor(
-                synchronizerId,
-                1L,
-                0,
-                namespace,
-                MiscCryptoUtils.keccak256DigestOf(ownerSet),
-                MiscCryptoUtils.keccak256DigestOf(mediatorSet),
-                "",
-                0L,
-                0,
-                APP));
+        return new CantonAnchor.Anchor(
+                        synchronizerId,
+                        1L,
+                        0,
+                        namespace,
+                        MiscCryptoUtils.keccak256DigestOf(ownerSet),
+                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
+                        "",
+                        0L,
+                        0,
+                        APP)
+                .encode();
     }
 
     private static byte[] bytesOf(final CantonRlp.Slice s) {
@@ -134,7 +135,7 @@ class CantonTopologyVerifierTest {
         assertThat(sequencer.delegations().get(0).restriction()).isEqualTo(1);
         assertThat(owner(o, OWNER_PARTICIPANT).namespace()).isEqualTo(OWNER_PARTICIPANT);
 
-        final CantonAnchor.Anchor out = CantonAnchor.decode(r.newAnchor());
+        final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(r.newAnchor());
         assertThat(out.ownersHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(r.newOwnerSet()));
         assertThat(out.mediatorsHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(r.newMediatorSet()));
     }
@@ -179,17 +180,18 @@ class CantonTopologyVerifierTest {
         final byte[] ownerSet = CantonFixtures.topologyOwnerSet();
         final byte[] mediatorSet = CantonFixtures.topologyMediatorSet();
         // Anchor commits to a different owners hash, so the owner set in the rotations fails the check.
-        final byte[] a = CantonAnchor.encode(new CantonAnchor.Anchor(
-                SYNCHRONIZER_ID,
-                1L,
-                0,
-                SYNCHRONIZER_NAMESPACE,
-                MiscCryptoUtils.keccak256DigestOf(new byte[] {1, 2, 3}),
-                MiscCryptoUtils.keccak256DigestOf(mediatorSet),
-                "",
-                0L,
-                0,
-                APP));
+        final byte[] a = new CantonAnchor.Anchor(
+                        SYNCHRONIZER_ID,
+                        1L,
+                        0,
+                        SYNCHRONIZER_NAMESPACE,
+                        MiscCryptoUtils.keccak256DigestOf(new byte[] {1, 2, 3}),
+                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
+                        "",
+                        0L,
+                        0,
+                        APP)
+                .encode();
         assertThat(errorOf(() ->
                         CantonTopologyVerifier.applyRotations(a, mediatorSet, CantonFixtures.topologyRotations())))
                 .isEqualTo("TrustSetMismatch");
@@ -216,7 +218,7 @@ class CantonTopologyVerifierTest {
         final CantonTopologyVerifier.RotationResult r = CantonTopologyVerifier.applyRotations(
                 anchor(LSU_SYNCHRONIZER, LSU_NAMESPACE, ownerSet, mediatorSet), mediatorSet, rotations);
 
-        final CantonAnchor.Anchor out = CantonAnchor.decode(r.newAnchor());
+        final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(r.newAnchor());
         assertThat(out.successorSynchronizerId())
                 .isEqualTo("probe::122042b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0::35-1");
         assertThat(out.upgradeTime()).isEqualTo(1_893_456_000_000_000L);

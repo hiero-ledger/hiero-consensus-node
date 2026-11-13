@@ -146,7 +146,8 @@ class CantonProofVerifierBundleTest {
                 .successor(SYNC, 0);
         final ClprBundleContent c = verify(b);
 
-        final CantonAnchor.Anchor next = CantonAnchor.decode(c.newTrustAnchor().toByteArray());
+        final CantonAnchor.Anchor next =
+                CantonAnchor.Anchor.decode(c.newTrustAnchor().toByteArray());
         assertThat(next.synchronizerId()).isEqualTo(SYNC);
         assertThat(next.successorSynchronizerId()).isEmpty();
         assertThat(next.upgradeTime()).isZero();
@@ -602,17 +603,18 @@ class CantonProofVerifierBundleTest {
         }
 
         byte[] anchor() {
-            return CantonAnchor.encode(new CantonAnchor.Anchor(
-                    anchorSync,
-                    lastRequestId,
-                    GROUP,
-                    new byte[32],
-                    ownersHash,
-                    mediatorsHash,
-                    successor,
-                    upgradeTime,
-                    0,
-                    APP));
+            return new CantonAnchor.Anchor(
+                            anchorSync,
+                            lastRequestId,
+                            GROUP,
+                            new byte[32],
+                            ownersHash,
+                            mediatorsHash,
+                            successor,
+                            upgradeTime,
+                            0,
+                            APP)
+                    .encode();
         }
     }
 

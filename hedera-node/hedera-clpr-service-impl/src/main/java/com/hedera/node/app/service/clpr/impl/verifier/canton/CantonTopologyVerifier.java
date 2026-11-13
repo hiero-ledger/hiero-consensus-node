@@ -199,7 +199,7 @@ public final class CantonTopologyVerifier {
         Objects.requireNonNull(mediatorSet, "mediatorSet");
         Objects.requireNonNull(rotations, "rotations");
 
-        final CantonAnchor.Anchor anchor = CantonAnchor.decode(trustAnchor);
+        final CantonAnchor.Anchor anchor = CantonAnchor.Anchor.decode(trustAnchor);
         if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(mediatorSet), anchor.mediatorsHash())) {
             throw CantonProofException.trustSetMismatch();
         }
@@ -266,7 +266,7 @@ public final class CantonTopologyVerifier {
                 lsu.upgradeTime,
                 lsu.serial,
                 anchor.app());
-        return new RotationResult(CantonAnchor.encode(next), newMediatorSet, newOwnerSet);
+        return new RotationResult(next.encode(), newMediatorSet, newOwnerSet);
     }
 
     private static Rotation readRotation(final Slice item) {

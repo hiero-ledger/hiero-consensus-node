@@ -273,7 +273,7 @@ public final class CantonProofVerifier implements ClprVerifier {
                         .maxSyncBytes(config[5].longValue())
                         .maxLocalEndpoints(config[6].intValue())
                         .maxPeerEndpoints(config[7].intValue()))
-                .initialTrustAnchor(Bytes.wrap(CantonAnchor.encode(initial)))
+                .initialTrustAnchor(Bytes.wrap(initial.encode()))
                 .initialTrustAnchorId(Bytes.wrap(uint64Bytes(verdict.requestId())))
                 .build();
         return new VerifiedConfig(ledgerConfig, manifest);
@@ -659,7 +659,7 @@ public final class CantonProofVerifier implements ClprVerifier {
         if (fields.size() != BUNDLE_FIELDS) {
             throw CantonProofException.invalidPayloadShape("bundle has " + fields.size() + " items");
         }
-        final CantonAnchor.Anchor anchor = CantonAnchor.decode(trustAnchor);
+        final CantonAnchor.Anchor anchor = CantonAnchor.Anchor.decode(trustAnchor);
         final Service service = decodeService(channelContext);
 
         final byte[] mediatorSet = CantonRlp.readBytes(fields.get(BUNDLE_MEDIATOR_SET_INDEX));

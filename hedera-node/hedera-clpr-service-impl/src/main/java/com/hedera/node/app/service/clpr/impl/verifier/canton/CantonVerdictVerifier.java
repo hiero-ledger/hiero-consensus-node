@@ -96,10 +96,10 @@ public final class CantonVerdictVerifier {
         if (changed) {
             final CantonTopologyVerifier.RotationResult rr =
                     CantonTopologyVerifier.applyRotations(trustAnchor, mediatorSet, rotations);
-            anchor = CantonAnchor.decode(rr.newAnchor());
+            anchor = CantonAnchor.Anchor.decode(rr.newAnchor());
             set = rr.newMediatorSet();
         } else {
-            anchor = CantonAnchor.decode(trustAnchor);
+            anchor = CantonAnchor.Anchor.decode(trustAnchor);
             set = mediatorSet;
         }
 
@@ -140,7 +140,7 @@ public final class CantonVerdictVerifier {
                     effective.upgradeTime(),
                     effective.lsuSerial(),
                     effective.app());
-            newTrustAnchor = CantonAnchor.encode(next);
+            newTrustAnchor = next.encode();
         }
         return new BundleVerdictResult(v.requestId(), v.rootHash(), effective, newTrustAnchor);
     }
