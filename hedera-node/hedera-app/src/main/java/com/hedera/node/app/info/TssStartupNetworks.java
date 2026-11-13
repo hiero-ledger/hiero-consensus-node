@@ -303,11 +303,20 @@ public final class TssStartupNetworks {
         requireNonNull(hintsService);
         requireNonNull(historyService);
         if (activeHintsConstruction.hasHintsScheme()) {
-            hintsService.setActiveConstruction(activeHintsConstruction, activeCrs);
-            log.info(
-                    "Installed dev-only hinTS runtime construction #{} from startup network (verificationKeyBytes={})",
-                    activeHintsConstruction.constructionId(),
-                    verificationKeyBytes(activeHintsConstruction));
+            if (!hintsService.requiresHistoryWeights()) {
+                hintsService.setActiveConstruction(activeHintsConstruction, activeCrs);
+            } else if (activeProofConstruction.hasTargetProof()
+                    && !activeProofConstruction
+                            .targetProofOrThrow()
+                            .targetNodeWeights()
+                            .isEmpty()) {
+                hintsService.setActiveConstruction(activeHintsConstruction, activeCrs, activeProofConstruction);
+            } else {
+                log.info(
+                        "Deferring startup hinTS construction #{} until history #{} has a complete weight snapshot",
+                        activeHintsConstruction.constructionId(),
+                        activeProofConstruction.constructionId());
+            }
         }
         if (activeProofConstruction.hasTargetProof()) {
             historyService.setLatestHistoryProof(activeProofConstruction.targetProofOrThrow());

@@ -13,6 +13,7 @@ import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.ReadableHintsStore;
 import com.hedera.node.app.hints.WritableHintsStore;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -250,15 +251,34 @@ public final class TssHandoffCoordinator {
             @NonNull final Roster adoptedRoster,
             @NonNull final Bytes adoptedRosterHash,
             @NonNull final HistoryProof proof) {
+        final var preparedProof =
+                prepareSigningGeneration(historyStore, hintsStore, historyService, hintsService, adoptedRoster, proof);
         if (!historyStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash)) {
             log.warn("Skipping TSS handoff because history construction did not promote");
             return false;
         }
-        if (!hintsService.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash)) {
+        if (!hintsService.handoff(
+                hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, historyStore.getActiveConstruction())) {
             throw new IllegalStateException("Guarded hinTS handoff failed after history promotion");
         }
-        historyService.setLatestHistoryProof(proof);
+        historyService.setLatestHistoryProof(preparedProof);
         return true;
+    }
+
+    private static HistoryProof prepareSigningGeneration(
+            final WritableHistoryStore historyStore,
+            final WritableHintsStore hintsStore,
+            final HistoryService historyService,
+            final HintsService hintsService,
+            final Roster targetRoster,
+            final HistoryProof proof) {
+        if (!hintsService.requiresHistoryWeights()) {
+            return proof;
+        }
+        historyService.recoverNextBook(historyStore, targetRoster, hintsStore.getNextConstruction());
+        final var prepared = historyStore.getNextConstruction();
+        HintsGenerationWeights.from(hintsStore.getNextConstruction(), prepared);
+        return prepared.targetProofOrThrow();
     }
 
     private static @NonNull Optional<HistoryProof> matchingCompletedHistoryProof(
