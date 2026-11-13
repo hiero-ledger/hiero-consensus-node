@@ -57,6 +57,13 @@ public class TxPipelineTracker {
     }
 
     /**
+     * Called when a transaction counted by {@link #incrementInFlight()} was not submitted to the network after all.
+     */
+    public void decrementInFlight() {
+        inFlightCount.accumulateAndGet(-1, (prev, next) -> Math.max(0, prev + next));
+    }
+
+    /**
      * Called with transactions that landed in purview of the {@link QuiescenceController}, either as a result of
      * pre-handle or stale events, <b>if</b> these transactions were in an event created by this node.
      * <p>

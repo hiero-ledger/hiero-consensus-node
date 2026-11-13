@@ -116,7 +116,7 @@ public class SubmissionManager {
 
     /**
      * Submit a transaction to the {@link Platform}. A user transaction, that is one submitted without priority, also
-     * starts counting toward quiescence once the transaction pool accepts it.
+     * counts toward quiescence if the transaction pool accepts it.
      *
      * @param txBody the {@link TransactionBody} that should be submitted to the platform
      * @param serializedSignedTx the bytes of the data that should be submitted
@@ -154,15 +154,9 @@ public class SubmissionManager {
                 transactionPool.submitPriorityTransaction(serializedSignedTx);
                 success = true;
             } else {
-                success = transactionPool.submitApplicationTransaction(
-                        serializedSignedTx, dropAfter(txBody, innerBodies));
+                success = submitUserTransaction(serializedSignedTx, dropAfter(txBody, innerBodies));
             }
             if (success) {
-                // Counted where it enters the pool, so whatever later counts a user transaction out (it lands, goes
-                // stale or is dropped) finds it counted in, whoever submitted it
-                if (!priority && quiescenceEnabled) {
-                    txPipelineTracker.incrementInFlight();
-                }
                 submittedTxns.add(txId);
                 for (final var innerBody : innerBodies) {
                     submittedTxns.add(innerBody.transactionIDOrThrow());
@@ -172,6 +166,32 @@ public class SubmissionManager {
                 throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
             }
         }
+    }
+
+    /**
+     * Submits a user transaction to the transaction pool and, if the pool accepts it, leaves it counted toward
+     * quiescence, whoever submitted it. It is counted before the pool has it: from then on an event can take it at any
+     * moment, and if it were counted out (it landed, went stale or was dropped) before being counted in, that
+     * count-out would be lost and this count never undone.
+     *
+     * @param serializedSignedTx the bytes of the transaction
+     * @param dropAfter the time after which the pool drops the transaction, or null if it is never to be dropped
+     * @return whether the pool accepted the transaction
+     */
+    private boolean submitUserTransaction(@NonNull final Bytes serializedSignedTx, @Nullable final Instant dropAfter) {
+        if (!quiescenceEnabled) {
+            return transactionPool.submitApplicationTransaction(serializedSignedTx, dropAfter);
+        }
+        txPipelineTracker.incrementInFlight();
+        boolean accepted = false;
+        try {
+            accepted = transactionPool.submitApplicationTransaction(serializedSignedTx, dropAfter);
+        } finally {
+            if (!accepted) {
+                txPipelineTracker.decrementInFlight();
+            }
+        }
+        return accepted;
     }
 
     /**

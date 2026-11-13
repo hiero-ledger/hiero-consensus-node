@@ -12,7 +12,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogConta
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActiveNetworkWithReassignedPorts;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
@@ -55,13 +55,14 @@ class ExpiredPoolTransactionsDroppedTest implements LifecycleTest {
             "300s",
             "hedera.transaction.expiredPoolDropMarginSecs",
             "0");
-    // The harness backdates valid start by 60s (txn.start.offset.secs) and ingest wants 10s of validity left, so a
-    // transfer has 15s to reach node 1, and expires 25s after it is built
-    private static final long SHORT_VALID_SECS = 85;
+    // The harness backdates valid start by 60s (txn.start.offset.secs), rounded down to the second, and ingest here
+    // wants 2s of validity left: a transfer has at least 12s to reach node 1, and expires within 15s of being built
+    private static final long SHORT_VALID_SECS = 75;
+    private static final long MIN_VALIDITY_BUFFER_SECS = 2;
     private static final long LONG_VALID_SECS = 600;
     private static final int EXPIRING_COUNT = 5;
 
-    @LeakyHapiTest(overrides = {"hedera.transaction.maxValidDuration"})
+    @LeakyHapiTest(overrides = {"hedera.transaction.maxValidDuration", "hedera.transaction.minValidityBufferSecs"})
     final Stream<DynamicTest> dropsTransactionsThatExpireInThePool() {
         final AtomicReference<Instant> testStart = new AtomicReference<>();
         final var expiringTransfers = IntStream.range(0, EXPIRING_COUNT)
@@ -72,12 +73,14 @@ class ExpiredPoolTransactionsDroppedTest implements LifecycleTest {
                         .fireAndForget())
                 .toList();
         return hapiTest(
-                overriding("hedera.transaction.maxValidDuration", String.valueOf(LONG_VALID_SECS)),
+                overridingTwo(
+                        "hedera.transaction.maxValidDuration", String.valueOf(LONG_VALID_SECS),
+                        "hedera.transaction.minValidityBufferSecs", String.valueOf(MIN_VALIDITY_BUFFER_SECS)),
                 restartWithSlowNodeOverrides(SLOW_NODE),
                 doAdhoc(() -> testStart.set(Instant.now())),
                 // Once this reaches consensus, node 1 has just created an event, so its next one is about 50s away
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)).setNode(SLOW_NODE_ACCOUNT),
-                // These expire well before that next event; they never get a status, so none is awaited
+                // These expire about 35s before that next event; they never get a status, so none is awaited
                 blockingOrder(expiringTransfers.toArray(SpecOperation[]::new)),
                 // fireAndForget() accepts any precheck, and a transfer node 1 rejected would never be in its pool
                 doAdhoc(() -> expiringTransfers.forEach(transfer -> assertEquals(

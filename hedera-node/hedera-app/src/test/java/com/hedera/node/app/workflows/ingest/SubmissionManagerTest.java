@@ -37,6 +37,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -626,14 +627,33 @@ final class SubmissionManagerTest extends AppTestBase {
         }
 
         @Test
-        @DisplayName("A user transaction is counted once the pool accepts it")
-        void countsUserTransactionOnceThePoolAcceptsIt() throws PreCheckException {
+        @DisplayName("A user transaction the pool accepts is counted")
+        void countsUserTransactionThePoolAccepts() throws PreCheckException {
             when(transactionPool.submitApplicationTransaction(any(), any())).thenReturn(true);
             final var submissionManager = submissionManagerWith(transactionPool, quiescenceEnabled);
 
             submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
 
             assertEquals(1, txPipelineTracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("A user transaction is counted before the pool has it, so it cannot be counted out first")
+        void countsUserTransactionBeforeThePoolHasIt() throws PreCheckException {
+            final var countedWhenThePoolGotIt = new AtomicInteger();
+            when(transactionPool.submitApplicationTransaction(any(), any())).thenAnswer(invocation -> {
+                countedWhenThePoolGotIt.set(txPipelineTracker.estimateTxPipelineCount());
+                // An event takes the transaction and it is counted out, all before the pool call returns
+                txPipelineTracker.countDropped(1);
+                return true;
+            });
+            final var submissionManager = submissionManagerWith(transactionPool, quiescenceEnabled);
+
+            submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false);
+
+            assertEquals(1, countedWhenThePoolGotIt.get());
+            // Counted in only after that count-out, it would stay counted for good
+            assertEquals(0, txPipelineTracker.estimateTxPipelineCount());
         }
 
         @Test
@@ -656,6 +676,18 @@ final class SubmissionManagerTest extends AppTestBase {
             assertThatThrownBy(() -> submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
+            assertEquals(0, txPipelineTracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("A transaction the pool fails on is not left counted")
+        void doesNotLeaveTransactionCountedWhenThePoolThrows() {
+            when(transactionPool.submitApplicationTransaction(any(), any()))
+                    .thenThrow(new IllegalStateException("pool failure"));
+            final var submissionManager = submissionManagerWith(transactionPool, quiescenceEnabled);
+
+            assertThatThrownBy(() -> submissionManager.submit(bodyValidFor(VALID_START, 120), bytes, false))
+                    .isInstanceOf(IllegalStateException.class);
             assertEquals(0, txPipelineTracker.estimateTxPipelineCount());
         }
 
