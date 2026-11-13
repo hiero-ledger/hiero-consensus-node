@@ -58,6 +58,8 @@ jobs:
         with:
           name: run-metrics
           path: run-metrics.json
-          retention-days: 90
+          # The repository caps artifact retention at 14 days (a longer value is silently capped), so the consumer must
+          # pull within 14 days
+          retention-days: 14
           overwrite: true
           if-no-files-found: error
