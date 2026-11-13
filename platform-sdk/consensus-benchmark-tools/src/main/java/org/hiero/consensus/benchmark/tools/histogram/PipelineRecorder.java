@@ -12,10 +12,11 @@ import java.lang.management.ManagementFactory;
  *
  * <h2>What it is for</h2>
  *
- * <p>A pipeline hands its inputs on between threads, so the latency of a value cannot come from laps on one thread. A
- * timer such as {@link org.hiero.consensus.benchmark.tools.pipeline.PipelineTimer PipelineTimer} computes each latency
- * from the time its input was due and the time the value arrived, and records it here. The pipeline allocates on its
- * own threads, so the recorder counts the bytes that all threads of the JVM allocate during a pass.
+ * <p>A pipeline hands its inputs on between threads: a value enters on one thread and leaves on another, thus it is not
+ * possible to measure the latency on a single thread. A timer such as
+ * {@link org.hiero.consensus.benchmark.tools.pipeline.PipelineTimer PipelineTimer} computes each latency from the time
+ * its input was due and the time the value arrived, and records it here. The pipeline allocates on its own threads, so
+ * the recorder counts the bytes that all threads of the JVM allocate during a pass.
  *
  * <h2>A pass</h2>
  *
