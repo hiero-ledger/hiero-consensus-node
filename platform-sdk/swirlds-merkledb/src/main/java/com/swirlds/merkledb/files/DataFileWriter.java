@@ -32,10 +32,8 @@ import java.util.function.Consumer;
  * containing {@link DataFileMetadata} followed by data items. Each data item is considered
  * as a black box.
  *
- * <p>{@link #close()} must be called after done writing data using {@link
- * #storeDataItem(Consumer, int)} or {@link #storeDataItemWithTag(BufferedData)}
- * any number of times. When a file writer is closed, the file size is set to the last byte of
- * the last data item written.
+ * <p>{@link #close()} must be called after done writing data any number of times. When a
+ * file writer is closed, the file size is set to the last byte of the last data item written.
  *
  * <p>Right after a data file writer is created, it's ready to write from multiple threads.
  * After all write calls are finished, the writer should be closed using {@link #close()}. It
