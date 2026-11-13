@@ -148,7 +148,7 @@ public final class LatencyProfiler implements InternalProfiler {
     public static LatencyRecorder recorder() {
         final Map<Thread, LatencyRecorder> current = recorders;
         if (current == null) {
-            throw runWithProfiler();
+            throw missingProfilerException();
         }
         return current.computeIfAbsent(Thread.currentThread(), _ -> new LatencyRecorder());
     }
@@ -164,7 +164,7 @@ public final class LatencyProfiler implements InternalProfiler {
     @NonNull
     public static PipelineRecorder pipelineRecorder() {
         if (recorders == null) {
-            throw runWithProfiler();
+            throw missingProfilerException();
         }
         if (pipelineRecorder == null) {
             pipelineRecorder = new PipelineRecorder();
@@ -173,7 +173,7 @@ public final class LatencyProfiler implements InternalProfiler {
     }
 
     @NonNull
-    private static IllegalStateException runWithProfiler() {
+    private static IllegalStateException missingProfilerException() {
         return new IllegalStateException("This benchmark reports its latency through a profiler. Run it with -prof "
                 + LatencyProfiler.class.getName());
     }
