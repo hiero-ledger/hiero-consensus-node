@@ -95,6 +95,8 @@ class AbstractClprSystemContractTest {
 
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
         assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
+        // The price above the native work is a fee, so only that work counts toward ops duration
+        assertThat(result.fullResult().workGas()).isEqualTo(GAS_REQUIREMENT);
         assertThat(result.nonGasCost()).isZero();
         verify(frame, never()).getValue();
         verifyNoInteractions(updater);
@@ -148,21 +150,30 @@ class AbstractClprSystemContractTest {
         assertThat(result.fullResult().output()).isEqualTo(Bytes.fromHexString("1234"));
         assertThat(result.fullResult().recordBuilder()).isSameAs(recordBuilder);
         assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
+        assertThat(result.fullResult().workGas()).isEqualTo(GAS_REQUIREMENT);
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
         assertThat(result.isViewCall()).isEqualTo(viewCall);
         assertThat(result.nonGasCost()).isZero();
     }
 
-    @Test
-    void quotedGasStillExceedsInsufficientFrameAllowance() {
-        givenPaidCall(200_000_000L);
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void unaffordableQuoteStillReportsOnlyNativeWork(final boolean viewCall) {
+        givenPaidCall(200_000_000L, PRICED_GAS_REQUIREMENT - 1);
+        given(call.execute(frame))
+                .willReturn(gasOnly(FullResult.successResult(Bytes.EMPTY, GAS_REQUIREMENT), SUCCESS, viewCall));
 
         final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
 
-        // The common execution path compares this quote with remaining gas and reports INSUFFICIENT_GAS.
+        // The common execution path compares the quote with remaining gas and reports INSUFFICIENT_GAS, but
+        // records only the native work as ops duration, since the rest of the quote is a fee
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.isViewCall()).isEqualTo(viewCall);
         assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
         assertThat(result.fullResult().gasRequirement()).isGreaterThan(frame.getRemainingGas());
+        assertThat(result.fullResult().workGas()).isEqualTo(GAS_REQUIREMENT);
         assertThat(result.nonGasCost()).isZero();
+        verifyNoInteractions(updater);
     }
 
     @Test
@@ -214,14 +225,22 @@ class AbstractClprSystemContractTest {
     }
 
     private void givenPaidCall(final long target) {
-        givenTransaction();
+        givenPaidCall(target, PRICED_GAS_REQUIREMENT);
+    }
+
+    private void givenPaidCall(final long target, final long remainingGas) {
+        givenTransaction(remainingGas);
         given(frame.getGasPrice()).willReturn(Wei.of(2));
         given(operations.valueInTinybars(target)).willReturn(2 * PRICED_GAS_REQUIREMENT);
     }
 
     private void givenTransaction() {
+        givenTransaction(GAS_REQUIREMENT);
+    }
+
+    private void givenTransaction(final long remainingGas) {
         given(frame.hasContextVariable(HAPI_RECORD_BUILDER_CONTEXT_VARIABLE)).willReturn(true);
-        given(frame.getRemainingGas()).willReturn(GAS_REQUIREMENT);
+        given(frame.getRemainingGas()).willReturn(remainingGas);
         given(attempt.enhancement())
                 .willReturn(new Enhancement(
                         operations, mock(HederaNativeOperations.class), mock(SystemContractOperations.class)));

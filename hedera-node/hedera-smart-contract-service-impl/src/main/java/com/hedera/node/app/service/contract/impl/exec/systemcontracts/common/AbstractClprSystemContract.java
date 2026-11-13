@@ -89,10 +89,7 @@ public abstract class AbstractClprSystemContract extends AbstractNativeSystemCon
         if (pricedGas == gas) {
             return result;
         }
-        final var fullResult = result.fullResult();
-        return gasOnly(
-                new FullResult(fullResult.result(), pricedGas, fullResult.recordBuilder()),
-                result.responseCode(),
-                result.isViewCall());
+        // The price above the native work is a fee, so only that work counts toward the ops-duration throttle
+        return gasOnly(result.fullResult().pricedAt(pricedGas), result.responseCode(), result.isViewCall());
     }
 }

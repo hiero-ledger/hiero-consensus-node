@@ -592,6 +592,8 @@ class SendMessageCallTest extends CallTestBase {
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
         assertThat(result.nonGasCost()).isZero();
         assertThat(result.fullResult().gasRequirement()).isEqualTo(300_000L - AUTHORIZATION_GAS_USED);
+        // The rest of the price is a fee; authorization's opcodes were already metered as they ran
+        assertThat(result.fullResult().workGas()).isEqualTo(127_520L);
         assertThat(frame.getRemainingGas()).isEqualTo(400_000L - AUTHORIZATION_GAS_USED);
         assertThat(400_000L - frame.getRemainingGas() + result.fullResult().gasRequirement())
                 .isEqualTo(300_000L);
@@ -630,6 +632,9 @@ class SendMessageCallTest extends CallTestBase {
         assertThat(result.responseCode()).isEqualTo(INSUFFICIENT_GAS);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.EXCEPTIONAL_HALT);
         assertThat(result.fullResult().result().haltReason()).hasValue(ExceptionalHaltReason.INSUFFICIENT_GAS);
+        // The whole quote is unaffordable, but only the native work counts toward ops duration
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(300_000L);
+        assertThat(result.fullResult().workGas()).isEqualTo(127_520L);
         assertThat(result.nonGasCost()).isZero();
         assertThat(frame.getMessageFrameStack()).containsExactly(frame);
         assertThat(frame.getRemainingGas()).isEqualTo(299_999L);

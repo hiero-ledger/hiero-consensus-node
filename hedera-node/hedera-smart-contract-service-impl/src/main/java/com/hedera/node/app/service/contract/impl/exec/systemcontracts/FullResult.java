@@ -23,13 +23,43 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
  * @param result the result of the computation
  * @param gasRequirement the gas requirement of the computation
  * @param recordBuilder the record builder, if any, generated as a side effect of the computation
+ * @param workGas the part of the gas requirement that reflects work rather than a fee, which is all that counts
+ *     toward the ops-duration throttle; the whole gas requirement unless the result is {@link #pricedAt(long)
+ *     priced} above its work
  */
 public record FullResult(
         @NonNull PrecompiledContract.PrecompileContractResult result,
         long gasRequirement,
-        @Nullable ContractCallStreamBuilder recordBuilder) {
+        @Nullable ContractCallStreamBuilder recordBuilder,
+        long workGas) {
     public FullResult {
         requireNonNull(result);
+    }
+
+    /**
+     * Creates a result whose whole gas requirement reflects work.
+     *
+     * @param result the result of the computation
+     * @param gasRequirement the gas requirement of the computation
+     * @param recordBuilder the record builder, if any, generated as a side effect of the computation
+     */
+    public FullResult(
+            @NonNull final PrecompiledContract.PrecompileContractResult result,
+            final long gasRequirement,
+            @Nullable final ContractCallStreamBuilder recordBuilder) {
+        this(result, gasRequirement, recordBuilder, gasRequirement);
+    }
+
+    /**
+     * Returns this result with the given gas requirement, which includes a fee collected through gas on top of
+     * the work this result already reports. Only that work counts toward the ops-duration throttle, whether or
+     * not the frame can afford the new requirement.
+     *
+     * @param pricedGasRequirement the gas requirement including the fee
+     * @return the priced result
+     */
+    public FullResult pricedAt(final long pricedGasRequirement) {
+        return new FullResult(result, pricedGasRequirement, recordBuilder, workGas);
     }
 
     public Bytes output() {

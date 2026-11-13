@@ -181,9 +181,14 @@ public class SendMessageCall extends AbstractCall {
 
     @Override
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
+        // Only the native work counts toward the ops-duration throttle; the rest of the price is a fee
         final long pricedGas = pricedGasRequirement(frame, authorizationGasUsed);
         if (frame.getRemainingGas() < pricedGas) {
-            return gasOnly(haltResult(ExceptionalHaltReason.INSUFFICIENT_GAS, pricedGas), INSUFFICIENT_GAS, false);
+            return gasOnly(
+                    haltResult(ExceptionalHaltReason.INSUFFICIENT_GAS, GAS_REQUIREMENT)
+                            .pricedAt(pricedGas),
+                    INSUFFICIENT_GAS,
+                    false);
         }
         if (!authorized) {
             return gasOnly(
@@ -203,10 +208,11 @@ public class SendMessageCall extends AbstractCall {
             logger.info("[CLPR-DEBUG] SendMessageCall: SUCCESS assignedMessageId={}", assignedMessageId);
             return gasOnly(
                     successResult(
-                            SendMessageTranslator.SEND_MESSAGE
-                                    .getOutputs()
-                                    .encode(Tuple.singleton(BigInteger.valueOf(assignedMessageId))),
-                            pricedGas),
+                                    SendMessageTranslator.SEND_MESSAGE
+                                            .getOutputs()
+                                            .encode(Tuple.singleton(BigInteger.valueOf(assignedMessageId))),
+                                    GAS_REQUIREMENT)
+                            .pricedAt(pricedGas),
                     SUCCESS,
                     false);
         } catch (final HandleException e) {

@@ -303,8 +303,10 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
 
         final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
         final var opsDurationSchedule = opsDurationCounter.schedule();
+        // Only work counts, not a fee collected through gas; and computeFully() has already done that work,
+        // so it counts even if the frame cannot afford the gas requirement
         final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
-                gasRequirement, opsDurationSchedule.systemContractGasBasedDurationMultiplier());
+                fullResult.workGas(), opsDurationSchedule.systemContractGasBasedDurationMultiplier());
         opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
         contractMetrics
                 .opsDurationMetrics()

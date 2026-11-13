@@ -208,6 +208,47 @@ class CustomMessageCallProcessorTest {
     }
 
     @Test
+    void pricedSystemContractChargesItsPriceButRecordsOnlyItsWork() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
+        givenPrngCall(new FullResult(result, GAS_REQUIREMENT, null).pricedAt(10 * GAS_REQUIREMENT));
+        given(frame.getRemainingGas()).willReturn(10 * GAS_REQUIREMENT);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
+        given(stack.getLast()).willReturn(frame);
+        given(result.output()).willReturn(OUTPUT_DATA);
+        given(result.state()).willReturn(MessageFrame.State.CODE_SUCCESS);
+        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
+
+        subject.start(frame, operationTracer);
+
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
+        verify(frame).decrementRemainingGas(10 * GAS_REQUIREMENT);
+        verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
+    }
+
+    @Test
+    void unaffordablePricedSystemContractHaltsButRecordsOnlyItsWork() {
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
+        givenPrngCall(new FullResult(result, GAS_REQUIREMENT, null).pricedAt(10 * GAS_REQUIREMENT));
+        given(frame.getRemainingGas()).willReturn(10 * GAS_REQUIREMENT - 1);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        lenient().when(frame.getMessageFrameStack()).thenReturn(stack);
+        lenient().when(stack.getLast()).thenReturn(frame);
+        lenient().when(frame.getContextVariable(OPS_DURATION_COUNTER)).thenReturn(opsDurationTestCounter);
+        lenient().when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
+
+        subject.start(frame, operationTracer);
+
+        // A caller that cannot pay the fee must not be able to use the throttle capacity the fee would buy
+        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
+        verify(frame, never()).decrementRemainingGas(anyLong());
+        verifyHalt(INSUFFICIENT_GAS, false);
+        verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
+    }
+
+    @Test
     void callsToNonStandardSystemContractsAreNotSupported() {
         givenCallWithCode(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS);
 
@@ -763,12 +804,14 @@ class CustomMessageCallProcessorTest {
     }
 
     private void givenPrngCall(long gasRequirement) {
+        givenPrngCall(new FullResult(result, gasRequirement, null));
+    }
+
+    private void givenPrngCall(@NonNull final FullResult fullResult) {
         givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
         given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes());
         doAnswer(invocation -> {
-                    invocation
-                            .<Consumer<FullResult>>getArgument(3)
-                            .accept(new FullResult(result, gasRequirement, null));
+                    invocation.<Consumer<FullResult>>getArgument(3).accept(fullResult);
                     return null;
                 })
                 .when(prngPrecompile)
