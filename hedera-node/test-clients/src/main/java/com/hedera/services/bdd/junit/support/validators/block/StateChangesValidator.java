@@ -6,12 +6,14 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGE
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.history.impl.HistoryLibraryImpl.WRAPS;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.*;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
@@ -1330,7 +1332,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var merged = StateChangePartials.applyBytes(
                 prior == null ? null : codec.toBytes(prior), codec.toBytes(partial), true, clearedFields);
         try {
-            return codec.parse(merged);
+            // Match the block reader's limit for state values containing uncompressed WRAPS proofs.
+            return codec.parse(merged.toReadableSequentialData(), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new IllegalArgumentException("Invalid reconstructed state value", e);
         }

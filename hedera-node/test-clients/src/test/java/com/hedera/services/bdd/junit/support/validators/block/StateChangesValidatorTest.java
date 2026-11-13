@@ -31,6 +31,8 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
@@ -96,6 +98,20 @@ class StateChangesValidatorTest {
         assertEquals(
                 partial.copyBuilder().tpsThrottles(List.of()).build(),
                 applyPartial(ThrottleUsageSnapshots.PROTOBUF, partial, ThrottleUsageSnapshots.DEFAULT, List.of(1)));
+    }
+
+    @Test
+    void partialReplayPreservesAnUncompressedWrapsProofLargerThanTheDefaultPbjLimit() {
+        final var prior = HistoryProofConstruction.newBuilder()
+                .constructionId(1)
+                .targetProof(HistoryProof.newBuilder().uncompressedWrapsProof(Bytes.wrap(new byte[3_076_656])))
+                .build();
+        final var partial =
+                HistoryProofConstruction.newBuilder().wrapsRetryCount(1).build();
+
+        assertEquals(
+                prior.copyBuilder().wrapsRetryCount(1).build(),
+                applyPartial(HistoryProofConstruction.PROTOBUF, prior, partial, List.of()));
     }
 
     @Test
