@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -25,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Base implementation for a connection to a block node.
  */
-public abstract class AbstractBlockNodeConnection implements AutoCloseable {
+public abstract class AbstractBlockNodeConnection extends BlockStreamingBase implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
     /**
@@ -40,10 +39,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * The unique (for the life of the JVM) connection identifier.
      */
     private final ConnectionId connectionId;
-    /**
-     * Mechanism to retrieve configuration data.
-     */
-    private final ConfigProvider configProvider;
     /**
      * The current state of this connection.
      */
@@ -92,20 +87,13 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
             @NonNull final BlockNodeConfiguration configuration,
             @NonNull final ConfigProvider configProvider,
             final long nodeId) {
+        super(configProvider);
         this.configuration = requireNonNull(configuration, "configuration is required");
-        this.configProvider = requireNonNull(configProvider, "configProvider is required");
         this.type = requireNonNull(type, "type is required");
 
         connectionId = ConnectionId.newConnectionId(nodeId, type);
         stateRef = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         createTimestamp = Instant.now();
-    }
-
-    /**
-     * @return the current {@link BlockNodeConnectionConfig} instance
-     */
-    final @NonNull BlockNodeConnectionConfig bncConfig() {
-        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
     }
 
     /**
@@ -217,7 +205,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      */
     final @NonNull String connectionContext(@Nullable final String correlationId) {
         final int port = switch (type) {
-            case BLOCK_STREAMING -> configuration.streamingPort();
+            case BLOCK_STREAMING, ACK_OBSERVING -> configuration.streamingPort();
             case SERVER_STATUS -> configuration.servicePort();
         };
         final String idToDisplay =
@@ -363,13 +351,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     public abstract void close();
 
     /**
-     * @return the configuration provider used by this connection
-     */
-    final @NonNull ConfigProvider configProvider() {
-        return configProvider;
-    }
-
-    /**
      * @return the current state of this connection
      */
     public final @NonNull ConnectionState currentState() {
@@ -389,7 +370,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @param t the throwable to search
      * @return the {@link GrpcException} associated with this throwable, or null if one is not found
      */
-    protected GrpcException findGrpcException(final Throwable t) {
+    protected final GrpcException findGrpcException(final Throwable t) {
         Throwable th = t;
 
         while (th != null) {

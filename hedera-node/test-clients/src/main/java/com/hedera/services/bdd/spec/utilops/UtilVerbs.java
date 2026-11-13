@@ -103,7 +103,6 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.MarkerFile;
@@ -255,6 +254,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -3215,7 +3215,7 @@ public class UtilVerbs {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
                 .getEcdsaPrivateKey(CommonUtils.hex(key.getECDSASecp256K1().toByteArray()));
-        return Secp256k1Utils.asPrivateKeyByteArray32(privateKey);
+        return ECDSASecp256k1.asPrivateKeyByteArray32(privateKey);
     }
 
     public static PrivateKey getEd25519PrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {
