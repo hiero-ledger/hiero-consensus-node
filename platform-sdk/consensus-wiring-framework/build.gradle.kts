@@ -3,6 +3,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
     id("org.hiero.gradle.feature.benchmark")
+    id("org.hiero.gradle.feature.benchmark-tracking")
 }
 
 description = "Wiring Framework"
@@ -37,4 +38,14 @@ jmhModuleInfo {
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.wiring.framework")
     requires("jmh.core")
+}
+
+jmh {
+    // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
+    includes.convention(listOf("WiringHopBenchmark"))
+}
+
+benchmarkTracking {
+    // a pass at 3 items per second takes over a minute; the faster rate is enough for the smoke run
+    smokeArgs = listOf("-p", "rate=460")
 }
