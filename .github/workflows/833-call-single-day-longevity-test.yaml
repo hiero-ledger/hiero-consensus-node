@@ -824,7 +824,7 @@ jobs:
           NLG_c=32
 
           test=HeliSwapRpcLoadTest
-          relayIP=`sh "${GITHUB_WORKSPACE}"/node_control/kubectlt -n "${{ env.namespace }}" get svc | grep 'relay-1' | grep 7546 | awk '{print $3}'`
+          relayIP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get svc | grep 'relay-1' | grep 7546 | awk '{print $3}'`
           relayUrl=http://${relayIP}:7546
 
           NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }} -relay $relayUrl"
