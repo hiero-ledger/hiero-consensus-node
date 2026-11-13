@@ -10,7 +10,7 @@ spec.loader.exec_module(run_metrics)
 
 
 def raw_run():
-    return {"id": 1, "name": "600: PR Checks", "event": "pull_request", "head_sha": "abc", "status": "in_progress",
+    return {"id": 1, "name": "600: PR Checks", "event": "pull_request", "head_sha": "0123456789abcdef0123456789abcdef01234567", "status": "in_progress",
             "conclusion": None, "run_attempt": 1, "created_at": "2026-11-09T10:00:00Z", "html_url": "https://x/1",
             "display_title": "PR #7 labeled: title", "workflow_id": 291484377, "workflow": "600: PR Checks", "suite": "MATS",
             "pr_numbers": [7]}
@@ -54,6 +54,37 @@ class Document(unittest.TestCase):
         self.assertEqual([j["name"] for j in doc["jobs"]], ["x"])
         self.assertEqual((doc["run"]["status"], doc["run"]["conclusion"], doc["schema"]), ("completed", "success", 1))
         self.assertEqual((doc["context"], doc["tests"], doc["test_errors"]), ({"action": "labeled"}, [{"kind": "shard"}], [{"artifact": "a", "error": "e"}]))
+
+
+class Citr(unittest.TestCase):
+    SHA = "0123456789abcdef0123456789abcdef01234567"
+
+    def run_(self, event, attempt=1, sha=None):
+        return {"id": 4321, "event": event, "run_attempt": attempt, "head_sha": sha or self.SHA}
+
+    def test_pull_request_and_push_runs_use_their_head_commit(self):
+        for event in ("pull_request", "push"):
+            self.assertEqual(run_metrics.citr_labels(self.run_(event, 2), {}),
+                             {"test_run_id": "4321", "run_attempt": "2", "consensus_short_commit": "0123456"})
+
+    def test_a_dispatched_run_has_no_commit_unless_the_workflow_says_which(self):
+        self.assertEqual(run_metrics.citr_labels(self.run_("workflow_dispatch"), {}), {"test_run_id": "4321", "run_attempt": "1"})
+        tested = "fedcba9876543210fedcba9876543210fedcba98"
+        self.assertEqual(run_metrics.citr_labels(self.run_("workflow_dispatch"), {"tested_commit": tested})["consensus_short_commit"], "fedcba9")
+
+    def test_tested_commit_wins_over_the_head_commit(self):
+        tested = "fedcba9876543210fedcba9876543210fedcba98"
+        self.assertEqual(run_metrics.citr_labels(self.run_("push"), {"tested_commit": tested})["consensus_short_commit"], "fedcba9")
+
+    def test_a_commit_that_is_not_a_full_sha_is_rejected(self):
+        for bad in ("main", "abc1234", "0123456789ABCDEF0123456789ABCDEF01234567"):
+            with self.assertRaises(ValueError):
+                run_metrics.citr_labels(self.run_("workflow_dispatch"), {"tested_commit": bad})
+
+    def test_the_document_carries_the_labels(self):
+        run = dict(raw_run(), event="pull_request", run_attempt=1, head_sha=self.SHA)
+        doc = run_metrics.build_document(run, [], {}, [], [])
+        self.assertEqual(doc["citr"], {"test_run_id": "1", "run_attempt": "1", "consensus_short_commit": "0123456"})
 
 
 class Context(unittest.TestCase):
