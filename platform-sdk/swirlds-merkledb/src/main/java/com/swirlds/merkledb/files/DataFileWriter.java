@@ -32,8 +32,8 @@ import java.util.function.Consumer;
  * containing {@link DataFileMetadata} followed by data items. Each data item is considered
  * as a black box.
  *
- * <p>{@link #close()} must be called after done writing data using {@link #storeDataItem(BufferedData)},
- * or {@link #storeDataItem(Consumer, int)}, or {@link #storeDataItemWithTag(BufferedData)}
+ * <p>{@link #close()} must be called after done writing data using {@link
+ * #storeDataItem(Consumer, int)} or {@link #storeDataItemWithTag(BufferedData)}
  * any number of times. When a file writer is closed, the file size is set to the last byte of
  * the last data item written.
  *
@@ -267,18 +267,6 @@ public final class DataFileWriter {
      * Store a data item in file returning location it was stored at. The data item is written
      * with the {@link DataFileCommon#FIELD_DATAFILE_ITEMS} tag.
      *
-     * @param dataItem the data item to write
-     * @return the data location of written data in bytes
-     * @throws IOException if there was a problem appending data to file
-     */
-    public long storeDataItem(final BufferedData dataItem) throws IOException {
-        return storeDataItem(o -> o.writeBytes(dataItem), Math.toIntExact(dataItem.remaining()));
-    }
-
-    /**
-     * Store a data item in file returning location it was stored at. The data item is written
-     * with the {@link DataFileCommon#FIELD_DATAFILE_ITEMS} tag.
-     *
      * @param dataItemWriter the data item to write
      * @param dataItemSize the data item size, in bytes
      * @return the data location of written data in bytes
@@ -322,7 +310,10 @@ public final class DataFileWriter {
     /**
      * Store a data item in file returning location it was stored at. The data item is written
      * as is, assuming the provided data item buffer already has the {@link
-     * DataFileCommon#FIELD_DATAFILE_ITEMS} tag and the item length.
+     * DataFileCommon#FIELD_DATAFILE_ITEMS} tag and the item length. The data item buffer is
+     * written to the file with respect its current position and limit. After this method
+     * returns, the buffer limit will be the same, and the current buffer position may or may
+     * not change.
      *
      * <p>This method is very similar to {@link #storeDataItem(Consumer, int)}. They are not
      * refactored to a single method to avoid lambda / method handle performance overhead.
@@ -354,6 +345,11 @@ public final class DataFileWriter {
         itemsCount.incrementAndGet();
         // return the offset where we wrote the data
         return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
+    }
+
+    // For testing purposes
+    long storeDataItem(final BufferedData dataItem) throws IOException {
+        return storeDataItem(o -> o.writeBytes(dataItem), Math.toIntExact(dataItem.remaining()));
     }
 
     /**

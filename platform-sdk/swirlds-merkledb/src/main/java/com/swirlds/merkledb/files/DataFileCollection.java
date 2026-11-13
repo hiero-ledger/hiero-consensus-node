@@ -362,22 +362,6 @@ public class DataFileCollection implements FileStatisticAware, Snapshotable {
     /**
      * Store a data item into the current file opened with startWriting().
      *
-     * @param dataItem The data item to write into file
-     * @return the location where data item was stored. This contains both the file and the location
-     *     within the file.
-     * @throws IOException If there was a problem writing this data item to the file.
-     */
-    public long storeDataItem(final BufferedData dataItem) throws IOException {
-        final DataFileWriter currentDataFileForWriting = currentDataFileWriter.get();
-        if (currentDataFileForWriting == null) {
-            throw new IOException("Tried to put data " + dataItem + " when we never started writing.");
-        }
-        return currentDataFileForWriting.storeDataItem(dataItem);
-    }
-
-    /**
-     * Store a data item into the current file opened with startWriting().
-     *
      * @param dataItemWriter The data item to write into file
      * @param dataItemSize the data item size, in bytes
      * @return the location where data item was stored. This contains both the file and the location
