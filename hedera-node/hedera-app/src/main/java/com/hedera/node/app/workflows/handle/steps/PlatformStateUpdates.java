@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
-import static com.hedera.node.app.history.impl.ReadableHistoryStoreImpl.provenRosterHashIn;
 import static com.hedera.node.app.service.networkadmin.impl.schemas.V0490FreezeSchema.FREEZE_TIME_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
@@ -9,7 +8,6 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -117,10 +115,7 @@ public class PlatformStateUpdates {
                         logger.info("Candidate roster with updated weights is {}", candidateRoster);
                         boolean rosterAccepted = false;
                         try {
-                            // Keep the roster TSS last proved, which the next history proof must start from
-                            final var provenRosterHash =
-                                    provenRosterHashIn(state.getReadableStates(HistoryService.NAME));
-                            rosterStore.putCandidateRoster(candidateRoster, provenRosterHash);
+                            rosterStore.putCandidateRoster(candidateRoster);
                             rosterAccepted = true;
                         } catch (Exception e) {
                             logger.warn("Candidate roster was rejected", e);
