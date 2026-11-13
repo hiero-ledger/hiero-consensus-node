@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HookEntityId;
@@ -49,6 +49,7 @@ class WritableEvmHookStoreTest {
     private static final Bytes VALUE_3 = Bytes.wrap("3");
     private static final Bytes VALUE_4 = Bytes.wrap("4");
     private static final Bytes VALUE_9 = Bytes.wrap("9");
+    private static final Bytes ZERO_WORD = Bytes.wrap(new byte[32]);
 
     @Mock
     private WritableStates states;
@@ -75,7 +76,8 @@ class WritableEvmHookStoreTest {
         given(states.<EvmHookSlotKey, SlotValue>get(EVM_HOOK_STORAGE_STATE_ID)).willReturn(storage);
 
         given(hookStates.get(any())).willAnswer(invocation -> currentHookStates.get(invocation.getArgument(0)));
-        doAnswer(invocation -> {
+        lenient()
+                .doAnswer(invocation -> {
                     currentHookStates.put(invocation.getArgument(0), invocation.getArgument(1));
                     return null;
                 })
@@ -83,8 +85,11 @@ class WritableEvmHookStoreTest {
                 .put(any(), any());
 
         given(storage.get(any())).willAnswer(invocation -> currentStorage.get(invocation.getArgument(0)));
-        given(storage.getOriginalValue(any())).willAnswer(invocation -> originalStorage.get(invocation.getArgument(0)));
-        doAnswer(invocation -> {
+        lenient()
+                .when(storage.getOriginalValue(any()))
+                .thenAnswer(invocation -> originalStorage.get(invocation.getArgument(0)));
+        lenient()
+                .doAnswer(invocation -> {
                     currentStorage.put(invocation.getArgument(0), invocation.getArgument(1));
                     return null;
                 })
@@ -136,6 +141,83 @@ class WritableEvmHookStoreTest {
         assertEquals(slot(VALUE_2, A, Bytes.EMPTY), currentStorage.get(slotKey(B)));
         assertEquals(X, currentHookStates.get(HOOK_ID).firstContractStorageKey());
         assertEquals(3L, currentHookStates.get(HOOK_ID).numStorageSlots());
+    }
+
+    @Test
+    void persistingSlotAlreadyInTheListChangesNothing() {
+        // An earlier commit in this transaction already linked and counted the slot
+        givenHookInCurrentStateOnly(A, 1, Map.of(A, slot(VALUE_1, Bytes.EMPTY, Bytes.EMPTY)));
+
+        final int delta = subject.persistSlotValues(HOOK_ID, List.of(A), List.of(VALUE_1));
+
+        assertEquals(0, delta);
+        assertEquals(slot(VALUE_1, Bytes.EMPTY, Bytes.EMPTY), currentStorage.get(slotKey(A)));
+        assertEquals(A, currentHookStates.get(HOOK_ID).firstContractStorageKey());
+        assertEquals(1L, currentHookStates.get(HOOK_ID).numStorageSlots());
+        verifyNoInteractions(entityCounters);
+    }
+
+    @Test
+    void persistingNewSlotTwiceInsertsItOnce() {
+        // A pending EVM write, not yet linked into the list
+        givenHookInCurrentStateOnly(Bytes.EMPTY, 0, Map.of(A, slot(VALUE_1, Bytes.EMPTY, Bytes.EMPTY)));
+
+        final int firstDelta = subject.persistSlotValues(HOOK_ID, List.of(A), List.of(VALUE_1));
+        final int secondDelta = subject.persistSlotValues(HOOK_ID, List.of(A), List.of(VALUE_1));
+
+        assertEquals(1, firstDelta);
+        assertEquals(0, secondDelta);
+        assertEquals(slot(VALUE_1, Bytes.EMPTY, Bytes.EMPTY), currentStorage.get(slotKey(A)));
+        assertEquals(A, currentHookStates.get(HOOK_ID).firstContractStorageKey());
+        assertEquals(1L, currentHookStates.get(HOOK_ID).numStorageSlots());
+    }
+
+    @Test
+    void persistingZeroIntoListedSlotRemovesIt() {
+        // An EVM write of zero keeps the slot's links
+        givenHookInCurrentStateOnly(
+                A,
+                2,
+                Map.of(
+                        A, slot(ZERO_WORD, Bytes.EMPTY, B),
+                        B, slot(VALUE_2, A, Bytes.EMPTY)));
+
+        final int delta = subject.persistSlotValues(HOOK_ID, List.of(A), List.of(Bytes.EMPTY));
+
+        assertEquals(-1, delta);
+        assertNull(currentStorage.get(slotKey(A)));
+        assertEquals(slot(VALUE_2, Bytes.EMPTY, Bytes.EMPTY), currentStorage.get(slotKey(B)));
+        assertEquals(B, currentHookStates.get(HOOK_ID).firstContractStorageKey());
+        assertEquals(1L, currentHookStates.get(HOOK_ID).numStorageSlots());
+    }
+
+    @Test
+    void persistingZeroIntoUnlistedSlotChangesNothing() {
+        givenHookInCurrentStateOnly(
+                B,
+                1,
+                Map.of(
+                        A, slot(ZERO_WORD, Bytes.EMPTY, Bytes.EMPTY),
+                        B, slot(VALUE_2, Bytes.EMPTY, Bytes.EMPTY)));
+
+        final int delta = subject.persistSlotValues(HOOK_ID, List.of(A), List.of(Bytes.EMPTY));
+
+        assertEquals(0, delta);
+        assertEquals(B, currentHookStates.get(HOOK_ID).firstContractStorageKey());
+        assertEquals(1L, currentHookStates.get(HOOK_ID).numStorageSlots());
+        verifyNoInteractions(entityCounters);
+    }
+
+    private void givenHookInCurrentStateOnly(
+            final Bytes firstKey, final int numSlots, final Map<Bytes, SlotValue> slots) {
+        currentHookStates.put(
+                HOOK_ID,
+                EvmHookState.newBuilder()
+                        .hookId(HOOK_ID)
+                        .firstContractStorageKey(firstKey)
+                        .numStorageSlots(numSlots)
+                        .build());
+        slots.forEach((key, value) -> currentStorage.put(slotKey(key), value));
     }
 
     private void givenExistingHookWithSlots(

@@ -77,7 +77,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
     void testSnapshot() throws IOException {
         final String label = "testSnapshot";
         final MerkleDbDataSourceBuilder builder = createDefaultBuilder();
-        VirtualDataSource dataSource = builder.build("testSnapshot", null, false, false);
+        VirtualDataSource dataSource = builder.build("testSnapshot", null, false);
         try {
             final Path snapshotDir = builder.snapshot(null, dataSource);
             assertTrue(Files.isDirectory(snapshotDir.resolve("data").resolve(label)));
@@ -90,11 +90,11 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
     void testSnapshotRestore() throws IOException {
         final String label = "testSnapshotRestore";
         final MerkleDbDataSourceBuilder builder = createDefaultBuilder();
-        VirtualDataSource dataSource = builder.build(label, null, false, false);
+        VirtualDataSource dataSource = builder.build(label, null, false);
         try {
             final Path snapshotDir = builder.snapshot(null, dataSource);
             assertTrue(Files.isDirectory(snapshotDir.resolve("data").resolve(label)));
-            VirtualDataSource restored = builder.build(label, snapshotDir, false, false);
+            VirtualDataSource restored = builder.build(label, snapshotDir, false);
             try {
                 assertNotNull(restored);
                 assertInstanceOf(MerkleDbDataSource.class, restored);
@@ -116,10 +116,10 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
     @Test
     void testSnapshotAfterReconnect() throws Exception {
         final MerkleDbDataSourceBuilder dsBuilder = createDefaultBuilder();
-        final VirtualDataSource original = dsBuilder.build("vm", null, false, false);
+        final VirtualDataSource original = dsBuilder.build("vm", null, false);
         // Simulate reconnect as a learner
         final Path snapshotPath = dsBuilder.snapshot(null, original);
-        final VirtualDataSource copy = dsBuilder.build("vm", snapshotPath, true, false);
+        final VirtualDataSource copy = dsBuilder.build("vm", snapshotPath, true);
 
         try {
             dsBuilder.snapshot(null, copy);
@@ -139,7 +139,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
         }
         final MerkleDbDataSourceBuilder builder =
                 new MerkleDbDataSourceBuilder("merkledb-state", DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
-        final VirtualDataSource dataSource = builder.build("test", null, false, false);
+        final VirtualDataSource dataSource = builder.build("test", null, false);
         try {
             // Check the folder gets created
             Assertions.assertTrue(Files.isDirectory(defaultPath));
@@ -160,9 +160,9 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
         }
         final MerkleDbDataSourceBuilder builder =
                 new MerkleDbDataSourceBuilder("merkledb-state", DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
-        final VirtualDataSource dataSource1 = builder.build("test", null, false, false);
+        final VirtualDataSource dataSource1 = builder.build("test", null, false);
         dataSource1.saveRecords(100, 200, Stream.of(), Stream.of(), Stream.of(), false);
-        final VirtualDataSource dataSource2 = builder.build("test", null, false, false);
+        final VirtualDataSource dataSource2 = builder.build("test", null, false);
         try {
             Assertions.assertEquals(100, dataSource2.getFirstLeafPath());
             Assertions.assertEquals(200, dataSource2.getLastLeafPath());
@@ -178,7 +178,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
         final MerkleDbDataSourceBuilder builder = new MerkleDbDataSourceBuilder(
                 "snapshotMetadataMustNotBeCorrupted", DEFAULT_CONFIGURATION, fileSystemManager, 100);
 
-        final VirtualDataSource original = builder.build(LABEL, null, false, false);
+        final VirtualDataSource original = builder.build(LABEL, null, false);
         final Path snapshotPath = fileSystemManager.resolveNewTemp("merkledb-snapshotMetadataMustNotBeCorrupted");
         try {
             original.saveRecords(42, 84, createHashChunkStream(84, 2), Stream.of(), Stream.of(), false);
@@ -190,7 +190,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
 
         final Map<Path, byte[]> snapshotMetadataFiles = collectMetadataFiles(snapshotPath);
 
-        final VirtualDataSource restored1 = builder.build(LABEL, snapshotPath, false, false);
+        final VirtualDataSource restored1 = builder.build(LABEL, snapshotPath, false);
         final long firstLeafPath;
         final long lastLeafPath;
         try {
@@ -210,7 +210,7 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
         }
 
         // Restore from the same snapshot path. DB metadata must not be affected by restored1.saveRecords() above
-        final VirtualDataSource restored2 = builder.build(LABEL, snapshotPath, false, false);
+        final VirtualDataSource restored2 = builder.build(LABEL, snapshotPath, false);
         try {
             Assertions.assertEquals(firstLeafPath, restored2.getFirstLeafPath());
             Assertions.assertEquals(lastLeafPath, restored2.getLastLeafPath());

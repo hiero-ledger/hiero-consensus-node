@@ -65,12 +65,17 @@ on:
         default: ""
       nlg-version:
         required: true
-        default: "0.14.3"
+        default: "0.15.4"
         description: "NLG Version:"
         type: string
       java-version:
         description: "Java JDK Version:"
         type: string
+      enable-chaos:
+        required: false
+        default: true
+        type: boolean
+        description: "Enable Chaos"
     secrets:
       slack-report-webhook:
         required: true
@@ -101,6 +106,10 @@ env:
   GRAFANA_SYSADM_DAL: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P5C24830FD6F1746E&var-job=performance-dallas-node-exporter
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
   NUM_OF_BLOCK_NODES: 3
+
+  #Chaos mapping
+  FROM_BN_NETEM: "delay 25ms 2ms 25%"
+  FROM_CN_NETEM: "delay 12ms 5ms distribution normal"
 
 jobs:
   get-chewie-jwt:
@@ -185,13 +194,6 @@ jobs:
         with:
           path: target_consensus_node
           ref: ${{ inputs.ref }}
-
-      - name: Checkout target BN Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: "hiero-ledger/hiero-block-node"
-          path: target_block_node
-          ref: ${{ inputs.bnref }}
 
       - name: Checkout target BN Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -371,7 +373,7 @@ jobs:
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -381,6 +383,7 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        if: true
         env:
           SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
         run: |
@@ -388,38 +391,6 @@ jobs:
 
           # verify the installation
           solo --version
-
-      - name: Build Solo
-        if: false
-        run: |
-          set +x
-          set +e
-          curdir=`pwd`
-          echo "${curdir}"
-          ls
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-          export NVM_DIR="${HOME}/.nvm"
-          [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
-          nvm install v24.14.0
-          nvm use v24.14.0
-
-          export PATH="${HOME}"/:"${PATH}"
-
-          #solo script
-          echo '#!/usr/bin/sh -f' > "${HOME}"/solo
-          echo "node \"${curdir}\"/solo/dist/solo.js \"\$@\"" >> "${HOME}"/solo
-          chmod a+rx "${HOME}"/solo
-          sudo mv "${HOME}"/solo /usr/bin/solo
-
-          cd "${{ github.workspace}}"/solo
-
-          task build:compile
-          #npm run build
-
-          which solo
-          solo --version
-
-          cd ..
 
       - name: Deploy with Solo
         env:
@@ -764,6 +735,54 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o=custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep -v -w NODE |\
             perl -ne "if (/^([^\s]+)\s+([^\s]+)\s*$/) {print \"[\$1\](${{ steps.set-k8s-cluster.outputs.grafana-url }}&from=${start_date}&var-nodename=\$1) \$2\n\"}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
+      - name: Add Chaos controlling container
+        if: ${{ inputs.enable-chaos }}
+        run: |
+          set +x
+          set +e
+
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o custom-columns=NAME:.metadata.name,IP:.status.podIP --no-headers | awk '{print $1" "$2}' | grep -E 'network-node|block-node' >ips.txt
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods -o custom-columns=NAME:.metadata.name,IP:.status.podIP --no-headers | awk '{print $1" "$2}' | grep -E 'nlg-network-load-generator' >NLGip.txt
+          export NLG_IP=$(awk '{print $2}' NLGip.txt)
+
+          apply() {
+            pod=${1}
+            target=${2}
+            shift;shift
+            kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" debug "${pod}" -it --image=nicolaka/netshoot --profile=netadmin --target ${target} \
+            -- bash -c " \
+              tc qdisc del dev eth0 root; \
+              tc qdisc add dev eth0 root handle 1: htb default 12 r2q 1000; \
+              tc class add dev eth0 parent 1: classid 1:1 htb rate 1gbit; \
+              tc class add dev eth0 parent 1:1 classid 1:11 htb rate 1gbit; \
+              tc class add dev eth0 parent 1:1 classid 1:12 htb rate 1gbit; \
+              tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip src ${NLG_IP}/32 flowid 1:12; \
+              tc filter add dev eth0 protocol ip parent 1:0 prio 1 u32 match ip dst ${NLG_IP}/32 flowid 1:12; \
+              if [[ \"${target}\" = \"block-node-server\" ]]; then netem=\"${{ env.FROM_BN_NETEM }}\"; else netem=\"${{ env.FROM_CN_NETEM }}\"; fi
+              tc qdisc add dev eth0 parent 1:11 handle 11: netem \${netem}; \
+              for ip in $*; do tc filter add dev eth0 protocol ip parent 1:0 prio 3 u32 match ip dst \${ip}/32 flowid 1:11; done; \
+              tc qdisc show dev eth0; \
+              tc filter show dev eth0;"
+          }
+
+          #Set
+          for pod in `awk '{print $1}' ips.txt`
+          do
+            echo "Setting pod ${pod}"
+            myIP=`grep -F "${pod}" ips.txt | awk '{print $2}'`
+
+            target="block-node-server"
+            echo ${pod} | grep "network-node" >/dev/null
+
+            if [[ ${?} -eq 0 ]]
+            then
+              target="root-container"
+            fi
+
+            list_of_ips=`grep -v -F "${myIP}" ips.txt | awk '{print $2}' | perl -pne '~s/\n/ /g'`
+            apply ${pod} ${target} "${list_of_ips}"
+          done
+
       - name: Start Longevity test
         run: |
           run_NLGDebugparams="-XX:+UseZGC -XX:MaxDirectMemorySize=1G -Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
@@ -794,7 +813,7 @@ jobs:
 
   longevity-tests-wait:
     name: Wait for Longevity test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -953,7 +972,7 @@ jobs:
 
   longevity-tests-finish:
     name: Read results of Longevity test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - acquire-kubernetes-resources
@@ -1131,7 +1150,7 @@ jobs:
   # Send this output back to the caller workflow
   longevity-test-reconnect:
     name: Reconnect test
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - acquire-kubernetes-resources
@@ -1312,7 +1331,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
     name: Calculate Result
-    runs-on: hl-cn-sdlt-lin-lg
+    runs-on: hl-cn-sdlt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - longevity-tests-start

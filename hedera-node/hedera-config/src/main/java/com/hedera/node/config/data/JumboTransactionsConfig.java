@@ -22,7 +22,7 @@ public record JumboTransactionsConfig(
         @ConfigProperty(defaultValue = "callEthereum") @NodeProperty
         Set<String> grpcMethodNames,
 
-        @ConfigProperty(defaultValue = "EthereumTransaction") @NodeProperty
+        @ConfigProperty(defaultValue = "EthereumTransaction") @NetworkProperty
         Set<HederaFunctionality> allowedHederaFunctionalities,
 
         @ConfigProperty(defaultValue = "133120") @NetworkProperty

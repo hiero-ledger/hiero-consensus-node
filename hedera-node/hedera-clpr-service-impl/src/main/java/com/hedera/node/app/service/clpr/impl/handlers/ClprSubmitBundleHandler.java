@@ -3,11 +3,15 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.tinycentsToTinybars;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -15,7 +19,6 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCus
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.TupleType;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -35,6 +38,7 @@ import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ReplyValidation;
 import com.hedera.node.app.service.clpr.impl.ClprBundleValidator.ValidatedBundle;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
@@ -46,7 +50,6 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
@@ -54,7 +57,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -130,18 +132,32 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         // Step 1b refreshes the node-local peer endpoint cache. That cache is in-memory, so the full-stack rollback
-        // of a later penalizing HandleException would not undo it; the refresh is therefore applied only once the
+        // of a later HandleException would not undo it; the refresh is therefore applied only once the
         // bundle has been handled without an exception.
         final var deferredPeerEndpoints = new DeferredPeerEndpoints();
-        handleBundle(context, deferredPeerEndpoints);
-        deferredPeerEndpoints.seedInto(channelLifecycle);
+        final var gasAccounting = ClprGasAccounting.forContext(context);
+        try {
+            if (!gasAccounting.reserveParentGas()) {
+                throw new HandleException(com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE);
+            }
+            handleBundle(context, deferredPeerEndpoints, gasAccounting);
+            gasAccounting.refundUnusedGas();
+            deferredPeerEndpoints.seedInto(channelLifecycle);
+        } catch (final HandleException failure) {
+            throw gasAccounting.preservingChargesOnRollback(failure);
+        } catch (final RuntimeException failure) {
+            log.error("CLPR bundle failed after gas reservation", failure);
+            throw gasAccounting.preservingChargesOnRollback(
+                    new HandleException(com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID));
+        }
     }
 
     private void handleBundle(
-            @NonNull final HandleContext context, @NonNull final DeferredPeerEndpoints deferredPeerEndpoints)
+            @NonNull final HandleContext context,
+            @NonNull final DeferredPeerEndpoints deferredPeerEndpoints,
+            @NonNull final ClprGasAccounting gasAccounting)
             throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
-        final var nodeAccountId = context.body().transactionIDOrThrow().accountIDOrThrow();
         log.debug(
                 "[ClprSubmitBundle] doHandle ENTER conn={} bundleBytes={} creatorNode={} payer={}",
                 op.channelId(),
@@ -150,10 +166,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 context.payer());
         final var configuration = context.configuration();
         final var clprConfig = configuration.getConfigData(ClprConfig.class);
-        // Use EntityIdFactory so shard/realm match this network
-        final var systemAdminAccountId = entityIdFactory.newAccountId(
-                configuration.getConfigData(AccountsConfig.class).systemAdmin());
-        final var penaltyAmount = clprConfig.endpointMisbehaviorPenaltyTinybars();
+        final var activeRate = context.exchangeRateInfo().activeRate(context.consensusNow());
+        final long progressRewardTinybars =
+                tinycentsToTinybars(clprConfig.progressRewardTinycents(), fromPbj(activeRate));
         final var storeFactory = context.storeFactory();
 
         final var connectorStore = storeFactory.writableStore(WritableConnectorStore.class);
@@ -183,18 +198,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var throttles = ledgerConfig.throttlesOrThrow();
         log.debug(
                 "[ClprSubmitBundle] ledger config conn={} maxSyncBytes={} maxMessagesPerBundle={} "
-                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} endpointMarginPercent={}",
+                        + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} progressRewardTinycents={}",
                 channelId,
                 throttles.maxSyncBytes(),
                 throttles.maxMessagesPerBundle(),
                 throttles.maxMessagePayloadBytes(),
                 throttles.maxGasPerMessage(),
                 clprConfig.messageExecutionCost(),
-                clprConfig.endpointMarginPercent());
+                clprConfig.progressRewardTinycents());
 
         // Complete node validation before any state mutation or application dispatch. The
         // validator is independent of handling so endpoints can reuse it with locally verified content.
-        final var validated = verifyAndValidateBundle(context, channel, ledgerConfig, nodeAccountId, penaltyAmount);
+        final var validated = verifyAndValidateBundle(context, channel, ledgerConfig);
         final var bundleContent = validated.content();
         final var metadata = bundleContent.metadata();
         final var newTrustAnchor = bundleContent.newTrustAnchor();
@@ -301,14 +316,23 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         try {
             replyValidation = bundleValidator.validateReplies(channel, validated, messageQueueStore);
         } catch (final PreCheckException e) {
-            // Ineffective acknowledgement progress and local corruption do not incur a node penalty.
+            if (e.responseCode() == CLPR_INTERNAL_STATE_CORRUPTION) {
+                // Consensus reads consistent state, so unlike before gossip, a missing slot here is real
+                log.error(
+                        "[ClprSubmitBundle] step8 outbound queue is missing a slot the peer has received conn={} "
+                                + "ackedMsgId={} peerReceivedMsgId={}",
+                        channelId,
+                        oldAckedMessageId,
+                        peerReceivedMessageId);
+            }
             throw new HandleException(e.responseCode());
         }
         final long newAckedMessageId;
         switch (replyValidation) {
             case ReplyValidation.AckedThrough(final long lastAckedMessageId) -> newAckedMessageId = lastAckedMessageId;
             case ReplyValidation.OrderingViolated(final long expectedMessageId, final long repliedMessageId) -> {
-                // A protocol violation by the submitting node, handled by pausing the channel and penalizing it
+                // The peer ledger's replies are out of order (spec §4.5): pause the channel until a correctly
+                // ordered bundle arrives. The submitting node relayed proven peer state and is not penalized.
                 log.info(
                         "[ClprSubmitBundle] step8 reply out of order conn={} expectedMsgId={} repliedMsgId={} "
                                 + "currentStatus={}",
@@ -320,7 +344,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     channelStore.put(channel.copyBuilder()
                             .status(ClprChannelStatus.PAUSED)
                             .build());
-                    context.tryToCharge(nodeAccountId, penaltyAmount);
                 }
                 return;
             }
@@ -407,8 +430,20 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         boolean bundleDecodeFailure = false;
         // Iterate the new tail only — replayed slots were dispatched in a prior bundle, so we
         // must not re-dispatch onClprMessage / re-enqueue a Reply for them.
+        long pendingCallbacks = newMessages.stream()
+                .filter(payload -> payload.hasMessage() || payload.hasMessageReply())
+                .count();
         for (int i = 0; i < newMessages.size(); i++) {
             final var payload = newMessages.get(i);
+            final long callbackGasLimit;
+            if (payload.hasMessage() || payload.hasMessageReply()) {
+                callbackGasLimit = Math.min(
+                        throttles.maxGasPerMessage(),
+                        gasAccounting.availableApplicationGas(Long.MAX_VALUE) / pendingCallbacks);
+                pendingCallbacks--;
+            } else {
+                callbackGasLimit = 0;
+            }
             receivedMessageId = expectedFirstId + i;
             log.debug(
                     "[ClprSubmitBundle] step10 slot ENTER conn={} newIndex={} receivedMsgId={} kind={} summary={}",
@@ -467,10 +502,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         outbound.enqueueReply(
                                 receivedMessageId, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND, Bytes.EMPTY);
                     } else {
-                        // Compute worst-case charge: execution cost + endpoint margin
-                        final var executionCost = clprConfig.messageExecutionCost();
-                        final var margin = executionCost * clprConfig.endpointMarginPercent() / 100;
-                        final var worstCaseCharge = executionCost + margin;
+                        final long gasLimit = callbackGasLimit;
+                        if (gasLimit == 0) {
+                            // The bundle has spent its transaction-wide gas budget. A later callback
+                            // must not consume more shared EVM capacity, even when its connector can pay.
+                            outbound.enqueueReply(
+                                    receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
+                            continue;
+                        }
+                        // Endpoint compensation remains separate from the network fee for EVM work.
+                        final var endpointCharge =
+                                Math.addExact(clprConfig.messageExecutionCost(), progressRewardTinybars);
+                        final var worstCaseCharge = Math.addExact(endpointCharge, gasAccounting.costForGas(gasLimit));
 
                         // Validate the connector has sufficient balance before dispatching.
                         // Use getContractById to handle both contractNum and evmAddress forms.
@@ -500,7 +543,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     connectorAccount != null,
                                     connectorAccount == null ? null : connectorAccount.tinybarBalance(),
                                     worstCaseCharge);
-                            final var slashResult = ClprSlashingUtils.applySlash(connector, clprConfig, connectorStore);
+                            final var slashResult =
+                                    ClprSlashingUtils.applySlash(connector, clprConfig, connectorStore, activeRate);
                             ClprSlashingUtils.reimburseEndpoint(
                                     slashResult.penaltyAmount(),
                                     context.payer(),
@@ -549,7 +593,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         // Delivery). On overrun the dispatch returns
                                         // non-SUCCESS → APPLICATION_ERROR below, with no
                                         // Connector slash (§4.6).
-                                        .gas(throttles.maxGasPerMessage())
+                                        .gas(gasLimit)
                                         .functionParameters(Bytes.wrap(callData))
                                         .build())
                                 .build();
@@ -559,13 +603,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 channelId,
                                 receivedMessageId,
                                 appContractId,
-                                throttles.maxGasPerMessage(),
+                                gasLimit,
                                 callData.length,
                                 shortHex(Bytes.wrap(ON_CLPR_MESSAGE_SELECTOR)),
                                 shortHex(Bytes.wrap(callData)));
 
                         ClprMessageReplyStatus replyStatus;
                         Bytes responseData = Bytes.EMPTY;
+                        final var gasPayer = connectorAccount.accountIdOrThrow();
+                        if (!gasAccounting.prepay(gasPayer, gasLimit)) {
+                            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+                        }
+                        HookDispatchStreamBuilder gasResult = null;
                         try {
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch ENTER conn={} receivedMsgId={} "
@@ -573,13 +622,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     channelId,
                                     receivedMessageId,
                                     appContractId,
-                                    systemAdminAccountId);
+                                    gasPayer);
                             final var result = context.dispatch(stepDispatch(
-                                    systemAdminAccountId,
+                                    gasPayer,
                                     syntheticBody,
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
-                                    CLPR_DISPATCH_METADATA));
+                                    CLPR_DISPATCH_METADATA,
+                                    ON));
+                            gasResult = result;
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch RETURNED conn={} receivedMsgId={} "
                                             + "target={} status={}",
@@ -660,6 +711,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     e.getStatus(),
                                     e.getMessage());
                             replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
+                        } finally {
+                            final long actualGasFee = gasAccounting.settle(gasPayer, gasLimit, gasResult);
+                            final long unusedReimbursement = gasAccounting.costForGas(gasLimit) - actualGasFee;
+                            if (unusedReimbursement > 0) {
+                                tokenServiceApi.transferFromTo(context.payer(), gasPayer, unusedReimbursement);
+                            }
                         }
 
                         // OutboundQueue reads/writes channel state directly from the
@@ -729,7 +786,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // CONNECTOR_NOT_FOUND or some other error, or that the remote side is CLOSED. Whatever it is,
                     // we must inform the originating application so it can do proper bookkeeping.
                     final var senderAddress = origDataMsg.sender();
-                    if (senderAddress.length() > 0) {
+                    final var callbackConnector =
+                            connectorStore.getConnector(new ClprConnectorKey(channelId, origDataMsg.connectorId()));
+                    final var callbackAccounts = storeFactory.readableStore(ReadableAccountStore.class);
+                    final var callbackAccount = callbackConnector == null
+                            ? null
+                            : callbackAccounts.getContractById(callbackConnector.connectorContractOrThrow());
+                    final long gasLimit = callbackGasLimit;
+                    if (senderAddress.length() > 0
+                            && callbackAccount != null
+                            && gasLimit > 0
+                            && callbackAccount.tinybarBalance() >= gasAccounting.costForGas(gasLimit)) {
                         final var callData = encodeOnClprResponse(
                                 channelId, replyTargetId, reply.status(), reply.messageReplyData());
                         // Use EntityIdFactory so shard/realm match this network
@@ -740,7 +807,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         // Response delivery is also an application dispatch (§6.0),
                                         // so it shares the same per-message gas ceiling
                                         // (spec §1.1 max_gas_per_message).
-                                        .gas(throttles.maxGasPerMessage())
+                                        .gas(gasLimit)
                                         .functionParameters(Bytes.wrap(callData))
                                         .build())
                                 .build();
@@ -752,15 +819,26 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 reply.status(),
                                 reply.messageReplyData().length(),
                                 callData.length,
-                                throttles.maxGasPerMessage(),
+                                gasLimit,
                                 shortHex(Bytes.wrap(callData)));
+                        final var callbackGasPayer = callbackAccount.accountIdOrThrow();
+                        final var callbackTokenApi = storeFactory.serviceApi(TokenServiceApi.class);
+                        final long callbackGasFee = gasAccounting.costForGas(gasLimit);
+                        if (callbackGasFee > 0) {
+                            callbackTokenApi.transferFromTo(callbackGasPayer, context.payer(), callbackGasFee);
+                        }
+                        if (!gasAccounting.prepay(callbackGasPayer, gasLimit)) {
+                            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+                        }
+                        HookDispatchStreamBuilder gasResult = null;
                         try {
-                            context.dispatch(stepDispatch(
-                                    systemAdminAccountId,
+                            gasResult = context.dispatch(stepDispatch(
+                                    callbackAccount.accountIdOrThrow(),
                                     syntheticBody,
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
-                                    CLPR_DISPATCH_METADATA));
+                                    CLPR_DISPATCH_METADATA,
+                                    ON));
                             log.debug(
                                     "[ClprSubmitBundle] onClprResponse dispatch SUCCESS to sender={} replyTargetId={}",
                                     senderAddress,
@@ -773,6 +851,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     senderAddress,
                                     replyTargetId,
                                     e.getMessage());
+                        } finally {
+                            final long actualGasFee = gasAccounting.settle(callbackGasPayer, gasLimit, gasResult);
+                            final long unusedReimbursement = callbackGasFee - actualGasFee;
+                            if (unusedReimbursement > 0) {
+                                callbackTokenApi.transferFromTo(context.payer(), callbackGasPayer, unusedReimbursement);
+                            }
                         }
                         // OutboundQueue reads/writes channel state directly from the store,
                         // so any precompile-side bumps from the dispatched onClprResponse
@@ -811,8 +895,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
                         if (replyStatus == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
                                 || replyStatus == ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED) {
-                            final var slashResult =
-                                    ClprSlashingUtils.applySlash(sourceConnector, clprConfig, connectorStore);
+                            final var slashResult = ClprSlashingUtils.applySlash(
+                                    sourceConnector, clprConfig, connectorStore, activeRate);
                             final var tokenServiceApi = storeFactory.serviceApi(TokenServiceApi.class);
                             final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
                             ClprSlashingUtils.reimburseEndpoint(
@@ -1191,10 +1275,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
      * before any state is modified or any message is dispatched.
      *
      * <p>A failed node-level check (payload size, the trust-anchor invariant, or
-     * {@link ClprBundleValidator#validate}) fails the transaction and, after the framework rolls back
-     * its state changes, charges the submitting node {@code penaltyAmount} on a best-effort basis, so
-     * the penalty persists independently of the failed transaction. A failure to resolve or run the
-     * verifier fails the transaction without that penalty.
+     * {@link ClprBundleValidator#validate}) fails the transaction. As the CLPR spec requires (§2.1.2, §4.2 Step 1),
+     * a rejected bundle costs the submitting node only its transaction fee; CLPR imposes no additional
+     * endpoint penalty.
      *
      * <p>Once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
      * endpoint-manifest version (spec §4.5) is recorded, even if a later check rejects the bundle.
@@ -1202,17 +1285,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
      * @param context the handle context
      * @param channel the channel before this bundle is applied
      * @param ledgerConfig this ledger's configuration
-     * @param nodeAccountId the submitting node's account, which pays the penalty
-     * @param penaltyAmount the endpoint misbehavior penalty in tinybars; zero disables it
      * @return the validated bundle
      * @throws HandleException if the proof cannot be verified or a node-level check fails
      */
     private ValidatedBundle verifyAndValidateBundle(
             @NonNull final HandleContext context,
             @NonNull final ClprChannel channel,
-            @NonNull final ClprLedgerConfiguration ledgerConfig,
-            @NonNull final AccountID nodeAccountId,
-            final long penaltyAmount) {
+            @NonNull final ClprLedgerConfiguration ledgerConfig) {
         try {
             final var payload = context.body().clprSubmitBundleOrThrow().bundlePayload();
             bundleValidator.validatePayloadSize(payload, ledgerConfig.throttlesOrThrow());
@@ -1231,16 +1310,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             }
             return bundleValidator.validate(channel, content, ledgerConfig);
         } catch (final PreCheckException e) {
-            // Charge after rollback so the penalty persists independently of a rejected bundle.
-            throw new HandleException(e.responseCode(), (feeChargingContext, ignored) -> {
-                if (penaltyAmount > 0) {
-                    try {
-                        feeChargingContext.charge(nodeAccountId, new Fees(0, penaltyAmount, 0), null);
-                    } catch (final Exception ignoredChargeFailure) {
-                        // Best effort: the submitting endpoint may be insolvent.
-                    }
-                }
-            });
+            throw new HandleException(e.responseCode());
         }
     }
 

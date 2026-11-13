@@ -8,6 +8,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.EnumSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,5 +48,10 @@ public class TokenDissociateFeeCalculator implements ServiceFeeCalculator {
 
     public TransactionBody.DataOneOfType getTransactionType() {
         return TransactionBody.DataOneOfType.TOKEN_DISSOCIATE;
+    }
+
+    @Override
+    public Set<Extra> chargedExtras() {
+        return EnumSet.of(Extra.TOKEN_DISSOCIATE);
     }
 }
