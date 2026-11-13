@@ -1,0 +1,92 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.consensus.flicker;
+
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.Objects;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerGraph;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
+import org.hiero.consensus.model.roster.RosterWrapper;
+
+/**
+ * The SCN-001 graph: two same-round judges on one ancestry chain, with a non-judge strictly between them.
+ *
+ * <p>
+ * The shape is in {@code scn-001.graph}, a resource beside this class, drawn as columns in a comment at its head. Here
+ * is why it has that shape.
+ *
+ * <p>
+ * <b>The chain.</b> {@code b2 -> b3 -> b4(mid) -> c3}: two self-parent steps up b's column, then one other-parent
+ * edge across to c. {@code b2} and {@code c3} are both round-2 judges, and the chain makes {@code b2} an ancestor of
+ * {@code c3}. {@code mid} sits strictly between them and is not a judge, because {@code b2} is already b's round-2
+ * witness. That is SCN-001's Setup precondition, exactly.
+ *
+ * <p>
+ * <b>Why c is starved.</b> {@code J2} has to be a round-2 witness that <i>descends from</i> {@code mid}. A witness is
+ * its creator's first event in a round, so c's first round-2 event must come after {@code mid}, and {@code c2} must
+ * stay in round 1. Its only other-parent is {@code a1}. Of the round-1 witnesses, it strongly sees only {@code b0}
+ * and {@code d0}; it reaches {@code a0} and {@code c0} only through a and c events. {@code b0} and {@code d0} weigh 2
+ * of 4, short of a supermajority, so {@code c2} stays in round 1. That is also why {@code c2} must not descend from
+ * {@code a2}, {@code b2} or {@code d2}: by INV-001, any event that descends from a round-2 witness is itself at
+ * least round 2.
+ *
+ * <p>
+ * <b>The flip.</b> Under {@code new}, {@code mid}'s recalculated round must rise from 2 to 3. Two conditions must
+ * hold:
+ * <ul>
+ *     <li>{@code mid} strongly sees {@code a2} and {@code d2} under both rosters: it reaches them through creators a,
+ *         b and d, which weigh 3 of 4 under {@code old} and 9 of 10 under {@code new}.</li>
+ *     <li>{@code a2} and {@code d2} together weigh less than a supermajority under {@code old} (2 of 4, below the 2.67
+ *         threshold, so {@code mid} stays in round 2) and more under {@code new} (8 of 10, above 6.67, so it is
+ *         promoted).</li>
+ * </ul>
+ * {@code mid} never strongly sees {@code b2}: the only events between them are b's own, so that path is worth one
+ * creator under either roster. That is what keeps the round-2 witnesses {@code mid} strongly sees below a
+ * supermajority under {@code old}.
+ */
+final class Scn001Graph {
+
+    /** The file the shape lives in: rows, both rosters, and the anchor round. */
+    private static final String FILE = "scn-001.graph";
+
+    private static final FlickerGraph GRAPH = GraphFiles.load(FILE);
+
+    /** The round the two same-round judges live in, and the round the snapshot is taken at. */
+    static final long ANCHOR_ROUND = Objects.requireNonNull(GRAPH.anchorRound(), "anchor round");
+
+    /** The earlier of the two same-round judges; an ancestor of {@link #MID}. */
+    static final String J1 = "b2";
+
+    /** The non-judge strictly between the two judges. This is the event the roster change promotes. */
+    static final String MID = "b4";
+
+    /** The later of the two same-round judges; a descendant of {@link #MID}. */
+    static final String J2 = "c3";
+
+    private Scn001Graph() {}
+
+    /**
+     * @return the file's {@code old} block: the four nodes at equal weight, which round {@link #ANCHOR_ROUND} is
+     *     decided under
+     */
+    @NonNull
+    static RosterWrapper rosterOld() {
+        return GRAPH.roster("old").toRosterWrapper();
+    }
+
+    /** @return the file's {@code new} block: the same nodes, reweighted so that {@link #MID} is promoted */
+    @NonNull
+    static RosterWrapper rosterNew() {
+        return GRAPH.roster("new").toRosterWrapper();
+    }
+
+    /**
+     * Build the graph. The events are the same under either roster, since every creator id comes from its letter.
+     *
+     * @return the events in creation order, each paired with its name
+     */
+    @NonNull
+    static List<NamedEvent> build() {
+        return GRAPH.build();
+    }
+}
