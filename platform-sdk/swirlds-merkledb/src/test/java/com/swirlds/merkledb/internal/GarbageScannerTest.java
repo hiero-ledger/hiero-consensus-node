@@ -10,20 +10,30 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.internal.GarbageScanner.IndexedGarbageFileStats;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class GarbageScannerTest {
+
+    /// Indexes created by the current test, closed after it to free their off-heap memory.
+    private final List<LongList> indexes = new ArrayList<>();
+
+    @AfterEach
+    void closeIndexes() {
+        indexes.forEach(LongList::close);
+    }
 
     @Test
     void scanTracksAliveItemsAcrossMultipleFiles() {
@@ -122,8 +132,7 @@ class GarbageScannerTest {
         final DataFileCollection fileCollection = mock(DataFileCollection.class);
         when(fileCollection.getAllCompletedFiles()).thenReturn(List.of());
 
-        final LongList index = new LongListHeap(
-                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(), 1, DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+        final LongList index = newIndex(1);
 
         final GarbageScanner scanner = new GarbageScanner(index, fileCollection);
 
@@ -194,27 +203,27 @@ class GarbageScannerTest {
         return new GarbageScanner(index, fileCollection, deduplicateMirroredEntries);
     }
 
+    private LongList newIndex(final long capacity) {
+        final LongList index = new LongListSegment(capacity, DEFAULT_MERKLE_DB_CONFIG);
+        indexes.add(index);
+        return index;
+    }
+
     /** Creates an index of the given size, with a single entry at its last index. */
-    private static LongList largeIndex(final long size) {
-        final LongList index = new LongListHeap(
-                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
-                size,
-                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+    private LongList largeIndex(final long size) {
+        final LongList index = newIndex(size);
         index.updateValidRange(0, size - 1);
         index.put(size - 1, dataLocation(1, 1));
         return index;
     }
 
-    private static LongList indexWithEntries(final Map<Long, Long> indexEntries) {
+    private LongList indexWithEntries(final Map<Long, Long> indexEntries) {
         long maxKey = -1;
         for (final long key : indexEntries.keySet()) {
             maxKey = Math.max(maxKey, key);
         }
 
-        final LongList index = new LongListHeap(
-                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
-                Math.max(1, maxKey + 1),
-                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+        final LongList index = newIndex(Math.max(1, maxKey + 1));
         index.updateValidRange(0, Math.max(0, maxKey));
 
         for (final Map.Entry<Long, Long> entry : indexEntries.entrySet()) {

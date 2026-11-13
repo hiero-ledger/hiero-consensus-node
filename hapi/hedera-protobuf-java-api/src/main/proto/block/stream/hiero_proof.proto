@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "block/stream/state_proof.proto";
+
+/**
+ * A compact Hiero proof for CLPR peers that track the hinTS verification key.
+ *
+ * The envelope, provenance chain, links and witness use ascending field
+ * order and minimal varints. Unknown fields, empty fields, duplicate singular
+ * fields and trailing bytes are forbidden.
+ */
+message HieroProof {
+    /** The envelope version. This field MUST be set to 1. */
+    uint32 format_version = 1;
+
+    /**
+     * A proof of ledger state and messages. Its block signature MUST contain
+     * the 1,096-byte hinTS verification key followed by the 1,248-byte
+     * aggregate signature. Exactly one of state_proof and block_witness
+     * MUST be present.
+     */
+    StateProof state_proof = 2;
+
+    /**
+     * The signing key transitions from the receiver's anchor to the signer.
+     * This field is required with block_witness and optional with state_proof.
+     */
+    HintsKeyProvenanceChain key_provenance = 3;
+
+    /** Proof of signing by the final key in the provenance chain. */
+    HieroBlockWitness block_witness = 4;
+}
+
+/** A sequence of hinTS verification keys linked by predecessor certificates. */
+message HintsKeyProvenanceChain {
+    /**
+     * The receiver's current 1,096-byte verification key. Its Keccak-256 hash
+     * MUST equal the channel's current trust anchor.
+     */
+    bytes initial_verification_key = 1;
+
+    /**
+     * One to eight links in adoption order. No verification key may repeat,
+     * including the initial key.
+     */
+    repeated HintsKeyProvenanceLink links = 2;
+}
+
+/** A signing generation's authorization of its successor. */
+message HintsKeyProvenanceLink {
+    /** The successor's raw 1,096-byte hinTS verification key. */
+    bytes next_verification_key = 1;
+
+    /** The predecessor's 1,248-byte hinTS aggregate over next_verification_key. */
+    bytes signature = 2;
+}
+
+/**
+ * A block-signing witness for a provenance-only advance, with no message
+ * delivery. The timestamp leaf is the left child of the SHA-256 block root.
+ */
+message HieroBlockWitness {
+    /** The canonical protobuf-encoded block timestamp, 1 to 16 bytes. */
+    bytes timestamp = 1;
+
+    /** The 32-byte right sibling of the block timestamp leaf. */
+    bytes sibling_hash = 2;
+
+    /** The final key's 1,248-byte hinTS aggregate over the block root. */
+    bytes signature = 3;
+}

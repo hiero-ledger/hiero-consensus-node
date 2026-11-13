@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -31,6 +32,7 @@ import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -139,6 +141,11 @@ class ProofControllerImplTest {
         lenient()
                 .when(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID))
                 .thenAnswer(ignore -> construction);
+        // Votes count only from source nodes, as when a controller is rebuilt from state; unless a test says
+        // otherwise, every node id these tests vote with is a source node
+        lenient()
+                .when(weights.sourceNodeIds())
+                .thenReturn(new TreeSet<>(List.of(0L, SELF_ID, OTHER_NODE_ID, THIRD_NODE_ID)));
 
         given(proverFactory.create(
                         eq(SELF_ID),
@@ -326,7 +333,6 @@ class ProofControllerImplTest {
         // right after that write and never reaches the publish step in either state, so the never-publish
         // check below is incidental — the ACTIVE-gating of proof-key publication itself is proven by
         // advanceConstructionPublishesKeyWhenMetadataMissingAndActive / ...DoesNotPublishKeyWhenInactive.
-        given(weights.numTargetNodesInSource()).willReturn(0);
         given(writableHistoryStore.setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1)))
                 .willReturn(construction);
 
@@ -930,6 +936,65 @@ class ProofControllerImplTest {
                         CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
     }
 
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                WrapsHistoryProver.INVALID_FROZEN_SIGNERS_FAILURE_PREFIX,
+                WrapsHistoryProver.INFEASIBLE_EXCLUSIONS_FAILURE_PREFIX + " [2]"
+            })
+    void retryAfterAFailureFromOlderSigningStateLetsEveryNodeSignAgain(final String reason) {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .proofKeyCutoffTime(asTimestamp(Instant.EPOCH))
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .wrapsExcludedNodeIds(List.of(OTHER_NODE_ID))
+                .build();
+        subject = newSubject(null);
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Failed(reason));
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        given(writableHistoryStore.restartWrapsSigning(eq(CONSTRUCTION_ID), any(), any(), any()))
+                .willReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .wrapsSigningState(WrapsSigningState.newBuilder().build())
+                        .wrapsRetryCount(1)
+                        .build());
+
+        subject.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
+
+        // The exclusions may have come from the older rule too, so the fresh attempt starts without any
+        verify(writableHistoryStore)
+                .restartWrapsSigning(
+                        CONSTRUCTION_ID, new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)), new TreeSet<>(), null);
+        verify(writableHistoryStore, never()).failForReason(anyLong(), any());
+    }
+
+    @Test
+    void votesFromNodesOutsideTheSourceGenerationAreIgnoredAsWhenRebuiltFromState() throws Exception {
+        given(weights.sourceNodeIds()).willReturn(new TreeSet<>(List.of(SELF_ID, OTHER_NODE_ID)));
+        lenient().when(historyLibrary.hashAddressBook(any())).thenReturn(TARGET_BOOK_HASH.toByteArray());
+        setField("targetMetadata", METADATA);
+        final var outsiderVote = HistoryProofVote.newBuilder()
+                .proof(recursiveProof("compressed", "uncompressed", TARGET_HISTORY))
+                .build();
+        final var congruentToOutsider =
+                HistoryProofVote.newBuilder().congruentNodeId(THIRD_NODE_ID).build();
+
+        subject.addProofVote(
+                THIRD_NODE_ID, outsiderVote, Instant.EPOCH.plusSeconds(1), writableHistoryStore, DEFAULT_TSS_CONFIG);
+        subject.addProofVote(
+                SELF_ID, congruentToOutsider, Instant.EPOCH.plusSeconds(2), writableHistoryStore, DEFAULT_TSS_CONFIG);
+
+        // A controller rebuilt from state never loads node3's vote, so live handling must not count, persist, or
+        // resolve congruent votes against it either
+        verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+        verify(prover, never()).observeProofVote(anyLong(), any(), anyBoolean(), any());
+    }
+
     @Test
     void failureAfterTheRetryBudgetKeepsTheExclusionsARetryWouldUse() {
         construction = HistoryProofConstruction.newBuilder()
@@ -939,7 +1004,10 @@ class ProofControllerImplTest {
                 .wrapsRetryCount(DEFAULT_TSS_CONFIG.maxWrapsRetries())
                 .build();
         subject = newSubject(HistoryProof.newBuilder()
-                .targetProofKeys(List.of(new ProofKey(SELF_ID, PROOF_KEY_1), new ProofKey(OTHER_NODE_ID, PROOF_KEY_1)))
+                .targetNodeWeights(
+                        HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L))))
+                .targetProofKeys(List.of(
+                        new ProofKey(SELF_ID, PROOF_KEY_1), new ProofKey(OTHER_NODE_ID, Bytes.wrap("other key"))))
                 .build());
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(DEFAULT_TSS_CONFIG), any(), anyBoolean()))
@@ -1011,8 +1079,10 @@ class ProofControllerImplTest {
                 .wrapsSigningState(WrapsSigningState.newBuilder().phase(R2).build())
                 .build();
         subject = newSubject(HistoryProof.newBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(new TreeMap<>(sourceWeights)))
                 .targetProofKeys(nodeIdsWithProofKeys.stream()
-                        .map(nodeId -> new ProofKey(nodeId, PROOF_KEY_1))
+                        .sorted()
+                        .map(nodeId -> new ProofKey(nodeId, Bytes.wrap("pk-" + nodeId)))
                         .toList())
                 .build());
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
@@ -1050,7 +1120,7 @@ class ProofControllerImplTest {
 
     @Test
     void advanceConstructionPublishesKeyWhileWaitingForAssemblyBeforeGracePeriodEnds() {
-        given(weights.numTargetNodesInSource()).willReturn(2);
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 1L)));
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
         given(submissions.submitProofKeyPublication(any())).willReturn(CompletableFuture.completedFuture(null));
 
@@ -1058,6 +1128,42 @@ class ProofControllerImplTest {
 
         verify(submissions).submitProofKeyPublication(eq(keyPair.publicKey()));
         verify(writableHistoryStore, never()).setAssemblyTime(anyLong(), any());
+    }
+
+    @Test
+    void assemblyWaitsForAllTargetKeysRatherThanOnlyTheSparseSourceMembership() {
+        final var sourceWeights = new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 1L));
+        final var targetWeights = new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L));
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                new RosterTransitionWeights(sourceWeights, targetWeights),
+                executor,
+                submissions,
+                machine,
+                List.of(),
+                List.of(),
+                Map.of(),
+                historyService,
+                historyLibrary,
+                (s, t, k, p, w, r, x, l, m) -> prover,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+        subject.addProofKeyPublication(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+        subject.addProofKeyPublication(new ProofKeyPublication(OTHER_NODE_ID, Bytes.wrap("second key"), Instant.EPOCH));
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(5), METADATA, writableHistoryStore, false, tssConfig);
+
+        verify(writableHistoryStore, never()).setAssemblyTime(anyLong(), any());
+        subject.addProofKeyPublication(new ProofKeyPublication(THIRD_NODE_ID, Bytes.wrap("third key"), Instant.EPOCH));
+        given(writableHistoryStore.setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(6)))
+                .willReturn(construction);
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(6), METADATA, writableHistoryStore, false, tssConfig);
+
+        verify(writableHistoryStore).setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(6));
     }
 
     @Test
@@ -1130,7 +1236,7 @@ class ProofControllerImplTest {
         subject.addProofKeyPublication(publication);
 
         // Exercise publishedWeight via advanceConstruction when after grace period and threshold reached
-        given(weights.numTargetNodesInSource()).willReturn(1);
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
 
         given(writableHistoryStore.setAssemblyTime(eq(CONSTRUCTION_ID), any())).willReturn(construction);
 
@@ -1189,6 +1295,62 @@ class ProofControllerImplTest {
 
         assertTrue(result);
         verify(prover).addWrapsSigningMessage(eq(CONSTRUCTION_ID), eq(publication), eq(writableHistoryStore));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, 0L})
+    void wrapsMessagesWaitUntilAfterTheFrozenKeyCutoff(final long nanosFromCutoff) throws Exception {
+        final var cutoff = Instant.EPOCH.plusSeconds(10);
+        construction = construction
+                .copyBuilder()
+                .assemblyStartTime(asTimestamp(cutoff))
+                .proofKeyCutoffTime(asTimestamp(cutoff))
+                .build();
+        subject = newSubject(null);
+        setField("targetMetadata", METADATA);
+        final var premature =
+                new WrapsMessagePublication(SELF_ID, Bytes.wrap("premature R1"), R1, cutoff.plusNanos(nanosFromCutoff));
+
+        assertFalse(subject.addWrapsMessagePublication(premature, writableHistoryStore));
+        verify(prover, never()).addWrapsSigningMessage(anyLong(), any(), any());
+
+        final var afterCutoff = new WrapsMessagePublication(SELF_ID, Bytes.wrap("R1"), R1, cutoff.plusNanos(1));
+        given(prover.addWrapsSigningMessage(CONSTRUCTION_ID, afterCutoff, writableHistoryStore))
+                .willReturn(true);
+
+        assertTrue(subject.addWrapsMessagePublication(afterCutoff, writableHistoryStore));
+        verify(prover).addWrapsSigningMessage(CONSTRUCTION_ID, afterCutoff, writableHistoryStore);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, 0L})
+    void proofVotesWaitUntilAfterTheFrozenKeyCutoff(final long nanosFromCutoff) throws Exception {
+        final var cutoff = Instant.EPOCH.plusSeconds(10);
+        construction = construction
+                .copyBuilder()
+                .assemblyStartTime(asTimestamp(cutoff))
+                .proofKeyCutoffTime(asTimestamp(cutoff))
+                .build();
+        subject = newSubject(null);
+        givenTargetHistory();
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY);
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.addProofVote(SELF_ID, vote, cutoff.plusNanos(nanosFromCutoff), writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore, never()).addProofVote(anyLong(), anyLong(), any());
+        verify(prover, never()).observeProofVote(anyLong(), any(), anyBoolean(), any());
+        verify(historyLibrary, never()).verifyCompressedProof(any(), any(), any());
+        given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
+
+        subject.addProofVote(SELF_ID, vote, cutoff.plusNanos(1), writableHistoryStore, tssConfig);
+
+        verify(writableHistoryStore).addProofVote(SELF_ID, CONSTRUCTION_ID, vote);
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+        verify(prover).observeProofVote(SELF_ID, vote, true, ProofVoteCategory.VALID);
     }
 
     @Test
@@ -1505,7 +1667,8 @@ class ProofControllerImplTest {
         subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, DEFAULT_TSS_CONFIG);
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), metadata, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
-        subject.addProofVote(OTHER_NODE_ID, vote, Instant.EPOCH, writableHistoryStore, DEFAULT_TSS_CONFIG);
+        subject.addProofVote(
+                OTHER_NODE_ID, vote, Instant.EPOCH.plusSeconds(11), writableHistoryStore, DEFAULT_TSS_CONFIG);
 
         verify(historyLibrary, times(2))
                 .verifyCompressedProof(
@@ -1553,7 +1716,10 @@ class ProofControllerImplTest {
     void groundingConstructionValidatesProofAgainstLedgerIdOfExpectedHistory() throws Exception {
         givenGroundingSubject();
         final var expectedHistory = new History(TARGET_BOOK_HASH, METADATA);
-        final var proof = recursiveProof("compressed", "uncompressed", expectedHistory);
+        final var proof = recursiveProof("compressed", "uncompressed", expectedHistory)
+                .copyBuilder()
+                .targetNodeWeights(new ProofNodeWeight(SELF_ID, 10L))
+                .build();
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
         given(historyLibrary.hashAddressBook(any())).willReturn(TARGET_BOOK_HASH.toByteArray());
         given(historyLibrary.ledgerIdOf(expectedHistory)).willReturn(GROUNDED_LEDGER_ID);
@@ -1706,7 +1872,7 @@ class ProofControllerImplTest {
 
     @Test
     void advanceConstructionStartsAssemblyAfterGracePeriodWhenPublishedWeightMeetsThreshold() {
-        given(weights.numTargetNodesInSource()).willReturn(2);
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 7L, OTHER_NODE_ID, 3L)));
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
         given(weights.targetWeightOf(SELF_ID)).willReturn(7L);
         given(weights.targetWeightThreshold()).willReturn(5L);
@@ -1855,6 +2021,86 @@ class ProofControllerImplTest {
     }
 
     @Test
+    void freshGenesisUsesSelectedCurrentKeysAndDoesNotPassThePredecessorToItsProver() {
+        final var oldKey = Bytes.wrap("previous generation key");
+        final var previousProof = HistoryProof.newBuilder()
+                .targetProofKeys(new ProofKey(SELF_ID, oldKey))
+                .build();
+        construction = construction
+                .copyBuilder()
+                .sourceRosterHash(ROSTER_HASH)
+                .targetRosterHash(ROSTER_HASH)
+                .build();
+        keyPublications.add(new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH));
+        given(weights.targetIncludes(SELF_ID)).willReturn(true);
+
+        subject = newSubject(previousProof);
+
+        verify(proverFactory)
+                .create(
+                        eq(SELF_ID),
+                        eq(DEFAULT_TSS_CONFIG),
+                        eq(keyPair),
+                        isNull(),
+                        eq(weights),
+                        eq(Map.of(SELF_ID, PROOF_KEY_1)),
+                        any(),
+                        eq(historyLibrary),
+                        eq(submissions));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing", "changed", "omitted", "reordered"})
+    void proofVoteRejectsMissingOrForgedCanonicalMembershipBeforeNativeVerification(final String alteration)
+            throws Exception {
+        final var targetWeights = new TreeMap<>(Map.of(SELF_ID, 10L, OTHER_NODE_ID, 7L));
+        given(weights.targetNodeWeights()).willReturn(targetWeights);
+        givenTargetHistory();
+        final var snapshot = switch (alteration) {
+            case "missing" -> List.<ProofNodeWeight>of();
+            case "changed" -> List.of(new ProofNodeWeight(SELF_ID, 11L), new ProofNodeWeight(OTHER_NODE_ID, 7L));
+            case "omitted" -> List.of(new ProofNodeWeight(SELF_ID, 10L));
+            case "reordered" -> List.of(new ProofNodeWeight(OTHER_NODE_ID, 7L), new ProofNodeWeight(SELF_ID, 10L));
+            default -> throw new IllegalArgumentException(alteration);
+        };
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY)
+                .copyBuilder()
+                .targetNodeWeights(snapshot)
+                .build();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(historyLibrary, never()).verifyCompressedProof(any(), any(), any());
+        verify(writableHistoryStore, never()).completeProof(anyLong(), any());
+        verify(prover).observeProofVote(SELF_ID, vote, false, ProofVoteCategory.INVALID);
+    }
+
+    @Test
+    void proofVoteAcceptsTheCompleteCanonicalMembershipIncludingAnUnkeyedNode() throws Exception {
+        final var targetWeights = new TreeMap<>(Map.of(SELF_ID, 10L, OTHER_NODE_ID, 7L));
+        given(weights.targetNodeWeights()).willReturn(targetWeights);
+        givenTargetHistory();
+        final var proof = recursiveProof("compressed", "uncompressed", TARGET_HISTORY)
+                .copyBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(targetWeights))
+                .build();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+        given(historyLibrary.verifyCompressedProof(any(), any(), any())).willReturn(true);
+        given(weights.sourceWeightOf(SELF_ID)).willReturn(10L);
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
+
+        subject.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        verify(historyLibrary).verifyCompressedProof(any(), any(), any());
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+        verify(prover).observeProofVote(SELF_ID, vote, true, ProofVoteCategory.VALID);
+    }
+
+    @Test
     void cancelPendingWorkCancelsPublicationAndProver() throws Exception {
         final var future = new CompletableFuture<Void>();
         setField("publicationFuture", future);
@@ -1921,7 +2167,7 @@ class ProofControllerImplTest {
         final var atCutoff = new ProofKeyPublication(OTHER_NODE_ID, secondKey, cutoff);
         final var late = new ProofKeyPublication(99L, Bytes.wrap("late"), cutoff.plusNanos(1));
         given(weights.targetIncludes(anyLong())).willReturn(true);
-        given(weights.numTargetNodesInSource()).willReturn(3);
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 1L, 99L, 1L)));
         given(weights.targetWeightOf(anyLong())).willReturn(1L);
         given(weights.targetWeightThreshold()).willReturn(2L);
         var assembled = construction
@@ -1978,7 +2224,7 @@ class ProofControllerImplTest {
         final var sameRound = new ProofKeyPublication(OTHER_NODE_ID, secondKey, cutoff.minusNanos(1));
         final var late = new ProofKeyPublication(99L, Bytes.wrap("late"), cutoff.plusNanos(1));
         given(weights.targetIncludes(anyLong())).willReturn(true);
-        given(weights.numTargetNodesInSource()).willReturn(3);
+        given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 1L, 99L, 1L)));
         given(weights.targetWeightOf(anyLong())).willReturn(1L);
         given(weights.targetWeightThreshold()).willReturn(1L);
         final var assembled = construction
@@ -2390,7 +2636,7 @@ class ProofControllerImplTest {
                 .constructionId(CONSTRUCTION_ID)
                 .sourceRosterHash(ROSTER_HASH)
                 .targetRosterHash(ROSTER_HASH)
-                .proofKeyCutoffTime(asTimestamp(Instant.EPOCH.plusSeconds(10)))
+                .proofKeyCutoffTime(asTimestamp(Instant.EPOCH.minusSeconds(1)))
                 .wrapsSigningState(WrapsSigningState.newBuilder().phase(AGGREGATE))
                 .build();
         subject = new ProofControllerImpl(

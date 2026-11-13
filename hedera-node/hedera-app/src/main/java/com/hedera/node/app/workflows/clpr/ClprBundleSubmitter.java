@@ -38,8 +38,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>Because this node pays for each submission, every bundle is first checked by
  * {@link ClprBundlePrevalidator}. A bundle that consensus would reject is dropped before
- * it is gossiped, so the node pays neither the transaction fee nor the endpoint
- * misbehavior penalty for it.
+ * it is gossiped, so the node does not pay the transaction fee for it.
  */
 @Singleton
 public class ClprBundleSubmitter {

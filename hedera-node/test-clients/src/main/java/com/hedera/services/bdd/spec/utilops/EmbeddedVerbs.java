@@ -346,28 +346,32 @@ public final class EmbeddedVerbs {
                 final var embeddedHedera = embeddedNetwork.embeddedHederaOrThrow();
                 final var fakeState = embeddedHedera.state();
                 final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
+                synchronized (fakeState) {
+                    if (streamMode == RECORDS) {
+                        // Mark the migration records as not streamed
+                        final var writableStates = fakeState.getWritableStates(BlockRecordService.NAME);
+                        final var blockInfo =
+                                writableStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
+                        blockInfo.put(requireNonNull(blockInfo.get())
+                                .copyBuilder()
+                                .migrationRecordsStreamed(false)
+                                .build());
+                        ((CommittableWritableStates) writableStates).commit();
+                    } else {
+                        final var writableStates = fakeState.getWritableStates(BlockStreamService.NAME);
+                        final var state = writableStates.<BlockStreamInfo>getSingleton(
+                                V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID);
+                        final var blockStreamInfo = requireNonNull(state.get());
+                        state.put(blockStreamInfo
+                                .copyBuilder()
+                                .postUpgradeWorkDone(false)
+                                .build());
+                        ((CommittableWritableStates) writableStates).commit();
+                    }
+                }
                 if (streamMode == RECORDS) {
-                    // Mark the migration records as not streamed
-                    final var writableStates = fakeState.getWritableStates(BlockRecordService.NAME);
-                    final var blockInfo =
-                            writableStates.<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID);
-                    blockInfo.put(requireNonNull(blockInfo.get())
-                            .copyBuilder()
-                            .migrationRecordsStreamed(false)
-                            .build());
-                    ((CommittableWritableStates) writableStates).commit();
                     // Ensure the next transaction is in a new round with ConcurrentEmbeddedHedera
                     spec.sleepConsensusTime(Duration.ofMillis(10L));
-                } else {
-                    final var writableStates = fakeState.getWritableStates(BlockStreamService.NAME);
-                    final var state = writableStates.<BlockStreamInfo>getSingleton(
-                            V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID);
-                    final var blockStreamInfo = requireNonNull(state.get());
-                    state.put(blockStreamInfo
-                            .copyBuilder()
-                            .postUpgradeWorkDone(false)
-                            .build());
-                    ((CommittableWritableStates) writableStates).commit();
                 }
                 // Ensure the next transaction is in a new block period
                 spec.sleepConsensusTime(Duration.ofSeconds(2L));
