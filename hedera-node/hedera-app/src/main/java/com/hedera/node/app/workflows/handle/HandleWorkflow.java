@@ -1527,6 +1527,16 @@ public class HandleWorkflow {
                                     new ReadableHintsStoreImpl(hintsWritableStates, entityCounters)
                                             .getActiveConstruction()));
                 }
+                final var activeHistory = HintsGenerationWeights.requiresHistory(tssConfig)
+                        ? readableHistoryStore.getActiveConstruction()
+                        : null;
+                try {
+                    // A restarted node installs signing at startup, so do it here before reading readiness
+                    hintsService.activateSigning(
+                            new ReadableHintsStoreImpl(hintsWritableStates, entityCounters), tssConfig, activeHistory);
+                } catch (HintsGenerationWeights.InvalidGenerationException ignore) {
+                    // Reported by the reconciliation below
+                }
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
                 doStreamingOnlyKvChanges(hintsWritableStates, null, () -> {
@@ -1538,9 +1548,7 @@ public class HandleWorkflow {
                                 workTime,
                                 tssConfig,
                                 isActive,
-                                HintsGenerationWeights.requiresHistory(tssConfig)
-                                        ? readableHistoryStore.getActiveConstruction()
-                                        : null);
+                                activeHistory);
                         hintsGenerationFailureLogging.reset();
                     } catch (HintsGenerationWeights.InvalidGenerationException e) {
                         if (hintsGenerationFailureLogging.shouldLog(e)) {

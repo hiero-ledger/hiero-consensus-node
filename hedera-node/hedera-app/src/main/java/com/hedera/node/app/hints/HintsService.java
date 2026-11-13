@@ -222,6 +222,15 @@ public interface HintsService extends Service {
             @NonNull TssConfig tssConfig,
             boolean isActive);
 
+    /**
+     * Installs the active construction for signing once its scheme, and any history weights it requires,
+     * are complete. Does nothing while they are not, or if that generation is already installed.
+     */
+    void activateSigning(
+            @NonNull ReadableHintsStore hintsStore,
+            @NonNull TssConfig tssConfig,
+            @Nullable HistoryProofConstruction activeHistoryConstruction);
+
     /** Advances construction work with the matching complete source-generation history snapshot. */
     void reconcile(
             @NonNull ActiveRosters activeRosters,

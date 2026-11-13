@@ -316,18 +316,12 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         }
     }
 
-    private void reconcileConstruction(
-            @NonNull final ActiveRosters activeRosters,
-            @NonNull final WritableHintsStore hintsStore,
-            @NonNull final Instant now,
-            @NonNull final Instant crsWorkTime,
+    @Override
+    public void activateSigning(
+            @NonNull final ReadableHintsStore hintsStore,
             @NonNull final TssConfig tssConfig,
-            final boolean isActive,
             @Nullable final HistoryProofConstruction activeHistoryConstruction) {
-        requireNonNull(activeRosters);
         requireNonNull(hintsStore);
-        requireNonNull(now);
-        requireNonNull(crsWorkTime);
         requireNonNull(tssConfig);
         final var active = hintsStore.getActiveConstruction();
         if (active != null && active.hasHintsScheme()) {
@@ -344,6 +338,22 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                 installSigningConstruction(active, hintsStore.getCrsStateFor(active), activeHistoryConstruction);
             }
         }
+    }
+
+    private void reconcileConstruction(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            @NonNull final Instant crsWorkTime,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
+        requireNonNull(activeRosters);
+        requireNonNull(hintsStore);
+        requireNonNull(now);
+        requireNonNull(crsWorkTime);
+        requireNonNull(tssConfig);
+        activateSigning(hintsStore, tssConfig, activeHistoryConstruction);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 var construction = hintsStore.getOrCreateConstruction(activeRosters, now, tssConfig);

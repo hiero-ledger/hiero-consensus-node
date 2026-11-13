@@ -27,6 +27,7 @@ import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
@@ -48,11 +49,13 @@ import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
@@ -81,9 +84,12 @@ import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -107,12 +113,18 @@ import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.HintsGenerationWeights;
+import com.hedera.node.app.hints.impl.HintsServiceFixtures;
+import com.hedera.node.app.hints.impl.HintsSigningMetrics;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
+import com.hedera.node.app.hints.schemas.V059HintsSchema;
+import com.hedera.node.app.hints.schemas.V060HintsSchema;
+import com.hedera.node.app.hints.schemas.V079HintsSchema;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.OnProofFinished;
@@ -150,6 +162,7 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.tss.PreparedTssHandoff;
+import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
@@ -193,6 +206,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.stream.LongStream;
 import javax.inject.Provider;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -1658,6 +1672,133 @@ class HandleWorkflowTest {
         } catch (Exception ex) {
             throw new AssertionError(ex);
         }
+    }
+
+    @Test
+    void restartedNodeUsesTheSameTssWorkTimeInTheRoundSigningIsInstalled() throws Exception {
+        // Both nodes handle the round after the genesis history proof completed; one restarted in between
+        final var runningNodeWorkTime = tssWorkTimeInRoundAfterGenesisProof(false);
+        final var restartedNodeWorkTime = tssWorkTimeInRoundAfterGenesisProof(true);
+
+        assertEquals(runningNodeWorkTime, restartedNodeWorkTime);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Instant tssWorkTimeInRoundAfterGenesisProof(final boolean restartedBeforeRound) throws Exception {
+        final var rosterHash = Bytes.wrap("genesis-roster");
+        final var verificationKey = Bytes.wrap("vk");
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .crsId(1L)
+                .numParties(16)
+                .sourceRosterHash(rosterHash)
+                .targetRosterHash(rosterHash)
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap("ak"), verificationKey),
+                        LongStream.range(0, 7)
+                                .mapToObj(id -> new NodePartyId(id, (int) id + 1, 1L))
+                                .toList()))
+                .build();
+        final var crs = CRSState.newBuilder()
+                .stage(CRSStage.COMPLETED)
+                .ceremonyId(1L)
+                .numParties(16)
+                .crs(Bytes.wrap("crs"))
+                .build();
+        final var history = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(rosterHash)
+                .targetRosterHash(rosterHash)
+                .targetProof(HistoryProof.newBuilder()
+                        .targetHistory(new History(Bytes.wrap("book-hash"), verificationKey))
+                        .targetNodeWeights(LongStream.range(0, 10)
+                                .mapToObj(id -> new ProofNodeWeight(id, 1L))
+                                .toList()))
+                .build();
+        final var roster = new Roster(LongStream.range(0, 10)
+                .mapToObj(id -> RosterEntry.newBuilder().nodeId(id).weight(1L).build())
+                .toList());
+
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        final ReadableKVState<ProtoBytes, Roster> rosters = mock(ReadableKVState.class);
+        lenient().when(state.getReadableStates(RosterService.NAME)).thenReturn(rosterStates);
+        lenient()
+                .when(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID))
+                .thenReturn(rosterState);
+        lenient().when(rosterStates.<ProtoBytes, Roster>get(ROSTERS_STATE_ID)).thenReturn(rosters);
+        lenient()
+                .when(rosterState.get())
+                .thenReturn(RosterState.newBuilder()
+                        .roundRosterPairs(new RoundRosterPair(0, rosterHash))
+                        .build());
+        lenient().when(rosters.get(new ProtoBytes(rosterHash))).thenReturn(roster);
+        lenient()
+                .when(state.getWritableStates(EntityIdService.NAME))
+                .thenReturn(
+                        mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class)));
+        final var hintsStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(HintsService.NAME)).thenReturn(hintsStates);
+        givenSingleton(hintsStates, ACTIVE_HINTS_CONSTRUCTION_STATE_ID, active);
+        givenSingleton(hintsStates, V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID, HintsConstruction.DEFAULT);
+        givenSingleton(hintsStates, V060HintsSchema.CRS_STATE_STATE_ID, crs);
+        givenSingleton(hintsStates, V079HintsSchema.NEXT_CRS_STATE_ID, CRSState.DEFAULT);
+        final var historyStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        lenient().when(state.getWritableStates(HistoryService.NAME)).thenReturn(historyStates);
+        givenSingleton(historyStates, ACTIVE_PROOF_CONSTRUCTION_STATE_ID, history);
+        givenSingleton(historyStates, NEXT_PROOF_CONSTRUCTION_STATE_ID, HistoryProofConstruction.DEFAULT);
+        givenSingleton(historyStates, LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger")));
+
+        // The real signing context, service, and block hash signer decide readiness
+        final var context = new HintsContext(
+                mock(HintsLibrary.class), () -> configProvider.getConfiguration(), mock(HintsSigningMetrics.class));
+        hintsService = spy(HintsServiceFixtures.serviceOver(context));
+        // Key provenance needs native-sized keys and has no part in readiness
+        doReturn(null).when(hintsService).keyProvenanceFor(any());
+        // Lets the second node restub the answers that read their argument
+        Mockito.reset(systemTransactions);
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true", "tss.forceMockSignatures", "false"));
+        final var signer = new TssBlockHashSigner(hintsService, historyService, configProvider);
+        lenient().when(blockHashSigner.isReady()).thenAnswer(_ -> signer.isReady());
+        // The completed genesis proof is set on a running node in the previous round, and on a restarted node at init
+        lenient().when(historyService.isReady()).thenReturn(true);
+        lenient().when(blockStreamManager.lastUsedConsensusTime()).thenReturn(NOW.minusSeconds(7));
+        if (restartedBeforeRound) {
+            // What Hedera.initializeHintsSigning() does with this state at startup
+            hintsService.setActiveConstruction(active, crs, history);
+        }
+        final var workTime = new AtomicReference<Instant>();
+        willAnswer(invocation -> {
+                    workTime.set(invocation.getArgument(3));
+                    return null;
+                })
+                .given(historyService)
+                .reconcile(any(), any(), any(), any(), any(), anyBoolean(), any(), anyBoolean(), any(), anyLong());
+
+        final var configure =
+                HandleWorkflow.class.getDeclaredMethod("configureTssCallbacks", State.class, AtomicReference.class);
+        configure.setAccessible(true);
+        configure.invoke(subject, state, new AtomicReference<>());
+        final var reconcile = HandleWorkflow.class.getDeclaredMethod("reconcileTssState", State.class, Instant.class);
+        reconcile.setAccessible(true);
+        reconcile.invoke(subject, state, NOW);
+
+        // Either way the node signs blocks from this round on
+        assertTrue(signer.isReady());
+        return requireNonNull(workTime.get());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> void givenSingleton(final WritableStates states, final int stateId, final T value) {
+        final WritableSingletonState<T> singleton = mock(WritableSingletonState.class);
+        lenient().when(states.<T>getSingleton(stateId)).thenReturn(singleton);
+        lenient().when(singleton.get()).thenReturn(value);
     }
 
     private void invokeResetTssReconcileFailureSuppression() {

@@ -144,6 +144,14 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void activateSigning(
+            @NonNull final ReadableHintsStore hintsStore,
+            @NonNull final TssConfig tssConfig,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
+        delegate.activateSigning(hintsStore, tssConfig, activeHistoryConstruction);
+    }
+
+    @Override
     public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates,
             @NonNull final Configuration configuration,
