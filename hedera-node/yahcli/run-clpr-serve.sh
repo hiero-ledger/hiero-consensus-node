@@ -18,7 +18,7 @@
 #                                          assuming both networks deployed at the same num)
 #   MESSAGE             string — application payload (default "Hello world")
 #   PAYER               yahcli payer (default 2)
-#   GAS                 contract-call gas limit (default 300000)
+#   GAS                 contract-call gas limit (default 2000000)
 #
 # Usage:
 #   PARTY=alice CHANNEL_ID=<hex> CONNECTOR_ID=<hex> CONTRACT_ID=0.0.1004 \
@@ -41,7 +41,8 @@ fi
 
 # === Configuration =========================================================
 PAYER="${PAYER:-2}"
-GAS="${GAS:-300000}"
+# Covers the gas-priced native sendMessage fee and PingPong's bookkeeping.
+GAS="${GAS:-2000000}"
 
 # Required: party + ids
 : "${PARTY:?must be set to 'alice' or 'bob'}"

@@ -24,7 +24,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -90,7 +89,7 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -865,57 +864,51 @@ class ClprSubmitBundleHandlerTest {
         assertThat(captor.getValue().throttling()).isEqualTo(HandleContext.ConsensusThrottling.ON);
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.CsvSource({
-        "false, THROTTLED_AT_CONSENSUS",
-        "true, THROTTLED_AT_CONSENSUS",
-        "false, CONSENSUS_GAS_EXHAUSTED",
-        "true, CONSENSUS_GAS_EXHAUSTED"
+    @ParameterizedTest
+    @CsvSource({
+        "false, false, THROTTLED_AT_CONSENSUS",
+        "true, false, THROTTLED_AT_CONSENSUS",
+        "false, false, CONSENSUS_GAS_EXHAUSTED",
+        "true, false, CONSENSUS_GAS_EXHAUSTED",
+        "false, true, THROTTLED_AT_CONSENSUS",
+        "true, true, THROTTLED_AT_CONSENSUS",
+        "false, true, CONSENSUS_GAS_EXHAUSTED",
+        "true, true, CONSENSUS_GAS_EXHAUSTED"
     })
-    void preExecutionThrottleRefundsAllCallbackGas(final boolean response, final ResponseCodeEnum status) {
+    void capacityFailurePropagatesWithoutAdvancingChannel(
+            final boolean response, final boolean dispatchThrows, final ResponseCodeEnum status) {
         putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
         if (response) putOutboundDataMessage(1);
         final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
         putConnector();
         pricedGasContext();
-        given(dispatchResult.status()).willReturn(status);
-        given(dispatchResult.hasContractResult()).willReturn(false);
+        if (dispatchThrows) {
+            given(handleContext.dispatch(any(DispatchOptions.class))).willThrow(new HandleException(status));
+        } else {
+            given(dispatchResult.status()).willReturn(status);
+            given(dispatchResult.hasContractResult()).willReturn(false);
+        }
 
-        final long initialBalance = WORST_CASE_CHARGE + 10_000_000L;
-        final var balances = new HashMap<AccountID, Long>();
-        balances.put(PAYER_ID, initialBalance);
-        balances.put(CONNECTOR_CONTRACT_ACCOUNT, initialBalance);
-        given(handleContext.tryToCharge(any(), anyLong())).willAnswer(invocation -> {
-            balances.merge(invocation.getArgument(0), -invocation.getArgument(1, Long.class), Long::sum);
-            return true;
-        });
-        doAnswer(invocation -> {
-                    balances.merge(invocation.getArgument(0), invocation.getArgument(1), Long::sum);
-                    return null;
-                })
-                .when(handleContext)
-                .refundHandlerCharge(any(), anyLong());
-        doAnswer(invocation -> {
-                    final long amount = invocation.getArgument(2);
-                    balances.merge(invocation.getArgument(0), -amount, Long::sum);
-                    balances.merge(invocation.getArgument(1), amount, Long::sum);
-                    return null;
-                })
-                .when(tokenServiceApi)
-                .transferFromTo(any(), any(), anyLong());
-
-        subject.handle(handleContext);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(status));
 
         verify(handleContext).dispatch(any(DispatchOptions.class));
         verify(handleContext).tryToCharge(PAYER_ID, 2000L);
-        verify(handleContext).refundHandlerCharge(PAYER_ID, 2000L);
+        // The failed parent is rolled back by the dispatch framework, rather than committing a gas refund.
+        verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
         final long nonGasCharge = response ? 0 : WORST_CASE_CHARGE;
         verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, nonGasCharge + 800);
         verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 800L);
-        // DATA keeps its flat endpoint compensation; neither party has any net gas charge.
-        assertThat(balances.get(PAYER_ID)).isEqualTo(initialBalance + nonGasCharge);
-        assertThat(balances.get(CONNECTOR_CONTRACT_ACCOUNT)).isEqualTo(initialBalance - nonGasCharge);
+        // Unit stores do not roll back intermediate queue writes. No completed-bundle progress is published;
+        // the propagated failure makes the framework roll back the intermediate writes as well.
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isZero();
+        assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isZero();
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedRunningHash()).isEqualTo(ZERO_HASH);
+        if (!response) {
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 0)).isNull();
+        }
     }
 
     @Test
@@ -1042,6 +1035,100 @@ class ClprSubmitBundleHandlerTest {
             final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
             verify(handleContext).dispatch(captor.capture());
             assertThat(captor.getValue().body().contractCallOrThrow().gas()).isEqualTo(customGas);
+        }
+
+        @ParameterizedTest
+        @CsvSource({
+            "false, false, 5000000, 15000000",
+            "true, false, 5000000, 15000000",
+            "false, true, 5000000, 5000000",
+            "true, true, 5000000, 5000000"
+        })
+        void callbacksRespectLiveEvmTransactionLimit(
+                final boolean response, final boolean throttleByGas, final long maxGasPerSec, final long expectedGas) {
+            putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+            if (response) putOutboundDataMessage(1);
+            final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+            setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+            putConnector();
+            overrideMaxGasPerMessage(20_000_000L);
+            configureCallbackGasLimits(15_000_000L, maxGasPerSec, throttleByGas);
+
+            subject.handle(handleContext);
+
+            final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+            verify(handleContext).dispatch(captor.capture());
+            assertThat(captor.getValue().body().contractCallOrThrow().gas()).isEqualTo(expectedGas);
+        }
+
+        @ParameterizedTest
+        @CsvSource({"3,15000000", "4,12000000", "10,4800000"})
+        void callbacksShareBundleAllowanceWithoutExceedingSingleTransactionCap(
+                final int messageCount, final long expectedCallbackGas) {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            setupHandleContext(
+                    buildBundle(
+                            ClprChannelStatus.ACTIVE,
+                            0,
+                            0,
+                            ZERO_HASH,
+                            Collections.nCopies(messageCount, dataPayload())),
+                    true);
+            putConnector();
+            overrideMaxGasPerMessage(20_000_000L);
+            configureCallbackGasLimits(15_000_000L, 15_000_000L, false);
+
+            subject.handle(handleContext);
+
+            final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+            verify(handleContext, times(messageCount)).dispatch(captor.capture());
+            assertThat(captor.getAllValues())
+                    .allSatisfy(options -> assertThat(
+                                    options.body().contractCallOrThrow().gas())
+                            .isEqualTo(expectedCallbackGas)
+                            .isLessThanOrEqualTo(15_000_000L));
+            final long callbackGas = captor.getAllValues().stream()
+                    .mapToLong(options -> options.body().contractCallOrThrow().gas())
+                    .sum();
+            // This adapter does not report verifier gas, so its full 2M allowance is reserved first.
+            assertThat(callbackGas + 2_000_000L).isLessThanOrEqualTo(50_000_000L);
+            if (messageCount >= 4) {
+                assertThat(callbackGas + 2_000_000L).isEqualTo(50_000_000L);
+            }
+        }
+
+        @ParameterizedTest
+        @CsvSource({"false", "true"})
+        void zeroCallbackGrantIsRetryableWithoutAdvancingChannel(final boolean response) {
+            putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+            if (response) putOutboundDataMessage(1);
+            final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+            setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+            putConnector();
+            configureCallbackGasLimits(0, 15_000_000L, false);
+
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED));
+
+            verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+            assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isZero();
+            assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isZero();
+        }
+
+        private void configureCallbackGasLimits(
+                final long maxGasPerTransaction, final long maxGasPerSec, final boolean throttleByGas) {
+            given(handleContext.configuration())
+                    .willReturn(HederaTestConfigBuilder.create()
+                            .withValue("clpr.enabled", true)
+                            .withValue("clpr.submitBundleGasLimit", 50_000_000L)
+                            .withValue("clpr.verifierGasLimit", 2_000_000L)
+                            .withValue("clpr.messageExecutionCost", MESSAGE_EXECUTION_COST)
+                            .withValue("clpr.progressRewardTinycents", PROGRESS_REWARD)
+                            .withValue("contracts.maxGasPerTransaction", maxGasPerTransaction)
+                            .withValue("contracts.maxGasPerSec", maxGasPerSec)
+                            .withValue("contracts.throttle.throttleByGas", throttleByGas)
+                            .getOrCreateConfig());
         }
 
         @Test

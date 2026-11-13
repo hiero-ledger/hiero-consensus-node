@@ -92,6 +92,7 @@ public record ClprConfig(
         // leaves evenly. Each callback stays within contracts.maxGasPerTransaction, but the bundle may exceed it: a
         // callback that sends a message pays the sendMessage price (~1.17M gas at $0.10) through gas, so a budget
         // of 15M would fund such a send in only about ten callbacks per bundle.
+        // When legacy gas throttling is enabled, contracts.maxGasPerSecBackend also caps the total budget.
         @ConfigProperty(defaultValue = "50000000") @NetworkProperty
         long submitBundleGasLimit,
 

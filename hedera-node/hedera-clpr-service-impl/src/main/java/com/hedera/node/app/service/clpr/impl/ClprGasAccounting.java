@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_ACCOUNTING;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -34,15 +35,20 @@ public final class ClprGasAccounting {
     private ClprGasAccounting(@NonNull final HandleContext context) {
         this.context = context;
         parentPayer = context.payer();
-        final long maximum = Math.max(
-                0, context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction());
+        final var contractsConfig = context.configuration().getConfigData(ContractsConfig.class);
+        final long maximum = Math.max(0, contractsConfig.maxGasPerTransaction());
         final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
         final var body = context.body();
         if (body != null && body.hasClprCompleteChannel()) {
             totalGas = Math.min(maximum, Math.max(0, clprConfig.verifierGasLimit()));
         } else if (body != null && body.hasClprSubmitBundle()) {
             // A bundle runs many separately capped calls, so its total can exceed one transaction's gas
-            totalGas = Math.max(0, clprConfig.submitBundleGasLimit());
+            final long bundleGas = Math.max(0, clprConfig.submitBundleGasLimit());
+            // With legacy gas throttling, the verifier and callbacks share one backend bucket. Leave room
+            // for the verifier instead of granting a callback the bucket's entire capacity on its own.
+            totalGas = contractsConfig.throttleThrottleByGas()
+                    ? Math.min(bundleGas, Math.max(0, contractsConfig.maxGasPerSecBackend()))
+                    : bundleGas;
         } else {
             totalGas = maximum;
         }
@@ -130,11 +136,22 @@ public final class ClprGasAccounting {
 
     /** Refunds unused gas; only known pre-execution throttles are free when no contract result exists. */
     public long settle(@NonNull final AccountID payer, final long gasLimit, @Nullable final StreamBuilder result) {
+        return settle(payer, gasLimit, result, null);
+    }
+
+    /** Also accounts for a dispatch that throws a known pre-execution throttle before returning a result. */
+    public long settle(
+            @NonNull final AccountID payer,
+            final long gasLimit,
+            @Nullable final StreamBuilder result,
+            @Nullable final ResponseCodeEnum dispatchFailure) {
         final long gasUsed;
         if (result != null && result.hasContractResult()) {
             gasUsed = Math.clamp(result.getGasUsedForContractTxn(), 0, gasLimit);
-        } else if (result != null
-                && (result.status() == THROTTLED_AT_CONSENSUS || result.status() == CONSENSUS_GAS_EXHAUSTED)) {
+        } else if ((result != null
+                        && (result.status() == THROTTLED_AT_CONSENSUS || result.status() == CONSENSUS_GAS_EXHAUSTED))
+                || dispatchFailure == THROTTLED_AT_CONSENSUS
+                || dispatchFailure == CONSENSUS_GAS_EXHAUSTED) {
             gasUsed = 0;
         } else {
             // An unknown missing result still consumes the full reservation to prevent unbilled work.

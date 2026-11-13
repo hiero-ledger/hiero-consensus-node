@@ -102,10 +102,19 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 > The old `appDispatchGasLimit` config field was removed (#129).
 >
 > The callbacks in a bundle split the gas the verifier leaves from `submitBundleGasLimit` evenly, each still capped
-> at `maxGasPerMessage`. The budget exceeds `contracts.maxGasPerTransaction` because a callback that sends a message
+> at `maxGasPerMessage` and the live EVM transaction gas limit (`contracts.maxGasPerTransaction`, 15M by default).
+> The budget exceeds `contracts.maxGasPerTransaction` because a callback that sends a message
 > pays the `sendMessage` price through gas (about 1.17M gas at $0.10); a 15M budget would fund such a send in only
 > about ten callbacks per bundle. The submitting node escrows the budget's gas cost when the bundle starts and gets
 > back whatever the verifier and callbacks do not use.
+> With the default 50M budget and a 2M verifier allowance, ten callbacks receive 4.8M each; a single callback
+> receives at most 15M. Lower `maxGasPerMessage` or live EVM limits still apply.
+>
+> When `contracts.throttle.throttleByGas` is enabled, the effective bundle budget is also capped by
+> `contracts.maxGasPerSecBackend`: verifier work and callbacks share that bucket. To use the full 50M budget in
+> this mode, the backend gas capacity must be at least 50M. The default ops-duration throttling mode retains the
+> full 50M budget. A callback rejected by consensus throttling aborts the bundle for retry; it does not acknowledge
+> the message as an application error.
 >
 > `clpr.enabled` defaults to `false`, so a fresh node keeps CLPR dormant. Set
 > `clpr.enabled=true` explicitly to activate it after the `LEDGER_CONFIGURATION`
