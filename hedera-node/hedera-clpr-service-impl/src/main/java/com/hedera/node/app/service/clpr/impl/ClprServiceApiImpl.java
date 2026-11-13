@@ -18,6 +18,7 @@ import com.hedera.hapi.node.state.clpr.ClprControlMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
+import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprServiceApi;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ClprConfig;
@@ -41,6 +42,7 @@ public class ClprServiceApiImpl implements ClprServiceApi {
     private final ReadableLedgerConfigurationStoreImpl configStore;
     private final WritableMessageQueueStore messageQueueStore;
     private final Configuration configuration;
+    private final ClprChannelLifecycle channelLifecycle;
 
     public ClprServiceApiImpl(
             @NonNull final ReadableChannelStoreImpl channelReadStore,
@@ -48,13 +50,15 @@ public class ClprServiceApiImpl implements ClprServiceApi {
             @NonNull final WritableConnectorStore connectorStore,
             @NonNull final ReadableLedgerConfigurationStoreImpl configStore,
             @NonNull final WritableMessageQueueStore messageQueueStore,
-            @NonNull final Configuration configuration) {
+            @NonNull final Configuration configuration,
+            @NonNull final ClprChannelLifecycle channelLifecycle) {
         this.channelReadStore = requireNonNull(channelReadStore);
         this.channelWriteStore = requireNonNull(channelWriteStore);
         this.connectorStore = requireNonNull(connectorStore);
         this.configStore = requireNonNull(configStore);
         this.messageQueueStore = requireNonNull(messageQueueStore);
         this.configuration = requireNonNull(configuration);
+        this.channelLifecycle = requireNonNull(channelLifecycle);
     }
 
     @Override
@@ -251,6 +255,9 @@ public class ClprServiceApiImpl implements ClprServiceApi {
                 .copyBuilder()
                 .inFlightMessageCount(connector.inFlightMessageCount() + 1)
                 .build());
+        // A node that joined after this channel was activated learns it here, since every node handles every send;
+        // otherwise nothing on this node would sync the message to the peer
+        channelLifecycle.onChannelObserved(channelId);
         log.debug(
                 "[CLPR-SEND] complete conn={} assignedMsgId={} nextMsgId={} ackedMsgId={} "
                         + "sentRH={} connectorId={} inFlightBefore={} inFlightAfter={}",

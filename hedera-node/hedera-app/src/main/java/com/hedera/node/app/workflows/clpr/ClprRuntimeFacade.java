@@ -74,6 +74,14 @@ public final class ClprRuntimeFacade implements ClprRuntime, ClprChannelLifecycl
     }
 
     @Override
+    public void onChannelObserved(@NonNull final Bytes channelId) {
+        requireNonNull(channelId);
+        if (isEnabled()) {
+            channelManager().onChannelObserved(channelId);
+        }
+    }
+
+    @Override
     public void onChannelClosed(@NonNull final Bytes channelId) {
         requireNonNull(channelId);
         if (isEnabled()) {

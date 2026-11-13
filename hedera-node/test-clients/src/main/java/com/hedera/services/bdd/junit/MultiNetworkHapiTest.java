@@ -85,11 +85,28 @@ public @interface MultiNetworkHapiTest {
          * {@code application.properties} at boot. Like {@link #firstGrpcPort()}, this is a <b>base</b>:
          * co-located subprocess nodes all bind {@code 127.0.0.1}, so node {@code i} gets
          * {@code firstHapiTlsPort + i} (the base thus consumes the range
-         * {@code [firstHapiTlsPort, firstHapiTlsPort + size)} — leave room when picking bases for other
+         * {@code [firstHapiTlsPort, firstHapiTlsPort + max(size, maxNodeIds))} — leave room when picking bases for other
          * networks). {@code -1} (the default) seeds nothing; set it only alongside
          * {@code enableHapiTls = true}. Prefer this over a {@code @ConfigOverride("grpc.tlsPort")}:
          * the per-node offset is applied automatically and stays discoverable at the call site.
          */
         int firstHapiTlsPort() default -1;
+
+        /**
+         * Number of node ids this network reserves ports, per-node {@code application.properties} overrides and
+         * (with {@link #firstHapiTlsPort()}) HAPI TLS ports for — ids {@code [0, maxNodeIds)}. Raise it above
+         * {@link #size()} when tests add nodes at runtime (node create + upgrade): node ids are never reused, so
+         * it must cover every node the network's tests can ever add, in any order. {@code -1} (the default)
+         * means {@code size}.
+         */
+        int maxNodeIds() default -1;
+
+        /**
+         * Most nodes this network may run at once while the rest of its network group is up; the group's node
+         * budget is the sum over its networks. Raise it above {@link #size()} when tests add nodes before removing
+         * old ones. A test may exceed it only while it has shut down enough of the group's other nodes to stay
+         * within that sum. {@code -1} (the default) means {@code size}.
+         */
+        int maxLiveNodes() default -1;
     }
 }
