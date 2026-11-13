@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonRlp.Slice;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -21,7 +22,7 @@ import java.util.Objects;
  * applied in order, each serial going up by exactly one from the one in the sets.
  *
  * <p>Unlike the Solidity reference, no {@code IEd25519Verifier} argument is threaded through: this port verifies
- * Ed25519 through {@link CantonTopology#signedBy}, which uses the static {@link Ed25519Verify}.
+ * Ed25519 through {@link CantonTopology#signedBy}, which uses the static {@link com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify}.
  */
 public final class CantonTopologyVerifier {
 
@@ -65,7 +66,7 @@ public final class CantonTopologyVerifier {
     private static final class MOwner {
         private byte[] namespace;
         private CantonSets.Key root;
-        private List<MDelegation> delegations;
+        private final List<MDelegation> delegations;
 
         MOwner(final CantonSets.Owner o) {
             namespace = o.namespace();
@@ -92,7 +93,7 @@ public final class CantonTopologyVerifier {
     private static final class MMember {
         private byte[] memberId;
         private long otkSerial;
-        private List<MDelegation> delegations;
+        private final List<MDelegation> delegations;
         private List<CantonSets.Key> current;
         private List<CantonSets.Key> previous;
 
@@ -123,9 +124,9 @@ public final class CantonTopologyVerifier {
     }
 
     private static final class MOwners {
-        private long serial;
-        private long threshold;
-        private List<MOwner> owners;
+        private final long serial;
+        private final long threshold;
+        private final List<MOwner> owners;
 
         MOwners(final CantonSets.Owners s) {
             serial = s.serial();
@@ -207,7 +208,7 @@ public final class CantonTopologyVerifier {
         if (r.size() != 2) {
             throw CantonProofException.invalidPayloadShape("rotations has " + r.size() + " items");
         }
-        final byte[] ownerSet = CantonRlp.readBytes(r.get(0));
+        final byte[] ownerSet = CantonRlp.readBytes(r.getFirst());
         if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(ownerSet), anchor.ownersHash())) {
             throw CantonProofException.trustSetMismatch();
         }
@@ -276,7 +277,7 @@ public final class CantonTopologyVerifier {
         }
         final CantonTopology.Transaction tx = CantonTopology.readTransaction(CantonRlp.readBytes(l.get(0)));
         final List<CantonSets.Key> signerKeys = new ArrayList<>();
-        if (!isEmpty(l.get(1))) {
+        if (!CantonRlp.isEmpty(l.get(1))) {
             for (final Slice ks : CantonRlp.readList(l.get(1))) {
                 final CantonSets.Key key = CantonSets.decodeKey(CantonRlp.readBytes(ks));
                 if (!CantonSets.hasOwnFingerprint(key)) {
@@ -690,20 +691,7 @@ public final class CantonTopologyVerifier {
 
     // ── Primitives ───────────────────────────────────────────────────────────
 
-    /** {@code ClprCantonRlp.isEmpty}: an empty RLP string or list. */
-    private static boolean isEmpty(final Slice s) {
-        if (s.len() != 1) {
-            return s.len() == 0;
-        }
-        final int head = s.buf()[s.off()] & 0xff;
-        return head == 0x80 || head == 0xc0;
-    }
-
     private static byte[] sha256(final byte[] message) {
-        try {
-            return java.security.MessageDigest.getInstance("SHA-256").digest(message);
-        } catch (final java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return CommonUtils.sha256DigestOrThrow().digest(message);
     }
 }

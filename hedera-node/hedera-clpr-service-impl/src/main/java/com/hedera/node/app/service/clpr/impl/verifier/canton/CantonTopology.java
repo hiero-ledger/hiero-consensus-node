@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Field;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Range;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Varint;
