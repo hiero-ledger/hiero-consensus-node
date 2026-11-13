@@ -47,19 +47,18 @@ class PipelineRecorderTest {
     }
 
     @Test
-    void aPassWithAGarbageCollectionIsDiscardedAndCountedOnce() {
+    void aSaturatedPassWithAGarbageCollectionCountsInBoth() {
         final PipelineRecorder recorder = new PipelineRecorder();
         recorder.startPass();
         recorder.record(1_000);
         System.gc();
         recorder.endPass();
-        // a collection can make a pass look saturated
         recorder.discardSaturatedPass();
         recorder.endIteration();
 
         assertThat(recorder.histogram().totalCount()).isZero();
         assertThat(recorder.gcDiscardedPasses()).isEqualTo(1);
-        assertThat(recorder.saturationDiscardedPasses()).isZero();
+        assertThat(recorder.saturationDiscardedPasses()).isEqualTo(1);
     }
 
     @Test

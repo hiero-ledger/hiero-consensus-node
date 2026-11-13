@@ -36,8 +36,8 @@ import java.lang.management.ManagementFactory;
  *       collection pauses every thread of the pipeline, and the pause would disturb the latencies of one pass at random.
  *       The allocation per value stands in for the cost of garbage collection.</li>
  *   <li>{@link #discardSaturatedPass()} discards a pass in which the pipeline did not keep up, whose latencies grew with
- *       the length of the pass. A pass with a collection is counted only as such, because the pause of a collection can
- *       make a pipeline that keeps up look saturated.</li>
+ *       the length of the pass. The two are counted independently: a pass with a collection in which the pipeline also
+ *       did not keep up counts in both.</li>
  * </ul>
  *
  * <h2>Using it</h2>
@@ -146,19 +146,16 @@ public final class PipelineRecorder {
 
     /**
      * Discards the pass that ended last, because the pipeline did not keep up. A pass that {@link #endPass()} discarded
-     * for a garbage collection is not counted again.
+     * for a garbage collection counts here too.
      *
-     * @throws IllegalStateException if no pass has ended since the latest one started, or if it was discarded already
+     * @throws IllegalStateException if no pass has ended since the latest one started, or if this method discarded it
+     * already
      */
     public void discardSaturatedPass() {
-        switch (state) {
-            case ENDED -> saturationDiscardedPasses++;
-            case DISCARDED_FOR_GC -> {
-                // counted as discarded for the collection
-            }
-            default ->
-                throw new IllegalStateException("No pass to discard: it is running, or it counts or was discarded");
+        if (state != State.ENDED && state != State.DISCARDED_FOR_GC) {
+            throw new IllegalStateException("No pass to discard: it is running, or it counts or was discarded");
         }
+        saturationDiscardedPasses++;
         state = State.IDLE;
     }
 
