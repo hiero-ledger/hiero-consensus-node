@@ -97,9 +97,11 @@ until it reaches the pipeline's output. Its Javadoc shows the pattern.
 - **Check the arrivals after every invocation** against their exact expected value, and fail the benchmark when a
   pipeline thread throws, with an `UncaughtExceptionCollector`.
 - **One exit point per timer:** the percentiles of a pipeline's parts do not add up to those of the whole.
+- **Replay at the recorded rate.** The latency can depend on the rate. Use a speedup only after measuring that it does 
+  not change the latency, or for a one-time measurement of the pipeline's capacity.
 - **A pass in which the pipeline does not keep up is discarded:** if the latency grows by more than 1% of the elapsed
-  time, the pass counts in `measured.saturation.discardedPasses` instead. Choose the speedup with a one-time sweep,
-  clearly below the one at which the pipeline falls behind or loses inputs.
+  time, the pass counts in `measured.saturation.discardedPasses` instead. At the recorded rate, such passes mean that
+  the pipeline no longer keeps up with production.
 - **One benchmark thread:** `alloc.norm` counts what all threads of the JVM allocate during a pass, so passes must not
   overlap.
 

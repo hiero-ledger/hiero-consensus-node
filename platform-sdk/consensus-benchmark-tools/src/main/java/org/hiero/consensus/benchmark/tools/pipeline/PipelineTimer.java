@@ -49,7 +49,6 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  *             .entryPoint(
  *                     CreationAttempt.class, CreationAttempt::created, intake.nonValidatedEventsInputWire(), INJECT)
  *             .exitPoint(intake.validatedEventsOutputWire(), step -> step instanceof Received)
- *             .speedup(SPEEDUP)
  *             .drain(intake::flush)
  *             .build();
  *     model.start();
@@ -82,7 +81,8 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * <p>{@link Builder#entryPoint} maps every input of a type to an entry point of the pipeline, a {@link Consumer} or an
  * {@link InputWire}. Its value function takes from the input what enters the pipeline; inputs whose value is
  * {@code null}, and inputs of a type without an entry point, are not replayed. The inputs must be in the order of their
- * times. {@link Builder#speedup} replays the times faster.
+ * times, and are replayed at their recorded rate. {@link Builder#speedup} replays them faster. The latency can depend
+ * on the rate. Use it only after measuring that it does not change the latency, or to measure the pipeline's capacity.
  *
  * <h2>Exit point</h2>
  *
@@ -115,8 +115,9 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  * compares the median latency of the inputs due in the last quarter of the pass with that of the first quarter, and
  * divides the difference by the time between the quarters' centers. If that growth exceeds
  * {@value #MAX_LATENCY_GROWTH} (1%), {@code replay()} discards the pass, which the profiler counts in
- * {@code measured.saturation.discardedPasses}, and {@link #saturated()} returns true. Passes discarded regularly mean
- * that the speedup is too high. A pass with fewer than
+ * {@code measured.saturation.discardedPasses}, and {@link #saturated()} returns true. At the recorded rate, passes
+ * discarded regularly mean that the pipeline no longer keeps up with production; with a speedup, that the speedup is
+ * too high. A pass with fewer than
  * {@value #MIN_LATENCIES_PER_QUARTER} latencies in either quarter is not judged. Below capacity, the event intake and
  * the self-check {@code PipelineTimerBenchmark} grew by less than 0.13%, even in passes with short bursts. Above
  * capacity, the self-check's growth matched its overload.
@@ -619,7 +620,8 @@ public final class PipelineTimer {
         }
 
         /**
-         * Replays the times of the inputs this many times faster; 1 if not called.
+         * Replays the times of the inputs this many times faster; 1, the recorded rate, if not called. A faster rate
+         * changes the latency (see the class description).
          *
          * @param speedup the factor
          * @return this builder
