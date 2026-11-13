@@ -391,6 +391,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
         if ((inUse / count > threadsPerFileChannel) && (count < maxFileChannels)) {
             openNewFileChannel(count);
             count = fileChannelsCount.get();
+            return count - 1;
         }
         return inUse % count;
     }
@@ -401,6 +402,21 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
     void releaseFileChannel() {
         fileChannelsInUse.decrementAndGet();
     }
+
+    private ByteBuffer getReadBuffer(final int size) {
+        ByteBuffer buf = BUFFER_CACHE.get();
+        if ((buf == null) || (buf.capacity() < size)) {
+            buf = ByteBuffer.allocate(size);
+            BUFFER_CACHE.set(buf);
+            BUFFEREDDATA_CACHE.set(BufferedData.wrap(buf));
+        } else {
+            buf.position(0);
+            buf.limit(size);
+        }
+        return buf;
+    }
+
+//    public static final AtomicLong tbr = new AtomicLong(0);
 
     /**
      * Read bytesToRead bytes of data from the file starting at byteOffsetInFile unless we reach the
@@ -418,15 +434,13 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
     private BufferedData read(final long byteOffsetInFile, final boolean includeTag) throws IOException {
         // Buffer size to read data item tag and size. If the whole item is small and
         // fits into this buffer, there is no need to make an extra file read
-        final int PRE_READ_BUF_SIZE = 4096;
-        ByteBuffer readBB = BUFFER_CACHE.get();
-        BufferedData readBuf = BUFFEREDDATA_CACHE.get();
-        if (readBuf == null) {
-            readBB = ByteBuffer.allocate(PRE_READ_BUF_SIZE);
-            BUFFER_CACHE.set(readBB);
-            readBuf = BufferedData.wrap(readBB);
-            BUFFEREDDATA_CACHE.set(readBuf);
+        final int PAGE_SIZE = 4096;
+        final long nextPageOffset = (byteOffsetInFile / PAGE_SIZE + 1) * PAGE_SIZE;
+        int toRead = (int) (nextPageOffset - byteOffsetInFile);
+        if (toRead < 16) {
+            toRead += PAGE_SIZE;
         }
+        ByteBuffer readBB = getReadBuffer(toRead);
         // Try a few times. It's very unlikely (other than in tests) that a thread is
         // interrupted more than once in short period of time, so 3 retries should be enough
         for (int retries = 3; retries > 0; retries--) {
@@ -440,13 +454,15 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
             try {
                 // Fill the byte buffer from the channel
                 readBB.clear();
-                readBB.limit(PRE_READ_BUF_SIZE); // No need to read more than that for a header
+                readBB.limit(toRead); // No need to read more than that for a header
                 int bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
-                if (isFileCompleted() && (bytesRead != Math.min(PRE_READ_BUF_SIZE, getSize() - byteOffsetInFile))) {
+//                tbr.addAndGet(bytesRead);
+                if (isFileCompleted() && (bytesRead != Math.min(toRead, getSize() - byteOffsetInFile))) {
                     throw new IOException("Failed to read all bytes: toread="
-                            + Math.min(PRE_READ_BUF_SIZE, getSize() - byteOffsetInFile) + " read=" + bytesRead
+                            + Math.min(toRead, getSize() - byteOffsetInFile) + " read=" + bytesRead
                             + " file=" + getIndex() + " off=" + byteOffsetInFile);
                 }
+                BufferedData readBuf = BUFFEREDDATA_CACHE.get();
                 // Then read the tag and size from the read buffer, since it's wrapped over the byte buffer
                 readBuf.reset();
                 final int tag = readBuf.getVarInt(0, false); // tag
@@ -477,6 +493,7 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
                     readBB.limit(totalSize);
                 }
                 bytesRead = MerkleDbFileUtils.completelyRead(fileChannel, readBB, byteOffsetInFile);
+//                tbr.addAndGet(bytesRead);
                 if (bytesRead != totalSize) {
                     throw new IOException("Failed to read all bytes: toread=" + totalSize + " read=" + bytesRead
                             + " file=" + getIndex() + " off=" + byteOffsetInFile);
