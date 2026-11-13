@@ -45,9 +45,12 @@ public class LearningSynchronizer {
 
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
-    // Number of hash chunks with dirty leaves of the learner's backlog that can stay unfinished for long: two at
-    // each leaf rank, see leafBacklogThrottleThreshold()
-    private static final int OPEN_HASH_CHUNKS_MARGIN = 4;
+    /// The maximum number of hash chunks that hold requested dirty leaves, but can't be flushed yet, because the
+    /// hasher can't compute their hashes until more leaves arrive. At each of the two leaf ranks, that's the chunk
+    /// with the newest dirty leaf, and the chunk with the first dirty leaf, which is hashed only after the last
+    /// leaf arrives. The threshold keeps room for this many full chunks, see
+    /// [#leafBacklogThrottleThreshold(VirtualMapLearner)].
+    private static final int MAX_UNFINISHED_HASH_CHUNKS = 4;
 
     private final ThreadManager threadManager;
     private final VirtualMapLearnerSyncConfig syncConfig;
