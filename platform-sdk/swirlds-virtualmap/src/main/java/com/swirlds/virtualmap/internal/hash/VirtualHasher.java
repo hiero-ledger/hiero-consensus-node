@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
@@ -391,19 +392,17 @@ public final class VirtualHasher {
             final long lastLeafPath,
             final @Nullable VirtualHashListener listener) {
         requireNonNull(hashChunkPreloader);
+        // Consumes the dirty leaves on the current thread and submits hashing tasks to the hashing pool
+        final Supplier<ChunkHashTask> hashing =
+                () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, hashingPool);
+        // Runs the hashing on a new thread, so a blocked leaf iterator never holds a hashing pool thread
+        final Executor newThread = runnable -> new ThreadConfiguration(getStaticThreadManager())
+                .setSingleThreadName(CompositeThreadNameProvider.create("virtualmap", "async-hasher"))
+                .setRunnable(runnable)
+                .build()
+                .start();
         return CompletableFuture.supplyAsync(
-                () -> hash(
-                        hashChunkHeight,
-                        firstLeafPath,
-                        lastLeafPath,
-                        listener,
-                        () -> hashImpl(
-                                hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, hashingPool)),
-                runnable -> new ThreadConfiguration(getStaticThreadManager())
-                        .setSingleThreadName(CompositeThreadNameProvider.create("virtualmap", "async-hasher"))
-                        .setRunnable(runnable)
-                        .build()
-                        .start());
+                () -> hash(hashChunkHeight, firstLeafPath, lastLeafPath, listener, hashing), newThread);
     }
 
     /**
@@ -445,13 +444,10 @@ public final class VirtualHasher {
         requireNonNull(hashChunkPreloader);
         final ForkJoinPool pool =
                 Thread.currentThread() instanceof ForkJoinWorkerThread thread ? thread.getPool() : hashingPool;
-        return hash(
-                hashChunkHeight,
-                firstLeafPath,
-                lastLeafPath,
-                listener,
-                () -> pool.invoke(ForkJoinTask.adapt(
-                        () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool))));
+        // Consumes the dirty leaves in a task of the pool, which also runs the hashing tasks
+        final Supplier<ChunkHashTask> hashing = () -> pool.invoke(ForkJoinTask.adapt(
+                () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
+        return hash(hashChunkHeight, firstLeafPath, lastLeafPath, listener, hashing);
     }
 
     /// Notifies the listener, runs the given hashing, waits for all its tasks, and returns the root hash. Used by
