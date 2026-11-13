@@ -188,6 +188,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer();
         assertThat(buffer).hasSize(numBlocks);
         assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(startBlockNumber + numBlocks - 1);
+        assertThat(blockBufferService.getLastBlockClosed()).isEqualTo(startBlockNumber + numBlocks - 1);
         final long bufferSizeBeforeShutdown = bufferSizeInBytes.sum();
         assertThat(bufferSizeBeforeShutdown).isGreaterThan(0L);
 
@@ -196,6 +197,8 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
         // after shutdown, the buffer size should be cleared
         assertThat(bufferSizeInBytes).isZero();
+        assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(-1L);
+        assertThat(blockBufferService.getLastBlockClosed()).isEqualTo(-1L);
 
         blockBufferService.start(); // This should load buffer from disk
 
@@ -205,6 +208,8 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         // the buffer size in bytes should be the same as it was before the shutdown
         final long bufferSizeAfterRestart = bufferSizeInBytes.sum();
         assertThat(bufferSizeAfterRestart).isGreaterThan(0L).isEqualTo(bufferSizeBeforeShutdown);
+        assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(startBlockNumber + numBlocks - 1);
+        assertThat(blockBufferService.getLastBlockClosed()).isEqualTo(startBlockNumber + numBlocks - 1);
 
         // Verify all blocks were restored correctly
         for (long blockNum = startBlockNumber; blockNum < startBlockNumber + numBlocks; blockNum++) {
@@ -414,7 +419,13 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         shutdownService();
 
         blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
+        assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(-1L);
+        assertThat(blockBufferService.getLastBlockClosed()).isEqualTo(-1L);
+
         blockBufferService.start();
+
+        assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(startBlockNumber + numBlocks - 1);
+        assertThat(blockBufferService.getLastBlockClosed()).isEqualTo(startBlockNumber + numBlocks - 1);
 
         // Step 4: Simulate Block Node responding with STREAM_ITEMS_BEHIND
         // This would typically happen when the connection manager tries to stream

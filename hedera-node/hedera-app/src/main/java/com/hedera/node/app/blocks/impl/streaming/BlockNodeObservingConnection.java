@@ -225,7 +225,7 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
          */
         private boolean isIdle() {
             final long lastBlockAckedLocally = localHighestAckedBlock.get();
-            final long lastBlockClosed = bufferService.getLatestBlockClosed();
+            final long lastBlockClosed = bufferService.getLastBlockClosed();
             final long lastBlockAckedGlobally = bufferService.getHighestAckedBlockNumber();
 
             if (lastBlockAckedGlobally < lastBlockClosed && lastBlockAckedLocally < lastBlockClosed) {

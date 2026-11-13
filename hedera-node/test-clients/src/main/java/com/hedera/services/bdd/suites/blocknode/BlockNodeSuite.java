@@ -236,7 +236,7 @@ public class BlockNodeSuite {
                             "blockStream.buffer.ackedBlocksToRetain", "125"
                         })
             })
-    @Order(3)
+    @Order(4)
     final Stream<DynamicTest> mutliAckWithRollingBlockNodes() {
         return hapiTest(
                 doingContextual(spec -> {
@@ -256,8 +256,8 @@ public class BlockNodeSuite {
                 doingContextual(_ -> log.info("::TEST:: PHASE 1")),
                 waitUntilNextBlocks(15).withBackgroundTraffic(true),
                 // -- verify no block are pending acknowledgement
-                doingContextual(_ -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0")),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0"),
                 /*
                 Phase 2: Stop 1 Block Node (1 total down)
                   Stop one of the block nodes. Since there are 4 block nodes, and we require a minimum of 2 ACKs, we
@@ -269,8 +269,8 @@ public class BlockNodeSuite {
                 blockNode(0).shutDownImmediately(),
                 waitUntilNextBlocks(15),
                 // -- verify no block are pending acknowledgement
-                doingContextual(_ -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0")),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0"),
                 /*
                 Phase 3: Stop Another Block Node (2 total down)
                   Stop another block node. Each consensus node now has 2 block nodes it can connect to. One of the block
@@ -282,8 +282,8 @@ public class BlockNodeSuite {
                 blockNode(1).shutDownImmediately(),
                 waitUntilNextBlocks(15),
                 // -- verify no block are pending acknowledgement
-                doingContextual(_ -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0")),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0"),
                 /*
                 Phase 4: Stop Another Block Node (3 total down)
                   Stop another block node. Each consensus node will now have only 1 block node it can connect to. This
@@ -294,8 +294,8 @@ public class BlockNodeSuite {
                 doingContextual(_ -> log.info("::TEST:: PHASE 4")),
                 blockNode(2).shutDownImmediately(),
                 // -- verify the buffer is starting to become saturated
-                doingContextual(_ -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 10")),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 10"),
                 /*
                 Phase 5: Restart a Block Node (2 total down)
                   Start one of the down block nodes. When the block node is restarted, we should see each consensus
@@ -307,8 +307,8 @@ public class BlockNodeSuite {
                 doingContextual(_ -> log.info("::TEST:: PHASE 5")),
                 blockNode(2).startImmediately(),
                 // -- verify recovery by ensuring no blocks are pending acknowledgement after the BN restart
-                doingContextual(_ -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0")),
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0"),
                 /*
                 Phase 6: Restart Remaining Block Nodes (0 total down)
                   Restart the other two down block nodes. Additional observers should be established behind the scenes
@@ -317,15 +317,15 @@ public class BlockNodeSuite {
                 doingContextual(_ -> log.info("::TEST:: PHASE 6")),
                 blockNode(1).startImmediately(),
                 blockNode(0).startImmediately(),
-                doingContextual(_ -> assertBlockNodeCommsLogContainsTimeframe(
+                assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         Instant::now,
                         Duration.ofMinutes(1),
                         Duration.ofMinutes(1),
-                        "Desired number of observing connections reached")),
+                        "Desired number of observing connections reached"),
                 waitUntilNextBlocks(15),
-                doingContextual(_ -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0")));
+                assertBlockNodeCommsLogContainsTimeframe(
+                        byNodeId(0), Instant::now, Duration.ofMinutes(1), Duration.ofMinutes(1), "PendingAck: 0"));
     }
 
     private Stream<DynamicTest> validateHappyPath(

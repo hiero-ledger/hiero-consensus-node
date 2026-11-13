@@ -1562,21 +1562,21 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                     }
                 })) {
             // first attempt: Node 1 is selected, but its connection fails to initialize
-            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.UNKNOWN, null);
+            invoke_selectNewStreamingBlockNode(true, new AnyCriteria(), CloseReason.UNKNOWN, null);
 
             assertThat(mockConnection.constructed()).hasSize(1);
-            assertThat(activeConnectionRef()).hasNullValue();
+            assertThat(activeStreamingConnectionRef()).hasNullValue();
             assertThat(node1.isStreamingCandidate()).isFalse();
             assertThat(node2.isStreamingCandidate()).isTrue();
 
             // second attempt: Node 1 is cooling down, so the lower priority Node 2 is selected
-            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.UNKNOWN, null);
+            invoke_selectNewStreamingBlockNode(true, new AnyCriteria(), CloseReason.UNKNOWN, null);
 
             final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
             assertThat(createdConnections).hasSize(2);
             final BlockNodeStreamingConnection node2Connection = createdConnections.get(1);
             assertThat(node2Connection.configuration()).isEqualTo(node2Config);
-            assertThat(activeConnectionRef()).hasValue(node2Connection);
+            assertThat(activeStreamingConnectionRef()).hasValue(node2Connection);
             verify(node2Connection).updateConnectionState(ConnectionState.ACTIVE);
         }
 
@@ -2721,6 +2721,42 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(blockingIoExecutor);
         verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testTryNewObservingConnection_activationFailure() throws Throwable {
+        final BlockNode node = mockBlockNode("localhost", 8080, 1);
+
+        assertThat(activeObservingConnections()).isEmpty();
+
+        try (final MockedConstruction<BlockNodeObservingConnection> obsConnection =
+                mockConstruction(BlockNodeObservingConnection.class, (mock, _) -> {
+                    doThrow(new RuntimeException("welp, this ain't good"))
+                            .when(mock)
+                            .updateConnectionState(ConnectionState.ACTIVE);
+                    when(mock.connectionType()).thenReturn(ConnectionType.ACK_OBSERVING);
+                })) {
+            final boolean success = invoke_tryNewObservingConnection(node);
+
+            assertThat(success).isFalse();
+            assertThat(obsConnection.constructed()).hasSize(1);
+
+            final BlockNodeObservingConnection newConnection =
+                    obsConnection.constructed().getFirst();
+
+            verify(newConnection).initialize();
+            verify(newConnection).updateConnectionState(ConnectionState.ACTIVE);
+            verify(newConnection).close(CloseReason.INTERNAL_ERROR, true, EndStream.Code.ERROR);
+            verify(newConnection).connectionType();
+            verifyNoMoreInteractions(newConnection);
+        }
+
+        assertThat(activeObservingConnections()).isEmpty();
+
+        verify(metrics).recordConnectionCreateFailure(ConnectionType.ACK_OBSERVING);
+        verifyNoMoreInteractions(metrics);
+        verifyNoInteractions(blockingIoExecutor);
+        verifyNoInteractions(bufferService);
     }
 
     @Test

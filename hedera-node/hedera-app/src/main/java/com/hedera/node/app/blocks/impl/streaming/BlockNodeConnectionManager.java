@@ -1276,10 +1276,26 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             return false;
         }
 
-        newConnection.updateConnectionState(ConnectionState.ACTIVE);
+        boolean wasSuccessful = true;
         final BlockNodeObservingConnection oldConnection = activeObservingConnections.put(node, newConnection);
+        // activating the connection should happen AFTER the connection has been inserted into the connection map
+        // this is to avoid a scenario where the connection fails upon activation, and we insert a dead-on-arrival
+        // connection into the tracking map
+        try {
+            newConnection.updateConnectionState(ConnectionState.ACTIVE);
+        } catch (final Exception e) {
+            logger.warn("{} Failed to activate observer - suppressing", newConnection, e);
+            activeObservingConnections.remove(node, newConnection);
+            blockStreamMetrics.recordConnectionCreateFailure(newConnection.connectionType());
+            // depending on the failure we may or may not be able to send an EndStream message, so err on the side of
+            // caution and pass in an EndStream code so we attempt to send it if possible
+            newConnection.close(CloseReason.INTERNAL_ERROR, true, EndStream.Code.ERROR);
+            wasSuccessful = false;
+        }
+
+        // regardless of whether the new connection failed or not, if there was another connection this new one meant
+        // to replace, proceed with cleaning it up. granted, if we've done our job well this shouldn't be possible
         if (oldConnection != null) {
-            // this _shouldn't_ happen if everything else is working as expected, but be defensive just in case
             try {
                 oldConnection.close(CloseReason.NEW_CONNECTION, true, EndStream.Code.RESET);
             } catch (final Exception e) {
@@ -1288,7 +1304,7 @@ public class BlockNodeConnectionManager extends BlockStreamingBase {
             }
         }
 
-        return true;
+        return wasSuccessful;
     }
 
     /**

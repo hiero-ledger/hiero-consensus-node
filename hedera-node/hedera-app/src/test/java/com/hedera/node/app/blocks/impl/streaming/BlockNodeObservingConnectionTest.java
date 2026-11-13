@@ -491,7 +491,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService, times(3)).getHighestAckedBlockNumber();
-        verify(bufferService).getLatestBlockClosed();
+        verify(bufferService).getLastBlockClosed();
         verify(metrics).recordRequestSendFailure(ConnectionType.ACK_OBSERVING);
         verify(metrics).recordRequestEndStreamSent(ConnectionType.ACK_OBSERVING, EndStream.Code.ERROR);
         verify(metrics).recordConnectionClosed(ConnectionType.ACK_OBSERVING, CloseReason.CONNECTION_ERROR);
@@ -519,7 +519,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
 
         verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService, times(2)).getHighestAckedBlockNumber();
-        verify(bufferService).getLatestBlockClosed();
+        verify(bufferService).getLastBlockClosed();
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
         verifyNoInteractions(connectionManager);
@@ -556,7 +556,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
 
         verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService, times(2)).getHighestAckedBlockNumber();
-        verify(bufferService).getLatestBlockClosed();
+        verify(bufferService).getLastBlockClosed();
         verify(metrics).recordRequestLatency(eq(ConnectionType.ACK_OBSERVING), anyLong());
         verify(metrics).recordRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.ACKNOWLEDGE_ONLY);
         verify(requestCall).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
@@ -619,7 +619,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
                 .recordRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.ACKNOWLEDGE_ONLY);
         verify(requestCall, times(numAckOnlyRequests.get()))
                 .sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
-        verify(bufferService, atLeastOnce()).getLatestBlockClosed();
+        verify(bufferService, atLeastOnce()).getLastBlockClosed();
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(connectionManager);
@@ -631,7 +631,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         activateConnection();
         final Object worker = createWorker();
 
-        when(bufferService.getLatestBlockClosed()).thenReturn(10L);
+        when(bufferService.getLastBlockClosed()).thenReturn(10L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
         localHighestAckedBlock().set(10L);
         latestAckUpdateMillis().set(1767281400000L);
@@ -641,7 +641,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         assertThat(isIdle).isFalse();
         assertThat(connectionState()).hasValue(ConnectionState.ACTIVE); // connection should remain active
 
-        verify(bufferService).getLatestBlockClosed();
+        verify(bufferService).getLastBlockClosed();
         verify(bufferService).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(bufferService);
     }
@@ -651,7 +651,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         activateConnection();
         final Object worker = createWorker();
 
-        when(bufferService.getLatestBlockClosed()).thenReturn(10L);
+        when(bufferService.getLastBlockClosed()).thenReturn(10L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(9L);
         localHighestAckedBlock().set(9L);
         latestAckUpdateMillis().set(System.currentTimeMillis() - 10);
@@ -663,7 +663,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         assertThat(connection.closeReason()).isNull();
 
         verify(bufferService).getHighestAckedBlockNumber();
-        verify(bufferService).getLatestBlockClosed();
+        verify(bufferService).getLastBlockClosed();
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(requestCall);
     }
@@ -673,7 +673,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         activateConnection();
         final Object worker = createWorker();
 
-        when(bufferService.getLatestBlockClosed()).thenReturn(10L);
+        when(bufferService.getLastBlockClosed()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(11L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(9L);
 
@@ -693,7 +693,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         assertThat(localHighestAckedBlock()).hasValue(9L);
         assertThat(latestAckUpdateMillis()).hasValue(-1L);
 
-        verify(bufferService, times(2)).getLatestBlockClosed();
+        verify(bufferService, times(2)).getLastBlockClosed();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService, times(4)).getHighestAckedBlockNumber();
         verifyNoMoreInteractions(bufferService);

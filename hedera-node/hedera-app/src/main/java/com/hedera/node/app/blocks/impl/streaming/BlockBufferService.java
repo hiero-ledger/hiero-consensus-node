@@ -78,7 +78,7 @@ public class BlockBufferService extends BlockStreamingBase {
     /**
      * This tracks the latest (highest) block that has been closed.
      */
-    private final AtomicLong latestBlockClosed = new AtomicLong(Long.MIN_VALUE);
+    private final AtomicLong lastBlockClosed = new AtomicLong(Long.MIN_VALUE);
     /**
      * This tracks the highest block number that has been acknowledged by the connected block node. This is kept
      * separately instead of individual acknowledgement tracking on a per-block basis because it is possible that after
@@ -235,6 +235,7 @@ public class BlockBufferService extends BlockStreamingBase {
         highestAckedBlockNumber.set(Long.MIN_VALUE);
         highestAcknowledgementByBlockNode.clear();
         lastProducedBlockNumber.set(-1);
+        lastBlockClosed.set(Long.MIN_VALUE);
         earliestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResultRef.set(PruneResult.NIL);
         bufferSizeInBytes.reset();
@@ -424,7 +425,7 @@ public class BlockBufferService extends BlockStreamingBase {
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
         blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
         blockState.closeBlock();
-        latestBlockClosed.updateAndGet(old -> Math.max(old, blockNumber));
+        lastBlockClosed.updateAndGet(old -> Math.max(old, blockNumber));
     }
 
     /**
@@ -588,7 +589,7 @@ public class BlockBufferService extends BlockStreamingBase {
 
         if (orderedBlockAcks.size() < minAcknowledgementsRequired) {
             logger.warn(
-                    "Not enough unique acknowledgements received to reach block acknowledgement threshold (block: {}, received: {}, threshold: {})",
+                    "Not enough unique acknowledgements received to reach block acknowledgement threshold (received: {}, threshold: {})",
                     orderedBlockAcks.size(),
                     minAcknowledgementsRequired);
             return getHighestAckedBlockNumber();
@@ -704,8 +705,8 @@ public class BlockBufferService extends BlockStreamingBase {
      * Retrieves the latest (highest) block number that was closed.
      * @return the latest block closed or -1 if no blocks have been closed yet
      */
-    public long getLatestBlockClosed() {
-        final long latest = latestBlockClosed.get();
+    public long getLastBlockClosed() {
+        final long latest = lastBlockClosed.get();
         return latest == Long.MIN_VALUE ? -1 : latest;
     }
 
@@ -796,6 +797,8 @@ public class BlockBufferService extends BlockStreamingBase {
                 ++numBlocksLoaded;
                 bufferSizeInBytes.add(blockItemTotalSize);
                 totalBlockSizeLoaded = totalBlockSizeLoaded.add(BigInteger.valueOf(blockItemTotalSize));
+                lastProducedBlockNumber.updateAndGet(old -> Math.max(old, block.blockNumber()));
+                lastBlockClosed.updateAndGet(old -> Math.max(old, block.blockNumber()));
             }
         }
 
