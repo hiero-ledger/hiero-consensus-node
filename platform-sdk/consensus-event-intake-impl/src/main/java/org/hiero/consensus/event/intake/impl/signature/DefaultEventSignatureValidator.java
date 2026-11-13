@@ -126,8 +126,19 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             return false;
         }
 
-        final boolean isSignatureValid =
-                signatureVerifier.verifySignature(event.getHash().getBytes(), event.getSignature(), publicKey);
+        boolean isSignatureValid = false;
+        try {
+            isSignatureValid =
+                    signatureVerifier.verifySignature(event.getHash().getBytes(), event.getSignature(), publicKey);
+        } catch (final Exception e) {
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Event failed signature verification with exception. Event: {}, Signature: {}, Hash: {}",
+                    event,
+                    event.getSignature().toHex(),
+                    event.getHash(),
+                    e);
+        }
 
         if (!isSignatureValid) {
             rateLimitedLogger.error(
