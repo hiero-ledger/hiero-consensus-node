@@ -635,11 +635,11 @@ public final class CantonProofVerifier implements ClprVerifier {
      * Port of {@code CantonVerifier.verifyBundle}. {@code proofBytes} = RLP {@code [verdict, opening, createdIndex,
      * mediatorSet, rotations, manifest, payloads]}.
      *
-     * <p><b>Rotations (PR A).</b> {@code rotations} must be empty ({@code 0x80} or {@code 0xc0}, as the reference's
-     * {@code isEmpty}); anything else throws {@code RotationsNotSupported}, as applying topology rotations is a future
-     * task. With empty rotations the reference's {@code verifyBundleVerdict} still completes a pending Logical
-     * Synchronizer Upgrade when the verdict's request id is above the anchor's upgrade time (the verdict is then
-     * checked against the successor synchronizer and a new anchor is returned), and that is ported here.
+     * <p><b>Rotations.</b> {@code rotations} is bundle field 4: empty ({@code 0x80} or {@code 0xc0}, as the
+     * reference's {@code isEmpty}), or the topology rotations that {@link CantonTopologyVerifier#applyRotations}
+     * applies to the anchor and the mediator set before the verdict is checked. A pending Logical Synchronizer
+     * Upgrade is completed when the verdict's request id is above the anchor's upgrade time. All of this is
+     * {@link CantonVerdictVerifier#verifyBundleVerdict}; a new anchor is returned if it changed.
      *
      * @param proofBytes the bundle proof
      * @param trustAnchor the channel's anchor, {@link CantonAnchor#decode}
@@ -671,12 +671,12 @@ public final class CantonProofVerifier implements ClprVerifier {
         if (verdict.size() != 2) {
             throw CantonProofException.invalidPayloadShape("verdict has " + verdict.size() + " items");
         }
-        final BundleVerdict bv = verifyBundleVerdict(
+        final CantonVerdictVerifier.BundleVerdictResult bv = CantonVerdictVerifier.verifyBundleVerdict(
                 CantonRlp.readBytes(verdict.get(0)),
                 bytesOf(verdict.get(1)),
                 mediatorSet,
-                anchor,
-                fields.get(BUNDLE_ROTATIONS_INDEX));
+                trustAnchor,
+                bytesOf(fields.get(BUNDLE_ROTATIONS_INDEX)));
         final CantonAnchor.Anchor current = bv.anchor();
 
         final OpenedView opened = openTree(bytesOf(fields.get(BUNDLE_OPENING_INDEX)), current, bv.rootHash());
@@ -712,66 +712,6 @@ public final class CantonProofVerifier implements ClprVerifier {
         return content.build();
     }
 
-    /** The verdict's outcome: request id, root hash, the anchor to open under, and the new anchor if it changed. */
-    private record BundleVerdict(long requestId, byte[] rootHash, CantonAnchor.Anchor anchor, byte[] newTrustAnchor) {}
-
-    /**
-     * {@code CantonVerdictVerifier.verifyBundleVerdict} for empty {@code rotations}: asserts they are empty,
-     * completes a pending upgrade when the verdict is past its upgrade time, then checks the verdict.
-     */
-    private static BundleVerdict verifyBundleVerdict(
-            final byte[] typedContent,
-            final byte[] signatures,
-            final byte[] mediatorSet,
-            final CantonAnchor.Anchor anchor,
-            final Slice rotations) {
-        if (!CantonRlp.isEmpty(rotations)) {
-            throw CantonProofException.rotationsNotSupported();
-        }
-        final CantonProto.Verdict v = CantonProto.parseVerdict(typedContent);
-        final boolean upgraded = !anchor.successorSynchronizerId().isEmpty()
-                && Long.compareUnsigned(v.requestId(), anchor.upgradeTime()) > 0;
-        final CantonAnchor.Anchor effective = upgraded
-                ? new CantonAnchor.Anchor(
-                        anchor.successorSynchronizerId(),
-                        anchor.lastRequestId(),
-                        anchor.mediatorGroup(),
-                        anchor.synchronizerNamespace(),
-                        anchor.ownersHash(),
-                        anchor.mediatorsHash(),
-                        "",
-                        0L,
-                        0,
-                        anchor.app())
-                : anchor;
-        final CantonVerdictVerifier.VerdictResult r = CantonVerdictVerifier.verifyVerdict(
-                typedContent,
-                signatures,
-                mediatorSet,
-                effective.synchronizerId().getBytes(StandardCharsets.UTF_8),
-                effective.lastRequestId());
-        if (!upgraded) {
-            return new BundleVerdict(r.requestId(), r.rootHash(), effective, new byte[0]);
-        }
-        final CantonAnchor.Anchor next = new CantonAnchor.Anchor(
-                effective.synchronizerId(),
-                r.requestId(),
-                effective.mediatorGroup(),
-                effective.synchronizerNamespace(),
-                effective.ownersHash(),
-                effective.mediatorsHash(),
-                "",
-                0L,
-                0,
-                effective.app());
-        log.info(
-                "Canton trust anchor upgraded from {} to {} (request id {})",
-                effective.synchronizerId(),
-                next.synchronizerId(),
-                r.requestId());
-        return new BundleVerdict(r.requestId(), r.rootHash(), effective, CantonAnchor.encode(next));
-    }
-
     /** {@code RLP.readUint256} as an index: a value beyond {@code int} is out of range of any created list. */
     private static int createdIndex(final Slice item) {
         final BigInteger v = new BigInteger(1, CantonRlp.readBytes32(item));
@@ -798,14 +738,6 @@ public final class CantonProofVerifier implements ClprVerifier {
             out.add(CantonRlp.readBytes(s));
         }
         return out;
-    }
-
-    private static ClprMessagePayload parsePayload(final byte[] payload) {
-        try {
-            return ClprMessagePayload.PROTOBUF.parseStrict(Bytes.wrap(payload).toReadableSequentialData());
-        } catch (final ParseException e) {
-            throw CantonProofException.cantonProtoMalformed("payload does not parse: " + e.getMessage());
-        }
     }
 
     /** The endpoint manifest that the write committed to by {@code manifestHash}. */

@@ -264,8 +264,7 @@ class CantonProofVerifierBundleTest {
 
     @Test
     void malformedNonEmptyRotationsRejected() {
-        // Under PR B rotations are applied; a non-empty value that is not RLP [ownerSet, [rotation…]] is rejected
-        // by CantonTopologyVerifier.applyRotations (here: a one-item list, not the required two).
+        // This is a one-item list, not the required two
         final var b = new Bundle().rotations(rlpList(rlpString(new byte[] {1})));
         assertRejects("InvalidPayloadShape", () -> verify(b));
     }
