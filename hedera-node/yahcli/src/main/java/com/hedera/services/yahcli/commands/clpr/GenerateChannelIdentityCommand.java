@@ -24,9 +24,12 @@ import picocli.CommandLine.ParentCommand;
  * (use {@code ownershipCommitment}) and later {@code complete-channel}
  * (use {@code channelId}, {@code publicKey}, {@code signature}, {@code signatureScheme}).
  *
- * <p>{@code privateKey} is included so the operator can rotate the channel key later,
+ * <p>The private key is <em>not</em> part of the JSON bundle. It is written to a companion
+ * {@code <out>.key} file (owner-only, 0600) so the operator can rotate the channel key later,
  * sign config updates, etc. Treat it as a secret. For ED25519 it is the 32-byte seed; for
- * ECDSA_SECP256K1 it is the 32-byte secp256k1 scalar.
+ * ECDSA_SECP256K1 it is the 32-byte secp256k1 scalar, hex-encoded with a {@code 0x} prefix.
+ * Existing files at either path are never overwritten; they are renamed to
+ * {@code <name>.<epochMillis>.bak} first.
  */
 @Command(
         name = "generate-channel-identity",
@@ -50,7 +53,7 @@ public class GenerateChannelIdentityCommand implements Callable<Integer> {
     @Option(
             names = {"--out"},
             paramLabel = "<path>",
-            description = "If set, writes the JSON bundle to this file instead of stdout.")
+            description = "Required. Path to write the JSON bundle to; the private key is written to <path>.key.")
     String outFile;
 
     @Override
@@ -101,8 +104,7 @@ public class GenerateChannelIdentityCommand implements Callable<Integer> {
 
         final var bundlePath = Path.of(outFile);
         final var keyPath = Path.of(outFile + ".key");
-        ClprArgs.writeSecure(keyPath, "0x" + hex.formatHex(keys.privateKeyBytes()) + "\n");
-        ClprArgs.writeSecure(bundlePath, json);
+        ClprArgs.writeBundleAndKey(bundlePath, json, keyPath, "0x" + hex.formatHex(keys.privateKeyBytes()) + "\n");
         System.out.println("Wrote channel identity bundle to " + outFile);
         System.out.println("Wrote private key to " + keyPath + " — keep it secret");
         return 0;

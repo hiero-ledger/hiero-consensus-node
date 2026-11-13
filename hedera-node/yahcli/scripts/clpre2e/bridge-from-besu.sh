@@ -39,6 +39,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=key-files.sh
+. "${SCRIPT_DIR}/key-files.sh"
 
 # Layout: SCRIPT_DIR = <hiero-repo>/hedera-node/yahcli/scripts/clpre2e
 # Walk up 4 levels to land on the hiero repo root (so REPO_ROOT/hedera-node exists).
@@ -80,8 +82,6 @@ PAYER="${PAYER:-2}"
 LOCKED_STAKE="${LOCKED_STAKE:-100000000}"
 PROTOCOL_VERSION="${PROTOCOL_VERSION:-1}"
 CONFIG_BLOCK_TAG="${CONFIG_BLOCK_TAG:-finalized}"
-PEER_PK_HEX="${PEER_PK:-0x00000000000000000000000000000000000000000000000000000000000a11ce}"
-CONNECTOR_PK_HEX="${CONNECTOR_PK:-0x0000000000000000000000000000000000000000000000000000000000c044ec}"
 
 PASS_THROUGH_AUTH="${PASS_THROUGH_AUTH:-${REPO_ROOT}/hedera-node/test-clients/src/main/resources/contract/contracts/PassThroughAuth/PassThroughAuth.bin}"
 # ledger-config.json ships with yahcli (run-clpr-end-to-end.sh writes it).
@@ -108,6 +108,22 @@ step()   { printf "${YELLOW}  -- %s${RESET}\n" "$*"; }
 ok()     { printf "${GREEN}     OK${RESET} %s\n" "$*"; }
 note()   { printf "       %s\n" "$*"; }
 die()    { printf "${RED}     FAIL${RESET} %s\n" "$*" >&2; exit 1; }
+
+# Identity keys come from files (never from env vars or the command line). Unset = the well-known
+# dev defaults that match the clpr-smart-contracts scripts.
+if [[ -n "${PEER_PK:-}" || -n "${CONNECTOR_PK:-}" ]]; then
+    die "PEER_PK / CONNECTOR_PK are no longer supported; put each key in a 0600 file and set PEER_PK_FILE / CONNECTOR_PK_FILE"
+fi
+if [[ -n "${PEER_PK_FILE:-}" ]]; then
+    PEER_PK_HEX="$(kf_read_key_file "${PEER_PK_FILE}")" || die "bad PEER_PK_FILE"
+else
+    PEER_PK_HEX="0x00000000000000000000000000000000000000000000000000000000000a11ce"
+fi
+if [[ -n "${CONNECTOR_PK_FILE:-}" ]]; then
+    CONNECTOR_PK_HEX="$(kf_read_key_file "${CONNECTOR_PK_FILE}")" || die "bad CONNECTOR_PK_FILE"
+else
+    CONNECTOR_PK_HEX="0x0000000000000000000000000000000000000000000000000000000000c044ec"
+fi
 
 shellquote() {
     local out=""
@@ -242,9 +258,20 @@ if [[ -z "${PRIVATE_KEY}" ]]; then
     PRIVATE_KEY="${ANVIL_DEV_KEY_0}"
 fi
 
+# Sign with `cast` through a throwaway encrypted keystore (random password, 0700 dir, removed on
+# exit) instead of `--private-key`, which would expose the key on the command line to every process.
+CAST_KS_DIR="$(mktemp -d)"
+trap 'rm -rf "${CAST_KS_DIR}"' EXIT
+chmod 700 "${CAST_KS_DIR}"
+(umask 177 && head -c 24 /dev/urandom | base64 > "${CAST_KS_DIR}/password")
+printf '%s' "${PRIVATE_KEY}" | python3 "${TOOLS_DIR}/write-eth-keystore.py" \
+    --out "${CAST_KS_DIR}/keystore.json" --password-file "${CAST_KS_DIR}/password" \
+    || die "could not create a keystore from PRIVATE_KEY"
+CAST_SIGNER=(--keystore "${CAST_KS_DIR}/keystore.json" --password-file "${CAST_KS_DIR}/password")
+
 # Validator address = address of the deployer key. On dev Besu the deployer
 # is the QBFT validator; in prod you'd override with the real validator.
-VALIDATOR="${VALIDATOR:-$(cast wallet address --private-key "${PRIVATE_KEY}" 2>/dev/null || true)}"
+VALIDATOR="${VALIDATOR:-$(cast wallet address "${CAST_SIGNER[@]}" 2>/dev/null || true)}"
 [[ -n "${VALIDATOR}" ]] || die "could not derive validator address — bad PRIVATE_KEY?"
 
 # Code hash of the live ClprService bytecode.
@@ -262,8 +289,8 @@ echo "  CONNECTOR_ID   : ${CONNECTOR_ID}"
 echo "  VALIDATOR      : ${VALIDATOR}"
 echo "  CODE_HASH      : ${CODE_HASH}"
 echo "  PEER_CHAIN_ID  : ${PEER_CHAIN_ID}"
-echo "  PEER_PK        : ${PEER_PK_HEX}"
-echo "  CONNECTOR_PK   : ${CONNECTOR_PK_HEX}"
+echo "  PEER_PK        : (set; not printed)"
+echo "  CONNECTOR_PK   : (set; not printed)"
 ok "Besu state resolved"
 
 # ─── [1/9] Push local Hiero ledger configuration ──────────────────────────
@@ -344,7 +371,7 @@ if [[ "${ONCHAIN_SERVICE_ADDRESS_LC}" != "${CLPR_SERVICE_LC}" ]]; then
         "[]" \
         "0x" \
         "0x" \
-        --private-key "${PRIVATE_KEY}" \
+        "${CAST_SIGNER[@]}" \
         --rpc-url "${BESU_RPC}" \
         | tee "${LOG_DIR}/02a-update-besu-ledger-config.log" >/dev/null
     ok "updated Besu ledger configuration serviceAddress"
@@ -367,10 +394,11 @@ note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}…
 
 # ─── [3/9] Generate channel identity bundle ────────────────────────────
 header "[3/9] generate channel identity (using PEER_PK from smart-contracts side)"
+kf_write_key_file "${CHANNEL_FILE}.key" "${PEER_PK_HEX}"
 "${SCRIPT_DIR}/gen-channel-identity.sh" \
     --channel-id "${CHANNEL_ID}" \
-    --priv    "${PEER_PK_HEX}" \
-    --out     "${CHANNEL_FILE}" >/dev/null
+    --key-file   "${CHANNEL_FILE}.key" \
+    --out        "${CHANNEL_FILE}" >/dev/null
 CHANNEL_COMMIT="$(jq -r '.ownershipCommitment' "${CHANNEL_FILE}")"
 [[ -n "${CHANNEL_COMMIT}" && "${CHANNEL_COMMIT}" != "null" ]] || die "no ownershipCommitment in ${CHANNEL_FILE}"
 note "ownershipCommitment: ${CHANNEL_COMMIT}"
@@ -392,16 +420,19 @@ yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "complete-channel" "${LOG_DIR}/05-
 
 # ─── [6/9] Build connector identity bundle (using CONNECTOR_PK + salt=0) ─
 header "[6/9] generate connector identity (using CONNECTOR_PK from smart-contracts side)"
-cat > "${CONNECTOR_FILE}" <<JSON
+# Public-only stub (no key material); the private key goes to ${CONNECTOR_FILE}.key (0600).
+CONNECTOR_STUB="$(mktemp)"
+cat > "${CONNECTOR_STUB}" <<JSON
 {
   "channelId":   "${CHANNEL_ID}",
-  "privateKey":     "${CONNECTOR_PK_HEX}",
   "signatureScheme":"ECDSA_SECP256K1",
   "salt":           "0x0000000000000000000000000000000000000000000000000000000000000000"
 }
 JSON
-python3 "${SIGN_CONNECTOR_PY}" --in-place "${CONNECTOR_FILE}" \
+kf_write_key_file "${CONNECTOR_FILE}.key" "${CONNECTOR_PK_HEX}"
+python3 "${SIGN_CONNECTOR_PY}" "${CONNECTOR_STUB}" --key-file "${CONNECTOR_FILE}.key" --out "${CONNECTOR_FILE}" \
     | tee "${LOG_DIR}/06-sign-connector.log" >/dev/null
+rm -f "${CONNECTOR_STUB}"
 CONNECTOR_COMMIT="$(jq -r '.commitment'  "${CONNECTOR_FILE}")"
 CONNECTOR_ID_HIERO="$(jq -r '.connectorId' "${CONNECTOR_FILE}")"
 [[ -n "${CONNECTOR_COMMIT}" && "${CONNECTOR_COMMIT}" != "null" ]] || die "no commitment in ${CONNECTOR_FILE}"
