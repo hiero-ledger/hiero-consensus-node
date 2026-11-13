@@ -74,7 +74,8 @@ public class AuthorizerImpl implements Authorizer {
      * @return true if the id has an account number in this ledger's shard and realm
      */
     private boolean isOnThisLedger(@NonNull final AccountID accountID) {
-        return accountID.hasAccountNum() && accountID.shardNum() == shard && accountID.realmNum() == realm;
+        return accountID.hasAccountNum()
+                && LedgerScope.sameShardAndRealm(accountID.shardNum(), accountID.realmNum(), shard, realm);
     }
 
     @Override
@@ -92,6 +93,9 @@ public class AuthorizerImpl implements Authorizer {
         }
         if (!givenPayer.hasAccountNum()) {
             return AUTHORIZATION_FAILED;
+        }
+        if (!isOnThisLedger(givenPayer)) {
+            return NOT_SUPPORTED;
         }
         final long num = givenPayer.accountNumOrThrow();
         final var permissionConfig = configProvider.getConfiguration().getConfigData(ApiPermissionConfig.class);

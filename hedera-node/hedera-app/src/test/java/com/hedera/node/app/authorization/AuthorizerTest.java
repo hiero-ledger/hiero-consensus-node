@@ -160,6 +160,21 @@ final class AuthorizerTest {
         assertThat(authorizer.isAuthorized(accountId(1, 0, 2), hapiFunction)).isFalse();
     }
 
+    @Test
+    @DisplayName("A foreign-shard account number inside an API permission range is not authorized")
+    void foreignShardAccountInPermissionRangeIsNotAuthorized() {
+        configProvider = () -> new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("createTopic", "1-1234")
+                        .getOrCreateConfig(),
+                1);
+        final var authorizer = new AuthorizerImpl(configProvider, privilegesVerifier);
+
+        assertThat(authorizer.isAuthorized(accountId(0, 0, 1234), hapiFunction)).isTrue();
+        assertThat(authorizer.isAuthorized(accountId(1, 0, 1234), hapiFunction)).isFalse();
+        assertThat(authorizer.isAuthorized(accountId(0, 1, 1234), hapiFunction)).isFalse();
+    }
+
     private static AccountID accountId(final long shard, final long realm, final long num) {
         return AccountID.newBuilder()
                 .shardNum(shard)

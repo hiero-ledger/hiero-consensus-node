@@ -11,6 +11,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.file.SystemDeleteTransactionBody;
 import com.hedera.hapi.node.file.SystemUndeleteTransactionBody;
@@ -20,6 +21,7 @@ import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -37,6 +39,8 @@ public class PrivilegesVerifier {
     private final AccountsConfig accountsConfig;
     private final FilesConfig filesConfig;
     private final long numReservedSystemEntities;
+    private final long shard;
+    private final long realm;
 
     @Inject
     public PrivilegesVerifier(@NonNull final ConfigProvider configProvider) {
@@ -47,6 +51,9 @@ public class PrivilegesVerifier {
         this.filesConfig = configuration.getConfigData(FilesConfig.class);
         this.numReservedSystemEntities =
                 configuration.getConfigData(LedgerConfig.class).numReservedSystemEntities();
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        this.shard = hederaConfig.shard();
+        this.realm = hederaConfig.realm();
     }
 
     /**
@@ -69,20 +76,17 @@ public class PrivilegesVerifier {
 
             // Authorization privileges for file updates and appends
             case FILE_UPDATE ->
-                checkFileChange(
-                        payerId, txBody.fileUpdateOrThrow().fileIDOrThrow().fileNum());
+                checkFileChange(payerId, localNumber(txBody.fileUpdateOrThrow().fileIDOrThrow()));
             case FILE_APPEND ->
-                checkFileChange(
-                        payerId, txBody.fileAppendOrThrow().fileIDOrThrow().fileNum());
+                checkFileChange(payerId, localNumber(txBody.fileAppendOrThrow().fileIDOrThrow()));
             // Authorization for crypto updates
             case CRYPTO_UPDATE -> checkCryptoUpdate(payerId, txBody.cryptoUpdateAccountOrThrow());
 
             // Authorization for deletes
             case FILE_DELETE ->
-                checkEntityDelete(txBody.fileDeleteOrThrow().fileIDOrThrow().fileNum());
+                checkEntityDelete(localNumber(txBody.fileDeleteOrThrow().fileIDOrThrow()));
             case CRYPTO_DELETE ->
-                checkCryptoDelete(
-                        effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
+                checkCryptoDelete(localNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
             case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_CLOSE_CHANNEL, CLPR_EVICT_PEER_ENDPOINT ->
                 checkClprAdmin(payerId);
@@ -91,44 +95,44 @@ public class PrivilegesVerifier {
     }
 
     private boolean isSuperUser(@NonNull final AccountID accountID) {
-        final long accountNum = effectiveNumber(accountID);
+        final long accountNum = payerNumber(accountID);
         return accountNum == accountsConfig.treasury() || accountNum == accountsConfig.systemAdmin();
     }
 
     private boolean isTreasury(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.treasury();
+        return localNumber(accountID) == accountsConfig.treasury();
     }
 
     private boolean hasSoftwareUpdatePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.softwareUpdateAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.softwareUpdateAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasFreezePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.freezeAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.freezeAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasSystemDeletePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.systemDeleteAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.systemDeleteAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasSystemUndeletePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.systemUndeleteAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.systemUndeleteAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasAddressBookPrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasExchangeRatePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.exchangeRatesAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.exchangeRatesAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasFeeSchedulePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.feeSchedulesAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.feeSchedulesAdmin() || isSuperUser(accountID);
     }
 
     private boolean hasNodeCreatePrivilege(@NonNull final AccountID accountID) {
-        return effectiveNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
+        return payerNumber(accountID) == accountsConfig.addressBookAdmin() || isSuperUser(accountID);
     }
 
     private SystemPrivilege checkFreeze(@NonNull final AccountID accountID) {
@@ -137,7 +141,7 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkSystemDelete(
             @NonNull final AccountID accountID, @NonNull final SystemDeleteTransactionBody op) {
-        final var entityNum = op.hasFileID() ? op.fileIDOrThrow().fileNum() : effectiveNumber(op.contractIDOrThrow());
+        final var entityNum = op.hasFileID() ? localNumber(op.fileIDOrThrow()) : localNumber(op.contractIDOrThrow());
         if (isSystemEntity(entityNum)) {
             return IMPERMISSIBLE;
         }
@@ -146,7 +150,7 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkSystemUndelete(
             @NonNull final AccountID accountID, @NonNull final SystemUndeleteTransactionBody op) {
-        final var entityNum = op.hasFileID() ? op.fileIDOrThrow().fileNum() : effectiveNumber(op.contractIDOrThrow());
+        final var entityNum = op.hasFileID() ? localNumber(op.fileIDOrThrow()) : localNumber(op.contractIDOrThrow());
         if (isSystemEntity(entityNum)) {
             return IMPERMISSIBLE;
         }
@@ -182,11 +186,11 @@ public class PrivilegesVerifier {
             @NonNull final AccountID payerId, @NonNull final CryptoUpdateTransactionBody op) {
         // When dispatching a hollow account finalization, the target account id is set to DEFAULT
         final var targetId = op.accountIDToUpdateOrElse(AccountID.DEFAULT);
-        final long targetNum = effectiveNumber(targetId);
+        final long targetNum = localNumber(targetId);
         if (!isSystemEntity(targetNum)) {
             return UNNECESSARY;
         } else {
-            final long payerNum = payerId.accountNumOrElse(0L);
+            final long payerNum = payerNumber(payerId);
             if (payerNum == accountsConfig.treasury()) {
                 return AUTHORIZED;
             } else if (payerNum == accountsConfig.systemAdmin()) {
@@ -243,6 +247,53 @@ public class PrivilegesVerifier {
         } else {
             return accountID.accountNumOrElse(0L);
         }
+    }
+
+    /**
+     * Given a payer account id, returns the effective number for privileges checks, or {@code 0} (which is never a
+     * privileged account) if the account is not on this node's configured shard and realm. This keeps privileged
+     * checks consistent with {@code AuthorizerImpl#isSuperUser}, so e.g. {@code 1.0.2} is never treated as the
+     * treasury {@code 0.0.2}.
+     * @param accountID the payer {@link AccountID} to check
+     * @return the effective number for privileges checks
+     */
+    private long payerNumber(@NonNull final AccountID accountID) {
+        return scopedAccountNumber(accountID);
+    }
+
+    /**
+     * Target account number for privilege checks, or {@code 0} when the account is not on this node's shard and realm.
+     * Unlike {@link #payerNumber}, this is for the entity being acted on.
+     */
+    private long localNumber(@NonNull final AccountID accountID) {
+        return scopedAccountNumber(accountID);
+    }
+
+    /** Target file number, or {@code 0} when the file is not on this node's shard and realm. */
+    private long localNumber(@NonNull final FileID fileID) {
+        if (!onThisLedger(fileID.shardNum(), fileID.realmNum())) {
+            return 0L;
+        }
+        return fileID.fileNum();
+    }
+
+    /** Target contract number, or {@code 0} when the contract is not on this node's shard and realm. */
+    private long localNumber(@NonNull final ContractID contractID) {
+        if (!onThisLedger(contractID.shardNum(), contractID.realmNum())) {
+            return 0L;
+        }
+        return effectiveNumber(contractID);
+    }
+
+    private long scopedAccountNumber(@NonNull final AccountID accountID) {
+        if (!onThisLedger(accountID.shardNum(), accountID.realmNum())) {
+            return 0L;
+        }
+        return effectiveNumber(accountID);
+    }
+
+    private boolean onThisLedger(final long entityShard, final long entityRealm) {
+        return LedgerScope.sameShardAndRealm(entityShard, entityRealm, shard, realm);
     }
 
     private long effectiveNumber(@NonNull final ContractID contractID) {
