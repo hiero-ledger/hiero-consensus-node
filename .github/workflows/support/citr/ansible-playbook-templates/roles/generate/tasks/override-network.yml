@@ -1,0 +1,332 @@
+# SPDX-License-Identifier: Apache-2.0
+# These tasks will generate a override-network.json file for the Hedera Node to use.
+# The override-network.json file is used to configure the network to connect to a specific set of nodes and proxies.
+#
+# This change comes with Dynamic Address Book (DAB). The DAB is a feature in 0.59.x that allows the network to be more dynamic and flexible.
+#
+# Output files are generated in the following location#
+# mainnet/ansible/roles/hedera-docker/files/override-network/override-network-staging-sm.json
+# mainnet/ansible/roles/hedera-docker/files/override-network/override-network-staging-lg.json
+#
+#
+# See:
+# ----
+# https://github.com/hashgraph/infrastructure/issues/7487
+#
+#
+# Example invocation:
+# -------------------
+#   ansible-playbook -i inventory/staging-sm.yml \
+#      --extra-vars=@./vars/staging-sm.yml \
+#      --tags generate-override-network generate.yml
+#
+# Note: This task will only _generate_ the override-network.json file.
+#       To apply the override-network.json file to the target network, use the `apply-override-network` tag.
+#
+# An additional tag, `debug-override`, can be used in addition to `generate-override-network` to print verbose debug information.
+#
+
+## Initialize variables and validate input is non-production target
+- name: Ensure inventory_hostname is defined
+  ansible.builtin.assert:
+    that:
+      - inventory_hostname is defined
+    fail_msg: inventory_hostname is not defined
+  tags: generate-override-network
+
+- name: Ensure environment_name is defined
+  ansible.builtin.assert:
+    that:
+      - environment_name is defined
+    fail_msg: Environment_name is not defined!
+  tags: generate-override-network
+
+- name: Ensure environment_name is non-production
+  ansible.builtin.assert:
+    that:
+      - environment_name not in ['mainnet', 'testnet', 'previewnet']
+    fail_msg: environment_name must be a non-production environment
+  tags: generate-override-network
+
+- name: node_admin_key_override_pubkey is defined
+  ansible.builtin.assert:
+    that:
+      - node_admin_key_override_pubkey is defined
+    fail_msg: node_admin_key_override_pubkey is not defined
+  tags: generate-override-network
+
+- name: Initialize environment_name variable
+  ansible.builtin.set_fact:
+    environment_name: "{{ environment_name }}"
+  delegate_to: localhost
+  failed_when: environment_name is not defined
+  tags: generate-override-network
+
+## Prepare values for generating target override-network.json
+## The admin_key_override_pubkey is set for the environment in vars file
+- name: Convert admin override public key value from hex to base64
+  ansible.builtin.command: echo "{{ node_admin_key_override_pubkey | hex_to_b64 }}"
+  register: admin_key_to_hex_conversion_result
+  delegate_to: localhost
+  tags: generate-override-network
+  run_once: true
+
+## Validate presence of node private keys in keys-tls directory
+- name: stat private keys directory for {{ environment_name }} from {{ environment_keys_tls_directory }}
+  ansible.builtin.stat:
+    path: "roles/hedera-docker/files/keys-tls/{{ environment_keys_tls_directory }}"
+  register: env_private_keys
+  delegate_to: localhost
+  run_once: true
+  become: false
+  tags: generate-override-network
+
+- name: Assert presence of private keys directory
+  ansible.builtin.assert:
+    that:
+      - env_private_keys.stat.exists
+    fail_msg: "Private keys directory does not exist for {{ environment_name }} in {{ environment_keys_tls_directory }}"
+  delegate_to: localhost
+  run_once: true
+  tags: generate-override-network
+
+- name: Determine address_book_key_path tls key path for {{ environment_name }} from {{ environment_keys_tls_directory }}
+  ansible.builtin.set_fact:
+    address_book_key_path: "roles/hedera-docker/files/keys-tls/{{ environment_keys_tls_directory }}"
+  when: env_private_keys.stat.exists
+  delegate_to: localhost
+  run_once: true
+  tags: generate-override-network
+
+- name: Debug keys-tls key path
+  ansible.builtin.debug:
+    var: address_book_key_path
+  delegate_to: localhost
+  run_once: true
+  tags: debug-override
+
+## Prepare the dict of nodes and proxies
+- name: Initialize node_proxy_list
+  ansible.builtin.set_fact:
+    node_proxy_list: {}
+  delegate_to: localhost
+  run_once: true
+  tags: generate-override-network
+
+- name: Build proxy associations
+  ansible.builtin.set_fact:
+    node_proxy_list: >-
+      {{
+        node_proxy_list | combine({
+          hostvars[item].target_node: (
+            node_proxy_list.get(hostvars[item].target_node, [])
+            + [{
+              'node_number': hostvars[hostvars[item].target_node].NODE_NUM | default(0),
+              'node_id': hostvars[hostvars[item].target_node].NODE_ID,
+              'weight': hostvars[item].stake | default(10),
+              'proxy_ip': hostvars[item].ansible_host | ip_to_hex_b64,
+              'gossipEndpoint': hostvars[hostvars[item].target_node].ansible_host | ip_to_hex_b64,
+              'adminKey': admin_key_to_hex_conversion_result.stdout
+            }]
+          )
+        })
+      }}
+  loop: "{{ groups.proxy | default([]) }}"
+  when: hostvars[item].target_node is defined
+  delegate_to: localhost
+  run_once: true
+  tags: generate-override-network
+
+- name: Verify proxy target nodes exist in network group
+  ansible.builtin.assert:
+    that:
+      - hostvars[item].target_node in groups.network
+    fail_msg: "Proxy {{ item }} has invalid target_node {{ hostvars[item].target_node }}"
+  loop: "{{ groups.proxy | default([]) }}"
+  when: hostvars[item].target_node is defined
+  run_once: true
+  tags: generate-override-network
+
+## Gather and prepare public keys for the target nodes
+- name: stat public key dir for {{ environment_name }} from {{ environment_keys_signing_directory }}
+  ansible.builtin.stat:
+    path: "roles/hedera-docker/files/keys-signing/{{ environment_keys_signing_directory }}"
+  register: public_keys_dir
+  delegate_to: localhost
+  run_once: true
+  tags: generate-override-network
+
+- name: Set public_keys_dir fact to keys dir path for {{ environment_name }} from {{ environment_keys_signing_directory }}
+  ansible.builtin.set_fact:
+    public_keys_dir: "roles/hedera-docker/files/keys-signing/{{ environment_keys_signing_directory }}"
+  when: public_keys_dir.stat.exists
+  delegate_to: localhost
+  run_once: true
+  tags: generate-override-network
+
+- name: Debug public_keys_dir
+  ansible.builtin.debug:
+    var: public_keys_dir
+  delegate_to: localhost
+  run_once: true
+  tags: debug-override
+
+- name: stat node certificates for {{ environment_name }} from {{ address_book_key_path }}
+  ansible.builtin.stat:
+    path: "{{ address_book_key_path }}/node{{ hostvars[item.key]['NODE_NUM'] }}.crt"
+  register: env_node_cert
+  delegate_to: localhost
+  run_once: true
+  with_dict: "{{ node_proxy_list }}"
+  no_log: false
+  tags: generate-override-network
+
+- name: Gather sha384sum for node certificates
+  ansible.builtin.shell:
+    cmd: "sha384sum {{ address_book_key_path }}/node{{ hostvars[item.key]['NODE_NUM'] }}.crt | awk '{print $1}'"
+  register: shasum_result
+  changed_when: false
+  become: false
+  run_once: true
+  with_dict: "{{ node_proxy_list }}"
+  delegate_to: localhost
+  tags: generate-override-network
+
+- name: Debug sha384sum
+  ansible.builtin.debug:
+    msg: "{{ shasum_result.results | map(attribute='stdout') | list }}"
+  delegate_to: localhost
+  when: shasum_result.results != {}
+  run_once: true
+  tags: generate-override-network,debug-override
+
+- name: Build list of proxy certificate hashes (base64 encoded)
+  ansible.builtin.set_fact:
+    node_proxy_shasum: >-
+      {{ node_proxy_shasum | default({}) | combine({
+        item.item.key : item.stdout | hex_to_b64 }) }}
+  loop: "{{ shasum_result.results }}"
+  delegate_to: localhost
+  run_once: true
+  no_log: false
+  tags: generate-override-network
+
+- name: Debug proxy certificate hashes
+  ansible.builtin.debug:
+    var: node_proxy_shasum
+  delegate_to: localhost
+  run_once: true
+  tags: debug-override
+
+- name: Debug constructed file paths
+  ansible.builtin.debug:
+    msg: "Looking for file: {{ public_keys_dir + '/s-public-node' + (hostvars[item.key]['NODE_NUM']|int + 1)|string + '.pem' }}"
+  loop: "{{ node_proxy_list | dict2items }}"
+  delegate_to: localhost
+  run_once: true
+  tags: debug-override
+
+- name: Update node_proxy_list with file contents
+  ansible.builtin.set_fact:
+    node_proxy_list: >-
+      {{
+        node_proxy_list | combine({
+          item.key: item.value | map('combine', {
+            'grpcCertificate': lookup('file', public_keys_dir + '/s-public-node' + (hostvars[item.key]['NODE_NUM']|int + 1)|string + '.pem', errors='ignore')
+          })
+        })
+      }}
+  loop: "{{ node_proxy_list | dict2items }}"
+  delegate_to: localhost
+  run_once: true
+  no_log: false
+  tags: generate-override-network
+
+- name: Debug updated node_proxy_list
+  ansible.builtin.debug:
+    var: node_proxy_list
+  run_once: true
+  tags: debug-override
+
+## Build the override-network.json file from template
+- name: Create output directory if it doesn't exist
+  ansible.builtin.file:
+    dest: "{{ playbook_dir }}/generated"
+    state: directory
+  delegate_to: localhost
+  tags: generate-override-network
+
+- name: Template override-network.json
+  ansible.builtin.template:
+    src: override-network.json.j2
+    dest: "{{ playbook_dir }}/generated/override-network-{{environment_name}}.json"
+    mode: "0644"
+  delegate_to: localhost
+  register: template_result
+  tags: generate-override-network
+
+- name: Register override-network.json template result path
+  ansible.builtin.set_fact:
+    override_network_path: "{{ playbook_dir }}/generated/override-network-{{ environment_name }}.json"
+  when: template_result is succeeded
+  delegate_to: localhost
+  tags: generate-override-network
+
+- name: Set facts for roster data and schema criteria
+  ansible.builtin.set_fact:
+    override_network_data: "{{ lookup('ansible.builtin.file', override_network_path) | from_json }}"
+    override_network_schema: "{{ lookup('ansible.builtin.file', playbook_dir + '/roles/generate/templates/override-network.schema.json') | from_json }}"
+  delegate_to: localhost
+  no_log: false
+  tags: debug-override
+
+- name: Validate override network data against JSON schema
+  ansible.builtin.set_fact:
+    validation_result: "{{ override_network_data | ansible.utils.validate(override_network_schema, engine='ansible.utils.jsonschema') }}"
+  delegate_to: localhost
+  run_once: true
+  tags: debug-override
+
+- name: Debug validation results
+  ansible.builtin.debug:
+    var: validation_result
+  when: validation_result is defined
+  delegate_to: localhost
+  tags: debug-override
+
+- name: Check validation result
+  ansible.builtin.fail:
+    msg: "JSON validation failed: {{ validation_result }}"
+  when: validation_result is defined and validation_result | length > 0
+  delegate_to: localhost
+  tags: debug-override
+
+- name: Verify override network file exists
+  ansible.builtin.stat:
+    path: "{{ override_network_path }}"
+  register: override_network_stat
+  delegate_to: localhost
+  tags: generate-override-network
+
+- name: Assert override network file was created successfully
+  ansible.builtin.assert:
+    that:
+      - override_network_stat.stat.exists
+      - override_network_stat.stat.size > 0
+      - override_network_stat.stat.isreg
+    fail_msg: "Failed to generate override-network file at {{ override_network_path }}"
+    success_msg: "Successfully generated override-network file at {{ override_network_path }}"
+  delegate_to: localhost
+  tags: generate-override-network
+
+# Move the generated override file to the correct location on the target host
+- name: Copy override-network.json to {{ hedera_software_dir }}
+  ansible.builtin.copy:
+    src: "generated/override-network-{{environment_name}}.json"
+    dest: "{{ hedera_software_dir }}/data/config/override-network.json"
+    owner: "{{ hedera_node_user }}"
+    group: "{{ hedera_node_group }}"
+    mode: "0600"
+  become: true
+  when: hedera_software_dir is defined and override_network_stat.stat.exists
+  tags: apply-override-network

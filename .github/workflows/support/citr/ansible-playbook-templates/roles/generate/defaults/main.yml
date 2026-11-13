@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+---
+generate_yahcli_migration: false
+
+firewall_preserve_outgoing_gossip_rules: false
+firewall_preserve_outgoing_grpc_rules: false
+
+config_git_ref: master
+
+network_artifact_configtxt: false
+
+# validation_excluded_nodes is the list of nodes that we add to an inventory
+# when we know the node is borked. These should not be modified as part of a
+# release process.
+validation_excluded_nodes: []
+
+# validation_additional_excluded_nodes is a list of nodes that should be
+# excluded in addition to the contents of validation_excluded_nodes. This can/should
+# be passed as a flag to the validation-scenarios Jenkins job.
+validation_additional_excluded_nodes: []

@@ -1,0 +1,52 @@
+{%- set node_metadata = [] %}
+{%- for target_node, proxies in node_proxy_list.items() %}
+{% set description = environment_name ~ "-" ~ hostvars[target_node]["inventory_hostname"] %}
+{%- set node_entry = {
+    "rosterEntry": {
+        "nodeId": hostvars[target_node].NODE_NUM | string,
+        "weight": hostvars[target_node].stake | string,
+        "gossipCaCertificate": proxies[0].grpcCertificate.split('\n')[1:-1] | join(''),
+        "gossipEndpoint": [],
+    },
+    "node": {
+        "nodeId": hostvars[target_node].NODE_NUM | string,
+        "accountId": {
+            "accountNum": hostvars[target_node].NODE_ID.split('.')[-1] | string,
+        },
+        "description": description,
+        "gossipEndpoint": [],
+        "serviceEndpoint": [],
+        "gossipCaCertificate":  proxies[0].grpcCertificate.split('\n')[1:-1] | join(''),
+        "grpcCertificateHash": node_proxy_shasum[target_node],
+        "weight": "10",
+        "adminKey": {
+            "ed25519": proxies[0].adminKey,
+        }
+    }
+} %}
+
+{%- set _ = node_entry.rosterEntry.gossipEndpoint.append({
+    "ipAddressV4": hostvars[target_node].ansible_host | ip_to_hex_b64,
+    "port": 50111
+}) %}
+
+{%- set _ = node_entry.node.gossipEndpoint.append({
+    "ipAddressV4": hostvars[target_node].ansible_host | ip_to_hex_b64,
+    "port": 50111
+}) %}
+
+{%- for proxy in proxies %}
+{%- set _ = node_entry.node.serviceEndpoint.append({
+    "ipAddressV4":  proxy.proxy_ip,
+    "port": 50211
+}) %}
+{%- set _ = node_entry.node.serviceEndpoint.append({
+    "ipAddressV4": proxy.proxy_ip,
+    "port": 50212
+}) %}
+{%- endfor %}
+
+{%- set _ = node_metadata.append(node_entry | order_node_entry) %}
+{%- endfor %}
+
+{{ {"nodeMetadata": node_metadata} | to_nice_json(indent=2) }}
