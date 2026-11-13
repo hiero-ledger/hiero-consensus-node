@@ -44,7 +44,7 @@ import org.hiero.consensus.model.roster.RosterWrapper;
  * creator under either roster. That is what keeps the round-2 witnesses {@code mid} strongly sees below a
  * supermajority under {@code old}.
  */
-public final class Scn001Graph {
+final class Scn001Graph {
 
     /** The file the shape lives in: rows, both rosters, and the anchor round. */
     private static final String FILE = "scn-001.graph";
@@ -52,16 +52,16 @@ public final class Scn001Graph {
     private static final FlickerGraph GRAPH = GraphFiles.load(FILE);
 
     /** The round the two same-round judges live in, and the round the snapshot is taken at. */
-    public static final long ANCHOR_ROUND = Objects.requireNonNull(GRAPH.anchorRound(), "anchor round");
+    static final long ANCHOR_ROUND = Objects.requireNonNull(GRAPH.anchorRound(), "anchor round");
 
     /** The earlier of the two same-round judges; an ancestor of {@link #MID}. */
-    public static final String J1 = "b2";
+    static final String J1 = "b2";
 
     /** The non-judge strictly between the two judges. This is the event the roster change promotes. */
-    public static final String MID = "b4";
+    static final String MID = "b4";
 
     /** The later of the two same-round judges; a descendant of {@link #MID}. */
-    public static final String J2 = "c3";
+    static final String J2 = "c3";
 
     private Scn001Graph() {}
 
@@ -70,13 +70,13 @@ public final class Scn001Graph {
      *     decided under
      */
     @NonNull
-    public static RosterWrapper rosterOld() {
+    static RosterWrapper rosterOld() {
         return GRAPH.roster("old").toRosterWrapper();
     }
 
     /** @return the file's {@code new} block: the same nodes, reweighted so that {@link #MID} is promoted */
     @NonNull
-    public static RosterWrapper rosterNew() {
+    static RosterWrapper rosterNew() {
         return GRAPH.roster("new").toRosterWrapper();
     }
 
@@ -86,7 +86,7 @@ public final class Scn001Graph {
      * @return the events in creation order, each paired with its name
      */
     @NonNull
-    public static List<NamedEvent> build() {
+    static List<NamedEvent> build() {
         return GRAPH.build();
     }
 }

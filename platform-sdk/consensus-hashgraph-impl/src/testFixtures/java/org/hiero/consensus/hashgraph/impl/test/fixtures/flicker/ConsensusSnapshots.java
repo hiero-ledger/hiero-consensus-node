@@ -19,24 +19,24 @@ public final class ConsensusSnapshots {
     private ConsensusSnapshots() {}
 
     /**
-     * The snapshot taken at a named restartRoundNum.
+     * The snapshot taken at a named snapshotRound.
      * <p>
      * This takes the rounds rather than the harness that produced them, so it serves any harness.
      *
      * @param rounds the rounds a first run produced, in order
-     * @param restartRoundNum  the round number to take the snapshot at
-     * @return that restartRoundNum's snapshot
-     * @throws IllegalArgumentException if no restartRoundNum with that number reached consensus
+     * @param snapshotRound  the round number to take the snapshot at
+     * @return that snapshotRound's snapshot
+     * @throws IllegalArgumentException if no snapshotRound with that number reached consensus
      */
     @NonNull
     public static ConsensusSnapshot snapshotAtRound(
-            @NonNull final List<ConsensusRound> rounds, final long restartRoundNum) {
+            @NonNull final List<ConsensusRound> rounds, final long snapshotRound) {
         return rounds.stream()
-                .filter(consensusRound -> consensusRound.getRoundNum() == restartRoundNum)
+                .filter(consensusRound -> consensusRound.getRoundNum() == snapshotRound)
                 .findFirst()
                 .map(ConsensusRound::getSnapshot)
                 .orElseThrow(() -> new IllegalArgumentException("Round %d did not reach consensus. Rounds available: %s"
-                        .formatted(restartRoundNum, roundNumbers(rounds))));
+                        .formatted(snapshotRound, roundNumbers(rounds))));
     }
 
     @NonNull

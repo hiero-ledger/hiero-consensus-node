@@ -20,13 +20,16 @@ import org.junit.jupiter.api.Test;
 /**
  * SCN-001 — a round's judge exempted from clearing has another same-round judge in its ancestry.
  * <p>
- * Reproduces the scenario in {@code docs/consensus-layer/scenarios/SCN-001-*.md} and asserts INV-001
- * ({@code roundCreated(child) >= roundCreated(parent)}) between MID and its descendant judge J2 after the roster
- * change.
+ * Reproduces the scenario in
+ * {@code platform-sdk/docs/consensus-layer/scenarios/SCN-001-same-round-judge-ancestry-stalls-consensus.md} and asserts
+ * INV-001 ({@code roundCreated(child) >= roundCreated(parent)}) between MID and its descendant judge J2 after the
+ * roster change.
  * <p>
- * Before the fix, every judge of the just-decided round was exempt from metadata clearing. When two same-round judges
- * sat on one ancestry chain, the non-judge between them was cleared and recalculated under the new roster — and could
- * be promoted past the descendant judge, which had kept its old round. That inverts INV-001 and consensus stalls.
+ * {@code ConsensusImpl.recalculateAndVote} keeps the metadata of a judge of the just-decided round only if no other
+ * judge of that round is its ancestor; every other non-ancient, non-consensus event is cleared and recalculated under
+ * the new roster. If every judge kept its metadata, then when two same-round judges sit on one ancestry chain, the
+ * non-judge between them could be recalculated into a higher round than the descendant judge, which keeps its old
+ * round. That inverts INV-001 and consensus stalls. This test fails in exactly that way if the condition is removed.
  * <p>
  * {@link Scn001Graph} builds the shape; its javadoc derives why each event lands where it does.
  */

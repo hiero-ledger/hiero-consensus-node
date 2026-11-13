@@ -46,7 +46,7 @@ import java.util.Set;
  * <h2>Format</h2>
  * A line is split on whitespace. {@code #} starts a comment that runs to the end of the line, and blank lines are
  * skipped. A line whose first word is one of the header keywords below is a header line, and any other line is an
- * event row. Header lines and rows may appear in any order.
+ * event row. Header lines may appear anywhere, including between rows; the rows themselves must be in creation order.
  * <p>
  * <b>Header lines</b>
  * <ul>
@@ -55,8 +55,9 @@ import java.util.Set;
  *     <li>{@code defaults <key>=<value> ...}: the values every row gets unless it overrides them. The keys are
  *         {@code coin}, {@code br} and {@code txs}. With no {@code defaults} line they are
  *         {@code coin=0 br=1 txs=0}. Each can be overridden for a specific event (see below).</li>
- *     <li>{@code anchor <round>}: the round to restart from. The graph is played until this round is reached.
- *     Then a new consensus algorithm is started from this round's snapshot. All events are added after the restart.</li>
+ *     <li>{@code anchor <round>}: the round a test restarts from. The test feeds every row, takes this round's
+ *         snapshot once the round is decided, starts a new consensus from that snapshot, and feeds every row again.
+ *         The test chooses which roster applies before and after the restart, looking them up by name.</li>
  *     <li>{@code roster <name> <letter>=<weight> ...}: a roster, at least one per graph. Each name must be unique.
  *         A node is a single lower-case letter, and its weight is always written and is never negative. Every
  *         roster must list the same nodes, in any order, so rosters can reweight nodes but not add or remove
