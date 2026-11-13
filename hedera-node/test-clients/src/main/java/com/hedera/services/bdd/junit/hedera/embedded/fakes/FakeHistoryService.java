@@ -6,6 +6,7 @@ import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -47,6 +48,22 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public boolean isReady() {
         return delegate.isReady();
+    }
+
+    @Override
+    public void recoverActiveBook(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeConstruction) {
+        delegate.recoverActiveBook(activeRosters, historyStore, activeConstruction);
+    }
+
+    @Override
+    public void recoverNextBook(
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final Roster targetRoster,
+            @Nullable final HintsConstruction nextConstruction) {
+        delegate.recoverNextBook(historyStore, targetRoster, nextConstruction);
     }
 
     @Override

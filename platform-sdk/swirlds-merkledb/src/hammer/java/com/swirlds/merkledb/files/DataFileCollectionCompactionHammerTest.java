@@ -6,7 +6,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,7 +58,7 @@ class DataFileCollectionCompactionHammerTest {
         final Path tempFileDir = tempDir.resolve("DataFileCollectionCompactionHammerTest");
         Files.createDirectories(tempFileDir);
         assertDoesNotThrow(() -> {
-            final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
+            final LongListSegment index = new LongListSegment(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
             String storeName = "benchmark";
             final var coll = new DataFileCollection(
                     DEFAULT_MERKLE_DB_CONFIG,
@@ -124,7 +124,7 @@ class DataFileCollectionCompactionHammerTest {
     void hammer() throws IOException, InterruptedException, ExecutionException {
         final Path tempFileDir = tempDir.resolve("DataFileCollectionCompactionHammerTest");
         Files.createDirectories(tempFileDir);
-        final LongListHeap index = new LongListHeap(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
+        final LongListSegment index = new LongListSegment(1024 * 1024, 2L * 1024 * 1024 * 1024, 256 * 1024);
         String storeName = "hammer";
         final var coll = new DataFileCollection(
                 DEFAULT_MERKLE_DB_CONFIG, tempFileDir.resolve(storeName), storeName, (dataLocation, dataValue) -> {});
