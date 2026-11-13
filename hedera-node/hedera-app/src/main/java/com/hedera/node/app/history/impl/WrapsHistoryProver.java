@@ -687,8 +687,9 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final Map<Long, Bytes> targetProofKeys, @NonNull final Bytes targetMetadata) {
         if (wrapsMessage == null) {
             // Avoid caching a partial derived state if one of these computations throws.
-            final var computedTargetAddressBook =
-                    AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
+            final var computedTargetAddressBook = AddressBook.from(
+                    weights.targetNodeWeights(),
+                    nodeId -> targetProofKeys
                             .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
                             .toByteArray());
             final var computedWrapsMessage =

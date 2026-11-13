@@ -20,7 +20,7 @@ on:
         required: false
         type: string
       mirror-node-version:
-        description: "The version of the mirror node to deploy (if not specified, '0.145.2' will be used)"
+        description: "The version of the mirror node to deploy (if not specified, '0.167.0-rc1' will be used)"
         required: false
         type: string
       java-distribution:
@@ -112,7 +112,7 @@ jobs:
         id: run-solo
         timeout-minutes: 15
         env:
-          MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.161.0' }}
+          MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.167.0-rc1' }}
         run: |
           set -ex
           cat <<EOF > mirror.yml

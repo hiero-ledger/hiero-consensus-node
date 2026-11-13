@@ -13,13 +13,13 @@ import org.junit.jupiter.api.Test;
 class BlockStreamConfigTest {
 
     @Test
-    void partialsAreOffByDefaultAndOnlyEnabledForCompleteBlockStreams() {
+    void partialsAreOnByDefaultOnlyForCompleteBlockStreams() {
         for (final var mode : StreamMode.values()) {
             final var defaults = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                     .withValue("blockStream.streamMode", mode.name())
                     .getOrCreateConfig()
                     .getConfigData(BlockStreamConfig.class);
-            assertThat(defaults.stateChangePartialsEnabled()).isFalse();
+            assertThat(defaults.stateChangePartialsEnabled()).isEqualTo(mode == StreamMode.BLOCKS);
             assertThat(defaults.stateChangePartialMinSaving()).isEqualTo(16);
             final var enabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                     .withValue("blockStream.streamMode", mode.name())

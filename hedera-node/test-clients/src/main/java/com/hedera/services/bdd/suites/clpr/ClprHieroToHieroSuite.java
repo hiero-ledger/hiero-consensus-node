@@ -174,15 +174,14 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                             spec,
                                                             QueryVerbs.contractCallLocalWithFunctionAbi(
                                                                             SOURCE_APP, abi, BigInteger.ONE)
-                                                                    .exposingTypedResultsTo(
-                                                                            results -> {
-                                                                                final var actual = (byte[]) results[0];
-                                                                                assertArrayEquals(
-                                                                                        expectedResponse,
-                                                                                        actual,
-                                                                                        "SourceApplication.responses[1] not populated — onClprResponse callback was never delivered. "
-                                                                                                + "Check ON_CLPR_RESPONSE_SELECTOR in ClprSubmitBundleHandler.");
-                                                                            }));
+                                                                    .exposingTypedResultsTo(results -> {
+                                                                        final var actual = (byte[]) results[0];
+                                                                        assertArrayEquals(
+                                                                                expectedResponse,
+                                                                                actual,
+                                                                                "SourceApplication.responses[1] not populated — onClprResponse callback was never delivered. "
+                                                                                        + "Check ON_CLPR_RESPONSE_SELECTOR in ClprSubmitBundleHandler.");
+                                                                    }));
                                                 }))
                                         .findFirst()
                                         .orElseThrow())));

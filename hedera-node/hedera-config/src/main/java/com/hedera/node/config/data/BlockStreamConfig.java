@@ -105,7 +105,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NodeProperty
         boolean enhancedObservabilityEnabled,
 
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean enableStateChangePartials,
 
         @ConfigProperty(defaultValue = "16") @Min(0) @NetworkProperty

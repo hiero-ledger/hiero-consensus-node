@@ -216,11 +216,10 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @return formatted context string in the form {@code [ID/host:port/STATE]}
      */
     final @NonNull String connectionContext(@Nullable final String correlationId) {
-        final int port =
-                switch (type) {
-                    case BLOCK_STREAMING -> configuration.streamingPort();
-                    case SERVER_STATUS -> configuration.servicePort();
-                };
+        final int port = switch (type) {
+            case BLOCK_STREAMING -> configuration.streamingPort();
+            case SERVER_STATUS -> configuration.servicePort();
+        };
         final String idToDisplay =
                 (correlationId == null || correlationId.isBlank()) ? connectionId.toString() : correlationId;
         return "[" + idToDisplay + "/" + configuration.address() + ":" + port + "/" + stateRef.get() + "]";

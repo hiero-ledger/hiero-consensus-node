@@ -32,7 +32,7 @@ BLOCK_NODE_CHART_VERSION="${BLOCK_NODE_CHART_VERSION:-v0.45.0-rc4}"
 # Mirror node deployed before stage 2 and kept through cutover. Must support the CN's TSS library:
 # 0.165.2+ loads the WRAPS verification key from the crypto library (TSS 3.19+) instead of the
 # ledger id publication, which no longer carries it.
-MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.165.2-rc1}"
+MIRROR_NODE_VERSION="${MIRROR_NODE_VERSION:-v0.167.0-rc1}"
 # ---------------------------------------------------------------------------------------------
 
 SOLO_CLUSTER_NAME="${SOLO_CLUSTER_NAME:-solo-three-stage-cutover}"

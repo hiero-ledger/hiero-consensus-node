@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion.withFullStateValues;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
@@ -150,7 +151,8 @@ public class ScheduledEvmInterleavingTest {
                             assertEquals(2, syntheticCreatedIds.size(), "Both EVM creations have synthetic records");
                         }),
                 streamMustIncludePassWithReplayFrom(
-                        spec -> ordinaryCreatedContractIds(spec, createdIdsByExecution, syntheticCreatedIds),
+                        spec -> withFullStateValues(
+                                ordinaryCreatedContractIds(spec, createdIdsByExecution, syntheticCreatedIds)),
                         Duration.ofSeconds(30)));
     }
 
@@ -244,8 +246,8 @@ public class ScheduledEvmInterleavingTest {
                                 .numKvPairs(
                                         (afterValue == null ? scheduledValues.getLast() : afterValue) == 0 ? 0 : 1)),
                 streamMustIncludePassWithReplayFrom(
-                        spec -> overlappingStorageTraces(
-                                spec, initialValue, beforeValue, scheduledValues, afterValue, createdIdsByExecution),
+                        spec -> withFullStateValues(overlappingStorageTraces(
+                                spec, initialValue, beforeValue, scheduledValues, afterValue, createdIdsByExecution)),
                         Duration.ofSeconds(30)));
     }
 

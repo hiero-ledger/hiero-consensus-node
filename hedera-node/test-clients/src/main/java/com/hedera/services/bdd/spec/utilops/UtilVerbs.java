@@ -2717,10 +2717,12 @@ public class UtilVerbs {
     public static HapiSpecOperation validateRecordTransactionFees(String txn, Set<AccountID> feeRecipients) {
         return assertionsHold((spec, assertLog) -> {
             final AtomicReference<TransactionRecord> txnRecord = new AtomicReference<>();
-            allRunFor(spec, withStrictCostAnswerValidation(() -> getTxnRecord(txn)
-                    .payingWith(EXCHANGE_RATE_CONTROL)
-                    .exposingTo(txnRecord::set)
-                    .logged()));
+            allRunFor(
+                    spec,
+                    withStrictCostAnswerValidation(() -> getTxnRecord(txn)
+                            .payingWith(EXCHANGE_RATE_CONTROL)
+                            .exposingTo(txnRecord::set)
+                            .logged()));
             final var rcd = txnRecord.get();
             long realFee = rcd.getTransferList().getAccountAmountsList().stream()
                     .filter(aa -> feeRecipients.contains(aa.getAccountID()))

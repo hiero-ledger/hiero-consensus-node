@@ -260,8 +260,10 @@ public class ProofControllerImpl implements ProofController {
             });
             selectTargetProofKeys();
             this.prover = createProver(tssConfig);
-            wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
-                    .replayWrapsSigningMessage(constructionId(), publication));
+            wrapsMessagePublications.stream()
+                    .sorted()
+                    .forEach(publication ->
+                            requireNonNull(prover).replayWrapsSigningMessage(constructionId(), publication));
         }
     }
 
@@ -877,9 +879,11 @@ public class ProofControllerImpl implements ProofController {
      * Returns the target address book, with the sentinel key for each target node without a proof key.
      */
     private AddressBook targetAddressBook() {
-        return AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
-                .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
-                .toByteArray());
+        return AddressBook.from(
+                weights.targetNodeWeights(),
+                nodeId -> targetProofKeys
+                        .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                        .toByteArray());
     }
 
     /**
