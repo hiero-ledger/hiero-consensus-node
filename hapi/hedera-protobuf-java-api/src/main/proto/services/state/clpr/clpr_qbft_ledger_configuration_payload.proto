@@ -72,13 +72,6 @@ message ClprQbftLedgerConfigurationPayload {
     BlockHeader genesis_block_header = 1;
 
     /**
-     * Field 6 (epoch_length) was removed; it is reserved so it is never reused with a
-     * different meaning, as in the relay's copy of this message.
-     */
-    reserved 6;
-    reserved "epoch_length";
-
-    /**
      * The platform-neutral CLPR configuration of the source ledger,
      * read from contract storage at the block whose header is
      * current_block_header.
@@ -118,6 +111,8 @@ message ClprQbftLedgerConfigurationPayload {
      * contract (Besu's "contract" validator-selection mode) rather than listed in each block
      * header's extra_data. Absent (the default) means header mode: the validator set is read
      * from current_block_header.extra_data.
+     *
+     * Field number 7 matches the relay's copy of this message.
      */
     QbftContractModeValidatorSource contract_mode_validator_source = 7;
 }
