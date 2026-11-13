@@ -3,7 +3,7 @@
 Records, for every MATS and XTS run, what the Actions API later drops: step timings (kept about 18 days) and the shard JUnit
 reports (kept 7 days), plus the trigger context that is not recorded anywhere queryable. The last job of each instrumented workflow
 runs `865-call-publish-run-metrics.yaml`, which runs `run_metrics.py` and uploads one small artifact, `run-metrics` (about 50 KB,
-kept 90 days). Nothing here reads the artifact back.
+kept 14 days: the repository caps artifact retention at 14 days, so the consumer has to pull within that time). Nothing here reads the artifact back.
 
 Tracking issue: hiero-ledger/hiero-consensus-node#28275.
 
@@ -67,7 +67,7 @@ All under `.github/workflows/support/scripts/ci-metrics/` (Python 3.10, standard
 
 The artifact is read by tools in the `hashgraph/consensus-node-tools` repository (`ci-metrics/`): `ingest.py` loads it into a SQLite
 database, and an HTML report and a dashboard read that database. Maintainer: Josh Marinacci. Today the database is a local file on the
-maintainer's machine; there is no shared store yet. That repository's `run_metrics.py` is a reference copy only.
+maintainer's machine; there is no shared store yet. The artifacts expire after 14 days, so the loader has to run at least that often or those runs' step and test data is lost. That repository's `run_metrics.py` is a reference copy only.
 
 ## Removal
 
