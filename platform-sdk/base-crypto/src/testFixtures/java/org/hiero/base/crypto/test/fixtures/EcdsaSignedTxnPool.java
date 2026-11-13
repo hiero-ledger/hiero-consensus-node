@@ -7,14 +7,14 @@ import static org.hiero.base.crypto.engine.EcdsaSecp256k1Verifier.ECDSA_UNCOMPRE
 import static org.hiero.base.crypto.test.fixtures.EcdsaUtils.asRawEcdsaSecp256k1Key;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.lang.foreign.MemorySegment;
 import java.security.KeyPair;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.interfaces.ECPublicKey;
 import java.util.ArrayList;
 import java.util.SplittableRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.crypto.ECDSASecp256k1;
+import org.hiero.base.crypto.Keccak256;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.TransactionSignature;
 
@@ -105,24 +105,19 @@ public class EcdsaSignedTxnPool {
         generateActiveKeyPair();
 
         final byte[] activePubKey = asRawEcdsaSecp256k1Key((ECPublicKey) activeKp.getPublic());
-        try {
-            final MessageDigest messageDigest = MessageDigest.getInstance("KECCAK-256");
-            for (int i = 0; i < poolSize; i++) {
-                final byte[] rawMsg = new byte[transactionSize];
-                random.nextBytes(rawMsg);
-                final byte[] msg = messageDigest.digest(rawMsg);
-                final byte[] sig = signDigestWithEcdsaSecp256k1(activeKp.getPrivate(), msg);
+        for (int i = 0; i < poolSize; i++) {
+            final byte[] rawMsg = new byte[transactionSize];
+            random.nextBytes(rawMsg);
+            final byte[] msg = Keccak256.keccak256DigestOf(MemorySegment.ofArray(rawMsg));
+            final byte[] sig = signDigestWithEcdsaSecp256k1(activeKp.getPrivate(), msg);
 
-                final byte[] buffer = new byte[transactionSize + sig.length + activePubKey.length];
-                System.arraycopy(msg, 0, buffer, 0, msg.length);
-                System.arraycopy(activePubKey, 0, buffer, msg.length, activePubKey.length);
-                System.arraycopy(sig, 0, buffer, msg.length + activePubKey.length, sig.length);
+            final byte[] buffer = new byte[transactionSize + sig.length + activePubKey.length];
+            System.arraycopy(msg, 0, buffer, 0, msg.length);
+            System.arraycopy(activePubKey, 0, buffer, msg.length, activePubKey.length);
+            System.arraycopy(sig, 0, buffer, msg.length + activePubKey.length, sig.length);
 
-                final SignedTxn signedTxn = new SignedTxn(sig.length, buffer);
-                signedTxns.add(signedTxn);
-            }
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+            final SignedTxn signedTxn = new SignedTxn(sig.length, buffer);
+            signedTxns.add(signedTxn);
         }
     }
 

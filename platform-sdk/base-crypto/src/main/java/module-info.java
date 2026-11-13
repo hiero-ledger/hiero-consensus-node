@@ -26,6 +26,7 @@ module org.hiero.base.crypto {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires com.hedera.cryptography.libsecp256k1;
+    requires com.hedera.cryptography.libxkcp;
     requires com.hedera.cryptography.security;
     requires com.swirlds.base;
     requires org.apache.logging.log4j;
