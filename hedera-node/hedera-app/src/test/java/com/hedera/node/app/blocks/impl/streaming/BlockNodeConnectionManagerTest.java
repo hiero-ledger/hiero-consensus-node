@@ -2001,6 +2001,47 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testStart_callerDecisionOverridesTheCurrentConfiguration() {
+        final ConfigProvider localConfigProvider = mock(ConfigProvider.class);
+        final VersionedConfiguration versionedConfiguration = mock(VersionedConfiguration.class);
+        final BlockStreamConfig bsConfig = mock(BlockStreamConfig.class);
+        // The configuration in effect says streaming is off, but the caller knows the committed mode enables it
+        lenient()
+                .when(versionedConfiguration.getConfigData(BlockStreamConfig.class))
+                .thenReturn(bsConfig);
+        lenient().when(localConfigProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        lenient().when(bsConfig.streamToBlockNodes()).thenReturn(false);
+
+        connectionManager = new BlockNodeConnectionManager(
+                localConfigProvider,
+                bufferService,
+                metrics,
+                networkInfo,
+                blockingIoExecutorSupplier,
+                blockNodeConfigService,
+                streamingObs);
+        // A placeholder monitor thread keeps a real one from calling the mocks while they are verified
+        connectionMonitorThreadRef().set(mock(Thread.class));
+
+        connectionManager.start(true);
+
+        assertThat(isConnectionManagerActive()).isTrue();
+        verify(bufferService).start(true);
+        verify(blockNodeConfigService).start();
+        // The decision to start is the caller's alone
+        verify(localConfigProvider, never()).getConfiguration();
+    }
+
+    @Test
+    void testStart_callerDecisionNotToStreamIsHonored() {
+        connectionManager.start(false);
+
+        assertThat(isConnectionManagerActive()).isFalse();
+        verifyNoInteractions(bufferService);
+        verifyNoInteractions(blockNodeConfigService);
+    }
+
+    @Test
     void testStart_alreadyStarted() {
         isConnectionManagerActive().set(true);
 
@@ -2020,7 +2061,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(isConnectionManagerActive()).isTrue();
         assertThat(connectionMonitorThreadRef()).doesNotHaveNullValue().hasValue(monitorThread);
 
-        verify(bufferService).start();
+        verify(bufferService).start(true);
         verify(blockNodeConfigService).start();
     }
 
@@ -2031,7 +2072,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(isConnectionManagerActive()).isTrue();
         assertThat(connectionMonitorThreadRef()).doesNotHaveNullValue();
 
-        verify(bufferService).start();
+        verify(bufferService).start(true);
         verify(blockNodeConfigService).start();
     }
 
@@ -2218,5 +2259,16 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     void resetMocks() {
         reset(bufferService, metrics, blockNodeConfigService);
+    }
+
+    @Test
+    void testHoldAndReleaseConfigurationArePassedToTheBufferService() {
+        final VersionedConfiguration configuration = mock(VersionedConfiguration.class);
+
+        connectionManager.holdConfiguration(configuration);
+        verify(bufferService).holdConfiguration(configuration);
+
+        connectionManager.releaseConfiguration();
+        verify(bufferService).releaseConfiguration();
     }
 }

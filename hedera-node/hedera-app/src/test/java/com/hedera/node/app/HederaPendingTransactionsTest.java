@@ -10,6 +10,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -191,8 +192,9 @@ class HederaPendingTransactionsTest {
 
     private void stubStatusBasics() {
         given(daggerApp.quiescenceController()).willReturn(quiescenceController);
-        given(configProvider.getConfiguration())
-                .willReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L));
+        lenient()
+                .when(configProvider.getConfiguration())
+                .thenReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L));
     }
 
     private void stubFreezeWait(final String timeout) {

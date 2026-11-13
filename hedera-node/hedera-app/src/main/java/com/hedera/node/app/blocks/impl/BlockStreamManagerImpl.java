@@ -134,6 +134,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
+    /**
+     * The digest algorithm for block-root hashing, as configured when this manager was created. It is not read from
+     * the configuration again: the running hash manager already fixes its hash size at that point, and hashing tasks
+     * and proof completion run on other threads, where a later read could return a setting from an update that is
+     * not final and give a result that depends on thread timing.
+     */
+    private final DigestType digestType;
+
     private final boolean blockSizeCircuitBreakerApplicable;
     private final boolean maxBlockSizeThrottleApplicable;
     private final BlockHashSigner blockHashSigner;
@@ -351,6 +359,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.hapiVersion = hapiVersionFrom(config);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
+        this.digestType = blockStreamConfig.digestType();
         this.blockPeriod = blockStreamConfig.blockPeriod();
         final var streamMode = blockStreamConfig.streamMode();
         this.blockSizeCircuitBreakerApplicable = streamMode == BOTH;
@@ -1483,10 +1492,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             signedBlock.blockTimestamp(),
                             // Pass the remaining pending blocks, but don't remove them from the queue
                             pendingBlocks.stream(),
-                            configProvider
-                                    .getConfiguration()
-                                    .getConfigData(BlockStreamConfig.class)
-                                    .digestType());
+                            digestType());
                 } catch (final IllegalStateException e) {
                     // This block can't be proven (e.g. a gap in the pending queue) and has already been polled from
                     // pendingBlocks, so release its writer and drop any on-disk pending files here — no later path
@@ -2248,10 +2254,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private DigestType digestType() {
-        return configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .digestType();
+        return digestType;
     }
 
     private MessageDigest digestOrThrow() {
@@ -2259,20 +2262,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private Bytes hashOfZero() {
-        return BlockStreamManager.hashOfZero(configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .digestType());
+        return BlockStreamManager.hashOfZero(digestType());
     }
 
     private BlockHashAlgorithm blockHashAlgorithm() {
-        return configProvider
-                                .getConfiguration()
-                                .getConfigData(BlockStreamConfig.class)
-                                .digestType()
-                        == DigestType.SHA_256
-                ? SHA2_256
-                : SHA2_384;
+        return digestType() == DigestType.SHA_256 ? SHA2_256 : SHA2_384;
     }
 
     /**

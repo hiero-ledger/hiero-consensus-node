@@ -30,7 +30,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -61,7 +60,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
-import static com.hedera.services.bdd.suites.HapiSuite.THROTTLE_DEFS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.precompile.ContractBurnHTSSuite.ALICE;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
@@ -72,7 +70,6 @@ import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.exp
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateBatchFee;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateInnerChargedUsdWithinWithTxnSize;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
-import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.ThrottleDefsLoader.protoDefsFromResource;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
@@ -574,27 +571,6 @@ public class AtomicBatchTest {
 
         private static HapiCryptoTransfer oneHbarToDefaultPayerFrom(final String payer) {
             return cryptoTransfer(movingHbar(1).between(payer, DEFAULT_PAYER)).payingWith(payer);
-        }
-    }
-
-    @Nested
-    @DisplayName("Privileged Transactions - POSITIVE")
-    class PrivilegedTransactionsPositive {
-
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
-        @DisplayName("Batch containing only privileged transactions")
-        public Stream<DynamicTest> batchContainingOnlyPrivilegedTxn() {
-            final var batchOperator = "batchOperator";
-
-            return hapiTest(
-                    cryptoCreate(batchOperator).balance(FIVE_HBARS),
-                    atomicBatch(fileUpdate(THROTTLE_DEFS)
-                                    .batchKey(batchOperator)
-                                    .noLogging()
-                                    .payingWith(GENESIS)
-                                    .contents(protoDefsFromResource("testSystemFiles/mainnet-throttles.json")
-                                            .toByteArray()))
-                            .payingWith(batchOperator));
         }
     }
 

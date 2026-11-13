@@ -13,6 +13,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -220,6 +221,23 @@ public class BlockNodeConnectionManager {
     }
 
     /**
+     * Keeps the block buffer on the given committed configuration while a transaction tries out an update of a
+     * configuration file; see {@link BlockBufferService#holdConfiguration(Configuration)}.
+     *
+     * @param configuration the committed configuration to hold
+     */
+    public void holdConfiguration(@NonNull final Configuration configuration) {
+        blockBufferService.holdConfiguration(configuration);
+    }
+
+    /**
+     * Returns the block buffer to the current configuration once the outcome of the transaction is final.
+     */
+    public void releaseConfiguration() {
+        blockBufferService.releaseConfiguration();
+    }
+
+    /**
      * Gracefully shuts down the connection manager, closing the active connection.
      */
     public void shutdown() {
@@ -254,7 +272,18 @@ public class BlockNodeConnectionManager {
      * block.
      */
     public void start() {
-        if (!isStreamingEnabled()) {
+        start(isStreamingEnabled());
+    }
+
+    /**
+     * Starts the connection manager if the caller has determined that streaming to block nodes is enabled, without
+     * consulting the current configuration for that decision. Used when the caller knows the writer mode that was
+     * committed, which the configuration in effect when this runs may not reflect.
+     *
+     * @param streamingEnabled whether streaming to block nodes is enabled
+     */
+    public void start(final boolean streamingEnabled) {
+        if (!streamingEnabled) {
             logger.warn("Streaming is not enabled; block node connection manager will not be started");
             return;
         }
@@ -276,7 +305,7 @@ public class BlockNodeConnectionManager {
         }
 
         // Start the block buffer service
-        blockBufferService.start();
+        blockBufferService.start(streamingEnabled);
 
         // Start a watcher to monitor changes to the block-nodes.json file for dynamic updates
         blockNodeConfigService.start();

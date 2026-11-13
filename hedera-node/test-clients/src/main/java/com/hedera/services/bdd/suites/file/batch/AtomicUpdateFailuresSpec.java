@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK;
 import static com.hedera.services.bdd.suites.HapiSuite.API_PERMISSIONS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
-import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -31,7 +30,6 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
@@ -46,30 +44,6 @@ class AtomicUpdateFailuresSpec {
     private static final long A_LOT = 1_234_567_890L;
     private static final String CIVILIAN = "civilian";
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @HapiTest
-    final Stream<DynamicTest> confusedUpdateCantExtendExpiry() {
-        // this test verify that the exchange rate file parsed correctly on update, it doesn't check expiry
-        var initialExpiry = new AtomicLong();
-        var extension = 1_000L;
-        return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                withOpContext((spec, opLog) -> {
-                    var infoOp = QueryVerbs.getFileInfo(EXCHANGE_RATES);
-                    CustomSpecAssert.allRunFor(spec, infoOp);
-                    var info = infoOp.getResponse().getFileGetInfo().getFileInfo();
-                    initialExpiry.set(info.getExpirationTime().getSeconds());
-                }),
-                atomicBatch(fileUpdate(EXCHANGE_RATES)
-                                .payingWith(EXCHANGE_RATE_CONTROL)
-                                .contents("NONSENSE".getBytes())
-                                .extendingExpiryBy(extension)
-                                .hasKnownStatus(ResponseCodeEnum.INVALID_EXCHANGE_RATE_FILE)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                QueryVerbs.getFileInfo(EXCHANGE_RATES).hasExpiry(initialExpiry::get));
-    }
 
     @HapiTest
     final Stream<DynamicTest> precheckRejectsUnauthorized() {

@@ -1209,6 +1209,7 @@ public class SystemTransactions {
             return handleOutput;
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
+            dispatchProcessor.resyncAfterAbandonedTransaction(state);
             return failInvalidStreamItems(parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
     }

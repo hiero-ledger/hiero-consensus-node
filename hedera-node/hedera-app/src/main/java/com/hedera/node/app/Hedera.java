@@ -735,10 +735,6 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // No-op if quiescence is disabled
         app.quiescenceController().platformStatusUpdate(platformStatus);
         logger.info("HederaNode#{} is {}", platform.getSelfId(), platformStatus.name());
-        final var streamToBlockNodes = configProvider
-                .getConfiguration()
-                .getConfigData(BlockStreamConfig.class)
-                .streamToBlockNodes();
         switch (platformStatus) {
             case ACTIVE -> {
                 startGrpcServer();
@@ -758,7 +754,9 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 shutdownGrpcServer();
                 daggerApp.clprRuntime().stop();
                 closeRecordStreams();
-                if (streamToBlockNodes && isNotEmbedded()) {
+                // Not conditioned on the configuration in effect, which a transaction may still be trying out; the
+                // shutdown does nothing if the connections were never started
+                if (isNotEmbedded()) {
                     logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }
@@ -783,7 +781,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 // (see FailureBlockStagingConfig for the DevOps deployment prerequisites).
                 app.issDetectionStagingCoordinator().stageDetectedIssOnFailure();
 
-                if (streamToBlockNodes && isNotEmbedded()) {
+                if (isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }

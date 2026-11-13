@@ -196,7 +196,17 @@ public class BlockBufferService extends BlockStreamingBase {
      * background worker thread. Calling this method multiple times on the same instance will do nothing.
      */
     public void start() {
-        if (!isStreamingEnabled() || !isStarted.compareAndSet(false, true)) {
+        start(isStreamingEnabled());
+    }
+
+    /**
+     * Starts the buffer service if the caller has determined that streaming to block nodes is enabled, without
+     * consulting the current configuration for that decision.
+     *
+     * @param streamingEnabled whether streaming to block nodes is enabled
+     */
+    public void start(final boolean streamingEnabled) {
+        if (!streamingEnabled || !isStarted.compareAndSet(false, true)) {
             return;
         }
 
@@ -205,6 +215,17 @@ public class BlockBufferService extends BlockStreamingBase {
 
         execSvc = Executors.newSingleThreadScheduledExecutor();
         scheduleNextWorkerTask();
+    }
+
+    /**
+     * Returns whether this service is started. The service is started and shut down only for a streaming decision that
+     * is final (the configuration at startup, or a committed writer mode), so this is what opening a block, adding an
+     * item and closing a block follow.
+     *
+     * @return true if the service is started, else false
+     */
+    public boolean isStarted() {
+        return isStarted.get();
     }
 
     /**
@@ -336,7 +357,7 @@ public class BlockBufferService extends BlockStreamingBase {
      * @throws IllegalArgumentException if the block number is negative
      */
     public void openBlock(final long blockNumber) {
-        if (!isStreamingEnabled() || !isStarted.get()) {
+        if (!isStarted.get()) {
             return;
         }
         logger.debug("Opening block: {}", blockNumber);
@@ -376,7 +397,7 @@ public class BlockBufferService extends BlockStreamingBase {
             final long blockNumber,
             @NonNull final Bytes serializedItem,
             @NonNull final BlockItem.ItemOneOfType itemType) {
-        if (!isStreamingEnabled() || !isStarted.get()) {
+        if (!isStarted.get()) {
             return;
         }
         requireNonNull(serializedItem, "serializedItem must not be null");
@@ -406,7 +427,7 @@ public class BlockBufferService extends BlockStreamingBase {
      * @throws IllegalStateException if no block is currently open
      */
     public void closeBlock(final long blockNumber) {
-        if (!isStreamingEnabled() || !isStarted.get()) {
+        if (!isStarted.get()) {
             return;
         }
 
@@ -1331,10 +1352,12 @@ public class BlockBufferService extends BlockStreamingBase {
     /**
      * Schedules the next buffer pruning task based on the configured prune interval.
      * If the prune interval is set to 0, a default interval of 1 second is used to periodically
-     * check if the configuration has changed.
+     * check if the configuration has changed. The task keeps running for as long as the service is started; whether
+     * it is started is decided by {@link #start(boolean)} and {@link #shutdown()}, not by the configuration in effect
+     * when this runs, which may be one a transaction is still trying out.
      */
     private void scheduleNextWorkerTask() {
-        if (!isStreamingEnabled()) {
+        if (!isStarted.get()) {
             return;
         }
 

@@ -2,7 +2,12 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -57,8 +62,8 @@ class FileAndGrpcBlockItemWriterTest {
         lenient().when(blockStreamConfig.blockFileBufferOuterSizeKb()).thenReturn(4096);
         lenient().when(blockStreamConfig.blockFileBufferInnerSizeKb()).thenReturn(1024);
         lenient().when(blockStreamConfig.blockFileBufferGzipSizeKb()).thenReturn(256);
-        // Do not forward the normal stream to gRPC, so only the file half is exercised for open/write
-        lenient().when(blockStreamConfig.streamToBlockNodes()).thenReturn(false);
+        // The buffer service mock is not started, so by default the normal stream is not forwarded to gRPC and only
+        // the file half is exercised for open/write
         when(selfNodeAccountIdManager.getSelfNodeAccountId())
                 .thenReturn(AccountID.newBuilder()
                         .shardNum(0)
@@ -87,5 +92,69 @@ class FileAndGrpcBlockItemWriterTest {
         assertThat(Files.exists(dir.resolve(BLK_GZ))).isFalse();
         assertThat(Files.exists(dir.resolve(MF))).isFalse();
         assertThat(Files.exists(dir.resolve(PENDING_PROOF_JSON))).isFalse();
+    }
+
+    @Test
+    void forwardsToTheStartedBufferServiceWhateverTheCurrentConfigurationSays() {
+        when(blockBufferService.isStarted()).thenReturn(true);
+        // The configuration in effect says streaming is off; a transaction may only be trying that out
+        lenient().when(blockStreamConfig.streamToBlockNodes()).thenReturn(false);
+        final var subject = new FileAndGrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, FileSystems.getDefault(), blockBufferService);
+        final var bytes = Bytes.wrap(new byte[] {1, 2, 3});
+
+        subject.openBlock(1);
+        subject.writePbjItemAndBytes(
+                BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                        .build(),
+                bytes);
+        subject.closeCompleteBlock();
+
+        final var inOrder = inOrder(blockBufferService);
+        inOrder.verify(blockBufferService).openBlock(1);
+        inOrder.verify(blockBufferService).addItem(1, bytes, BlockItem.ItemOneOfType.ROUND_HEADER);
+        inOrder.verify(blockBufferService).closeBlock(1);
+    }
+
+    @Test
+    void doesNotForwardToABufferServiceThatIsNotStartedWhateverTheCurrentConfigurationSays() {
+        when(blockBufferService.isStarted()).thenReturn(false);
+        // The configuration in effect says streaming is on; a transaction may only be trying that out
+        lenient().when(blockStreamConfig.streamToBlockNodes()).thenReturn(true);
+        final var subject = new FileAndGrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, FileSystems.getDefault(), blockBufferService);
+
+        subject.openBlock(1);
+        subject.writePbjItemAndBytes(
+                BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                        .build(),
+                Bytes.wrap(new byte[] {1, 2, 3}));
+        subject.closeCompleteBlock();
+
+        verify(blockBufferService, never()).openBlock(anyLong());
+        verify(blockBufferService, never()).addItem(anyLong(), any(), any());
+        verify(blockBufferService, never()).closeBlock(anyLong());
+    }
+
+    @Test
+    void wrappedRecordBlockDecisionIsTheOneInEffectWhenTheWriterWasCreated() {
+        lenient().when(blockBufferService.isStarted()).thenReturn(true);
+        when(blockStreamConfig.streamWrappedRecordBlocks()).thenReturn(false);
+        final var subject = new FileAndGrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, FileSystems.getDefault(), blockBufferService);
+        // A later configuration, possibly one a transaction is only trying out, hands the stream to the wrapped
+        // record block path; a block already being written keeps being forwarded
+        lenient().when(blockStreamConfig.streamWrappedRecordBlocks()).thenReturn(true);
+
+        subject.openBlock(1);
+        verify(blockBufferService).openBlock(1);
+
+        // A writer created while that path owns the stream does not forward
+        final var wrbSubject = new FileAndGrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, FileSystems.getDefault(), blockBufferService);
+        wrbSubject.openBlock(2);
+        verify(blockBufferService, never()).openBlock(2);
     }
 }

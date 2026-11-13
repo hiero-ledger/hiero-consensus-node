@@ -77,6 +77,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -2277,6 +2279,254 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testStartWithCallerDecisionSchedulesTheWorkerWhateverTheCurrentConfigurationSays() {
+        // The configuration in effect says streaming is off, but the caller knows the committed mode enables it
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "FILE")
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
+
+        blockBufferService.start(true);
+
+        assertThat(isStarted(blockBufferService)).isTrue();
+        final ScheduledExecutorService execSvc = (ScheduledExecutorService) execSvcHandle.get(blockBufferService);
+        assertThat(execSvc).isNotNull();
+        // The worker task is waiting for its first run
+        assertThat(execSvc.shutdownNow()).hasSize(1);
+    }
+
+    @Test
+    void testStartedServiceKeepsBufferingWhateverTheCurrentConfigurationSays() {
+        // Started for a committed configuration that streams to block nodes
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+
+        // A transaction is now trying out a configuration that turns streaming off; it has not been committed, so
+        // the service has not been shut down
+        final Configuration tentativeConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "FILE")
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(tentativeConfig, 2));
+
+        // Items and block boundaries that arrive meanwhile are still buffered
+        addItem(
+                blockBufferService,
+                TEST_BLOCK_NUMBER,
+                BlockItem.newBuilder()
+                        .blockHeader(BlockHeader.newBuilder()
+                                .number(TEST_BLOCK_NUMBER)
+                                .build())
+                        .build());
+        blockBufferService.closeBlock(TEST_BLOCK_NUMBER);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER + 1);
+
+        assertThat(buffer).containsOnlyKeys(TEST_BLOCK_NUMBER, TEST_BLOCK_NUMBER + 1);
+        assertThat(buffer.get(TEST_BLOCK_NUMBER).itemCount()).isEqualTo(1);
+        assertThat(buffer.get(TEST_BLOCK_NUMBER).isClosed()).isTrue();
+        assertThat(blockBufferService.getLastBlockNumberProduced()).isEqualTo(TEST_BLOCK_NUMBER + 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"FILE", "FILE_AND_GRPC"})
+    void testAcknowledgementIsCountedAgainstTheHeldConfiguration(final String tentativeWriterMode) {
+        // Two acknowledgements are required per block
+        final Configuration committedConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 2)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(committedConfig, 1));
+        blockBufferService = initBufferService(configProvider);
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+        blockBufferService.closeBlock(TEST_BLOCK_NUMBER);
+
+        // A transaction is now trying out a configuration that lowers the requirement to one acknowledgement; it
+        // has not been committed, and the committed configuration is held meanwhile
+        blockBufferService.holdConfiguration(committedConfig);
+        final Configuration tentativeConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", tentativeWriterMode)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.minAcksRequiredPerBlock", 1)
+                .getOrCreateConfig();
+        lenient().when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(tentativeConfig, 2));
+
+        // One acknowledgement is counted, but does not satisfy the committed requirement
+        blockBufferService.acknowledgeBlock(TEST_BLOCK_NUMBER, bn1StreamingEndpoint);
+        assertThat(blockBufferService.getHighestAckedBlockNumber()).isEqualTo(-1L);
+        assertThat(blockBufferService.isAcked(TEST_BLOCK_NUMBER)).isFalse();
+
+        // The update is rolled back and the configuration released; a second acknowledgement completes the two
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(committedConfig, 1));
+        blockBufferService.releaseConfiguration();
+        blockBufferService.acknowledgeBlock(TEST_BLOCK_NUMBER, bn2StreamingEndpoint);
+        assertThat(blockBufferService.getHighestAckedBlockNumber()).isEqualTo(TEST_BLOCK_NUMBER);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"FILE", "FILE_AND_GRPC"})
+    void testSaturatedBufferKeepsUnacknowledgedBlocksUnderTheHeldConfiguration(final String tentativeWriterMode)
+            throws Throwable {
+        // Block nodes are the only sink of the stream, so unacknowledged blocks must be kept even when over the limit
+        final int maxBlocks = 2;
+        final Configuration committedConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", maxBlocks)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(committedConfig, 1));
+        blockBufferService = initBufferService(configProvider);
+        final ConcurrentMap<Long, BlockState> buffer = blockBuffer(blockBufferService);
+        for (long blockNumber = 1; blockNumber <= 4; blockNumber++) {
+            blockBufferService.openBlock(blockNumber);
+            blockBufferService.closeBlock(blockNumber);
+        }
+
+        // A transaction is now trying out a configuration with a file writer, under which back pressure would be off
+        // and unacknowledged blocks over the limit could be pruned; it has not been committed, and the committed
+        // configuration is held meanwhile
+        blockBufferService.holdConfiguration(committedConfig);
+        final Configuration tentativeConfig = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", tentativeWriterMode)
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.buffer.maxBlocks", maxBlocks)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .getOrCreateConfig();
+        lenient().when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(tentativeConfig, 2));
+        final PruneResult beforeCheck = lastPruningResultRef(blockBufferService).get();
+        checkBufferHandle.invoke(blockBufferService);
+
+        // The buffer was checked, under the held configuration, and kept every unacknowledged block
+        assertThat(lastPruningResultRef(blockBufferService).get()).isNotSameAs(beforeCheck);
+        assertThat(buffer).containsOnlyKeys(1L, 2L, 3L, 4L);
+    }
+
+    @Test
+    void testHeldConfigurationIsTheFirstOneHeldUntilReleased() throws Throwable {
+        final Configuration first = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.buffer.maxBytes", "100m")
+                .getOrCreateConfig();
+        final Configuration second = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.buffer.maxBytes", "250m")
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(second, 2));
+        blockBufferService = initBufferService(configProvider);
+
+        blockBufferService.holdConfiguration(first);
+        // A second update in the same transaction would hold what is by then a tentative configuration
+        blockBufferService.holdConfiguration(second);
+        assertThat(maxBufferedBytes(blockBufferService)).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
+
+        blockBufferService.releaseConfiguration();
+        assertThat(maxBufferedBytes(blockBufferService)).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 250L);
+    }
+
+    @Test
+    void testReaderThatFoundNoHoldDoesNotUseAnUpdateAppliedBeforeItReadTheProvider() {
+        final Configuration committed = bufferConfigurationWithMaxBytes("100m");
+        final Configuration tentative = bufferConfigurationWithMaxBytes("250m");
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(committed, 1));
+        blockBufferService = initBufferService(configProvider);
+        // The reader has found no hold; before it reads the provider's configuration, a dispatch holds the committed
+        // configuration and applies an update
+        final AtomicBoolean dispatchRan = new AtomicBoolean();
+        when(configProvider.getConfiguration()).thenAnswer(invocation -> {
+            if (dispatchRan.compareAndSet(false, true)) {
+                blockBufferService.holdConfiguration(committed);
+            }
+            return new VersionedConfigImpl(tentative, 2);
+        });
+
+        assertThat(blockBufferService.bufferConfig().maxBytes()).isEqualTo("100m");
+        assertThat(dispatchRan).isTrue();
+    }
+
+    @Test
+    void testReaderThatFoundNoHoldDoesNotUseAnUpdateRolledBackBeforeItReturned() {
+        final Configuration committed = bufferConfigurationWithMaxBytes("100m");
+        final Configuration tentative = bufferConfigurationWithMaxBytes("250m");
+        final Configuration recovered = bufferConfigurationWithMaxBytes("100m");
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(committed, 1));
+        blockBufferService = initBufferService(configProvider);
+        // The reader has found no hold and reads the updated configuration; before it returns, the transaction rolls
+        // back, the configuration is recovered and the hold is released, so no hold is there to correct the reader
+        final AtomicBoolean transactionRan = new AtomicBoolean();
+        when(configProvider.getConfiguration()).thenAnswer(invocation -> {
+            if (transactionRan.compareAndSet(false, true)) {
+                blockBufferService.holdConfiguration(committed);
+                blockBufferService.releaseConfiguration();
+                return new VersionedConfigImpl(tentative, 2);
+            }
+            return new VersionedConfigImpl(recovered, 3);
+        });
+
+        assertThat(blockBufferService.bufferConfig()).isSameAs(recovered.getConfigData(BlockBufferConfig.class));
+        assertThat(transactionRan).isTrue();
+    }
+
+    private static Configuration bufferConfigurationWithMaxBytes(final String maxBytes) {
+        return HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.buffer.maxBytes", maxBytes)
+                .getOrCreateConfig();
+    }
+
+    @Test
+    void testServiceThatIsNotStartedBuffersNothingWhateverTheCurrentConfigurationSays() {
+        // The configuration in effect streams to block nodes, but no committed decision has started the service
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
+
+        blockBufferService.openBlock(TEST_BLOCK_NUMBER);
+        addItem(
+                blockBufferService,
+                TEST_BLOCK_NUMBER,
+                BlockItem.newBuilder()
+                        .blockHeader(BlockHeader.newBuilder()
+                                .number(TEST_BLOCK_NUMBER)
+                                .build())
+                        .build());
+        blockBufferService.closeBlock(TEST_BLOCK_NUMBER);
+
+        assertThat(blockBufferService.isStarted()).isFalse();
+        assertThat(blockBuffer(blockBufferService)).isEmpty();
+        verifyNoInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testStartWithCallerDecisionNotToStreamDoesNothing() {
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
+
+        blockBufferService.start(false);
+
+        assertThat(isStarted(blockBufferService)).isFalse();
+        assertThat(execSvcHandle.get(blockBufferService)).isNull();
+    }
+
+    @Test
     void testStartupWithNoBlocksOnDisk() {
         final Configuration config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
@@ -2914,6 +3164,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         when(configProvider.getConfiguration())
                 .thenReturn(
                         new VersionedConfigImpl(config1, 1), // first config read should be 100 MB
+                        new VersionedConfigImpl(config1, 1),
                         new VersionedConfigImpl(config1, 1),
                         new VersionedConfigImpl(config1, 1),
                         new VersionedConfigImpl(config2, 2) // second config read should be 250 MB
@@ -3776,9 +4027,12 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         if (realStart) {
             svc.start();
         } else {
-            // "fake" starting the service
+            // "fake" starting the service; like a real start, it only takes effect if streaming is enabled
             final AtomicBoolean isStarted = isStarted(svc);
-            isStarted.set(true);
+            isStarted.set(configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .streamToBlockNodes());
         }
         return svc;
     }
