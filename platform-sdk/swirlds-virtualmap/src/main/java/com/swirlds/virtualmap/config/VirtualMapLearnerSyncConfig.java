@@ -8,6 +8,7 @@ import com.swirlds.config.api.validation.ConfigViolation;
 import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Max;
 import com.swirlds.config.api.validation.annotation.Positive;
+import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -83,31 +84,10 @@ public record VirtualMapLearnerSyncConfig(
         if (leafBacklogThrottleThreshold >= 2L * flushInterval) {
             return null;
         }
-        return new Violation(
+        return new DefaultConfigViolation(
                 LEAF_BACKLOG_THROTTLE_THRESHOLD,
                 Integer.toString(leafBacklogThrottleThreshold),
+                true,
                 "must be at least twice reconnect.learner.flushInterval (" + flushInterval + ")");
-    }
-
-    private record Violation(String propertyName, String propertyValue, String message) implements ConfigViolation {
-        @Override
-        public String getPropertyName() {
-            return propertyName;
-        }
-
-        @Override
-        public String getPropertyValue() {
-            return propertyValue;
-        }
-
-        @Override
-        public String getMessage() {
-            return message;
-        }
-
-        @Override
-        public boolean propertyExists() {
-            return true;
-        }
     }
 }

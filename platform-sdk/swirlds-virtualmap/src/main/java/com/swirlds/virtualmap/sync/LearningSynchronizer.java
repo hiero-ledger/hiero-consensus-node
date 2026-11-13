@@ -45,7 +45,8 @@ public class LearningSynchronizer {
 
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
-    // Number of hash chunks that may hold dirty leaves of the learner's backlog, but stay open, with a margin
+    // Number of hash chunks with dirty leaves of the learner's backlog that can stay unfinished for long: two at
+    // each leaf rank, see leafBacklogThrottleThreshold()
     private static final int OPEN_HASH_CHUNKS_MARGIN = 4;
 
     private final ThreadManager threadManager;
@@ -111,13 +112,14 @@ public class LearningSynchronizer {
     /// Returns the leaf backlog threshold for the given learner: the configured one, or a larger one, if the
     /// configured one could stop the reconnect for good.
     ///
-    /// Dirty leaves leave the backlog only when the hash chunks with their hashes are flushed. A chunk is hashed
-    /// only when all its leaves are hashed, and a flush starts only when a batch is full. A few chunks with dirty
-    /// leaves may stay open for long: the one at the request frontier, at either leaf rank, and the one with
-    /// leaves at both leaf ranks, as its last leaf rank leaves are requested at the very end. If the backlog were
-    /// all in such chunks and in a batch that isn't full, the learner would stop requesting leaves for good. A
-    /// hash chunk holds at most as many leaves as it has hashes, so a backlog of `flushInterval` leaves in
-    /// complete chunks always fills a batch.
+    /// Dirty leaves leave the backlog only when their hash chunk is flushed. The hasher finishes a chunk only when
+    /// it knows every slot of it, and it learns that a slot is clean only when a later dirty leaf at the same rank
+    /// skips it. So at each leaf rank, up to two chunks with dirty leaves can stay unfinished for long: the one
+    /// with the first dirty leaf, whose earlier slots are known to be clean only after the last leaf, and the one
+    /// with the newest dirty leaf. The chunk with leaves at both leaf ranks is one of these whenever it holds
+    /// backlog leaves. A chunk holds at most as many leaves as it has hashes, so these 4 chunks hold at most
+    /// `4 * 2^chunkHeight` backlog leaves. With `flushInterval` more, the backlog always holds enough finished
+    /// chunks to fill a batch, so a flush always starts, and the learner never stops for good.
     ///
     /// @param vmapLearner the learner
     /// @return the threshold to use

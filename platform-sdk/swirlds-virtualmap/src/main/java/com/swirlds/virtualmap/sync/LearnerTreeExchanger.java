@@ -55,7 +55,7 @@ public final class LearnerTreeExchanger {
      */
     private final Queue<Long> anticipatedLeafPaths = new ConcurrentLinkedDeque<>();
 
-    /// Related to the queue above. If a response is received out of order, it's temporarily stored
+    /// Related to [#anticipatedLeafPaths]. If a response is received out of order, it's temporarily stored
     /// in this map.
     ///
     /// This map can't hold more than [#leafBacklogThrottleThreshold] responses, since it only holds responses
