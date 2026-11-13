@@ -113,3 +113,45 @@ jobs:
 
       - name: Test CI Metrics Scripts
         run: python3 -I -m unittest discover -s .github/workflows/support/scripts/ci-metrics/tests
+
+  # TEMPORARY, remove before merge: does the setup-python input of initialize-github-job work on the hl-cn runners?
+  # (actions/setup-python installs a CPython build that needs glibc 2.38; the hl-cn-default-lin-sm image has less.)
+  # continue-on-error keeps a failure here from failing the workflow.
+  temp-check-setup-python-v122:
+    name: "TEMP Check initialize-github-job setup-python (v1.2.2)"
+    runs-on: hl-cn-default-lin-sm
+    continue-on-error: true
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          setup-python: "true"
+          python-version: "3.12"
+
+      - name: Run Python
+        run: |
+          ldd --version | head -1
+          which python3
+          python3 --version
+          python3 -c "import sys; print('python ok', sys.version)"
+
+  # TEMPORARY, remove before merge: does the setup-python input of initialize-github-job work on the hl-cn runners?
+  # (actions/setup-python installs a CPython build that needs glibc 2.38; the hl-cn-default-lin-sm image has less.)
+  # continue-on-error keeps a failure here from failing the workflow.
+  temp-check-setup-python-v150:
+    name: "TEMP Check initialize-github-job setup-python (v1.5.0)"
+    runs-on: hl-cn-default-lin-sm
+    continue-on-error: true
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@74303607c68fe88ff9b7bfc05c40ca948fa04b13 # v1.5.0
+        with:
+          setup-python: "true"
+          python-version: "3.12"
+
+      - name: Run Python
+        run: |
+          ldd --version | head -1
+          which python3
+          python3 --version
+          python3 -c "import sys; print('python ok', sys.version)"
