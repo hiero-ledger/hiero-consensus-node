@@ -7,6 +7,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -23,6 +26,7 @@ import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherRequest;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.SendRequestResult;
+import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
@@ -68,6 +72,8 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
 
     private static final VarHandle connectionStateHandle;
     private static final VarHandle workerThreadRefHandle;
+    private static final VarHandle latestAckUpdateMillisHandle;
+    private static final VarHandle localHighestAckedBlockHandle;
 
     private static final MethodHandle sendRequestHandle;
 
@@ -81,6 +87,10 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
                     .findVarHandle(AbstractBlockNodeConnection.class, "stateRef", AtomicReference.class);
             workerThreadRefHandle = MethodHandles.privateLookupIn(observingCls, lookup)
                     .findVarHandle(observingCls, "workerThreadRef", AtomicReference.class);
+            latestAckUpdateMillisHandle = MethodHandles.privateLookupIn(observingCls, lookup)
+                    .findVarHandle(observingCls, "latestAckUpdateMillis", AtomicLong.class);
+            localHighestAckedBlockHandle = MethodHandles.privateLookupIn(observingCls, lookup)
+                    .findVarHandle(observingCls, "localHighestAckedBlock", AtomicLong.class);
 
             final Method sendRequest = publisherCls.getDeclaredMethod("sendRequest", PublisherRequest.class);
             sendRequest.setAccessible(true);
@@ -207,10 +217,56 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
     void testOnNext_handleAcknowledgement() {
         activateConnection();
 
+        localHighestAckedBlock().set(9L);
+        latestAckUpdateMillis().set(1767281400000L);
+
         connection.onNext(createBlockAckResponse(10L));
 
-        verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        assertThat(localHighestAckedBlock()).hasValue(10L);
+        assertThat(latestAckUpdateMillis()).hasValueGreaterThan(1767281400000L);
+
+        verify(metrics).recordResponseReceived(ConnectionType.ACK_OBSERVING, ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(bufferService).acknowledgeBlock(10L, blockNode.configuration().streamingEndpoint());
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(requestCall);
+    }
+
+    @Test
+    void testOnNext_handleAcknowledgement_nonUpdating() {
+        activateConnection();
+
+        localHighestAckedBlock().set(10L);
+        latestAckUpdateMillis().set(1767281400000L);
+
+        connection.onNext(createBlockAckResponse(10L)); // send an ACK for the same block
+
+        assertThat(localHighestAckedBlock()).hasValue(10L);
+        assertThat(latestAckUpdateMillis()).hasValue(1767281400000L);
+
+        verify(metrics).recordResponseReceived(ConnectionType.ACK_OBSERVING, ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(bufferService).acknowledgeBlock(10L, blockNode.configuration().streamingEndpoint());
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(requestCall);
+    }
+
+    @Test
+    void testOnNext_handleAcknowledgement_oldAck() {
+        activateConnection();
+
+        localHighestAckedBlock().set(10L);
+        latestAckUpdateMillis().set(1767281400000L);
+
+        connection.onNext(createBlockAckResponse(8L)); // send an ACK for an older block
+
+        assertThat(localHighestAckedBlock()).hasValue(10L);
+        assertThat(latestAckUpdateMillis()).hasValue(1767281400000L);
+
+        verify(metrics).recordResponseReceived(ConnectionType.ACK_OBSERVING, ResponseOneOfType.ACKNOWLEDGEMENT);
+        verify(bufferService).acknowledgeBlock(8L, blockNode.configuration().streamingEndpoint());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
@@ -229,9 +285,9 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
 
         assertThat(connectionState()).hasValue(ConnectionState.CLOSED);
 
-        verify(metrics).recordResponseEndOfStreamReceived(eosCode);
+        verify(metrics).recordResponseEndOfStreamReceived(ConnectionType.ACK_OBSERVING, eosCode);
         verify(metrics).recordLatestBlockEndOfStream(blockNumber);
-        verify(metrics).recordConnectionClosed(expectedCloseReason);
+        verify(metrics).recordConnectionClosed(ConnectionType.ACK_OBSERVING, expectedCloseReason);
         verify(bufferService)
                 .acknowledgeBlock(blockNumber, connection.configuration().streamingEndpoint());
         verify(requestCall).completeRequests();
@@ -327,7 +383,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
 
         final Object worker = createWorker();
 
-        invokeRun(worker);
+        invoke_run(worker);
 
         // nothing is called since the worker exits before it attempts to do any work
         verifyNoInteractions(metrics);
@@ -352,12 +408,12 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
                 .getLastBlockNumberProduced();
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
 
-        invokeRun(worker);
+        invoke_run(worker);
 
         // since the latest block produced matches the highest ACKed block, there should only be buffer interactions
         // because we escape early
         verify(bufferService).getLastBlockNumberProduced();
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verifyNoInteractions(metrics);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(requestCall);
@@ -370,11 +426,11 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         when(bufferService.getLastBlockNumberProduced()).thenReturn(-1L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(-1L);
 
-        invokeDoWork(worker);
+        invoke_doWork(worker);
 
         // since no blocks have been produced, there should only be buffer interactions
         verify(bufferService).getLastBlockNumberProduced();
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verifyNoInteractions(metrics);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(requestCall);
@@ -387,11 +443,11 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         when(bufferService.getLastBlockNumberProduced()).thenReturn(10L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
 
-        invokeDoWork(worker);
+        invoke_doWork(worker);
 
         // since no blocks have been produced, there should only be buffer interactions
         verify(bufferService).getLastBlockNumberProduced();
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
         verifyNoInteractions(metrics);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(requestCall);
@@ -422,7 +478,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
                 .when(requestCall)
                 .sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
 
-        invokeDoWork(worker);
+        invoke_doWork(worker);
 
         assertThat(eosRequestRef).doesNotHaveNullValue();
         final PublishStreamRequestBytes eosRequest = eosRequestRef.get();
@@ -434,11 +490,12 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
 
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getLastBlockNumberProduced();
-        verify(bufferService, times(2)).getHighestAckedBlockNumber();
-        verify(metrics).recordRequestSendFailure();
-        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
-        verify(metrics).recordConnectionClosed(CloseReason.CONNECTION_ERROR);
-        verify(metrics).recordRequestLatency(anyLong());
+        verify(bufferService, times(3)).getHighestAckedBlockNumber();
+        verify(bufferService).getLastBlockClosed();
+        verify(metrics).recordRequestSendFailure(ConnectionType.ACK_OBSERVING);
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.ACK_OBSERVING, EndStream.Code.ERROR);
+        verify(metrics).recordConnectionClosed(ConnectionType.ACK_OBSERVING, CloseReason.CONNECTION_ERROR);
+        verify(metrics).recordRequestLatency(eq(ConnectionType.ACK_OBSERVING), anyLong());
         verify(requestCall, times(2)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
         verify(publishBytesClient).close();
         verify(blockingIoExecutor).shutdown();
@@ -458,10 +515,11 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         when(bufferService.getLastBlockNumberProduced()).thenReturn(11L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
 
-        invokeDoWork(worker);
+        invoke_doWork(worker);
 
         verify(bufferService).getLastBlockNumberProduced();
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
+        verify(bufferService).getLastBlockClosed();
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(metrics);
         verifyNoInteractions(connectionManager);
@@ -488,7 +546,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
                 .when(requestCall)
                 .sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
 
-        invokeDoWork(worker);
+        invoke_doWork(worker);
 
         assertThat(ackOnlyRequest).doesNotHaveNullValue();
         final PublishStreamRequestBytes request = ackOnlyRequest.get();
@@ -497,9 +555,10 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         assertThat(ackOnly.blockNumber()).isEqualTo(11L);
 
         verify(bufferService).getLastBlockNumberProduced();
-        verify(bufferService).getHighestAckedBlockNumber();
-        verify(metrics).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestSent(RequestOneOfType.ACKNOWLEDGE_ONLY);
+        verify(bufferService, times(2)).getHighestAckedBlockNumber();
+        verify(bufferService).getLastBlockClosed();
+        verify(metrics).recordRequestLatency(eq(ConnectionType.ACK_OBSERVING), anyLong());
+        verify(metrics).recordRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.ACKNOWLEDGE_ONLY);
         verify(requestCall).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(metrics);
@@ -543,7 +602,7 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         final long startMillis = System.currentTimeMillis();
 
         for (long elapsedMillis = 0; elapsedMillis <= 3_000; ) {
-            invokeDoWork(worker);
+            invoke_doWork(worker);
 
             Thread.sleep(100); // sleep a little so we aren't burning CPU cycles fanatically
 
@@ -553,18 +612,114 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         assertThat(numAckOnlyRequests).hasValueBetween(2, 3);
 
         verify(bufferService, times(numAckOnlyRequests.get())).getLastBlockNumberProduced();
-        verify(bufferService, times(numAckOnlyRequests.get())).getHighestAckedBlockNumber();
-        verify(metrics, times(numAckOnlyRequests.get())).recordRequestLatency(anyLong());
-        verify(metrics, times(numAckOnlyRequests.get())).recordRequestSent(RequestOneOfType.ACKNOWLEDGE_ONLY);
+        verify(bufferService, atLeast(numAckOnlyRequests.get())).getHighestAckedBlockNumber();
+        verify(metrics, times(numAckOnlyRequests.get()))
+                .recordRequestLatency(eq(ConnectionType.ACK_OBSERVING), anyLong());
+        verify(metrics, times(numAckOnlyRequests.get()))
+                .recordRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.ACKNOWLEDGE_ONLY);
         verify(requestCall, times(numAckOnlyRequests.get()))
                 .sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+        verify(bufferService, atLeastOnce()).getLastBlockClosed();
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(requestCall);
     }
 
+    @Test
+    void testConnectionWorkerLoopTask_isIdle_nodeIsNotBehind() throws Throwable {
+        activateConnection();
+        final Object worker = createWorker();
+
+        when(bufferService.getLastBlockClosed()).thenReturn(10L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
+        localHighestAckedBlock().set(10L);
+        latestAckUpdateMillis().set(1767281400000L);
+
+        final boolean isIdle = invoke_isIdle(worker);
+
+        assertThat(isIdle).isFalse();
+        assertThat(connectionState()).hasValue(ConnectionState.ACTIVE); // connection should remain active
+
+        verify(bufferService).getLastBlockClosed();
+        verify(bufferService).getHighestAckedBlockNumber();
+        verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testConnectionWorkerLoopTask_isIdle_nodeBehindButNotIdle() throws Throwable {
+        activateConnection();
+        final Object worker = createWorker();
+
+        when(bufferService.getLastBlockClosed()).thenReturn(10L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(9L);
+        localHighestAckedBlock().set(9L);
+        latestAckUpdateMillis().set(System.currentTimeMillis() - 10);
+
+        final boolean isIdle = invoke_isIdle(worker);
+
+        assertThat(isIdle).isFalse();
+        assertThat(connectionState()).hasValue(ConnectionState.ACTIVE); // connection should remain active
+        assertThat(connection.closeReason()).isNull();
+
+        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService).getLastBlockClosed();
+        verifyNoMoreInteractions(bufferService);
+        verifyNoInteractions(requestCall);
+    }
+
+    @Test
+    void testConnectionWorkerLoopTask_isIdle_nodeIsIdle() throws Throwable {
+        activateConnection();
+        final Object worker = createWorker();
+
+        when(bufferService.getLastBlockClosed()).thenReturn(10L);
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(11L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(9L);
+
+        localHighestAckedBlock().set(9L);
+        latestAckUpdateMillis().set(-1L);
+
+        invoke_doWork(worker);
+
+        // sleep for a little over the max idle to get past the initial grace period
+        Thread.sleep((MAX_OBSERVER_IDLE_SECONDS + 2) * 1_000L);
+
+        final boolean isIdle = invoke_isIdle(worker);
+
+        assertThat(isIdle).isTrue();
+        assertThat(connectionState()).hasValue(ConnectionState.CLOSED); // connection should remain active
+        assertThat(connection.closeReason()).isEqualTo(CloseReason.IDLE_RECEIVE);
+        assertThat(localHighestAckedBlock()).hasValue(9L);
+        assertThat(latestAckUpdateMillis()).hasValue(-1L);
+
+        verify(bufferService, times(2)).getLastBlockClosed();
+        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService, times(4)).getHighestAckedBlockNumber();
+        verifyNoMoreInteractions(bufferService);
+        verify(metrics).recordRequestEndStreamSent(ConnectionType.ACK_OBSERVING, EndStream.Code.TIMEOUT);
+        verify(metrics).recordConnectionClosed(ConnectionType.ACK_OBSERVING, CloseReason.IDLE_RECEIVE);
+        verify(metrics, times(2)).recordRequestLatency(eq(ConnectionType.ACK_OBSERVING), anyLong());
+        verify(metrics).recordRequestSent(ConnectionType.ACK_OBSERVING, RequestOneOfType.ACKNOWLEDGE_ONLY);
+        verifyNoMoreInteractions(metrics);
+        verify(publishBytesClient).close();
+        verify(blockingIoExecutor).shutdown();
+        verify(connectionManager).notifyConnectionClosed(connection);
+        verifyNoMoreInteractions(connectionManager);
+        verify(requestCall, times(2)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
+        verify(requestCall).completeRequests();
+        verifyNoMoreInteractions(requestCall);
+    }
+
     // ==== Utilities
+
+    AtomicLong latestAckUpdateMillis() {
+        return (AtomicLong) latestAckUpdateMillisHandle.get(connection);
+    }
+
+    AtomicLong localHighestAckedBlock() {
+        return (AtomicLong) localHighestAckedBlockHandle.get(connection);
+    }
 
     private Object createWorker() throws Exception {
         Class<?> workerClass = null;
@@ -583,13 +738,19 @@ public class BlockNodeObservingConnectionTest extends BlockNodeCommunicationTest
         return constructor.newInstance(connection);
     }
 
-    private void invokeDoWork(final Object worker) throws Exception {
+    private boolean invoke_isIdle(final Object worker) throws Exception {
+        final Method isIdleMethod = worker.getClass().getDeclaredMethod("isIdle");
+        isIdleMethod.setAccessible(true);
+        return (boolean) isIdleMethod.invoke(worker);
+    }
+
+    private void invoke_doWork(final Object worker) throws Exception {
         final Method doWorkMethod = worker.getClass().getDeclaredMethod("doWork");
         doWorkMethod.setAccessible(true);
         doWorkMethod.invoke(worker);
     }
 
-    private void invokeRun(final Object worker) throws Exception {
+    private void invoke_run(final Object worker) throws Exception {
         final Method runMethod = worker.getClass().getDeclaredMethod("run");
         runMethod.setAccessible(true);
         runMethod.invoke(worker);
