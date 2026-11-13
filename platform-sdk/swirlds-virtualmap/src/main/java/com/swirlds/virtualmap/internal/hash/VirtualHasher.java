@@ -22,9 +22,11 @@ import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongFunction;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
@@ -324,9 +326,7 @@ public final class VirtualHasher {
         @Override
         protected boolean onExecute() {
             final WritableMessageDigest wmd = getWritableMessageDigest();
-            final byte[] hash = MerkleHasher.leafNodeHashBytes(leaf, wmd);
-            listener.onLeafHashed(leaf);
-            out.setHash(path, hash);
+            out.setHash(path, MerkleHasher.leafNodeHashBytes(leaf, wmd));
             return true;
         }
     }
@@ -390,9 +390,15 @@ public final class VirtualHasher {
             final long firstLeafPath,
             final long lastLeafPath,
             final @Nullable VirtualHashListener listener) {
+        requireNonNull(hashChunkPreloader);
         return CompletableFuture.supplyAsync(
                 () -> hash(
-                        hashChunkHeight, hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, listener),
+                        hashChunkHeight,
+                        firstLeafPath,
+                        lastLeafPath,
+                        listener,
+                        () -> hashImpl(
+                                hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, hashingPool)),
                 runnable -> new ThreadConfiguration(getStaticThreadManager())
                         .setSingleThreadName(CompositeThreadNameProvider.create("virtualmap", "async-hasher"))
                         .setRunnable(runnable)
@@ -437,7 +443,30 @@ public final class VirtualHasher {
             final long lastLeafPath,
             final @Nullable VirtualHashListener listener) {
         requireNonNull(hashChunkPreloader);
+        final ForkJoinPool pool =
+                Thread.currentThread() instanceof ForkJoinWorkerThread thread ? thread.getPool() : hashingPool;
+        return hash(
+                hashChunkHeight,
+                firstLeafPath,
+                lastLeafPath,
+                listener,
+                () -> pool.invoke(ForkJoinTask.adapt(
+                        () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool))));
+    }
 
+    /// Notifies the listener, runs the given hashing, waits for all its tasks, and returns the root hash. Used by
+    /// both [#hash(int, LongFunction, Iterator, long, long, VirtualHashListener)] and
+    /// [#hashAsync(int, LongFunction, Iterator, long, long, VirtualHashListener)], which run [#hashImpl] on
+    /// different threads.
+    ///
+    /// @param hashing runs [#hashImpl] and returns the root task, or null if there are no dirty leaves
+    @SuppressWarnings("rawtypes")
+    private Hash hash(
+            final int hashChunkHeight,
+            final long firstLeafPath,
+            final long lastLeafPath,
+            final @Nullable VirtualHashListener listener,
+            final @NonNull Supplier<ChunkHashTask> hashing) {
         this.defaultChunkHeight = hashChunkHeight;
 
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
@@ -449,12 +478,7 @@ public final class VirtualHasher {
         // Let the listener know we have started hashing.
         this.listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
-        // The dirty leaves are consumed on the calling thread. Hashing tasks run in the pool of the calling thread,
-        // if it's a fork join pool thread, or in the hashing pool otherwise
-        final ForkJoinPool pool =
-                Thread.currentThread() instanceof ForkJoinWorkerThread thread ? thread.getPool() : hashingPool;
-        final ChunkHashTask rootTask =
-                hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool);
+        final ChunkHashTask rootTask = hashing.get();
         if (rootTask != null) {
             try {
                 rootTask.get();

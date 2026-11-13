@@ -30,8 +30,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -414,18 +414,14 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final Hash expected = hashTree(ds);
         final List<VirtualLeafBytes> leaves = invalidateNodes(
                 ds, LongStream.range(firstLeafPath, lastLeafPath + 1).boxed());
-        final AtomicLong hashedLeaves = new AtomicLong();
+        final Set<Long> hashedChunkIds = ConcurrentHashMap.newKeySet();
         final VirtualHashListener listener = new VirtualHashListener() {
             @Override
             public void onHashChunkHashed(final VirtualHashChunk chunk) {
                 synchronized (ds) {
                     ds.updateHashChunk(chunk);
                 }
-            }
-
-            @Override
-            public void onLeafHashed(final VirtualLeafBytes<?> leaf) {
-                hashedLeaves.incrementAndGet();
+                hashedChunkIds.add(chunk.getChunkId());
             }
         };
 
@@ -436,14 +432,19 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         try {
             final CompletableFuture<Hash> future =
                     hasher.hashAsync(chunkHeight, ds::loadHashChunk, iterator, firstLeafPath, lastLeafPath, listener);
-            long suppliedLeaves = 0;
-            for (final VirtualLeafBytes leaf : leaves) {
-                iterator.supply(leaf);
-                suppliedLeaves++;
-                // Like the learner when it reaches its leaf backlog threshold: no more leaves until the
-                // supplied ones are hashed
+            for (int i = 0; i < leaves.size(); i++) {
+                final long chunkId =
+                        VirtualHashChunk.pathToChunkId(leaves.get(i).path(), chunkHeight);
+                iterator.supply(leaves.get(i));
+                final boolean lastLeafInChunk = (i == leaves.size() - 1)
+                        || (VirtualHashChunk.pathToChunkId(leaves.get(i + 1).path(), chunkHeight) != chunkId);
+                if (!lastLeafInChunk) {
+                    continue;
+                }
+                // Like the learner when it reaches its leaf backlog threshold: no more leaves until the chunk
+                // with the supplied ones is hashed
                 final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-                while (hashedLeaves.get() < suppliedLeaves) {
+                while (!hashedChunkIds.contains(chunkId)) {
                     if (System.nanoTime() > deadline) {
                         fail("Leaf tasks don't run while hashing waits for more leaves");
                     }
@@ -488,7 +489,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         // need to be updated in the future. At the moment the number is 15: 14 chunks (63L to 104L
         // paths above, 81/82 and 87/88 sharing the same chunk) plus the root chunk
         assertEquals(15, listener.onHashChunkHashedCount, "Unexpected count");
-        assertEquals(dirtyLeafPaths.size(), listener.onLeafHashedCount, "Unexpected count");
         assertEquals(1, listener.onHashingCompletedCallCount, "Unexpected count");
 
         // Validate the calls were all balanced
@@ -567,7 +567,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
 
         private int onHashingStartedCallCount = 0;
         private int onHashChunkHashedCount = 0;
-        private int onLeafHashedCount = 0;
         private int onHashingCompletedCallCount = 0;
         private final StringBuilder callHistory = new StringBuilder();
 
@@ -589,11 +588,6 @@ class VirtualHasherTest extends VirtualHasherTestBase {
             onHashChunkHashedCount++;
             callHistory.append(ON_CHUNK_HASHED_SYMBOL);
             chunks.add(chunk);
-        }
-
-        @Override
-        public synchronized void onLeafHashed(final VirtualLeafBytes<?> leaf) {
-            onLeafHashedCount++;
         }
 
         @Override

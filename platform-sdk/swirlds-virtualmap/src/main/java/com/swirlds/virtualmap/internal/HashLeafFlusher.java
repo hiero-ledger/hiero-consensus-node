@@ -9,6 +9,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Duration;
@@ -115,6 +116,10 @@ public class HashLeafFlusher {
     // Passed to the data source with every flush, see VirtualDataSource.saveRecords()
     private final boolean reconnectContext;
 
+    // Called with the hash chunks of every completed flush, or null
+    @Nullable
+    private final Consumer<List<VirtualHashChunk>> onHashChunksFlushed;
+
     // Flush stats, reported by getStatus(). Updated by the flusher thread and by the thread that calls finish()
     private final AtomicLong flushCount = new AtomicLong();
     private final AtomicLong totalFlushMillis = new AtomicLong();
@@ -174,6 +179,29 @@ public class HashLeafFlusher {
             @NonNull final VirtualMapStatistics statistics,
             @NonNull final Marker logMarker,
             final boolean reconnectContext) {
+        this(dataSource, flushInterval, statistics, logMarker, reconnectContext, null);
+    }
+
+    /// Creates a flusher that logs with the given marker and reports flushed hash chunks.
+    ///
+    /// @param dataSource the data source to flush data to
+    /// @param flushInterval the flush threshold, see
+    ///     [#HashLeafFlusher(VirtualDataSource, int, VirtualMapStatistics, Marker, boolean)]
+    /// @param statistics virtual map statistics to record flush durations
+    /// @param logMarker the marker to use for flush logs
+    /// @param reconnectContext whether data is flushed in the reconnect context, see
+    ///     [#HashLeafFlusher(VirtualDataSource, int, VirtualMapStatistics, Marker, boolean)]
+    /// @param onHashChunksFlushed called with the hash chunks of every flush, once they are written, on the
+    ///     thread that runs the flush. All leaves added before a hash chunk are written in the same flush or
+    ///     an earlier one. May be null
+    public HashLeafFlusher(
+            @NonNull final VirtualDataSource dataSource,
+            final int flushInterval,
+            @NonNull final VirtualMapStatistics statistics,
+            @NonNull final Marker logMarker,
+            final boolean reconnectContext,
+            @Nullable final Consumer<List<VirtualHashChunk>> onHashChunksFlushed) {
+        this.onHashChunksFlushed = onHashChunksFlushed;
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
         this.hashChunkHeight = this.dataSource.getHashChunkHeight();
         this.flushInterval = flushInterval;
@@ -498,6 +526,9 @@ public class HashLeafFlusher {
             flushedHashChunks.addAndGet(toFlush.hashChunks.size());
             flushedLeaves.addAndGet(toFlush.leaves.size());
             flushedDeletedLeaves.addAndGet(toFlush.deletedLeaves.size());
+            if (onHashChunksFlushed != null) {
+                onHashChunksFlushed.accept(toFlush.hashChunks);
+            }
             logger.debug(
                     logMarker,
                     "Flushed {} hash chunks, {} leaves, {} deleted leaves in {} ms",

@@ -21,6 +21,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
@@ -167,6 +169,44 @@ public class HashLeafFlusherTest {
         assertTrue(flusher.getStatus().contains("pendingLeaves=0"), flusher.getStatus());
         flusher.finish();
         assertTrue(flusher.getStatus().contains("flushes=2"), flusher.getStatus());
+        assertTrue(flusher.awaitTermination(Duration.ofSeconds(10)), "Flusher thread must exit after finish()");
+    }
+
+    @Test
+    @DisplayName("Hash chunks of every flush are reported once written, with the leaves added before them")
+    void testFlushedHashChunksReported() throws InterruptedException {
+        final VirtualDataSource ds = new InMemoryDataSource("testFlushedHashChunksReported");
+        final int hashChunkHeight = ds.getHashChunkHeight();
+        final List<Long> reportedChunkIds = new CopyOnWriteArrayList<>();
+        final AtomicReference<VirtualLeafBytes> leafOnDiskWhenReported = new AtomicReference<>();
+        // A single hash chunk fills a batch
+        final HashLeafFlusher flusher = new HashLeafFlusher(
+                ds,
+                VirtualHashChunk.getChunkSize(hashChunkHeight),
+                new VirtualMapStatistics("testFlushedHashChunksReported"),
+                VIRTUAL_MERKLE_STATS.getMarker(),
+                true,
+                chunks -> {
+                    chunks.forEach(chunk -> reportedChunkIds.add(chunk.getChunkId()));
+                    if (!chunks.isEmpty()) {
+                        try {
+                            leafOnDiskWhenReported.set(ds.loadLeafRecord(1));
+                        } catch (final IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    }
+                });
+        flusher.init(1, 2);
+        flusher.updateLeaf(leaf(1, 1, 1));
+        flusher.updateHashChunk(new VirtualHashChunk(0, hashChunkHeight));
+        assertEventuallyTrue(
+                () -> reportedChunkIds.equals(List.of(0L)),
+                Duration.ofSeconds(10),
+                "The flushed hash chunk must be reported");
+        assertNotNull(leafOnDiskWhenReported.get(), "The leaf added before the chunk must be written by then");
+        // The final flush has no hash chunks, nothing more is reported
+        flusher.finish();
+        assertEquals(List.of(0L), reportedChunkIds);
         assertTrue(flusher.awaitTermination(Duration.ofSeconds(10)), "Flusher thread must exit after finish()");
     }
 

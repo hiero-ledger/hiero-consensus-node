@@ -25,6 +25,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,8 +35,8 @@ class LearnerTreeExchangerTest {
     private static final long FIRST_LEAF_PATH = 7;
     private static final long LAST_LEAF_PATH = 14;
 
-    // The callback the exchanger passes to the learner, to be called when a leaf is hashed
-    private final AtomicReference<Runnable> onLeafHashed = new AtomicReference<>();
+    // The callback the exchanger passes to the learner, to be called when dirty leaves are stored to disk
+    private final AtomicReference<LongConsumer> onLeavesStored = new AtomicReference<>();
 
     private VirtualMapLearner learner;
     private NodeTraversalOrder traversalOrder;
@@ -45,7 +46,7 @@ class LearnerTreeExchangerTest {
         learner = mock(VirtualMapLearner.class);
         when(learner.getOriginalMetadata()).thenReturn(new VirtualMap.Metadata());
         doAnswer(invocation -> {
-                    onLeafHashed.set(invocation.getArgument(2));
+                    onLeavesStored.set(invocation.getArgument(2));
                     return null;
                 })
                 .when(learner)
@@ -112,8 +113,8 @@ class LearnerTreeExchangerTest {
     }
 
     @Test
-    @DisplayName("Dirty leaves count towards the backlog after they are applied, till they are hashed")
-    void dirtyLeavesCountTowardsBacklogTillHashed() throws InterruptedException {
+    @DisplayName("Dirty leaves count towards the backlog after they are applied, till they are stored")
+    void dirtyLeavesCountTowardsBacklogTillStored() throws InterruptedException {
         final LearnerTreeExchanger exchanger = createExchanger(2);
         assertEquals(7, exchanger.getNextPathToSend());
         assertEquals(8, exchanger.getNextPathToSend());
@@ -124,10 +125,10 @@ class LearnerTreeExchangerTest {
             final VirtualLeafBytes<?> leaf = new VirtualLeafBytes<>(7, Bytes.wrap(new byte[] {7}), Bytes.EMPTY);
             exchanger.responseReceived(new PullVirtualTreeResponse(7, false, -1, -1, leaf));
             verify(learner, timeout(10_000)).dirtyLeafReceived(leaf);
-            // Applied, but not hashed yet
+            // Applied, but not stored yet
             assertEquals(PATH_NOT_AVAILABLE_YET, exchanger.getNextPathToSend());
 
-            onLeafHashed.get().run();
+            onLeavesStored.get().accept(1);
             assertEquals(9, exchanger.getNextPathToSend());
             assertEquals(PATH_NOT_AVAILABLE_YET, exchanger.getNextPathToSend());
             verify(traversalOrder, times(3)).getNextLeafPathToSend();

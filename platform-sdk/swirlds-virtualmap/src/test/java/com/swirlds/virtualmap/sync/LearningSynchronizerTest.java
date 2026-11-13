@@ -11,9 +11,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig_;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -45,6 +48,19 @@ class LearningSynchronizerTest {
     void tearDown() {
         // Not close(): it flushes buffered data, which fails if a test has already closed the sockets
         streams.disconnect();
+    }
+
+    @Test
+    @DisplayName("A leaf backlog threshold below twice the flush interval is rejected")
+    void smallLeafBacklogThresholdRejected() {
+        final Configuration config = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(VirtualMapLearnerSyncConfig_.FLUSH_INTERVAL, "100")
+                .withValue(VirtualMapLearnerSyncConfig_.LEAF_BACKLOG_THROTTLE_THRESHOLD, "199")
+                .build();
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new LearningSynchronizer(getStaticThreadManager(), config, createMetrics()));
     }
 
     @Test

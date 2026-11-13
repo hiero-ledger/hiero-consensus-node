@@ -2,7 +2,6 @@
 package com.swirlds.virtualmap.internal.hash;
 
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
-import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -26,12 +25,6 @@ public interface VirtualHashListener {
      * @param chunk Non-null hash chunk
      */
     default void onHashChunkHashed(@NonNull final VirtualHashChunk chunk) {}
-
-    /// Called after each dirty leaf is hashed, once per leaf. This is called between
-    /// [#onHashingStarted(long, long)] and [#onHashingCompleted()], concurrently from hashing threads.
-    ///
-    /// @param leaf the hashed leaf
-    default void onLeafHashed(@NonNull final VirtualLeafBytes<?> leaf) {}
 
     /**
      * Called when all hashing has completed.

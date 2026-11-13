@@ -68,12 +68,13 @@ public final class LearnerTreeExchanger {
     /// While the [#leafBacklog] is at this threshold or above, [#getNextPathToSend()] doesn't return leaf paths.
     /// Flusher backpressure throttles both receiving and hashing, but it doesn't keep hashing up with receiving.
     /// Without this threshold, leaves that are received faster than they are hashed pile up in memory, either in
-    /// [#responses] or in the hasher.
+    /// [#responses] or in the hasher. Dirty leaves leave the backlog only when they are flushed, so the threshold
+    /// must be large enough for the backlog to fill a flush, see [LearningSynchronizer].
     private final int leafBacklogThrottleThreshold;
 
-    /// Number of leaves requested from the teacher, but not hashed yet. Incremented when a leaf is requested, and
-    /// decremented when a clean leaf response is applied, or when a dirty leaf is hashed. Hashed leaves may still
-    /// wait in the flusher, but there they are bounded by flusher backpressure.
+    /// Number of leaves requested from the teacher, but not stored to disk yet. Incremented when a leaf is
+    /// requested. Decremented when a clean leaf response is applied, since a clean leaf is already on disk, or
+    /// when a dirty leaf is flushed together with its hash.
     private final LongAdder leafBacklog = new LongAdder();
 
     /**
@@ -129,7 +130,7 @@ public final class LearnerTreeExchanger {
                 vmapLearner.getOriginalMetadata().getLastLeafPath(),
                 firstLeafPath,
                 lastLeafPath);
-        vmapLearner.init(firstLeafPath, lastLeafPath, leafBacklog::decrement);
+        vmapLearner.init(firstLeafPath, lastLeafPath, storedLeaves -> leafBacklog.add(-storedLeaves));
         handleResponse(rootResponse);
     }
 
@@ -163,7 +164,7 @@ public final class LearnerTreeExchanger {
             return intPath;
         }
         synchronized (this) {
-            // Backpressure: don't request more leaves until some of the requested ones are hashed. Checked
+            // Backpressure: don't request more leaves until some of the requested ones are stored. Checked
             // under the lock, so concurrent senders can't overshoot the threshold
             if (leafBacklog.sum() >= leafBacklogThrottleThreshold) {
                 return NodeTraversalOrder.PATH_NOT_AVAILABLE_YET;
@@ -361,7 +362,7 @@ public final class LearnerTreeExchanger {
                 // hashing is slower than ingest.
                 vmapLearner.dirtyLeafReceived(leaf);
             } else {
-                // A clean leaf isn't hashed, so it leaves the backlog here
+                // A clean leaf is already on disk, so it leaves the backlog here
                 leafBacklog.decrement();
             }
             stats.incrementLeafData(isClean);

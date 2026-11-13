@@ -54,6 +54,8 @@ public class LearningSynchronizer {
      * @param threadManager responsible for managing thread lifecycles
      * @param config the configuration
      * @param metrics the metrics system for recording synchronization metrics
+     * @throws IllegalArgumentException if {@code reconnect.learner.leafBacklogThrottleThreshold} is less than twice
+     *      {@code reconnect.learner.flushInterval}
      */
     public LearningSynchronizer(
             @NonNull final ThreadManager threadManager,
@@ -63,6 +65,16 @@ public class LearningSynchronizer {
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager cannot be null");
         this.syncConfig = Objects.requireNonNull(config, "config cannot be null")
                 .getConfigData(VirtualMapLearnerSyncConfig.class);
+        // Dirty leaves leave the learner's leaf backlog only when they are flushed, and a flush starts only when
+        // the flusher has collected flushInterval items. If the backlog can't reach that, it never drains. Twice
+        // the interval also leaves room for the next flush to fill up while the current one is running
+        if (syncConfig.leafBacklogThrottleThreshold() < 2L * syncConfig.flushInterval()) {
+            throw new IllegalArgumentException("reconnect.learner.leafBacklogThrottleThreshold ("
+                    + syncConfig.leafBacklogThrottleThreshold()
+                    + ") must be at least twice reconnect.learner.flushInterval ("
+                    + syncConfig.flushInterval()
+                    + ")");
+        }
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
     }
 

@@ -41,8 +41,11 @@ import java.time.Duration;
  *                                               increases heap usage.
  * @param leafBacklogThrottleThreshold           The learner stops requesting leaves while its leaf backlog is at this
  *                                               threshold or above. The backlog is the number of leaves requested from
- *                                               the teacher, but not hashed yet. This bounds the memory used by leaves
- *                                               waiting for hashing, when leaves are received faster than they are
+ *                                               the teacher, but not stored to disk yet together with their hashes.
+ *                                               Leaves leave the backlog only when they are flushed, so the threshold
+ *                                               must be at least twice {@code flushInterval}, otherwise the backlog may
+ *                                               never fill a flush. This bounds the memory used by leaves waiting for
+ *                                               hashing or flushing, when leaves are received faster than they are
  *                                               hashed, for example when hashing threads are blocked on flusher
  *                                               backpressure. Each leaf takes a few hundred bytes of heap.
  */
@@ -56,5 +59,5 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "10000") @Positive @Max(1073741824) int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
         @ConfigProperty(defaultValue = "2000000") @Positive int flushInterval,
-        @ConfigProperty(defaultValue = "1000000") @Positive int leafBacklogThrottleThreshold) {}
+        @ConfigProperty(defaultValue = "4000000") @Positive int leafBacklogThrottleThreshold) {}
 // spotless:on
