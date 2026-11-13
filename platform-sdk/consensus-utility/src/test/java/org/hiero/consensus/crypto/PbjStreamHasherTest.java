@@ -238,6 +238,29 @@ class PbjStreamHasherTest {
         assertThat(unsignedEvent.getHash()).isEqualTo(event.getHash());
     }
 
+    @Test
+    void eventLargerThanTheInitialBuffer() {
+        EventHashFactory.initialize(CUTOVER);
+        final PbjStreamHasher hasher = new PbjStreamHasher();
+
+        // the hashes of 100 parents alone take more than 3 KB; the hasher's buffer starts with 1 KB
+        final PlatformEvent largeEvent = new TestingEventBuilder(RANDOM)
+                .setBirthRound(CUTOVER + 1)
+                .setSelfParent(hashedEventWithBirthRound(hasher, CUTOVER))
+                .setOtherParents(Stream.generate(() -> hashedEventWithBirthRound(hasher, CUTOVER))
+                        .limit(100)
+                        .toList())
+                .setAppTransactionCount(3)
+                .build();
+        final PlatformEvent smallEvent = eventWithBirthRound(CUTOVER + 1);
+
+        hasher.hashEvent(largeEvent);
+        hasher.hashEvent(smallEvent);
+
+        assertThat(largeEvent.getHash()).isEqualTo(expectedHash(largeEvent, DigestType.SHA_256));
+        assertThat(smallEvent.getHash()).isEqualTo(expectedHash(smallEvent, DigestType.SHA_256));
+    }
+
     /**
      * Creates an event that makes the hasher throw part way through hashing.
      */
