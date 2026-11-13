@@ -69,14 +69,19 @@ public interface StateLifecycleManager<S, D> {
 
     /**
      * Creates a snapshot for the state provided as a parameter. The state has to be hashed before calling this method.
+     * If the snapshot can't be written, this method throws; the snapshot in {@code targetPath} may be incomplete
+     * and must not be used.
      *
      * @param state The state to save.
      * @param targetPath The path to save the snapshot.
+     * @throws java.io.UncheckedIOException if the snapshot can't be written
      */
     void createSnapshot(@NonNull S state, @NonNull Path targetPath);
 
     /**
      * Creates a snapshot asynchronously for the state provided as a parameter.
+     * If the snapshot can't be written, the returned future completes exceptionally. Cancelling the returned future
+     * skips the snapshot if it hasn't started yet.
      *
      * @param state The state to save.
      * @param targetPath The path to save the snapshot.

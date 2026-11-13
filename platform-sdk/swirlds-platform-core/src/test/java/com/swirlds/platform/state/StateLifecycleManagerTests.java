@@ -8,7 +8,10 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSo
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -26,8 +29,12 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
 import org.hiero.base.Reservable;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
@@ -172,6 +179,38 @@ class StateLifecycleManagerTests {
         manager.prepareForFreeze();
 
         verify(dataSource).stopAndDisableBackgroundCompaction(false);
+    }
+
+    @Test
+    @DisplayName("createSnapshot() propagates a snapshot failure")
+    void createSnapshotPropagatesFailure() throws IOException {
+        final VirtualMapState state = mock(VirtualMapState.class);
+        final VirtualMap virtualMap = mock(VirtualMap.class);
+        when(state.getRoot()).thenReturn(virtualMap);
+        final Path targetPath = Path.of("snapshot");
+        final IOException failure = new IOException("Test: snapshot failed");
+        doThrow(failure).when(virtualMap).createSnapshot(targetPath);
+
+        final UncheckedIOException e =
+                assertThrows(UncheckedIOException.class, () -> stateLifecycleManager.createSnapshot(state, targetPath));
+        assertSame(failure, e.getCause(), "the snapshot failure should be the cause");
+    }
+
+    @Test
+    @DisplayName("Cancelling an async snapshot cancels the map's snapshot")
+    void cancellingAsyncSnapshotReachesMap() {
+        final VirtualMapState state = mock(VirtualMapState.class);
+        final VirtualMap virtualMap = mock(VirtualMap.class);
+        when(state.getRoot()).thenReturn(virtualMap);
+        final Path targetPath = Path.of("snapshot");
+        final CompletableFuture<Void> mapSnapshot = new CompletableFuture<>();
+        when(virtualMap.createSnapshotAsync(targetPath)).thenReturn(mapSnapshot);
+
+        final Future<Void> snapshot = stateLifecycleManager.createSnapshotAsync(state, targetPath);
+        snapshot.cancel(true);
+
+        // The map checks its own future before writing the snapshot, so it must see the cancellation
+        assertTrue(mapSnapshot.isCancelled(), "the map's snapshot should be cancelled");
     }
 
     private static SignedState newSignedState() {

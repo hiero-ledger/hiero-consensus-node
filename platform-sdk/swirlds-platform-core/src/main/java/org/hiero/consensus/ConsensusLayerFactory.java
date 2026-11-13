@@ -366,7 +366,8 @@ public class ConsensusLayerFactory {
                 swirldName,
                 stateLifecycleManager,
                 latestCompleteStateNexus,
-                savedStateController);
+                savedStateController,
+                SystemExitUtils::handleFatalError);
     }
 
     @NonNull

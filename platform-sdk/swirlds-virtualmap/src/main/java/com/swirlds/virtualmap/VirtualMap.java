@@ -985,20 +985,22 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 }
             }
         } catch (final Exception | Error e) {
-            // The cache is already flushed, only the snapshot failed. Errors from the snapshot, like an
-            // OutOfMemoryError, must not reach the pipeline thread: it would shut down the live map. The
-            // snapshot's waiter gets the failure instead
+            // The cache is already flushed, only the snapshot failed. The snapshot's waiter gets the failure,
+            // and the failure is rethrown to the pipeline thread, which shuts down the map. A failed snapshot
+            // must fail the node rather than be swallowed
             logger.error(EXCEPTION.getMarker(), "Failed to write snapshot to target path", e);
             final CompletableFuture<Void> future = snapshotFuture.get();
             if (future != null) {
                 future.completeExceptionally(e);
             }
+            throw e;
         } finally {
             snapshotTargetPath.set(null);
             snapshotFuture.set(null);
+            // The cache is flushed even if the snapshot failed, so don't keep flush waiters blocked
+            flushLatch.countDown();
         }
 
-        flushLatch.countDown();
         statistics.recordFlush(end - start);
         logger.debug(
                 VIRTUAL_MERKLE_STATS.getMarker(),
@@ -1461,6 +1463,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      *
      * <p>The snapshot will be created during the next flush operation. This method enables flushing
      * via {@link #enableFlush()} to ensure the snapshot is written.
+     *
+     * <p>If the snapshot fails, the returned future completes exceptionally, and the failure is also
+     * rethrown from {@link #flush()}, which shuts down the virtual pipeline.
      *
      * @param outputDirectory the target directory where the snapshot will be written
      * @return a {@link CompletableFuture} that completes when the snapshot has been successfully written

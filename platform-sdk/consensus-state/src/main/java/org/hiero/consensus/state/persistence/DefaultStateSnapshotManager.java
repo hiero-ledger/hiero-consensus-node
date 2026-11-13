@@ -37,6 +37,8 @@ import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
+import org.hiero.consensus.system.FatalErrorConsumer;
+import org.hiero.consensus.system.SystemExitCode;
 
 /**
  * This class is responsible for managing the state writing pipeline.
@@ -81,6 +83,11 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     /**
+     * Shuts down the node when a state can't be saved
+     */
+    private final FatalErrorConsumer fatalErrorConsumer;
+
+    /**
      * Creates a new instance.
      *
      * @param configuration the configuration
@@ -91,6 +98,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      * @param selfId the ID of this node
      * @param swirldName the name of the swirld
      * @param stateLifecycleManager the state lifecycle manager
+     * @param fatalErrorConsumer called when a state can't be saved, to shut down the node
      */
     public DefaultStateSnapshotManager(
             @NonNull final Configuration configuration,
@@ -100,13 +108,15 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
-            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final FatalErrorConsumer fatalErrorConsumer) {
 
         this.fileSystemManager = requireNonNull(fileSystemManager);
         this.time = requireNonNull(time);
         this.selfId = requireNonNull(selfId);
         this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = stateLifecycleManager;
+        this.fatalErrorConsumer = requireNonNull(fatalErrorConsumer);
         this.signedStateFilePath = new SignedStateFilePath(fileSystemManager, mainClassName, selfId, swirldName);
         this.stateSnapshotManagerMetrics = new StateSnapshotManagerMetrics(metrics);
     }
@@ -134,8 +144,17 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 return null;
             }
             checkSignatures(signedState);
-            final boolean success = saveStateTask(reservedSignedState, getSignedStateDir(signedState.getRound()));
-            if (!success) {
+            final long round = signedState.getRound();
+            final Path directory = getSignedStateDir(round);
+            try {
+                writeStateToDisk(reservedSignedState, directory);
+            } catch (final Throwable e) {
+                // An incomplete state must not be marked as saved, and older states must not be deleted. The node
+                // can't go on without saving states, so fail it
+                fatalErrorConsumer.fatalError(
+                        "Unable to write signed state for round " + round + " to " + directory,
+                        e,
+                        SystemExitCode.FATAL_ERROR);
                 return null;
             }
             signedState.stateSavedToDisk();
@@ -172,12 +191,19 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
         // The state is reserved before it is handed to this method, and it is released in the snapshot
         // saving process (see SignedStateFileWriter#writeSignedStateFilesToDirectory);
         // additionally, this try-finally ensures cleanup if an error occurs before reaching that point.
+        final Path directory = fileSystemManager
+                .resolve(getReason(signedState).getDescription())
+                .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound()));
         try {
-            saveStateTask(
-                    reservedSignedState,
-                    fileSystemManager
-                            .resolve(getReason(signedState).getDescription())
-                            .resolve(String.format("node%d_round%d", selfId.id(), signedState.getRound())));
+            writeStateToDisk(reservedSignedState, directory);
+        } catch (final Throwable e) {
+            // A dump is for diagnostics, a failed one doesn't fail the node
+            logger.error(
+                    EXCEPTION.getMarker(),
+                    "Unable to dump signed state for round {} to {}.",
+                    signedState.getRound(),
+                    directory,
+                    e);
         } finally {
             if (!reservedSignedState.isClosed()) {
                 reservedSignedState.close();
@@ -204,31 +230,18 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
      *
      * @param reservedSignedState the reserved state to write
      * @param directory           the target directory for the state files
-     * @return {@code true} if the state was written successfully, {@code false} otherwise
+     * @throws IOException if the state can't be written
      */
-    private boolean saveStateTask(
-            @NonNull final ReservedSignedState reservedSignedState, @NonNull final Path directory) {
-        final SignedState signedState = reservedSignedState.get();
-
-        try {
-            SignedStateFileWriter.writeSignedStateToDisk(
-                    configuration,
-                    fileSystemManager,
-                    selfId,
-                    directory,
-                    getReason(signedState),
-                    reservedSignedState,
-                    stateLifecycleManager);
-            return true;
-        } catch (final Throwable e) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "Unable to write signed state to disk for round {} to {}.",
-                    signedState.getRound(),
-                    directory,
-                    e);
-            return false;
-        }
+    private void writeStateToDisk(@NonNull final ReservedSignedState reservedSignedState, @NonNull final Path directory)
+            throws IOException {
+        SignedStateFileWriter.writeSignedStateToDisk(
+                configuration,
+                fileSystemManager,
+                selfId,
+                directory,
+                getReason(reservedSignedState.get()),
+                reservedSignedState,
+                stateLifecycleManager);
     }
 
     /**

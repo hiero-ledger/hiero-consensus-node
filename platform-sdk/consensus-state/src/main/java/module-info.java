@@ -27,6 +27,7 @@ module org.hiero.consensus.state {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires transitive org.hiero.consensus.wiring.framework;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
@@ -34,7 +35,6 @@ module org.hiero.consensus.state {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster;
-    requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

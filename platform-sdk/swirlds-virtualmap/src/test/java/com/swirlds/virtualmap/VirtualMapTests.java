@@ -1299,8 +1299,8 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    @DisplayName("An Error from an async snapshot fails the snapshot, but doesn't shut down the map")
-    void asyncSnapshotErrorDoesNotShutDownMap() throws Exception {
+    @DisplayName("An Error from an async snapshot fails the snapshot and shuts down the map")
+    void asyncSnapshotErrorShutsDownMap() {
         final VirtualDataSourceBuilder builder = new InMemoryBuilder() {
             @NonNull
             @Override
@@ -1318,15 +1318,11 @@ class VirtualMapTests extends VirtualTestBase {
         try {
             final ExecutionException e = assertThrows(ExecutionException.class, () -> snapshot.get(30, SECONDS));
             assertInstanceOf(InternalError.class, e.getCause());
-            // The pipeline isn't shut down: new copies can still be made, and the data is there
-            map1.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
-            final VirtualMap map2 = map1.copy();
-            try {
-                assertEquals(APPLE, map2.get(A_KEY, TestValueCodec.INSTANCE));
-                assertEquals(BANANA, map2.get(B_KEY, TestValueCodec.INSTANCE));
-            } finally {
-                map2.release();
-            }
+            // The failure is rethrown to the pipeline thread, which shuts down the pipeline and closes the
+            // data source: no new copies can be made
+            final InMemoryDataSource dataSource = (InMemoryDataSource) map1.getDataSource();
+            assertEventuallyTrue(dataSource::isClosed, Duration.ofSeconds(30), "data source should be closed");
+            assertThrows(IllegalStateException.class, map1::copy, "copies can't be made after a shutdown");
         } finally {
             map1.release();
         }
