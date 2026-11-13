@@ -728,6 +728,14 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var blockInfoState = states.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
 
         final var blockInfoInState = requireNonNull(blockInfoState.get());
+        // Handlers may have updated the migration voting data since lastBlockInfo was cached
+        lastBlockInfo = lastBlockInfo
+                .copyBuilder()
+                .votingComplete(blockInfoInState.votingComplete())
+                .votingCompletionDeadlineBlockNumber(blockInfoInState.votingCompletionDeadlineBlockNumber())
+                .migrationRootHashVotes(blockInfoInState.migrationRootHashVotes())
+                .migrationWrappedHashes(blockInfoInState.migrationWrappedHashes())
+                .build();
         if (blockInfoInState.previewStreamOverwritten()) {
             // If the preview block stream has already been overwritten, preserve the cutover-related fields from state
             // rather than overwriting with in-memory values. This is necessary to preserve the integrity of the cutover
