@@ -949,6 +949,7 @@ class ClprSubmitBundleHandlerTest {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", true)
                 .withValue("contracts.maxGasPerTransaction", 1000L)
+                .withValue("clpr.submitBundleGasLimit", 1000L)
                 .withValue("clpr.verifierGasLimit", 100L)
                 .withValue("clpr.messageExecutionCost", MESSAGE_EXECUTION_COST)
                 .withValue("clpr.progressRewardTinycents", PROGRESS_REWARD)

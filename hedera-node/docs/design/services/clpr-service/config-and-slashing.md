@@ -82,9 +82,10 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 ### Dispatch gas budgets (CLPR-4.4 / 5.3)
 
-|        Key         |   Default   | Network? |                                  Purpose                                  |
-|--------------------|-------------|----------|---------------------------------------------------------------------------|
-| `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
+|          Key           |   Default    | Network? |                                   Purpose                                   |
+|------------------------|--------------|----------|-----------------------------------------------------------------------------|
+| `verifierGasLimit`     | `2 000 000`  | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`).   |
+| `submitBundleGasLimit` | `50 000 000` | yes      | Total gas a `ClprSubmitBundle` can spend on its verifier and its callbacks. |
 
 > `ClprCompleteChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
 > (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
@@ -99,6 +100,12 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 > caps each application callback (`onClprMessage` / `onClprResponse`) at the per-Channel
 > `ClprThrottles.maxGasPerMessage` throttle read from `LEDGER_CONFIGURATION` (spec §1.1, §6.0).
 > The old `appDispatchGasLimit` config field was removed (#129).
+>
+> The callbacks in a bundle split the gas the verifier leaves from `submitBundleGasLimit` evenly, each still capped
+> at `maxGasPerMessage`. The budget exceeds `contracts.maxGasPerTransaction` because a callback that sends a message
+> pays the `sendMessage` price through gas (about 1.17M gas at $0.10); a 15M budget would fund such a send in only
+> about ten callbacks per bundle. The submitting node escrows the budget's gas cost when the bundle starts and gets
+> back whatever the verifier and callbacks do not use.
 >
 > `clpr.enabled` defaults to `false`, so a fresh node keeps CLPR dormant. Set
 > `clpr.enabled=true` explicitly to activate it after the `LEDGER_CONFIGURATION`

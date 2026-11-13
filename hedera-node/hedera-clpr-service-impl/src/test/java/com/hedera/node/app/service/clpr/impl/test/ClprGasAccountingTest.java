@@ -17,6 +17,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
@@ -44,6 +45,7 @@ class ClprGasAccountingTest {
     private static final AccountID CONNECTOR_A = account(1002);
     private static final AccountID CONNECTOR_B = account(1003);
     private static final long TOTAL_GAS = 1_000;
+    private static final long BUNDLE_GAS = 3 * TOTAL_GAS;
     private static final long GAS_PRICE = 6;
     private static final long INITIAL_BALANCE = 20_000;
     private static final Instant NOW = Instant.ofEpochSecond(1_000);
@@ -59,6 +61,7 @@ class ClprGasAccountingTest {
                 .willReturn(HederaTestConfigBuilder.create()
                         .withValue("contracts.maxGasPerTransaction", TOTAL_GAS)
                         .withValue("clpr.verifierGasLimit", 100L)
+                        .withValue("clpr.submitBundleGasLimit", BUNDLE_GAS)
                         .getOrCreateConfig());
         given(context.dispatchMetadata()).willReturn(new DispatchMetadata(new HashMap<>()));
         given(context.getGasPriceInTinycents()).willReturn(5L);
@@ -106,6 +109,23 @@ class ClprGasAccountingTest {
         subject.refundUnusedGas();
         verify(context).refundHandlerCharge(PARENT, 360L);
         assertThat(subject.availableApplicationGas(1)).isZero();
+    }
+
+    @Test
+    void bundleBudgetCanExceedOneTransactionsGas() {
+        given(context.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT)
+                        .build());
+        final var subject = ClprGasAccounting.forContext(context);
+
+        // Each callback stays within one transaction's gas, but together they can use the whole bundle budget
+        assertThat(subject.reserveParentGas()).isTrue();
+        verify(context).tryToCharge(PARENT, BUNDLE_GAS * GAS_PRICE);
+        assertThat(subject.availableApplicationGas(Long.MAX_VALUE)).isEqualTo(BUNDLE_GAS - 100);
+        assertThat(subject.prepay(CONNECTOR_A, TOTAL_GAS)).isTrue();
+        assertThat(subject.prepay(CONNECTOR_B, TOTAL_GAS)).isTrue();
+        assertThat(subject.availableApplicationGas(Long.MAX_VALUE)).isEqualTo(BUNDLE_GAS - 100 - 2 * TOTAL_GAS);
     }
 
     @Test

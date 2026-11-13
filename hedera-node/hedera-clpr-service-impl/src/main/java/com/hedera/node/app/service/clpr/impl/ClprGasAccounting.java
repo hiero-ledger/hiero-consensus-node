@@ -36,15 +36,16 @@ public final class ClprGasAccounting {
         parentPayer = context.payer();
         final long maximum = Math.max(
                 0, context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction());
-        totalGas = context.body() != null && context.body().hasClprCompleteChannel()
-                ? Math.min(
-                        maximum,
-                        Math.max(
-                                0,
-                                context.configuration()
-                                        .getConfigData(ClprConfig.class)
-                                        .verifierGasLimit()))
-                : maximum;
+        final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
+        final var body = context.body();
+        if (body != null && body.hasClprCompleteChannel()) {
+            totalGas = Math.min(maximum, Math.max(0, clprConfig.verifierGasLimit()));
+        } else if (body != null && body.hasClprSubmitBundle()) {
+            // A bundle runs many separately capped calls, so its total can exceed one transaction's gas
+            totalGas = Math.max(0, clprConfig.submitBundleGasLimit());
+        } else {
+            totalGas = maximum;
+        }
         remainingGas = totalGas;
     }
 

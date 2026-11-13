@@ -87,6 +87,14 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "2000000") @NetworkProperty
         long verifierGasLimit,
 
+        // --- ClprSubmitBundle gas budget ---
+        // Total gas a bundle can spend on its verifier and its application callbacks, which split what the verifier
+        // leaves evenly. Each callback stays within contracts.maxGasPerTransaction, but the bundle may exceed it: a
+        // callback that sends a message pays the sendMessage price (~1.17M gas at $0.10) through gas, so a budget
+        // of 15M would fund such a send in only about ten callbacks per bundle.
+        @ConfigProperty(defaultValue = "50000000") @NetworkProperty
+        long submitBundleGasLimit,
+
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
         // Maximum fee the node will pay when submitting an inbound bundle for consensus. A bundle is exempt from node
         // and network fees and pays $0.01 + PROCESSING_BYTES per bundle byte + verifier gas, so a bundle at the
