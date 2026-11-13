@@ -73,7 +73,7 @@ public record ClprConfig(
         int connectorQueueQuotaPct,
 
         // --- sendMessage system contract price ---
-        // Price of a sendMessage call in tinycents ($0.10), including its gas; the caller attaches the rest as value
+        // Price of a successful sendMessage call in tinycents ($0.10), collected entirely through gas.
         @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
         long sendMessageFeeTinycents,
         // Fee proposal: Proposed pricing > System contract calls (EVM) > sendMessage, Extras column.

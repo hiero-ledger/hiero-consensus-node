@@ -29,7 +29,6 @@ import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalH
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
@@ -332,36 +331,30 @@ class CustomMessageCallProcessorTest {
 
     @ParameterizedTest
     @MethodSource("pricedClprMethods")
-    void pricedClprCallMayCarryValueForItsFee(final SystemContractMethod method) {
+    void pricedClprCallRejectsAttachedValue(final SystemContractMethod method) {
         final var address = Address.fromHexString("0x16e");
-        final var clprContract = mock(ClprSystemContract.class, CALLS_REAL_METHODS);
+        final var clprContract = mock(AbstractClprSystemContract.class);
         final var callInput = Bytes.concatenate(Bytes.wrap(method.selector()), Bytes.fromHexString("0x1234"));
         subject = new CustomMessageCallProcessor(
                 evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
+        final var isHalted = new AtomicBoolean();
+        givenHaltableFrame(isHalted);
         givenCallWithCode(address);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE))
                 .willReturn(HederaTestConfigBuilder.create()
                         .withValue("clpr.enabled", true)
                         .getOrCreateConfig());
+        doCallRealMethod().when(clprContract).isDisabled(frame);
         given(frame.getValue()).willReturn(Wei.ONE);
         given(frame.getInputData()).willReturn(callInput);
         given(frame.getMessageFrameStack()).willReturn(stack);
-        given(stack.getLast()).willReturn(frame);
-        given(frame.getContextVariable(OPS_DURATION_COUNTER))
-                .willReturn(OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE));
-        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
-        doAnswer(invocation -> {
-                    invocation.<Consumer<FullResult>>getArgument(3).accept(FullResult.successResult(OUTPUT_DATA, 0));
-                    return null;
-                })
-                .when(clprContract)
-                .computeFully(any(), eq(callInput), eq(frame), any());
+        given(stack.isEmpty()).willReturn(true);
 
         subject.start(frame, operationTracer);
 
-        verify(clprContract).computeFully(any(), eq(callInput), eq(frame), any());
-        verify(frame, never()).setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.INVALID_CONTRACT_ID));
-        verify(frame).setOutputData(OUTPUT_DATA);
+        verify(clprContract, never()).computeFully(any(), any(), any(), any());
+        verify(frame).setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.INVALID_CONTRACT_ID));
+        verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
     }
 
     @Test

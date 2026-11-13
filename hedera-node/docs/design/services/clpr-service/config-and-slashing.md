@@ -48,12 +48,12 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 ### Fee configuration
 
-|            Key             |          Default           | Network? |                                               Purpose                                                |
-|----------------------------|----------------------------|----------|------------------------------------------------------------------------------------------------------|
-| `sendMessageFeeTinycents`  | `1 000 000 000` tinycents  | yes      | Price of a `sendMessage` call ($0.10), including its gas; the rest is collected from attached value. |
-| `sendMessageIncludedBytes` | `1 024`                    | yes      | Message bytes covered by the base price. Additional bytes cost $0.00001 each.                        |
-| `nodeSubmitBundleMaxFee`   | `100 000 000 000` tinybars | yes      | Maximum fee a node pays to submit an inbound bundle (1,000 ℏ).                                       |
-| `manifestSubmissionMaxFee` | `10 000 000 000` tinybars  | no       | Maximum fee a node offers to publish its endpoint (100 ℏ).                                           |
+|            Key             |          Default           | Network? |                                         Purpose                                          |
+|----------------------------|----------------------------|----------|------------------------------------------------------------------------------------------|
+| `sendMessageFeeTinycents`  | `1 000 000 000` tinycents  | yes      | Target price of a successful `sendMessage` call ($0.10), collected entirely through gas. |
+| `sendMessageIncludedBytes` | `1 024`                    | yes      | Message bytes covered by the base price. Additional bytes cost $0.00001 each.            |
+| `nodeSubmitBundleMaxFee`   | `100 000 000 000` tinybars | yes      | Maximum fee a node pays to submit an inbound bundle (1,000 ℏ).                           |
+| `manifestSubmissionMaxFee` | `10 000 000 000` tinybars  | no       | Maximum fee a node offers to publish its endpoint (100 ℏ).                               |
 
 ### Sync orchestration (CLPR-4.3, used by `ClprChannelManager` / `ClprEndpointClient`)
 
@@ -182,13 +182,27 @@ CLPR transactions use the standard fee workflow. On handle failure, the workflow
 fees after rolling back handle effects. The admin-only transactions have a $0 service fee and waive the
 remaining fees for privileged payers.
 
-External EVM transactions pay gas plus any remaining top-up from attached value to reach the method's base target.
+External EVM transactions pay CLPR system-contract prices entirely through gas. No attached value is required.
 The targets are $0.10 for `sendMessage`, $0.01 for `verifyConfig`, and $0.02 each for `verifyBundle`,
 `getChannelQueueState`, and `getEndpointManifest`. The `sendMessage` state-byte surcharge is in addition to its base
 target. The [CLPR fee proposal](https://app.notion.com/p/swirldslabs/CLPR-Fee-Proposal-Initial-Draft-3f77c9ab259180cab83ec87e3cc53f99),
 under **Proposed pricing → System contract calls (EVM) → sendMessage**, explicitly includes
-`STATE_BYTES` at about $0.00001 per byte after the first 1,024 message-data bytes. Native verifier dispatches use the gas charged by the native operation. Off-chain contract queries use the
-ordinary query payment path. On-chain calls that need a top-up must use a payable call.
+`STATE_BYTES` at about $0.00001 per byte after the first 1,024 message-data bytes. The total target is converted to
+tinybars at the active exchange rate, then to gas with ceiling division at the transaction's network gas price.
+The result has no additional dispatch premium and retains the minimum gas required for native work. Gas already
+consumed by connector authorization contributes toward the send target and is counted once. Failed sends retain
+their native-work and executed-authorization gas charges.
+
+The transaction's gas payer covers these charges through ordinary EVM gas accounting, including sender/relayer
+allowances. An enclosing application revert rolls back its state changes, while gas already used remains charged.
+Static reads can pay through gas without changing balances in their static frames. Native verifier dispatches use
+the gas charged by the native operation; off-chain contract queries use the ordinary query payment path.
+
+Callers must offer enough gas for the quoted price, application work, and message size. At a gas price of
+$0.0000000852, the $0.10 send target needs approximately 1.174 million gas before surrounding application overhead.
+Yahcli defaults to 2 million gas for a single small message; larger payloads and multi-message calls need larger
+budgets within the network transaction gas limit. Zero-price gas configurations retain native-work metering and
+ordinary fee-waiver handling.
 
 The minimum connector bond is denominated in tinycents and defaults to $3,000. `completeConnector` converts
 this minimum using the active network exchange rate at the transaction's consensus time and requires the

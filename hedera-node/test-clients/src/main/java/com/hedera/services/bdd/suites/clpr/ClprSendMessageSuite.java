@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
@@ -45,7 +44,7 @@ public class ClprSendMessageSuite {
     private static final String VERIFIER_CONTRACT = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
     private static final String SEND_MESSAGE = "sendMessage";
-    private static final long GAS_TO_OFFER = 500_000L;
+    private static final long GAS_TO_OFFER = 2_000_000L;
     private static final long MIN_LOCKED_STAKE = 100L;
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -98,7 +97,6 @@ public class ClprSendMessageSuite {
                                 crypto.connectorId(),
                                 new byte[] {10, 20, 30},
                                 new byte[] {1, 2, 3, 4, 5})
-                        .sending(ONE_HBAR)
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")
                         .via("sendMsgTxn"),
@@ -119,7 +117,6 @@ public class ClprSendMessageSuite {
                                 new byte[32],
                                 new byte[] {10, 20, 30},
                                 new byte[] {1, 2, 3})
-                        .sending(ONE_HBAR)
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
@@ -173,7 +170,6 @@ public class ClprSendMessageSuite {
                                 new byte[32],
                                 new byte[] {10, 20, 30},
                                 new byte[] {1, 2, 3})
-                        .sending(ONE_HBAR)
                         .gas(GAS_TO_OFFER)
                         .payingWith("caller")
                         .hasKnownStatus(CONTRACT_REVERT_EXECUTED));

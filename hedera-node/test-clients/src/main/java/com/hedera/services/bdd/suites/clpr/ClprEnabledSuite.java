@@ -136,7 +136,7 @@ public class ClprEnabledSuite {
     private static final String CLPR_CONTRACT = "ClprSystemContract";
     private static final String VERIFIER_CONTRACT = "ClprPassThroughVerifier";
     private static final String CONNECTOR_CONTRACT = "PassThroughAuth";
-    private static final long GAS_TO_OFFER = 500_000L;
+    private static final long GAS_TO_OFFER = 2_000_000L;
     private static final String INGEST_BYPASS_NODE = "4";
     // ClprMaintenance is never submitted, only externalized by nodes in the block stream
     private static final EnumSet<HederaFunctionality> NODE_INTERNAL_CLPR_FUNCTIONS =
@@ -213,24 +213,20 @@ public class ClprEnabledSuite {
     }
 
     @HapiTest
-    @DisplayName("A direct EVM manifest read charges the attached top-up once")
-    final Stream<DynamicTest> nativeClprManifestReadChargesTopUp() {
+    @DisplayName("A zero-value EVM manifest read pays its target entirely through gas")
+    final Stream<DynamicTest> nativeClprManifestReadChargesGas() {
         final var abi = new Function("getEndpointManifest()", "(bytes)").toJson(false);
         final var router = CLPR_SYSTEM_CONTRACT_NUMS.getFirst();
         final var paidRead = "paidManifestRead";
         final var balanceBefore = new AtomicLong();
         final var recordedFee = new AtomicLong();
+        final var gasPrice = new AtomicLong();
         return hapiTest(
                 cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS),
-                contractCallWithFunctionAbi(router, abi)
-                        .payingWith(CALLER)
-                        .gas(GAS_TO_OFFER)
-                        .refusingEthConversion()
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                 getAccountBalance(CALLER).payingWith(GENESIS).exposingBalanceTo(balanceBefore::set),
+                withOpContext((spec, opLog) -> gasPrice.set(spec.ratesProvider().currentTinybarGasPrice())),
                 contractCallWithFunctionAbi(router, abi)
                         .payingWith(CALLER)
-                        .sending(ONE_HBAR)
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()
                         .via(paidRead),
@@ -238,6 +234,11 @@ public class ClprEnabledSuite {
                     final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
                     final long targetInTinybars = 200_000_000L * rate.getHbarEquiv() / rate.getCentEquiv();
                     assertTrue(record.getTransactionFee() >= targetInTinybars, "Fee must include the manifest target");
+                    assertTrue(
+                            Math.multiplyExact(record.getContractCallResult().getGasUsed(), gasPrice.get())
+                                    >= targetInTinybars,
+                            "Gas alone must cover the manifest target");
+                    assertEquals(0L, record.getContractCallResult().getAmount(), "No value is attached to the read");
                     recordedFee.set(record.getTransactionFee());
                 }),
                 getAccountBalance(CALLER)
@@ -246,9 +247,10 @@ public class ClprEnabledSuite {
     }
 
     @HapiTest
-    @DisplayName("A deployed contract sends a message and reads a real CLPR channel successfully")
+    @DisplayName("A nonpayable deployed contract sends with zero value and uses a static CLPR queue read")
     final Stream<DynamicTest> clprRouterCallsSucceedFromContract() {
         final var crypto = new ClprChannelCrypto();
+        final var gasPrice = new AtomicLong();
         final var operations = contractSetup();
         final var txns = clprTxns(crypto);
         for (final var name : List.of(
@@ -259,24 +261,34 @@ public class ClprEnabledSuite {
                 "completeConnector")) {
             operations.add(dispatch(txns.get(name), false, false));
         }
+        operations.add(getContractInfo(CLPR_CONTRACT).has(contractWith().balance(0L)));
+        operations.add(
+                withOpContext((spec, opLog) -> gasPrice.set(spec.ratesProvider().currentTinybarGasPrice())));
         operations.add(sendMessage(crypto).via("sentMessage"));
-        operations.add(getTxnRecord("sentMessage")
-                .exposingTo(record -> assertTrue(
-                        new BigInteger(
-                                                1,
-                                                record.getContractCallResult()
-                                                        .getContractCallResult()
-                                                        .toByteArray())
-                                        .longValueExact()
-                                > 0,
-                        "sendMessage must return the enqueued message ID")));
+        operations.add(getTxnRecord("sentMessage").exposingTo(record -> {
+            assertTrue(
+                    new BigInteger(
+                                            1,
+                                            record.getContractCallResult()
+                                                    .getContractCallResult()
+                                                    .toByteArray())
+                                    .longValueExact()
+                            > 0,
+                    "sendMessage must return the enqueued message ID");
+            final var rate = record.getReceipt().getExchangeRate().getCurrentRate();
+            final long targetInTinybars = 1_000_000_000L * rate.getHbarEquiv() / rate.getCentEquiv();
+            assertTrue(
+                    Math.multiplyExact(record.getContractCallResult().getGasUsed(), gasPrice.get()) >= targetInTinybars,
+                    "Gas alone must cover the $0.10 send target");
+            assertEquals(0L, record.getContractCallResult().getAmount(), "No value is attached to the send");
+        }));
         operations.add(contractCall(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
                 .payingWith(CALLER)
-                .sending(ONE_HBAR)
                 .gas(GAS_TO_OFFER)
                 .hasKnownStatus(SUCCESS));
         operations.add(contractCallLocal(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
                 .gas(GAS_TO_OFFER));
+        operations.add(getContractInfo(CLPR_CONTRACT).has(contractWith().balance(0L)));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 
@@ -612,7 +624,6 @@ public class ClprEnabledSuite {
                         crypto.connectorId(),
                         new byte[20],
                         new byte[] {1, 2, 3})
-                .sending(ONE_HBAR)
                 .payingWith(CALLER)
                 .gas(GAS_TO_OFFER)
                 .hasKnownStatus(SUCCESS);

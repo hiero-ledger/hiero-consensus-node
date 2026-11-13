@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
@@ -24,9 +26,11 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallFactory;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
+import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import java.util.ArrayDeque;
 import java.util.stream.Stream;
@@ -41,13 +45,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class AbstractClprSystemContractTest {
     private static final long GAS_REQUIREMENT = 5_000L;
-    private static final long TOP_UP = 10_000L;
+    private static final long PRICED_GAS_REQUIREMENT = 10_000L;
 
     private final TestClprContract subject = new TestClprContract();
 
@@ -70,7 +75,7 @@ class AbstractClprSystemContractTest {
     void givenSuccessfulCall() {
         given(call.execute(frame))
                 .willReturn(gasOnly(FullResult.successResult(Bytes.EMPTY, GAS_REQUIREMENT), SUCCESS, true));
-        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
+        lenient().when(frame.getMessageFrameStack()).thenReturn(new ArrayDeque<>());
     }
 
     static Stream<Arguments> feeTargets() {
@@ -83,50 +88,127 @@ class AbstractClprSystemContractTest {
 
     @ParameterizedTest
     @MethodSource("feeTargets")
-    void chargesSuccessfulCallAtItsTargetLessGas(final SystemContractMethod method, final long target) {
+    void pricesSuccessfulCallEntirelyThroughGas(final SystemContractMethod method, final long target) {
         givenPaidCall(target);
-        given(frame.getValue()).willReturn(Wei.of(TOP_UP + 1));
-        given(frame.getRecipientAddress()).willReturn(Address.ZERO);
-        given(frame.getContractAddress()).willReturn(Address.ZERO);
-        given(frame.getWorldUpdater()).willReturn(updater);
-        given(attempt.senderId()).willReturn(SENDER_ID);
-        given(updater.collectClprFee(SENDER_ID, TOP_UP)).willReturn(true);
 
         final var result = subject.price(attempt, call, method, frame);
 
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
-        assertThat(result.nonGasCost()).isEqualTo(TOP_UP);
-    }
-
-    @Test
-    void onChainStaticReadCannotPayTopUp() {
-        givenPaidCall(200_000_000L);
-        given(frame.isStatic()).willReturn(true);
-
-        final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
-
-        assertThat(result.responseCode()).isEqualTo(INSUFFICIENT_TX_FEE);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
         assertThat(result.nonGasCost()).isZero();
+        verify(frame, never()).getValue();
         verifyNoInteractions(updater);
     }
 
     @Test
-    void localQueryDoesNotCollectValue() {
+    void onChainStaticReadPaysThroughGasWithoutValue() {
+        givenPaidCall(200_000_000L);
+        given(frame.isStatic()).willReturn(true);
+        assertThat(frame.isStatic()).isTrue();
+
         final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
 
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
+        assertThat(result.nonGasCost()).isZero();
+        verify(frame, never()).getValue();
+        verifyNoInteractions(updater);
+    }
+
+    @Test
+    void onChainDelegateReadPaysThroughGasWithoutDebitingCallerBalance() {
+        givenPaidCall(200_000_000L);
+        given(frame.getRecipientAddress()).willReturn(Address.ZERO);
+        given(frame.getContractAddress()).willReturn(Address.fromHexString("0x16e"));
+        assertThat(FrameUtils.isDelegateCall(frame)).isTrue();
+
+        final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
+        assertThat(result.nonGasCost()).isZero();
+        verify(frame, never()).getValue();
+        verifyNoInteractions(updater);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void pricingPreservesCallResultAndRecordBuilder(final boolean viewCall) {
+        givenPaidCall(200_000_000L);
+        final var recordBuilder = mock(ContractCallStreamBuilder.class);
+        final var precompileResult = FullResult.successResult(Bytes.fromHexString("1234"), GAS_REQUIREMENT)
+                .result();
+        given(call.execute(frame))
+                .willReturn(
+                        gasOnly(new FullResult(precompileResult, GAS_REQUIREMENT, recordBuilder), SUCCESS, viewCall));
+
+        final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
+
+        assertThat(result.fullResult().result()).isSameAs(precompileResult);
+        assertThat(result.fullResult().output()).isEqualTo(Bytes.fromHexString("1234"));
+        assertThat(result.fullResult().recordBuilder()).isSameAs(recordBuilder);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.isViewCall()).isEqualTo(viewCall);
+        assertThat(result.nonGasCost()).isZero();
+    }
+
+    @Test
+    void quotedGasStillExceedsInsufficientFrameAllowance() {
+        givenPaidCall(200_000_000L);
+
+        final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
+
+        // The common execution path compares this quote with remaining gas and reports INSUFFICIENT_GAS.
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
+        assertThat(result.fullResult().gasRequirement()).isGreaterThan(frame.getRemainingGas());
+        assertThat(result.nonGasCost()).isZero();
+    }
+
+    @Test
+    void failedCallRetainsNativeGasAndResponse() {
+        final var failed = gasOnly(
+                FullResult.ordinalRevertResult(CLPR_CHANNEL_NOT_FOUND, GAS_REQUIREMENT), CLPR_CHANNEL_NOT_FOUND, true);
+        given(call.execute(frame)).willReturn(failed);
+
+        final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
+
+        assertThat(result).isSameAs(failed);
+        verifyNoInteractions(attempt, operations, updater);
+    }
+
+    @Test
+    void localQueryRetainsNativeGas() {
+        final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(GAS_REQUIREMENT);
         assertThat(result.nonGasCost()).isZero();
         verifyNoInteractions(attempt, operations, updater);
     }
 
     @Test
-    void nativeVerifierDispatchDoesNotCollectValue() {
+    void nativeVerifierDispatchRetainsNativeGas() {
         givenTransaction();
         given(operations.isClprVerifierDispatch()).willReturn(true);
 
         final var result = subject.price(attempt, call, VerifyConfigTranslator.VERIFY_CONFIG, frame);
 
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(GAS_REQUIREMENT);
+        assertThat(result.nonGasCost()).isZero();
+        verifyNoInteractions(updater);
+    }
+
+    @Test
+    void nativeVerifierDispatchStillPricesRouterReads() {
+        givenPaidCall(200_000_000L);
+        given(operations.isClprVerifierDispatch()).willReturn(true);
+
+        final var result = subject.price(attempt, call, GetChannelTranslator.GET_CHANNEL_QUEUE_STATE, frame);
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(PRICED_GAS_REQUIREMENT);
         assertThat(result.nonGasCost()).isZero();
         verifyNoInteractions(updater);
     }
@@ -134,7 +216,7 @@ class AbstractClprSystemContractTest {
     private void givenPaidCall(final long target) {
         givenTransaction();
         given(frame.getGasPrice()).willReturn(Wei.of(2));
-        given(operations.valueInTinybars(target)).willReturn(TOP_UP + 2 * GAS_REQUIREMENT);
+        given(operations.valueInTinybars(target)).willReturn(2 * PRICED_GAS_REQUIREMENT);
     }
 
     private void givenTransaction() {
