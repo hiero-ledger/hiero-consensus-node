@@ -187,7 +187,7 @@ public class HashLeafFlusherTest {
                 VIRTUAL_MERKLE_STATS.getMarker(),
                 true,
                 chunks -> {
-                    chunks.forEach(chunk -> reportedChunkIds.add(chunk.getChunkId()));
+                    // The leaf is checked first: the test waits for the reported chunk IDs, then reads the leaf
                     if (!chunks.isEmpty()) {
                         try {
                             leafOnDiskWhenReported.set(ds.loadLeafRecord(1));
@@ -195,6 +195,7 @@ public class HashLeafFlusherTest {
                             throw new UncheckedIOException(e);
                         }
                     }
+                    chunks.forEach(chunk -> reportedChunkIds.add(chunk.getChunkId()));
                 });
         flusher.init(1, 2);
         flusher.updateLeaf(leaf(1, 1, 1));
@@ -207,6 +208,59 @@ public class HashLeafFlusherTest {
         // The final flush has no hash chunks, nothing more is reported
         flusher.finish();
         assertEquals(List.of(0L), reportedChunkIds);
+        assertTrue(flusher.awaitTermination(Duration.ofSeconds(10)), "Flusher thread must exit after finish()");
+    }
+
+    @Test
+    @DisplayName("A batch that becomes full while a flush is running is flushed after it, without more calls")
+    void testFullBatchFlushedAfterRunningFlush() throws InterruptedException {
+        final CountDownLatch firstFlushStarted = new CountDownLatch(1);
+        final CountDownLatch releaseFirstFlush = new CountDownLatch(1);
+        final InMemoryDataSource ds = new InMemoryDataSource("testFullBatchFlushedAfterRunningFlush") {
+            @Override
+            @SuppressWarnings("rawtypes")
+            public void saveRecords(
+                    final long firstLeafPath,
+                    final long lastLeafPath,
+                    final Stream<VirtualHashChunk> hashChunksToUpdate,
+                    final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+                    final Stream<VirtualLeafBytes> leafRecordsToDelete,
+                    final boolean isReconnectContext)
+                    throws IOException {
+                if (firstFlushStarted.getCount() > 0) {
+                    firstFlushStarted.countDown();
+                    try {
+                        releaseFirstFlush.await();
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+                super.saveRecords(
+                        firstLeafPath,
+                        lastLeafPath,
+                        hashChunksToUpdate,
+                        leafRecordsToAddOrUpdate,
+                        leafRecordsToDelete,
+                        isReconnectContext);
+            }
+        };
+        // A single leaf fills a batch
+        final HashLeafFlusher flusher =
+                new HashLeafFlusher(ds, 1, new VirtualMapStatistics("testFullBatchFlushedAfterRunningFlush"));
+        flusher.init(1, 2);
+        flusher.updateLeaf(leaf(1, 1, 1));
+        assertTrue(firstFlushStarted.await(10, SECONDS), "The first batch must be flushed");
+        // The second batch is full, but it can't be flushed while the first flush is running
+        flusher.updateLeaf(leaf(2, 2, 2));
+        assertTrue(flusher.getStatus().contains("flushes=0"), flusher.getStatus());
+        releaseFirstFlush.countDown();
+        // No more calls: the first flush submits the full batch, once it's complete
+        assertEventuallyTrue(
+                () -> flusher.getStatus().contains("flushes=2"),
+                Duration.ofSeconds(10),
+                "The full batch must be flushed after the running flush");
+        flusher.finish();
         assertTrue(flusher.awaitTermination(Duration.ofSeconds(10)), "Flusher thread must exit after finish()");
     }
 

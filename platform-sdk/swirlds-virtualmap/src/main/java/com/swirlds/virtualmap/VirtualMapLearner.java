@@ -96,8 +96,7 @@ public final class VirtualMapLearner {
             new ConcurrentBlockingIterator<>(MAX_RECONNECT_HASHING_BUFFER_SIZE);
 
     /// Number of dirty leaves supplied to the hasher, per ID of the hash chunk that holds their hashes. An entry
-    /// is removed once its chunk is flushed. The leaves are flushed in the same flush as the chunk or earlier,
-    /// since they are given to the flusher before they are hashed, see [#hashChunksFlushed(List)].
+    /// is removed once its chunk is flushed, see [#hashChunksFlushed(List)].
     private final Map<Long, Integer> dirtyLeavesPerHashChunk = new ConcurrentHashMap<>();
 
     /// Called with the number of dirty leaves that are stored to disk, with their hashes. Set in [#init]
@@ -278,8 +277,11 @@ public final class VirtualMapLearner {
         }
     }
 
-    // Called by the flusher, once the given hash chunks are written. The dirty leaves in these chunks are written
-    // too, since they were given to the flusher before they were hashed
+    // Called by the flusher, once the given hash chunks are written. The dirty leaves in these chunks are usually
+    // written too: a receiver gives a leaf to the flusher right after it publishes the response, so the leaf
+    // usually reaches the flusher before its hash chunk does. If the receiver is slower than the applier and the
+    // hasher, for example when it's blocked on the flusher's backpressure, the leaf goes to a later flush, and it's
+    // reported as stored a flush early. The leaf is still bounded by the flusher's backpressure then
     private void hashChunksFlushed(@NonNull final List<VirtualHashChunk> chunks) {
         long storedLeaves = 0;
         for (final VirtualHashChunk chunk : chunks) {
@@ -292,6 +294,14 @@ public final class VirtualMapLearner {
         if ((storedLeaves > 0) && (callback != null)) {
             callback.accept(storedLeaves);
         }
+    }
+
+    /// Returns the height of the hash chunks of the reconnected tree. A hash chunk of height `h` holds the hashes
+    /// of at most `2^h` leaves.
+    ///
+    /// @return the hash chunk height
+    public int getHashChunkHeight() {
+        return dataSource.getHashChunkHeight();
     }
 
     /**

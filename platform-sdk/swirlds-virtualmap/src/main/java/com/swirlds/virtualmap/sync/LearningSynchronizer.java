@@ -12,6 +12,7 @@ import com.swirlds.virtualmap.VirtualMapLearner;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.config.VirtualMapReconnectMode;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeReceiveTask;
 import com.swirlds.virtualmap.internal.reconnect.LearnerPullVirtualTreeSendTask;
 import com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder;
@@ -44,6 +45,9 @@ public class LearningSynchronizer {
 
     private static final String WORK_GROUP_NAME = "learning-synchronizer";
 
+    // Number of hash chunks that may hold dirty leaves of the learner's backlog, but stay open, with a margin
+    private static final int OPEN_HASH_CHUNKS_MARGIN = 4;
+
     private final ThreadManager threadManager;
     private final VirtualMapLearnerSyncConfig syncConfig;
     private final Metrics metrics;
@@ -54,8 +58,6 @@ public class LearningSynchronizer {
      * @param threadManager responsible for managing thread lifecycles
      * @param config the configuration
      * @param metrics the metrics system for recording synchronization metrics
-     * @throws IllegalArgumentException if {@code reconnect.learner.leafBacklogThrottleThreshold} is less than twice
-     *      {@code reconnect.learner.flushInterval}
      */
     public LearningSynchronizer(
             @NonNull final ThreadManager threadManager,
@@ -65,16 +67,6 @@ public class LearningSynchronizer {
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager cannot be null");
         this.syncConfig = Objects.requireNonNull(config, "config cannot be null")
                 .getConfigData(VirtualMapLearnerSyncConfig.class);
-        // Dirty leaves leave the learner's leaf backlog only when they are flushed, and a flush starts only when
-        // the flusher has collected flushInterval items. If the backlog can't reach that, it never drains. Twice
-        // the interval also leaves room for the next flush to fill up while the current one is running
-        if (syncConfig.leafBacklogThrottleThreshold() < 2L * syncConfig.flushInterval()) {
-            throw new IllegalArgumentException("reconnect.learner.leafBacklogThrottleThreshold ("
-                    + syncConfig.leafBacklogThrottleThreshold()
-                    + ") must be at least twice reconnect.learner.flushInterval ("
-                    + syncConfig.flushInterval()
-                    + ")");
-        }
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
     }
 
@@ -113,7 +105,39 @@ public class LearningSynchronizer {
                         + " PULL_TWO_PHASE_PESSIMISTIC, PULL_PARALLEL_SYNC");
         };
         return new LearnerTreeExchanger(
-                vmapLearner, traversalOrder, syncMetrics, syncConfig.leafBacklogThrottleThreshold());
+                vmapLearner, traversalOrder, syncMetrics, leafBacklogThrottleThreshold(vmapLearner));
+    }
+
+    /// Returns the leaf backlog threshold for the given learner: the configured one, or a larger one, if the
+    /// configured one could stop the reconnect for good.
+    ///
+    /// Dirty leaves leave the backlog only when the hash chunks with their hashes are flushed. A chunk is hashed
+    /// only when all its leaves are hashed, and a flush starts only when a batch is full. A few chunks with dirty
+    /// leaves may stay open for long: the one at the request frontier, at either leaf rank, and the one with
+    /// leaves at both leaf ranks, as its last leaf rank leaves are requested at the very end. If the backlog were
+    /// all in such chunks and in a batch that isn't full, the learner would stop requesting leaves for good. A
+    /// hash chunk holds at most as many leaves as it has hashes, so a backlog of `flushInterval` leaves in
+    /// complete chunks always fills a batch.
+    ///
+    /// @param vmapLearner the learner
+    /// @return the threshold to use
+    private int leafBacklogThrottleThreshold(@NonNull final VirtualMapLearner vmapLearner) {
+        final int configured = syncConfig.leafBacklogThrottleThreshold();
+        final long minimum = (long) syncConfig.flushInterval()
+                + OPEN_HASH_CHUNKS_MARGIN * VirtualHashChunk.getChunkSize(vmapLearner.getHashChunkHeight());
+        if (configured >= minimum) {
+            return configured;
+        }
+        final int threshold = (int) Math.min(minimum, Integer.MAX_VALUE);
+        logger.warn(
+                RECONNECT.getMarker(),
+                "reconnect.learner.leafBacklogThrottleThreshold {} is too small for flushInterval {} and hash chunk"
+                        + " height {}, using {} instead",
+                configured,
+                syncConfig.flushInterval(),
+                vmapLearner.getHashChunkHeight(),
+                threshold);
+        return threshold;
     }
 
     /**

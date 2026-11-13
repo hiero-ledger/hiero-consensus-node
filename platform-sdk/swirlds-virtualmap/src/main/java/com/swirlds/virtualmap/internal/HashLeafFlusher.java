@@ -44,8 +44,10 @@ import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 /// possibly even before [#init(long, long)]. Either of them shuts down the executor.
 ///
 /// Memory is bounded by backpressure: at most one flush is running or queued at a time. A batch that becomes
-/// full while a flush is running stays in memory, till the next producer call after the flush is complete
-/// submits it, or till [#finish()] flushes it. Until then, producers block instead of adding to the full batch.
+/// full while a flush is running stays in memory, till the running flush is complete and submits it, or till
+/// [#finish()] flushes it. Until then, producers block instead of adding to the full batch. The batch is
+/// submitted even if no producer calls this flusher again, since producers may be waiting for its data to be
+/// written, like the reconnect learner, which stops requesting leaves till they are flushed.
 /// So at most about two batches are kept in memory, one being flushed and one being filled. Producers block in
 /// [Future#get()] of the running flush. It parks the thread without `ForkJoinPool.managedBlock()`, so that
 /// ForkJoinPool workers don't spawn compensation threads, and it never runs other tasks. The lock is never held
@@ -331,9 +333,9 @@ public class HashLeafFlusher {
             throwIfCancelled();
             last = batch;
             batch = null;
-            // Flushes are submitted by producers only, and they are done by now, so the running flush, if any, is
-            // the last one. It may be already complete, or failed. The current batch may be full, then it's flushed
-            // below
+            // Producers are done by now, and a running flush submits no more flushes once the executor is shut
+            // down below, so the running flush, if any, is the last one. It may be already complete, or failed. The
+            // current batch may be full, then it's flushed below
             running = flushingFuture;
             executor.shutdown();
             stopBackpressureTimer();
@@ -384,7 +386,7 @@ public class HashLeafFlusher {
         if (batch.isFull() && (running == null)) {
             submitFlush();
         }
-        // If a flush is running, a full batch is submitted by the first call after it's complete
+        // If a flush is running, a full batch is submitted when it's complete, see submitIfFull()
         return null;
     }
 
@@ -444,11 +446,23 @@ public class HashLeafFlusher {
     // is in progress, and this flusher isn't cancelled or failed
     private void submitFlush() {
         final Batch toFlush = batch;
-        flushingFuture = executor.submit(() -> flush(toFlush));
+        flushingFuture = executor.submit(() -> {
+            flush(toFlush);
+            submitIfFull();
+        });
         // Replaced only once submitted, so the batch isn't lost, if submit() throws
         batch = new Batch();
         // The full batch is taken, so the stall, if any, is over
         stopBackpressureTimer();
+    }
+
+    // Called by a flush task, once its flush is complete. Submits the current batch, if it became full while the
+    // flush was running. Not if the flush has failed, then the failure is reported to the next call instead. Not
+    // after cancel() or finish() either, they shut down the executor, and finish() flushes the last batch itself
+    private synchronized void submitIfFull() {
+        if ((batch != null) && !cancelled && !executor.isShutdown() && batch.isFull()) {
+            submitFlush();
+        }
     }
 
     // Starts measuring a stall, unless one is already being measured: the first blocked producer starts it, and
