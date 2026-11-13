@@ -1015,9 +1015,9 @@ The channel must already exist. The connector identity remains hidden until `com
 | `clpr submit-bundle` | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
 | `clpr send-message`  | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
 
-`send-message` sends `--value` tinybars with the call (default 1 HBAR). The CLPR system contract charges part of
-each send's $0.10 price as gas and collects the rest from the value the wrapper attaches, so the wrapper must
-attach at least that much; only the fee is collected.
+`send-message` pays the CLPR send price through gas without attaching value. The default `--gas` limit is
+2,000,000 for small messages. Larger payloads require more gas to cover the additional message-data byte charges;
+increase `--gas` to cover those charges and the wrapper's execution.
 
 ### Ledger configuration and endpoint manifest
 

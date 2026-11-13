@@ -27,7 +27,6 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
@@ -207,7 +206,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         // This must be done first as the system contract address range overlaps with system
         // accounts. Note that unlike EVM precompiles, we do allow sending value "to" Hedera
         // system contracts because they sometimes require fees greater than be reasonably
-        // paid using gas; for example, when creating a new token or sending a CLPR message. But the system contract
+        // paid using gas; for example, when creating a new token. But the system contract
         // only diverts this value to the network's fee collection accounts, instead of
         // actually receiving it.
 
@@ -253,11 +252,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                     doTransferValueOrHalt(context, tracer);
                 }
             }
-        } else if (context.transfersValue
-                && !isTokenCreation(context.frame)
-                && !(systemContract instanceof AbstractClprSystemContract clpr
-                        && clpr.acceptsValue(context.frame.getInputData()))) {
-            // Only token creation and priced CLPR calls can attach value.
+        } else if (context.transfersValue && !isTokenCreation(context.frame)) {
+            // Only token creation calls can attach value.
             doHalt(context, INVALID_CONTRACT_ID, tracer);
         } else {
             doExecuteSystemContract(context, systemContract);
@@ -307,8 +303,10 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
 
         final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
         final var opsDurationSchedule = opsDurationCounter.schedule();
+        // Only work counts, not a fee collected through gas; and computeFully() has already done that work,
+        // so it counts even if the frame cannot afford the gas requirement
         final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
-                gasRequirement, opsDurationSchedule.systemContractGasBasedDurationMultiplier());
+                fullResult.workGas(), opsDurationSchedule.systemContractGasBasedDurationMultiplier());
         opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
         contractMetrics
                 .opsDurationMetrics()

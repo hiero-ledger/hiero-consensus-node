@@ -652,8 +652,13 @@ start a fresh volley):
 ```bash
 CALLDATA=$(encode_serve_call "$CHANNEL_ID" "$CONNECTOR_ID" "$TARGET_APP" "$MESSAGE_DATA")
 ./yahcli -n alice -p 2 contracts call \
-  --contract-id "$PINGPONG_A" --call-data "$CALLDATA" --gas 300000
+  --contract-id "$PINGPONG_A" --call-data "$CALLDATA" --gas 2000000
 ```
+
+The 2M allowance matches the runner defaults and covers the gas-priced `sendMessage`
+fee plus PingPong bookkeeping for this small payload. The Alice/Bob configurations
+also set `maxGasPerMessage` to 2M so the response callback can re-serve; larger
+payloads need larger call and callback allowances.
 
 Within a few seconds, Terminal A prints the volley bouncing — a real chain of
 cross-ledger application calls:

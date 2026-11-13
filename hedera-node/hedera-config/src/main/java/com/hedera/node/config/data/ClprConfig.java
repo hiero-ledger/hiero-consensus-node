@@ -73,7 +73,7 @@ public record ClprConfig(
         int connectorQueueQuotaPct,
 
         // --- sendMessage system contract price ---
-        // Price of a sendMessage call in tinycents ($0.10), including its gas; the caller attaches the rest as value
+        // Price of a successful sendMessage call in tinycents ($0.10), collected entirely through gas.
         @ConfigProperty(defaultValue = "1000000000") @NetworkProperty
         long sendMessageFeeTinycents,
         // Fee proposal: Proposed pricing > System contract calls (EVM) > sendMessage, Extras column.
@@ -86,6 +86,15 @@ public record ClprConfig(
         // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
         @ConfigProperty(defaultValue = "2000000") @NetworkProperty
         long verifierGasLimit,
+
+        // --- ClprSubmitBundle gas budget ---
+        // Total gas a bundle can spend on its verifier and its application callbacks, which split what the verifier
+        // leaves evenly. Each callback stays within contracts.maxGasPerTransaction, but the bundle may exceed it: a
+        // callback that sends a message pays the sendMessage price (~1.17M gas at $0.10) through gas, so a budget
+        // of 15M would fund such a send in only about ten callbacks per bundle.
+        // When legacy gas throttling is enabled, contracts.maxGasPerSecBackend also caps the total budget.
+        @ConfigProperty(defaultValue = "50000000") @NetworkProperty
+        long submitBundleGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---
         // Maximum fee the node will pay when submitting an inbound bundle for consensus. A bundle is exempt from node

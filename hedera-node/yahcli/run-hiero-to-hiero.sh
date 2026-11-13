@@ -336,7 +336,7 @@ yh "PingPong.serve() via ${PINGPONG_A} on ${NET_A}" "${LOG_DIR}/11-serve.log" \
     -n "${NET_A}" -p "${PAYER}" contracts call \
         --contract-id "${PINGPONG_A}" \
         --call-data "${CALLDATA}" \
-        --gas 300000
+        --gas 2000000
 
 header "Done"
 cat <<EOF

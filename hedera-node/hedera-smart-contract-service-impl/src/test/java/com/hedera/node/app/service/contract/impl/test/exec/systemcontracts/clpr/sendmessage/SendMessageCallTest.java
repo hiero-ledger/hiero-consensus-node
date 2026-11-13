@@ -3,13 +3,12 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.clpr
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
@@ -64,6 +63,7 @@ import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.BlockValues;
+import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.PragueGasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
@@ -191,9 +191,14 @@ class SendMessageCallTest extends CallTestBase {
     }
 
     private PricedResult executeAfterAuthorization(final Bytes output, final MessageFrame.State state) {
-        givenParentFrame(200_000L);
+        return executeAfterAuthorization(output, state, MESSAGE_DATA, 200_000L);
+    }
+
+    private PricedResult executeAfterAuthorization(
+            final Bytes output, final MessageFrame.State state, final byte[] messageData, final long offeredGas) {
+        givenParentFrame(offeredGas);
         givenAuthorizationContract();
-        final var subject = createSubject();
+        final var subject = createSubject(messageData);
         final var result = new AtomicReference<PricedResult>();
         assertThat(subject.scheduleChildFrame(frame, () -> result.set(subject.execute(frame))))
                 .isTrue();
@@ -573,87 +578,157 @@ class SendMessageCallTest extends CallTestBase {
     }
 
     @Test
-    @DisplayName("should revert with INSUFFICIENT_TX_FEE, without authorizing, when the value does not cover the fee")
-    void revertsWithoutAuthorizingWhenValueDoesNotCoverFee() {
+    void zeroValueSendPaysEntireTargetThroughGas() {
         givenConnectorLookup(connectorWithContract());
-        givenValueFee(900L);
-        frameValue = Wei.of(899L);
-        givenParentFrame(200_000L);
+        given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
+        given(clprApi.sendMessage(any(), any(), any(), any(), any())).willReturn(42L);
+        frameGasPrice = Wei.of(2);
+        given(operations.valueInTinybars(1_000_000_000L)).willReturn(600_000L);
+
+        final var result = executeAfterAuthorization(
+                BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS, MESSAGE_DATA, 400_000L);
+
+        assertThat(frame.getValue()).isEqualTo(Wei.ZERO);
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.nonGasCost()).isZero();
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(300_000L - AUTHORIZATION_GAS_USED);
+        // The rest of the price is a fee; authorization's opcodes were already metered as they ran
+        assertThat(result.fullResult().workGas()).isEqualTo(127_520L);
+        assertThat(frame.getRemainingGas()).isEqualTo(400_000L - AUTHORIZATION_GAS_USED);
+        assertThat(400_000L - frame.getRemainingGas() + result.fullResult().gasRequirement())
+                .isEqualTo(300_000L);
+        assertThat(result.fullResult().output().toUnsignedBigInteger()).isEqualTo(BigInteger.valueOf(42L));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,300001", "2,150001", "3,127520"})
+    void convertsTargetUsingTransactionGasPriceAndRoundsUp(final long price, final long totalGas) {
+        givenConnectorLookup(connectorWithContract());
+        given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
+        given(clprApi.sendMessage(any(), any(), any(), any(), any())).willReturn(42L);
+        frameGasPrice = Wei.of(price);
+        given(operations.valueInTinybars(1_000_000_000L)).willReturn(300_001L);
+
+        final var result = executeAfterAuthorization(
+                BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS, MESSAGE_DATA, 400_000L);
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.nonGasCost()).isZero();
+        assertThat(result.fullResult().gasRequirement())
+                .isEqualTo(Math.max(127_520L, totalGas - AUTHORIZATION_GAS_USED));
+    }
+
+    @Test
+    void insufficientGasDoesNotAuthorizeOrEnqueue() {
+        givenConnectorLookup(connectorWithContract());
+        frameGasPrice = Wei.of(2);
+        given(operations.valueInTinybars(1_000_000_000L)).willReturn(600_000L);
+        givenParentFrame(299_999L);
         final var subject = createSubject();
 
         assertThat(subject.scheduleChildFrame(frame, () -> {})).isFalse();
         final var result = subject.execute(frame);
 
-        assertThat(result.responseCode()).isEqualTo(INSUFFICIENT_TX_FEE);
-        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        assertThat(result.responseCode()).isEqualTo(INSUFFICIENT_GAS);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.EXCEPTIONAL_HALT);
+        assertThat(result.fullResult().result().haltReason()).hasValue(ExceptionalHaltReason.INSUFFICIENT_GAS);
+        // The whole quote is unaffordable, but only the native work counts toward ops duration
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(300_000L);
+        assertThat(result.fullResult().workGas()).isEqualTo(127_520L);
+        assertThat(result.nonGasCost()).isZero();
         assertThat(frame.getMessageFrameStack()).containsExactly(frame);
-        verifyNoInteractions(clprApi);
-        verify(updater, never()).collectClprFee(any(), anyLong());
+        assertThat(frame.getRemainingGas()).isEqualTo(299_999L);
+        verifyNoInteractions(updater, clprApi);
     }
 
     @Test
-    @DisplayName("should collect the part of the fee gas does not pay from the sender, only on success")
-    void collectsValueFeeOnSuccess() {
+    void exactGasQuoteCoversAuthorizationAndSend() {
         givenConnectorLookup(connectorWithContract());
         given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
         given(clprApi.sendMessage(any(), any(), any(), any(), any())).willReturn(42L);
-        frameGasPrice = Wei.ONE;
-        givenValueFee(127_520L + AUTHORIZATION_GAS_USED + 900L);
-        given(updater.collectClprFee(SENDER_ID, 900L)).willReturn(true);
-        frameValue = Wei.of(1_000L);
+        frameGasPrice = Wei.of(2);
+        given(operations.valueInTinybars(1_000_000_000L)).willReturn(600_000L);
 
-        final var result = executeAfterAuthorization(BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS);
+        final var result = executeAfterAuthorization(
+                BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS, MESSAGE_DATA, 300_000L);
 
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
-        assertThat(result.nonGasCost()).isEqualTo(900L);
-        verify(updater).collectClprFee(SENDER_ID, 900L);
+        assertThat(frame.getRemainingGas()).isEqualTo(result.fullResult().gasRequirement());
+        assertThat(result.nonGasCost()).isZero();
     }
 
     @Test
-    @DisplayName("should not collect the value fee when the send fails")
-    void doesNotCollectValueFeeOnFailure() {
+    void failedAuthorizationRetainsNativeGasCharge() {
+        givenConnectorLookup(connectorWithContract());
+        frameGasPrice = Wei.ONE;
+        given(operations.valueInTinybars(1_000_000_000L)).willReturn(300_000L);
+
+        final var result = executeAfterAuthorization(
+                BOOL_FALSE_RESULT, MessageFrame.State.COMPLETED_SUCCESS, MESSAGE_DATA, 400_000L);
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_AUTHORIZATION_FAILED);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(127_520L);
+        assertThat(frame.getRemainingGas()).isEqualTo(400_000L - AUTHORIZATION_GAS_USED);
+        assertThat(result.nonGasCost()).isZero();
+        verifyNoInteractions(clprApi);
+    }
+
+    @Test
+    void failedSendRetainsNativeGasCharge() {
         givenConnectorLookup(connectorWithContract());
         given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
         given(clprApi.sendMessage(any(), any(), any(), any(), any()))
                 .willThrow(new HandleException(CLPR_CHANNEL_NOT_FOUND));
-        givenValueFee(900L);
-        frameValue = Wei.of(1_000L);
+        frameGasPrice = Wei.ONE;
+        given(operations.valueInTinybars(1_000_000_000L)).willReturn(300_000L);
 
-        final var result = executeAfterAuthorization(BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS);
+        final var result = executeAfterAuthorization(
+                BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS, MESSAGE_DATA, 400_000L);
 
         assertThat(result.responseCode()).isEqualTo(CLPR_CHANNEL_NOT_FOUND);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(127_520L);
+        assertThat(frame.getRemainingGas()).isEqualTo(400_000L - AUTHORIZATION_GAS_USED);
         assertThat(result.nonGasCost()).isZero();
-        verify(updater, never()).collectClprFee(any(), anyLong());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1024,1000000000", "1025,1000100000", "1034,1001000000"})
+    void pricesOnlyMessageBytesBeyondIncludedAllowance(final int size, final long targetTinycents) {
+        givenConnectorLookup(connectorWithContract());
+        given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
+        given(clprApi.sendMessage(any(), any(), any(), any(), any())).willReturn(42L);
+        frameGasPrice = Wei.of(2);
+        // Keep the conversion linear so the asserted gas changes at the byte allowance boundary.
+        given(operations.valueInTinybars(targetTinycents)).willReturn(targetTinycents / 1_000L);
+
+        final var result = executeAfterAuthorization(
+                BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS, new byte[size], 600_000L);
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(targetTinycents / 2_000L - AUTHORIZATION_GAS_USED);
+        assertThat(result.nonGasCost()).isZero();
     }
 
     @Test
-    @DisplayName("should price message data bytes beyond those included at the STATE_BYTES rate")
-    void pricesExtraMessageBytesAtStateBytesRate() {
-        givenParentFrame(200_000L);
-        // 1,024 bytes are included in the price, so 10 extra bytes add $0.00010.
-        givenValueFee(0);
-        given(operations.valueInTinybars(1_000_000L)).willReturn(100L);
-        final var subject = new SendMessageCall(
-                mockEnhancement(),
-                gasCalculator,
-                new ContractCodeCache(),
-                SENDER_ID,
-                SENDER_ADDRESS,
-                CHANNEL_ID,
-                CONNECTOR_ID,
-                TARGET_APP,
-                new byte[1_034]);
+    void zeroGasPriceUsesNativeGasFloorWithoutValueCollection() {
+        givenConnectorLookup(connectorWithContract());
+        given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
+        given(clprApi.sendMessage(any(), any(), any(), any(), any())).willReturn(42L);
 
-        final var result = subject.execute(frame);
+        final var result = executeAfterAuthorization(BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS);
 
-        assertThat(result.responseCode()).isEqualTo(INSUFFICIENT_TX_FEE);
-    }
-
-    private void givenValueFee(final long valueFee) {
-        given(operations.valueInTinybars(1_000_000_000L)).willReturn(valueFee);
+        assertThat(frame.getGasPrice()).isEqualTo(Wei.ZERO);
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        assertThat(result.fullResult().gasRequirement()).isEqualTo(127_520L);
+        assertThat(result.nonGasCost()).isZero();
+        verifyNoInteractions(operations);
     }
 
     private SendMessageCall createSubject() {
+        return createSubject(MESSAGE_DATA);
+    }
+
+    private SendMessageCall createSubject(final byte[] messageData) {
         return new SendMessageCall(
                 mockEnhancement(),
                 gasCalculator,
@@ -663,6 +738,6 @@ class SendMessageCallTest extends CallTestBase {
                 CHANNEL_ID,
                 CONNECTOR_ID,
                 TARGET_APP,
-                MESSAGE_DATA);
+                messageData);
     }
 }

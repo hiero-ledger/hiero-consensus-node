@@ -17,8 +17,11 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketThrottle;
 import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -37,6 +40,7 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class ClprGasAccountingTest {
@@ -44,6 +48,7 @@ class ClprGasAccountingTest {
     private static final AccountID CONNECTOR_A = account(1002);
     private static final AccountID CONNECTOR_B = account(1003);
     private static final long TOTAL_GAS = 1_000;
+    private static final long BUNDLE_GAS = 3 * TOTAL_GAS;
     private static final long GAS_PRICE = 6;
     private static final long INITIAL_BALANCE = 20_000;
     private static final Instant NOW = Instant.ofEpochSecond(1_000);
@@ -59,6 +64,7 @@ class ClprGasAccountingTest {
                 .willReturn(HederaTestConfigBuilder.create()
                         .withValue("contracts.maxGasPerTransaction", TOTAL_GAS)
                         .withValue("clpr.verifierGasLimit", 100L)
+                        .withValue("clpr.submitBundleGasLimit", BUNDLE_GAS)
                         .getOrCreateConfig());
         given(context.dispatchMetadata()).willReturn(new DispatchMetadata(new HashMap<>()));
         given(context.getGasPriceInTinycents()).willReturn(5L);
@@ -105,6 +111,75 @@ class ClprGasAccountingTest {
         assertThat(subject.settle(PARENT, 100, gasResult(40))).isEqualTo(240L);
         subject.refundUnusedGas();
         verify(context).refundHandlerCharge(PARENT, 360L);
+        assertThat(subject.availableApplicationGas(1)).isZero();
+    }
+
+    @Test
+    void bundleBudgetCanExceedOneTransactionsGas() {
+        given(context.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT)
+                        .build());
+        final var subject = ClprGasAccounting.forContext(context);
+
+        // Each callback stays within one transaction's gas, but together they can use the whole bundle budget
+        assertThat(subject.reserveParentGas()).isTrue();
+        verify(context).tryToCharge(PARENT, BUNDLE_GAS * GAS_PRICE);
+        assertThat(subject.availableApplicationGas(Long.MAX_VALUE)).isEqualTo(BUNDLE_GAS - 100);
+        assertThat(subject.prepay(CONNECTOR_A, TOTAL_GAS)).isTrue();
+        assertThat(subject.prepay(CONNECTOR_B, TOTAL_GAS)).isTrue();
+        assertThat(subject.availableApplicationGas(Long.MAX_VALUE)).isEqualTo(BUNDLE_GAS - 100 - 2 * TOTAL_GAS);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, 15000000, 48000000", "true, 15000000, 13000000", "true, 80000000, 48000000"})
+    void bundleBudgetRespectsBackendCapacityOnlyWhenGasThrottlingIsEnabled(
+            final boolean throttleByGas, final long backendGas, final long expectedCallbackGas) {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("contracts.maxGasPerTransaction", 15_000_000L)
+                        .withValue("contracts.maxGasPerSecBackend", backendGas)
+                        .withValue("contracts.throttle.throttleByGas", throttleByGas)
+                        .withValue("clpr.verifierGasLimit", 2_000_000L)
+                        .withValue("clpr.submitBundleGasLimit", 50_000_000L)
+                        .getOrCreateConfig());
+        given(context.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT)
+                        .build());
+
+        assertThat(ClprGasAccounting.forContext(context).availableApplicationGas(Long.MAX_VALUE))
+                .isEqualTo(expectedCallbackGas);
+    }
+
+    @Test
+    void callbackGrantFitsSharedGasThrottleAfterVerifierExecution() {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("contracts.maxGasPerTransaction", 15_000_000L)
+                        .withValue("contracts.maxGasPerSecBackend", 15_000_000L)
+                        .withValue("contracts.throttle.throttleByGas", true)
+                        .withValue("clpr.verifierGasLimit", 2_000_000L)
+                        .withValue("clpr.submitBundleGasLimit", 50_000_000L)
+                        .getOrCreateConfig());
+        given(context.body())
+                .willReturn(TransactionBody.newBuilder()
+                        .clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT)
+                        .build());
+        given(context.getGasPriceInTinycents()).willReturn(0L);
+        final var subject = ClprGasAccounting.forContext(context);
+        final var throttle =
+                new LeakyBucketDeterministicThrottle(15_000_000L, "Gas", LeakyBucketThrottle.DEFAULT_BURST_SECONDS);
+
+        assertThat(subject.prepayVerifier(PARENT, 2_000_000L)).isTrue();
+        assertThat(throttle.allow(NOW, 2_000_000L)).isTrue();
+        subject.settle(PARENT, 2_000_000L, gasResult(100_000L));
+        throttle.leakUnusedGasPreviouslyReserved(1_900_000L);
+
+        final long callbackGas = subject.availableApplicationGas(15_000_000L);
+        assertThat(callbackGas).isEqualTo(13_000_000L);
+        assertThat(throttle.allow(NOW, callbackGas)).isTrue();
+        assertThat(subject.prepay(CONNECTOR_A, callbackGas)).isTrue();
         assertThat(subject.availableApplicationGas(1)).isZero();
     }
 
@@ -178,13 +253,28 @@ class ClprGasAccountingTest {
     @EnumSource(
             value = ResponseCodeEnum.class,
             names = {"THROTTLED_AT_CONSENSUS", "CONSENSUS_GAS_EXHAUSTED"})
+    void thrownPreExecutionThrottleBillsNoGas(final ResponseCodeEnum status) {
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepay(CONNECTOR_A, 400)).isTrue();
+
+        assertThat(subject.settle(CONNECTOR_A, 400, null, status)).isZero();
+        subject.refundUnusedGas();
+
+        verify(context).refundHandlerCharge(PARENT, TOTAL_GAS * GAS_PRICE);
+        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ResponseCodeEnum.class,
+            names = {"THROTTLED_AT_CONSENSUS", "CONSENSUS_GAS_EXHAUSTED"})
     void throttleStatusWithContractResultStillBillsRecordedGas(final ResponseCodeEnum status) {
         final var subject = ClprGasAccounting.forContext(context);
         assertThat(subject.prepay(CONNECTOR_A, 400)).isTrue();
         final var result = gasResult(40);
         given(result.status()).willReturn(status);
 
-        assertThat(subject.settle(CONNECTOR_A, 400, result)).isEqualTo(40 * GAS_PRICE);
+        assertThat(subject.settle(CONNECTOR_A, 400, result, status)).isEqualTo(40 * GAS_PRICE);
         subject.refundUnusedGas();
 
         assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - 40 * GAS_PRICE);

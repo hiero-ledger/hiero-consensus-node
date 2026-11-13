@@ -8,7 +8,7 @@
     "maxMessagesPerBundle":    1000,
     "maxSyncsPerSec":            10,
     "maxMessagePayloadBytes":  65536,
-    "maxGasPerMessage":      "300000",
+    "maxGasPerMessage":      "2000000",
     "maxQueueDepth":           10000,
     "maxSyncBytes":        "4194304"
   }
