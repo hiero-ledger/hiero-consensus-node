@@ -251,7 +251,8 @@ class HintsControllerImplTest {
     void setsPreprocessingStartTimeWhenAllNodesHavePublished() {
         setupWith(UNFINISHED_CONSTRUCTION);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
-        given(weights.numTargetNodesInSource()).willReturn(2);
+        // Both target nodes are already in the source
+        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
         given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
                 .willReturn(CONSTRUCTION_WITH_START_TIME);
 
@@ -281,6 +282,8 @@ class HintsControllerImplTest {
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
+        // Both target nodes are already in the source
+        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
         given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
 
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
@@ -307,6 +310,8 @@ class HintsControllerImplTest {
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
+        // Both target nodes are already in the source
+        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
         given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
         given(weights.targetWeightThreshold()).willReturn(1L);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
@@ -893,7 +898,8 @@ class HintsControllerImplTest {
     void setsPreprocessingStartTimeEvenWhenNodeIsNotActive() {
         setupWith(UNFINISHED_CONSTRUCTION);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
-        given(weights.numTargetNodesInSource()).willReturn(2);
+        // Both target nodes are already in the source
+        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
         given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
                 .willReturn(CONSTRUCTION_WITH_START_TIME);
 
@@ -917,6 +923,8 @@ class HintsControllerImplTest {
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
+        // Both target nodes are already in the source
+        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
         given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 

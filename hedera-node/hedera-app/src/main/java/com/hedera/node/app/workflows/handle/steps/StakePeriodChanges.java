@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
+import static com.hedera.node.app.history.impl.ReadableHistoryStoreImpl.provenRosterHashIn;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -13,6 +14,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.roster.RosterService;
@@ -170,7 +172,9 @@ public class StakePeriodChanges {
                                     .build())
                             .toList());
                     if (!hasZeroWeight(reweightedRoster)) {
-                        rosterStore.putCandidateRoster(reweightedRoster);
+                        // Keep the roster TSS last proved, which the next history proof must start from
+                        final var provenRosterHash = provenRosterHashIn(stack.getWritableStates(HistoryService.NAME));
+                        rosterStore.putCandidateRoster(reweightedRoster, provenRosterHash);
                         stack.commitFullStack();
                     }
                 }

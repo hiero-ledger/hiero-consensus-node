@@ -532,9 +532,18 @@ public class HintsControllerImpl implements HintsController {
      * @return the choice of preprocessing behavior
      */
     private boolean shouldStartPreprocessing(@NonNull final Instant now) {
-        // If every active node in the target roster has published a hinTS key,
-        // start preprocessing now; there is nothing else to wait for
-        if (validationFutures.size() == weights.numTargetNodesInSource()) {
+        // If every node in the target roster has published a hinTS key, start preprocessing now; there is
+        // nothing else to wait for
+        if (validationFutures.size() >= weights.targetNodeIds().size()) {
+            log.info("All target nodes have published hinTS keys. Starting preprocessing.");
+            return true;
+        }
+        // Otherwise only start before the grace period ends if every target node is already in the source; a target
+        // node outside it (e.g. a node added at an upgrade, which was not yet running to publish a hinTS key) can
+        // only publish while this construction still accepts keys, and only becomes a party by doing so
+        final int numTargetNodesInSource = weights.numTargetNodesInSource();
+        if (numTargetNodesInSource == weights.targetNodeIds().size()
+                && validationFutures.size() == numTargetNodesInSource) {
             log.info("All nodes have published hinTS keys. Starting preprocessing.");
             return true;
         }

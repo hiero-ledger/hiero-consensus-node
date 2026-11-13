@@ -16,12 +16,49 @@ import java.util.List;
 public interface ClprChannelLifecycle {
 
     /**
+     * A lifecycle for contexts with no sync orchestrator to notify, such as standalone transaction dispatch.
+     */
+    ClprChannelLifecycle NO_OP = new ClprChannelLifecycle() {
+        @Override
+        public void onChannelActivated(@NonNull final Bytes channelId) {
+            // Nothing to notify
+        }
+
+        @Override
+        public void onChannelClosed(@NonNull final Bytes channelId) {
+            // Nothing to notify
+        }
+
+        @Override
+        public void seedPeerEndpoints(@NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {
+            // Nothing to notify
+        }
+
+        @Override
+        public void recordPeerObservedManifestVersion(@NonNull final Bytes channelId, final long peerObservedVersion) {
+            // Nothing to notify
+        }
+    };
+
+    /**
      * Notify the orchestrator that a Channel has just become active and
      * should be included in the outbound sync loop.
      *
      * @param channelId the 32-byte Channel ID
      */
     void onChannelActivated(@NonNull Bytes channelId);
+
+    /**
+     * Notify the orchestrator that a consensus transaction touched this Channel. If this node does not track the
+     * Channel yet, it starts doing so, as for {@link #onChannelActivated}; otherwise this does nothing. A node that
+     * joined the network after the Channel was activated never handled that activation, and the Channel state cannot
+     * be enumerated, so this is how it learns the Channels it must sync.
+     *
+     * @param channelId the 32-byte Channel ID
+     */
+    default void onChannelObserved(@NonNull final Bytes channelId) {
+        // No-op unless an orchestrator tracks Channels
+    }
 
     /**
      * Notify the orchestrator that a Channel has been closed and should
