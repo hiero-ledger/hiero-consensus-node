@@ -35,7 +35,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
@@ -118,9 +118,6 @@ import org.junit.jupiter.api.Tag;
 @OrderedInIsolation
 @HapiTestLifecycle
 public class ClprDisabledSuite {
-    /** The default {@code clpr.minLockedStakeTinycents} ($3,000). */
-    private static final long DEFAULT_MIN_LOCKED_STAKE_TINYCENTS = 30_000_000_000_000L;
-
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String CALLER = "caller";
     private static final String CLPR_CONTRACT = "ClprSystemContract";
@@ -171,17 +168,11 @@ public class ClprDisabledSuite {
     @DisplayName("Both CLPR queries reject COST_ANSWER and ANSWER_ONLY when disabled")
     final Stream<DynamicTest> clprQueriesAreRejected() {
         return hapiTest(
-                cryptoCreate(CALLER).balance(ONE_MILLION_HBARS),
+                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS),
                 clprGetLedgerConfiguration().payingWith(CALLER).hasCostAnswerPrecheck(CLPR_NOT_ENABLED),
                 clprGetEndpointManifest().payingWith(CALLER).hasCostAnswerPrecheck(CLPR_NOT_ENABLED),
-                clprGetLedgerConfiguration()
-                        .payingWith(CALLER)
-                        .nodePayment(ONE_HBAR)
-                        .hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED),
-                clprGetEndpointManifest()
-                        .payingWith(CALLER)
-                        .nodePayment(ONE_HBAR)
-                        .hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED));
+                clprGetLedgerConfiguration().payingWith(CALLER).nodePayment(1L).hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED),
+                clprGetEndpointManifest().payingWith(CALLER).nodePayment(1L).hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED));
     }
 
     @HapiTest
@@ -191,7 +182,7 @@ public class ClprDisabledSuite {
         // existed, so a direct call succeeds without executing anything. Enabled execution reaches
         // selector/proof validation and cannot satisfy this assertion.
         final var operations = new ArrayList<SpecOperation>();
-        operations.add(cryptoCreate(CALLER).balance(ONE_MILLION_HBARS));
+        operations.add(cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS));
         CLPR_SYSTEM_CONTRACT_NUMS.forEach(num -> operations.add(
                 contractCallWithFunctionAbi(num, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
                         .payingWith(CALLER)
@@ -456,7 +447,7 @@ public class ClprDisabledSuite {
                 contractCreate(VERIFIER_CONTRACT),
                 contractCreate(CONNECTOR_CONTRACT),
                 contractCreate(CLPR_CONTRACT),
-                cryptoCreate(CALLER).balance(ONE_MILLION_HBARS)));
+                cryptoCreate(CALLER).balance(ONE_HUNDRED_HBARS)));
     }
 
     private static HapiTxnOp<?> sendMessage(final ClprChannelCrypto crypto) {
@@ -467,7 +458,6 @@ public class ClprDisabledSuite {
                         crypto.connectorId(),
                         new byte[20],
                         new byte[] {1, 2, 3})
-                // No value: a disabled CLPR address is a plain system account, which halts any call carrying value
                 .payingWith(CALLER)
                 .gas(GAS_TO_OFFER)
                 .hasKnownStatus(CONTRACT_REVERT_EXECUTED);
@@ -498,7 +488,7 @@ public class ClprDisabledSuite {
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)
                         .adminKeyName(GENESIS)
-                        .lockedStakeTinycents(DEFAULT_MIN_LOCKED_STAKE_TINYCENTS));
+                        .lockedStake(100_000_000L));
         txns.put(
                 "deregisterConnector",
                 clprDeregisterConnector()

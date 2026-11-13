@@ -83,6 +83,7 @@ public final class DoubleAccumulatorGauge extends SettableMetric<DoubleSupplier,
         return new Measurement(operator, initializer);
     }
 
+    @NonNull
     @Override
     protected MeasurementSnapshot createMeasurementSnapshot(
             @NonNull Measurement measurement, @NonNull LabelValues labelValues) {

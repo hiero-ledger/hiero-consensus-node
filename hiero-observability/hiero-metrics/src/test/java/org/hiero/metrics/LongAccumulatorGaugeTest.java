@@ -304,20 +304,20 @@ public class LongAccumulatorGaugeTest
             metric.getOrCreateLabeled(() -> 100, "label1", "2").accumulate(1); // 10 + 1 + 1 = 12
 
             new MetricSnapshotVerifier(metric)
-                    .add(12, "label1", "2")
                     .add(3, "label1", "1")
+                    .add(12, "label1", "2")
                     .verify();
             new MetricSnapshotVerifier(metric)
-                    .add(10, "label1", "2")
                     .add(0, "label1", "1")
+                    .add(10, "label1", "2")
                     .verify();
 
             metric.getOrCreateLabeled("label1", "2").accumulate(3); // 10 + 3 + 1 = 14
             metric.getOrCreateLabeled("label1", "3").accumulate(10); // 0 + 10 + 1 = 11
 
             new MetricSnapshotVerifier(metric)
-                    .add(14, "label1", "2")
                     .add(0, "label1", "1") // unchanged
+                    .add(14, "label1", "2")
                     .add(11, "label1", "3")
                     .verify();
         }

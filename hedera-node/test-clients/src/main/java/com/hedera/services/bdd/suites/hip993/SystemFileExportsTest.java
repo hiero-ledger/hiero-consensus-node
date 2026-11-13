@@ -71,7 +71,6 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -113,8 +112,7 @@ import org.junit.jupiter.api.Order;
 public class SystemFileExportsTest {
     private static final String DESCRIPTION_PREFIX = "Revision #";
 
-    // Upgrade simulations close every round so an open block cannot overwrite the injected upgrade flag.
-    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
+    @GenesisHapiTest
     final Stream<DynamicTest> syntheticNodeDetailsUpdateHappensAtUpgradeBoundary() {
         final var grpcCertHashes = new byte[][] {
             randomUtf8Bytes(48), randomUtf8Bytes(48), randomUtf8Bytes(48), randomUtf8Bytes(48),
@@ -146,7 +144,7 @@ public class SystemFileExportsTest {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
-    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
+    @GenesisHapiTest
     final Stream<DynamicTest> syntheticAddressBookUpdateHappensAtUpgradeBoundary() {
         final var grpcCertHashes = new byte[][] {
             randomUtf8Bytes(48), randomUtf8Bytes(48), randomUtf8Bytes(48), randomUtf8Bytes(48),
@@ -175,7 +173,7 @@ public class SystemFileExportsTest {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
-    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
+    @GenesisHapiTest
     final Stream<DynamicTest> syntheticThrottlesUpdateHappensAtUpgradeBoundary() throws InvalidProtocolBufferException {
         final var throttlesJson = resourceAsString("testSystemFiles/one-tps-nft-mint.json");
         final var upgradeThrottleDefs =
@@ -210,7 +208,7 @@ public class SystemFileExportsTest {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
-    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
+    @GenesisHapiTest
     final Stream<DynamicTest> syntheticPropertyOverridesUpdateHappensAtUpgradeBoundary()
             throws InvalidProtocolBufferException {
         final var overrideProperties = "tokens.nfts.maxBatchSizeMint=2";
@@ -247,7 +245,7 @@ public class SystemFileExportsTest {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
-    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
+    @GenesisHapiTest
     final Stream<DynamicTest> syntheticPropertyOverridesUpdateCanBeEmptyFile() {
         return hapiTest(
                 streamMustIncludePassFrom(selectedItems(
@@ -279,7 +277,7 @@ public class SystemFileExportsTest {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
-    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
+    @GenesisHapiTest
     final Stream<DynamicTest> syntheticPermissionOverridesUpdateHappensAtUpgradeBoundary()
             throws InvalidProtocolBufferException {
         final var overridePermissions = "tokenMint=0-1";
@@ -318,7 +316,7 @@ public class SystemFileExportsTest {
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
-    @GenesisHapiTest(bootstrapOverrides = @ConfigOverride(key = "blockStream.blockPeriod", value = "0s"))
+    @GenesisHapiTest
     final Stream<DynamicTest> syntheticNodeAdminKeysUpdateHappensAtUpgradeBoundary() {
         return hapiTest(
                 streamMustIncludePassFrom(selectedItems(

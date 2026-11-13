@@ -62,6 +62,7 @@ public final class DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaug
         return new Measurement(initializer);
     }
 
+    @NonNull
     @Override
     protected MeasurementSnapshot createMeasurementSnapshot(
             @NonNull Measurement measurement, @NonNull LabelValues labelValues) {

@@ -43,15 +43,15 @@ public final class MetricRegistry implements Closeable {
     private final List<Label> globalLabels;
     private final MetricsExporter exporter;
 
-    private final Map<String, Metric> metrics = new ConcurrentHashMap<>();
-    private final Collection<Metric> metricsView = Collections.unmodifiableCollection(metrics.values());
+    private final Map<String, Metric<?>> metrics = new ConcurrentHashMap<>();
+    private final Collection<Metric<?>> metricsView = Collections.unmodifiableCollection(metrics.values());
 
     @Nullable
     private final MetricRegistrySnapshot snapshot;
 
     /**
      * Creates a registry and registers the given metric builders in one pass. Nobody else can see the registry yet,
-     * so builders are registered with a plain loop and the registry snapshot is created from all of them at once.
+     * so builders are registered with a plain loop.
      * The exporter gets its snapshot supplier last, so the first export sees every provided metric.
      */
     private MetricRegistry(
@@ -61,21 +61,16 @@ public final class MetricRegistry implements Closeable {
         this.globalLabels = List.copyOf(globalLabels);
         this.exporter = exporter;
 
-        final List<MetricSnapshot> metricSnapshots = new ArrayList<>(builders.size());
         for (Metric.Builder<?, ?> builder : builders) {
             Objects.requireNonNull(builder, "metric builder must not be null");
             final MetricKey<?> key = builder.key();
             throwIfDuplicateMetricName(key, metrics.get(key.name()));
 
-            final Metric metric = buildMetric(builder);
-            metrics.put(key.name(), metric);
-            if (exporter != null) {
-                metricSnapshots.add(metric.snapshot());
-            }
+            metrics.put(key.name(), buildMetric(builder));
         }
 
         if (exporter != null) {
-            snapshot = new MetricRegistrySnapshot(metricSnapshots);
+            snapshot = new MetricRegistrySnapshot(metricsView);
             exporter.setSnapshotSupplier(snapshot::update);
             logger.log(
                     INFO,
@@ -111,10 +106,14 @@ public final class MetricRegistry implements Closeable {
     }
 
     /**
+     * Returns a live view of the registered metrics. Its iteration is weakly consistent:
+     * metrics registered or removed during an iteration may or may not be iterated, and a metric removed
+     * and registered again under the same name during an iteration may be iterated twice, as both instances.
+     *
      * @return unmodifiable collection of all registered metrics in this registry, may be empty but never {@code null}
      */
     @NonNull
-    public Collection<Metric> metrics() {
+    public Collection<Metric<?>> metrics() {
         return metricsView;
     }
 
@@ -132,22 +131,21 @@ public final class MetricRegistry implements Closeable {
      * @throws IllegalArgumentException if a metric with the same name already exists in the registry
      */
     @NonNull
-    public <M extends Metric, B extends Metric.Builder<?, M>> M register(final @NonNull B builder) {
+    public <M extends Metric<?>, B extends Metric.Builder<?, M>> M register(final @NonNull B builder) {
         Objects.requireNonNull(builder, "metric builder must not be null");
 
         final MetricKey<M> metricKey = builder.key();
 
-        return metricKey.type().cast(metrics.compute(metricKey.name(), (name, existingMetric) -> {
+        final Metric<?> registered = metrics.compute(metricKey.name(), (_, existingMetric) -> {
             throwIfDuplicateMetricName(metricKey, existingMetric);
+            return buildMetric(builder);
+        });
 
-            final M metric = buildMetric(builder);
-
-            if (snapshot != null) {
-                snapshot.addMetricSnapshot(metric.snapshot());
-            }
-
-            return metric;
-        }));
+        // marked after compute returns, when the metric is visible to the export rebuilding the snapshot
+        if (snapshot != null) {
+            snapshot.markChanged();
+        }
+        return metricKey.type().cast(registered);
     }
 
     /**
@@ -167,18 +165,19 @@ public final class MetricRegistry implements Closeable {
         Objects.requireNonNull(key, "metric key must not be null");
 
         final boolean[] removed = {false};
-        // the snapshot is removed under the map bin lock, which also guards the registration with the same name
         metrics.computeIfPresent(key.name(), (name, metric) -> {
             if (!key.type().isInstance(metric)) {
                 return metric;
-            }
-            if (snapshot != null) {
-                snapshot.removeMetricSnapshot(metric.snapshot());
             }
             removed[0] = true;
             logger.log(DEBUG, "Removed metric. name={0}", name);
             return null;
         });
+
+        // marked after computeIfPresent returns, when the removal is visible to the export rebuilding the snapshot
+        if (removed[0] && snapshot != null) {
+            snapshot.markChanged();
+        }
         return removed[0];
     }
 
@@ -199,7 +198,7 @@ public final class MetricRegistry implements Closeable {
      */
     public boolean containsMetric(@NonNull MetricKey<?> key) {
         Objects.requireNonNull(key, "metric key must not be null");
-        Metric metric = metrics.get(key.name());
+        final Metric<?> metric = metrics.get(key.name());
         return key.type().isInstance(metric);
     }
 
@@ -215,9 +214,9 @@ public final class MetricRegistry implements Closeable {
      * @throws ClassCastException if metric found with the given key name is not of the expected key type
      */
     @NonNull
-    public <M extends Metric> M getMetric(@NonNull MetricKey<M> key) {
+    public <M extends Metric<?>> M getMetric(@NonNull MetricKey<M> key) {
         Objects.requireNonNull(key, "metric key must not be null");
-        Metric metric = metrics.get(key.name());
+        final Metric<?> metric = metrics.get(key.name());
         if (metric == null) {
             throw new NoSuchElementException("Metric not found: " + key);
         }
@@ -232,7 +231,7 @@ public final class MetricRegistry implements Closeable {
         }
     }
 
-    private <M extends Metric> M buildMetric(Metric.Builder<?, M> builder) {
+    private <M extends Metric<?>> M buildMetric(Metric.Builder<?, M> builder) {
         builder.addStaticLabels(globalLabels.toArray(Label[]::new));
         if (exporter == null) {
             builder.doNotSnapshot();
@@ -243,7 +242,7 @@ public final class MetricRegistry implements Closeable {
         return metric;
     }
 
-    private void throwIfDuplicateMetricName(MetricKey<?> key, @Nullable Metric existing) {
+    private void throwIfDuplicateMetricName(MetricKey<?> key, @Nullable Metric<?> existing) {
         if (existing != null) {
             throw new IllegalArgumentException(
                     "Duplicate metric name: " + key + ". Existing metric: " + existing.name());

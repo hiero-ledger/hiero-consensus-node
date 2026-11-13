@@ -87,7 +87,7 @@ class ClprServiceApiImplTest {
 
     private static final ClprConfig DEFAULT_CLPR_CONFIG = ClprConfigBuilder.newBuilder()
             .enabled(true)
-            .slashBasePenaltyTinycents(1_000_000L)
+            .slashBasePenalty(1_000_000L)
             .build();
 
     @BeforeEach

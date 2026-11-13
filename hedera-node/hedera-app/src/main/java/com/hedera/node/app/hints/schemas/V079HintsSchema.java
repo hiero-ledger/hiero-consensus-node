@@ -17,8 +17,6 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
-import com.hedera.node.app.hints.impl.HintsContext;
-import com.hedera.node.config.data.TssConfig;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -34,12 +32,10 @@ public class V079HintsSchema extends Schema<SemanticVersion> {
     public static final String NEXT_CRS_STATE_LABEL = computeLabel(HintsService.NAME, NEXT_CRS_STATE_KEY);
 
     private final HintsLibrary library;
-    private final HintsContext signingContext;
 
-    public V079HintsSchema(@NonNull final HintsLibrary library, @NonNull final HintsContext signingContext) {
+    public V079HintsSchema(@NonNull final HintsLibrary library) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.library = requireNonNull(library);
-        this.signingContext = requireNonNull(signingContext);
     }
 
     @Override
@@ -88,17 +84,7 @@ public class V079HintsSchema extends Schema<SemanticVersion> {
             return;
         }
         initializeState(ctx);
-        if (!ctx.appConfig().getConfigData(TssConfig.class).hintsEnabled()) {
-            return;
-        }
-        final var states = ctx.newStates();
-        final var active = states.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID)
-                .get();
-        final var activeCrs =
-                requireNonNull(states.<CRSState>getSingleton(CRS_STATE_STATE_ID).get());
-        if (active.hasHintsScheme()) {
-            signingContext.setConstruction(active, activeCrs);
-        }
+        // All signing modes are restored once by Hedera after every service has initialized.
     }
 
     /** Fail closed even when this schema already ran under an earlier cryptography library. */

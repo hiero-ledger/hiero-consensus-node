@@ -14,13 +14,15 @@ public final class ClprConfigBuilder {
     private int protocolVersion = 1;
     private String ledgerConfigurationFile = "data/config/clprLedgerConfiguration.json";
     private String upgradeLedgerConfigurationFile = "clprLedgerConfiguration.json";
-    private long minLockedStakeTinycents = 30_000_000_000_000L;
+    private long minLockedStake = 100_000_000L;
     private long stakingAccount = 803L;
-    private long slashBasePenaltyTinycents = 100_000_000_000L;
+    private long slashBasePenalty = 10_000_000L;
     private int slashMultiplier = 2;
     private int slashBanThreshold = 5;
+    private long endpointPayoutCapTinybars = 5_000_000L;
+    private long endpointMisbehaviorPenaltyTinybars = 5_000_000L;
     private long messageExecutionCost = 1_000_000L;
-    private long progressRewardTinycents = 100_000_000L;
+    private int endpointMarginPercent = 10;
     private int maxConcurrentSyncs = 4;
     private int syncTimeoutSeconds = 30;
     private int reputationDecaySeconds = 300;
@@ -30,8 +32,6 @@ public final class ClprConfigBuilder {
     private int circuitBreakerCooldownSeconds = 120;
     private boolean syncPeerExclusionEnabled = false;
     private int connectorQueueQuotaPct = 50;
-    private long sendMessageFeeTinycents = 1_000_000_000L;
-    private int sendMessageIncludedBytes = 1024;
     private long verifierGasLimit = 300_000L;
     private boolean verifyProofsAtSender = true;
     private String peerEndpointsFile = "data/clpr/peer-endpoints.json";
@@ -69,8 +69,8 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder minLockedStakeTinycents(final long minLockedStakeTinycents) {
-        this.minLockedStakeTinycents = minLockedStakeTinycents;
+    public ClprConfigBuilder minLockedStake(final long minLockedStake) {
+        this.minLockedStake = minLockedStake;
         return this;
     }
 
@@ -79,8 +79,8 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder slashBasePenaltyTinycents(final long slashBasePenaltyTinycents) {
-        this.slashBasePenaltyTinycents = slashBasePenaltyTinycents;
+    public ClprConfigBuilder slashBasePenalty(final long slashBasePenalty) {
+        this.slashBasePenalty = slashBasePenalty;
         return this;
     }
 
@@ -94,13 +94,23 @@ public final class ClprConfigBuilder {
         return this;
     }
 
+    public ClprConfigBuilder endpointPayoutCapTinybars(final long endpointPayoutCapTinybars) {
+        this.endpointPayoutCapTinybars = endpointPayoutCapTinybars;
+        return this;
+    }
+
+    public ClprConfigBuilder endpointMisbehaviorPenaltyTinybars(final long endpointMisbehaviorPenaltyTinybars) {
+        this.endpointMisbehaviorPenaltyTinybars = endpointMisbehaviorPenaltyTinybars;
+        return this;
+    }
+
     public ClprConfigBuilder messageExecutionCost(final long messageExecutionCost) {
         this.messageExecutionCost = messageExecutionCost;
         return this;
     }
 
-    public ClprConfigBuilder progressRewardTinycents(final long progressRewardTinycents) {
-        this.progressRewardTinycents = progressRewardTinycents;
+    public ClprConfigBuilder endpointMarginPercent(final int endpointMarginPercent) {
+        this.endpointMarginPercent = endpointMarginPercent;
         return this;
     }
 
@@ -205,13 +215,15 @@ public final class ClprConfigBuilder {
                 protocolVersion,
                 ledgerConfigurationFile,
                 upgradeLedgerConfigurationFile,
-                minLockedStakeTinycents,
+                minLockedStake,
                 stakingAccount,
-                slashBasePenaltyTinycents,
+                slashBasePenalty,
                 slashMultiplier,
                 slashBanThreshold,
+                endpointPayoutCapTinybars,
+                endpointMisbehaviorPenaltyTinybars,
                 messageExecutionCost,
-                progressRewardTinycents,
+                endpointMarginPercent,
                 maxConcurrentSyncs,
                 syncTimeoutSeconds,
                 reputationDecaySeconds,
@@ -221,8 +233,6 @@ public final class ClprConfigBuilder {
                 circuitBreakerCooldownSeconds,
                 syncPeerExclusionEnabled,
                 connectorQueueQuotaPct,
-                sendMessageFeeTinycents,
-                sendMessageIncludedBytes,
                 verifierGasLimit,
                 nodeSubmitBundleMaxFee,
                 verifyProofsAtSender,
@@ -232,7 +242,6 @@ public final class ClprConfigBuilder {
                 manifestMaxGraceExtensions,
                 manifestSubmissionRetries,
                 manifestSubmissionRetryDelay,
-                manifestSubmissionDistinctTxnIds,
-                10_000_000_000L);
+                manifestSubmissionDistinctTxnIds);
     }
 }
