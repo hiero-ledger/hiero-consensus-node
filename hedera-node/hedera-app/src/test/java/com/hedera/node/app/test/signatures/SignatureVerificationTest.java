@@ -34,13 +34,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.bouncycastle.asn1.sec.SECNamedCurves;
-import org.bouncycastle.asn1.x9.X9ECParameters;
-import org.bouncycastle.crypto.digests.SHA256Digest;
-import org.bouncycastle.crypto.params.ECDomainParameters;
-import org.bouncycastle.crypto.params.ECPrivateKeyParameters;
-import org.bouncycastle.crypto.signers.ECDSASigner;
-import org.bouncycastle.crypto.signers.HMacDSAKCalculator;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -296,13 +290,6 @@ class SignatureVerificationTest implements Scenarios {
 
     /** Utility builder class for constructing the test cases */
     private static final class TestCaseBuilder {
-        private static final X9ECParameters ECDSA_SECP256K1_CURVE = SECNamedCurves.getByName("secp256k1");
-        private static final ECDomainParameters ECDSA_SECP256K1_DOMAIN = new ECDomainParameters(
-                ECDSA_SECP256K1_CURVE.getCurve(),
-                ECDSA_SECP256K1_CURVE.getG(),
-                ECDSA_SECP256K1_CURVE.getN(),
-                ECDSA_SECP256K1_CURVE.getH());
-
         private final Bytes signedBytes = Bytes.wrap("Hashgraph is revolutionary technology");
         private final String name;
         private final boolean shouldPass;
@@ -392,12 +379,7 @@ class SignatureVerificationTest implements Scenarios {
             message.getBytes(0, messageByteArray);
 
             final var hash = MiscCryptoUtils.keccak256DigestOf(messageByteArray);
-
-            final var signer = new ECDSASigner(new HMacDSAKCalculator(new SHA256Digest()));
-            signer.init(true, new ECPrivateKeyParameters(new BigInteger(1, keyByteArray), ECDSA_SECP256K1_DOMAIN));
-            final var bigSig = signer.generateSignature(hash);
-            final var sigBytes = Arrays.copyOf(bigIntTo32Bytes(bigSig[0]), 64);
-            System.arraycopy(bigIntTo32Bytes(bigSig[1]), 0, sigBytes, 32, 32);
+            final var sigBytes = ECDSASecp256k1.signDigestWithEcdsaSecp256k1(keyByteArray, hash);
             return Bytes.wrap(sigBytes);
         }
 
