@@ -20,7 +20,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -130,11 +129,10 @@ public class SlothApp implements ConsensusStateEventHandler {
         for (final SlothService service : allServices) {
             service.preHandleEvent(event);
         }
-        final Iterator<Transaction> transactionIterator = event.transactionIterator();
-        while (transactionIterator.hasNext()) {
+        for (final Transaction txn : event.getTransactions()) {
             try {
                 final SlothTransaction transaction = SlothTransaction.parseFrom(
-                        transactionIterator.next().getApplicationTransaction().toInputStream());
+                        txn.getApplicationTransaction().toInputStream());
                 for (final SlothService service : allServices) {
                     service.preHandleTransaction(event, transaction, callback);
                 }
@@ -163,9 +161,7 @@ public class SlothApp implements ConsensusStateEventHandler {
             for (final SlothService service : allServices) {
                 service.onEventStart(state.getWritableStates(service.name()), consensusEvent);
             }
-            final Iterator<ConsensusTransaction> transactionIterator = consensusEvent.consensusTransactionIterator();
-            while (transactionIterator.hasNext()) {
-                final ConsensusTransaction consensusTransaction = transactionIterator.next();
+            for (final ConsensusTransaction consensusTransaction : consensusEvent.getTransactions()) {
                 try {
                     final SlothTransaction transaction = SlothTransaction.parseFrom(
                             consensusTransaction.getApplicationTransaction().toInputStream());

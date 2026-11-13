@@ -10,13 +10,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.Iterator;
+import java.util.List;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.Event;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
 public class FakeEvent implements Event {
@@ -70,11 +70,13 @@ public class FakeEvent implements Event {
                 .build();
     }
 
+    @NonNull
     @Override
-    public Iterator<Transaction> transactionIterator() {
-        return Collections.singleton((Transaction) transaction).iterator();
+    public List<? extends ConsensusTransaction> getTransactions() {
+        return List.of(transaction);
     }
 
+    @NonNull
     @Override
     public Instant getTimeCreated() {
         return timeCreated;
@@ -93,6 +95,12 @@ public class FakeEvent implements Event {
 
     @NonNull
     @Override
+    public List<EventDescriptorWrapper> getAllParents() {
+        return List.of();
+    }
+
+    @NonNull
+    @Override
     public EventCore getEventCore() {
         return eventCore;
     }
@@ -101,6 +109,11 @@ public class FakeEvent implements Event {
     @Override
     public Bytes getSignature() {
         return FAKE_SHA_384_SIGNATURE;
+    }
+
+    @Override
+    public boolean isPcesEvent() {
+        return false;
     }
 
     @NonNull

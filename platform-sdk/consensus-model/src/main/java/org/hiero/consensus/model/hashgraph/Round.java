@@ -69,9 +69,8 @@ public interface Round extends Iterable<ConsensusEvent> {
     default void forEachTransaction(final Consumer<ConsensusTransaction> transactionConsumer) {
         for (final Iterator<ConsensusEvent> eventIt = iterator(); eventIt.hasNext(); ) {
             final ConsensusEvent event = eventIt.next();
-            for (final Iterator<ConsensusTransaction> transIt = event.consensusTransactionIterator();
-                    transIt.hasNext(); ) {
-                transactionConsumer.accept(transIt.next());
+            for (final ConsensusTransaction txn : event.getTransactions()) {
+                transactionConsumer.accept(txn);
             }
         }
     }
@@ -85,9 +84,8 @@ public interface Round extends Iterable<ConsensusEvent> {
     default void forEachEventTransaction(final BiConsumer<ConsensusEvent, ConsensusTransaction> consumer) {
         for (final Iterator<ConsensusEvent> eventIt = iterator(); eventIt.hasNext(); ) {
             final ConsensusEvent event = eventIt.next();
-            for (final Iterator<ConsensusTransaction> transIt = event.consensusTransactionIterator();
-                    transIt.hasNext(); ) {
-                consumer.accept(event, transIt.next());
+            for (final ConsensusTransaction txn : event.getTransactions()) {
+                consumer.accept(event, txn);
             }
         }
     }

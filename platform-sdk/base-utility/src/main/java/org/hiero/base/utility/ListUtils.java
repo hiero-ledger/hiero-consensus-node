@@ -50,7 +50,7 @@ public class ListUtils {
      * @param mapper   the function to apply to each element; must not be {@code null}
      * @param <T>      the element type of the source list
      * @param <R>      the element type of the resulting list
-     * @return a new, mutable list containing the mapped elements in their original order
+     * @return a new, immutable list containing the mapped elements in their original order
      * @throws NullPointerException if {@code original} or {@code mapper} is {@code null}
      */
     public static <R, T> List<R> mapToCopy(List<T> original, Function<? super T, ? extends R> mapper) {
@@ -64,6 +64,7 @@ public class ListUtils {
                 result.add(mapper.apply(t));
             }
         }
-        return result;
+        // Return an immutable copy of the results
+        return List.copyOf(result);
     }
 }

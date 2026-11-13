@@ -5,8 +5,7 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Iterator;
-import java.util.function.Consumer;
+import java.util.List;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.Transaction;
 
@@ -20,17 +19,19 @@ import org.hiero.consensus.model.transaction.Transaction;
 public interface Event {
 
     /**
-     * Returns an iterator over the application events in this transaction.
+     * Returns an immutable List of transactions in this event in the order provided by the creator.
      *
-     * @return a transaction iterator
+     * @return the transactions in this event
      */
-    Iterator<Transaction> transactionIterator();
+    @NonNull
+    List<? extends Transaction> getTransactions();
 
     /**
      * Returns the time this event was created as claimed by its creator.
      *
      * @return the created time
      */
+    @NonNull
     Instant getTimeCreated();
 
     /**
@@ -42,23 +43,20 @@ public interface Event {
     NodeId getCreatorId();
 
     /**
-     * A convenience method that supplies every transaction in this event to a consumer.
-     *
-     * @param consumer
-     * 		a transaction consumer
-     */
-    default void forEachTransaction(final Consumer<Transaction> consumer) {
-        for (final Iterator<Transaction> transIt = transactionIterator(); transIt.hasNext(); ) {
-            consumer.accept(transIt.next());
-        }
-    }
-
-    /**
      * Returns the birth round of this event.
      *
      * @return the birth round of the event
      */
     long getBirthRound();
+
+    /**
+     * Returns an immutable list of all the parents of this event (selfParent + otherParents).
+     * This method is thread safe.
+     *
+     * @return a consensus transaction iterator
+     */
+    @NonNull
+    List<EventDescriptorWrapper> getAllParents();
 
     /**
      * Returns the core data of the event.
@@ -75,4 +73,12 @@ public interface Event {
      */
     @NonNull
     Bytes getSignature();
+
+    /**
+     * Indicates if this event was read from PCES. This happens after the node
+     * restarts in order to recover the latest consensus state.
+     *
+     * @return true if the event was read from PCES on disk, false otherwise
+     */
+    boolean isPcesEvent();
 }
