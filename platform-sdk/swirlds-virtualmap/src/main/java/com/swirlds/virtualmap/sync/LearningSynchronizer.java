@@ -129,7 +129,7 @@ public class LearningSynchronizer {
     private int leafBacklogThrottleThreshold(@NonNull final VirtualMapLearner vmapLearner) {
         final int configured = syncConfig.leafBacklogThrottleThreshold();
         final long minimum = (long) syncConfig.flushInterval()
-                + OPEN_HASH_CHUNKS_MARGIN * VirtualHashChunk.getChunkSize(vmapLearner.getHashChunkHeight());
+                + MAX_UNFINISHED_HASH_CHUNKS * VirtualHashChunk.getChunkSize(vmapLearner.getHashChunkHeight());
         if (configured >= minimum) {
             return configured;
         }
