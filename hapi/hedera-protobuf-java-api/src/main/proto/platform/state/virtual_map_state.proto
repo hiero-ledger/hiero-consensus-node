@@ -57,6 +57,7 @@ import "services/state/token/token_relation.proto";
 import "services/state/clpr/clpr_channel.proto";
 import "services/state/clpr/clpr_endpoint_manifest.proto";
 import "services/state/clpr/clpr_endpoint_manifest_construction.proto";
+import "services/state/clpr/clpr_channel_index.proto";
 import "services/state/clpr/clpr_ledger_configuration.proto";
 import "services/state/clpr/clpr_message.proto";
 import "services/state/clpr/clpr_connector.proto";
@@ -313,6 +314,12 @@ message StateKey {
      * Key is the commitment hash bytes.
      */
     proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
+
+    /**
+     * A state identifier for the CLPR channel index entries.
+     * Key is a sequence number issued by the channel index singleton.
+     */
+    proto.ProtoLong ClprService_I_CHANNEL_INDEX_ENTRIES = 70;
 
     // Queue states
     /**
@@ -725,6 +732,17 @@ message StateValue {
     com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
     /**
+     * A state identifier for the CLPR channel index. Singleton state.
+     */
+    com.hedera.hapi.node.state.clpr.ClprChannelIndex ClprService_I_CHANNEL_INDEX = 69;
+
+    /**
+     * A state identifier for the CLPR channel index entries.
+     * Value is the 32-byte id of the syncable Channel with that sequence number.
+     */
+    proto.ProtoBytes ClprService_I_CHANNEL_INDEX_ENTRIES = 70;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -942,6 +960,12 @@ enum SingletonType {
    * change, and is deleted on close. Singleton state.
    */
   ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
+
+  /**
+   * A state identifier for the CLPR channel index — the last sequence number issued to a
+   * Channel that is neither PENDING nor CLOSED. Singleton state.
+   */
+  ClprService_I_CHANNEL_INDEX = 69;
 
   // Queue metadata
 

@@ -61,6 +61,7 @@ import "services/state/tss/tss_vote_map_key.proto";
 import "services/state/clpr/clpr_channel.proto";
 import "services/state/clpr/clpr_endpoint_manifest.proto";
 import "services/state/clpr/clpr_endpoint_manifest_construction.proto";
+import "services/state/clpr/clpr_channel_index.proto";
 import "services/state/clpr/clpr_ledger_configuration.proto";
 import "services/state/clpr/clpr_message.proto";
 import "services/state/clpr/clpr_connector.proto";
@@ -554,6 +555,16 @@ enum StateIdentifier {
     STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
     /**
+     * A state identifier for the CLPR channel index. Singleton state.
+     */
+    STATE_ID_CLPR_CHANNEL_INDEX = 69;
+
+    /**
+     * A state identifier for the CLPR channel index entries. Key/value state.
+     */
+    STATE_ID_CLPR_CHANNEL_INDEX_ENTRIES = 70;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
@@ -832,6 +843,11 @@ message SingletonUpdateChange {
          * absent between constructions (deleted on close).
          */
         com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction clpr_endpoint_manifest_construction_value = 23;
+
+        /**
+         * A change to the CLPR channel index singleton.
+         */
+        com.hedera.hapi.node.state.clpr.ClprChannelIndex clpr_channel_index_value = 24;
     }
 }
 

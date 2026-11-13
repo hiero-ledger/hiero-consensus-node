@@ -239,9 +239,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         if (testId != null) {
             finishSharedTests(testId);
         }
-        if (networks != null) {
-            wipeClprPeerEndpointsCache(networks);
-        }
         store(ctx).remove(PARAM_INDEXES_KEY);
     }
 
@@ -749,33 +746,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         new IOException("Failed to write HAPI TLS PEMs for '" + cfg.name() + "'", e));
             }
         });
-    }
-
-    /**
-     * Deletes {@code data/clpr/peer-endpoints.json} on every node of every network. Safe on live
-     * shared networks.
-     */
-    private static void wipeClprPeerEndpointsCache(@NonNull final SubProcessNetwork[] networks) {
-        for (final var n : networks) {
-            if (n == null) continue;
-            for (final var node : n.nodes()) {
-                final Path path;
-                try {
-                    path = node.metadata().workingDirOrThrow().resolve("data/clpr/peer-endpoints.json");
-                } catch (final Throwable t) {
-                    log.warn(
-                            "[CLPR-CLEANUP] could not resolve peer-endpoints path for '{}': {}",
-                            n.name(),
-                            t.toString());
-                    continue;
-                }
-                try {
-                    Files.deleteIfExists(path);
-                } catch (final IOException e) {
-                    log.warn("[CLPR-CLEANUP] failed to delete {} for '{}': {}", path, n.name(), e.getMessage());
-                }
-            }
-        }
     }
 
     /**

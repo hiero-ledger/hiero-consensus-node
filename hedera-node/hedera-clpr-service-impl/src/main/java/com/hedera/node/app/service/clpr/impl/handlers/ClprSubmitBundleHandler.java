@@ -23,7 +23,6 @@ import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.clpr.ClprControlMessage;
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
@@ -58,9 +57,7 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -129,17 +126,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
-        // Step 1b refreshes the node-local peer endpoint cache. That cache is in-memory, so the full-stack rollback
-        // of a later penalizing HandleException would not undo it; the refresh is therefore applied only once the
-        // bundle has been handled without an exception.
-        final var deferredPeerEndpoints = new DeferredPeerEndpoints();
-        handleBundle(context, deferredPeerEndpoints);
-        deferredPeerEndpoints.seedInto(channelLifecycle);
-    }
-
-    private void handleBundle(
-            @NonNull final HandleContext context, @NonNull final DeferredPeerEndpoints deferredPeerEndpoints)
-            throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
         final var nodeAccountId = context.body().transactionIDOrThrow().accountIDOrThrow();
         log.debug(
@@ -244,9 +230,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());
-                // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
-                // handled without an exception (see doHandle).
-                deferredPeerEndpoints.set(channelId, truncatedEndpoints);
             }
             if (shouldUpdateTrustAnchor) {
                 log.debug(
@@ -1241,29 +1224,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     }
                 }
             });
-        }
-    }
-
-    /**
-     * A Step 1b peer endpoint cache refresh, held until the bundle has been handled without an exception so the
-     * node-local cache only ever mirrors a manifest that is actually committed (see {@link #doHandle}).
-     */
-    private static final class DeferredPeerEndpoints {
-        @Nullable
-        private Bytes channelId;
-
-        @Nullable
-        private List<ClprEndpoint> endpoints;
-
-        void set(@NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {
-            this.channelId = requireNonNull(channelId);
-            this.endpoints = requireNonNull(endpoints);
-        }
-
-        void seedInto(@NonNull final ClprChannelLifecycle channelLifecycle) {
-            if (channelId != null && endpoints != null) {
-                channelLifecycle.seedPeerEndpoints(channelId, endpoints);
-            }
         }
     }
 

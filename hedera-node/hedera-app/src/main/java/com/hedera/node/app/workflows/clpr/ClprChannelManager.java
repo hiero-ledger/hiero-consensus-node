@@ -7,8 +7,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
-import com.hedera.hapi.node.state.clpr.ClprPeerEndpoints;
-import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
@@ -17,17 +15,9 @@ import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +28,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -55,15 +44,16 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>State is read from the latest immutable state via the state accessor.
  * All writes happen through standard consensus (submitBundle HAPI transaction).
+ *
+ * <p>The registry of Channels to sync is in-memory. The {@code CHANNELS} state cannot be enumerated, so
+ * {@link #start()} rebuilds the registry from the channel index in state
+ * ({@link ReadableChannelStore#syncableChannelIds()}); after that, handlers report Channels that activate or close.
  */
 @Singleton
 public class ClprChannelManager implements ClprChannelLifecycle {
     private static final Logger logger = LogManager.getLogger(ClprChannelManager.class);
 
     static final long DEFAULT_SYNC_INTERVAL_MS = 1000L;
-
-    /** Cadence of the scheduled task that flushes the peer endpoints file when it has changed. */
-    private static final long PEER_ENDPOINTS_FLUSH_INTERVAL_MS = 1000L;
 
     private final ConfigProvider configProvider;
     private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
@@ -85,13 +75,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     private final Set<Bytes> knownChannelIds = ConcurrentHashMap.newKeySet();
 
     /**
-     * Per-channel cache of known peer endpoints: a node-local mirror of each channel's cached peer
-     * endpoint manifest (seeded at channel completion and on manifest updates). Dial targets are read from
-     * {@code Channel.endpoint_manifest}, not from here.
-     */
-    private final Map<Bytes, List<ClprEndpoint>> peerEndpointCache = new ConcurrentHashMap<>();
-
-    /**
      * Per-channel cache of the peer's most recently reported view of <em>this</em> ledger's
      * endpoint-manifest version (fed from inbound {@code ClprQueueMetadata.endpoint_manifest_version}
      * via {@link #recordPeerObservedManifestVersion}). Compared against the local
@@ -102,25 +85,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      * caught up.
      */
     private final Map<Bytes, Long> peerObservedManifestVersions = new ConcurrentHashMap<>();
-
-    /**
-     * Node-local file (not consensus state) recording {@code knownChannelIds} and
-     * {@link #peerEndpointCache}. Flushed by a single scheduled task whenever they change (and once
-     * on {@link #stop()}), and read <b>exactly once</b> at {@link #start()} so a restarted node can
-     * re-register channels and re-seed peer endpoints (the {@code CHANNELS} key/value state
-     * cannot be iterated to rebuild them).
-     *
-     * <p>The file is optional: if it is absent or fails to parse, {@link #readCache()} returns an
-     * empty record and the node simply starts with an empty registry (the pre-rehydration behaviour)
-     * and rebuilds it as channels activate. Because it is read only at start-up, the in-memory
-     * registry is authoritative for the rest of the process lifetime — a file that appears or changes
-     * after {@code start()} is not picked up and will be overwritten by the next flush. (To seed a
-     * fresh node with pre-existing channels, place the file before the node starts.)
-     */
-    private final Path peerEndpointsPath;
-
-    /** Set when {@code knownChannelIds}/{@link #peerEndpointCache} change; drives the scheduled flush. */
-    private final AtomicBoolean peerEndpointsDirty = new AtomicBoolean(false);
 
     @Inject
     public ClprChannelManager(
@@ -133,7 +97,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         this.synchronizer = requireNonNull(synchronizer);
         this.clientCache = requireNonNull(clientCache);
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
-        this.peerEndpointsPath = Paths.get(clprConfig.peerEndpointsFile());
         this.syncSemaphore = new Semaphore(clprConfig.maxConcurrentSyncs());
         this.scheduler = Executors.newScheduledThreadPool(clprConfig.maxConcurrentSyncs(), r -> {
             final var thread = new Thread(r, "clpr-sync");
@@ -143,8 +106,12 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     }
 
     /**
-     * Starts the sync orchestration loop. Should be called once during node startup
-     * after the platform is active.
+     * Starts the sync orchestration loop, or catches it up if it already runs. Called each time the platform
+     * becomes active, including after a reconnect with no intervening {@link #stop()}.
+     *
+     * <p>Each call registers every Channel in the channel index of the latest state. After a restart, Channels
+     * that were already syncable never re-trigger {@link #onChannelActivated}; and after a reconnect, this node never
+     * handled the activations it missed. Without this, neither kind of Channel would ever sync again.
      */
     public void start() {
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
@@ -152,157 +119,41 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             logger.info("CLPR is disabled, sync orchestrator will not start");
             return;
         }
-        if (started) {
-            return;
-        }
+        final boolean firstStart = !started;
         started = true;
-        // Rebuild the in-memory registry and peer endpoint cache from the node-local disk cache.
-        // After a restart the loaded state already has these channels ACTIVE, so
-        // onChannelActivated never fires for them; without this they would never tick again.
-        rehydrateFromDisk();
-        // Schedule ticks for any channels that activated before the orchestrator started;
-        // they would otherwise never tick and never exchange messages.
+        registerIndexedChannels();
+        // Schedule ticks for any channels registered before now; they would otherwise never tick and never
+        // exchange messages. A channel that already has a tick keeps it.
         for (final var channelId : knownChannelIds) {
             channelSyncFutures.computeIfAbsent(channelId, this::scheduleTick);
         }
-        // Single scheduled task that writes the peer endpoints file only when it has changed —
-        // mutation sites just flag it dirty. Rehydration above may already have re-registered
-        // channels, but it doesn't dirty the file (it's reading what's already there).
-        scheduler.scheduleWithFixedDelay(
-                this::flushPeerEndpointsIfDirty,
-                PEER_ENDPOINTS_FLUSH_INTERVAL_MS,
-                PEER_ENDPOINTS_FLUSH_INTERVAL_MS,
-                TimeUnit.MILLISECONDS);
-        logger.info("CLPR sync orchestrator started (maxConcurrentSyncs={})", clprConfig.maxConcurrentSyncs());
+        if (firstStart) {
+            logger.info("CLPR sync orchestrator started (maxConcurrentSyncs={})", clprConfig.maxConcurrentSyncs());
+        }
     }
 
     /**
-     * Re-registers, re-seeds peer endpoints for, and recovers the sync interval of every still-syncable
-     * Channel recorded in the node-local disk cache. Called once from {@link #start()} so that, after
-     * a node restart, Channels that were already ACTIVE in the loaded state (and therefore never
-     * re-trigger {@link #onChannelActivated}) rejoin the outbound sync loop and can initiate syncs to
-     * their peer. The caller's scheduling loop then starts the timers.
-     *
-     * <p>The cache is the only enumerable record of which Channels this node was tracking (the
-     * {@code CHANNELS} key/value state cannot be iterated) and the only surviving source of peer
-     * endpoints (the local ledger config would yield this node's own endpoints). Each cached id is
-     * cross-checked against committed state: entries with no channel record, or in PENDING/CLOSED
-     * status, are skipped. No sync interval is recovered here — {@link #scheduleTick} always uses
-     * the fixed {@link #DEFAULT_SYNC_INTERVAL_MS}.
-     *
-     * <p><b>Call exactly once</b>, from {@link #start()} (which guards against re-entry via the
-     * {@code started} flag). This method is <b>not</b> idempotent with respect to the endpoint cache:
-     * it {@code put}s the file's endpoints into {@link #peerEndpointCache}, so calling it again after
-     * the node has learned newer endpoints would overwrite them with the (older) on-disk copy.
+     * Registers every Channel in the channel index of the latest state. Leaves the registry as it is if the state
+     * is unavailable or cannot be read.
      */
-    private void rehydrateFromDisk() {
-        final var cache = readCache();
-        if (cache.entries().isEmpty()) {
-            return;
-        }
+    private void registerIndexedChannels() {
         try (final var wrappedState = stateAccessor.get()) {
             final var state = wrappedState == null ? null : wrappedState.get();
-            final var storeFactory = state == null ? null : new ReadableStoreFactoryImpl(state);
-            final var channelStore =
-                    storeFactory == null ? null : storeFactory.readableStore(ReadableChannelStore.class);
-            int rehydrated = 0;
-            for (final var entry : cache.entries()) {
-                final var channelId = entry.channelId();
-                if (channelStore != null) {
-                    final var channel = channelStore.getChannel(channelId);
-                    if (channel == null) {
-                        // Stale cache entry: no committed channel record. Skip.
-                        continue;
-                    }
-                    final var status = channel.status();
-                    if (status == ClprChannelStatus.PENDING || status == ClprChannelStatus.CLOSED) {
-                        // Not syncable; should not be cached, but skip defensively.
-                        continue;
-                    }
-                }
-                knownChannelIds.add(channelId);
-                if (!entry.endpoints().isEmpty()) {
-                    peerEndpointCache.put(channelId, new ArrayList<>(entry.endpoints()));
-                }
-                rehydrated++;
+            if (state == null) {
+                return;
             }
-            logger.info("CLPR rehydration registered {} channel(s) from disk cache {}", rehydrated, peerEndpointsPath);
+            final var channelIds = new ReadableStoreFactoryImpl(state)
+                    .readableStore(ReadableChannelStore.class)
+                    .syncableChannelIds();
+            int registered = 0;
+            for (final var channelId : channelIds) {
+                if (knownChannelIds.add(channelId)) {
+                    registered++;
+                }
+            }
+            logger.info("CLPR registered {} of {} indexed channel(s)", registered, channelIds.size());
         } catch (final Exception e) {
-            logger.error("Error during CLPR channel rehydration from disk cache {}", peerEndpointsPath, e);
-        }
-    }
-
-    /**
-     * Marks the in-memory registry + peer endpoint cache as changed. Cheap and side-effect-free:
-     * the actual disk write is performed by the single scheduled {@link #flushPeerEndpointsIfDirty()}
-     * task (and once more on {@link #stop()}). This mirrors how the rest of the node flushes
-     * node-local files — accumulate in memory, write from one place on a cadence — rather than doing
-     * blocking I/O at each mutation site.
-     */
-    private void markPeerEndpointsDirty() {
-        peerEndpointsDirty.set(true);
-    }
-
-    /**
-     * Scheduled flush: if the registry/endpoints changed since the last write, serialize them to the
-     * node-local file. On failure the dirty flag is restored so the next tick retries.
-     */
-    private void flushPeerEndpointsIfDirty() {
-        if (peerEndpointsDirty.compareAndSet(true, false) && !writePeerEndpointsToDisk()) {
-            peerEndpointsDirty.set(true);
-        }
-    }
-
-    /**
-     * Serializes the in-memory registry + endpoint cache to the disk file via an atomic replace.
-     *
-     * @return {@code true} on success, {@code false} if the write failed (so the caller can retry)
-     */
-    private synchronized boolean writePeerEndpointsToDisk() {
-        try {
-            final var entries = new ArrayList<ClprPeerEndpointsEntry>(knownChannelIds.size());
-            for (final var channelId : knownChannelIds) {
-                entries.add(ClprPeerEndpointsEntry.newBuilder()
-                        .channelId(channelId)
-                        .endpoints(new ArrayList<>(peerEndpointCache.getOrDefault(channelId, List.of())))
-                        .build());
-            }
-            final var record = ClprPeerEndpoints.newBuilder().entries(entries).build();
-            final var absolutePath = peerEndpointsPath.toAbsolutePath();
-            Files.createDirectories(requireNonNull(absolutePath.getParent()));
-            final var tmp = Files.createTempFile(
-                    absolutePath.getParent(), absolutePath.getFileName().toString(), ".tmp");
-            try {
-                try (final var fout = Files.newOutputStream(tmp)) {
-                    ClprPeerEndpoints.JSON.write(record, new WritableStreamingData(fout));
-                }
-                try {
-                    Files.move(tmp, absolutePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                } catch (final AtomicMoveNotSupportedException ignore) {
-                    Files.move(tmp, absolutePath, StandardCopyOption.REPLACE_EXISTING);
-                }
-            } finally {
-                Files.deleteIfExists(tmp);
-            }
-            return true;
-        } catch (final Exception e) {
-            logger.error("Failed to persist CLPR peer endpoints to {}", peerEndpointsPath, e);
-            return false;
-        }
-    }
-
-    /** Reads the disk cache, returning an empty cache if the file is absent or unreadable. */
-    private ClprPeerEndpoints readCache() {
-        try {
-            if (!Files.exists(peerEndpointsPath)) {
-                return ClprPeerEndpoints.DEFAULT;
-            }
-            try (final var fin = Files.newInputStream(peerEndpointsPath)) {
-                return ClprPeerEndpoints.JSON.parseStrict(new ReadableStreamingData(fin));
-            }
-        } catch (final Exception e) {
-            logger.error("Failed to read CLPR channel cache from {}", peerEndpointsPath, e);
-            return ClprPeerEndpoints.DEFAULT;
+            logger.error("Failed to register the indexed CLPR channels", e);
         }
     }
 
@@ -320,13 +171,11 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      */
     public void stop() {
         started = false;
-        peerEndpointsDirty.set(false);
         if (!configProvider.getConfiguration().getConfigData(ClprConfig.class).enabled()) {
             scheduler.shutdownNow();
             clientCache.shutdownAll();
             return;
         }
-        writePeerEndpointsToDisk();
         scheduler.shutdown();
         try {
             if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
@@ -505,10 +354,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      */
     public void registerChannel(@NonNull final Bytes channelId) {
         requireNonNull(channelId);
-
-        if (knownChannelIds.add(channelId)) {
-            markPeerEndpointsDirty();
-        }
+        knownChannelIds.add(channelId);
     }
 
     /**
@@ -549,10 +395,8 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             future.cancel(false);
         }
         if (knownChannelIds.remove(channelId)) {
-            peerEndpointCache.remove(channelId);
             peerObservedManifestVersions.remove(channelId);
             logger.debug("Removed channel {} from local registry", channelId.toHex());
-            markPeerEndpointsDirty();
         }
     }
 
@@ -575,40 +419,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     public long peerObservedManifestVersion(@NonNull final Bytes channelId) {
         requireNonNull(channelId);
         return peerObservedManifestVersions.getOrDefault(channelId, 0L);
-    }
-
-    /**
-     * Populates {@link #peerEndpointCache} for {@code channelId} with the peer's endpoints
-     * attested at channel-completion time. The caller is expected to have already truncated
-     * the list to this ledger's {@code max_peer_endpoints} limit (spec §3.10.5). Replaces any
-     * pre-existing entry so the first sync tick sees the freshly verified set rather than stale
-     * cached data. An empty {@code endpoints} removes the channel's cached entry instead of
-     * being a no-op, so a replacement manifest that drops all endpoints is reflected in the
-     * on-disk cache.
-     */
-    @Override
-    public void seedPeerEndpoints(@NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {
-        requireNonNull(channelId);
-        requireNonNull(endpoints);
-        if (endpoints.isEmpty()) {
-            peerEndpointCache.remove(channelId);
-        } else {
-            peerEndpointCache.put(channelId, new ArrayList<>(endpoints));
-        }
-        markPeerEndpointsDirty();
-    }
-
-    /**
-     * Returns the known peer endpoints for a channel, or an empty list if none.
-     *
-     * @param channelId the 32-byte channel ID
-     * @return unmodifiable list of known endpoints
-     */
-    @VisibleForTesting
-    @NonNull
-    List<ClprEndpoint> getKnownEndpoints(@NonNull final Bytes channelId) {
-        final var endpoints = peerEndpointCache.get(channelId);
-        return endpoints != null ? Collections.unmodifiableList(endpoints) : List.of();
     }
 
     /**

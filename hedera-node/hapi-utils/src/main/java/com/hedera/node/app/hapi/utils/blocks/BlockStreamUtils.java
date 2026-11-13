@@ -116,6 +116,8 @@ public final class BlockStreamUtils {
             case STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS -> "ClprService.PENDING_CONNECTOR_COMMITMENTS";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST -> "ClprService.ENDPOINT_MANIFEST";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION -> "ClprService.ENDPOINT_MANIFEST_CONSTRUCTION";
+            case STATE_ID_CLPR_CHANNEL_INDEX -> "ClprService.CHANNEL_INDEX";
+            case STATE_ID_CLPR_CHANNEL_INDEX_ENTRIES -> "ClprService.CHANNEL_INDEX_ENTRIES";
         };
     }
 
@@ -146,6 +148,7 @@ public final class BlockStreamUtils {
             case CLPR_ENDPOINT_MANIFEST_VALUE -> singletonUpdateChange.clprEndpointManifestValueOrThrow();
             case CLPR_ENDPOINT_MANIFEST_CONSTRUCTION_VALUE ->
                 singletonUpdateChange.clprEndpointManifestConstructionValueOrThrow();
+            case CLPR_CHANNEL_INDEX_VALUE -> singletonUpdateChange.clprChannelIndexValueOrThrow();
         };
     }
 

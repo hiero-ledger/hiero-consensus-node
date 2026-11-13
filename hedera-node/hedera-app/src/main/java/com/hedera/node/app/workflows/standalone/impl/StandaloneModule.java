@@ -19,7 +19,6 @@ import com.hedera.node.app.throttle.annotations.BackendThrottle;
 import com.hedera.node.app.workflows.handle.dispatch.NoOpNodeControlledPayerGuard;
 import com.hedera.node.app.workflows.handle.dispatch.NodeControlledPayerGuard;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import dagger.Binds;
 import dagger.Module;
@@ -129,21 +128,6 @@ public interface StandaloneModule {
     @Provides
     @Singleton
     static ClprChannelLifecycle provideNoopClprChannelLifecycle() {
-        return new ClprChannelLifecycle() {
-            @Override
-            public void onChannelActivated(@NonNull final Bytes channelId) {}
-
-            @Override
-            public void onChannelClosed(@NonNull final Bytes channelId) {}
-
-            @Override
-            public void seedPeerEndpoints(
-                    @NonNull final Bytes channelId,
-                    @NonNull final java.util.List<com.hedera.hapi.node.state.clpr.ClprEndpoint> endpoints) {}
-
-            @Override
-            public void recordPeerObservedManifestVersion(
-                    @NonNull final Bytes channelId, final long peerObservedVersion) {}
-        };
+        return ClprChannelLifecycle.NO_OP;
     }
 }

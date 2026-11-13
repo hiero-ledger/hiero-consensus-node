@@ -77,14 +77,6 @@ public record ClprConfig(
         // receiver verifies independently.
         @ConfigProperty(defaultValue = "true") boolean verifyProofsAtSender,
 
-        // --- Restart rehydration (node-local, CLPR-4.3) ---
-        // Node-local file recording the outbound sync orchestrator's per-channel peer endpoints
-        // (and the channel ids themselves), so a restarted node can re-register channels and
-        // re-seed endpoints without iterating consensus state. Path is relative to the node working
-        // directory; serialized as JSON. This is NOT consensus state.
-        @ConfigProperty(defaultValue = "data/clpr/peer-endpoints.json")
-        String peerEndpointsFile,
-
         // --- Endpoint manifest construction lifecycle (design doc §8.1) ---
         // Grace period, extension size, and extension budget for the manifest construction that
         // gathers per-node endpoint publications. Defaults mirror the TssConfig envelope so day-one

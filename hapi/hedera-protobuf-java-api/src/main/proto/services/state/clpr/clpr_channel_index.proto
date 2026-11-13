@@ -1,0 +1,32 @@
+/**
+ * # CLPR Channel Index
+ *
+ * Hiero-internal singleton for the index of the Channels this ledger syncs. The CHANNELS
+ * key/value state cannot be enumerated, so each syncable Channel also gets a sequence number,
+ * mapped to its id in the CHANNEL_INDEX_ENTRIES key/value state; a node that starts reads the
+ * entries for every sequence number up to the last one issued to know which Channels to sync.
+ *
+ * ### Cross-ledger note
+ *
+ * This message is **NOT** part of the cross-ledger CLPR spec. It is a Hiero implementation
+ * detail and never crosses the ledger boundary.
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * The sequence numbers issued to syncable Channels.
+ */
+message ClprChannelIndex {
+    /**
+     * The last sequence number issued, or 0 if none. Sequence numbers start at 1 and are never
+     * reused; the entry of a Channel that stops being syncable is removed, leaving a gap.
+     */
+    uint64 last_sequence_number = 1;
+}

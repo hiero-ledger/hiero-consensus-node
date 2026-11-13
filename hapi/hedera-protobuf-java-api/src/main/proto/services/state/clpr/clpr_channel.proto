@@ -195,4 +195,11 @@ message ClprChannel {
      * 0 = uninitialized (PENDING); >= 1 after completeChannel.
      */
     uint64 endpoint_manifest_version = 20;
+
+    /**
+     * The sequence number of this Channel in the channel index, or 0 if it is not indexed; i.e.,
+     * while it is PENDING or CLOSED. Hiero-internal: lets the Channel's index entry be removed
+     * when it stops being syncable.
+     */
+    uint64 index_sequence_number = 21;
 }

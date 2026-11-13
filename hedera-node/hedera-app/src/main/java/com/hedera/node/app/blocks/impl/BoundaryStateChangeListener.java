@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.clpr.ClprChannelIndex;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
@@ -281,6 +282,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                 return new OneOf<>(
                         SingletonUpdateChange.NewValueOneOfType.CLPR_ENDPOINT_MANIFEST_CONSTRUCTION_VALUE,
                         clprConstruction);
+            }
+            case ClprChannelIndex clprChannelIndex -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CLPR_CHANNEL_INDEX_VALUE, clprChannelIndex);
             }
             default ->
                 throw new IllegalArgumentException(

@@ -13,7 +13,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
@@ -36,6 +39,7 @@ import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
+import com.hedera.hapi.node.state.clpr.ClprChannelIndex;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
@@ -53,6 +57,8 @@ import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
@@ -84,10 +90,12 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -203,6 +211,19 @@ class ClprSubmitBundleHandlerTest {
         lenient()
                 .when(writableStates.<Bytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
+        final var channelIndexRef = new AtomicReference<ClprChannelIndex>();
+        lenient()
+                .when(writableStates.<ClprChannelIndex>getSingleton(CHANNEL_INDEX_STATE_ID))
+                .thenReturn(new FunctionWritableSingletonState<>(
+                        CHANNEL_INDEX_STATE_ID,
+                        "ClprService:CHANNEL_INDEX",
+                        channelIndexRef::get,
+                        channelIndexRef::set));
+        lenient()
+                .when(writableStates.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID))
+                .thenReturn(MapWritableKVState.<ProtoLong, ProtoBytes>builder(
+                                CHANNEL_INDEX_ENTRIES_STATE_ID, "ClprService:CHANNEL_INDEX_ENTRIES")
+                        .build());
         channelStore = new WritableChannelStore(writableStates);
 
         writableMessages = MapWritableKVState.<ClprMessageKey, ClprMessageValue>builder(
@@ -1810,30 +1831,8 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("manifest advance in a bundle rejected by a later check does not reseed peer endpoint cache")
-    void rejectedBundleDoesNotReseedPeerEndpointCache() {
-        // The Step 1b channel write is rolled back with the failed transaction, so the node-local cache must not pick
-        // up the unapplied manifest's endpoints either.
-        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
-        final var newManifest = buildManifest(3L, "10.0.0.5");
-        final var valid = buildBundleWithManifest(newManifest, List.of(dataPayload()));
-        final var badHash = valid.copyBuilder()
-                .metadata(valid.metadataOrThrow()
-                        .copyBuilder()
-                        .sentRunningHash(ZERO_HASH)
-                        .build())
-                .build();
-        setupHandleContextWithFlags(bundleTxn(badHash), true);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_RUNNING_HASH_MISMATCH));
-        verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
-    }
-
-    @Test
-    @DisplayName("manifest advancement reseeds peer endpoint cache")
-    void manifestAdvancementReseedsPeerEndpointCache() {
+    @DisplayName("manifest advancement stores the new peer manifest")
+    void manifestAdvancementStoresNewPeerManifest() {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
         final var newManifest = buildManifest(3L, "10.0.0.5");
         final var bundleContent = buildBundleWithManifest(newManifest, List.of(dataPayload()));
@@ -1841,12 +1840,14 @@ class ClprSubmitBundleHandlerTest {
 
         subject.handle(handleContext);
 
-        verify(channelLifecycle).seedPeerEndpoints(CHANNEL_ID, newManifest.endpoints());
+        final var stored = requireNonNull(channelStore.getChannel(CHANNEL_ID));
+        assertThat(stored.endpointManifestOrThrow().endpoints()).isEqualTo(newManifest.endpoints());
+        assertThat(stored.endpointManifestVersion()).isEqualTo(3L);
     }
 
     @Test
-    @DisplayName("stale manifest does not reseed peer endpoint cache")
-    void staleManifestDoesNotReseedPeerEndpointCache() {
+    @DisplayName("stale manifest does not replace the stored peer manifest")
+    void staleManifestDoesNotReplaceStoredPeerManifest() {
         putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
         final var staleManifest = buildManifest(3L, "10.0.0.3");
         final var bundleContent = buildBundleWithManifest(staleManifest, List.of(dataPayload()));
@@ -1854,7 +1855,8 @@ class ClprSubmitBundleHandlerTest {
 
         subject.handle(handleContext);
 
-        verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
+        assertThat(requireNonNull(channelStore.getChannel(CHANNEL_ID)).endpointManifestVersion())
+                .isEqualTo(5L);
     }
 
     @Test
@@ -2004,7 +2006,6 @@ class ClprSubmitBundleHandlerTest {
         assertThat(connectorStore.getConnector(connectorKey)).isEqualTo(originalConnector);
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isEqualTo(originalOutbound);
         assertThat(writableMessages.size()).isEqualTo(1L);
-        verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
 
         exception.maybeReplay(feeChargingContext, handleContext);
         verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
