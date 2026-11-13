@@ -198,6 +198,15 @@ peers. Instead, it reproduces when production gossip would deliver each event:
 - When a link **goes down**, the events in flight on it are sent again by the node that has them and can deliver them
   soonest. If no such node has a link that is up, they are held until the link comes back.
 - With **echoes**, a node is sent a forwarded copy of its own events once. Turtle turns echoes on, Falcon turns them off.
+- The **duplicates** production gossip would send can be estimated by setting `DuplicateTracking.estimator(...)`
+  (package `network.simulation.duplicates`) as a `NetworkObserver` of the network, which reads the network through
+  the `NetworkView` it implements, without changing what it does. It replays the syncs between every node and the nodes
+  it is asked about: each sync shows the sender what the receiver knows through the tips the two exchange, and the
+  sender holds events back as production does (`selfFilterThreshold`, `ancestorFilterThreshold`,
+  `nonAncestorFilterThreshold`). Every copy that reaches a node after the first counts, split into sync and broadcast
+  duplicates. A node knows an event from the time it submits it to the network, once the event has passed its intake
+  and orphan buffer. In Falcon, a `ConsensusLatencyMeasurement` created with `createWithDuplicates()` estimates the
+  duplicates of the full nodes and reports them per full node, next to the consensus latency.
 
 Nodes are identified internally by their rank, their position in node id order, and all per-node and per-connection
 state is kept in arrays indexed by rank.
@@ -323,23 +332,26 @@ concurrently, so nothing is scheduled yet: scheduling draws random numbers, whic
 2.1 The event window of the node that is furthest behind is applied, and the events expired for every node are
 forgotten.
 
-2.2 For each node, the event windows and then the events that have arrived over a usable link are delivered by calling
-`receiveEventWindow` and `receiveEvent` on its `SimulatedGossip`. A node may refuse the events of a sender; they stay in
-flight and are offered again on a later tick.
+2.2 The event windows reported since the previous tick are put in flight to every other node.
 
-2.2.1 The `SimulatedGossip` instance forwards each event it accepts to its `OutputWire`, from which it is consumed by the
-platform wiring.
-
-2.3 The event windows reported since the previous tick are put in flight to every other node.
-
-2.4 Every event that is not expired is sent again to each node that has restarted since the previous tick, once, by the
+2.3 Every event that is not expired is sent again to each node that has restarted since the previous tick, once, by the
 node that has it and can deliver it soonest.
 
-2.5 The submissions held since the previous tick are scheduled, one node at a time in a shuffled order, and within a node
+2.4 The submissions held since the previous tick are scheduled, one node at a time in a shuffled order, and within a node
 in the order it submitted them. A node submitting an event again is ignored. For every other node, the copy is put in
 flight if it is of use there: the creator's own copy always is, a forwarded copy only if it arrives first.
 
-Events are delivered before new ones are scheduled, so that an event always spends at least one tick in flight.
+2.5 For each node, the event windows and then the events that have arrived over a usable link are delivered by calling
+`receiveEventWindow` and `receiveEvent` on its `SimulatedGossip`. A node may refuse the events of a sender; they stay in
+flight and are offered again on a later tick.
+
+2.5.1 The `SimulatedGossip` instance forwards each event it accepts to its `OutputWire`, from which it is consumed by the
+platform wiring.
+
+The nodes run right after the network in every tick, at the same instant, so everything scheduled in steps 2.2 to 2.4
+was sent at the time of the previous tick, and is scheduled with that time. It is scheduled before the delivery, so that
+an event spends its latency in flight, rounded up to whole ticks, rather than one tick more. An event still spends at
+least one tick in flight, because it was sent at the previous tick.
 
 ## ⏱️ Time Management
 
@@ -413,7 +425,7 @@ void testDeterministicBehavior(@NonNull final TestEnvironment env) throws Interr
             network.newConsensusResults().results().getFirst().lastRoundNum();
 
     // This assertion will always pass with seed=42
-    assertThat(lastRound).isEqualTo(67L);
+    assertThat(lastRound).isEqualTo(69L);
 }
 ```
 
