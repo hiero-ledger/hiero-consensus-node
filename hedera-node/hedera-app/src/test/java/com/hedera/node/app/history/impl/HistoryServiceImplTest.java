@@ -574,6 +574,160 @@ class HistoryServiceImplTest {
     }
 
     @Test
+    void recoversPreparedNextLegacyBookBeforeHandoffAndRetainsItAfterRestart() throws Exception {
+        withMockSubject();
+        final var rosterHash = Bytes.wrap("prepared-next-roster");
+        final var bookHash = Bytes.wrap("prepared-next-book");
+        final var original = legacyGeneration(rosterHash, bookHash);
+        final var next = new AtomicReference<>(original);
+        final var roster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(2).weight(20).build(),
+                RosterEntry.newBuilder().nodeId(7).weight(30).build()));
+        given(store.getNextConstruction()).willAnswer(_ -> next.get());
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any())).willReturn(bookHash.toByteArray());
+        given(store.completeProof(anyLong(), any())).willAnswer(invocation -> {
+            final HistoryProof proof = invocation.getArgument(1);
+            final var enriched = next.get().copyBuilder().targetProof(proof).build();
+            next.set(enriched);
+            return enriched;
+        });
+
+        subject.recoverNextBook(store, roster, null);
+
+        final var expected = new TreeMap<>(Map.of(2L, 20L, 7L, 30L));
+        assertEquals(
+                expected,
+                HistoryProofAddressBooks.targetWeights(next.get().targetProofOrThrow())
+                        .orElseThrow());
+        assertEquals(
+                original.targetProofOrThrow().targetProofKeys(),
+                next.get().targetProofOrThrow().targetProofKeys());
+        next.set(HistoryProofConstruction.PROTOBUF.parse(HistoryProofConstruction.PROTOBUF.toBytes(next.get())));
+        subject = new HistoryServiceImpl(component);
+        subject.recoverNextBook(store, null, null);
+        verify(store, times(1)).completeProof(anyLong(), any());
+        verify(library, times(1)).hashAddressBook(any());
+        verify(store, never()).getActiveConstruction();
+        verifyNoInteractions(controllers, controller);
+    }
+
+    @Test
+    void recoversPreparedNextBookFromItsMatchingCompleteSchemeWhenTheRosterIsUnavailable() {
+        withMockSubject();
+        final var rosterHash = Bytes.wrap("pruned-prepared-next-roster");
+        final var bookHash = Bytes.wrap("prepared-next-book");
+        final var next = legacyGeneration(rosterHash, bookHash);
+        final var hints = matchingNextHints(rosterHash);
+        given(store.getNextConstruction()).willReturn(next);
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any())).willAnswer(invocation -> {
+            final HistoryLibrary.AddressBook book = invocation.getArgument(0);
+            return Arrays.equals(book.weights(), new long[] {20, 30})
+                    ? bookHash.toByteArray()
+                    : Bytes.wrap("different-book").toByteArray();
+        });
+
+        subject.recoverNextBook(store, null, hints);
+
+        verify(store)
+                .completeProof(
+                        next.constructionId(),
+                        next.targetProofOrThrow()
+                                .copyBuilder()
+                                .targetNodeWeights(
+                                        HistoryProofAddressBooks.weightsFrom(new TreeMap<>(Map.of(2L, 20L, 7L, 30L))))
+                                .build());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"rosterHash", "verificationKey", "provenanceId"})
+    void doesNotUseAnotherGenerationSchemeForPreparedNextRecovery(final String mismatch) {
+        withMockSubject();
+        final var rosterHash = Bytes.wrap("prepared-next-roster");
+        var next = legacyGeneration(rosterHash, Bytes.wrap("prepared-next-book"));
+        var hints = matchingNextHints(rosterHash);
+        if (mismatch.equals("rosterHash")) {
+            hints = hints.copyBuilder()
+                    .targetRosterHash(Bytes.wrap("another-roster"))
+                    .build();
+        } else if (mismatch.equals("verificationKey")) {
+            hints = hints.copyBuilder()
+                    .hintsScheme(hints.hintsSchemeOrThrow()
+                            .copyBuilder()
+                            .preprocessedKeys(new PreprocessedKeys(Bytes.EMPTY, Bytes.wrap("another-vk")))
+                            .build())
+                    .build();
+        } else {
+            next = next.copyBuilder()
+                    .keyProvenance(HintsKeyProvenance.newBuilder()
+                            .targetHintsConstructionId(999)
+                            .build())
+                    .build();
+        }
+        given(store.getNextConstruction()).willReturn(next);
+
+        subject.recoverNextBook(store, null, hints);
+
+        verify(store, never()).completeProof(anyLong(), any());
+        verifyNoInteractions(component, library);
+    }
+
+    @Test
+    void rejectedPreparedNextWeightsNeverReplaceItsCommittedBook() {
+        withMockSubject();
+        final var rosterHash = Bytes.wrap("prepared-next-roster");
+        final var next = legacyGeneration(rosterHash, Bytes.wrap("prepared-next-book"));
+        final var sparse = matchingNextHints(rosterHash)
+                .copyBuilder()
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.EMPTY, CURRENT_VK), List.of(new NodePartyId(2, 1, 20))))
+                .build();
+        final var wrongRoster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(2).weight(20).build(),
+                RosterEntry.newBuilder().nodeId(7).weight(999).build()));
+        given(store.getNextConstruction()).willReturn(next);
+        given(component.library()).willReturn(library);
+        given(library.hashAddressBook(any()))
+                .willReturn(Bytes.wrap("different-book").toByteArray());
+
+        subject.recoverNextBook(store, wrongRoster, sparse);
+
+        verify(store, never()).completeProof(anyLong(), any());
+        verify(library, times(2)).hashAddressBook(any());
+        assertTrue(next.targetProofOrThrow().targetNodeWeights().isEmpty());
+    }
+
+    @Test
+    void cannotEnrichAnUnsupportedPreparedNextNonWrapsProof() {
+        withMockSubject();
+        final var rosterHash = Bytes.wrap("prepared-next-roster");
+        final var next = legacyGeneration(rosterHash, Bytes.wrap("prepared-next-book"));
+        given(store.getNextConstruction())
+                .willReturn(next.copyBuilder()
+                        .targetProof(next.targetProofOrThrow()
+                                .copyBuilder()
+                                .uncompressedWrapsProof(Bytes.EMPTY)
+                                .build())
+                        .build());
+
+        subject.recoverNextBook(store, null, matchingNextHints(rosterHash));
+
+        verify(store, never()).completeProof(anyLong(), any());
+        verifyNoInteractions(component, library);
+    }
+
+    private static HintsConstruction matchingNextHints(final Bytes rosterHash) {
+        return HintsConstruction.newBuilder()
+                .constructionId(9)
+                .targetRosterHash(rosterHash)
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.EMPTY, CURRENT_VK),
+                        List.of(new NodePartyId(2, 1, 20), new NodePartyId(7, 2, 30))))
+                .build();
+    }
+
+    @Test
     void bindsSourceAndTargetGenerationsBeforeCreatingControllerFromPersistedBinding() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(TRANSITION);

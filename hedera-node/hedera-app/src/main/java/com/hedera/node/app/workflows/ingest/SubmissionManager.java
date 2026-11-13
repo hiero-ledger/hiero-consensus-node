@@ -8,15 +8,22 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.StatsConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.consensus.metrics.SpeedometerMetric;
@@ -69,6 +76,11 @@ public class SubmissionManager {
 
     private final ConfigProvider configProvider;
 
+    /** Counts the user transactions submitted here until they land in an event, for quiescence */
+    private final TxPipelineTracker txPipelineTracker;
+
+    private final boolean quiescenceEnabled;
+
     /**
      * Create a new {@code SubmissionManager} instance.
      *
@@ -76,16 +88,23 @@ public class SubmissionManager {
      * @param deduplicationCache used to prevent submission of duplicate transactions
      * @param configProvider the {@link ConfigProvider}
      * @param metrics             metrics related to submissions
+     * @param txPipelineTracker counts the user transactions submitted here until they land in an event
      */
     @Inject
     public SubmissionManager(
             @NonNull final TransactionPoolNexus transactionPool,
             @NonNull final DeduplicationCache deduplicationCache,
             @NonNull final ConfigProvider configProvider,
-            @NonNull final Metrics metrics) {
+            @NonNull final Metrics metrics,
+            @NonNull final TxPipelineTracker txPipelineTracker) {
         this.transactionPool = requireNonNull(transactionPool);
         this.submittedTxns = requireNonNull(deduplicationCache);
         this.configProvider = requireNonNull(configProvider);
+        this.txPipelineTracker = requireNonNull(txPipelineTracker);
+        this.quiescenceEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(QuiescenceConfig.class)
+                .enabled();
 
         final var statsConfig = configProvider.getConfiguration().getConfigData(StatsConfig.class);
         this.platformTxnRejections =
@@ -96,7 +115,8 @@ public class SubmissionManager {
     }
 
     /**
-     * Submit a transaction to the {@link Platform}.
+     * Submit a transaction to the {@link Platform}. A user transaction, that is one submitted without priority, also
+     * counts toward quiescence if the transaction pool accepts it.
      *
      * @param txBody the {@link TransactionBody} that should be submitted to the platform
      * @param serializedSignedTx the bytes of the data that should be submitted
@@ -122,6 +142,8 @@ public class SubmissionManager {
             if (submittedTxns.contains(txId)) {
                 throw new PreCheckException(DUPLICATE_TRANSACTION);
             }
+            // Parsed before submitting, since an expired inner transaction makes the whole batch fail at consensus
+            final var innerBodies = innerBodiesOf(txBody);
 
             // This call to submit to the platform should almost always work. Maybe under extreme load it will fail,
             // or while the system is being shut down. In any event, the user will receive an error code indicating
@@ -132,33 +154,115 @@ public class SubmissionManager {
                 transactionPool.submitPriorityTransaction(serializedSignedTx);
                 success = true;
             } else {
-                success = transactionPool.submitApplicationTransaction(serializedSignedTx);
+                success = submitUserTransaction(serializedSignedTx, dropAfter(txBody, innerBodies));
             }
             if (success) {
                 submittedTxns.add(txId);
-
-                if (txBody.hasAtomicBatch()
-                        && !txBody.atomicBatchOrThrow().transactions().isEmpty()) {
-                    final var transactions = txBody.atomicBatchOrThrow().transactions();
-                    for (final Bytes buffer : transactions) {
-                        try {
-                            final var signedTransaction =
-                                    SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
-                            final var body = TransactionBody.PROTOBUF.parseStrict(
-                                    signedTransaction.bodyBytes().toReadableSequentialData());
-                            final var innerTxnId = body.transactionIDOrThrow();
-                            submittedTxns.add(innerTxnId);
-                        } catch (ParseException e) {
-                            // This should never happen. All inner batch transactions should be validated by the
-                            // IngestChecker before they get submitted here.
-                            throw new PreCheckException(INVALID_TRANSACTION);
-                        }
-                    }
+                for (final var innerBody : innerBodies) {
+                    submittedTxns.add(innerBody.transactionIDOrThrow());
                 }
             } else {
                 platformTxnRejections.cycle();
                 throw new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED);
             }
         }
+    }
+
+    /**
+     * Submits a user transaction to the transaction pool and, if the pool accepts it, leaves it counted toward
+     * quiescence, whoever submitted it. It is counted before the pool has it: from then on an event can take it at any
+     * moment, and if it were counted out (it landed, went stale or was dropped) before being counted in, that
+     * count-out would be lost and this count never undone.
+     *
+     * @param serializedSignedTx the bytes of the transaction
+     * @param dropAfter the time after which the pool drops the transaction, or null if it is never to be dropped
+     * @return whether the pool accepted the transaction
+     */
+    private boolean submitUserTransaction(@NonNull final Bytes serializedSignedTx, @Nullable final Instant dropAfter) {
+        if (!quiescenceEnabled) {
+            return transactionPool.submitApplicationTransaction(serializedSignedTx, dropAfter);
+        }
+        txPipelineTracker.incrementInFlight();
+        boolean accepted = false;
+        try {
+            accepted = transactionPool.submitApplicationTransaction(serializedSignedTx, dropAfter);
+        } finally {
+            if (!accepted) {
+                txPipelineTracker.decrementInFlight();
+            }
+        }
+        return accepted;
+    }
+
+    /**
+     * Parses the inner transaction bodies of an atomic batch.
+     *
+     * @param txBody the transaction body
+     * @return the inner transaction bodies, or an empty list if the transaction is not an atomic batch
+     * @throws PreCheckException if an inner transaction cannot be parsed
+     */
+    private static List<TransactionBody> innerBodiesOf(@NonNull final TransactionBody txBody) throws PreCheckException {
+        if (!txBody.hasAtomicBatch()) {
+            return List.of();
+        }
+        final var transactions = txBody.atomicBatchOrThrow().transactions();
+        final List<TransactionBody> innerBodies = new ArrayList<>(transactions.size());
+        for (final Bytes buffer : transactions) {
+            try {
+                final var signedTransaction = SignedTransaction.PROTOBUF.parseStrict(buffer.toReadableSequentialData());
+                innerBodies.add(TransactionBody.PROTOBUF.parseStrict(
+                        signedTransaction.bodyBytes().toReadableSequentialData()));
+            } catch (ParseException e) {
+                // This should never happen. All inner batch transactions should be validated by the
+                // IngestChecker before they get submitted here.
+                throw new PreCheckException(INVALID_TRANSACTION);
+            }
+        }
+        return innerBodies;
+    }
+
+    /**
+     * Returns the time after which the transaction pool drops this transaction instead of putting it in an event: the
+     * earliest expiry of the transaction and its inner transactions, plus the configured margin. Past that time it
+     * could only fail at consensus, charging this node.
+     *
+     * @param txBody the transaction body
+     * @param innerBodies the inner transaction bodies, if the transaction is an atomic batch
+     * @return the drop time, or null if the transaction is never to be dropped
+     */
+    @Nullable
+    private Instant dropAfter(@NonNull final TransactionBody txBody, @NonNull final List<TransactionBody> innerBodies) {
+        final var hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
+        if (!hederaConfig.transactionDropExpiredFromPool()) {
+            return null;
+        }
+        Instant earliestExpiry = expiryOf(txBody);
+        for (final var innerBody : innerBodies) {
+            final var innerExpiry = expiryOf(innerBody);
+            if (innerExpiry != null && (earliestExpiry == null || innerExpiry.isBefore(earliestExpiry))) {
+                earliestExpiry = innerExpiry;
+            }
+        }
+        return earliestExpiry == null
+                ? null
+                : earliestExpiry.plusSeconds(hederaConfig.transactionExpiredPoolDropMarginSecs());
+    }
+
+    /**
+     * Returns the time after which consensus rejects the transaction as expired, or null if its body does not say.
+     *
+     * @param body the transaction body
+     * @return the expiry, or null if the body has no valid start or valid duration
+     */
+    @Nullable
+    private static Instant expiryOf(@NonNull final TransactionBody body) {
+        final var txnId = body.transactionID();
+        if (txnId == null || !txnId.hasTransactionValidStart() || !body.hasTransactionValidDuration()) {
+            return null;
+        }
+        final var validStart = txnId.transactionValidStartOrThrow();
+        // Nanos are clamped as TransactionChecker#checkTimeBox clamps them, so this is the expiry consensus enforces
+        return Instant.ofEpochSecond(validStart.seconds(), Math.clamp(validStart.nanos(), 0, 999_999_999))
+                .plusSeconds(body.transactionValidDurationOrThrow().seconds());
     }
 }

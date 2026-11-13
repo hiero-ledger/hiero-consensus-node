@@ -24,7 +24,7 @@ import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.ImmutableIndexedObjectListUsingArray;
 import com.swirlds.merkledb.collections.IndexedObject;
-import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
 import java.io.IOException;
@@ -72,7 +72,7 @@ class DataFileCollectionTest {
 
     protected static final Instant TEST_START = Instant.now();
     protected static final Map<FilesTestType, DataFileCollection> fileCollectionMap = new HashMap<>();
-    protected static final Map<FilesTestType, LongListHeap> storedOffsetsMap = new HashMap<>();
+    protected static final Map<FilesTestType, LongListSegment> storedOffsetsMap = new HashMap<>();
 
     private static long storeDataItem(final DataFileCollection coll, long[] values) throws IOException {
         return coll.storeDataItem(
@@ -113,7 +113,7 @@ class DataFileCollectionTest {
 
         fileCollectionMap.put(testType, fileCollection);
         // create stored offsets list
-        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
+        final LongListSegment storedOffsets = new LongListSegment(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         storedOffsetsMap.put(testType, storedOffsets);
         // create 10x 100 item files
@@ -128,11 +128,10 @@ class DataFileCollectionTest {
             }
             // put in 1000 items
             for (int i = count; i < count + 100; i++) {
-                long[] dataValue =
-                        switch (testType) {
-                            case variable -> getVariableSizeDataForI(i, 10_000);
-                            default -> new long[] {i, i + 10_000};
-                        };
+                long[] dataValue = switch (testType) {
+                    case variable -> getVariableSizeDataForI(i, 10_000);
+                    default -> new long[] {i, i + 10_000};
+                };
                 // store in file
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
@@ -322,7 +321,7 @@ class DataFileCollectionTest {
     void merge(final FilesTestType testType) throws Exception {
         final DataFileCollection fileCollection = fileCollectionMap.get(testType);
         final DataFileCompactor fileCompactor = createFileCompactor(fileCollection, testType);
-        final LongListHeap storedOffsets = storedOffsetsMap.get(testType);
+        final LongListSegment storedOffsets = storedOffsetsMap.get(testType);
         final AtomicBoolean mergeComplete = new AtomicBoolean(false);
         final int NUM_OF_KEYS = 1000;
         final int NUM_OF_THREADS = 5;
@@ -439,15 +438,14 @@ class DataFileCollectionTest {
     void changeSomeData(final FilesTestType testType) throws Exception {
         final DataFileCollection fileCollection = fileCollectionMap.get(testType);
         fileCollection.updateValidKeyRange(0, 1000);
-        final LongListHeap storedOffsets = storedOffsetsMap.get(testType);
+        final LongListSegment storedOffsets = storedOffsetsMap.get(testType);
         fileCollection.startWriting();
         // put in 1000 items
         for (int i = 0; i < 50; i++) {
-            long[] dataValue =
-                    switch (testType) {
-                        case variable -> getVariableSizeDataForI(i, 100_000);
-                        default -> new long[] {i, i + 100_000};
-                    };
+            long[] dataValue = switch (testType) {
+                case variable -> getVariableSizeDataForI(i, 100_000);
+                default -> new long[] {i, i + 100_000};
+            };
             // store in file
             storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
         }
@@ -477,7 +475,7 @@ class DataFileCollectionTest {
     void merge2(final FilesTestType testType) throws Exception {
         final DataFileCollection fileCollection = fileCollectionMap.get(testType);
         final DataFileCompactor fileCompactor = createFileCompactor(fileCollection, testType);
-        final LongListHeap storedOffsets = storedOffsetsMap.get(testType);
+        final LongListSegment storedOffsets = storedOffsetsMap.get(testType);
         final AtomicBoolean mergeComplete = new AtomicBoolean(false);
         // start compaction paused so that we can test pausing
         final CountDownLatch compactionPausedLatch = new CountDownLatch(1);
@@ -603,6 +601,7 @@ class DataFileCollectionTest {
     @EnumSource(FilesTestType.class)
     void close(final FilesTestType testType) {
         assertDoesNotThrow(() -> fileCollectionMap.get(testType).close(), "unexpected exception from close()");
+        storedOffsetsMap.get(testType).close();
     }
 
     @Order(2000)
@@ -615,7 +614,7 @@ class DataFileCollectionTest {
         assertSame(0, fileCollection.getAllCompletedFiles().size(), "Should be no files");
         fileCollectionMap.put(testType, fileCollection);
         // create stored offsets list
-        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
+        final LongListSegment storedOffsets = new LongListSegment(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         storedOffsetsMap.put(testType, storedOffsets);
         // create 10x 100 item files
@@ -660,20 +659,21 @@ class DataFileCollectionTest {
         checkData(fileCollectionMap.get(testType), storedOffsetsMap.get(testType), testType, 0, 1000, 10_000);
         // close db
         fileCollection2.close();
+        storedOffsets.close();
     }
 
     private static void populateDataFileCollection(
-            FilesTestType testType, DataFileCollection fileCollection, LongListHeap storedOffsets) throws IOException {
+            FilesTestType testType, DataFileCollection fileCollection, LongListSegment storedOffsets)
+            throws IOException {
         int count = 0;
         for (int f = 0; f < 10; f++) {
             fileCollection.startWriting();
             // put in 1000 items
             for (int i = count; i < count + 100; i++) {
-                long[] dataValue =
-                        switch (testType) {
-                            case variable -> getVariableSizeDataForI(i, 10_000);
-                            default -> new long[] {i, i + 10_000};
-                        };
+                long[] dataValue = switch (testType) {
+                    case variable -> getVariableSizeDataForI(i, 10_000);
+                    default -> new long[] {i, i + 10_000};
+                };
                 // store in file
                 storedOffsets.put(i, storeDataItem(fileCollection, dataValue));
             }
@@ -689,7 +689,7 @@ class DataFileCollectionTest {
      * compaction tasks.
      */
     @Test
-    public void testClosedByInterrupt() throws IOException {
+    public void testClosedByInterrupt() throws IOException, InterruptedException {
         // mock appender to capture the log statements
         final MockAppender mockAppender = new MockAppender("testClosedByInterrupt");
         Logger logger = (Logger) LogManager.getLogger(DataFileCompactor.class);
@@ -700,7 +700,7 @@ class DataFileCollectionTest {
 
         // init file collection with some content to compact
         final DataFileCollection fileCollection = new DataFileCollection(MERKLE_DB_CONFIG, dbDir, storeName, null);
-        final LongListHeap storedOffsets = new LongListHeap(5000, Integer.MAX_VALUE, 0);
+        final LongListSegment storedOffsets = new LongListSegment(5000, Integer.MAX_VALUE, 0);
         storedOffsets.updateValidRange(0, 1100);
         final DataFileCompactor compactor =
                 new DataFileCompactor(fileCollection, storedOffsets, null, null, null, null);
@@ -743,6 +743,8 @@ class DataFileCollectionTest {
         } finally {
             mockAppender.stop();
         }
+        thread.join();
+        storedOffsets.close();
     }
 
     /**

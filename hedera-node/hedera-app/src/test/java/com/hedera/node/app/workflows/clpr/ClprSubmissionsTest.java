@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -30,7 +29,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ClprSubmissionsTest {
-    private static final long TEST_MAX_FEE = 25_000_000_000L;
     private static final ClprEndpoint TEST_ENDPOINT = ClprEndpoint.newBuilder()
             .serviceEndpoint(ClprServiceEndpoint.newBuilder()
                     .ipAddress("10.0.0.1")
@@ -79,7 +77,6 @@ class ClprSubmissionsTest {
         subject.submitEndpointPublication(TEST_ENDPOINT);
 
         final var body = captureSubmittedBody();
-        assertEquals(TEST_MAX_FEE, body.transactionFee());
         assertTrue(body.hasClprEndpointPublication());
         final var op = body.clprEndpointPublicationOrThrow();
         assertTrue(op.hasEndpoint());
@@ -101,7 +98,6 @@ class ClprSubmissionsTest {
         given(appContext.configSupplier())
                 .willReturn(() -> HederaTestConfigBuilder.create()
                         .withValue("clpr.enabled", true)
-                        .withValue("clpr.manifestSubmissionMaxFee", TEST_MAX_FEE)
                         .getOrCreateConfig());
         given(appContext.gossip()).willReturn(gossip);
     }

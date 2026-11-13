@@ -63,6 +63,7 @@ public final class LongCounter extends SettableMetric<LongSupplier, LongCounter.
         return new Measurement(initializer);
     }
 
+    @NonNull
     @Override
     protected MeasurementSnapshot createMeasurementSnapshot(
             @NonNull Measurement measurement, @NonNull LabelValues labelValues) {

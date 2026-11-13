@@ -305,20 +305,20 @@ public class LongCounterTest extends SettableMetricBaseTest<LongCounter, LongCou
             metric.getOrCreateLabeled(() -> 100, "label1", "2").increment(); // 100 + 1 = 101
 
             new MetricSnapshotVerifier(metric)
-                    .add(101, "label1", "2")
                     .add(12, "label1", "1")
+                    .add(101, "label1", "2")
                     .verify();
             new MetricSnapshotVerifier(metric)
-                    .add(101, "label1", "2")
                     .add(12, "label1", "1")
+                    .add(101, "label1", "2")
                     .verify();
 
             metric.getOrCreateLabeled("label1", "2").increment(3); // 101 + 3 = 104
             metric.getOrCreateLabeled("label1", "3").increment(42); // 10 + 42 = 52
 
             new MetricSnapshotVerifier(metric)
-                    .add(104, "label1", "2")
                     .add(12, "label1", "1") // unchanged
+                    .add(104, "label1", "2")
                     .add(52, "label1", "3")
                     .verify();
         }

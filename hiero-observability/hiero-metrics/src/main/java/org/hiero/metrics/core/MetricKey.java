@@ -12,7 +12,7 @@ import java.util.Objects;
  * Metric name and category must not be blank and must only contain valid characters
  * defined by {@link MetricUtils#NAME_UNIT_LABEL_REGEX}.
  */
-public record MetricKey<M extends Metric>(
+public record MetricKey<M extends Metric<?>>(
         @NonNull String name, @NonNull Class<M> type) {
 
     /**
@@ -33,7 +33,7 @@ public record MetricKey<M extends Metric>(
      * See {@link #MetricKey(String, Class)} for details.
      */
     @SuppressWarnings("unchecked")
-    public static <M extends Metric> MetricKey<M> of(@NonNull String name, @NonNull Class<? super M> type) {
+    public static <M extends Metric<?>> MetricKey<M> of(@NonNull String name, @NonNull Class<? super M> type) {
         return new MetricKey<>(name, (Class<M>) type);
     }
 

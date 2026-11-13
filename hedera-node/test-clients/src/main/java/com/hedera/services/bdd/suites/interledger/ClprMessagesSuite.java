@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.captureConfigProof;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.captureManifestProof;
@@ -209,7 +208,7 @@ public class ClprMessagesSuite {
                         uploadInitCode(ECHO_APP),
                         contractCreate(ECHO_APP),
                         // Fund EchoApplication as the connector contract: must cover
-                        // messageExecutionCost plus the rate-converted USD progress reward per DATA message.
+                        // messageExecutionCost + endpointMarginPercent per DATA message.
                         cryptoTransfer(tinyBarsFromTo(GENESIS, ECHO_APP, ONE_HUNDRED_HBARS)),
                         clprRegisterChannel()
                                 .ownershipCommitment(channelCommitment.toByteArray())
@@ -335,7 +334,6 @@ public class ClprMessagesSuite {
                             withOpContext(
                                     (spec, opLog) -> spec.registry().saveContractId(SOURCE_APP, sourceAppIdRef.get())),
                             contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(MESSAGES_PER_INVOCATION))
-                                    .sending(ONE_HBAR * MESSAGES_PER_INVOCATION)
                                     .gas(GAS)
                                     .payingWith(GENESIS)
                                     .hasKnownStatus(SUCCESS)

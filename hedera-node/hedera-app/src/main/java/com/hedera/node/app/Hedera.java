@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
@@ -65,6 +66,7 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.RsaContext;
@@ -165,6 +167,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
@@ -239,6 +242,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private static final java.time.Duration SHUTDOWN_TIMEOUT = java.time.Duration.ofSeconds(10);
 
     private static final java.time.Duration PENDING_TXNS_RETRY_BACKOFF = java.time.Duration.ofMillis(100);
+
+    private static final java.time.Duration DROPPED_TXNS_LOG_PERIOD = java.time.Duration.ofMinutes(1);
 
     /**
      * The application name from the platform's perspective. This is currently locked in at the old main class name and
@@ -359,6 +364,10 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private final TransactionLimits transactionLimits;
     /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
+    /** Expired user transactions dropped from the transaction pool since they were last logged */
+    private long droppedTxnsToLog = 0;
+    /** The earliest time dropped user transactions may be logged again */
+    private Instant nextDroppedTxnsLog = Instant.MIN;
 
     /** Saves pending user transactions at a freeze; null if disabled. */
     @Nullable
@@ -622,7 +631,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 java.time.Duration.ofSeconds(
                         bootstrapConfig.getConfigData(HederaConfig.class).maximumPermissibleUnhealthySeconds()),
                 metrics,
-                instantSource);
+                instantSource,
+                dropped -> onExpiredTransactionsDropped(dropped, instantSource.instant()));
 
         final var hederaConfig = bootstrapConfig.getConfigData(HederaConfig.class);
         if (hederaConfig.pendingTransactionsPersistenceEnabled()) {
@@ -941,6 +951,11 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
+        // Genesis TSS singletons are populated by HandleWorkflow.doGenesisSetup in the first round.
+        if (trigger != GENESIS) {
+            initializeHintsSigning(state);
+        }
+
         initializePendingTransactions(state, trigger);
 
         // Perform any service initialization that has to be postponed until Dagger is available
@@ -970,6 +985,56 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // It is possible a network interrupt could make a node reconnect in a window where
         // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
         new HintsLibraryImpl().resetCache();
+    }
+
+    private void initializeHintsSigning(@NonNull final State state) {
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        if (!tssConfig.hintsEnabled()) {
+            return;
+        }
+        final var hintsStore = new ReadableHintsStoreImpl(
+                state.getReadableStates(HintsService.NAME),
+                new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME)));
+        final var active = hintsStore.getActiveConstruction();
+        if (active.hasHintsScheme()) {
+            if (!HintsGenerationWeights.requiresHistory(tssConfig)) {
+                hintsService.setActiveConstruction(active, hintsStore.getCrsStateFor(active));
+                return;
+            }
+            final var historyStore = new ReadableHistoryStoreImpl(state.getReadableStates(HistoryService.NAME));
+            final var history = historyStore.getActiveConstruction();
+            // Legacy books are recovered and persisted in consensus before thresholds or signing use them.
+            if (history.hasTargetProof()
+                    && history.targetProofOrThrow().targetNodeWeights().isEmpty()
+                    && history.targetRosterHash().equals(active.targetRosterHash())
+                    && history.targetProofOrThrow().hasTargetHistory()
+                    && history.targetProofOrThrow()
+                            .targetHistoryOrThrow()
+                            .metadata()
+                            .equals(active.hintsSchemeOrThrow()
+                                    .preprocessedKeysOrThrow()
+                                    .verificationKey())) {
+                if (!isWrapsExtensible(history.targetProofOrThrow())) {
+                    throw new IllegalStateException("Cannot recover history snapshot #" + history.constructionId()
+                            + " for hinTS #" + active.constructionId() + " (target " + active.targetRosterHash()
+                            + "): legacy proof is not WRAPS-extensible; restore a verified snapshot or reset TSS");
+                }
+                logger.info(
+                        "Deferring hinTS signing for construction #{} until legacy history #{} book recovery",
+                        active.constructionId(),
+                        history.constructionId());
+                return;
+            }
+            if (!history.hasTargetProof()) {
+                logger.info(
+                        "Deferring hinTS signing for construction #{} (target {}) until history #{} completes",
+                        active.constructionId(),
+                        active.targetRosterHash(),
+                        history.constructionId());
+                return;
+            }
+            hintsService.setActiveConstruction(active, hintsStore.getCrsStateFor(active), history);
+        }
     }
 
     /**
@@ -1415,7 +1480,42 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
+        // Logs drops held back by the once-a-minute limit even if no more come; done before taking any transactions
+        // out of the pool, so it can never lose them
+        logDroppedTransactions(0, appContext.instantSource().instant());
         return transactionPool.getTransactionsForEvent();
+    }
+
+    /**
+     * Called by the transaction pool, while it holds its lock, with the number of user transactions it dropped because
+     * they had expired before an event was built for them. They will never land in an event, so quiescence must stop
+     * waiting for them. Logs the drops at most once per {@link #DROPPED_TXNS_LOG_PERIOD}.
+     * <p>
+     * Never throws: the pool calls this after taking the event's transactions out of its queue, so an exception would
+     * lose them.
+     *
+     * @param count the number of dropped transactions
+     * @param now the current time
+     */
+    void onExpiredTransactionsDropped(final int count, @NonNull final Instant now) {
+        try {
+            final var app = daggerApp;
+            if (app != null) {
+                app.txPipelineTracker().countDropped(count);
+            }
+            logDroppedTransactions(count, now);
+        } catch (RuntimeException e) {
+            logger.error("Failed to account for {} expired transactions dropped from the transaction pool", count, e);
+        }
+    }
+
+    private synchronized void logDroppedTransactions(final int newlyDropped, @NonNull final Instant now) {
+        droppedTxnsToLog += newlyDropped;
+        if (droppedTxnsToLog > 0 && !now.isBefore(nextDroppedTxnsLog)) {
+            logger.info("Dropped {} expired user transactions from the transaction pool", droppedTxnsToLog);
+            droppedTxnsToLog = 0;
+            nextDroppedTxnsLog = now.plus(DROPPED_TXNS_LOG_PERIOD);
+        }
     }
 
     /**

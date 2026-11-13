@@ -58,7 +58,7 @@ public class GaugeAdapterTest
     }
 
     @Test
-    void testFailedSnapshotCreationLeavesNoMeasurement() {
+    void testExportGetterIsCalledOnlyByExports() {
         AtomicBoolean getterFails = new AtomicBoolean(true);
         GaugeAdapter<TestContainer> metric = GaugeAdapter.<TestContainer>builderForLong(
                         GaugeAdapter.key(DEFAULT_NAME), TestContainer::new, container -> {
@@ -70,13 +70,13 @@ public class GaugeAdapterTest
                 .addDynamicLabelNames("label")
                 .build();
 
-        assertThatThrownBy(() -> metric.getOrCreateLabeled("label", "a"))
+        // creating the measurement does not call the export getter, so it does not fail
+        metric.getOrCreateLabeled("label", "a").set(5L);
+        assertThatThrownBy(() -> new MetricSnapshotVerifier(metric).verify())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("getter failed");
 
         getterFails.set(false);
-        metric.getOrCreateLabeled("label", "a").set(5L);
-
         new MetricSnapshotVerifier(metric).add(5L, "label", "a").verify();
     }
 

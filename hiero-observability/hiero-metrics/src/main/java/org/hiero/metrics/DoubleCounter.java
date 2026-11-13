@@ -63,6 +63,7 @@ public final class DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCo
         return new Measurement(initializer);
     }
 
+    @NonNull
     @Override
     protected MeasurementSnapshot createMeasurementSnapshot(
             @NonNull Measurement measurement, @NonNull LabelValues labelValues) {

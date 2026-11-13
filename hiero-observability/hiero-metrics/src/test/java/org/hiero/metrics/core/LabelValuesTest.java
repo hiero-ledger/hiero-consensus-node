@@ -125,6 +125,33 @@ public class LabelValuesTest {
         assertThat(values1.hashCode()).isNotEqualTo(values2.hashCode());
     }
 
+    @ParameterizedTest
+    @ValueSource(
+            strings = {"name,1!=name,01", "name,1!=name,1.0", "name,0!=name,-0", "name,a!=name,A", "a,1,b,2!=a,1,b,02"})
+    void testCompareTellsApartDifferentValues(String comparison) {
+        String[] pair = comparison.split("!=");
+
+        LabelValues first = new LabelValues(pair[0].split(","));
+        LabelValues second = new LabelValues(pair[1].split(","));
+
+        // the metric snapshot keeps one measurement snapshot of the label values comparing equal
+        assertThat(first).isNotEqualTo(second);
+        assertThat(LabelValues.compare(first, second))
+                .as("different values must not compare equal")
+                .isNotZero();
+        assertThat(LabelValues.compare(second, first))
+                .as("different values must not compare equal")
+                .isNotZero();
+    }
+
+    @Test
+    void testCompareIsZeroForEqualValues() {
+        LabelValues first = new LabelValues("name", "1", "other", "a");
+        LabelValues second = new LabelValues("name", "1", "other", "a");
+
+        assertThat(LabelValues.compare(first, second)).isZero();
+    }
+
     @Test
     void testToString() {
         LabelValues labelNamesAndValues = new LabelValues("name1", "1", "name2", "2");

@@ -12,9 +12,4 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * newly-registered Channel at {@code completeChannel} time.
  */
 public record VerifiedConfig(
-        @NonNull ClprLedgerConfiguration config, @NonNull ClprEndpointManifest manifest, long verifierGasUsed) {
-    /** A verifier that does not report measured gas incurs no gas charge. */
-    public VerifiedConfig(@NonNull final ClprLedgerConfiguration config, @NonNull final ClprEndpointManifest manifest) {
-        this(config, manifest, 0);
-    }
-}
+        @NonNull ClprLedgerConfiguration config, @NonNull ClprEndpointManifest manifest) {}

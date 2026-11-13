@@ -30,7 +30,6 @@ import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
@@ -40,7 +39,6 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -51,7 +49,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
-import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -95,9 +92,6 @@ class ClprDeepDiveConnectorAuditTest {
 
     @Mock
     private HandleContext handleContext;
-
-    @Mock
-    private ExchangeRateInfo exchangeRateInfo;
 
     @Mock
     private StoreFactory storeFactory;
@@ -495,17 +489,12 @@ class ClprDeepDiveConnectorAuditTest {
                 txn,
                 HederaTestConfigBuilder.create()
                         .withValue("clpr.enabled", clprEnabled)
-                        .withValue("clpr.minLockedStakeTinycents", MIN_LOCKED_STAKE)
+                        .withValue("clpr.minLockedStake", MIN_LOCKED_STAKE)
                         .withValue("clpr.stakingAccount", 803L)
                         .getOrCreateConfig());
     }
 
     private void setupHandleContext(final TransactionBody txn, final Configuration config) {
-        lenient().when(handleContext.consensusNow()).thenReturn(Instant.EPOCH);
-        lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
-        lenient()
-                .when(exchangeRateInfo.activeRate(Instant.EPOCH))
-                .thenReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
         lenient().when(handleContext.configuration()).thenReturn(config);
