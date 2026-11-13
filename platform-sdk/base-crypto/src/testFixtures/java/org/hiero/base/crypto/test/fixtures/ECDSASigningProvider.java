@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto.test.fixtures;
 
+import static org.hiero.base.crypto.ECDSASecp256k1.signDigestWithEcdsaSecp256k1;
 import static org.hiero.base.crypto.test.fixtures.EcdsaUtils.asRawEcdsaSecp256k1Key;
-import static org.hiero.base.crypto.test.fixtures.EcdsaUtils.signDigestWithEcdsaSecp256k1;
 
 import java.security.*;
 import java.security.interfaces.ECPublicKey;
+import org.hiero.base.crypto.ECDSASecp256k1;
 
 public class ECDSASigningProvider implements SigningProvider {
     /* Used to share a generated keypair between instance methods */
@@ -69,12 +70,8 @@ public class ECDSASigningProvider implements SigningProvider {
      * Generate an ECDSASecp256K1 keypair
      */
     void generateActiveKeyPair() {
-        try {
-            activeKp = EcdsaUtils.genEcdsaSecp256k1KeyPair();
-            algorithmAvailable = true;
-        } catch (final NoSuchAlgorithmException | InvalidAlgorithmParameterException | NoSuchProviderException fatal) {
-            throw new IllegalStateException("Tests cannot be trusted without working key-pair generation", fatal);
-        }
+        activeKp = ECDSASecp256k1.genEcdsaSecp256k1KeyPair();
+        algorithmAvailable = true;
     }
 
     private MessageDigest createKeccakDigest() {

@@ -6,6 +6,7 @@ import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_
 import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.*;
 import static com.hedera.node.app.history.schemas.V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -15,14 +16,17 @@ import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -38,15 +42,21 @@ import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.CommittableWritableStates;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Test;
 
 class TssProvenanceHandoffTest {
-    private static final Bytes ROSTER_HASH = Bytes.wrap("roster");
+    private static final Instant ACTIVATION_TIME = Instant.ofEpochSecond(1_800_000_000L);
+    private static final Roster ROSTER = Roster.newBuilder()
+            .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+            .build();
+    private static final Bytes ROSTER_HASH = RosterUtils.hash(ROSTER).getBytes();
     private static final Bytes SOURCE_KEY = Bytes.wrap("source-key");
     private static final Bytes TARGET_KEY = Bytes.wrap("target-key");
     private static final Bytes THIRD_KEY = Bytes.wrap("third-key");
@@ -60,12 +70,17 @@ class TssProvenanceHandoffTest {
         final var first = provenance(1, 2, SOURCE_KEY, TARGET_KEY);
         prepareNext(state, first);
         final var stack = stackFor(state);
-        when(hintsService.handoff(any(), any(), any(), any()))
+        when(hintsService.handoff(any(), any(), any(), any(), any()))
                 .thenAnswer(invocation -> ((WritableHintsStore) invocation.getArgument(0))
                         .handoff(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3)));
 
         assertTrue(handoff(stack));
         assertEquals(first, historyIn(stack).keyProvenance().next());
+        assertEquals(first, historyIn(stack).getKeyWitnessRecord(2).provenance());
+        assertEquals(
+                ACTIVATION_TIME.getEpochSecond(),
+                historyIn(stack).getKeyWitnessRecord(2).activationTimeOrThrow().seconds());
+        assertFalse(historyIn(stack).getKeyWitnessRecord(2).hasWitness());
         assertEquals(2L, hintsIn(stack).getActiveConstruction().constructionId());
         assertEquals(2L, historyIn(stack).getActiveConstruction().constructionId());
         assertFalse(historyIn(state).keyProvenance().hasNext());
@@ -73,6 +88,7 @@ class TssProvenanceHandoffTest {
         // A later failure in this same transaction reverts the queue and both promotions.
         stack.rollbackFullStack();
         assertFalse(historyIn(stack).keyProvenance().hasNext());
+        assertNull(historyIn(stack).getKeyWitnessRecord(2));
         assertEquals(1L, historyIn(stack).getActiveConstruction().constructionId());
         assertEquals(1L, hintsIn(stack).getActiveConstruction().constructionId());
         assertEquals(2L, historyIn(stack).getNextConstruction().constructionId());
@@ -81,6 +97,7 @@ class TssProvenanceHandoffTest {
         assertTrue(handoff(stack));
         stack.commitFullStack();
         assertEquals(2L, historyIn(state).getActiveConstruction().constructionId());
+        assertEquals(first, historyIn(state).getKeyWitnessRecord(2).provenance());
         assertEquals(2L, hintsIn(state).getActiveConstruction().constructionId());
         assertEquals(HistoryProofConstruction.DEFAULT, historyIn(state).getNextConstruction());
         assertEquals(HintsConstruction.DEFAULT, hintsIn(state).getNextConstruction());
@@ -97,6 +114,8 @@ class TssProvenanceHandoffTest {
         assertFalse(links.hasNext());
         assertEquals(3L, hintsIn(state).getActiveConstruction().constructionId());
         assertEquals(3L, historyIn(state).getActiveConstruction().constructionId());
+        assertEquals(second, historyIn(state).getKeyWitnessRecord(3).provenance());
+        assertEquals(first, historyIn(state).getKeyWitnessRecord(2).provenance());
     }
 
     private boolean handoff(final SavepointStackImpl stack) {
@@ -105,9 +124,10 @@ class TssProvenanceHandoffTest {
                 hintsIn(stack),
                 historyService,
                 hintsService,
-                Roster.DEFAULT,
-                Roster.DEFAULT,
-                ROSTER_HASH);
+                ROSTER,
+                ROSTER,
+                ROSTER_HASH,
+                ACTIVATION_TIME);
     }
 
     private WritableHistoryStoreImpl historyIn(final com.swirlds.state.State state) {
@@ -145,7 +165,8 @@ class TssProvenanceHandoffTest {
                         PROOF_KEY_SETS_STATE_ID, new ConcurrentHashMap<>(),
                         PROOF_VOTES_STATE_ID, new ConcurrentHashMap<>(),
                         WRAPS_MESSAGE_HISTORIES_STATE_ID, new ConcurrentHashMap<>(),
-                        HINTS_KEY_PROVENANCE_STATE_ID, new ConcurrentLinkedDeque<>()));
+                        HINTS_KEY_PROVENANCE_STATE_ID, new ConcurrentLinkedDeque<>(),
+                        HINTS_KEY_WITNESSES_STATE_ID, new ConcurrentHashMap<>()));
         state.addService(
                 HintsService.NAME,
                 Map.of(
@@ -168,6 +189,7 @@ class TssProvenanceHandoffTest {
         final var historyStates = state.getWritableStates(HistoryService.NAME);
         final var proof = HistoryProof.newBuilder()
                 .targetHistory(History.newBuilder().metadata(provenance.targetVerificationKey()))
+                .targetNodeWeights(new ProofNodeWeight(0L, 1L))
                 .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("proof")))
                 .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
                 .keyProvenanceSignature(provenance.signature())
@@ -195,7 +217,8 @@ class TssProvenanceHandoffTest {
                 .targetRosterHash(ROSTER_HASH)
                 .crsId(1L)
                 .numParties(8)
-                .hintsScheme(new HintsScheme(new PreprocessedKeys(Bytes.wrap(new byte[49]), key), List.of()))
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap(new byte[49]), key), List.of(new NodePartyId(0L, 0, 1L))))
                 .build();
     }
 

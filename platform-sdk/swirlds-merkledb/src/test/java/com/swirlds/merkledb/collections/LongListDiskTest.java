@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.provider.Arguments;
 
 public class LongListDiskTest extends AbstractLongListTest<LongListDisk> {
@@ -27,10 +31,18 @@ public class LongListDiskTest extends AbstractLongListTest<LongListDisk> {
         return new LongListDisk(file, longsPerChunk, capacity, reservedBufferLength, fileSystemManager);
     }
 
+    @Test
+    @DisplayName("A disk based list can't be copied")
+    void copyIsNotSupported() {
+        try (final LongListDisk list = createLongList(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0)) {
+            assertThrows(UnsupportedOperationException.class, () -> list.copy(Runnable::run));
+        }
+    }
+
     /**
      * Provides a stream of writer-reader pairs specifically for the {@link LongListDisk} implementation.
-     * The writer is always {@link LongListDisk}, and it is paired with three reader implementations
-     * (heap, off-heap, and disk-based). This allows for testing whether data written by the
+     * The writer is always {@link LongListDisk}, and it is paired with two reader implementations
+     * (disk-based and segment-based). This allows for testing whether data written by the
      * {@link LongListDisk} can be correctly read back by all supported long list implementations.
      * <p>
      * This method builds on {@link AbstractLongListTest#longListWriterBasedPairsProvider} to generate

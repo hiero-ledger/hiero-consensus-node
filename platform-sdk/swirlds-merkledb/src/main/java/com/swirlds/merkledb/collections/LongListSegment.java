@@ -2,6 +2,7 @@
 package com.swirlds.merkledb.collections;
 
 import static java.lang.Math.toIntExact;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
@@ -15,21 +16,22 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 /**
  * A {@link LongList} that stores its contents off-heap via {@link MemorySegment}s backed by
  * shared {@link Arena}s. Each chunk is an independently-allocated memory segment, so the
- * "chunk" containing the value for any given index is found using modular arithmetic,
- * identical to {@link LongListOffHeap}.
+ * "chunk" containing the value for any given index is found using modular arithmetic.
  *
- * <p>This implementation replaces the {@code sun.misc.Unsafe}-based access pattern used by
- * {@link LongListOffHeap} with the standard {@link java.lang.foreign} API (JDK 22+). Each
+ * <p>This implementation uses the standard {@link java.lang.foreign} API (JDK 22+). Each
  * chunk owns a {@link Arena#ofShared() shared arena} that allows concurrent access from any
  * thread and supports deterministic deallocation when the chunk is no longer needed.
  *
  * <p>Memory access uses a {@link VarHandle} obtained from {@link ValueLayout#JAVA_LONG},
- * providing volatile reads, volatile writes, and compare-and-set operations with the same
- * memory-ordering guarantees as the {@code Unsafe} equivalents.
+ * providing volatile reads, volatile writes, and compare-and-set operations.
  *
  * <p>To reduce memory consumption, use {@link LongList#updateValidRange(long, long)} which
  * discards memory chunks for indices outside the valid range, accounting for the
@@ -44,7 +46,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * A VarHandle for performing volatile long reads, volatile writes, and CAS operations
      * on a {@link MemorySegment}. Coordinates are {@code (MemorySegment, long)} where the
      * long is the byte offset. {@link ValueLayout#JAVA_LONG} uses LITTLE_ENDIAN byte order by
-     * default, matching the behavior of the Unsafe-based off-heap implementation.
+     * default.
      */
     private static final VarHandle LONG_HANDLE = ValueLayout.JAVA_LONG.varHandle();
 
@@ -123,6 +125,60 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
             throws IOException {
         super(longsPerChunk, capacity, reservedBufferSize);
         loadFromFile(file);
+    }
+
+    /// {@inheritDoc}
+    ///
+    /// The copy is in memory and has the same chunk size and reserved buffer size. Every non-empty
+    /// chunk is copied into a new chunk by a separate task run on the given executor. This method
+    /// returns, once all tasks are complete.
+    @NonNull
+    @Override
+    public LongListSegment copy(@NonNull final Executor executor) {
+        return new LongListSegment(this, executor);
+    }
+
+    /// Creates a copy of the given list, see [#copy(Executor)].
+    ///
+    /// @param source the list to copy
+    /// @param executor the executor to copy chunks on
+    private LongListSegment(@NonNull final LongListSegment source, @NonNull final Executor executor) {
+        super(source.longsPerChunk, source.capacity, source.reservedBufferSize);
+        requireNonNull(executor);
+        final List<CompletableFuture<Void>> tasks = new ArrayList<>();
+        try {
+            for (int i = 0; i < source.chunkList.length(); i++) {
+                final SegmentChunk sourceChunk = source.chunkList.get(i);
+                if (sourceChunk != null) {
+                    final int chunkIndex = i;
+                    tasks.add(CompletableFuture.runAsync(() -> copyChunk(sourceChunk, chunkIndex), executor));
+                }
+            }
+            // allOf() completes once all tasks complete, even if some of them fail. join() isn't interruptible
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
+        } catch (final Throwable e) {
+            // If a submission failed, wait for the tasks submitted before it, so no chunk is allocated
+            // after this copy is closed
+            CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new))
+                    .exceptionally(_ -> null)
+                    .join();
+            // Don't leak the chunks allocated so far, e.g. if there isn't enough off-heap memory
+            close();
+            throw e;
+        }
+        size.set(source.size.get());
+        minValidIndex.set(source.minValidIndex.get());
+        maxValidIndex.set(source.maxValidIndex.get());
+    }
+
+    /// Copies a chunk of the source list into a new chunk of this list.
+    ///
+    /// @param sourceChunk the chunk to copy
+    /// @param chunkIndex the index of the chunk in the chunk list
+    private void copyChunk(@NonNull final SegmentChunk sourceChunk, final int chunkIndex) {
+        final SegmentChunk chunk = createChunk();
+        chunkList.set(chunkIndex, chunk);
+        MemorySegment.copy(sourceChunk.segment(), 0, chunk.segment(), 0, memoryChunkSize);
     }
 
     // =========================================================================
@@ -240,9 +296,7 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
      * acceptable because {@code partialChunkCleanup} is called from
      * {@link LongList#updateValidRange}, which has already moved the valid-range
      * boundaries; any stale value a reader sees is for an index that is no longer valid,
-     * and the reader's own valid-range check will discard it. This is consistent with
-     * the behavior of {@link LongListOffHeap}, which uses non-volatile
-     * {@code MemoryUtils.setMemory} for the same operation.
+     * and the reader's own valid-range check will discard it.
      *
      * <p>If the chunk's arena has been closed concurrently (e.g. by {@link #close()}
      * racing with an in-flight {@link LongList#updateValidRange}), the cleanup is

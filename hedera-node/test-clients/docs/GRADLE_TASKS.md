@@ -42,6 +42,7 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestNodeStaking`            | `(NODE_STAKING)&!(SERIAL)`                    | `testSubprocess`           | 3                     |
 | `hapiTestNodeStakingSerial`      | `(NODE_STAKING&SERIAL)`                       | `testSubprocess`           | default               |
 | `hapiTestIss`                    | `ISS`                                         | `testSubprocess`           | default               |
+| `hapiTestIssGrpc`                | `ISS_GRPC`                                    | `testSubprocess`           | default               |
 | `hapiTestBlockNodeCommunication` | `BLOCK_NODE`                                  | `testSubprocess`           | default               |
 | `hapiTestMisc`                   | everything outside the area tags (see source) | `testSubprocessConcurrent` | default               |
 | `hapiTestGenesisSubProcess`      | `GENESIS_SUBPROCESS`                          | `testSubprocess`           | default               |
@@ -60,7 +61,7 @@ For `testSubprocess` / `testSubprocessConcurrent`, the resulting JUnit `includeT
 (<task's expression>|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE)
 ```
 
-except for the ISS and BLOCK_NODE tasks, which skip validation:
+except for the ISS, ISS_GRPC, and BLOCK_NODE tasks, which skip validation:
 
 ```
 (<task's expression>)&!(EMBEDDED|REPEATABLE)
@@ -68,7 +69,7 @@ except for the ISS and BLOCK_NODE tasks, which skip validation:
 
 ## `remoteTest*` PR check tasks
 
-For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestRestart`, `hapiTestPreCutover`,
+For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestIssGrpc`, `hapiTestRestart`, `hapiTestPreCutover`,
 `hapiTestNodeStaking`, `hapiTestToken`, `hapiTestTokenSerial` and the CLPR tasks, a sibling `remoteTest…` task is generated that
 delegates to `testRemote` with the same tag expression.
 
@@ -118,7 +119,7 @@ cutover disabled, no buffer persistence and mock signatures:
   record blocks;
 - embedded and repeatable nodes get the profile as system properties, and keep the `FILE` writer and mock
   signatures;
-- `hapiTestMiscRecords*`, `hapiTestCutover`, `hapiTestPreCutover` and `hapiTestBlockNodeCommunication` ignore it.
+- `hapiTestMiscRecords*`, `hapiTestCutover`, `hapiTestPreCutover`, `hapiTestIssGrpc` and `hapiTestBlockNodeCommunication` ignore it.
 
 XTS reruns the MATS HAPI panels, the CLPR tasks and `hapiTestWraps` this way
 (`829-call-execute-xts-hapi-testnet.yaml`), so the pre-cutover world mainnet runs until it cuts over stays covered.
@@ -171,3 +172,5 @@ time and sets:
 - [SUBPROCESS_CONCURRENT.md](SUBPROCESS_CONCURRENT.md) — concurrent class execution + validation.
 - [HAPITEST_ANNOTATIONS.md](HAPITEST_ANNOTATIONS.md) — what annotation a test must use to be
   picked up by each task.
+- [Adding HAPI Tests to CI](../../../.github/workflows/docs/adding-hapi-tests.md) — which workflows run
+  each task, and how to add a task to CI.

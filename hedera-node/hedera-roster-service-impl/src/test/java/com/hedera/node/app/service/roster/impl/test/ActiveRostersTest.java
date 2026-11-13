@@ -26,6 +26,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ActiveRostersTest {
+    @Test
+    void strongMinorityThresholdRoundsUpWithoutOverflow() {
+        assertEquals(0, RosterTransitionWeights.atLeastOneThirdOfTotal(0));
+        assertEquals(1, RosterTransitionWeights.atLeastOneThirdOfTotal(1));
+        assertEquals(1, RosterTransitionWeights.atLeastOneThirdOfTotal(3));
+        assertEquals(2, RosterTransitionWeights.atLeastOneThirdOfTotal(4));
+        assertEquals(3_074_457_345_618_258_603L, RosterTransitionWeights.atLeastOneThirdOfTotal(Long.MAX_VALUE));
+    }
+
     private static final long MISSING_NODE_ID = 666L;
     private static final List<RosterTransitionWeights.NodeWeight> A_ROSTER_NODE_WEIGHTS = List.of(
             new RosterTransitionWeights.NodeWeight(1L, 1L),

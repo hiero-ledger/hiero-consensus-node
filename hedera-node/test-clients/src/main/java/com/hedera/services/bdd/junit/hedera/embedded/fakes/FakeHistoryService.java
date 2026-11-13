@@ -3,8 +3,10 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -46,6 +48,22 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public boolean isReady() {
         return delegate.isReady();
+    }
+
+    @Override
+    public void recoverActiveBook(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeConstruction) {
+        delegate.recoverActiveBook(activeRosters, historyStore, activeConstruction);
+    }
+
+    @Override
+    public void recoverNextBook(
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final Roster targetRoster,
+            @Nullable final HintsConstruction nextConstruction) {
+        delegate.recoverNextBook(historyStore, targetRoster, nextConstruction);
     }
 
     @Override
@@ -103,6 +121,11 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public void setLatestHistoryProof(@NonNull HistoryProof historyProof) {
         delegate.setLatestHistoryProof(historyProof);
+    }
+
+    @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        delegate.publishKeyWitness(verificationKey, witness);
     }
 
     @Override

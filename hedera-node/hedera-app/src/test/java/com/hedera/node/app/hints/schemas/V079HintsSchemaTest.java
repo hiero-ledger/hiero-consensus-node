@@ -9,7 +9,7 @@ import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_I
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -22,7 +22,6 @@ import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.node.app.hints.HintsLibrary;
-import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
@@ -40,6 +39,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -50,9 +50,6 @@ class V079HintsSchemaTest {
 
     @Mock
     private HintsLibrary library;
-
-    @Mock
-    private HintsContext signingContext;
 
     @Mock
     private MigrationContext ctx;
@@ -69,8 +66,14 @@ class V079HintsSchemaTest {
 
     @BeforeEach
     void setUp() {
-        subject = new V079HintsSchema(library, signingContext);
-        lenient().when(ctx.appConfig()).thenReturn(HederaTestConfigBuilder.createConfig());
+        subject = new V079HintsSchema(library);
+        lenient()
+                .when(ctx.appConfig())
+                .thenReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.hintsEnabled", true)
+                        .withValue("tss.historyEnabled", true)
+                        .withValue("tss.forceMockSignatures", false)
+                        .getOrCreateConfig());
         lenient()
                 .when(ctx.newStates())
                 .thenReturn(new MapWritableStates(Map.of(
@@ -90,7 +93,7 @@ class V079HintsSchemaTest {
         assertFalse(activeCrs.isModified());
         assertFalse(active.isModified());
         assertFalse(next.isModified());
-        verifyNoInteractions(library, signingContext);
+        verifyNoInteractions(library);
     }
 
     @Test
@@ -101,7 +104,7 @@ class V079HintsSchemaTest {
         assertEquals(HintsConstruction.DEFAULT, next.get());
         assertEquals(CRSState.DEFAULT, activeCrs.get());
         assertEquals(CRSState.DEFAULT, nextCrs.get());
-        verifyNoInteractions(library, signingContext);
+        verifyNoInteractions(library);
     }
 
     @Test
@@ -113,12 +116,12 @@ class V079HintsSchemaTest {
         final var metadata = fixture.tssMetadataOrThrow();
         activeCrs.put(metadata.crsStateOrThrow());
         active.put(metadata.activeHintsConstructionOrThrow());
-        subject = new V079HintsSchema(new HintsLibraryImpl(), signingContext);
+        subject = new V079HintsSchema(new HintsLibraryImpl());
         final var failure = assertThrows(IllegalStateException.class, () -> subject.restart(ctx));
         assertTrue(failure.getMessage().contains("coordinated hinTS/history reset"));
         assertEquals(metadata.crsStateOrThrow(), activeCrs.get());
         assertEquals(metadata.activeHintsConstructionOrThrow(), active.get());
-        verifyNoInteractions(signingContext);
+        verify(ctx, never()).appConfig();
     }
 
     @ParameterizedTest
@@ -145,7 +148,7 @@ class V079HintsSchemaTest {
         assertEquals(originalCrs, activeCrs.get());
         assertEquals(originalConstruction, active.get());
         assertNotNull(keys.get(new HintsPartyId(0, 4, 0)));
-        verifyNoInteractions(library, signingContext);
+        verifyNoInteractions(library);
     }
 
     @Test
@@ -161,21 +164,36 @@ class V079HintsSchemaTest {
         subject.restart(ctx);
         assertEquals(construction, active.get());
         assertEquals(7, activeCrs.get().lastUsedConstructionId());
-        verifyNoInteractions(library, signingContext);
+        verifyNoInteractions(library);
     }
 
     @Test
-    void restartRestoresSigningOnlyWithTheBoundActiveCrs() {
+    void restartOnlyValidatesBoundStateBeforeRuntimeInitialization() {
         givenBoundActiveScheme(4);
         given(library.crsPartySize(CRS)).willReturn(4);
         subject.restart(ctx);
+        subject.restart(ctx);
+        verify(ctx, never()).appConfig();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true, true"})
+    void restartOnlyValidatesStateForCompatibleConfigurations(final boolean historyEnabled, final boolean forceMock) {
+        givenBoundActiveScheme(4);
+        given(library.crsPartySize(CRS)).willReturn(4);
         lenient()
                 .when(ctx.appConfig())
                 .thenReturn(HederaTestConfigBuilder.create()
-                        .withValue("tss.hintsEnabled", "true")
+                        .withValue("tss.hintsEnabled", true)
+                        .withValue("tss.historyEnabled", historyEnabled)
+                        .withValue("tss.forceMockSignatures", forceMock)
                         .getOrCreateConfig());
+
         subject.restart(ctx);
-        verify(signingContext, times(2)).setConstruction(active.get(), activeCrs.get());
+
+        verify(ctx, never()).appConfig();
+        assertEquals(7, active.get().constructionId());
+        assertEquals(CRS, activeCrs.get().crs());
     }
 
     @Test
@@ -186,7 +204,7 @@ class V079HintsSchemaTest {
         assertThrows(IllegalStateException.class, () -> subject.restart(ctx));
 
         assertEquals(128, activeCrs.get().numParties());
-        verifyNoInteractions(library, signingContext);
+        verifyNoInteractions(library);
     }
 
     @Test
@@ -211,7 +229,7 @@ class V079HintsSchemaTest {
 
         assertEquals(64, activeCrs.get().numParties());
         assertEquals(128, nextCrs.get().numParties());
-        verifyNoInteractions(signingContext);
+        verify(ctx, never()).appConfig();
     }
 
     @Test
@@ -222,7 +240,7 @@ class V079HintsSchemaTest {
 
         subject.restart(ctx);
 
-        verify(signingContext).setConstruction(active.get(), activeCrs.get());
+        verify(ctx, never()).appConfig();
         assertEquals(64, activeCrs.get().numParties());
         assertEquals(
                 62, active.get().hintsSchemeOrThrow().nodePartyIds().getFirst().partyId());
@@ -249,6 +267,8 @@ class V079HintsSchemaTest {
                 .when(ctx.appConfig())
                 .thenReturn(HederaTestConfigBuilder.create()
                         .withValue("tss.hintsEnabled", "true")
+                        .withValue("tss.historyEnabled", true)
+                        .withValue("tss.forceMockSignatures", false)
                         .getOrCreateConfig());
     }
 
