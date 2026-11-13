@@ -105,3 +105,16 @@ jobs:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  # Never gates the run: nothing depends on it and a failure inside it does not fail this run. See docs/ci-metrics.md.
+  publish-run-metrics:
+    name: Publish Run Metrics
+    needs:
+      - extract-jdk-version
+      - mats-tests
+    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    uses: ./.github/workflows/865-call-publish-run-metrics.yaml
+    with:
+      context: >-
+        ${{ format('{{"ref_name":"{0}","head_sha":"{1}","failure_mode":"{2}"}}',
+        github.ref_name, github.sha, needs.mats-tests.outputs.failure-mode) }}

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""GitHub Actions API helpers for run_metrics.py: authenticated GET with rate-limit handling and bounded retries on
-transient errors, plus the run and job shapes the rest of the metrics code uses. Fails loudly on anything unexpected.
+"""GitHub Actions API helpers for run_metrics.py: an authenticated GET with bounded retries on transient errors, and the
+run and job shapes the metrics code uses. Fails loudly on anything unexpected, including a rate limit: the workflow's
+GITHUB_TOKEN gets about 1,000 calls an hour per repository and a run needs about 30, so waiting for a reset is not an option.
 """
 import http.client
 import json
 import os
 import subprocess
-import threading
 import time
 import urllib.error
 import urllib.request
@@ -15,22 +15,19 @@ import urllib.request
 REPO = "hiero-ledger/hiero-consensus-node"
 API = f"https://api.github.com/repos/{REPO}"
 
-# workflow id -> (name, suite). Suite is what the consumers group by. Add an entry before publishing run metrics from a new workflow.
+# Workflow file name -> (name, suite). A run is identified by its workflow file, not the numeric workflow id, which
+# changes when a file is renamed. Add an entry before publishing run metrics from another workflow.
 WORKFLOWS = {
-    291484377: ("600: PR Checks", "MATS"),
-    297070668: ("000: MATS Dry Run", "MATS"),
-    382618421: ("226: XTS Controller", "XTS"),
-    297070710: ("001: XTS Dry Run", "XTS"),
-    343942254: ("106: XTS Optional Tests", "XTS"),
-    297167115: ("900: Ext Test Suite cron", "XTS"),
-    297167116: ("901: Promote Build cron", "XTS"),
-    382618422: ("227: Daily Controllers", "XTS"),
+    "000-user-dry-run-mats-suite.yaml": ("000: MATS Dry Run", "MATS"),
+    "300-flow-build-application.yaml": ("300: Build Application", "MATS"),
+    "600-flow-pull-request-checks.yaml": ("600: PR Checks", "MATS"),
+    "001-user-dry-run-extended-test-suite.yaml": ("001: XTS Dry Run", "XTS"),
+    "106-disp-xts-optional-tests.yaml": ("106: XTS Optional Tests", "XTS"),
+    "226-disp-citr-xts-controller.yaml": ("226: XTS Controller", "XTS"),
 }
 
+ATTEMPTS = 4
 _token = None
-_lock = threading.Lock()
-retries = {}
-_rate = {"remaining": 5000, "reset": 0}
 
 
 def token():
@@ -41,15 +38,8 @@ def token():
 
 
 def get(url):
-    """GET json, honouring the primary rate limit. Raises on any other failure."""
-    while True:
-        with _lock:
-            wait = _rate["reset"] - time.time() + 5 if _rate["remaining"] < 25 else 0
-        if wait > 0:
-            print(f"[rate-limit] remaining<25, sleeping {wait:.0f}s until reset", flush=True)
-            time.sleep(wait)
-            with _lock:
-                _rate["remaining"] = 5000
+    """GET json. Transient failures (5xx, dropped or truncated connections) are retried a few times, anything else raises."""
+    for attempt in range(1, ATTEMPTS + 1):
         req = urllib.request.Request(url, headers={
             "Authorization": f"Bearer {token()}",
             "Accept": "application/vnd.github+json",
@@ -57,39 +47,36 @@ def get(url):
         })
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
-                with _lock:
-                    _rate["remaining"] = int(resp.headers["X-RateLimit-Remaining"])
-                    _rate["reset"] = int(resp.headers["X-RateLimit-Reset"])
                 return json.load(resp)
         except urllib.error.HTTPError as e:
             if e.code in (403, 429) and e.headers.get("X-RateLimit-Remaining") == "0":
-                with _lock:
-                    _rate["remaining"] = 0
-                    _rate["reset"] = int(e.headers["X-RateLimit-Reset"])
+                raise RuntimeError(f"GitHub API rate limit reached (resets at epoch {e.headers['X-RateLimit-Reset']}) on {url}") from e
+            if e.code in (500, 502, 503, 504) and attempt < ATTEMPTS:
+                print(f"[retry {attempt}/{ATTEMPTS - 1}] HTTP {e.code} on {url}", flush=True)
+                time.sleep(2 * attempt)
                 continue
-            if e.code in (500, 502, 503, 504):
-                attempt = retries.get(url, 0) + 1
-                if attempt <= 5:  # transient server error: bounded retry, then raise below
-                    retries[url] = attempt
-                    print(f"[retry {attempt}/5] HTTP {e.code} on {url}", flush=True)
-                    time.sleep(2 * attempt)
-                    continue
             raise RuntimeError(f"GET {url} -> {e.code} {e.read()[:300]!r}") from e
         except (http.client.IncompleteRead, ConnectionError, TimeoutError, urllib.error.URLError) as e:
-            # transient transport failure (truncated body, reset, timeout): bounded retry, then raise
-            attempt = retries.get(url, 0) + 1
-            if attempt > 5:
+            if attempt == ATTEMPTS:
                 raise
-            retries[url] = attempt
-            print(f"[retry {attempt}/5] {type(e).__name__} on {url}", flush=True)
+            print(f"[retry {attempt}/{ATTEMPTS - 1}] {type(e).__name__} on {url}", flush=True)
             time.sleep(2 * attempt)
 
 
-def slim_run(r, wf_id):
+def workflow_file(raw_run):
+    """File name of the run's workflow. The run's path can carry an @ref suffix (for example for pull_request_target)."""
+    return raw_run["path"].split("@")[0].rsplit("/", 1)[-1]
+
+
+def slim_run(r):
+    file = workflow_file(r)
+    if file not in WORKFLOWS:
+        raise KeyError(f"workflow file {file} is not in collect.WORKFLOWS; add it before publishing run metrics from it")
+    name, suite = WORKFLOWS[file]
     return {k: r[k] for k in ("id", "name", "event", "head_branch", "head_sha", "status", "conclusion",
                               "run_attempt", "created_at", "run_started_at", "updated_at", "html_url",
                               "display_title") if k in r} | {
-        "workflow_id": wf_id, "workflow": WORKFLOWS[wf_id][0], "suite": WORKFLOWS[wf_id][1],
+        "workflow_id": r["workflow_id"], "workflow": name, "suite": suite, "workflow_file": file,
         "actor_login": r["actor"]["login"], "pr_numbers": [p["number"] for p in r["pull_requests"]],
     }
 
