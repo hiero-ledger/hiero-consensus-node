@@ -114,7 +114,10 @@ import org.openjdk.jmh.annotations.Warmup;
  * the code is the same. If the levels stay, the compiled code does not set them. Sixth test (the levels stayed): the
  * forks also start through {@code java-fixed-addresses.sh} (JMH's {@code -jvm}), without the randomization of the
  * address space layout, and print the addresses of the heap and the code cache ({@code -Xlog:pagesize}), which must
- * then be the same in every fork. If the levels stay again, the address layout does not set them either.
+ * then be the same in every fork. If the levels stay again, the address layout does not set them either. Seventh
+ * test (the levels stayed): everything at once. The forks keep {@code -Xbatch} and the fixed addresses, use huge
+ * pages ({@code -XX:+UseTransparentHugePages}), and add fresh copies of the events in every pass. Each of these
+ * alone left the levels; if they stay now, nothing that the JVM or the layout of the process controls sets them.
  */
 @State(Scope.Thread)
 @Fork(
@@ -123,6 +126,7 @@ import org.openjdk.jmh.annotations.Warmup;
             "-Xms10g",
             "-Xmx10g",
             "-XX:+AlwaysPreTouch",
+            "-XX:+UseTransparentHugePages",
             "-Xbatch",
             "-Xlog:pagesize",
             "-XX:+UnlockDiagnosticVMOptions",
@@ -147,7 +151,7 @@ public class ShadowgraphLayoutProbe {
     public int numNodes;
 
     /** Whether every pass adds fresh copies of the recorded events instead of the recorded events themselves. */
-    @Param({"false"})
+    @Param({"true"})
     public boolean copyPerPass;
 
     /** The calls of the current pass: {@link #calls}, or calls with fresh copies of the events. */
