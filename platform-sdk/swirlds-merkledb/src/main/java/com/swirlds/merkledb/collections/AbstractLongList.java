@@ -13,6 +13,7 @@ import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -495,14 +496,18 @@ public abstract class AbstractLongList<C> implements LongList {
      */
     @Override
     public void writeToFile(final Path file) throws IOException {
-        try (final FileChannel fc = FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+        try (final RandomAccessFile raf = new RandomAccessFile(file.toFile(), "rw")) {
+            final FileChannel fc = raf.getChannel();
             // write header
             writeHeader(fc);
             if (size() > 0) {
+                // Performance optimization: set the file to its final length first, so the writes below
+                // don't have to extend it
+                final long bytesToWrite = max(0, size() - minValidIndex.get()) * Long.BYTES;
+                raf.setLength(FILE_HEADER_SIZE_V3 + bytesToWrite);
                 // write data
                 writeLongsData(fc);
             }
-            fc.force(true);
         }
     }
 
