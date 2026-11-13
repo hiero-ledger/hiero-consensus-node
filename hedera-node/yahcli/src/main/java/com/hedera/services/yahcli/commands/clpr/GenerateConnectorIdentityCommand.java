@@ -4,7 +4,6 @@ package com.hedera.services.yahcli.commands.clpr;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.services.yahcli.commands.clpr.GenerateChannelIdentityCommand.ClprIdentityCrypto;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.HexFormat;
@@ -24,9 +23,11 @@ import picocli.CommandLine.ParentCommand;
  * (use {@code channelId}, {@code connectorId}, {@code publicKey}, {@code signature},
  * {@code signatureScheme}, {@code salt}).
  *
- * <p>{@code privateKey} is included so the operator can sign future connector messages.
+ * <p>The private key is <em>not</em> part of the JSON bundle. It is written to a companion
+ * {@code <out>.key} file (owner-only, 0600) so the operator can sign future connector messages.
  * Treat it as a secret. For ED25519 it is the 32-byte seed; for ECDSA_SECP256K1 it is
- * the 32-byte secp256k1 scalar.
+ * the 32-byte secp256k1 scalar, hex-encoded with a {@code 0x} prefix. Existing files at either
+ * path are never overwritten; they are renamed to {@code <name>.<epochMillis>.bak} first.
  */
 @Command(
         name = "generate-connector-identity",
@@ -75,7 +76,7 @@ public class GenerateConnectorIdentityCommand implements Callable<Integer> {
     @Option(
             names = {"--out"},
             paramLabel = "<path>",
-            description = "If set, writes the JSON bundle to this file instead of stdout.")
+            description = "Required. Path to write the JSON bundle to; the private key is written to <path>.key.")
     String outFile;
 
     @Override
@@ -119,14 +120,17 @@ public class GenerateConnectorIdentityCommand implements Callable<Integer> {
         final byte[] sigMsgHash = MiscCryptoUtils.keccak256DigestOf(sigPreimage);
         final byte[] signature = SignatureGenerator.signBytes(sigMsgHash, keys.privateKey());
 
-        // 6. Emit JSON.
+        if (outFile == null || outFile.isBlank()) {
+            throw new IllegalArgumentException("--out is required; the private key must be stored in a file");
+        }
+
+        // 6. Emit JSON. privateKey is intentionally absent — written to the companion .key file.
         final var hex = HexFormat.of();
         final var json = """
                 {
                   "channelId":    "0x%s",
                   "connectorId":     "0x%s",
                   "publicKey":       "0x%s",
-                  "privateKey":      "0x%s",
                   "salt":            "0x%s",
                   "signatureScheme": "%s",
                   "serviceAddress":  "0x%s",
@@ -137,19 +141,17 @@ public class GenerateConnectorIdentityCommand implements Callable<Integer> {
                         hex.formatHex(channelId),
                         hex.formatHex(connectorId),
                         hex.formatHex(publicKey),
-                        hex.formatHex(keys.privateKeyBytes()),
                         hex.formatHex(salt),
                         scheme,
                         hex.formatHex(serviceAddress),
                         hex.formatHex(commitment),
                         hex.formatHex(signature));
 
-        if (outFile != null && !outFile.isBlank()) {
-            Files.writeString(Path.of(outFile), json);
-            System.out.println("Wrote connector identity bundle to " + outFile);
-        } else {
-            System.out.println(json);
-        }
+        final var bundlePath = Path.of(outFile);
+        final var keyPath = Path.of(outFile + ".key");
+        ClprArgs.writeBundleAndKey(bundlePath, json, keyPath, "0x" + hex.formatHex(keys.privateKeyBytes()) + "\n");
+        System.out.println("Wrote connector identity bundle to " + outFile);
+        System.out.println("Wrote private key to " + keyPath + " — keep it secret");
         return 0;
     }
 }

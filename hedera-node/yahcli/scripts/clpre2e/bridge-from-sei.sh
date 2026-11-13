@@ -10,6 +10,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=key-files.sh
+. "${SCRIPT_DIR}/key-files.sh"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 YAHCLI_DIR="$(cd "${YAHCLI_DIR:-${SCRIPT_DIR}/../..}" && pwd)"
 TOOLS_DIR="${TOOLS_DIR:-${REPO_ROOT}/hedera-node/tools}"
@@ -37,8 +39,6 @@ PAYER="${PAYER:-2}"
 LOCKED_STAKE="${LOCKED_STAKE:-100000000}"
 PROTOCOL_VERSION="${PROTOCOL_VERSION:-1}"
 VERIFIER_CONTRACT="${VERIFIER_CONTRACT:-0.0.368}"
-PEER_PK_HEX="${PEER_PK:-0x00000000000000000000000000000000000000000000000000000000000a11ce}"
-CONNECTOR_PK_HEX="${CONNECTOR_PK:-0x0000000000000000000000000000000000000000000000000000000000c044ec}"
 PASS_THROUGH_AUTH="${PASS_THROUGH_AUTH:-${REPO_ROOT}/hedera-node/test-clients/src/main/resources/contract/contracts/PassThroughAuth/PassThroughAuth.bin}"
 CONFIG_LOCAL="${CONFIG_LOCAL:-${YAHCLI_DIR}/ledger-config.json}"
 CHANNEL_FILE="${SCRIPT_DIR}/.bridge/sei-channel.json"
@@ -64,6 +64,22 @@ step() { printf "${YELLOW}  -- %s${RESET}\n" "$*"; }
 ok() { printf "${GREEN}     OK${RESET} %s\n" "$*"; }
 note() { printf "       %s\n" "$*"; }
 die() { printf "${RED}     FAIL${RESET} %s\n" "$*" >&2; exit 1; }
+
+# Identity keys come from files (never from env vars or the command line). Unset = the well-known
+# dev defaults that match the clpr-smart-contracts scripts.
+if [[ -n "${PEER_PK:-}" || -n "${CONNECTOR_PK:-}" ]]; then
+    die "PEER_PK / CONNECTOR_PK are no longer supported; put each key in a 0600 file and set PEER_PK_FILE / CONNECTOR_PK_FILE"
+fi
+if [[ -n "${PEER_PK_FILE:-}" ]]; then
+    PEER_PK_HEX="$(kf_read_key_file "${PEER_PK_FILE}")" || die "bad PEER_PK_FILE"
+else
+    PEER_PK_HEX="0x00000000000000000000000000000000000000000000000000000000000a11ce"
+fi
+if [[ -n "${CONNECTOR_PK_FILE:-}" ]]; then
+    CONNECTOR_PK_HEX="$(kf_read_key_file "${CONNECTOR_PK_FILE}")" || die "bad CONNECTOR_PK_FILE"
+else
+    CONNECTOR_PK_HEX="0x0000000000000000000000000000000000000000000000000000000000c044ec"
+fi
 
 shellquote() {
     local out=""
@@ -268,9 +284,10 @@ note "config-proof payload: ${SEI_CONFIG_PAYLOAD}"
 note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}..."
 
 header "[4/10] generate channel identity"
+kf_write_key_file "${CHANNEL_FILE}.key" "${PEER_PK_HEX}"
 "${SCRIPT_DIR}/gen-channel-identity.sh" \
     --channel-id "${CHANNEL_ID}" \
-    --priv "${PEER_PK_HEX}" \
+    --key-file "${CHANNEL_FILE}.key" \
     --out "${CHANNEL_FILE}" >/dev/null
 CHANNEL_COMMIT="$(jq -r '.ownershipCommitment' "${CHANNEL_FILE}")"
 [[ -n "${CHANNEL_COMMIT}" && "${CHANNEL_COMMIT}" != "null" ]] || die "no ownershipCommitment in ${CHANNEL_FILE}"
@@ -290,16 +307,19 @@ yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "complete-channel" "${LOG_DIR}/05-
         --config-proof-hex "${CONFIG_PROOF_HEX}"
 
 header "[7/10] generate connector identity"
-cat > "${CONNECTOR_FILE}" <<JSON
+# Public-only stub (no key material); the private key goes to ${CONNECTOR_FILE}.key (0600).
+CONNECTOR_STUB="$(mktemp)"
+cat > "${CONNECTOR_STUB}" <<JSON
 {
   "channelId":   "${CHANNEL_ID}",
-  "privateKey":     "${CONNECTOR_PK_HEX}",
   "signatureScheme":"ECDSA_SECP256K1",
   "salt":           "0x0000000000000000000000000000000000000000000000000000000000000000"
 }
 JSON
-python3 "${TOOLS_DIR}/sign-clpr-connector-identity.py" --in-place "${CONNECTOR_FILE}" \
+kf_write_key_file "${CONNECTOR_FILE}.key" "${CONNECTOR_PK_HEX}"
+python3 "${TOOLS_DIR}/sign-clpr-connector-identity.py" "${CONNECTOR_STUB}" --key-file "${CONNECTOR_FILE}.key" --out "${CONNECTOR_FILE}" \
     | tee "${LOG_DIR}/06-sign-connector.log" >/dev/null
+rm -f "${CONNECTOR_STUB}"
 CONNECTOR_COMMIT="$(jq -r '.commitment' "${CONNECTOR_FILE}")"
 CONNECTOR_ID_HIERO="$(jq -r '.connectorId' "${CONNECTOR_FILE}")"
 [[ -n "${CONNECTOR_COMMIT}" && "${CONNECTOR_COMMIT}" != "null" ]] || die "no commitment in ${CONNECTOR_FILE}"

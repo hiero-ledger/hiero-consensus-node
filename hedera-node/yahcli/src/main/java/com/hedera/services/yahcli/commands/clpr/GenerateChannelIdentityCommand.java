@@ -6,7 +6,6 @@ import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.Secp256k1Utils;
 import java.math.BigInteger;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
@@ -25,9 +24,12 @@ import picocli.CommandLine.ParentCommand;
  * (use {@code ownershipCommitment}) and later {@code complete-channel}
  * (use {@code channelId}, {@code publicKey}, {@code signature}, {@code signatureScheme}).
  *
- * <p>{@code privateKey} is included so the operator can rotate the channel key later,
+ * <p>The private key is <em>not</em> part of the JSON bundle. It is written to a companion
+ * {@code <out>.key} file (owner-only, 0600) so the operator can rotate the channel key later,
  * sign config updates, etc. Treat it as a secret. For ED25519 it is the 32-byte seed; for
- * ECDSA_SECP256K1 it is the 32-byte secp256k1 scalar.
+ * ECDSA_SECP256K1 it is the 32-byte secp256k1 scalar, hex-encoded with a {@code 0x} prefix.
+ * Existing files at either path are never overwritten; they are renamed to
+ * {@code <name>.<epochMillis>.bak} first.
  */
 @Command(
         name = "generate-channel-identity",
@@ -51,7 +53,7 @@ public class GenerateChannelIdentityCommand implements Callable<Integer> {
     @Option(
             names = {"--out"},
             paramLabel = "<path>",
-            description = "If set, writes the JSON bundle to this file instead of stdout.")
+            description = "Required. Path to write the JSON bundle to; the private key is written to <path>.key.")
     String outFile;
 
     @Override
@@ -78,13 +80,17 @@ public class GenerateChannelIdentityCommand implements Callable<Integer> {
         final byte[] revealMsgHash = MiscCryptoUtils.keccak256DigestOf(channelId);
         final byte[] signature = SignatureGenerator.signBytes(revealMsgHash, privateKey);
 
+        if (outFile == null || outFile.isBlank()) {
+            throw new IllegalArgumentException("--out is required; the private key must be stored in a file");
+        }
+
         // 5. Emit JSON. Hand-rolled to avoid an extra protobuf type for an ad-hoc bundle.
+        // privateKey is intentionally absent — it is written to the companion .key file.
         final var hex = HexFormat.of();
         final var json = """
                 {
                   "channelId":       "0x%s",
                   "publicKey":          "0x%s",
-                  "privateKey":         "0x%s",
                   "signatureScheme":    "%s",
                   "ownershipCommitment":"0x%s",
                   "signature":          "0x%s"
@@ -92,17 +98,15 @@ public class GenerateChannelIdentityCommand implements Callable<Integer> {
                 """.formatted(
                         hex.formatHex(channelId),
                         hex.formatHex(publicKey),
-                        hex.formatHex(keys.privateKeyBytes()),
                         scheme,
                         hex.formatHex(commitment),
                         hex.formatHex(signature));
 
-        if (outFile != null && !outFile.isBlank()) {
-            Files.writeString(Path.of(outFile), json);
-            System.out.println("Wrote channel identity bundle to " + outFile);
-        } else {
-            System.out.println(json);
-        }
+        final var bundlePath = Path.of(outFile);
+        final var keyPath = Path.of(outFile + ".key");
+        ClprArgs.writeBundleAndKey(bundlePath, json, keyPath, "0x" + hex.formatHex(keys.privateKeyBytes()) + "\n");
+        System.out.println("Wrote channel identity bundle to " + outFile);
+        System.out.println("Wrote private key to " + keyPath + " — keep it secret");
         return 0;
     }
 

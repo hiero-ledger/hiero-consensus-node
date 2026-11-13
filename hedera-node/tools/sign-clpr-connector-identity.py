@@ -6,20 +6,19 @@ or written by hand).
 
 Required input fields:
   - channelId   (32 bytes, hex, 0x prefix optional) — the channel this connector serves
-  - privateKey     (32 bytes, hex; an Ed25519 seed or a secp256k1 scalar)
   - signatureScheme  one of: "ED25519", "ECDSA" (alias), "ECDSA_SECP256K1"
 
 Optional input fields (used when present, derived otherwise):
   - salt           (32 bytes, hex). If absent or empty, a fresh random 32-byte salt is generated.
-  - publicKey      (hex). If supplied, must match what the privateKey derives — script errors
-                   on mismatch. If absent, derived from privateKey.
+  - publicKey      (hex). If supplied, must match what the private key derives — script errors
+                   on mismatch. If absent, derived from the private key.
   - connectorId    (32 bytes, hex). If supplied, must match keccak256(channelId || publicKey
                    || salt). If absent, derived.
   - serviceAddress (20 bytes, hex). Defaults to 0x000000000000000000000000000000000000016e
                    (the CLPR system contract — matches the on-ledger handler's hard-coded value).
 
 The script derives:
-  publicKey     = derived from privateKey per scheme
+  publicKey     = derived from the private key per scheme
                   • ED25519:         32 bytes (raw point)
                   • ECDSA_SECP256K1: 64 bytes uncompressed X||Y (no 0x04 header)
   connectorId   = keccak256(channelId || publicKey || salt)
@@ -31,24 +30,31 @@ The script derives:
 These match the on-wire format expected by ClprCompleteConnectorHandler.
 
 Output is the input JSON augmented with any newly derived fields. By default the result
-is printed to stdout; pass --in-place to overwrite the input file or --out <path> to
-write somewhere else.
+is printed to stdout; pass --out <path> to write it to a file instead.
+
+The private key is supplied ONLY via --key-file <path> (a file holding the 32-byte hex key,
+mode 0600). On POSIX a key file that is a symlink or non-regular file is always refused, and one
+readable by group/others or owned by someone else is refused unless --allow-loose-key-file is given.
+A bundle containing an inline privateKey field is rejected, and nothing is written.
 
 Dependencies:
-  pip install pycryptodome      # required: Ed25519 + Keccak-256
-  cast (Foundry)                 # required only for ECDSA_SECP256K1; install via foundryup
+  pip install pycryptodome              # required
+  pip install coincurve                 # required only for ECDSA_SECP256K1
+
+Existing files are never destroyed: if the --out target already exists it is
+first moved to <name>.<epochMillis>.bak (mode 0600), so a legacy bundle is never lost.
 """
 
 from __future__ import annotations  # PEP 604/585 annotations on Python 3.9
 
 import argparse
+import importlib.util
 import json
 import os
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
+
 
 try:
     from Crypto.Hash import keccak
@@ -65,6 +71,15 @@ except ImportError as e:  # pragma: no cover — install hint
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
+
+# Shared key-file helpers live next to this script (same loading pattern as build-besu-qbft-config-payload.py).
+_spec = importlib.util.spec_from_file_location(
+    "clpr_identity_files", Path(__file__).with_name("clpr_identity_files.py"))
+_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_files)
+_check_key_file = _files._check_key_file
+_write_secure = _files._write_secure
+
 
 CHANNEL_ID_LEN = 32
 PRIVATE_KEY_LEN = 32
@@ -135,53 +150,32 @@ def ed25519_sign(seed: bytes, message: bytes) -> bytes:
 
 
 # -----------------------------------------------------------------------------
-# ECDSA secp256k1: shell out to Foundry's `cast`.
+# ECDSA secp256k1: generate the private key.
 # -----------------------------------------------------------------------------
 
-def _require_cast() -> str:
-    cast = shutil.which("cast")
-    if not cast:
-        raise RuntimeError(
-            "ECDSA_SECP256K1 requires Foundry's `cast` on PATH. Install foundry "
-            "(https://book.getfoundry.sh/getting-started/installation) and retry."
+def _coincurve():
+    """Import coincurve lazily so ED25519 users don't need it installed."""
+    try:
+        import coincurve
+    except ImportError as e:  # pragma: no cover — install hint
+        print(
+            "ERROR: ECDSA_SECP256K1 requires coincurve ({}). Install it with:\n  pip install coincurve".format(e),
+            file=sys.stderr,
         )
-    return cast
-
-
-def _cast(args: list[str]) -> str:
-    cast = _require_cast()
-    res = subprocess.run([cast, *args], capture_output=True, text=True, check=False)
-    if res.returncode != 0:
-        raise RuntimeError(
-            "`cast {}` failed (exit {}):\n{}".format(" ".join(args), res.returncode, res.stderr.strip())
-        )
-    return res.stdout.strip()
+        sys.exit(2)
+    return coincurve
 
 
 def secp256k1_pubkey(scalar: bytes) -> bytes:
     """Returns the 64-byte uncompressed public key (X||Y, no 0x04 prefix)."""
-    out = _cast(["wallet", "public-key", "--raw-private-key", "0x" + scalar.hex()])
-    return parse_hex(out, "cast public-key output", expected_len=64)
+    return _coincurve().PrivateKey(scalar).public_key.format(compressed=False)[1:]
 
 
 def secp256k1_sign(scalar: bytes, message_hash: bytes) -> bytes:
     """Signs the raw 32-byte hash and returns 64-byte r||s (drops the recovery byte)."""
     if len(message_hash) != 32:
         raise ValueError("ECDSA message hash must be 32 bytes; got {}".format(len(message_hash)))
-    out = _cast(
-        [
-            "wallet",
-            "sign",
-            "--no-hash",
-            "--private-key",
-            "0x" + scalar.hex(),
-            "0x" + message_hash.hex(),
-        ]
-    )
-    sig = parse_hex(out, "cast sign output")
-    if len(sig) != 65:
-        raise RuntimeError("expected 65-byte cast signature (r||s||v); got {} bytes".format(len(sig)))
-    return sig[:64]
+    return _coincurve().PrivateKey(scalar).sign_recoverable(message_hash, hasher=None)[:64]
 
 
 # -----------------------------------------------------------------------------
@@ -209,7 +203,7 @@ def derive(
 
     if supplied_public_key is not None and supplied_public_key != public_key:
         raise ValueError(
-            "publicKey in input does not match what privateKey derives.\n"
+            "publicKey in input does not match what the private key derives.\n"
             "  supplied: 0x{}\n"
             "  derived:  0x{}".format(supplied_public_key.hex(), public_key.hex())
         )
@@ -242,12 +236,14 @@ def render_json(
     salt: bytes,
     service_address: bytes,
 ) -> str:
-    """Emit the connector-identity JSON in the same field order yahcli uses."""
+    """Emit the connector-identity JSON in the same field order yahcli uses.
+
+    The private key never appears in the bundle — it lives in the companion .key file.
+    """
     ordered: dict[str, str] = {
         "channelId": _ensure_0x(bundle["channelId"]),
         "connectorId": "0x" + derived["connectorId"].hex(),
         "publicKey": "0x" + derived["publicKey"].hex(),
-        "privateKey": _ensure_0x(bundle["privateKey"]),
         "salt": "0x" + salt.hex(),
         "signatureScheme": scheme,
         "serviceAddress": "0x" + service_address.hex(),
@@ -283,9 +279,17 @@ def main(argv=None) -> int:
         epilog=__doc__,
     )
     parser.add_argument("input", help="Path to the connector identity JSON.")
-    out = parser.add_mutually_exclusive_group()
-    out.add_argument("--out", help="Write the resulting JSON to this path.")
-    out.add_argument("--in-place", action="store_true", help="Overwrite the input file.")
+    parser.add_argument(
+        "--key-file",
+        help="Path to the file containing the hex-encoded private key (required).",
+    )
+    parser.add_argument(
+        "--allow-loose-key-file",
+        action="store_true",
+        help="Do not refuse a --key-file that group/others can access or that you do not own "
+             "(symlinks and non-regular files are always refused).",
+    )
+    parser.add_argument("--out", help="Write the resulting JSON to this path.")
     args = parser.parse_args(argv)
 
     in_path = Path(args.input)
@@ -298,7 +302,19 @@ def main(argv=None) -> int:
     try:
         scheme = normalize_scheme(bundle.get("signatureScheme", ""))
         channel_id = parse_hex(bundle.get("channelId"), "channelId", CHANNEL_ID_LEN)
-        private_key = parse_hex(bundle.get("privateKey"), "privateKey", PRIVATE_KEY_LEN)
+        if "privateKey" in bundle:
+            print(
+                "ERROR: the input bundle contains an inline privateKey, which is no longer supported. "
+                "Move the key into a file readable only by you (mode 0600), remove the privateKey "
+                "field from the bundle, and pass --key-file <path>. Nothing was written.",
+                file=sys.stderr,
+            )
+            return 2
+        if not args.key_file:
+            print("ERROR: no private key source: provide --key-file <path>", file=sys.stderr)
+            return 2
+        _check_key_file(Path(args.key_file), args.allow_loose_key_file)
+        private_key = parse_hex(Path(args.key_file).read_text().strip(), "key-file", PRIVATE_KEY_LEN)
 
         salt_raw = bundle.get("salt")
         if salt_raw is None or not str(salt_raw).strip() or str(salt_raw).strip() in ("0x", "0X"):
@@ -339,11 +355,13 @@ def main(argv=None) -> int:
     )
 
     if args.out:
-        Path(args.out).write_text(rendered)
-        print("wrote {}".format(args.out), file=sys.stderr)
-    elif args.in_place:
-        in_path.write_text(rendered)
-        print("updated {}".format(in_path), file=sys.stderr)
+        target = Path(args.out)
+        try:
+            _write_secure(target, rendered)
+        except OSError as e:
+            print("ERROR: cannot write {}: {}".format(target, e), file=sys.stderr)
+            return 1
+        print("wrote {}".format(target), file=sys.stderr)
     else:
         sys.stdout.write(rendered)
 

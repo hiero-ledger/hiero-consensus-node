@@ -185,16 +185,20 @@ Per-step yahcli logs are at `scripts/clpre2e/.run-logs-bridge/`.
 
 ### Useful overrides
 
-|          Env           |             Default             |                                        Purpose                                        |
-|------------------------|---------------------------------|---------------------------------------------------------------------------------------|
-| `VERIFIER_CONTRACT`    | (required)                      | Pre-deployed Besu-QBFT verifier system contract id on Hiero (0.0.367 on localhost)    |
-| `SMART_CONTRACTS_REPO` | sibling auto-detect             | Path to `clpr-smart-contracts`                                                        |
-| `CHAIN_ID`             | auto-detect from `deployments/` | Picks one of the chain subdirs                                                        |
-| `PEER_PK`              | `0xa11ce`                       | secp256k1 key used for the channel identity (must match Besu's `CreateChannel.s.sol`) |
-| `CONNECTOR_PK`         | `0xc044ec`                      | secp256k1 key for the connector identity                                              |
-| `NET`                  | `localhost`                     | Target Hiero network from `yahcli/config.yml`                                         |
-| `PAYER`                | `2`                             | Yahcli payer account                                                                  |
-| `LOCKED_STAKE`         | `100000000`                     | Connector locked stake (tinybars)                                                     |
+|          Env           |             Default             |                                                                         Purpose                                                                         |
+|------------------------|---------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `VERIFIER_CONTRACT`    | (required)                      | Pre-deployed Besu-QBFT verifier system contract id on Hiero (0.0.367 on localhost)                                                                      |
+| `SMART_CONTRACTS_REPO` | sibling auto-detect             | Path to `clpr-smart-contracts`                                                                                                                          |
+| `CHAIN_ID`             | auto-detect from `deployments/` | Picks one of the chain subdirs                                                                                                                          |
+| `PEER_PK_FILE`         | dev key `0xa11ce`               | Path to a 0600 file holding the secp256k1 key for the channel identity (must match Besu's `CreateChannel.s.sol`); the old `PEER_PK` env var is rejected |
+| `CONNECTOR_PK_FILE`    | dev key `0xc044ec`              | Path to a 0600 file holding the secp256k1 key for the connector identity; the old `CONNECTOR_PK` env var is rejected                                    |
+| `NET`                  | `localhost`                     | Target Hiero network from `yahcli/config.yml`                                                                                                           |
+| `PAYER`                | `2`                             | Yahcli payer account                                                                                                                                    |
+| `LOCKED_STAKE`         | `100000000`                     | Connector locked stake (tinybars)                                                                                                                       |
+
+> Key files must be mode 0600 (set `ALLOW_LOOSE_KEY_FILE=1` to override). The scripts no longer put these keys on any command line or in any bundle: each is written to
+> `<bundle>.key` (mode 0600, `0x<hex>`) and passed to the signer by file path. An existing,
+> different key file is moved to `<name>.<epochMillis>.bak` (never deleted or pruned).
 
 ## Step 4 — Start the EVM relay
 
