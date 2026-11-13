@@ -212,8 +212,8 @@ public final class BlockFileUtils {
         }
     }
 
-    // shortcut: no finalizer, so a stream that is never closed leaks its native context (a finalizer could write
-    // frame bytes into a reused file at GC time); close abandoned writers on reconnect if this leak matters.
+    // No finalizer: one could write frame bytes into a reused file at GC time. So every stream must be closed, or
+    // its native context leaks; writers abandoned on reconnect are closed by the block stream manager.
     private static final class ParentClosingZstdOutputStream extends ZstdOutputStreamNoFinalizer {
         private ParentClosingZstdOutputStream(final OutputStream output) throws IOException {
             super(output, 3);

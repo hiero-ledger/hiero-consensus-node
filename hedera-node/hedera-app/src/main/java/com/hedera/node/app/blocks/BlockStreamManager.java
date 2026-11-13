@@ -307,6 +307,12 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     List<Path> flushedTriageBlockFiles();
 
     /**
+     * Releases the writers of the in-progress block and of all pending blocks without completing them. Called when
+     * a reconnect replaces this manager, so no round may be in progress. Best-effort; never throws.
+     */
+    void abandonOpenBlocks();
+
+    /**
      * Returns a future that completes when all currently pending blocks awaiting proofs have been fully signed.
      *
      * @return a future that completes when there are no pending block proofs

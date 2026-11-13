@@ -89,6 +89,12 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
     }
 
     @Override
+    public void abandonBlock() {
+        // Only the file writer holds a stream; the gRPC buffer block is left for the buffer service.
+        this.fileBlockItemWriter.abandonBlock();
+    }
+
+    @Override
     public void writePbjItem(@NonNull final BlockItem item) {
         throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
     }

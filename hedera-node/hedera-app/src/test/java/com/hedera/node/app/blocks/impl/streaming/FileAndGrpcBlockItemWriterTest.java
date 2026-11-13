@@ -2,17 +2,20 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -87,5 +90,29 @@ class FileAndGrpcBlockItemWriterTest {
         assertThat(Files.exists(dir.resolve(BLK_ZSTD))).isFalse();
         assertThat(Files.exists(dir.resolve(MF))).isFalse();
         assertThat(Files.exists(dir.resolve(PENDING_PROOF_JSON))).isFalse();
+    }
+
+    @Test
+    void abandonBlockClosesTheFileWriter() throws IOException {
+        final var subject = new FileAndGrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, FileSystems.getDefault(), blockBufferService);
+        subject.openBlock(1);
+        final var item = BlockItem.newBuilder()
+                .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                .build();
+        subject.writePbjItemAndBytes(item, Bytes.wrap(new byte[] {1, 2, 3}));
+
+        subject.abandonBlock();
+
+        // The file half is closed, so the partial block file is a complete Zstandard frame; nothing else is written
+        final var dir = tempDir.resolve("block-0.0.3");
+        try (final var files = Files.list(dir)) {
+            assertThat(files.map(path -> path.getFileName().toString())).containsExactly(BLK_ZSTD);
+        }
+        try (final var in = BlockFileUtils.openInputStream(dir.resolve(BLK_ZSTD))) {
+            assertThat(in.readAllBytes()).isEqualTo(new byte[] {10, 3, 1, 2, 3});
+        }
+        assertThatThrownBy(() -> subject.writePbjItemAndBytes(item, Bytes.wrap(new byte[] {1})))
+                .isInstanceOf(IllegalStateException.class);
     }
 }

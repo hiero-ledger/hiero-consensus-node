@@ -480,4 +480,19 @@ public class FileBlockItemWriter implements BlockItemWriter {
             state = State.CLOSED;
         }
     }
+
+    @Override
+    public void abandonBlock() {
+        if (state != State.OPEN) {
+            return;
+        }
+        // Closing frees the native Zstandard context; the partial block file stays on disk without a marker.
+        try {
+            writableStreamingData.close();
+        } catch (final Exception e) {
+            logger.warn("Error closing abandoned block #{}", blockNumber, e);
+        } finally {
+            state = State.CLOSED;
+        }
+    }
 }

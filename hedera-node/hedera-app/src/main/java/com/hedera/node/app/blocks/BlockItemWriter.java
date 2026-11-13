@@ -68,6 +68,13 @@ public interface BlockItemWriter {
     @Nullable
     Path flushIncompleteBlock();
 
+    /**
+     * Releases the resources of an open block that will never be completed, for example when a reconnect replaces
+     * the block stream manager. Unlike the flush methods, this writes no marker or proof file and renames nothing.
+     * Best-effort; implementations must not throw.
+     */
+    default void abandonBlock() {}
+
     default Path pendingProofPath(@NonNull final Path blockDir, final long blockNumber) {
         return blockDir.resolve(BlockFileUtils.pendingProofFileName(blockNumber));
     }

@@ -2113,6 +2113,43 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     @Override
+    public void abandonOpenBlocks() {
+        // Same order as the triage flush: quiesce in-flight writes outside the monitor, then drain pending blocks
+        // under it so a late signing callback finds an empty queue.
+        if (worker != null) {
+            try {
+                worker.sync();
+            } catch (final Exception e) {
+                log.warn("Failed to sync in-flight block items before abandoning open blocks", e);
+            }
+        }
+        int pendingAbandoned = 0;
+        synchronized (this) {
+            PendingBlock block;
+            while ((block = pendingBlocks.poll()) != null) {
+                abandon(block.writer(), block.number());
+                markPendingBlockProofComplete(block);
+                pendingAbandoned++;
+            }
+        }
+        final boolean openAbandoned = writer != null;
+        if (openAbandoned) {
+            abandon(writer, blockNumber);
+            writer = null;
+        }
+        worker = null;
+        log.info("Abandoned block writers: in-progress block={}, pending blocks={}", openAbandoned, pendingAbandoned);
+    }
+
+    private void abandon(@NonNull final BlockItemWriter blockWriter, final long number) {
+        try {
+            blockWriter.abandonBlock();
+        } catch (final Exception e) {
+            log.warn("Failed to abandon writer of block #{}", number, e);
+        }
+    }
+
+    @Override
     public @NonNull CompletableFuture<Void> pendingBlockProofsFuture() {
         synchronized (pendingBlockProofsFutureLock) {
             if (pendingBlockProofCount.get() == 0) {

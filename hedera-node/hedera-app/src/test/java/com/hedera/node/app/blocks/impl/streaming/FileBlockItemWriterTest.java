@@ -423,6 +423,33 @@ class FileBlockItemWriterTest {
         assertDoesNotThrow(subject::flushIncompleteBlock);
     }
 
+    @Test
+    void abandoningBlockClosesStreamAndLeavesOnlyThePartialBlockFile() throws IOException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+
+        final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
+        // Nothing to release before a block is open
+        assertDoesNotThrow(subject::abandonBlock);
+        subject.openBlock(1);
+        subject.writeItem(new byte[] {1, 2, 3, 4, 5});
+
+        subject.abandonBlock();
+
+        final var dir = tempDir.resolve("block-0.0.3");
+        try (final var files = Files.list(dir)) {
+            assertThat(files.map(path -> path.getFileName().toString())).containsExactly(BLK_ZSTD);
+        }
+        // Only a closed stream has flushed its buffers and ended the Zstandard frame
+        try (final var in = BlockFileUtils.openInputStream(dir.resolve(BLK_ZSTD))) {
+            assertArrayEquals(new byte[] {10, 5, 1, 2, 3, 4, 5}, in.readAllBytes());
+        }
+        // The writer is closed, and a second call is a no-op
+        assertThatThrownBy(() -> subject.writeItem(new byte[] {1})).isInstanceOf(IllegalStateException.class);
+        assertDoesNotThrow(subject::abandonBlock);
+    }
+
     @ParameterizedTest
     @MethodSource("signedTransactionBytes")
     void loadContiguousPendingBlocksPreservesSignedTransactionBytes(final Bytes signedTxBytes) throws IOException {
