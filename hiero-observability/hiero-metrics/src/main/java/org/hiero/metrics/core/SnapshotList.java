@@ -114,9 +114,7 @@ final class SnapshotList<S> implements Iterable<S> {
      */
     @Nullable
     private List<S> rebuildIfChanged() {
-        // read first, so an update without changes does not write the flag; cleared before reading the source,
-        // so a change made after clearing marks it again for the next update
-        if (!changed.get() || !changed.getAndSet(false)) {
+        if (!changed.compareAndSet(true, false)) {
             return null;
         }
         try {
