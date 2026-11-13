@@ -2,10 +2,6 @@
 
 [📘Back to Overview](metrics_overview.md)
 
-### Class Diagram
-
-![metrics_core_class_diagram.svg](img/metrics_core_class_diagram.svg)
-
 ### Metric API
 
 All metrics available to use are defined in `org.hiero.metrics` package.<br/>
@@ -27,6 +23,13 @@ it will create a new measurement and return it to the client for observation, ot
 Such metric also knows measurement default initializer - an object used to initialize newly created measurements (like initial value),
 but API also allows to provide custom initializer when accessing measurement by specific dynamic label values.
 If no dynamic labels are defined for the metric, then it will have a single measurement, which also will be created lazily on first access.
+
+The base `Metric` keeps the measurements of both in a [Measurements](../src/main/java/org/hiero/metrics/core/Measurements.java) container,
+which it creates in its constructor and subclasses access by `measurements()`.
+Subclasses only implement `createMeasurementSnapshot(...)`: the container notifies the metric when measurements are added or removed, which marks its `MetricSnapshot`, if the metric is exported,
+and the export creates the snapshot of each measurement the first time it collects it, so a metric implementation never manages snapshots itself.
+Application threads adding measurements therefore never create snapshots or read measurement values for export:
+value suppliers of an `ObservableGauge` and export getters of a `GaugeAdapter` are called only by exports.
 
 ### Metric Types
 
@@ -83,15 +86,16 @@ so a misspelled name fails instead of removing nothing:
 counter.removeIf(labelValues -> "3".equals(labelValues.get("node")));
 ```
 
-- `SettableMetric.removeIf(Predicate<LabelValues>)` removes matching measurements and returns their number.
-  The next `getOrCreateLabeled` call with the same label values creates a new measurement from the initializer.
-- `ObservableGauge.removeIf(Predicate<LabelValues>)` removes matching value suppliers and releases them.
-  The same label values can be observed again. An export already in progress may call a removed supplier once more,
-  so it must stay safe to call after removal: a throwing supplier fails the whole export.
+- `Metric.removeIf(Predicate<LabelValues>)` removes matching measurements and returns their number.
+  - For a `SettableMetric`, the next `getOrCreateLabeled` call with the same label values creates a new measurement from the initializer.
+  - For an `ObservableGauge`, it removes matching value suppliers, and the same label values can be observed again.
+    An export already in progress may call a removed supplier once more,
+    so it must stay safe to call after removal: a throwing supplier fails the whole export.
 - `MetricRegistry.remove(MetricKey)` removes a whole metric. Its name can be registered again.
   A metric without dynamic labels has a single measurement, which can be removed only this way.
 
 Removed metrics and measurements are not exported by the next export.
+Until then the snapshot of the last export still references them, so they can be garbage collected only after the next export.
 References to them held by application code remain usable, but their updates are not exported anymore,
 so code caching metrics or measurements must drop them on removal.
 
@@ -104,12 +108,13 @@ To be discovered by SPI mechanism implementations of `MetricsExporterFactory` sh
 `META-INF/services/org.hiero.metrics.core.MetricsExporterFactory` or `module-info.java` file of the module.
 
 Snapshots provided to exporter contain all registered metrics in the registry with their measurements and values at the moment of snapshot.
-Snapshots internally are reusable objects and values are added/updates during each registry snapshot, which is **synchronous** operation.
-Each iteration over a snapshot (registry or metric level) reads a fixed list in append order.
-An export iterates twice: once in the snapshot supplier, which updates values, and once while writing.
-A metric or measurement added after the supplier read its list but before the writer read it is written with the value read when it was created; one added after the writer read its list is picked up by the next export.
-A metric or measurement removed before the writer read its list is not written; one removed after it is dropped by the next export.
-A measurement removed after the supplier read its list is still updated by that export, so a removed value supplier may be called once more.
+Snapshots internally are reusable objects and values are updated during each registry snapshot, which is **synchronous** operation.
+Registering or removing a metric and adding or removing a measurement only marks the snapshot as changed, so application threads never copy or lock snapshot lists.
+The snapshot supplier rebuilds the changed lists from the registered metrics and their measurements, creating the snapshots of new measurements, and then updates the values; a rebuilt list replaces the iterated one only after its values are updated.
+Metrics are sorted by name, and measurements of a metric by their dynamic label values in label name order.
+This order is deterministic, but how label values are compared is not specified and may change, for example to order numeric values by number.
+The writer iterates exactly the metrics and measurements collected by the supplier, as long as the exporter finishes writing a snapshot before calling the supplier again; a change made after the supplier ran is picked up by the next export.
+A metric or measurement removed after the supplier rebuilt its list is still updated and written by that export, so a removed value supplier may be called once more.
 Metrics from discovered `MetricsRegistrationProvider`s are registered before the exporter receives its snapshot supplier, so the first export already contains all of them.
 
 ### Tips and Tricks

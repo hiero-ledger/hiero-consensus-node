@@ -4,6 +4,7 @@ package org.hiero.metrics.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -14,7 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
-public abstract class MetricBaseTest<M extends Metric, B extends Metric.Builder<B, M>> {
+public abstract class MetricBaseTest<M extends Metric<?>, B extends Metric.Builder<B, M>> {
 
     protected static final String DEFAULT_NAME = "test_metric";
 
@@ -32,6 +33,33 @@ public abstract class MetricBaseTest<M extends Metric, B extends Metric.Builder<
 
     protected MetricSnapshot snapshotOf(M metric) {
         return metric.snapshot();
+    }
+
+    /**
+     * @return the metric snapshot rebuilt and updated, as an export does
+     */
+    protected MetricSnapshot exportedSnapshotOf(M metric) {
+        MetricSnapshot snapshot = metric.snapshot();
+        snapshot.update();
+        return snapshot;
+    }
+
+    /**
+     * Returns 16 label values with equal hash codes, built from 4 blocks of {@code "Aa"} or {@code "BB"},
+     * which have equal hash codes. Measurements with them share one bin of the measurements map,
+     * so creating all of them resizes the map and turns the bin into a tree.
+     * Concurrency tests use them to also run through map resizing and tree bins.
+     */
+    protected static List<String> collidingLabelValues() {
+        final List<String> values = new ArrayList<>();
+        for (int i = 0; i < 16; i++) {
+            final StringBuilder value = new StringBuilder();
+            for (int block = 0; block < 4; block++) {
+                value.append(((i >> block) & 1) == 0 ? "Aa" : "BB");
+            }
+            values.add(value.toString());
+        }
+        return values;
     }
 
     /**

@@ -215,8 +215,8 @@ public class OpenMetricsWriterTest {
             DoubleCounter.builder("double_counter").register(registry);
 
             exporter.exportAndVerify(defaultWriter, """
-                    # TYPE long_counter counter
                     # TYPE double_counter counter
+                    # TYPE long_counter counter
                     # EOF
                     """);
         }
@@ -330,8 +330,8 @@ public class OpenMetricsWriterTest {
             DoubleGauge.builder("double_gauge").register(registry);
 
             exporter.exportAndVerify(defaultWriter, """
-                    # TYPE long_gauge gauge
                     # TYPE double_gauge gauge
+                    # TYPE long_gauge gauge
                     # EOF
                     """);
         }

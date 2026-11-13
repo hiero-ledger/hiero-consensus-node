@@ -11,6 +11,8 @@ import java.util.function.Supplier;
  * Implementations of this interface are responsible for exporting metrics data
  * provided by a {@link MetricRegistrySnapshot} supplier.
  * Supplier is <b>synchronous</b> and no two snapshots can be taken at the same time.
+ * The supplier returns the same reusable {@link MetricRegistrySnapshot} on every call and updates it in place,
+ * so an exporter must finish writing a snapshot before calling the supplier again.
  *
  * @see MetricRegistry
  * @see MetricRegistrySnapshot
