@@ -73,11 +73,29 @@ def download_zip(artifact_id):
     return data
 
 
+def _reject_dtd(f, filename):
+    """Scan the whole file (in chunks) for DOCTYPE or ENTITY declarations, wherever they appear. ElementTree's C parser
+    offers no hook to refuse them, so this is checked before parsing. Non-UTF-8 files are refused too, since the
+    declarations would not show up as ASCII bytes in them."""
+    head = f.read(4)
+    if head[:2] in (b"\xff\xfe", b"\xfe\xff") or b"\x00" in head:
+        raise ValueError(f"{filename}: only UTF-8 reports are accepted")
+    tail = head
+    while True:
+        chunk = f.read(1 << 20)
+        window = tail + chunk
+        if b"<!DOCTYPE" in window or b"<!ENTITY" in window:
+            raise ValueError(f"{filename}: DOCTYPE/ENTITY declarations are not accepted")
+        if not chunk:
+            return
+        tail = window[-16:]
+
+
 def parse_junit_zip(data):
     """-> (suites, cases). suites: [(class, tests, failed, skipped, suite_seconds, timestamp)],
     cases: [(class, name, seconds, outcome, suite_timestamp)].
 
-    The zip comes from a CI run, so treat it as untrusted: size caps, no DOCTYPE or entity declarations, never extracted.
+    The zip comes from a CI run, so treat it as untrusted: size caps, no DOCTYPE or entity declarations anywhere in a file, never extracted.
     """
     suites, cases, total = [], [], 0
     with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -88,9 +106,7 @@ def parse_junit_zip(data):
             if info.file_size > MAX_MEMBER_BYTES or total > MAX_TOTAL_BYTES:
                 raise ValueError(f"{info.filename}: report archive too large to parse")
             with z.open(info) as f:
-                head = f.read(4096)
-            if b"<!DOCTYPE" in head or b"<!ENTITY" in head:
-                raise ValueError(f"{info.filename}: DOCTYPE/ENTITY declarations are not accepted")
+                _reject_dtd(f, info.filename)
             pending = []  # cases of the file being read; their suite closes after them
             with z.open(info) as f:
                 for _, el in ET.iterparse(f, events=("end",)):
@@ -141,16 +157,30 @@ def rows_for_artifact(run_id, day, sha, shard, data, run_created_at, top_classes
 
 def shard_artifacts(run_id):
     """Non-expired shard report artifacts of a run; if a re-run attempt uploaded a name twice, the newest wins."""
-    arts = collect.get(f"{collect.API}/actions/runs/{run_id}/artifacts?per_page=100")["artifacts"]
-    newest = {}
-    for a in arts:
-        if not a["expired"] and ARTIFACT_RE.match(a["name"]) and a["id"] > newest.get(a["name"], {"id": 0})["id"]:
-            newest[a["name"]] = a
-    return list(newest.values())
+    newest, page = {}, 1
+    while True:
+        data = collect.get(f"{collect.API}/actions/runs/{run_id}/artifacts?per_page=100&page={page}")
+        for a in data["artifacts"]:
+            if not a["expired"] and ARTIFACT_RE.match(a["name"]) and a["id"] > newest.get(a["name"], {"id": 0})["id"]:
+                newest[a["name"]] = a
+        if page * 100 >= data["total_count"] or not data["artifacts"]:
+            return list(newest.values())
+        page += 1
+
+
+# What can go wrong with one report artifact. Recorded per artifact so the run's job and step data is never lost to it.
+ARTIFACT_ERRORS = (ValueError, KeyError, RuntimeError, OSError, zipfile.BadZipFile, ET.ParseError)
 
 
 def test_rows_for_run(run, top_classes=None, workers=1):
+    """-> (rows, errors). A report that cannot be fetched or parsed is listed in errors instead of aborting the run."""
     def one(a):
-        return rows_for_artifact(run["id"], run["created_at"][:10], run["head_sha"], a["name"], download_zip(a["id"]), run["created_at"], top_classes)
+        try:
+            return rows_for_artifact(run["id"], run["created_at"][:10], run["head_sha"], a["name"], download_zip(a["id"]),
+                                     run["created_at"], top_classes), None
+        except ARTIFACT_ERRORS as e:
+            print(f"::warning::skipping report artifact {a['name']!r}: {type(e).__name__}: {e}", flush=True)
+            return [], {"artifact": a["name"], "error": f"{type(e).__name__}: {e}"[:300]}
     with ThreadPoolExecutor(workers) as pool:
-        return [row for rows in pool.map(one, shard_artifacts(run["id"])) for row in rows]
+        results = list(pool.map(one, shard_artifacts(run["id"])))
+    return [row for rows, _ in results for row in rows], [err for _, err in results if err]

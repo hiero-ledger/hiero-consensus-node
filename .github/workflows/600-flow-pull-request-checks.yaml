@@ -191,55 +191,22 @@ jobs:
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
 
+  # Never gates the PR: nothing depends on it and a failure inside it does not fail this run. Always runs (also for runs
+  # cancelled by a newer push) so that cancelled runs are recorded too. See docs/ci-metrics.md.
   publish-run-metrics:
-    # Writes this run's jobs, step timings and per-test timings to an artifact while all of that still exists
-    # (the API drops step detail after ~18 days and JUnit reports after 7). See .github/ci-metrics/README.md.
-    # Never gates the PR: nothing depends on it and it may fail without effect.
     name: Publish Run Metrics
-    runs-on: hl-cn-default-lin-sm
     needs:
       - detect-change-type
+      - extract-jdk-version
       - mats-pr-checks
       - workflow-unit-tests
       - ci-complete
-    if: ${{ !cancelled() && github.event.repository.visibility == 'public' && github.event.pull_request.head.repo.full_name == github.repository }}
-    continue-on-error: true
-    timeout-minutes: 10
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
-
-      - name: Checkout Scripts
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          sparse-checkout: .github/ci-metrics
-          persist-credentials: false
-
-      # The runner image's Python: on the hl-cn runners, setup-python installs a build that needs a newer glibc than
-      # the image has (same pattern as 007, 822, 823 and 905)
-      - name: Install Python
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends python3
-
-      - name: Collect Run Metrics
-        env:
-          GH_TOKEN: ${{ github.token }}
-          CTX_ACTION: ${{ github.event.action }}
-          CTX_DOCS_ONLY: ${{ needs.detect-change-type.outputs.docs-only }}
-          CTX_ENABLE_TESTS: ${{ needs.detect-change-type.outputs.enable-tests }}
-          CTX_WORKFLOW_FILES_CHANGED: ${{ needs.detect-change-type.outputs.workflow-files-changed }}
-          CTX_SMART_CONTRACTS_CHANGED: ${{ needs.detect-change-type.outputs.smart-contracts-changed }}
-          CTX_FAILURE_MODE: ${{ needs.mats-pr-checks.outputs.failure-mode }}
-        run: python3 -I .github/ci-metrics/run_metrics.py --out run-metrics.json
-
-      - name: Upload Run Metrics
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: run-metrics
-          path: run-metrics.json
-          retention-days: 90
-          overwrite: true
-          if-no-files-found: error
+      - report-summary
+    if: ${{ always() && github.event.repository.visibility == 'public' && github.event.pull_request.head.repo.full_name == github.repository }}
+    uses: ./.github/workflows/865-call-publish-run-metrics.yaml
+    with:
+      context: >-
+        ${{ format('{{"action":"{0}","head_sha":"{1}","docs_only":"{2}","enable_tests":"{3}","workflow_files_changed":"{4}","smart_contracts_changed":"{5}","failure_mode":"{6}"}}',
+        github.event.action, github.event.pull_request.head.sha, needs.detect-change-type.outputs.docs-only,
+        needs.detect-change-type.outputs.enable-tests, needs.detect-change-type.outputs.workflow-files-changed,
+        needs.detect-change-type.outputs.smart-contracts-changed, needs.mats-pr-checks.outputs.failure-mode) }}
