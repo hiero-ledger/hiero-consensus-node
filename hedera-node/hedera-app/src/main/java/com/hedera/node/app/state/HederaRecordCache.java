@@ -105,11 +105,14 @@ public interface HederaRecordCache extends RecordCache {
             @NonNull StreamMode streamMode);
 
     /**
-     * Does the same work as {@link #commitReceipts(State, Instant, ImmediateStateChangeListener, BlockStreamManager, StreamMode)},
-     * <b>if</b> the number of receipts accumulated so far in the round exceeds the given batch size.
+     * Commits the receipts accumulated so far in the round to the transaction receipt queue, <b>if</b> there are at
+     * least the given batch size of them. Unlike
+     * {@link #commitReceipts(State, Instant, ImmediateStateChangeListener, BlockStreamManager, StreamMode)}, this
+     * does not purge expired receipts, since the rest of the round's transactions run before the round's consensus
+     * time.
      *
      * @param state                        The state to commit the transaction receipts to
-     * @param consensusNow                 The current consensus time
+     * @param consensusNow                 The consensus time of the round
      * @param immediateStateChangeListener The listener to capture the state changes
      * @param blockStreamManager           The block stream manager
      * @param receiptEntriesBatchSize      The maximum number of receipts to accumulate in a batch before committing

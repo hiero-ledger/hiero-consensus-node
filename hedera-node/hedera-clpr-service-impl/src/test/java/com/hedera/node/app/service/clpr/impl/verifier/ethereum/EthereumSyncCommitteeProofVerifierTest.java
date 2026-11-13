@@ -36,7 +36,6 @@ import com.hedera.hapi.node.state.clpr.EthereumPosSyncCommittee;
 import com.hedera.hapi.node.state.clpr.EthereumPosTrustAnchor;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
-import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.Committee;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.ConfigBuilder;
@@ -83,6 +82,10 @@ class EthereumSyncCommitteeProofVerifierTest {
      */
     private static final int DELIVERY_INDEX_SIGNATURE_SLOT = 1;
 
+    private final RecordingBls bls = new RecordingBls();
+
+    private final EthereumSyncCommitteeProofVerifier verifier = new EthereumSyncCommitteeProofVerifier(bls);
+
     /**
      * A {@link BlsSignatureVerifier} that records its inputs and returns a configurable result.
      */
@@ -123,19 +126,34 @@ class EthereumSyncCommitteeProofVerifierTest {
         return new DeliveryBuilder(MAINNET, ANCHOR_PERIOD, COMMITTEE);
     }
 
-    private static VerifiedBundle verify(final byte[] bundlePayload) {
+    private VerifiedBundle verify(final byte[] bundlePayload) {
         return verify(bundlePayload, TRUST_ANCHOR);
     }
 
-    private static VerifiedBundle verify(final byte[] bundlePayload, final byte[] trustAnchor) {
-        return new EthereumSyncCommitteeProofVerifier(new RecordingBls())
-                .verifyBundle(bundlePayload, trustAnchor, CHANNEL_CONTEXT);
+    private VerifiedBundle verify(final byte[] bundlePayload, final byte[] trustAnchor) {
+        return verifier.verifyBundle(bundlePayload, trustAnchor, CHANNEL_CONTEXT);
     }
 
-    private static void assertRejected(final byte[] bundlePayload, final String message) {
+    private void assertRejected(final byte[] bundlePayload, final String message) {
         assertThatThrownBy(() -> verify(bundlePayload))
                 .isInstanceOf(ProofException.class)
                 .hasMessageContaining(message);
+    }
+
+    @Test
+    void contextualProofRejectsAnotherChannelsGenuineStorageKeys() {
+        // A genuine proof of CHANNEL_ID's slots verifies under CHANNEL_CONTEXT.
+        final byte[] payload = bundle(delivery().build());
+        assertThat(verifier.verifyBundle(payload, TRUST_ANCHOR, CHANNEL_CONTEXT)
+                        .queueMetadata()
+                        .nextMessageId())
+                .isZero();
+        // Changing one channel-ID byte keeps the service address valid, so only the slot-key binding can reject it.
+        final byte[] otherContext = CHANNEL_CONTEXT.clone();
+        otherContext[0] ^= 1;
+        assertThatThrownBy(() -> verifier.verifyBundle(payload, TRUST_ANCHOR, otherContext))
+                .isInstanceOf(ProofException.class)
+                .hasMessageContaining("storage slot");
     }
 
     @Nested
@@ -145,7 +163,6 @@ class EthereumSyncCommitteeProofVerifierTest {
         @Test
         @DisplayName("given a null argument, then verifyBundle throws NullPointerException")
         void givenNullArgument_thenThrowsNullPointerException() {
-            final var verifier = new EthereumSyncCommitteeProofVerifier(new RecordingBls());
             final byte[] payload = bundle(delivery().build());
             assertThatThrownBy(() -> verifier.verifyBundle(null, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .isInstanceOf(NullPointerException.class);
@@ -292,7 +309,6 @@ class EthereumSyncCommitteeProofVerifierTest {
         @Test
         @DisplayName("given a channel context without the service address, then verifyBundle rejects it")
         void givenChannelContextWithoutServiceAddress_thenThrowsProofException() {
-            final var verifier = new EthereumSyncCommitteeProofVerifier(new RecordingBls());
             assertThatThrownBy(() -> verifier.verifyBundle(bundle(delivery().build()), TRUST_ANCHOR, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("channelContext must be 52 bytes");
@@ -342,15 +358,12 @@ class EthereumSyncCommitteeProofVerifierTest {
         @DisplayName("given the BLS check fails, then verifyBundle rejects the signature naming the header, the"
                 + " participation and the fork version")
         void givenBlsRejects_thenThrowsProofException() {
-            final RecordingBls bls = new RecordingBls();
             bls.result = false;
-            final var verifier = new EthereumSyncCommitteeProofVerifier(bls);
             final DeliveryBuilder builder = delivery();
-            final byte[] bundlePayload = bundle(builder.build());
 
-            assertThatThrownBy(() -> verifier.verifyBundle(bundlePayload, TRUST_ANCHOR, CHANNEL_CONTEXT))
-                    .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("sync aggregate BLS signature verification failed: headerSlot="
+            assertRejected(
+                    bundle(builder.build()),
+                    "sync aggregate BLS signature verification failed: headerSlot="
                             + builder.attestedSlot + ", headerRoot=0x"
                             + HexFormat.of().formatHex(builder.attestedRoot())
                             + ", participants=510/512, nonSigners=2, forkVersion=0x"
@@ -363,10 +376,8 @@ class EthereumSyncCommitteeProofVerifierTest {
         void givenValidDelivery_thenBlsReceivesAggregateNonSignersSigningRootAndSignature() {
             final DeliveryBuilder builder = delivery();
             builder.signature = deterministicBytes(256, 0x5A);
-            final RecordingBls bls = new RecordingBls();
 
-            new EthereumSyncCommitteeProofVerifier(bls)
-                    .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
+            verify(bundle(builder.build()));
 
             assertThat(bls.lastAggregatePubkey).isEqualTo(COMMITTEE.uncompressedAggregate);
             assertThat(bls.lastNonSignerPubkeys)
@@ -380,10 +391,8 @@ class EthereumSyncCommitteeProofVerifierTest {
         void givenFullParticipation_thenBlsReceivesNoNonSigners() {
             final DeliveryBuilder builder = delivery();
             builder.bits = bitsWithout(MAINNET);
-            final RecordingBls bls = new RecordingBls();
 
-            new EthereumSyncCommitteeProofVerifier(bls)
-                    .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
+            verify(bundle(builder.build()));
 
             assertThat(bls.lastNonSignerPubkeys).isEmpty();
         }
@@ -412,10 +421,8 @@ class EthereumSyncCommitteeProofVerifierTest {
                 + " without a rotation")
         void givenHeaderSignedInNextPeriodByNextCommittee_thenVerifiesWithoutRotation() {
             final DeliveryBuilder builder = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE);
-            final RecordingBls bls = new RecordingBls();
 
-            final VerifiedBundle verified = new EthereumSyncCommitteeProofVerifier(bls)
-                    .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
+            final VerifiedBundle verified = verify(bundle(builder.build()));
 
             assertThat(verified.beaconBlockRoot32()).isEqualTo(builder.attestedRoot());
             assertThat(verified.nextTrustAnchor()).isNull();
@@ -429,10 +436,8 @@ class EthereumSyncCommitteeProofVerifierTest {
             final DeliveryBuilder builder = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD, NEXT_COMMITTEE);
             builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 1);
             builder.attestedSlot = builder.signatureSlot - 1;
-            final RecordingBls bls = new RecordingBls();
 
-            new EthereumSyncCommitteeProofVerifier(bls)
-                    .verifyBundle(bundle(builder.build()), TRUST_ANCHOR, CHANNEL_CONTEXT);
+            verify(bundle(builder.build()));
 
             assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.uncompressedAggregate);
         }
@@ -647,8 +652,7 @@ class EthereumSyncCommitteeProofVerifierTest {
         void givenSlotsOfAnotherChannel_thenThrowsProofException() {
             final DeliveryBuilder builder =
                     delivery().withStorage(EMPTY_TRIE_ROOT, new byte[0][], channelSlots(deterministicBytes(32, 0x01)));
-            assertRejected(
-                    bundle(builder.build()), "proven storage is missing the channel's STATUS_AND_NEXT_MESSAGE_ID slot");
+            assertRejected(bundle(builder.build()), "queue proof contains an unexpected storage slot for this channel");
         }
 
         @Test
@@ -661,16 +665,17 @@ class EthereumSyncCommitteeProofVerifierTest {
         }
 
         @Test
-        @DisplayName("given a sixth slot, then its proven value is the last message running hash")
-        void givenSixthSlot_thenItsValueIsTheLastMessageRunningHash() {
-            final byte[] runningHash = deterministicBytes(32, 0xAB);
-            final DeliveryBuilder builder = delivery()
-                    .withSingleSlotStorage(slotKey(0x50), runningHash, channelSlotsAnd(CHANNEL_ID, slotKey(0x50)));
+        @DisplayName("given an unrelated sixth slot, then verifyBundle rejects the storage proof")
+        void givenUnrelatedSixthSlot_thenThrowsProofException() {
+            // nextMessageId 42 gets past the counter check, so the failure is the slot-key mismatch: slot
+            // 0x50 is not message 41's running-hash slot.
+            final byte[][] slots = channelSlots(CHANNEL_ID);
+            final byte[] statusSlot = new byte[32];
+            ByteBuffer.wrap(statusSlot, 3, 8).putLong(42L);
+            final DeliveryBuilder builder =
+                    delivery().withSingleSlotStorage(slots[0], statusSlot, channelSlotsAnd(CHANNEL_ID, slotKey(0x50)));
 
-            final ProvenQueueMetadata metadata = verify(bundle(builder.build())).queueMetadata();
-
-            assertThat(metadata.lastMessageRunningHash()).isEqualTo(runningHash);
-            assertThat(metadata.sentRunningHash()).isEqualTo(new byte[32]);
+            assertRejected(bundle(builder.build()), "last-message running-hash slot does not belong to this channel");
         }
 
         @Test
@@ -835,11 +840,9 @@ class EthereumSyncCommitteeProofVerifierTest {
         @Test
         @DisplayName("given one rotation, then verifyBundle validates the aggregate of the committee it proves")
         void givenOneRotation_thenValidatesProvenCommitteeAggregate() {
-            final RecordingBls bls = new RecordingBls();
             final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT).build();
 
-            new EthereumSyncCommitteeProofVerifier(bls)
-                    .verifyBundle(bundle(List.of(rotation().build()), delivery), TRUST_ANCHOR, CHANNEL_CONTEXT);
+            verify(bundle(List.of(rotation().build()), delivery));
 
             assertThat(bls.validatedPubkeys).containsExactly(COMMITTEE_AFTER_NEXT.uncompressedAggregate);
         }
@@ -847,15 +850,12 @@ class EthereumSyncCommitteeProofVerifierTest {
         @Test
         @DisplayName("given a next committee whose aggregate is not a valid public key, then verifyBundle rejects it")
         void givenNextAggregateNotValidPubkey_thenThrowsProofException() {
-            final RecordingBls bls = new RecordingBls();
             bls.invalidPubkey = COMMITTEE_AFTER_NEXT.uncompressedAggregate;
             final byte[] delivery = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 2, COMMITTEE_AFTER_NEXT).build();
-            final var verifier = new EthereumSyncCommitteeProofVerifier(bls);
 
-            assertThatThrownBy(() -> verifier.verifyBundle(
-                            bundle(List.of(rotation().build()), delivery), TRUST_ANCHOR, CHANNEL_CONTEXT))
-                    .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("next sync committee aggregate pubkey 0x"
+            assertRejected(
+                    bundle(List.of(rotation().build()), delivery),
+                    "next sync committee aggregate pubkey 0x"
                             + HexFormat.of().formatHex(COMMITTEE_AFTER_NEXT.compressedAggregate)
                             + " is not a valid BLS public key");
         }
@@ -984,10 +984,6 @@ class EthereumSyncCommitteeProofVerifierTest {
     @Nested
     @DisplayName("verifyConfigPayload(...)")
     class VerifyConfigPayload {
-
-        private final RecordingBls bls = new RecordingBls();
-
-        private final EthereumSyncCommitteeProofVerifier verifier = new EthereumSyncCommitteeProofVerifier(bls);
 
         /** A config of ANCHOR_PERIOD: COMMITTEE signs the update proving NEXT_COMMITTEE. */
         private static ConfigBuilder config() {

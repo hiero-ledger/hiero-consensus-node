@@ -206,6 +206,8 @@ public interface HandleContext {
              * Metadata for a contract child dispatch executed by the native CLPR service.
              */
             CLPR_DISPATCH,
+            /** Parent-owned network gas payments and remaining execution budget for CLPR. */
+            CLPR_GAS_ACCOUNTING,
             /**
              * Boolean marker identifying the verifier call within a native CLPR transaction.
              */
@@ -250,6 +252,18 @@ public interface HandleContext {
     TransactionBody body();
 
     /**
+     * Returns the actual category of the transaction being handled.
+     *
+     * <p>Use this category for handler authorization. It is independent of the deprecated
+     * {@link com.hedera.node.app.spi.fees.FeeCharging.Context#category()} used for fee accounting,
+     * which may report {@link TransactionCategory#CHILD} to preserve its charging semantics.
+     *
+     * @return the transaction's dispatch category
+     */
+    @NonNull
+    TransactionCategory transactionCategory();
+
+    /**
      * Gets the payer {@link AccountID}.
      *
      * @return the {@link AccountID} of the payer in this context
@@ -286,6 +300,9 @@ public interface HandleContext {
      * @param amount the amount to refund.
      */
     void refundBestEffort(AccountID accountId, long amount);
+
+    /** Refunds an extra handler charge through the same fee component and strategy as {@link #tryToCharge}. */
+    void refundHandlerCharge(@NonNull AccountID accountId, long amount);
 
     /**
      * Refunds the requested account in this context the given amount of service fee.

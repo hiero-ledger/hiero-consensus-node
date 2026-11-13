@@ -53,8 +53,10 @@ public class ScheduleSignHandler extends AbstractScheduleHandler implements Tran
         final boolean isLongTermEnabled = schedulingConfig.longTermEnabled();
         final var schedule = getValidated(op.scheduleIDOrThrow(), scheduleStore, isLongTermEnabled);
         final var requiredKeys = getRequiredKeys(schedule, context::allKeysForTransaction);
-        context.optionalKey(requiredKeys.payerKey());
-        context.optionalKeys(requiredKeys.requiredNonPayerKeys());
+        context.optionalKeyRequirement(requiredKeys.payerKeyRequirement());
+        for (final var requirement : requiredKeys.requiredKeyRequirements()) {
+            context.optionalKeyRequirement(requirement);
+        }
     }
 
     @Override
