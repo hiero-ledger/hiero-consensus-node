@@ -10,10 +10,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public enum SigningImplementation {
     /**
-     * RSA implementation using Bouncy Castle as the security provider.
-     */
-    RSA_BC(RSA, CryptoConstants.SIG_PROVIDER),
-    /**
      * RSA implementation using the default JDK security provider.
      */
     RSA_JDK(RSA, "SunRsaSign"),

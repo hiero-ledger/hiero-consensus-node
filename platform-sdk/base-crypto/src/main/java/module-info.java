@@ -29,7 +29,6 @@ module org.hiero.base.crypto {
     requires com.hedera.cryptography.security;
     requires com.swirlds.base;
     requires org.apache.logging.log4j;
-    requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;
 
     // spotless:off

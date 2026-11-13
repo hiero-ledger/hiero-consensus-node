@@ -303,7 +303,7 @@ public class RecordStreamV6Verifier {
                 101 - (int) signatureFile.fileSignature().signature().length(),
                 signatureFile.fileSignature().checksum(),
                 "Bad fileSignature checksum in signature file");
-        Signature sig = Signature.getInstance(SignatureType.RSA.signingAlgorithm(), SignatureType.RSA.provider());
+        Signature sig = Signature.getInstance(SignatureType.RSA.signingAlgorithm());
         sig.initVerify(userPublicKey);
         sig.update(signatureFile.fileSignature().hashObject().hash().toByteArray());
         assertTrue(sig.verify(signatureFile.fileSignature().signature().toByteArray()));
@@ -336,7 +336,7 @@ public class RecordStreamV6Verifier {
                 101 - (int) signatureFile.metadataSignature().signature().length(),
                 signatureFile.metadataSignature().checksum(),
                 "Bad metadataSignature checksum in signature file");
-        Signature sig2 = Signature.getInstance(SignatureType.RSA.signingAlgorithm(), SignatureType.RSA.provider());
+        Signature sig2 = Signature.getInstance(SignatureType.RSA.signingAlgorithm());
         sig2.initVerify(userPublicKey);
         sig2.update(metadataHash);
         assertTrue(sig2.verify(signatureFile.metadataSignature().signature().toByteArray()));

@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto;
 
-import java.security.Security;
 import java.time.Instant;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
 
 public final class CryptoConstants {
     // number of bytes in a hash
@@ -20,7 +18,6 @@ public final class CryptoConstants {
     public static final String AGR_TYPE = "EC";
     public static final String AGR_PROVIDER = "SunEC";
     public static final String SIG_TYPE1 = "RSA"; // or SHA384withRSA
-    public static final String SIG_PROVIDER = getBCProviderName();
     public static final String SIG_TYPE2 = "SHA384withRSA"; // or RSA
     /** this is the only TLS protocol we will allow */
     public static final String TLS_SUITE = "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384";
@@ -35,10 +32,4 @@ public final class CryptoConstants {
     public static final String KEYSTORE_TYPE = "pkcs12";
 
     private CryptoConstants() {}
-
-    /* Ensure BouncyCastle provider is added before the name is used */
-    private static String getBCProviderName() {
-        Security.addProvider(new BouncyCastleProvider());
-        return BouncyCastleProvider.PROVIDER_NAME;
-    }
 }
