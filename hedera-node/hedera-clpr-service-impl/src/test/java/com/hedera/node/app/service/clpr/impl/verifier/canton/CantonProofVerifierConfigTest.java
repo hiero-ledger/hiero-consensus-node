@@ -20,11 +20,16 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.PrivateKey;
+import java.security.SecureRandom;
+import java.security.Signature;
+import java.security.interfaces.EdECPublicKey;
+import java.security.spec.NamedParameterSpec;
 import java.util.Arrays;
 import java.util.HexFormat;
-import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters;
-import org.bouncycastle.crypto.signers.Ed25519Signer;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -797,20 +802,51 @@ class CantonProofVerifierConfigTest {
         }
     }
 
-    private record Med(Ed25519PrivateKeyParameters priv, byte[] pub, byte[] fp) {
+    private record Med(PrivateKey priv, byte[] pub, byte[] fp) {
         static Med of(final int seed) {
             final byte[] s = new byte[32];
             Arrays.fill(s, (byte) seed);
-            final var priv = new Ed25519PrivateKeyParameters(s, 0);
-            final byte[] pub = priv.generatePublicKey().getEncoded();
-            return new Med(priv, pub, sha(pub));
+            try {
+                // The JDK derives the Ed25519 key from 32 bytes drawn from the SecureRandom, so a fixed
+                // "random" source yields a deterministic key pair.
+                final var fixed = new SecureRandom() {
+                    @Override
+                    public void nextBytes(final byte[] bytes) {
+                        System.arraycopy(s, 0, bytes, 0, bytes.length);
+                    }
+                };
+                final var gen = KeyPairGenerator.getInstance("Ed25519");
+                gen.initialize(NamedParameterSpec.ED25519, fixed);
+                final KeyPair pair = gen.generateKeyPair();
+                final byte[] pub = rawPublicKey((EdECPublicKey) pair.getPublic());
+                return new Med(pair.getPrivate(), pub, sha(pub));
+            } catch (final Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+        /** RFC 8032 encoding: little-endian y with the sign of x in the top bit. */
+        private static byte[] rawPublicKey(final EdECPublicKey key) {
+            final byte[] be = key.getPoint().getY().toByteArray();
+            final byte[] raw = new byte[32];
+            for (int i = 0; i < be.length && i < 32; ++i) {
+                raw[i] = be[be.length - 1 - i];
+            }
+            if (key.getPoint().isXOdd()) {
+                raw[31] |= (byte) 0x80;
+            }
+            return raw;
         }
 
         byte[] sign(final byte[] message) {
-            final var signer = new Ed25519Signer();
-            signer.init(true, priv);
-            signer.update(message, 0, message.length);
-            return signer.generateSignature();
+            try {
+                final var signer = Signature.getInstance("Ed25519");
+                signer.initSign(priv);
+                signer.update(message);
+                return signer.sign();
+            } catch (final Exception e) {
+                throw new IllegalStateException(e);
+            }
         }
 
         /** Packed set layout of CantonMediators: one Ed25519 member with one current key, threshold 1. */

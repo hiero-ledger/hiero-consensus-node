@@ -4,7 +4,6 @@ package com.hedera.node.app.service.clpr.impl.verifier.canton;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonRlp.Slice;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -91,7 +90,7 @@ public final class CantonVerdictVerifier {
         Objects.requireNonNull(trustAnchor, "trustAnchor");
         Objects.requireNonNull(rotations, "rotations");
 
-        final boolean changed = !isEmpty(new Slice(rotations, 0, rotations.length));
+        final boolean changed = !CantonRlp.isEmpty(new Slice(rotations, 0, rotations.length));
         final CantonAnchor.Anchor anchor;
         final byte[] set;
         if (changed) {

@@ -431,13 +431,6 @@ class CantonProofVerifierBundleTest {
                 .isInstanceOf(HandleException.class);
     }
 
-    @Test
-    void verifyConfigIsNotSupportedInPrA() {
-        assertThatThrownBy(() -> new CantonProofVerifier()
-                        .verifyConfig(Bytes.EMPTY, Bytes.wrap(CHANNEL_ID), Bytes.EMPTY, mock(HandleContext.class)))
-                .isInstanceOf(HandleException.class);
-    }
-
     // ── bundle assembly ─────────────────────
 
     private static ClprBundleContent verify(final Bundle b) {

@@ -6,12 +6,10 @@ import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.Secp256k1Recovery;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Objects;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 /**
  * The packed mediator set of a Canton trust anchor, and the signature check of a mediator verdict.
