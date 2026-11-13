@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
+import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
+import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -21,8 +23,16 @@ import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
+import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
+import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.BlockHashSigner;
@@ -38,12 +48,16 @@ import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.hints.schemas.V079HintsSchema;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.impl.HistoryProofAddressBooks;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.history.schemas.V071HistorySchema;
+import com.hedera.node.app.history.schemas.V0790HistorySchema;
+import com.hedera.node.app.history.schemas.V0800HistorySchema;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.tss.PreparedTssHandoff;
@@ -51,6 +65,7 @@ import com.hedera.node.app.tss.TssHandoffCoordinator;
 import com.hedera.node.app.tss.TssKeyFiles;
 import com.hedera.node.app.utils.TestUtils;
 import com.hedera.node.app.workflows.clpr.ClprRuntime;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeTssMetadata;
@@ -67,6 +82,8 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
+import com.swirlds.state.test.fixtures.ListWritableQueueState;
+import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -76,6 +93,8 @@ import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.file.FileSystemManager;
@@ -467,6 +486,115 @@ final class HederaTest {
                 .hasMessageContaining("legacy proof is not WRAPS-extensible")
                 .hasMessageContaining("restore a verified snapshot or reset TSS");
         verifyNoInteractions(hintsService);
+    }
+
+    @Test
+    void legacyNonWrapsStateRestartsWithRealSigningAfterAFreshGenesisWrapsProof() throws ReflectiveOperationException {
+        final var rosterHash = Bytes.wrap("legacy-roster");
+        final var roster = new Roster(List.of(
+                RosterEntry.newBuilder().nodeId(0L).weight(5L).build(),
+                RosterEntry.newBuilder().nodeId(1L).weight(3L).build(),
+                RosterEntry.newBuilder().nodeId(2L).weight(2L).build()));
+        final var verificationKey = Bytes.wrap("active-key");
+        // Node 2 holds no party in the active scheme
+        final var activeHints = HintsConstruction.newBuilder()
+                .constructionId(1L)
+                .crsId(1L)
+                .numParties(8)
+                .sourceRosterHash(rosterHash)
+                .targetRosterHash(rosterHash)
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap("aggregation-key"), verificationKey),
+                        List.of(new NodePartyId(0L, 1, 5L), new NodePartyId(1L, 2, 3L))))
+                .build();
+        final var crs = completedBootstrapCrs();
+        final var legacyHistory = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(Bytes.wrap("previous-roster"))
+                .targetRosterHash(rosterHash)
+                .targetProof(HistoryProof.newBuilder()
+                        .targetHistory(new History(Bytes.wrap("legacy-book-hash"), verificationKey)))
+                .build();
+        final var hintsService = serviceOfType(HintsService.class);
+        doAnswer(invocation -> {
+                    HintsGenerationWeights.from(invocation.getArgument(0), invocation.getArgument(2));
+                    return null;
+                })
+                .when(hintsService)
+                .setActiveConstruction(any(), any(), any());
+
+        // Real signing refuses to start from the legacy proof
+        final var refused = assertThrows(
+                InvocationTargetException.class, () -> initializeHintsSigning(activeHints, crs, legacyHistory));
+        assertThat(refused.getCause()).isInstanceOf(IllegalStateException.class);
+
+        // The upgrade that requests a fresh genesis proof also forces mock signatures, and that does start
+        clearInvocations(hintsService);
+        initializeHintsSigning(activeHints, crs, legacyHistory, true, true);
+        verify(hintsService).setActiveConstruction(activeHints, crs);
+
+        // The fresh genesis proof grounds a new chain of trust in the same roster and hinTS key
+        final var historyStore = historyStoreWith(legacyHistory);
+        final var rosters = mock(ActiveRosters.class);
+        when(rosters.phase()).thenReturn(BOOTSTRAP);
+        when(rosters.sourceRosterHash()).thenReturn(rosterHash);
+        when(rosters.targetRosterHash()).thenReturn(rosterHash);
+        when(rosters.findRelatedRoster(rosterHash)).thenReturn(roster);
+        final var tssConfig = HederaTestConfigBuilder.createConfig().getConfigData(TssConfig.class);
+        final var fresh =
+                historyStore.getOrCreateConstruction(rosters, Instant.EPOCH, tssConfig, true, verificationKey);
+        assertThat(fresh.constructionId()).isNotEqualTo(legacyHistory.constructionId());
+        assertThat(groundsChainOfTrust(fresh)).isTrue();
+        final var rosterWeights = new TreeMap<Long, Long>();
+        roster.rosterEntries().forEach(entry -> rosterWeights.put(entry.nodeId(), entry.weight()));
+        // The same fields the WRAPS prover sets on the proof it votes for
+        historyStore.completeProof(
+                fresh.constructionId(),
+                HistoryProof.newBuilder()
+                        .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(rosterWeights))
+                        .targetHistory(new History(Bytes.wrap("fresh-book-hash"), verificationKey))
+                        .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("compressed")))
+                        .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
+                        .build());
+        assertThat(historyStore.handoff(roster, null, null, null)).isTrue();
+        final var freshHistory = historyStore.getActiveConstruction();
+        assertThat(freshHistory.constructionId()).isEqualTo(fresh.constructionId());
+
+        // With mock signatures off again, the node starts and signs against the full roster weight
+        clearInvocations(hintsService);
+        initializeHintsSigning(activeHints, crs, freshHistory);
+        verify(hintsService).setActiveConstruction(activeHints, crs, freshHistory);
+        final var generation = HintsGenerationWeights.from(activeHints, freshHistory);
+        assertThat(generation.totalWeight()).isEqualTo(10L);
+        assertThat(generation.schemeWeight()).isEqualTo(8L);
+    }
+
+    private static WritableHistoryStoreImpl historyStoreWith(final HistoryProofConstruction active) {
+        return new WritableHistoryStoreImpl(new MapWritableStates(Map.of(
+                V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID,
+                mutableSingleton(V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID, active),
+                V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID,
+                mutableSingleton(V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID, HistoryProofConstruction.DEFAULT),
+                V071HistorySchema.LEDGER_ID_STATE_ID,
+                mutableSingleton(V071HistorySchema.LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger"))),
+                V071HistorySchema.PROOF_KEY_SETS_STATE_ID,
+                new MapWritableKVState<>(V071HistorySchema.PROOF_KEY_SETS_STATE_ID, "proofKeys"),
+                V071HistorySchema.PROOF_VOTES_STATE_ID,
+                new MapWritableKVState<>(V071HistorySchema.PROOF_VOTES_STATE_ID, "votes"),
+                V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID,
+                new MapWritableKVState<>(V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID, "messages"),
+                V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID,
+                ListWritableQueueState.<HintsKeyProvenance>builder(
+                                V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID, "provenance")
+                        .build(),
+                V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID,
+                new MapWritableKVState<ProtoLong, HintsKeyWitnessRecord>(
+                        V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID, "witnesses"))));
+    }
+
+    private static <T> FunctionWritableSingletonState<T> mutableSingleton(final int id, final T initial) {
+        final var value = new AtomicReference<>(initial);
+        return new FunctionWritableSingletonState<>(id, "HistoryService." + id, value::get, value::set);
     }
 
     @Test
