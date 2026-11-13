@@ -29,9 +29,7 @@ class SigningSchemaTest {
     }
 
     static Stream<Arguments> unsupportedKeys() throws GeneralSecurityException {
-        return Stream.of(
-                Arguments.of("JDK EC", jdkKeyPair("EC")),
-                Arguments.of("JDK Ed448", jdkKeyPair("Ed448")));
+        return Stream.of(Arguments.of("JDK EC", jdkKeyPair("EC")), Arguments.of("JDK Ed448", jdkKeyPair("Ed448")));
     }
 
     @ParameterizedTest(name = "{0}")
