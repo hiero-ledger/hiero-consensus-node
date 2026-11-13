@@ -2,9 +2,9 @@
 package org.hiero.consensus.model.event;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Iterator;
+import java.time.Instant;
+import java.util.List;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.hashgraph.ReachedConsensus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 
 /**
@@ -14,19 +14,20 @@ import org.hiero.consensus.model.transaction.ConsensusTransaction;
  * interface may be changed at any time, in any way, without notice or prior deprecation. Third parties should NOT
  * implement this interface.
  */
-public interface ConsensusEvent extends Event, ReachedConsensus {
+public interface ConsensusEvent extends Event {
 
     /**
-     * Returns an iterator over the application events in this transaction, which have all reached consensus. Each
-     * invocation returns a new iterator over the same transactions. This method is thread safe.
+     * Returns an immutable list of transactions in this event, which have all reached consensus. This method is thread safe.
      *
-     * @return a consensus transaction iterator
+     * @return a list of consensus transaction
      */
+    @Override
     @NonNull
-    Iterator<ConsensusTransaction> consensusTransactionIterator();
+    List<? extends ConsensusTransaction> getTransactions();
 
     /**
-     * Returns the hash of this event.
+     * Returns the hash of this event. The value will never be null, because the hash is always set prior to the
+     * event reaching consensus.
      *
      * @return the hash of the metadata of this event
      */
@@ -34,11 +35,16 @@ public interface ConsensusEvent extends Event, ReachedConsensus {
     Hash getHash();
 
     /**
-     * Returns an iterator over all the parents of this event (selfParent + otherParents). Each
-     * invocation returns a new iterator over the same all parents of this event. This method is thread safe.
+     * Returns the consensus order of the consensus item, starting at zero. Smaller values occur before higher numbers.
      *
-     * @return a consensus transaction iterator
+     * @return the consensus order sequence number
      */
-    @NonNull
-    Iterator<EventDescriptorWrapper> allParentsIterator();
+    long getConsensusOrder();
+
+    /**
+     * Returns the community's consensus timestamp for this item.
+     *
+     * @return the consensus timestamp
+     */
+    Instant getConsensusTimestamp();
 }

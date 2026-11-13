@@ -26,6 +26,7 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 
 /**
@@ -61,18 +62,20 @@ public class CacheWarmer {
             final ReadableStoreFactory storeFactory = new ReadableStoreFactoryImpl(state);
             final ReadableAccountStore accountStore = storeFactory.readableStore(ReadableAccountStore.class);
             for (final ConsensusEvent event : round) {
-                event.forEachTransaction(platformTransaction -> executor.execute(() -> {
-                    final TransactionBody txBody = extractTransactionBody(platformTransaction);
-                    if (txBody != null) {
-                        final AccountID payerID = txBody.transactionIDOrElse(TransactionID.DEFAULT)
-                                .accountID();
-                        if (payerID != null) {
-                            accountStore.warm(payerID);
+                for (final ConsensusTransaction platformTransaction : event.getTransactions()) {
+                    executor.execute(() -> {
+                        final TransactionBody txBody = extractTransactionBody(platformTransaction);
+                        if (txBody != null) {
+                            final AccountID payerID = txBody.transactionIDOrElse(TransactionID.DEFAULT)
+                                    .accountID();
+                            if (payerID != null) {
+                                accountStore.warm(payerID);
+                            }
+                            final var context = new WarmupContextImpl(txBody, storeFactory);
+                            dispatcher.dispatchWarmup(context);
                         }
-                        final var context = new WarmupContextImpl(txBody, storeFactory);
-                        dispatcher.dispatchWarmup(context);
-                    }
-                }));
+                    });
+                }
             }
         });
     }

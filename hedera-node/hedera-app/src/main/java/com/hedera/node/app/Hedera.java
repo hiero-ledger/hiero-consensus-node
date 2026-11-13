@@ -709,14 +709,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         transactionPool.reportUnhealthyDuration(duration);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public void processStaleEvent(@NonNull final Event event) {
         requireNonNull(event);
         if (quiescenceEnabled) {
             final var app = requireNonNull(daggerApp);
             // First set a minimal PreHandleResult on every event so the quiescence controller can classify them
-            final var transactions = new ArrayList<Transaction>(1000);
-            event.forEachTransaction(transactions::add);
+            final var transactions = (List<Transaction>) event.getTransactions();
             final int maxBytes = configProvider
                     .getConfiguration()
                     .getConfigData(HederaConfig.class)
@@ -732,7 +732,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             app.quiescenceController().staleEvent(event);
             // If this is a self-created event, decrement in-flight counts by stale transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
-                app.txPipelineTracker().countLanded(transactions.iterator());
+                app.txPipelineTracker().countLanded(transactions);
             }
         }
     }
@@ -1268,6 +1268,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     /**
      * Invoked by the platform to handle pre-consensus events. This only happens after {@link #run()} has been called.
      */
+    @SuppressWarnings("unchecked")
     @Override
     public void onPreHandle(
             @NonNull final Event event,
@@ -1284,15 +1285,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 stateSignatureTxnCallback.accept(scopedTxn);
             }
         };
-        final var transactions = new ArrayList<Transaction>(1000);
-        event.forEachTransaction(transactions::add);
+        final var transactions = (List<Transaction>) event.getTransactions();
         app.preHandleWorkflow()
                 .preHandle(readableStoreFactory, creatorInfo, transactions.stream(), shortCircuitTxnCallback);
         if (quiescenceEnabled) {
             app.quiescenceController().onPreHandle(transactions);
             // If this is a self-created event, decrement in-flight counts by the transactions that landed
             if (event.getCreatorId().equals(platform.getSelfId())) {
-                app.txPipelineTracker().countLanded(event.transactionIterator());
+                app.txPipelineTracker().countLanded(transactions);
             }
         }
     }

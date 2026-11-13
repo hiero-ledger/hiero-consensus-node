@@ -128,7 +128,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -525,8 +524,7 @@ public class HandleWorkflow {
                 }
             };
             logStartEvent(event, creator);
-            for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
-                final var platformTxn = it.next();
+            for (final ConsensusTransaction platformTxn : event.getTransactions()) {
                 try {
                     transactionsDispatched |= handlePlatformTransaction(
                             state, creator, platformTxn, event.getEventCore().birthRound(), shortCircuitCallback);
@@ -580,9 +578,7 @@ public class HandleWorkflow {
     private void writeEventHeader(ConsensusEvent event) {
         blockStreamManager.trackEventHash(event.getHash());
         List<ParentEventReference> parents = new ArrayList<>();
-        final Iterator<EventDescriptorWrapper> iterator = event.allParentsIterator();
-        while (iterator.hasNext()) {
-            final EventDescriptorWrapper parent = iterator.next();
+        for (final EventDescriptorWrapper parent : event.getAllParents()) {
             Optional<Integer> parentHash = blockStreamManager.getEventIndex(parent.hash());
             if (parentHash.isEmpty()) {
                 parents.add(ParentEventReference.newBuilder()
