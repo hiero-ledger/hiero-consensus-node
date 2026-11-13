@@ -41,12 +41,11 @@ first moved to <name>.<epochMillis>.bak (mode 0600), so a legacy bundle is never
 from __future__ import annotations  # PEP 604/585 annotations on Python 3.9
 
 import argparse
+import importlib.util
 import json
 import os
 import re
-import stat
 import sys
-import time
 from pathlib import Path
 
 try:
@@ -65,60 +64,18 @@ except ImportError as e:  # pragma: no cover — install hint
 # Helpers
 # -----------------------------------------------------------------------------
 
+# Shared key-file helpers live next to this script (same loading pattern as build-besu-qbft-config-payload.py).
+_spec = importlib.util.spec_from_file_location(
+    "clpr_identity_files", Path(__file__).with_name("clpr_identity_files.py"))
+_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_files)
+_check_key_file = _files._check_key_file
+_write_secure = _files._write_secure
+
+
 CHANNEL_ID_LEN = 32
 PRIVATE_KEY_LEN = 32
 
-
-def _check_key_file(path: Path, allow_loose: bool) -> None:
-    """Refuse a key file that is not a regular, non-symlink file readable only by its owner (POSIX)."""
-    if os.name != "posix":
-        return
-    try:
-        st = os.lstat(str(path))
-    except OSError as e:
-        raise ValueError("cannot stat key file {}: {}".format(path, e)) from e
-    if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
-        raise ValueError("key file must be a regular file, not a symlink or special file: {}".format(path))
-    if allow_loose:
-        return
-    if st.st_uid != os.geteuid():
-        raise ValueError(
-            "key file {} is not owned by you; pass --allow-loose-key-file to override".format(path))
-    if st.st_mode & 0o077:
-        raise ValueError(
-            "key file {} has mode {:o}; it must not be accessible by group/others. "
-            "Run: chmod 600 {}  (or pass --allow-loose-key-file to override)".format(
-                path, stat.S_IMODE(st.st_mode), path))
-
-
-def _backup_existing(path: Path) -> Path | None:
-    """Move an existing regular file to <name>.<epochMillis>.bak (0600); never destroys data."""
-    if path.is_symlink():
-        raise OSError("refusing to write through symlink: {}".format(path))
-    if not path.exists():
-        return None
-    if not path.is_file():
-        raise OSError("refusing to replace non-regular file: {}".format(path))
-    epoch = int(time.time() * 1000)
-    backup = path.with_name("{}.{}.bak".format(path.name, epoch))
-    while backup.exists():
-        epoch += 1
-        backup = path.with_name("{}.{}.bak".format(path.name, epoch))
-    os.rename(str(path), str(backup))
-    os.chmod(str(backup), 0o600)
-    return backup
-
-
-def _write_secure(path: Path, content: str) -> None:
-    """Write content to a new file at path with mode 0o600, first backing up any existing file."""
-    backup = _backup_existing(path)
-    if backup is not None:
-        print("existing {} preserved as {}".format(path, backup), file=sys.stderr)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    fd = os.open(str(path), flags, 0o600)
-    with os.fdopen(fd, "wb") as f:
-        f.write(content.encode())
-    os.chmod(str(path), 0o600)  # enforce 0600 even if the umask were somehow permissive
 
 ED25519 = "ED25519"
 ECDSA = "ECDSA_SECP256K1"

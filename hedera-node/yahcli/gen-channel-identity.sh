@@ -61,22 +61,19 @@ for dir in "${TOOLS_DIR:-}" "${SCRIPT_DIR}/../../../tools" "${SCRIPT_DIR}/../too
 done
 [ -n "$SIGNER" ] || { echo "sign-clpr-channel-identity.py not found (set TOOLS_DIR)" >&2; exit 1; }
 
+# Shared key-file helpers (this script exists in yahcli/ and in yahcli/scripts/clpre2e/).
+KEY_LIB=""
+for f in "${SCRIPT_DIR}/key-files.sh" "${SCRIPT_DIR}/scripts/clpre2e/key-files.sh"; do
+    if [ -f "$f" ]; then KEY_LIB="$f"; break; fi
+done
+[ -n "$KEY_LIB" ] || { echo "key-files.sh not found next to this script" >&2; exit 1; }
+# shellcheck source=key-files.sh
+. "$KEY_LIB"
+
 # Refuse a key file that is a symlink, or (unless --allow-loose-key-file) owned by someone else or
-# accessible by group/others. Skipped on non-POSIX hosts.
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) ;; *)
-    if [ -L "$KEY_FILE" ]; then
-        echo "key file must not be a symlink: $KEY_FILE" >&2; exit 1
-    fi
-    if [ "$ALLOW_LOOSE" -ne 1 ]; then
-        key_mode="$(stat -f %Lp "$KEY_FILE" 2>/dev/null || stat -c %a "$KEY_FILE")"
-        key_owner="$(stat -f %u "$KEY_FILE" 2>/dev/null || stat -c %u "$KEY_FILE")"
-        if [ "$key_owner" != "$(id -u)" ] || [ $(( 8#${key_mode} & 8#077 )) -ne 0 ]; then
-            echo "key file $KEY_FILE must be owned by you with no group/other access (mode is ${key_mode}). Run: chmod 600 $KEY_FILE (or pass --allow-loose-key-file)" >&2
-            exit 1
-        fi
-    fi
-    ;;
-esac
+# accessible by group/others.
+[ "$ALLOW_LOOSE" -eq 1 ] && export ALLOW_LOOSE_KEY_FILE=1
+kf_check_key_file "$KEY_FILE" || exit 1
 
 # Strip any 0x prefix and lowercase (bash 3.2-compatible — macOS default).
 norm_hex() { printf '%s' "${1#0x}" | tr '[:upper:]' '[:lower:]'; }
@@ -84,22 +81,6 @@ CHANNEL_HEX="$(norm_hex "$CHANNEL_ID")"
 PRIV_HEX="$(norm_hex "$(tr -d '[:space:]' < "$KEY_FILE")")"
 [ ${#CHANNEL_HEX} -eq 64 ] || { echo "channelId must be 32 bytes (64 hex chars), got ${#CHANNEL_HEX}" >&2; exit 1; }
 [ ${#PRIV_HEX} -eq 64 ] || { echo "private key must be 32 bytes (64 hex chars), got ${#PRIV_HEX}" >&2; exit 1; }
-
-# Never destroy an existing file (it may hold a key): move it aside to <file>.<epoch>.bak (0600).
-backup_existing() {
-    local f="$1" ts bak
-    if [ -L "$f" ]; then
-        echo "Refusing to write through symlink: $f" >&2
-        exit 1
-    fi
-    [ -e "$f" ] || return 0
-    ts="$(date +%s)"
-    bak="${f}.${ts}.bak"
-    while [ -e "$bak" ]; do ts=$((ts + 1)); bak="${f}.${ts}.bak"; done
-    mv "$f" "$bak"
-    chmod 600 "$bak"
-    echo "Existing $f preserved as $bak" >&2
-}
 
 SIGNER_EXTRA=()
 [ "$ALLOW_LOOSE" -eq 1 ] && SIGNER_EXTRA=(--allow-loose-key-file)
@@ -122,7 +103,7 @@ if [ -n "$OUT" ]; then
     # Sign first (the signer backs up and replaces $OUT atomically w.r.t. our key handling).
     python3 "$SIGNER" "$STUB" --key-file "$KEY_FILE" --out "$OUT" ${SIGNER_EXTRA[@]+"${SIGNER_EXTRA[@]}"}
     if [ "$SAME_KEY" -eq 0 ]; then
-        backup_existing "${OUT}.key"
+        kf_backup_existing "${OUT}.key" || exit 1
         (umask 177 && printf '0x%s\n' "${PRIV_HEX}" > "${OUT}.key")
     else
         chmod 600 "${OUT}.key"
