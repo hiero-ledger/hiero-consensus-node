@@ -12,10 +12,12 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
@@ -35,6 +37,8 @@ public class RestartTest {
     void testHardNetworkRestart(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
+        // Container does not collect pre-consensus and stale events yet (#28056)
+        final boolean collectsEvents = env.capabilities().contains(Capability.DETERMINISTIC_EXECUTION);
 
         // Setup simulation
         network.addNodes(4);
@@ -59,10 +63,16 @@ public class RestartTest {
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
         networkStatusResults.clear();
 
-        final long lastRoundReached = network.newConsensusResults().results().stream()
+        final MultipleNodeConsensusResults networkConsensusResults = network.newConsensusResults();
+        if (collectsEvents) {
+            assertThat(networkConsensusResults).haveNoLostEvents().haveNoUnannouncedEvents();
+        }
+        final long lastRoundReached = networkConsensusResults.results().stream()
                 .map(SingleNodeConsensusResult::lastRoundNum)
                 .max(Long::compareTo)
                 .orElseThrow(() -> new IllegalStateException("No consensus rounds found"));
+        // Limits the next check for lost events to the results after the restart
+        networkConsensusResults.clear();
         timeManager.waitFor(Duration.ofSeconds(3L));
         network.start();
 
@@ -74,5 +84,11 @@ public class RestartTest {
         // All nodes should go through the normal status progression again
         assertThat(networkStatusResults)
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        network.shutdown();
+        if (collectsEvents) {
+            assertThat(networkConsensusResults).haveNoLostEvents();
+            assertThat(network.newConsensusResults()).haveNoLostEvents().haveNoUnannouncedEvents();
+        }
     }
 }

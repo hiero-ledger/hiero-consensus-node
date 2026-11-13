@@ -44,7 +44,7 @@ public class NodeResultsCollector {
     private final List<StructuredLog> logEntries = new ArrayList<>();
     private final List<LogSubscriber> logSubscribers = new ArrayList<>();
     private final ConsensusRoundPool roundPool;
-    // Turtle and Container do not pass their pre-consensus and stale events yet (#28054, #28056)
+    // Container does not pass its pre-consensus and stale events yet (#28056)
     private final boolean collectsEvents;
 
     private boolean destroyed = false;
