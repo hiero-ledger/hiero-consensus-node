@@ -30,8 +30,7 @@ The script derives:
 These match the on-wire format expected by ClprCompleteConnectorHandler.
 
 Output is the input JSON augmented with any newly derived fields. By default the result
-is printed to stdout; pass --in-place to overwrite the input file or --out <path> to
-write somewhere else.
+is printed to stdout; pass --out <path> to write it to a file instead.
 
 The private key is supplied ONLY via --key-file <path> (a file holding the 32-byte hex key,
 mode 0600). On POSIX a key file that is a symlink or non-regular file is always refused, and one
@@ -42,7 +41,7 @@ Dependencies:
   pip install pycryptodome              # required
   pip install coincurve                 # required only for ECDSA_SECP256K1
 
-Existing files are never destroyed: if the --out / --in-place target already exists it is
+Existing files are never destroyed: if the --out target already exists it is
 first moved to <name>.<epochMillis>.bak (mode 0600), so a legacy bundle is never lost.
 """
 
@@ -290,9 +289,7 @@ def main(argv=None) -> int:
         help="Do not refuse a --key-file that group/others can access or that you do not own "
              "(symlinks and non-regular files are always refused).",
     )
-    out = parser.add_mutually_exclusive_group()
-    out.add_argument("--out", help="Write the resulting JSON to this path.")
-    out.add_argument("--in-place", action="store_true", help="Overwrite the input file.")
+    parser.add_argument("--out", help="Write the resulting JSON to this path.")
     args = parser.parse_args(argv)
 
     in_path = Path(args.input)
@@ -357,14 +354,14 @@ def main(argv=None) -> int:
         bundle, derived, scheme=scheme, salt=salt, service_address=service_address
     )
 
-    if args.out or args.in_place:
-        target = Path(args.out) if args.out else in_path
+    if args.out:
+        target = Path(args.out)
         try:
             _write_secure(target, rendered)
         except OSError as e:
             print("ERROR: cannot write {}: {}".format(target, e), file=sys.stderr)
             return 1
-        print("{} {}".format("wrote" if args.out else "updated", target), file=sys.stderr)
+        print("wrote {}".format(target), file=sys.stderr)
     else:
         sys.stdout.write(rendered)
 
