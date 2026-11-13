@@ -111,7 +111,10 @@ import org.openjdk.jmh.annotations.Warmup;
  * are added, without copies. Fifth test (the fourth found two compilations of {@code addEvent}, both at all
  * levels): the forks run with {@code -Xbatch}, without background compilation. The recording and the benchmark run
  * on one thread, so every fork then compiles in the same order with the same profiles; the compile logs show whether
- * the code is the same. If the levels stay, the compiled code does not set them.
+ * the code is the same. If the levels stay, the compiled code does not set them. Sixth test (the levels stayed): the
+ * forks also start through {@code java-fixed-addresses.sh} (JMH's {@code -jvm}), without the randomization of the
+ * address space layout, and print the addresses of the heap and the code cache ({@code -Xlog:pagesize}), which must
+ * then be the same in every fork. If the levels stay again, the address layout does not set them either.
  */
 @State(Scope.Thread)
 @Fork(
@@ -121,6 +124,7 @@ import org.openjdk.jmh.annotations.Warmup;
             "-Xmx10g",
             "-XX:+AlwaysPreTouch",
             "-Xbatch",
+            "-Xlog:pagesize",
             "-XX:+UnlockDiagnosticVMOptions",
             "-XX:+LogCompilation",
             "-XX:LogFile=build/benchmark-calibration/compile-%p.log"

@@ -216,3 +216,44 @@ echo
 
 section "java"
 "${java_cmd}" -XshowSettings:system -version 2>&1
+
+# THROWAWAY PROBE for #27940, never merged: whether this runner can read hardware counters, and whether it can switch
+# off the randomization of the address space layout for a process.
+section "perf and address layout (probe for #27940)"
+echo "perf_event_paranoid=$(read_first /proc/sys/kernel/perf_event_paranoid)"
+echo "randomize_va_space=$(read_first /proc/sys/kernel/randomize_va_space)"
+echo "perf_binary=$(command -v perf || echo none)"
+if command -v perf > /dev/null; then
+  perf --version 2>&1 | head -n 1
+  echo "-- perf stat -e instructions:u,cycles:u true"
+  perf stat -e instructions:u,cycles:u true 2>&1 | tail -n 12
+fi
+echo "setarch_binary=$(command -v setarch || echo none)"
+if command -v setarch > /dev/null; then
+  echo "setarch_no_randomize=$(setarch "$(uname -m)" -R true 2>&1 && echo works)"
+fi
+if command -v apt-cache > /dev/null; then
+  echo "-- packages that hold perf: apt-cache policy"
+  apt-cache policy "linux-tools-$(uname -r)" linux-tools-generic linux-perf 2> /dev/null | grep -E '^[a-z]|Candidate'
+fi
+if command -v python3 > /dev/null && [[ "$(uname -sm)" == "Linux x86_64" ]]; then
+  echo "-- the system call behind perf: counting this process's instructions in user mode"
+  python3 - << 'PY'
+import ctypes
+import os
+import struct
+
+libc = ctypes.CDLL(None, use_errno=True)
+# struct perf_event_attr in its first version (64 bytes): type PERF_TYPE_HARDWARE, config PERF_COUNT_HW_INSTRUCTIONS,
+# flags exclude_kernel and exclude_hv
+attr = ctypes.create_string_buffer(struct.pack("IIQQQQQ", 0, 64, 1, 0, 0, 0, (1 << 5) | (1 << 6)), 64)
+# perf_event_open(attr, pid = this process, cpu = any, group_fd = none, flags = 0); 298 is its number on x86_64
+fd = libc.syscall(ctypes.c_long(298), attr, ctypes.c_long(0), ctypes.c_long(-1), ctypes.c_long(-1), ctypes.c_long(0))
+if fd < 0:
+    error = ctypes.get_errno()
+    print(f"perf_event_open=failed errno={error} ({os.strerror(error)})")
+else:
+    sum(range(100000))
+    print(f"perf_event_open=works instructions_counted={struct.unpack('Q', os.read(fd, 8))[0]}")
+PY
+fi
