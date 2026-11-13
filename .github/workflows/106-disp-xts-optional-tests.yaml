@@ -400,5 +400,5 @@ jobs:
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-
-        ${{ format('{{"ref":"{0}","ref_name":"{1}"}}',
+        ${{ format('{{"ref":"{0}","ref_name":"{1}","tested_commit":"{0}"}}',
         inputs.ref, github.ref_name) }}

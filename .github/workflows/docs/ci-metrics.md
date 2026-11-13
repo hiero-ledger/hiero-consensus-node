@@ -39,6 +39,11 @@ workflow in `needs` and `if: always()`.
 - `run`: the run (id, workflow name and file, suite, event, head sha, created time, display title, PR numbers). Its conclusion is
   derived, because the job is part of the run: the latest attempt's `CI Complete` job when there is one, otherwise the latest
   attempt's other jobs (failure or timed out first, then cancelled).
+- `citr`: the run's identity in the CITR labeling scheme, so the data can be joined with Chewie's later: `test_run_id` (the GitHub
+  Actions run id), `run_attempt` (a run is keyed by both) and `consensus_short_commit` (the first 7 characters of the commit under
+  test). The commit is the caller's `tested_commit` when it knows one (`226` and `106` pass the XTS candidate), else the run's head
+  commit for push and pull_request events. It is left out when it is not known (dispatch runs `000` and `001` check out an `inputs.ref`
+  that is not resolved to a SHA), never guessed.
 - `context`: the caller's values.
 - `jobs`: every completed job of the run, all attempts, with runner labels, timestamps and steps.
 - `tests`: rows of kind `shard` (totals, plus `cached_classes` and `cached_seconds`), `class` (15 slowest per shard) and `case` (30

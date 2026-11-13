@@ -17,12 +17,14 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCHEMA = 1
 TOP_CLASSES_PER_SHARD = 15
+SHORT_COMMIT_LENGTH = 7  # the CITR scheme abbreviates the commit under test to 7 characters
 
 
 def _load(name):
@@ -53,6 +55,25 @@ def derive_conclusion(jobs):
     return "success"
 
 
+def citr_labels(run, context):
+    """The run's identity in the CITR labeling scheme, so this data can be joined with Chewie's later.
+
+    test_run_id             the GitHub Actions run id
+    run_attempt             the run attempt (a run is keyed by test_run_id and run_attempt)
+    consensus_short_commit  the first 7 characters of the commit under test: context["tested_commit"] when the workflow
+                            knows it (a full SHA), else the run's head commit for push and pull_request events. Left out
+                            when it is not known, never guessed: a dispatched run's head commit is the ref the workflow
+                            ran on, which can differ from the commit it tests.
+    """
+    labels = {"test_run_id": str(run["id"]), "run_attempt": str(run["run_attempt"])}
+    commit = context.get("tested_commit") or (run["head_sha"] if run["event"] in ("push", "pull_request") else None)
+    if commit:
+        if not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise ValueError(f"the commit under test must be a full 40 character SHA, got {commit!r}")
+        labels["consensus_short_commit"] = commit[:SHORT_COMMIT_LENGTH]
+    return labels
+
+
 def build_document(run, jobs, context, tests, test_errors):
     """Pure assembly, separate from the API calls so it can be tested."""
     done = [j for j in jobs if j["status"] == "completed"]  # drops this job, which is still running
@@ -60,7 +81,7 @@ def build_document(run, jobs, context, tests, test_errors):
     slim["status"] = "completed"
     slim["conclusion"] = derive_conclusion(done)
     return {"schema": SCHEMA, "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "run": slim, "context": context, "jobs": done, "tests": tests, "test_errors": test_errors}
+            "run": slim, "citr": citr_labels(slim, context), "context": context, "jobs": done, "tests": tests, "test_errors": test_errors}
 
 
 def context_from_env(environ):
