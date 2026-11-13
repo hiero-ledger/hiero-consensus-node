@@ -795,7 +795,7 @@ public final class BesuQbftVerifier {
         final byte[] blockHash32 = besuBlockHash(currentHeaderItem);
 
         // --- 2. The initial validator set: listed in the header (header mode), or proven from the validator
-        // contract's array under the header's state root (contract mode, when field 7 is present). In contract mode
+        // contract's array under the header's state root (contract mode, when field 6 is present). In contract mode
         // the header is sealed by the set in its parent's state; the seal check below accepts it only if that set's
         // signers are also a quorum of the proven array. A change block can pass when they are (e.g. a member was
         // added and every old member sealed); that is still sound, because the proven array is the set that seals
@@ -1404,7 +1404,7 @@ public final class BesuQbftVerifier {
                     () -> decodeStorageProofList(storageProofItem));
         }
 
-        /** Converts the configuration form: field 7 of {@code ClprQbftLedgerConfigurationPayload}. */
+        /** Converts the configuration form: field 6 of {@code ClprQbftLedgerConfigurationPayload}. */
         @NonNull
         static ValidatorContractProof of(@NonNull final QbftContractModeValidatorSource source) {
             final byte[] contract = source.validatorContractAddress().toByteArray();
