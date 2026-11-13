@@ -19,14 +19,12 @@ public final class ConsensusSnapshots {
     private ConsensusSnapshots() {}
 
     /**
-     * The snapshot taken at a named snapshotRound.
-     * <p>
-     * This takes the rounds rather than the harness that produced them, so it serves any harness.
+     * The snapshot of a given consensus round.
      *
      * @param rounds the rounds a first run produced, in order
-     * @param snapshotRound  the round number to take the snapshot at
-     * @return that snapshotRound's snapshot
-     * @throws IllegalArgumentException if no snapshotRound with that number reached consensus
+     * @param snapshotRound the round number to take the snapshot at
+     * @return that round's snapshot
+     * @throws IllegalArgumentException if no round with that number reached consensus
      */
     @NonNull
     public static ConsensusSnapshot snapshotAtRound(
