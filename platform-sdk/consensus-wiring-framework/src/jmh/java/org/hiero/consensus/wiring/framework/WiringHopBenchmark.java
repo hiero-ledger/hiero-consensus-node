@@ -51,8 +51,11 @@ import org.openjdk.jmh.runner.IterationType;
  * wiring model is built as in production: the health monitor with its heartbeat, a pool of the production size, the
  * production metrics implementation ({@link DefaultPlatformMetrics}, not started), and the system clock.
  *
- * <p>The items are due evenly spaced, at {@link #rate} items per second. Between two items the scheduler's thread has
- * nothing to do and goes to sleep, so every hop includes waking it. The rate sets how long it slept.
+ * <p>The items are due evenly spaced, at the two rates of mainnet: 460 per second, its events, and 3 per second, its
+ * consensus rounds, which is what the transaction handler's scheduler gets. Between two items the scheduler's thread
+ * has nothing to do and goes to sleep, so every hop includes waking it, and the rate sets how long it slept. The lower
+ * the rate, the longer a hop takes (calibration run 43203493810), so a rate cannot be raised to collect latencies
+ * faster.
  *
  * <p>The warmup iterations run at {@value #WARMUP_RATE} items per second, whatever the rate, so that the JVM compiles
  * the code of the hop. At a few items per second it would stay interpreted for the whole run. On a node, all
@@ -86,11 +89,11 @@ public class WiringHopBenchmark {
     private static final int WARMUP_RATE = 20_000;
 
     /** The scheduler type; {@link #configuration()} holds the options of each. */
-    @Param({"SEQUENTIAL", "SEQUENTIAL_THREAD", "CONCURRENT", "DIRECT"})
+    @Param({"SEQUENTIAL", "SEQUENTIAL_THREAD", "CONCURRENT", "DIRECT", "DIRECT_THREADSAFE"})
     public String scheduler;
 
-    /** The items per second. */
-    @Param({"3", "10", "30", "100", "460", "2000", "6800", "17000"})
+    /** The items per second: mainnet's consensus rounds and its events. */
+    @Param({"3", "460"})
     public int rate;
 
     private ScheduledExecutorService metricsExecutor;
