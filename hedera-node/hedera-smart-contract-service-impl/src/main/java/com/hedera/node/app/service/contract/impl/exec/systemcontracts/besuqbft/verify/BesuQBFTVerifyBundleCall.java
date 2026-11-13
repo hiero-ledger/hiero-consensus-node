@@ -19,15 +19,15 @@ import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.BesuQbftVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
-import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.List;
+import java.util.HexFormat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -38,49 +38,29 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *
  * <p>The {@code bundlePayload} is the RLP-encoded structure produced by
  * {@code QbftBundleConstructor.PayloadRlpEncoder} in the {@code clpr-evm-endpoint} repo
- * (5-element top-level list: {@code [blockHeader, evmAccount, accountProof[],
- * storageProof[{key,value,proof[]}], bundleContent]}).
+ * (5-item top-level list {@code [blockHeader, validatorSource, accountProof[], storageProof[[key, proof[]]],
+ * bundleContent]}, or 7 items with an endpoint-manifest update).
  *
- * <p>The {@code trustAnchor} is an RLP list of exactly three byte-string items:
- * <pre>
- *   RLP([
- *     encodedValidatorSet,             // RLP([addr1, ..., addrN]) embedded as bytes
- *     trustedClprServiceAddress,       // 20 bytes
- *     trustedClprServiceCodeHash       // 32 bytes
- *   ])
- * </pre>
- * <ul>
- *   <li>{@code encodedValidatorSet} — the canonically-sorted, RLP-encoded list of QBFT validator
- *       addresses whose committed seals must reach quorum on the block header.</li>
- *   <li>{@code trustedClprServiceAddress} — the 20-byte address of the CLPR service contract on
- *       the peer ledger; pins which account the state proof must resolve to.</li>
- *   <li>{@code trustedClprServiceCodeHash} — the expected {@code codeHash} of the proven contract
- *       account; defends against a state-trie spoof where attacker-controlled storage has been
- *       wired at the canonical address.</li>
- * </ul>
+ * <p>The {@code trustAnchor} is a {@link BesuQbftVerifier.TrustAnchor}:
+ * {@code RLP([mode, validatorSet, serviceAddress, codeHash, anchorBlockNumber])}. The validator set
+ * authenticates the committed seals; the service address and code hash pin the account the state proof
+ * must resolve to; the anchor block number is the replay floor for hops and the current block.
  *
  * <p>The {@code channelContext} is {@code channelId(32) || serviceAddress(20)}, as returned by
  * {@code verifyConfig}. Its service address must equal the trust anchor's, and its channel id binds the
  * proven storage slots to the channel.
  *
  * <p>Decoding and Merkle-proof verification are delegated to
- * {@link BesuQbftVerifier#verifyBundle(byte[], byte[], byte[])}. Everything this call returns comes from
- * the proof: the relayed queue metadata must equal the proven Channel slots, and a new trust anchor is
- * returned only when the verifier proved a rotation. The proven manifest is appended as the fifth tuple
- * member.
+ * {@link BesuQbftVerifier#verifyBundle(byte[], byte[], long, byte[])}. Everything this call returns comes from
+ * the proof: the relayed queue metadata must equal the proven Channel slots, a partial bundle's metadata is
+ * scoped to its proven last message, and a new trust anchor is returned only when the verifier proved a
+ * rotation. The proven manifest is appended as the fifth tuple member.
  */
 public class BesuQBFTVerifyBundleCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(BesuQBFTVerifyBundleCall.class);
     private static final long GAS_REQUIREMENT = 100_000L;
-    private static final long EPOCH_LENGTH =
-            30_000L; // matches relay config default; configure per-channel in a follow-up
 
     private static final int ADDRESS_LENGTH = 20;
-    private static final int CODE_HASH_LENGTH = 32;
-    private static final int TRUST_ANCHOR_ITEM_COUNT = 3;
-    private static final int TA_VALIDATOR_SET_INDEX = 0;
-    private static final int TA_SERVICE_ADDRESS_INDEX = 1;
-    private static final int TA_SERVICE_CODE_HASH_INDEX = 2;
     private static final int CHANNEL_ID_LENGTH = 32;
     private static final int CHANNEL_CONTEXT_LENGTH = CHANNEL_ID_LENGTH + ADDRESS_LENGTH;
 
@@ -107,29 +87,29 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
     @Override
     public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
-        log.debug(
+        log.info(
                 "verifyBundle (QBFT) ENTER: bundlePayload={} bytes, trustAnchor={} bytes, channelContext={} bytes",
                 bundlePayload.length,
                 trustAnchor.length,
                 channelContext.length);
 
-        // Decode the trust-anchor envelope into the encoded validator set (used to authenticate
-        // QBFT committed seals) and the CLPR-service-address / code-hash pair (used to pin the
-        // account proof to the correct contract on the peer ledger).
-        final byte[] trustedValidatorSetEncoded;
-        final byte[] trustedClprServiceAddress20;
-        final byte[] trustedClprServiceCodeHash32;
+        // Decode the trust anchor: the validator set that authenticates the committed seals, the
+        // CLPR-service address / code hash that pin the account proof, and the anchor block (replay floor).
+        final BesuQbftVerifier.TrustAnchor anchor;
         try {
-            final byte[][] items = decodeRlpListOfByteStrings(trustAnchor, TRUST_ANCHOR_ITEM_COUNT);
-            trustedValidatorSetEncoded = items[TA_VALIDATOR_SET_INDEX];
-            trustedClprServiceAddress20 =
-                    requireFixedLength(items[TA_SERVICE_ADDRESS_INDEX], ADDRESS_LENGTH, "trustedClprServiceAddress");
-            trustedClprServiceCodeHash32 = requireFixedLength(
-                    items[TA_SERVICE_CODE_HASH_INDEX], CODE_HASH_LENGTH, "trustedClprServiceCodeHash");
+            anchor = BesuQbftVerifier.TrustAnchor.decode(trustAnchor);
         } catch (final Exception e) {
-            log.warn("verifyBundle (QBFT): malformed trustAnchor envelope ({})", e.getMessage());
+            log.warn("verifyBundle (QBFT): malformed trustAnchor ({})", e.getMessage());
             return fail();
         }
+        final byte[] trustedClprServiceAddress20 = anchor.serviceAddress20();
+        final byte[] trustedClprServiceCodeHash32 = anchor.codeHash32();
+
+        log.info(
+                "verifyBundle (QBFT) trustAnchor decoded: trustedValidatorSet={}, trustedClprService={}, trustedClprServiceCodeHash={}",
+                Bytes.wrap(anchor.validatorSetEncoded()),
+                Bytes.wrap(trustedClprServiceAddress20),
+                Bytes.wrap(trustedClprServiceCodeHash32));
 
         // The channel context must name the same peer service as the trust anchor; its channel id binds
         // the proven Channel storage slots to this channel.
@@ -149,11 +129,12 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
         final byte[] channelId32 = Arrays.copyOfRange(channelContext, 0, CHANNEL_ID_LENGTH);
 
         final var verifier = new BesuQbftVerifier(
-                new BesuQbftVerifier.Config(trustedClprServiceAddress20, trustedClprServiceCodeHash32, EPOCH_LENGTH));
+                new BesuQbftVerifier.Config(trustedClprServiceAddress20, trustedClprServiceCodeHash32));
 
         final BesuQbftVerifier.VerifiedBundle verified;
         try {
-            verified = verifier.verifyBundle(bundlePayload, trustedValidatorSetEncoded, channelId32);
+            verified = verifier.verifyBundle(
+                    bundlePayload, anchor.validatorSetEncoded(), anchor.anchorBlockNumber(), channelId32);
         } catch (final ProofException e) {
             log.warn("verifyBundle (QBFT): proof rejected: {}", e.getMessage());
             return fail();
@@ -164,11 +145,34 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
         final var bundleContentBytes = verified.bundleContentBytes();
 
-        // Manifest-only recovery bundle (spec §8.1.4): the verifier proved an endpoint manifest with no
-        // bundle content. Accepted so the CLPR Service can apply the manifest update out-of-band.
+        // A trust anchor comes only from a rotation the verifier proved, anchored at the block its id names.
+        // The service contract address and code hash are stable across rotations and carry forward from the
+        // current trust anchor.
+        if (verified.newTrustAnchor().length > 0 && verified.newTrustAnchorId().length != Long.BYTES) {
+            log.warn("verifyBundle (QBFT): proven trust anchor id is not an 8-byte block number");
+            return fail();
+        }
+        final byte[] provenTrustAnchor = verified.newTrustAnchor().length > 0
+                ? new BesuQbftVerifier.TrustAnchor(
+                                verified.newTrustAnchor(),
+                                trustedClprServiceAddress20,
+                                trustedClprServiceCodeHash32,
+                                ByteBuffer.wrap(verified.newTrustAnchorId()).getLong())
+                        .encode()
+                : null;
+        if (provenTrustAnchor != null) {
+            log.info(
+                    "verifyBundle (QBFT): trust anchor advanced to {} trustAnchorId=0x{}",
+                    Bytes.wrap(verified.newTrustAnchor()),
+                    HexFormat.of().formatHex(verified.newTrustAnchorId()));
+        }
+
+        // A bundle without content carries only a proven state update: an endpoint-manifest recovery (spec §8.1.4)
+        // and/or a trust-anchor rotation. Both are returned, so a rotation the verifier proved is not lost.
         if (bundleContentBytes.length == 0) {
-            if (verified.newEndpointManifestBytes().length > 0) {
-                return manifestOnlySuccess(verified.newEndpointManifestBytes());
+            if (verified.newEndpointManifestBytes().length > 0 || provenTrustAnchor != null) {
+                return stateUpdateOnlySuccess(
+                        verified.newEndpointManifestBytes(), provenTrustAnchor, verified.newTrustAnchorId());
             }
             return fail();
         }
@@ -186,22 +190,21 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
         if (!relayedMetadataMatchesProven(parsedContent, verified.queueMetadata())) {
             return fail();
         }
+        final ClprBundleContent scopedContent =
+                scopeToLastMessage(parsedContent, verified.queueMetadata(), channelId32);
+        if (scopedContent == null) {
+            return fail();
+        }
 
-        // A trust anchor comes only from a rotation the verifier proved. The service contract address and
-        // code hash are stable across rotations and carry forward from the current trust anchor.
-        final byte[] provenTrustAnchor = verified.newTrustAnchor().length > 0
-                ? encodeFullTrustAnchor(
-                        verified.newTrustAnchor(), trustedClprServiceAddress20, trustedClprServiceCodeHash32)
-                : null;
         final ClprBundleContent reconciledContent =
-                reconcileTrustAnchor(parsedContent, provenTrustAnchor, verified.newTrustAnchorId());
+                reconcileTrustAnchor(scopedContent, provenTrustAnchor, verified.newTrustAnchorId());
         if (reconciledContent == null) {
             return fail();
         }
         final byte[] finalBundleContentBytes =
                 ClprBundleContent.PROTOBUF.toBytes(reconciledContent).toByteArray();
 
-        log.debug(
+        log.info(
                 "verifyBundle (QBFT) EXIT: SUCCESS blockHash={} content={} bytes trustAnchorAdvanced={}",
                 Bytes.wrap(verified.blockHash32()),
                 finalBundleContentBytes.length,
@@ -246,6 +249,49 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Scopes the queue metadata of a partial bundle to its last message.
+     *
+     * <p>A bundle need not carry every message the peer has queued: when it ends at a message {@code L} before
+     * {@code nextMessageId - 1}, the proof carries a 6th slot, the running hash after {@code L}. The CLPR Service
+     * checks the bundle's messages against {@code sentRunningHash} and places them before {@code nextMessageId},
+     * so for such a bundle both are replaced with their values as of {@code L}: {@code nextMessageId = L + 1} and
+     * {@code sentRunningHash = runningHash(L)}. {@code L} is the message whose running-hash slot is the proven
+     * 6th slot ({@link BesuQbftVerifier#findLastMessageId}); a slot that matches no message fails the bundle. A
+     * bundle without messages has nothing to scope, and its 6th slot is ignored.
+     *
+     * @return the content with metadata as of the bundle's last message, the content unchanged when the bundle
+     *     ends at the peer's last message, or {@code null} when the 6th slot does not belong to the bundle
+     */
+    @Nullable
+    private static ClprBundleContent scopeToLastMessage(
+            @NonNull final ClprBundleContent content,
+            @NonNull final BesuQbftVerifier.QueueMetadata proven,
+            @NonNull final byte[] channelId32) {
+        final byte[] lastMessageSlotKey = proven.lastMessageSlotKey();
+        final int messageCount = content.messages().size();
+        if (lastMessageSlotKey.length == 0 || messageCount == 0) {
+            return content;
+        }
+        final var lastMessageId = BesuQbftVerifier.findLastMessageId(
+                channelId32, lastMessageSlotKey, proven.ackedMessageId(), proven.nextMessageId(), messageCount);
+        if (lastMessageId.isEmpty()) {
+            log.warn(
+                    "verifyBundle (QBFT): last-message slot matches no message in [{}, {}) for a bundle of {} messages",
+                    proven.ackedMessageId() + messageCount,
+                    proven.nextMessageId(),
+                    messageCount);
+            return null;
+        }
+        final ClprQueueMetadata metadata = requireNonNull(content.metadata());
+        return content.copyBuilder()
+                .metadata(metadata.copyBuilder()
+                        .nextMessageId(lastMessageId.getAsLong() + 1)
+                        .sentRunningHash(Bytes.wrap(proven.lastMessageRunningHash()))
+                        .build())
+                .build();
     }
 
     /**
@@ -334,21 +380,30 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
     }
 
     /**
-     * Manifest-aware success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with an
-     * empty message set and no trust-anchor rotation. Metadata is signalled absent via a zero
-     * {@code nextMessageId} sentinel (a normal bundle's is always {@code >= 1}), which
+     * Success return for a bundle without content: a state update only, carrying the proven endpoint manifest
+     * (spec §8.1.4 recovery) and/or the proven trust-anchor rotation, with an empty message set. Metadata is signalled
+     * absent via a zero {@code nextMessageId} sentinel (a normal bundle's is always {@code >= 1}), which
      * {@link com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier} decodes to a null metadata so
-     * {@code ClprSubmitBundleHandler} takes its state-update-only path.
+     * {@code ClprSubmitBundleHandler} takes its state-update-only path, which installs the new anchor and manifest.
+     *
+     * @param newEndpointManifestBytes the proven manifest, or empty when there is none
+     * @param provenTrustAnchor the proven successor anchor, or {@code null} when there was no rotation
+     * @param provenTrustAnchorId the successor's id (ignored when there was no rotation)
      */
     @NonNull
-    private PricedResult manifestOnlySuccess(@NonNull final byte[] newEndpointManifestBytes) {
-        final ClprEndpointManifest manifest;
-        try {
-            manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
-                    Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
-        } catch (final Exception e) {
-            log.warn("verifyBundle (QBFT): manifest-only recovery bytes are not a ClprEndpointManifest", e);
-            return fail();
+    private PricedResult stateUpdateOnlySuccess(
+            @NonNull final byte[] newEndpointManifestBytes,
+            @Nullable final byte[] provenTrustAnchor,
+            @NonNull final byte[] provenTrustAnchorId) {
+        ClprEndpointManifest manifest = ClprEndpointManifest.DEFAULT;
+        if (newEndpointManifestBytes.length > 0) {
+            try {
+                manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
+                        Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
+            } catch (final Exception e) {
+                log.warn("verifyBundle (QBFT): manifest-only recovery bytes are not a ClprEndpointManifest", e);
+                return fail();
+            }
         }
         final Tuple absentMetadata = absentMetadataTuple();
         return gasOnly(
@@ -356,114 +411,12 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                         VERIFY_BUNDLE_RETURN.encode(Tuple.of(
                                 absentMetadata,
                                 new byte[0][],
-                                new byte[0],
-                                new byte[0],
+                                provenTrustAnchor == null ? new byte[0] : provenTrustAnchor,
+                                provenTrustAnchor == null ? new byte[0] : provenTrustAnchorId,
                                 manifestStructTuple(manifest))),
                         GAS_REQUIREMENT),
                 SUCCESS,
                 true);
-    }
-
-    /**
-     * Decode an RLP list of {@code expectedItemCount} byte-string items into a {@code byte[][]}.
-     * Rejects nested lists, trailing bytes, and any input that does not exactly match the shape.
-     */
-    @NonNull
-    private static byte[][] decodeRlpListOfByteStrings(@NonNull final byte[] input, final int expectedItemCount) {
-        if (input.length == 0) {
-            throw new IllegalArgumentException("empty RLP input");
-        }
-        int cursor = 0;
-        final int listPrefix = input[cursor++] & 0xff;
-        final int payloadLen;
-        if (listPrefix >= 0xc0 && listPrefix <= 0xf7) {
-            payloadLen = listPrefix - 0xc0;
-        } else if (listPrefix >= 0xf8 && listPrefix <= 0xff) {
-            final int lenOfLen = listPrefix - 0xf7;
-            if (cursor + lenOfLen > input.length) {
-                throw new IllegalArgumentException("truncated RLP list length");
-            }
-            int len = 0;
-            for (int i = 0; i < lenOfLen; i++) {
-                len = (len << 8) | (input[cursor++] & 0xff);
-            }
-            payloadLen = len;
-        } else {
-            throw new IllegalArgumentException(
-                    "not an RLP list (first byte 0x" + Integer.toHexString(listPrefix) + ")");
-        }
-        final int listEnd = cursor + payloadLen;
-        if (listEnd != input.length) {
-            throw new IllegalArgumentException("trailing bytes after RLP list");
-        }
-
-        final byte[][] items = new byte[expectedItemCount][];
-        for (int i = 0; i < expectedItemCount; i++) {
-            if (cursor >= listEnd) {
-                throw new IllegalArgumentException("RLP list has fewer than " + expectedItemCount + " items");
-            }
-            final int prefix = input[cursor++] & 0xff;
-            final byte[] item;
-            if (prefix < 0x80) {
-                item = new byte[] {(byte) prefix};
-            } else if (prefix <= 0xb7) {
-                final int len = prefix - 0x80;
-                if (cursor + len > listEnd) {
-                    throw new IllegalArgumentException("truncated RLP byte-string item");
-                }
-                item = new byte[len];
-                System.arraycopy(input, cursor, item, 0, len);
-                cursor += len;
-            } else if (prefix <= 0xbf) {
-                final int lenOfLen = prefix - 0xb7;
-                if (cursor + lenOfLen > listEnd) {
-                    throw new IllegalArgumentException("truncated RLP byte-string length");
-                }
-                int len = 0;
-                for (int j = 0; j < lenOfLen; j++) {
-                    len = (len << 8) | (input[cursor++] & 0xff);
-                }
-                if (cursor + len > listEnd) {
-                    throw new IllegalArgumentException("truncated RLP byte-string item");
-                }
-                item = new byte[len];
-                System.arraycopy(input, cursor, item, 0, len);
-                cursor += len;
-            } else {
-                throw new IllegalArgumentException(
-                        "nested RLP list at item " + i + " (trustAnchor expects byte strings only)");
-            }
-            items[i] = item;
-        }
-        if (cursor != listEnd) {
-            throw new IllegalArgumentException("RLP list has more than " + expectedItemCount + " items");
-        }
-        return items;
-    }
-
-    @NonNull
-    private static byte[] requireFixedLength(@NonNull final byte[] item, final int expectedLength, final String name) {
-        if (item.length != expectedLength) {
-            throw new IllegalArgumentException(name + " must be " + expectedLength + " bytes, got " + item.length);
-        }
-        return item;
-    }
-
-    /**
-     * Re-encodes a full QBFT trust anchor as
-     * {@code RLP([encodedValidatorSet, serviceAddr20, codeHash32])}.
-     *
-     * <p>The first item is the canonically-sorted, RLP-encoded validator set produced by
-     * {@link BesuQbftVerifier#encodeValidatorSet}; the last two are fixed-length
-     * byte strings. All three are embedded as opaque byte strings in the outer RLP list.
-     */
-    @NonNull
-    private static byte[] encodeFullTrustAnchor(
-            @NonNull final byte[] encodedValidatorSet,
-            @NonNull final byte[] serviceAddr20,
-            @NonNull final byte[] codeHash32) {
-        return Rlp.encodeList(List.of(
-                Rlp.encodeBytes(encodedValidatorSet), Rlp.encodeBytes(serviceAddr20), Rlp.encodeBytes(codeHash32)));
     }
 
     @NonNull

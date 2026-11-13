@@ -259,6 +259,10 @@ service account or Sei store key. Queue slot keys must equal `keccak256(channelI
 plus the exact field offsets `{1,2,4,5,16}`. The optional last-message hash key must equal
 `keccak256(uint256(nextMessageId - 1) || keccak256(channelId32 || uint256(1))) + 1`,
 using the proven next-message ID, which must be at least 2 because message IDs start at 1.
+The QBFT verifier also accepts a bundle that ends before `nextMessageId - 1`: it then proves
+the running-hash slot of the bundle's last message `L`, a non-zero value, and the system
+contract binds the key to `L` in `[ackedMessageId + messageCount, nextMessageId - 1]`, trying
+at most 512 message IDs.
 Proof order is irrelevant; duplicate, missing, and unrelated keys are rejected. A valid
 state proof for another channel cannot satisfy these checks, even if its counters and
 running hashes have the same values.
