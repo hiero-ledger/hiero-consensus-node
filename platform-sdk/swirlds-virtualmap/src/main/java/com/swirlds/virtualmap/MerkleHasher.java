@@ -26,9 +26,20 @@ public final class MerkleHasher {
      */
     @NonNull
     public static Hash emptyRootHash() {
-        final MessageDigest md = Cryptography.DEFAULT_DIGEST_TYPE.buildDigest();
+        return emptyRootHash(Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Calculates the empty root hash for a Merkle tree using the given digest type.
+     *
+     * @param digestType the digest type to use
+     * @return the empty root hash
+     */
+    @NonNull
+    public static Hash emptyRootHash(@NonNull final DigestType digestType) {
+        final MessageDigest md = digestType.buildDigest();
         md.update((byte) 0x00);
-        return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
+        return new Hash(md.digest(), digestType);
     }
 
     /**

@@ -47,11 +47,20 @@ public class ReplayPcesCommand implements Callable<Integer> {
     public static final long DEFAULT_TARGET_ROUND = Long.MAX_VALUE;
 
     private long targetRound = DEFAULT_TARGET_ROUND;
+    private String stateDirOption;
     private Path pcesDir;
     private Path outDir = Path.of("./replay-out");
     private long selfIdValue = 0;
     private String consensusEventStreamName = "0.0.3";
     private boolean forceMockSignatures = true;
+
+    @Option(
+            names = {"-s", "--state-dir"},
+            description = "Directory containing the saved state snapshot to load (local path or gs:// URI). "
+                    + "Alternative to passing the state directory as the operator's positional argument.")
+    private void setStateDir(final String stateDir) {
+        this.stateDirOption = stateDir;
+    }
 
     @Option(
             names = {"-p", "--pces-dir"},
@@ -102,6 +111,9 @@ public class ReplayPcesCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        if (stateDirOption != null) {
+            parent.setStateDirFromSubcommand(stateDirOption);
+        }
         parent.resolveAndGetStateDir();
         final Path stateDir = parent.getStateDir().toPath();
         // --- Replay-only flags, set before the platform configuration is built so the config picks them up ---
@@ -139,24 +151,30 @@ public class ReplayPcesCommand implements Callable<Integer> {
         // /opt/hgcapp (root-owned on a normal workstation); the consensus event stream eagerly creates its
         // directory during platform build, which would throw before replay starts. Disable them.
 
-        // Block stream -> <outDir>/blockStreams  (BlockStreamConfig.blockFileDir)
-        final Path blockOut = outDir.resolve("blockStreams");
+        // These directories are only defaults: a value the caller already passed as a -D system property wins.
+        // validate-replay.sh passes -DblockStream.blockFileDir=<out>/blockstream and then looks for the block-*
+        // output there, so unconditionally overriding it would silently write the blocks somewhere else.
+
+        // Block stream -> <outDir>/blockStreams by default  (BlockStreamConfig.blockFileDir)
+        final Path blockOut = Path.of(setPropertyIfAbsent(
+                "blockStream.blockFileDir",
+                outDir.resolve("blockStreams").toAbsolutePath().toString()));
         Files.createDirectories(blockOut);
-        System.setProperty("blockStream.blockFileDir", blockOut.toAbsolutePath().toString());
+        log.info("Replay block stream output directory: {}", blockOut.toAbsolutePath());
 
         // Event stream -> disabled  (EventConfig.enableEventStreaming); also redirect its dir defensively
         System.setProperty("event.enableEventStreaming", "false");
-        System.setProperty(
+        setPropertyIfAbsent(
                 "event.eventsLogDir",
                 outDir.resolve("eventsStreams").toAbsolutePath().toString());
 
         // Record stream -> redirect its dir under outDir  (BlockRecordStreamConfig.logDir)
         // (writerMode=FILE + streamMode drive block output; the record stream dir must still not default to
         //  /opt/hgcapp in case any record-stream writer initializes.)
-        System.setProperty(
+        setPropertyIfAbsent(
                 "hedera.recordStream.logDir",
                 outDir.resolve("recordStreams").toAbsolutePath().toString());
-        System.setProperty(
+        setPropertyIfAbsent(
                 "hedera.recordStream.sidecarDir",
                 outDir.resolve("recordStreams")
                         .resolve("sidecar")
@@ -191,6 +209,20 @@ public class ReplayPcesCommand implements Callable<Integer> {
 
         log.info("replay-pces complete: resulting state round {} written to {}", resultRound, outDir);
         return 0;
+    }
+
+    /**
+     * Sets a system property only if it is not already set (e.g. via {@code -D} on the command line).
+     *
+     * @return the effective value of the property
+     */
+    static String setPropertyIfAbsent(final String key, final String defaultValue) {
+        final String existing = System.getProperty(key);
+        if (existing != null && !existing.isBlank()) {
+            return existing;
+        }
+        System.setProperty(key, defaultValue);
+        return defaultValue;
     }
 
     public static void main(final String... args) {
