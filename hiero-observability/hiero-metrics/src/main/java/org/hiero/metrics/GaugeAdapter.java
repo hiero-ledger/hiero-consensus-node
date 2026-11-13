@@ -94,6 +94,7 @@ public final class GaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
         return initializer.get();
     }
 
+    @NonNull
     @Override
     protected MeasurementSnapshot createMeasurementSnapshot(@NonNull M measurement, @NonNull LabelValues labelValues) {
         if (exportGetterLong != null) {

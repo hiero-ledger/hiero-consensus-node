@@ -18,6 +18,7 @@ testModuleInfo {
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.hiero.junit.extensions")
+    requires("java.management")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
 

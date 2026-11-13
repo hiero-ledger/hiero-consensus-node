@@ -17,7 +17,7 @@ import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
-import com.hedera.node.app.spi.workflows.PaidQueryHandler;
+import com.hedera.node.app.spi.workflows.FreeQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.ConfigProvider;
@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>Returns the current CLPR endpoint manifest and a serialized {@link StateProof} attesting
  * the singleton against the latest signed block root. Public read — no admin authorization
- * required, but the query is paid, since building and verifying the proof costs real work. Enables:
+ * required. Enables:
  * <ul>
  *   <li>Channel registrants to build the {@code endpoint_manifest_proof_bytes} needed by
  *       {@code ClprCompleteChannel} (spec PR #332).</li>
@@ -43,7 +43,7 @@ import org.apache.logging.log4j.Logger;
  * </ul>
  */
 @Singleton
-public class ClprGetEndpointManifestHandler extends PaidQueryHandler {
+public class ClprGetEndpointManifestHandler extends FreeQueryHandler {
 
     private static final Logger log = LogManager.getLogger(ClprGetEndpointManifestHandler.class);
 

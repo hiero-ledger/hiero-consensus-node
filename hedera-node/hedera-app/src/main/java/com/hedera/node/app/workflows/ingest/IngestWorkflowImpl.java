@@ -89,12 +89,10 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
                 final var configuration = configProvider.getConfiguration();
                 ingestChecker.runAllChecks(state, requestBuffer, configuration, checkerResult);
 
-                // 7. Submit to platform with priority=false vs network consensus and TSS txs
+                // 7. Submit to platform with priority=false vs network consensus and TSS txs; the submission manager
+                // counts the transaction as in flight before the pre-flight count below is released
                 final var txInfo = checkerResult.txnInfoOrThrow();
                 submissionManager.submit(txInfo.txBody(), txInfo.serializedSignedTxOrThrow(), false);
-                if (quiescenceEnabled) {
-                    txPipelineTracker.incrementInFlight();
-                }
             } catch (final InsufficientBalanceException e) {
                 estimatedFee = e.getEstimatedFee();
                 result = e.responseCode();

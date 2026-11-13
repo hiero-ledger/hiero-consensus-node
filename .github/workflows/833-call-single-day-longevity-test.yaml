@@ -224,7 +224,7 @@ jobs:
           echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -842,7 +842,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -999,7 +999,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -1171,7 +1171,7 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 

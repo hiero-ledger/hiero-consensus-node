@@ -165,8 +165,7 @@ contract PingPong is IClprApplication, IClprConnector {
 
     /// Kick off a volley: forward a single `sendMessage` call to the CLPR system
     /// contract precompile at 0x16e. Records (connectorId, targetApplication)
-    /// keyed by messageData so a subsequent onClprResponse can bounce. Each send's
-    /// fee is paid from this contract's balance, which any value sent here tops up.
+    /// keyed by messageData so a subsequent onClprResponse can bounce.
     /// @param channelId       32-byte channel identifier
     /// @param connectorId        32-byte connector identifier
     /// @param targetApplication  application address bytes on the peer ledger
@@ -177,7 +176,7 @@ contract PingPong is IClprApplication, IClprConnector {
         bytes32 connectorId,
         bytes calldata targetApplication,
         bytes calldata messageData
-    ) external payable returns (uint64 messageId) {
+    ) external returns (uint64 messageId) {
         connectorByMessage[messageData] = connectorId;
         targetByMessage[messageData] = targetApplication;
         return _serve(channelId, connectorId, targetApplication, messageData);
@@ -185,16 +184,14 @@ contract PingPong is IClprApplication, IClprConnector {
 
     /// Internal helper used by both the operator-facing serve() and the
     /// onClprResponse bounce path. Calldata is unavailable on the bounce path
-    /// (we read from storage), so this accepts `memory` args. Attaches this
-    /// contract's balance to cover the sendMessage fee; the CLPR system contract
-    /// collects only that fee.
+    /// (we read from storage), so this accepts `memory` args.
     function _serve(
         bytes32 channelId,
         bytes32 connectorId,
         bytes memory targetApplication,
         bytes memory messageData
     ) internal returns (uint64 messageId) {
-        (bool success, bytes memory result) = CLPR_PRECOMPILE.call{value: address(this).balance}(
+        (bool success, bytes memory result) = CLPR_PRECOMPILE.call(
             abi.encodeWithSignature(
                 "sendMessage(bytes32,bytes32,bytes,bytes)",
                 channelId,

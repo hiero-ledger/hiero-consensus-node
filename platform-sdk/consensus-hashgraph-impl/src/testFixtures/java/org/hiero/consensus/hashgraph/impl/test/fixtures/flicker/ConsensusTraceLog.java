@@ -47,12 +47,6 @@ public class ConsensusTraceLog implements ChangeSink {
 
     /**
      * Mark the start of a {@link FlickerIntake#add} call, so {@link #during} can find the changes that call caused.
-     * <p>
-     * Called at the top of {@code add}, not just around {@code ConsensusImpl#addEvent}, for two reasons. First, not
-     * every change comes from {@code addEvent}: when a round decides, {@code add} advances the linker's event window,
-     * and the linker clears every event that became ancient, producing {@code MetadataCleared} changes. Second, an
-     * event that {@code add} rejects before it reaches consensus still leaves its mark, so {@link #during} returns an
-     * empty scope for it rather than reporting that no event of that name was added.
      *
      * @param name the name of the event being added
      */

@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.messag
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.sfixed64Field;
 import static com.hedera.node.app.service.clpr.impl.verifier.sei.SeiProto.varintField;
 
-import com.hedera.cryptography.libsodium.Libsodium;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.SeiBlockRef;
 import com.hedera.hapi.node.state.clpr.SeiHeader;
@@ -16,7 +15,6 @@ import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.lang.foreign.MemorySegment;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -39,9 +37,6 @@ import java.util.Objects;
  */
 public final class SeiHashing {
 
-    /// libsodium is used for Ed25519 signatures.
-    private static final Libsodium LIBSODIUM = Libsodium.getInstance();
-
     /** {@code SignedMsgType.SIGNED_MSG_TYPE_PRECOMMIT}. */
     private static final int PRECOMMIT_TYPE = 2;
 
@@ -50,9 +45,6 @@ public final class SeiHashing {
 
     /** Length in bytes of an Ed25519 public key. */
     public static final int ED25519_PUB_KEY_LENGTH = 32;
-
-    /** Length in bytes of an Ed25519 signature. */
-    private static final int SIGNATURE_LENGTH = 64;
 
     private SeiHashing() {}
 
@@ -137,30 +129,6 @@ public final class SeiHashing {
     public static byte[] validatorAddress(@NonNull final byte[] ed25519PubKey) {
         Objects.requireNonNull(ed25519PubKey, "ed25519PubKey");
         return Arrays.copyOf(SeiMerkle.sha256(ed25519PubKey), ADDRESS_LENGTH);
-    }
-
-    /**
-     * Verifies an Ed25519 signature; returns {@code false} for malformed keys or signatures so
-     * callers can treat invalid input as an unsigned vote.
-     */
-    public static boolean verifyEd25519(
-            @NonNull final byte[] publicKey32, @NonNull final byte[] message, @NonNull final byte[] signature64) {
-        Objects.requireNonNull(publicKey32, "publicKey32");
-        Objects.requireNonNull(message, "message");
-        Objects.requireNonNull(signature64, "signature64");
-        if (publicKey32.length != ED25519_PUB_KEY_LENGTH || signature64.length != SIGNATURE_LENGTH) {
-            return false;
-        }
-        try {
-            return LIBSODIUM.cryptoSignVerifyDetached(
-                            MemorySegment.ofArray(signature64),
-                            MemorySegment.ofArray(message),
-                            message.length,
-                            MemorySegment.ofArray(publicKey32))
-                    == 0;
-        } catch (final RuntimeException e) {
-            return false;
-        }
     }
 
     @NonNull

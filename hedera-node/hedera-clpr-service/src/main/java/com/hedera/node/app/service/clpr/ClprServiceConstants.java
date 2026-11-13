@@ -17,9 +17,6 @@ public final class ClprServiceConstants {
     public static final ContractID CLPR_CONTRACT_ID =
             ContractID.newBuilder().contractNum(CLPR_SERVICE_ACCOUNT_NUM).build();
 
-    /** CLPR state storage surcharge per byte ($0.00001), in tinycents. */
-    public static final long CLPR_STATE_BYTE_FEE_TINYCENTS = 100_000L;
-
     private ClprServiceConstants() {
         throw new UnsupportedOperationException("Utility class");
     }
