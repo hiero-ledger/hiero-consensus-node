@@ -1,22 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.keys;
 
-import static com.hedera.node.app.hapi.utils.SignatureGenerator.BOUNCYCASTLE_PROVIDER;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.protobuf.ByteString;
 import com.hederahashgraph.api.proto.java.Key;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.SecureRandom;
-import java.security.spec.ECGenParameterSpec;
 import java.util.Arrays;
 import java.util.Map;
 import net.i2p.crypto.eddsa.EdDSAPublicKey;
+import org.hiero.base.crypto.ECDSASecp256k1;
 
 /**
  * The default {@link KeyGenerator}, which generates Ed25519 and ECDSA(secp256k1) keys
@@ -25,18 +20,6 @@ import net.i2p.crypto.eddsa.EdDSAPublicKey;
 public enum DefaultKeyGen implements KeyGenerator {
     DEFAULT_KEY_GEN;
 
-    private static final ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256k1");
-    private static final KeyPairGenerator ecKpGenerator;
-
-    static {
-        try {
-            ecKpGenerator = KeyPairGenerator.getInstance("EC", BOUNCYCASTLE_PROVIDER);
-            ecKpGenerator.initialize(ecSpec, new SecureRandom());
-        } catch (final NoSuchAlgorithmException | InvalidAlgorithmParameterException fatal) {
-            throw new IllegalStateException(fatal);
-        }
-    }
-
     @Override
     public Key genEd25519AndUpdateMap(final Map<String, PrivateKey> mutablePkMap) {
         return genAndRememberEd25519Key(mutablePkMap);
@@ -44,7 +27,7 @@ public enum DefaultKeyGen implements KeyGenerator {
 
     @Override
     public Key genEcdsaSecp256k1AndUpdate(final Map<String, PrivateKey> mutablePkMap) {
-        final var kp = ecKpGenerator.generateKeyPair();
+        final var kp = ECDSASecp256k1.genEcdsaSecp256k1KeyPair();
         final var compressedPublicKey = asCompressedEcdsaKey(kp.getPublic());
         mutablePkMap.put(hex(compressedPublicKey), kp.getPrivate());
         return Key.newBuilder()

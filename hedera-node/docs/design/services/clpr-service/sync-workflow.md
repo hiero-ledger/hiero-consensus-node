@@ -11,6 +11,57 @@ without a separate endpoint identity — the consensus roster *is* the endpoint 
 All classes live under
 `hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/clpr/`.
 
+## Outbound proof format
+
+The receiver reports its current verifier-defined ID in
+`ClprBundleRequest.current_trust_anchor_id` (field 3). The compact Hiero
+verifier advertises the following 33-byte ID:
+
+```text
+0x01 || keccak256(raw 1,096-byte hinTS verification key)
+```
+
+The first byte selects `HieroProof` version 1 for a Hiero source. The sender
+uses the remaining 32 bytes to find the receiver's current hinTS key. An empty
+ID or any other encoding selects the native WRAPS-bearing `StateProof`.
+The tag belongs to the Hiero verifier's opaque ID format. The receiver relays
+the stored ID using the existing CLPR request fields.
+
+The compact profile uses SHA-256 block roots. A message bundle includes a
+`StateProof` with its signature shortened to the verification key and aggregate
+signature (2,344 bytes). If the receiver's key differs from the block signer,
+the sender includes the predecessor certificates. Both the certificates and
+the state proof come from the same block-proven snapshot.
+
+A bundle may carry up to eight certificates and must fit the peer's
+`max_sync_bytes`. For a longer path the sender can send certificates and a
+SHA-256 adoption witness for the last key in the batch. This updates only the
+receiver's anchor and can run even with an empty message queue. The sender sends
+one batch per cycle and uses the anchor reported in the next request to resume
+from the committed key. Witness bundles leave the received message ID unchanged.
+Before sending either compact form, the sender checks its serialized proofs at
+the EVM verifier's threshold of strictly more than one third.
+
+The request guides proof construction. The receiver authorizes keys and
+messages by verifying the proof. `ANCHOR_AHEAD` means the peer's anchor is
+known to be ahead of the snapshot signer. `SNAPSHOT_NOT_READY` means the node
+lacks a signed snapshot with enough history to make progress. Retry both with a
+newer signed snapshot. For a compact request, `UNKNOWN_ANCHOR` means the key hash
+is unrecognized in the available history. Check current history before treating it
+as foreign to the ledger.
+
+An `UNWITNESSED_GAP` means the sender found no usable witness endpoint within
+eight links in the snapshot it used. A previously captured witness can still be
+published after a key retires. If the gap persists, check for pending publication
+or [historical backfill](../../explicit-key-provenance.md#production-and-consensus-admission)
+before reopening with a newer anchor.
+
+The sender records skipped compact proofs in the `clpr.hieroProofSkipped_*`
+counters, by reason and channel, and rate limits the corresponding logs.
+Ledger-configuration and endpoint-manifest queries use the native proof format.
+See the [Hiero to EVM interoperability guide](hiero-evm-proof-interop.md) for
+channel setup and the Solidity fixture tests.
+
 ## Class roles at a glance
 
 ```

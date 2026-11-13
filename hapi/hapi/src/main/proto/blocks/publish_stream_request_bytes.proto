@@ -75,6 +75,17 @@ message EndStreamBytes {
 }
 
 /**
+ A lightweight acknowledgement-only request from a Publisher.
+ */
+message AcknowledgeOnlyBytes {
+  /**
+   * The block number that the Publisher is requesting the Block-Node
+   * to acknowledge.
+   */
+  uint64 block_number = 1;
+}
+
+/**
  * A request to publish a stream of blocks using serialized block items.
  *
  * This mirrors `org.hiero.block.api.PublishStreamRequest` field-for-field on the wire. The
@@ -99,5 +110,10 @@ message PublishStreamRequestBytes {
      * A message indicating the end of a block.
      */
     org.hiero.block.api.BlockEnd end_of_block = 3;
+
+    /**
+     * A message requesting a block acknowledgement.
+     */
+    AcknowledgeOnlyBytes acknowledge_only = 4;
   }
 }

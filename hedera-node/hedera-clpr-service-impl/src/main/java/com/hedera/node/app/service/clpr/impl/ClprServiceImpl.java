@@ -4,10 +4,13 @@ package com.hedera.node.app.service.clpr.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator;
+import com.hedera.node.app.service.clpr.impl.calculator.ClprQueryFeeCalculator;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -62,5 +65,16 @@ public final class ClprServiceImpl implements ClprService {
                 new ClprFeeCalculator(
                         HederaFunctionality.CLPR_ENDPOINT_PUBLICATION,
                         TransactionBody.DataOneOfType.CLPR_ENDPOINT_PUBLICATION));
+    }
+
+    @Override
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(
+                new ClprQueryFeeCalculator(
+                        HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION,
+                        Query.QueryOneOfType.CLPR_GET_LEDGER_CONFIGURATION),
+                new ClprQueryFeeCalculator(
+                        HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST,
+                        Query.QueryOneOfType.CLPR_GET_ENDPOINT_MANIFEST));
     }
 }

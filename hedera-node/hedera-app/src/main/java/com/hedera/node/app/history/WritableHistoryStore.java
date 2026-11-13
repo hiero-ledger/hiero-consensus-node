@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -30,7 +31,9 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     /**
      * If there is a known construction matching the active rosters, returns it; otherwise, creates one. When a
      * fresh genesis proof is requested, a matching construction that is already complete is replaced by a new
-     * one rather than returned.
+     * one rather than returned. An unfinished construction from an incompatible WRAPS protocol is also replaced
+     * with a fresh id before any of its votes or signing transcript can be replayed. Completed legacy proofs keep
+     * their existing committed trust root and are not replaced merely because their protocol version is old.
      * @param activeRosters the active rosters
      * @param now the current time
      * @param tssConfig the TSS configuration
@@ -183,9 +186,36 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @param fromRoster the roster to hand off from
      * @param toRoster if applicable, the roster to hand off to
      * @param toRosterHash if applicable, the hash of the roster to hand off to
+     * @param activationTime the consensus activation boundary, required whenever the next construction carries
+     *                       key provenance; may be null only for a proof-only handoff without a signing-key transition
      * @return whether the handoff happened
+     * @throws NullPointerException if a provenance-bearing construction is adopted without an activation time
+     * @throws IllegalStateException if the signing generation already has an adoption record
      */
-    boolean handoff(@NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash);
+    boolean handoff(
+            @NonNull Roster fromRoster,
+            @Nullable Roster toRoster,
+            @Nullable Bytes toRosterHash,
+            @Nullable Instant activationTime);
+
+    /**
+     * Stores an already cryptographically verified witness for an adopted generation.
+     * First accepted bytes are immutable; later submissions never replace them.
+     *
+     * @return true only when a new witness was stored; false for malformed,
+     * unadopted, ineligible, or already completed submissions
+     */
+    boolean setKeyWitness(@NonNull HintsKeyWitness witness);
+
+    /**
+     * Records that a publication from the given node passed the cheap admission checks for a pending
+     * generation but failed verification, so that the node's later publications for that generation are
+     * ignored without native work. Each node is recorded at most once, and nothing is recorded for
+     * unadopted or already completed generations.
+     *
+     * @return true only when the node was newly recorded
+     */
+    boolean markWitnessRejected(long targetHintsConstructionId, long nodeId);
 
     /**
      * Rebinds a completed active construction after the caller verifies that the adopted roster has
@@ -210,9 +240,11 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     default void advanceWrapsSigningPhase(
             final long constructionId, @NonNull final WrapsPhase phase, @Nullable final Instant gracePeriodEndTime) {
         requireNonNull(phase);
-        updateWrapsSigningState(constructionId, builder -> builder.phase(phase)
-                .gracePeriodEndTime(Optional.ofNullable(gracePeriodEndTime)
-                        .map(HapiUtils::asTimestamp)
-                        .orElse(Timestamp.DEFAULT)));
+        updateWrapsSigningState(
+                constructionId,
+                builder -> builder.phase(phase)
+                        .gracePeriodEndTime(Optional.ofNullable(gracePeriodEndTime)
+                                .map(HapiUtils::asTimestamp)
+                                .orElse(Timestamp.DEFAULT)));
     }
 }

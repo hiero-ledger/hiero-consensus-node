@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
+import static com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator.settleCompleteChannelFee;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -137,12 +138,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         validateTruePreCheck(op.hasVerifierContract(), INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.configProofBytes().length() > 0, INVALID_TRANSACTION_BODY);
 
-        final var expectedKeyLength =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
-                    case ED25519 -> ED25519_KEY_LENGTH;
-                    default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
-                };
+        final var expectedKeyLength = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
+            case ED25519 -> ED25519_KEY_LENGTH;
+            default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
+        };
         validateTruePreCheck(op.publicKey().length() == expectedKeyLength, INVALID_TRANSACTION_BODY);
     }
 
@@ -193,12 +193,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // 3. Verify signature over keccak256(channel_id)
         // FUTURE: We may be able to move this to pre-handle to avoid the crypto work on the handle thread
         final var messageHash = MiscCryptoUtils.keccak256DigestOf(op.channelId().toByteArray());
-        final var signatureType =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
-                    case ED25519 -> SignatureType.ED25519;
-                    default -> throw new HandleException(INVALID_TRANSACTION_BODY);
-                };
+        final var signatureType = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
+            case ED25519 -> SignatureType.ED25519;
+            default -> throw new HandleException(INVALID_TRANSACTION_BODY);
+        };
         log.debug(
                 "[ClprCompleteChannel] signature verification START channelId={} signatureScheme={} "
                         + "messageHash={} publicKeyBytes={} signatureBytes={}",
@@ -385,6 +384,8 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
         channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
+        settleCompleteChannelFee(
+                context, verifiedConfig.verifierGasUsed(), ClprChannel.PROTOBUF.measureRecord(channel));
         channelStore.put(channel);
         log.debug(
                 "[ClprCompleteChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "
