@@ -529,6 +529,46 @@ class HandleWorkflowTest {
     }
 
     @Test
+    void bootstrapPublicationStaysFullAndConsumesThePendingUpdate() throws Exception {
+        givenRealBoundaryListener();
+        givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
+        final var initial = PlatformState.newBuilder()
+                .latestFreezeRound(10)
+                .legacyRunningEventHash(Bytes.wrap(new byte[200]))
+                .build();
+        final var next = initial.copyBuilder().latestFreezeRound(11).build();
+        boundaryStateChangeListener.singletonUpdateChange(
+                V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, initial, next);
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
+        method.setAccessible(true);
+        method.invoke(subject, MapWritableStates.builder().build(), null, (Runnable) () -> {});
+
+        final ArgumentCaptor<Function<Timestamp, BlockItem>> publications = ArgumentCaptor.forClass(Function.class);
+        verify(blockStreamManager).writeItem(publications.capture());
+        final var update = publications
+                .getValue()
+                .apply(BLOCK_TIME)
+                .stateChangesOrThrow()
+                .stateChanges()
+                .getFirst()
+                .singletonUpdateOrThrow();
+        assertFalse(update.partial());
+        assertEquals(next, update.platformStateValueOrThrow());
+        assertTrue(boundaryStateChangeListener.allStateChanges().isEmpty());
+    }
+
+    private void givenRealBoundaryListener() {
+        boundaryStateChangeListener = new BoundaryStateChangeListener(
+                new com.hedera.node.app.metrics.StoreMetricsServiceImpl(
+                        new org.hiero.consensus.fakes.noop.NoOpMetrics()),
+                HederaTestConfigBuilder::createConfig);
+        boundaryStateChangeListener.beginBlock(true);
+        immediateStateChangeListener = new ImmediateStateChangeListener();
+        immediateStateChangeListener.beginBlock(true);
+    }
+
+    @Test
     void postUpgradeRemovesRetiredFeeScheduleFileFromState() {
         final var retiredFileId = FileID.newBuilder().fileNum(111L).build();
         final var simpleFeesFileId = FileID.newBuilder().fileNum(113L).build();
@@ -1598,26 +1638,27 @@ class HandleWorkflowTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void streamingAllChangesFlushesPendingBoundarySingletonsBeforeReset() throws Exception {
+    void streamingAllChangesFlushesPendingBoundarySingletonsBeforeMarkingEmitted() throws Exception {
         givenSubjectWith(BLOCKS, BlockStreamWriterMode.FILE, emptyList());
         // A boundary singleton change made earlier in the still-open block, before the action
         final var pendingChange = StateChange.newBuilder()
                 .stateId(ENTITY_COUNTS_STATE_ID)
                 .singletonUpdate(SingletonUpdateChange.DEFAULT)
                 .build();
-        given(boundaryStateChangeListener.allStateChanges()).willReturn(new LinkedList<>(List.of(pendingChange)));
+        given(boundaryStateChangeListener.allStateChanges(false)).willReturn(new LinkedList<>(List.of(pendingChange)));
 
         final var method = HandleWorkflow.class.getDeclaredMethod(
                 "doStreamingAllChanges", WritableStates.class, WritableStates.class, Runnable.class);
         method.setAccessible(true);
         method.invoke(subject, mock(WritableStates.class), null, (Runnable) () -> {});
 
-        // The pending change is streamed before the listener is reset, so it is neither dropped nor repeated
-        // when the block closes
+        // The pending change is streamed in full and only then marked emitted, so it is neither dropped nor
+        // repeated when the block closes; the listener's baselines for other singletons are not reset
         final ArgumentCaptor<Function<Timestamp, BlockItem>> itemCaptor = ArgumentCaptor.forClass(Function.class);
         final var inOrder = inOrder(blockStreamManager, boundaryStateChangeListener);
         inOrder.verify(blockStreamManager).writeItem(itemCaptor.capture());
-        inOrder.verify(boundaryStateChangeListener).reset();
+        inOrder.verify(boundaryStateChangeListener).stateChangesEmitted(List.of(pendingChange));
+        verify(boundaryStateChangeListener, never()).reset();
         assertEquals(
                 List.of(pendingChange),
                 itemCaptor.getValue().apply(BLOCK_TIME).stateChangesOrThrow().stateChanges());

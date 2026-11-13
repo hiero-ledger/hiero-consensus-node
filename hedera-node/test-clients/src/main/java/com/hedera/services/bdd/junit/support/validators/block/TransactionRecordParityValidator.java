@@ -67,6 +67,11 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
 
     public static final Factory FACTORY = new Factory() {
         @Override
+        public boolean requiresRecordStream() {
+            return true;
+        }
+
+        @Override
         public boolean appliesTo(@NonNull final HapiSpec spec) {
             requireNonNull(spec);
             // Embedded networks don't have saved states or a Merkle tree to validate hashes against
@@ -115,10 +120,11 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final long realm = 12L;
         // Set to non-null node0 data/ path if e.g. triaging a mismatch in streams downloaded from CI
         final Path customNode0Data = null;
-        final var node0Data = Optional.ofNullable(customNode0Data).orElseGet(() -> Paths.get("hedera-node/test-clients")
-                .resolve(workingDirFor(0, "hapi").resolve("data"))
-                .toAbsolutePath()
-                .normalize());
+        final var node0Data = Optional.ofNullable(customNode0Data)
+                .orElseGet(() -> Paths.get("hedera-node/test-clients")
+                        .resolve(workingDirFor(0, "hapi").resolve("data"))
+                        .toAbsolutePath()
+                        .normalize());
         final var blocksLoc = node0Data
                 .resolve("blockStreams/block-" + shard + "." + realm + ".3")
                 .toAbsolutePath()
@@ -175,6 +181,9 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         } else {
             allBlocks = blocks;
         }
+        final var valueReconstructor = new com.hedera.node.app.hapi.utils.blocks.StateChangeReconstructor();
+        final boolean reconstructValues = allBlocks.stream()
+                .anyMatch(com.hedera.node.app.hapi.utils.blocks.StateChangePartials::hasPartialUpdates);
         final var baseTranslator = requireNonNull(translator).getBaseTranslator();
         final var rfTranslator =
                 new BlockTransactionalUnitTranslator(baseTranslator.getShard(), baseTranslator.getRealm());
@@ -197,7 +206,10 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final var roleFreeSplit = new RoleFreeBlockUnitSplit();
         final var roleFreeRecords = allBlocks.stream()
                 .flatMap(block ->
-                        roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
+                        roleFreeSplit
+                                .split(reconstructValues ? valueReconstructor.fullValuesForTranslation(block) : block)
+                                .stream()
+                                .map(BlockTransactionalUnit::withBatchTransactionParts))
                 .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
                 .flatMap(unit -> rfTranslator.translate(unit).stream())
                 .toList();

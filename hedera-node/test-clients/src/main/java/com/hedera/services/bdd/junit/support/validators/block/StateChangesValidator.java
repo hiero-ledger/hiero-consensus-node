@@ -6,12 +6,14 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGE
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.history.impl.HistoryLibraryImpl.WRAPS;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.*;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
@@ -37,6 +39,7 @@ import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
 import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.tss.LedgerIdPublicationTransactionBody;
@@ -47,13 +50,17 @@ import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
+import com.hedera.node.app.hapi.utils.blocks.StateChangePartials;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.config.data.VersionConfig;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
@@ -64,6 +71,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -104,7 +112,8 @@ import org.junit.jupiter.api.Assertions;
 
 /**
  * A validator that asserts the state changes in the block stream, when applied directly to a {@link VirtualMapState}
- * initialized with the genesis {@link Service} schemas, result in the given root hash.
+ * initialized with the genesis {@link Service} schemas, match every block's starting state hash
+ * and result in the given final root hash.
  */
 @SuppressWarnings("removal")
 public class StateChangesValidator implements BlockStreamValidator {
@@ -412,6 +421,11 @@ public class StateChangesValidator implements BlockStreamValidator {
             logger.info("Read {} preview blocks", previewBlocks.size());
 
             for (final var block : previewBlocks) {
+                final var previewState = state;
+                this.state = stateLifecycleManager.copyMutableState();
+                startOfStateHash = requireNonNull(previewState.getHash()).getBytes();
+                validateStartOfBlockStateHash(block, startOfStateHash);
+
                 // A preview block may be the SHA-384 -> SHA-256 transition block; adopt its declared digest.
                 // The preview loop folds every footer-bearing block, so its transition predecessor is always folded.
                 incrementalBlockHashes = withBlockDigest(block, incrementalBlockHashes, false);
@@ -480,7 +494,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                                 blockTimestamp,
                                 previousBlockHash,
                                 incrementalBlockHashes,
-                                footer.startOfBlockStateRootHash(),
+                                startOfStateHash,
                                 previewInputHasher,
                                 previewOutputHasher,
                                 previewConsensusHasher,
@@ -499,10 +513,18 @@ public class StateChangesValidator implements BlockStreamValidator {
             // At the cutover boundary, reinitialize hash state from the first post-cutover
             // block's BlockInfo
             final var firstPostCutoverBlock = blocks.getFirst();
+            final var priorBlockInfo = state.getReadableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(StateIdentifier.STATE_ID_BLOCKS.protoOrdinal())
+                    .get();
             final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
                     List.of(firstPostCutoverBlock),
                     SingletonUpdateChange::blockInfoValue,
-                    StateIdentifier.STATE_ID_BLOCKS.protoOrdinal());
+                    StateIdentifier.STATE_ID_BLOCKS.protoOrdinal(),
+                    priorBlockInfo == null
+                            ? null
+                            : SingletonUpdateChange.newBuilder()
+                                    .blockInfoValue(priorBlockInfo)
+                                    .build());
             if (blockInfo != null
                     && blockInfo.previousWrappedRecordBlockRootHash() != null
                     && !blockInfo.previousWrappedRecordBlockRootHash().equals(Bytes.EMPTY)) {
@@ -539,32 +561,31 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
 
         final int n = blocks.size();
-        final int lastVerifiableIndex =
-                blocks.reversed().stream().filter(b -> b.items().getLast().hasBlockProof()).findFirst().stream()
-                        .mapToInt(b ->
-                                (int) b.items().getFirst().blockHeaderOrThrow().number())
-                        .findFirst()
-                        .orElseThrow();
+        int lastVerifiableIndex = n - 1;
+        while (lastVerifiableIndex >= 0
+                && !blocks.get(lastVerifiableIndex).items().getLast().hasBlockProof()) {
+            lastVerifiableIndex--;
+        }
         boolean hashChainBroken = false;
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
             // Adopt the digest this block declares, in case its hash algorithm differs from the previous block's.
             incrementalBlockHashes = withBlockDigest(block, incrementalBlockHashes, hashChainBroken);
-            var shouldVerifyProof = i == 0
-                    || i == lastVerifiableIndex
-                    || indirectProofSeq != null
-                    || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB
+            var shouldVerifyProof = shouldVerifyProof(i, lastVerifiableIndex)
                     // Don't leave the at-least-one-WRAPS assertion to sampling what may be a short window of blocks
                     || (!observedCompressedWrapsProof
                             && hintsLibrary != null
                             && historyLibrary != null
                             && carriesCompressedWrapsProof(block));
-            if (i != 0 && shouldVerifyProof) {
+            if (i != 0) {
                 final var stateToBeCopied = state;
                 this.state = stateLifecycleManager.copyMutableState();
                 startOfStateHash =
                         requireNonNull(stateToBeCopied.getRoot().getHash()).getBytes();
             }
+            // Check every block boundary, even when its proof is absent, not sampled, or skipped
+            // while recovering the block hash chain after a restart.
+            final var footer = validateStartOfBlockStateHash(block, startOfStateHash);
             final IncrementalStreamingHasher inputTreeHasher = new IncrementalStreamingHasher(digest(), List.of(), 0);
             final IncrementalStreamingHasher outputTreeHasher = new IncrementalStreamingHasher(digest(), List.of(), 0);
             final IncrementalStreamingHasher consensusHeaderHasher =
@@ -616,15 +637,14 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
 
-            // An incomplete block (missing footer/proof) can appear in the middle of the list
+            // An incomplete block (missing proof) can appear in the middle of the list
             // when nodes are restarted and all nodes wrote the block before the async proof arrived
             final long blockNumber =
                     block.items().getFirst().blockHeaderOrThrow().number();
             final boolean blockHasProof = block.items().getLast().hasBlockProof();
             if (i <= lastVerifiableIndex && blockHasProof) {
-                final var footer = block.items().get(block.items().size() - 2);
                 assertTrue(
-                        footer.hasBlockFooter(),
+                        block.items().get(block.items().size() - 2).hasBlockFooter(),
                         "Field blockFooter is null for block #" + blockNumber + " at index " + i);
                 final var lastBlockItem = block.items().getLast();
                 assertTrue(lastBlockItem.hasBlockProof());
@@ -635,14 +655,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                     // (carried in this block's footer as previousBlockRootHash) to the incremental
                     // hasher so the chain stays in sync for future proof verifications, and skip
                     // proof verification for this block since we don't have its expected predecessor.
-                    final var skippedBlockHash = footer.blockFooterOrThrow().previousBlockRootHash();
+                    final var skippedBlockHash = footer.previousBlockRootHash();
                     foldBlockHash(incrementalBlockHashes, skippedBlockHash);
                     shouldVerifyProof = false;
                     hashChainBroken = false;
                 } else {
                     assertEquals(
                             previousBlockHash,
-                            footer.blockFooterOrThrow().previousBlockRootHash(),
+                            footer.previousBlockRootHash(),
                             "Previous block hash mismatch for block " + blockProof.block());
                 }
 
@@ -676,10 +696,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     validateBlockProof(
                             thisBlockNum,
                             firstBlockRound,
-                            footer.blockFooterOrThrow(),
                             blockProof,
                             expectedBlockHash,
-                            startOfStateHash,
                             previousBlockHash,
                             firstConsensusTimestamp,
                             expectedRootAndSiblings.siblingHashes());
@@ -1009,6 +1027,29 @@ public class StateChangesValidator implements BlockStreamValidator {
         return indirectProofSeq != null && indirectProofSeq.containsIndirectProofs();
     }
 
+    boolean shouldVerifyProof(final int index, final int lastVerifiableIndex) {
+        return index == 0
+                || index == lastVerifiableIndex
+                || indirectProofSeq != null
+                || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
+    }
+
+    static BlockFooter validateStartOfBlockStateHash(
+            @NonNull final Block block, @NonNull final Bytes startOfStateHash) {
+        final var blockNumber = block.items().getFirst().blockHeaderOrThrow().number();
+        final var footer = block.items().stream()
+                .filter(BlockItem::hasBlockFooter)
+                .findFirst()
+                .map(BlockItem::blockFooterOrThrow)
+                .orElse(null);
+        assertNotNull(footer, "Missing block footer for block #" + blockNumber);
+        assertEquals(
+                footer.startOfBlockStateRootHash(),
+                startOfStateHash,
+                "Wrong start of block state hash for block #" + blockNumber);
+        return footer;
+    }
+
     /**
      * Whether a signature on block {@code blockNumber} is verified by the hinTS library alone, rather than with
      * {@code TSS.verifyTSS()} (which requires a chain of trust from the ledger id).
@@ -1037,18 +1078,12 @@ public class StateChangesValidator implements BlockStreamValidator {
     private void validateBlockProof(
             final long blockNumber,
             final long firstRound,
-            @NonNull final BlockFooter footer,
             @NonNull final BlockProof proof,
             @NonNull final Bytes expectedBlockHash,
-            @NonNull final Bytes startOfStateHash,
             @NonNull final Bytes previousBlockHash,
             @NonNull final Timestamp blockTimestamp,
             @NonNull final MerkleSiblingHash[] expectedSiblingHashes) {
         assertEquals(blockNumber, proof.block());
-        assertEquals(
-                footer.startOfBlockStateRootHash(),
-                startOfStateHash,
-                "Wrong start of block state hash for block #" + blockNumber);
 
         logger.info("Validating block proof for block #{}", blockNumber);
         // Our proof method will be different depending on whether this is a direct or indirect proof.
@@ -1208,7 +1243,17 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateId);
-                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    final var update = stateChange.singletonUpdateOrThrow();
+                    // Decode the payload separately from its partial-update metadata.
+                    final var value = BlockStreamUtils.singletonPutFor(
+                            new SingletonUpdateChange(false, List.of(), update.newValue()));
+                    final var singleton = update.partial()
+                            ? applyPartial(
+                                    valueCodecFor(serviceName, stateId),
+                                    singletonState.get(),
+                                    value,
+                                    update.clearedFields())
+                            : value;
                     singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
                     if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
@@ -1220,8 +1265,15 @@ public class StateChangesValidator implements BlockStreamValidator {
                     final var mapState = writableStates.get(stateId);
                     final var key = BlockStreamUtils.mapKeyFor(
                             stateChange.mapUpdateOrThrow().keyOrThrow());
-                    final var value = BlockStreamUtils.mapValueFor(
-                            stateChange.mapUpdateOrThrow().valueOrThrow());
+                    final var update = stateChange.mapUpdateOrThrow();
+                    final var payload = BlockStreamUtils.mapValueFor(update.valueOrThrow());
+                    final var value = update.partial()
+                            ? applyPartial(
+                                    valueCodecFor(serviceName, stateId),
+                                    mapState.get(key),
+                                    payload,
+                                    update.clearedFields())
+                            : payload;
                     mapState.put(key, value);
                     entityChanges
                             .computeIfAbsent(stateName, k -> new HashSet<>())
@@ -1259,6 +1311,31 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             lastService = serviceName;
             lastWritableStates = (CommittableWritableStates) writableStates;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Codec<Object> valueCodecFor(final String serviceName, final int stateId) {
+        return (Codec<Object>) ((VirtualMapStateImpl) state)
+                .getServices()
+                .get(serviceName)
+                .get(stateId)
+                .stateDefinition()
+                .valueCodec();
+    }
+
+    /**
+     * Reconstruct a full state value by splicing canonical field runs, then decoding with the state's codec.
+     */
+    static <T> T applyPartial(
+            final Codec<T> codec, @Nullable final T prior, final T partial, final List<Integer> clearedFields) {
+        final var merged = StateChangePartials.applyBytes(
+                prior == null ? null : codec.toBytes(prior), codec.toBytes(partial), true, clearedFields);
+        try {
+            // Match the block reader's limit for state values containing uncompressed WRAPS proofs.
+            return codec.parse(merged.toReadableSequentialData(), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException("Invalid reconstructed state value", e);
         }
     }
 

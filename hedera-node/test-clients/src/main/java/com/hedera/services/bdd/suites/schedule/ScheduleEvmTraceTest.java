@@ -21,6 +21,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion.withFullStateValues;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -115,7 +116,8 @@ public class ScheduleEvmTraceTest {
                 getScheduleInfo(SCHEDULE).isExecuted(),
                 getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)),
                 streamMustIncludePassWithReplayFrom(
-                        spec -> scheduledStorageTrace(spec, triggeringTxn), Duration.ofSeconds(30)));
+                        spec -> withFullStateValues(scheduledStorageTrace(spec, triggeringTxn)),
+                        Duration.ofSeconds(30)));
     }
 
     private static BlockStreamAssertion scheduledStorageTrace(final HapiSpec spec, final String triggeringTxn) {

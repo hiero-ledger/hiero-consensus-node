@@ -29,6 +29,12 @@ workflows directly. In embedded mode, there is no hashgraph consensus because th
 replaced with `AbstractFakePlatform`, and the state is a `FakeState` backed by in-memory data
 structures instead of a Merkle tree.
 
+The executable HAPI suites and their framework live in `src/main/java` so they can be packaged
+in the test-client application. Unit tests for this code live in `src/test/java`. Run all unit
+tests with `./gradlew :test-clients:unitTest`, or select a class with
+`./gradlew :test-clients:unitTest --tests '*BinaryStateChangeParserTest'`. The `check` task also
+runs all unit tests.
+
 ## Table of contents
 
 - [Structure of a `HapiSpec`](#structure-of-a-hapispec)
