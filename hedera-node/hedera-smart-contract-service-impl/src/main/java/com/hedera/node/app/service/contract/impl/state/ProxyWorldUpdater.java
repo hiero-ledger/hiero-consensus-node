@@ -76,8 +76,6 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      */
     private final Map<Address, AccountID> selfDestructBeneficiaries = new HashMap<>();
 
-    private long collectedClprFees;
-
     /**
      * Numbers of the contracts created in this frame and its committed children. Like the beneficiaries,
      * these follow frame rollback, so they identify exactly the creations of this execution that survive.
@@ -439,17 +437,6 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     }
 
     /**
-     * Collects a CLPR fee in this frame's savepoint and tracks it for the root transaction record.
-     */
-    public boolean collectClprFee(@NonNull final AccountID payerId, final long amount) {
-        if (!enhancement.operations().collectClprFee(payerId, amount)) {
-            return false;
-        }
-        collectedClprFees = Math.addExact(collectedClprFees, amount);
-        return true;
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -459,7 +446,6 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         // ultimately the HederaOperations is the one tracking and managing all changes
         enhancement.operations().revert();
         selfDestructBeneficiaries.clear();
-        collectedClprFees = 0;
         createdContractNumbers.clear();
         // Because of the revert-then-commit pattern that Besu uses for force deletions in
         // AbstractMessageProcessor#clearAccumulatedStateBesidesGasAndOutput(), we have
@@ -490,11 +476,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
             if (parent instanceof ProxyWorldUpdater parentUpdater) {
                 parentUpdater.selfDestructBeneficiaries.putAll(selfDestructBeneficiaries);
                 parentUpdater.createdContractNumbers.addAll(createdContractNumbers);
-                parentUpdater.collectedClprFees = Math.addExact(parentUpdater.collectedClprFees, collectedClprFees);
-            } else if (collectedClprFees != 0) {
-                enhancement.operations().recordClprFees(collectedClprFees);
             }
-            collectedClprFees = 0;
         }
     }
 

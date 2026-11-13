@@ -24,12 +24,7 @@ public class HapiClprSubmitBundle extends HapiTxnOp<HapiClprSubmitBundle> {
     private byte[] bundlePayload;
     private long endpointNodeId;
 
-    /** Covers a CLPR bundle's bytes and verifier gas at the test exchange rate; an explicit {@link #fee} overrides it. */
-    private static final long DEFAULT_MAX_FEE_TINYBARS = 100L * 100_000_000L;
-
-    public HapiClprSubmitBundle() {
-        fee(DEFAULT_MAX_FEE_TINYBARS);
-    }
+    public HapiClprSubmitBundle() {}
 
     public HapiClprSubmitBundle channelId(final byte[] channelId) {
         this.channelId = channelId;
