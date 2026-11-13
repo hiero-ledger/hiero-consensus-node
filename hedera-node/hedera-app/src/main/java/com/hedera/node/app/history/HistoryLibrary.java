@@ -24,7 +24,8 @@ import java.util.stream.IntStream;
 public interface HistoryLibrary {
     /**
      * The sentinel public key to use when a node fails to publish its proof key within the grace period.
-     * The corresponding private key is intentionally unavailable, so this key must never be used for signing.
+     * This is the identity point, whose secret scalar is zero. Native WRAPS excludes its listed weight from
+     * signing thresholds and rejects signer masks selecting it, while retaining the entry in the book commitment.
      */
     Bytes MISSING_SCHNORR_KEY = Bytes.wrap(WRAPSLibraryBridge.getInstance().provideSentinelPublicKey());
 
@@ -32,6 +33,48 @@ public interface HistoryLibrary {
      * The most nodes a WRAPS proof can cover in one address book.
      */
     int MAX_ADDRESS_BOOK_SIZE = WRAPSLibraryBridge.MAX_AB_SIZE;
+
+    /**
+     * Whether an attested Schnorr key encodes the identity public point, independently of its proof of knowledge.
+     * The pinned native WRAPS format serializes the 32-byte compressed Grumpkin public point first, followed
+     * by the 96-byte proof of knowledge. Native identity-key semantics ignore that proof; comparing all 128
+     * bytes to the sentinel would misclassify historical identity keys carrying a different attestation.
+     * This classifies the public point only; native address-book validation still checks the complete encoding.
+     *
+     * @param key the serialized attested Schnorr key
+     * @return whether its public-point encoding equals the sentinel's identity point
+     */
+    static boolean isIdentityKey(@NonNull final byte[] key) {
+        requireNonNull(key);
+        if (key.length != MISSING_SCHNORR_KEY.length() || key.length < 32) {
+            return false;
+        }
+        for (int i = 0; i < 32; i++) {
+            if (key[i] != MISSING_SCHNORR_KEY.getByte(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Classifies the public point of an immutable serialized attested Schnorr key.
+     *
+     * @param key the serialized attested Schnorr key
+     * @return whether its public-point encoding equals the sentinel's identity point
+     */
+    static boolean isIdentityKey(@NonNull final Bytes key) {
+        requireNonNull(key);
+        if (key.length() != MISSING_SCHNORR_KEY.length() || key.length() < 32) {
+            return false;
+        }
+        for (int i = 0; i < 32; i++) {
+            if (key.getByte(i) != MISSING_SCHNORR_KEY.getByte(i)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * An address book for use in the history library.

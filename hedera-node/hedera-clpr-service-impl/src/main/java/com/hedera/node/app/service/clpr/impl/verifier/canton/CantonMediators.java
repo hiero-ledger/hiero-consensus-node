@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
+import com.hedera.node.app.service.clpr.impl.verifier.Secp256k1Recovery;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -180,7 +182,7 @@ public final class CantonMediators {
      * signature must start with {@code 0x30}, declare its own length, and consume its bytes exactly.
      */
     @NonNull
-    public static EcdsaSignature parseEcdsaSignature(@NonNull final byte[] sig) {
+    static EcdsaSignature parseEcdsaSignature(@NonNull final byte[] sig) {
         Objects.requireNonNull(sig, "sig");
         if (sig.length == 64) {
             return new EcdsaSignature(true, Arrays.copyOfRange(sig, 0, 32), Arrays.copyOfRange(sig, 32, 64));
@@ -241,29 +243,7 @@ public final class CantonMediators {
     private static byte[] recoverSecp256k1Address(
             @NonNull final byte[] digest32, @NonNull final byte[] r, @NonNull final byte[] s, final int recId) {
         try {
-            final byte[] compact = new byte[64];
-            System.arraycopy(r, 0, compact, 0, 32);
-            System.arraycopy(s, 0, compact, 32, 32);
-            final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-            if (LibSecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact(
-                            LibSecp256k1.CONTEXT, recoverableSig, compact, recId)
-                    != 1) {
-                return null;
-            }
-            final var pubKey = new LibSecp256k1.secp256k1_pubkey();
-            if (LibSecp256k1.secp256k1_ecdsa_recover(LibSecp256k1.CONTEXT, pubKey, recoverableSig, digest32) != 1) {
-                return null;
-            }
-            final ByteBuffer serialized = ByteBuffer.allocate(65);
-            final var size = new com.sun.jna.ptr.LongByReference(serialized.capacity());
-            if (LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                            LibSecp256k1.CONTEXT, serialized, size, pubKey, LibSecp256k1.SECP256K1_EC_UNCOMPRESSED)
-                    != 1) {
-                return null;
-            }
-            // serialized = 0x04 ‖ x(32) ‖ y(32); address = keccak256(x ‖ y)[12:].
-            final byte[] xy = Arrays.copyOfRange(serialized.array(), 1, 65);
-            return Arrays.copyOfRange(MiscCryptoUtils.keccak256DigestOf(xy), 12, 32);
+            return Secp256k1Recovery.recoverAddress(digest32, r, s, recId);
         } catch (final RuntimeException e) {
             return null;
         }

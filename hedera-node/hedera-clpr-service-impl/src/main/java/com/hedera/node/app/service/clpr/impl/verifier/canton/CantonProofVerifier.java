@@ -68,6 +68,14 @@ public final class CantonProofVerifier implements ClprVerifier {
     private static final int THROTTLE_FIELDS = 7;
     private static final int MAX_CHAIN_REFERENCE_LENGTH = 32;
 
+    private static final int BUNDLE_VERDICT_INDEX = 0;
+    private static final int BUNDLE_OPENING_INDEX = 1;
+    private static final int BUNDLE_CREATED_INDEX_INDEX = 2;
+    private static final int BUNDLE_MEDIATOR_SET_INDEX = 3;
+    private static final int BUNDLE_ROTATIONS_INDEX = 4;
+    private static final int BUNDLE_MANIFEST_INDEX = 5;
+    private static final int BUNDLE_PAYLOADS_INDEX = 6;
+
     /** Maximum number of path steps in an opening. */
     public static final int MAX_PATH_DEPTH = 64;
 
@@ -79,6 +87,7 @@ public final class CantonProofVerifier implements ClprVerifier {
     /** The fields of {@code Channel} that the verifier reads, by position. */
     private static final int CHANNEL_FIELDS = 26;
 
+    private static final int CONNECTOR_ID_LENGTH = 32;
     private static final int CHANNEL_APP = 1;
     private static final int CHANNEL_ID = 2;
     private static final int CHANNEL_NEXT_MESSAGE_ID = 5;
@@ -601,6 +610,7 @@ public final class CantonProofVerifier implements ClprVerifier {
             try {
                 queue = context.storeFactory().readableStore(ReadableMessageQueueStore.class);
             } catch (final RuntimeException e) {
+                log.error("Failed to get message queue store for outbound lookup", e);
                 throw CantonProofException.serviceCallFailed("message queue unavailable: " + e.getMessage());
             }
             final var stored = queue.getMessage(Bytes.wrap(channelId), messageId);
@@ -610,6 +620,7 @@ public final class CantonProofVerifier implements ClprVerifier {
             return verifyBundle(
                     bundlePayload.toByteArray(), trustAnchor.toByteArray(), channelContext.toByteArray(), outbound);
         } catch (final CantonProofException e) {
+            log.error("Canton bundle verification failed: {}", e.getMessage());
             throw new HandleException(e.responseCode());
         } catch (final RuntimeException e) {
             log.error("Unexpected error verifying bundle", e);
@@ -651,28 +662,29 @@ public final class CantonProofVerifier implements ClprVerifier {
         final CantonAnchor.Anchor anchor = CantonAnchor.decode(trustAnchor);
         final Service service = decodeService(channelContext);
 
-        final byte[] mediatorSet = CantonRlp.readBytes(fields.get(3));
+        final byte[] mediatorSet = CantonRlp.readBytes(fields.get(BUNDLE_MEDIATOR_SET_INDEX));
         if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(mediatorSet), anchor.mediatorsHash())) {
             throw CantonProofException.trustSetMismatch();
         }
 
-        final List<Slice> verdict = CantonRlp.readList(fields.get(0));
+        final List<Slice> verdict = CantonRlp.readList(fields.get(BUNDLE_VERDICT_INDEX));
         if (verdict.size() != 2) {
             throw CantonProofException.invalidPayloadShape("verdict has " + verdict.size() + " items");
         }
-        final CantonVerdictVerifier.BundleVerdictResult bv = CantonVerdictVerifier.verifyBundleVerdict(
+        final BundleVerdict bv = verifyBundleVerdict(
                 CantonRlp.readBytes(verdict.get(0)),
                 bytesOf(verdict.get(1)),
                 mediatorSet,
-                trustAnchor,
-                bytesOf(fields.get(4)));
+                anchor,
+                fields.get(BUNDLE_ROTATIONS_INDEX));
         final CantonAnchor.Anchor current = bv.anchor();
 
-        final OpenedView opened = openTree(bytesOf(fields.get(1)), current, bv.rootHash());
+        final OpenedView opened = openTree(bytesOf(fields.get(BUNDLE_OPENING_INDEX)), current, bv.rootHash());
         final byte[] app = current.app().getBytes(StandardCharsets.UTF_8);
 
-        final List<byte[]> payloads = payloads(fields.get(6));
-        final WriteResult write = readWrite(opened.vpd(), opened.vpdIsV32(), createdIndex(fields.get(2)), service, app);
+        final List<byte[]> payloads = payloads(fields.get(BUNDLE_PAYLOADS_INDEX));
+        final WriteResult write = readWrite(
+                opened.vpd(), opened.vpdIsV32(), createdIndex(fields.get(BUNDLE_CREATED_INDEX_INDEX)), service, app);
         // A required confirmer re-runs the whole view with the pinned package, so the app's approval covers the
         // running hash of the write, which binds every payload.
         if (!CantonProto.isRequiredConfirmer(opened.vcd(), app)) {
@@ -680,11 +692,10 @@ public final class CantonProofVerifier implements ClprVerifier {
         }
         final List<ClprMessagePayload> messages = new ArrayList<>(payloads.size());
         for (final byte[] payload : payloads) {
-            checkPayload(payload, service.channelId(), app, outbound);
-            messages.add(parsePayload(payload));
+            messages.add(checkPayload(payload, service.channelId(), app, outbound));
         }
 
-        final byte[] manifest = CantonRlp.readBytes(fields.get(5));
+        final byte[] manifest = CantonRlp.readBytes(fields.get(BUNDLE_MANIFEST_INDEX));
         if ((write.manifestHash().length == 0) != (manifest.length == 0)) {
             throw CantonProofException.manifestMismatch("manifest presence differs from the write's commitment");
         }
@@ -699,6 +710,66 @@ public final class CantonProofVerifier implements ClprVerifier {
             content.newEndpointManifest(decodeManifest(manifest, write.manifestHash(), service.serviceAddress()));
         }
         return content.build();
+    }
+
+    /** The verdict's outcome: request id, root hash, the anchor to open under, and the new anchor if it changed. */
+    private record BundleVerdict(long requestId, byte[] rootHash, CantonAnchor.Anchor anchor, byte[] newTrustAnchor) {}
+
+    /**
+     * {@code CantonVerdictVerifier.verifyBundleVerdict} for empty {@code rotations}: asserts they are empty,
+     * completes a pending upgrade when the verdict is past its upgrade time, then checks the verdict.
+     */
+    private static BundleVerdict verifyBundleVerdict(
+            final byte[] typedContent,
+            final byte[] signatures,
+            final byte[] mediatorSet,
+            final CantonAnchor.Anchor anchor,
+            final Slice rotations) {
+        if (!CantonRlp.isEmpty(rotations)) {
+            throw CantonProofException.rotationsNotSupported();
+        }
+        final CantonProto.Verdict v = CantonProto.parseVerdict(typedContent);
+        final boolean upgraded = !anchor.successorSynchronizerId().isEmpty()
+                && Long.compareUnsigned(v.requestId(), anchor.upgradeTime()) > 0;
+        final CantonAnchor.Anchor effective = upgraded
+                ? new CantonAnchor.Anchor(
+                        anchor.successorSynchronizerId(),
+                        anchor.lastRequestId(),
+                        anchor.mediatorGroup(),
+                        anchor.synchronizerNamespace(),
+                        anchor.ownersHash(),
+                        anchor.mediatorsHash(),
+                        "",
+                        0L,
+                        0,
+                        anchor.app())
+                : anchor;
+        final CantonVerdictVerifier.VerdictResult r = CantonVerdictVerifier.verifyVerdict(
+                typedContent,
+                signatures,
+                mediatorSet,
+                effective.synchronizerId().getBytes(StandardCharsets.UTF_8),
+                effective.lastRequestId());
+        if (!upgraded) {
+            return new BundleVerdict(r.requestId(), r.rootHash(), effective, new byte[0]);
+        }
+        final CantonAnchor.Anchor next = new CantonAnchor.Anchor(
+                effective.synchronizerId(),
+                r.requestId(),
+                effective.mediatorGroup(),
+                effective.synchronizerNamespace(),
+                effective.ownersHash(),
+                effective.mediatorsHash(),
+                "",
+                0L,
+                0,
+                effective.app());
+        log.info(
+                "Canton trust anchor upgraded from {} to {} (request id {})",
+                effective.synchronizerId(),
+                next.synchronizerId(),
+                r.requestId());
+        return new BundleVerdict(r.requestId(), r.rootHash(), effective, CantonAnchor.encode(next));
     }
 
     /** {@code RLP.readUint256} as an index: a value beyond {@code int} is out of range of any created list. */
@@ -898,7 +969,7 @@ public final class CantonProofVerifier implements ClprVerifier {
         if (v.size() != 2 && v.size() != 3) {
             throw CantonProofException.invalidPayloadShape("view has " + v.size() + " items");
         }
-        final Leaf vcdLeaf = readLeaf(v.get(0));
+        final Leaf vcdLeaf = readLeaf(v.getFirst());
         final byte[] vcdHash = CantonMerkle.leaf(CantonMerkle.PURPOSE_VIEW_COMMON_DATA, vcdLeaf.salt(), vcdLeaf.data());
         final byte[] vcd = unwrapV30(vcdLeaf.data());
 
@@ -1098,8 +1169,10 @@ public final class CantonProofVerifier implements ClprVerifier {
      * another.
      *
      * @param outbound the calling service's live outbound messages, to find the DATA message that a REPLY answers
+     * @return the strictly parsed payload, so callers need not parse it again
      */
-    public static void checkPayload(
+    @NonNull
+    public static ClprMessagePayload checkPayload(
             @NonNull final byte[] payload,
             @NonNull final byte[] channelId,
             @NonNull final byte[] app,
@@ -1113,11 +1186,12 @@ public final class CantonProofVerifier implements ClprVerifier {
             throw CantonProofException.cantonProtoMalformed("payload does not parse: " + e.getMessage());
         }
         if (isData) {
+            checkConnectorIdLength(payload);
             if (!decoded.hasMessage()
                     || !Bytes.wrap(app).equals(decoded.message().sender())) {
                 throw CantonProofException.senderMismatch();
             }
-            return;
+            return decoded;
         }
         if (!decoded.hasMessageReply()) {
             throw CantonProofException.wrongMessageType();
@@ -1125,9 +1199,10 @@ public final class CantonProofVerifier implements ClprVerifier {
         final var reply = decoded.messageReply();
         if (reply.status() == ClprMessageReplyStatus.APPLICATION_ERROR
                 && reply.messageReplyData().length() == 0) {
-            return;
+            return decoded;
         }
         checkReplyTarget(channelId, reply.messageId(), app, outbound);
+        return decoded;
     }
 
     /**
@@ -1144,6 +1219,47 @@ public final class CantonProofVerifier implements ClprVerifier {
         if (!Bytes.wrap(app).equals(stored.message().targetApplication())) {
             throw CantonProofException.replyTargetMismatch();
         }
+    }
+
+    /**
+     * Rejects a DATA message whose {@code connector_id} field (1) is present with any length but 32, as the
+     * reference's {@code decodeDataMessage} does. PBJ cannot tell an absent field from an empty one, so the wire
+     * is scanned; an absent connector id is accepted. The payload has already been parsed strictly.
+     */
+    private static void checkConnectorIdLength(final byte[] payload) {
+        final int end = payload.length;
+        // Outer ClprMessagePayload field 1 (DATA) wraps the ClprMessage.
+        final CantonProto.Varint outerLen = CantonProto.readVarint(
+                payload, CantonProto.readVarint(payload, 0, end).next(), end);
+        int i = outerLen.next();
+        while (i < end) {
+            final CantonProto.Varint key = CantonProto.readVarint(payload, i, end);
+            i = key.next();
+            switch ((int) (key.value() & 7)) {
+                case CantonProto.WIRE_VARINT ->
+                    i = CantonProto.readVarint(payload, i, end).next();
+                case 1 -> i = skip(i, 8, end);
+                case 5 -> i = skip(i, 4, end);
+                case CantonProto.WIRE_LEN -> {
+                    final CantonProto.Varint len = CantonProto.readVarint(payload, i, end);
+                    if (key.value() >>> 3 == 1 && len.value() != CONNECTOR_ID_LENGTH) {
+                        throw CantonProofException.cantonProtoMalformed("connector id must be 32 bytes");
+                    }
+                    if (len.value() < 0 || len.value() > end - len.next()) {
+                        throw CantonProofException.cantonProtoMalformed("payload field runs past range");
+                    }
+                    i = len.next() + (int) len.value();
+                }
+                default -> throw CantonProofException.cantonProtoMalformed("unsupported wire type");
+            }
+        }
+    }
+
+    private static int skip(final int from, final int n, final int end) {
+        if (n > end - from) {
+            throw CantonProofException.cantonProtoMalformed("payload field runs past range");
+        }
+        return from + n;
     }
 
     /**

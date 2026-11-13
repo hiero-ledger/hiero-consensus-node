@@ -98,7 +98,7 @@ class CantonProofVerifierBundleTest {
         assertThat(c.metadata().status()).isEqualTo(ClprChannelStatus.ACTIVE);
         assertThat(c.metadata().endpointManifestVersion()).isEqualTo(3);
         assertThat(c.messages()).hasSize(1);
-        assertThat(c.messages().get(0).message().sender()).isEqualTo(Bytes.wrap(utf8(APP)));
+        assertThat(c.messages().getFirst().message().sender()).isEqualTo(Bytes.wrap(utf8(APP)));
         assertThat(c.newTrustAnchor().length()).isZero();
         assertThat(c.newTrustAnchorId().length()).isZero();
         assertThat(c.newEndpointManifest().version()).isEqualTo(2);
@@ -428,6 +428,13 @@ class CantonProofVerifierBundleTest {
                                 Bytes.wrap(b.anchor()),
                                 Bytes.wrap(CHANNEL_CONTEXT),
                                 mock(HandleContext.class)))
+                .isInstanceOf(HandleException.class);
+    }
+
+    @Test
+    void verifyConfigIsNotSupportedInPrA() {
+        assertThatThrownBy(() -> new CantonProofVerifier()
+                        .verifyConfig(Bytes.EMPTY, Bytes.wrap(CHANNEL_ID), Bytes.EMPTY, mock(HandleContext.class)))
                 .isInstanceOf(HandleException.class);
     }
 

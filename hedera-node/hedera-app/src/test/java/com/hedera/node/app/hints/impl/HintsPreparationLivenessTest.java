@@ -99,7 +99,8 @@ class HintsPreparationLivenessTest {
                 .withValue("tss.useDeterministicHintsSignatures", deterministicSignatures)
                 .getOrCreateConfig();
         final var signingContext = new HintsContext(library, () -> config, mock(HintsSigningMetrics.class));
-        signingContext.setConstruction(active.construction(), active.crsState());
+        signingContext.setConstruction(
+                active.construction(), active.crsState(), HintsGenerationTestUtils.weightsFor(active.construction()));
         final var signing = signingContext.newSigningForActiveConstruction(MESSAGE, () -> {});
         final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
         signings.put(MESSAGE, signing);
@@ -239,6 +240,7 @@ class HintsPreparationLivenessTest {
                 .crs(crs)
                 .build();
         final var construction = HintsConstruction.newBuilder()
+                .targetRosterHash(Bytes.wrap("active generation"))
                 .constructionId(ACTIVE_CONSTRUCTION_ID)
                 .crsId(1)
                 .numParties(ACTIVE_CAPACITY)

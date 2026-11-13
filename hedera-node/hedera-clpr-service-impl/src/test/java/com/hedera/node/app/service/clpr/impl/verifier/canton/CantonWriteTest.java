@@ -253,6 +253,37 @@ class CantonWriteTest {
     }
 
     @Test
+    void dataWithShortConnectorIdIsRejected() {
+        // The reference decodeDataMessage rejects a present connector id that is not exactly 32 bytes.
+        final byte[] p = dataWithConnector(repeat((byte) 0x01, 31));
+        assertRejects(
+                "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+    }
+
+    @Test
+    void dataWithLongConnectorIdIsRejected() {
+        final byte[] p = dataWithConnector(repeat((byte) 0x01, 33));
+        assertRejects(
+                "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+    }
+
+    @Test
+    void dataWithEmptyPresentConnectorIdIsRejected() {
+        // PBJ drops a zero-length bytes field on encode, so build the wire bytes by hand: field 1 (message),
+        // containing connector_id (field 1) with length 0, then sender (field 3).
+        final byte[] inner = concat(new byte[] {0x0a, 0x00, 0x1a, (byte) APP.length}, APP);
+        final byte[] p = concat(new byte[] {0x0a, (byte) inner.length}, inner);
+        assertRejects(
+                "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+    }
+
+    @Test
+    void dataWith32ByteConnectorIdPasses() {
+        final byte[] p = dataWithConnector(repeat((byte) 0x01, 32));
+        CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
+    }
+
+    @Test
     void applicationErrorReplyWithoutDataSkipsTargetLookup() {
         final byte[] p = reply(5, ClprMessageReplyStatus.APPLICATION_ERROR, new byte[0]);
         CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
@@ -359,6 +390,18 @@ class CantonWriteTest {
 
     private static OutboundLookup neverCalled() {
         return (c, m) -> fail("outbound lookup must not be called");
+    }
+
+    private static byte[] dataWithConnector(final byte[] connectorId) {
+        return ClprMessagePayload.PROTOBUF
+                .toBytes(ClprMessagePayload.newBuilder()
+                        .message(ClprMessage.newBuilder()
+                                .connectorId(Bytes.wrap(connectorId))
+                                .sender(Bytes.wrap(APP))
+                                .targetApplication(Bytes.wrap(OTHER_PARTY))
+                                .messageData(Bytes.wrap(new byte[] {7})))
+                        .build())
+                .toByteArray();
     }
 
     private static byte[] data(final byte[] sender, final byte[] target) {

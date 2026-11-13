@@ -88,10 +88,15 @@ public final class CantonProto {
 
     // ── Wire primitives ─────────────────────────────────────────────────────
 
+    /** A decoded base-128 varint ({@code uint64} held in a {@code long}) and the offset just past it. */
     record Varint(long value, int next) {}
 
     record Field(long number, int wireType, Range value, long scalar, int next) {}
 
+    /**
+     * Reads the varint at {@code i} (which must lie before {@code end}); rejects a varint that runs past
+     * {@code end} or overflows {@code uint64}.
+     */
     static Varint readVarint(final byte[] b, int i, final int end) {
         long v = 0;
         int shift = 0;
@@ -318,7 +323,10 @@ public final class CantonProto {
         final List<Range> quorums = getAll(b, r, 3);
         for (final Range quorum : quorums) {
             final List<Range> entries = getAll(b, quorum, 1);
+            // The reference sums uint64 weights in a uint256. A uint64 sum that wraps has certainly passed every
+            // uint64 threshold, so remember the overflow instead of letting the sum wrap.
             long others = 0;
+            boolean othersOverflowed = false;
             boolean member = false;
             for (final Range entry : entries) {
                 final long index = getVarint(b, entry, 1);
@@ -326,10 +334,12 @@ public final class CantonProto {
                 if (index == partyIndex) {
                     member = true;
                 } else {
-                    others += weight;
+                    final long sum = others + weight;
+                    othersOverflowed |= Long.compareUnsigned(sum, others) < 0;
+                    others = sum;
                 }
             }
-            if (member && Long.compareUnsigned(others, getVarint(b, quorum, 2)) < 0) {
+            if (member && !othersOverflowed && Long.compareUnsigned(others, getVarint(b, quorum, 2)) < 0) {
                 return true;
             }
         }
@@ -357,6 +367,9 @@ public final class CantonProto {
         if (isExercise) {
             exerciseChoice = get(b, action.value(), 2);
             exerciseTemplateId = get(b, action.value(), 10);
+            // Read the exercise choice and template id for strictness parity even though they are not returned.
+            get(b, action.value(), 2);
+            get(b, action.value(), 10);
         }
         boolean rolledBack;
         if (protoV32) {

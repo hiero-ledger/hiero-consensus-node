@@ -62,7 +62,7 @@ class CantonProtoTest {
         final Contract c = CantonProto.parseContract(contract, new ContractRange(0, contract.length));
 
         assertEquals(1, c.signatories().size());
-        assertThat(new String(sub(contract, c.signatories().get(0)), StandardCharsets.UTF_8))
+        assertThat(new String(sub(contract, c.signatories().getFirst()), StandardCharsets.UTF_8))
                 .startsWith("app_provider_localnet-localparty-1::1220");
 
         // Real Daml-LF create argument: a Record with 4 fields (dsoParty, validatorParty, endUserName, endUserParty).
@@ -236,12 +236,92 @@ class CantonProtoTest {
     }
 
     @Test
+    void isRequiredConfirmerDoesNotWrapWhenOtherWeightsSumPastUint64() {
+        // The reference accumulates uint64 weights in a uint256, so two weights of 2^63 sum to 2^64 (not 0) and
+        // the others already meet the threshold: app is NOT required. A 64-bit accumulator wraps to 0 < 1.
+        final byte[] app = "app-party".getBytes(StandardCharsets.UTF_8);
+        final byte[] other = "other-party".getBytes(StandardCharsets.UTF_8);
+        final byte[] third = "third-party".getBytes(StandardCharsets.UTF_8);
+        final byte[] quorum = new Pb()
+                .field(1, entry(0, 1))
+                .field(1, entry(1, Long.MIN_VALUE))
+                .field(1, entry(2, Long.MIN_VALUE))
+                .varint(2, 1)
+                .build();
+        final byte[] vcd = new Pb()
+                .field(2, app)
+                .field(2, other)
+                .field(2, third)
+                .field(3, quorum)
+                .build();
+        assertFalse(CantonProto.isRequiredConfirmer(vcd, app));
+    }
+
+    @Test
     void isRequiredConfirmerFalseWhenPartyAbsent() {
         final byte[] vcd = new Pb()
                 .field(2, "x".getBytes(StandardCharsets.UTF_8))
                 .field(3, new Pb().field(1, entry(0, 1)).varint(2, 5).build())
                 .build();
         assertFalse(CantonProto.isRequiredConfirmer(vcd, "absent".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    // ── readVarint ───────────────────────────────────────────────────────────
+
+    @Test
+    void readVarintDecodesSingleAndMultiByteValuesAndReportsNextOffset() {
+        final var one = CantonProto.readVarint(new byte[] {0x7f, 0x00}, 0, 2);
+        assertEquals(0x7f, one.value());
+        assertEquals(1, one.next());
+
+        // 300 = 0b1_0010_1100 -> 0xac 0x02, read from offset 1.
+        final var multi = CantonProto.readVarint(new byte[] {0x00, (byte) 0xac, 0x02, 0x55}, 1, 4);
+        assertEquals(300, multi.value());
+        assertEquals(3, multi.next());
+    }
+
+    @Test
+    void readVarintDecodesMaxUint64AsUnsignedLong() {
+        final byte[] max = {
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            0x01
+        };
+        final var v = CantonProto.readVarint(max, 0, max.length);
+        assertEquals(-1L, v.value());
+        assertEquals(10, v.next());
+    }
+
+    @Test
+    void readVarintRejectsOverflowPastUint64() {
+        final byte[] tooBig = {
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            (byte) 0xff,
+            0x02
+        };
+        assertMalformed(() -> CantonProto.readVarint(tooBig, 0, tooBig.length));
+    }
+
+    @Test
+    void readVarintRejectsRunningPastEndOrRange() {
+        assertMalformed(() -> CantonProto.readVarint(new byte[] {(byte) 0x80}, 0, 1));
+        assertMalformed(() -> CantonProto.readVarint(new byte[0], 0, 0));
+        // The terminating byte exists in the array but lies beyond `end`.
+        assertMalformed(() -> CantonProto.readVarint(new byte[] {(byte) 0x80, 0x01}, 0, 1));
     }
 
     // ── Versioned leaf / identifier ──────────────────────────────────────────
@@ -380,7 +460,7 @@ class CantonProtoTest {
         void varintOverflowRejected() {
             // 10 continuation bytes overflow uint64.
             final byte[] b = new byte[11];
-            b[0] = (byte) ((5 << 3) | 0);
+            b[0] = (byte) ((5 << 3));
             for (int i = 1; i <= 10; i++) {
                 b[i] = (byte) 0x80;
             }

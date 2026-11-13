@@ -13,8 +13,6 @@ import java.util.List;
  * consensus verification must accept exactly what the reference accepts. Malformed input throws
  * {@code InvalidPayloadShape}.
  *
- * <p>The same algorithm is embedded privately in {@link CantonVerdictVerifier}; this class is the
- * shared form used by the opening code.
  */
 final class CantonRlp {
 
@@ -76,6 +74,15 @@ final class CantonRlp {
         return new Header(lengthLength + 1, (int) len, list);
     }
 
+    /** {@code ClprCantonRlp.isEmpty}: an empty RLP string or list. */
+    static boolean isEmpty(final Slice s) {
+        if (s.len() != 1) {
+            return s.len() == 0;
+        }
+        final int head = s.buf()[s.off()] & 0xff;
+        return head == 0x80 || head == 0xc0;
+    }
+
     /** {@code RLP.readList}: the items of a list that spans exactly {@code item}; every header is validated. */
     static List<Slice> readList(final Slice item) {
         final Header h = header(item);
@@ -115,14 +122,5 @@ final class CantonRlp {
         final byte[] out = new byte[32];
         System.arraycopy(value, 0, out, 32 - value.length, value.length);
         return out;
-    }
-
-    /** {@code ClprCantonRlp.isEmpty}: whether {@code item} is an empty RLP string or an empty RLP list. */
-    static boolean isEmpty(final Slice item) {
-        if (item.len() != 1) {
-            return item.len() == 0;
-        }
-        final int head = item.buf()[item.off()] & 0xff;
-        return head == 0x80 || head == 0xc0;
     }
 }

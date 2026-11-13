@@ -172,3 +172,5 @@ time and sets:
 - [SUBPROCESS_CONCURRENT.md](SUBPROCESS_CONCURRENT.md) — concurrent class execution + validation.
 - [HAPITEST_ANNOTATIONS.md](HAPITEST_ANNOTATIONS.md) — what annotation a test must use to be
   picked up by each task.
+- [Adding HAPI Tests to CI](../../../.github/workflows/docs/adding-hapi-tests.md) — which workflows run
+  each task, and how to add a task to CI.
