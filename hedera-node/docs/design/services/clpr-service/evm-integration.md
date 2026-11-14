@@ -64,11 +64,14 @@ selects the translator.
 3. Lookup connector by `(channelId, connectorId)`; require not banned. (The Java
    parameter is currently named `connectorContract` — historical leftover from before
    the spec's connector-derivation model; carries the 32-byte derived `connector_id`.)
-4. Validate `messageData.size ≤ ClprThrottles.max_message_payload_bytes`.
+4. Build the Data `ClprMessagePayload` and validate its serialized protobuf size against
+   the peer's `ClprThrottles.max_message_payload_bytes` (falling back to the local limit
+   when the peer limit is unset). This includes connector ID, target application, sender,
+   message data, and protobuf framing.
 5. Validate queue depth ≤ `ClprThrottles.max_queue_depth`.
 6. Per-connector quota: count messages already enqueued for this connector across the
    queue; reject if > `ClprConfig.connectorQueueQuotaPct` of total queue depth.
-7. Build `ClprMessage` payload, compute new `sent_running_hash` via
+7. Compute new `sent_running_hash` for the validated payload via
    `ClprHashUtils.computeRunningHash`, append to `MESSAGE_QUEUE`.
 8. Increment channel's `next_message_id`, update `sent_running_hash`. Return assigned id.
 
