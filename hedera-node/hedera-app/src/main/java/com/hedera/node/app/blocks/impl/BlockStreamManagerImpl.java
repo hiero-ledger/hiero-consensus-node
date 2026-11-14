@@ -292,7 +292,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Object fatalShutdownLock = new Object();
     /**
-     * Contents files ({@code .pnd.gz}/{@code .open.gz}) written by the triage flush, for staging by the ISS-block
+     * Contents files ({@code .pnd.zstd}/{@code .open.zstd}) written by the triage flush, for staging by the ISS-block
      * capture pipeline. Written under the flush locks; read after {@link #awaitFatalShutdown}. Thread-safe for the
      * lock-free read.
      */
@@ -2053,7 +2053,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
                 // The in-progress writer is handler-owned (quiesced above) and is never touched by signing callbacks,
                 // so it can be flushed without the monitor. flushIncompleteBlock persists the open, unproven block as
-                // a ".open.gz" triage artifact (in every writer mode, incl. gRPC) that is never auto-recovered.
+                // a ".open.zstd" triage artifact (in every writer mode, incl. gRPC) that is never auto-recovered.
                 if (writer != null) {
                     log.fatal("Flushing in-progress block {} to disk for triage", blockNumber);
                     try {
@@ -2110,6 +2110,43 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     @NonNull
     public List<Path> flushedTriageBlockFiles() {
         return List.copyOf(flushedTriageBlockFiles);
+    }
+
+    @Override
+    public void abandonOpenBlocks() {
+        // Same order as the triage flush: quiesce in-flight writes outside the monitor, then drain pending blocks
+        // under it so a late signing callback finds an empty queue.
+        if (worker != null) {
+            try {
+                worker.sync();
+            } catch (final Exception e) {
+                log.warn("Failed to sync in-flight block items before abandoning open blocks", e);
+            }
+        }
+        int pendingAbandoned = 0;
+        synchronized (this) {
+            PendingBlock block;
+            while ((block = pendingBlocks.poll()) != null) {
+                abandon(block.writer(), block.number());
+                markPendingBlockProofComplete(block);
+                pendingAbandoned++;
+            }
+        }
+        final boolean openAbandoned = writer != null;
+        if (openAbandoned) {
+            abandon(writer, blockNumber);
+            writer = null;
+        }
+        worker = null;
+        log.info("Abandoned block writers: in-progress block={}, pending blocks={}", openAbandoned, pendingAbandoned);
+    }
+
+    private void abandon(@NonNull final BlockItemWriter blockWriter, final long number) {
+        try {
+            blockWriter.abandonBlock();
+        } catch (final Exception e) {
+            log.warn("Failed to abandon writer of block #{}", number, e);
+        }
     }
 
     @Override

@@ -6,6 +6,7 @@ import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStrea
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.isSidecarMarkerFile;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
@@ -100,15 +101,8 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
     private void exposeBlock(@NonNull final File file) {
         // Get Block file path using marker file path
         final var markerFilePath = file.toPath();
-        final var blockFileName = file.getName().replace(".mf", "");
-
-        // Check for compressed file first (.blk.gz)
-        final var compressedBlockFilePath = markerFilePath.resolveSibling(blockFileName + ".blk.gz");
-        final var uncompressedBlockFilePath = markerFilePath.resolveSibling(blockFileName + ".blk");
-
-        // Determine which block file exists - compressed or uncompressed
-        final var blockFilePath =
-                Files.exists(compressedBlockFilePath) ? compressedBlockFilePath : uncompressedBlockFilePath;
+        final var blockFilePath = BlockFileUtils.findBlockFileForMarker(markerFilePath)
+                .orElseThrow(() -> new IllegalStateException("No block file found for marker " + markerFilePath));
 
         final var block =
                 BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blockFilePath).getFirst();

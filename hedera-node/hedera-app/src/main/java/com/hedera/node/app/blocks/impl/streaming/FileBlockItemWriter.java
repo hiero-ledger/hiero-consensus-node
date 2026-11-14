@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.blocks.BlockStreamManager.NUM_SIBLINGS_PER_BLOCK;
 import static java.util.Objects.requireNonNull;
+import static java.util.function.BinaryOperator.maxBy;
 import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.hapi.block.stream.Block;
@@ -13,6 +14,8 @@ import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.BlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
+import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -30,20 +33,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.math.BigInteger;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.nio.file.attribute.FileTime;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
-import java.util.function.ToLongFunction;
-import java.util.function.UnaryOperator;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -54,19 +53,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     private static final Logger logger = LogManager.getLogger(FileBlockItemWriter.class);
 
-    private static final ToLongFunction<File> PROOF_JSON_BLOCK_NUMBER_FN =
-            f -> Long.parseLong(f.getName().substring(0, f.getName().length() - ".pnd.json".length()));
-    private static final Comparator<File> PROOF_JSON_FILE_COMPARATOR =
-            Comparator.comparingLong(PROOF_JSON_BLOCK_NUMBER_FN);
+    // Equal timestamps are broken by path so selection never depends on directory traversal order.
+    private static final Comparator<PendingProofFile> PROOF_JSON_RECENCY_COMPARATOR = Comparator.comparing(
+                    PendingProofFile::modifiedTime)
+            .thenComparing(proof -> proof.path().toString());
 
-    /** The file extension for complete block files. */
-    private static final String COMPLETE_BLOCK_EXTENSION = ".blk";
-
-    /** The file extension for an incomplete (open, unproven) block flushed for triage at catastrophic failure. */
-    private static final String INCOMPLETE_BLOCK_EXTENSION = ".open";
-
-    /** The suffix added to RECORD_EXTENSION when they are compressed. */
-    private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
+    private record PendingProofFile(Path path, FileTime modifiedTime) {}
 
     /**
      * Number of bytes in a single kilobyte.
@@ -75,21 +67,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
-
-    /**
-     * Converts a base block number file name to the name of a complete block file.
-     */
-    private final UnaryOperator<String> completeFileName;
-
-    /**
-     * Converts a base block number file name to the name of a pending block file.
-     */
-    private final UnaryOperator<String> pendingFileName;
-
-    /**
-     * Converts a base block number file name to the name of an incomplete (triage) block file.
-     */
-    private final UnaryOperator<String> incompleteFileName;
 
     /** The file output stream we are writing to, which writes to the configured block file path */
     private WritableStreamingData writableStreamingData;
@@ -112,11 +89,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * Buffer size to use for the inner file writer - in bytes.
      */
     private final int blockFileBufferInnerSizeBytes;
-
-    /**
-     * Buffer size to use for the GZIP file writer - in bytes.
-     */
-    private final int blockFileBufferGzipSizeBytes;
 
     private enum State {
         UNINITIALIZED,
@@ -145,16 +117,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
         blockFileBufferOuterSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferOuterSizeKb();
         blockFileBufferInnerSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferInnerSizeKb();
-        blockFileBufferGzipSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferGzipSizeKb();
 
         // Compute directory for block files
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
         nodeScopedBlockDir =
                 blockDir.resolve("block-" + asAccountString(selfNodeAccountIdManager.getSelfNodeAccountId()));
-
-        this.completeFileName = name -> name + COMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
-        this.pendingFileName = name -> name + ".pnd" + COMPRESSION_ALGORITHM_EXTENSION;
-        this.incompleteFileName = name -> name + INCOMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
     }
 
     /**
@@ -216,8 +183,10 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     /**
      * Loads pending blocks from the given directory, identifying them by the presence of {@code .pnd.json} files
-     * with pending block proofs. The contents of the blocks are read from the corresponding {@code .pnd.gz} or
-     * {@code .pnd} files.
+     * with pending block proofs. The contents are read from the corresponding {@code .pnd.zstd},
+     * legacy {@code .pnd.gz}, or plain {@code .pnd} file. Duplicate block numbers use the sidecar with the newest
+     * modification time before continuity is checked. Invalid selected metadata or contents stop recovery; older
+     * duplicates are not used as a fallback. Proofs at or after {@code followingBlockNumber} are ignored.
      * @param blockDirPath the directory containing subdirectories to load pending blocks from
      * @param followingBlockNumber the block number the pending blocks should be immediately preceding
      * @param maxReadDepth the max allowed depth of nested protobuf messages
@@ -231,88 +200,80 @@ public class FileBlockItemWriter implements BlockItemWriter {
             final int maxReadSize) {
         requireNonNull(blockDirPath);
         final List<OnDiskPendingBlock> pendingBlocks = new LinkedList<>();
-        final File[] pendingBlocksPaths = blockDirPath.toFile().listFiles();
-        if (pendingBlocksPaths == null) {
+        final var proofJsons = new TreeMap<Long, PendingProofFile>();
+        final File[] blockDirs = blockDirPath.toFile().listFiles(File::isDirectory);
+        if (blockDirs == null) {
             logger.warn("No subdirectories found in {}", blockDirPath);
             return pendingBlocks;
         }
-
-        final var proofJsons = new ArrayList<File>();
-        for (final var pendingBlocksPath : pendingBlocksPaths) {
-            final File[] pendingJsons =
-                    requireNonNull(pendingBlocksPath.listFiles((dir, name) -> name.endsWith(".pnd.json")));
-            proofJsons.addAll(Arrays.asList(pendingJsons));
-        }
-
-        if (proofJsons.isEmpty()) {
-            logger.warn("No pending blocks found in any subdirectories of {}", blockDirPath);
+        try {
+            for (final var blockDir : blockDirs) {
+                for (final var proofJson :
+                        requireNonNull(blockDir.listFiles((dir, name) -> name.endsWith(".pnd.json")))) {
+                    final var name = proofJson.getName();
+                    final long number;
+                    try {
+                        number = Long.parseLong(name.substring(0, name.length() - ".pnd.json".length()));
+                    } catch (NumberFormatException e) {
+                        logger.warn("Ignoring pending proof with invalid block number: {}", proofJson);
+                        continue;
+                    }
+                    final var path = proofJson.toPath();
+                    proofJsons.merge(
+                            number,
+                            new PendingProofFile(path, Files.getLastModifiedTime(path)),
+                            maxBy(PROOF_JSON_RECENCY_COMPARATOR));
+                }
+            }
+        } catch (IOException e) {
+            logger.warn("Unable to scan pending blocks in {}", blockDirPath, e);
             return pendingBlocks;
         }
 
-        proofJsons.sort(PROOF_JSON_FILE_COMPARATOR.reversed());
-
-        logger.info("Evaluating {} pending blocks on disk", proofJsons.size());
+        logger.info("Evaluating {} distinct pending blocks on disk", proofJsons.size());
         long nextContiguousBlock = followingBlockNumber - 1;
-        for (int i = 0; i < proofJsons.size(); i++) {
-            final var proofJson = proofJsons.get(i);
-            final long nextNumber = PROOF_JSON_BLOCK_NUMBER_FN.applyAsLong(proofJson);
+        // Blocks at or after the restart point are replayed from events, so only older proofs can resume.
+        for (final var entry :
+                proofJsons.headMap(followingBlockNumber, false).descendingMap().entrySet()) {
+            final long nextNumber = entry.getKey();
             if (nextNumber != nextContiguousBlock) {
                 logger.info("No more contiguous blocks (#{} != #{})", nextNumber, nextContiguousBlock);
                 break;
-            } else {
-                logger.info("Trying to load next contiguous pending block #{}", nextNumber);
-                nextContiguousBlock--;
             }
-            final var proofJsonPath = proofJson.toPath();
+            final var proofJsonPath = entry.getValue().path();
             final PendingProof pendingProof;
-            try {
-                pendingProof = PendingProof.JSON.parseStrict(new ReadableStreamingData(proofJsonPath));
+            try (final var data = new ReadableStreamingData(proofJsonPath)) {
+                pendingProof = PendingProof.JSON.parseStrict(data);
             } catch (IOException | ParseException e) {
-                logger.warn(
-                        "Error reading pending proof metadata from {} (not considering remaining - {})",
-                        proofJson.toPath(),
-                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
+                logger.warn("Error reading pending proof metadata from {}; stopping recovery", proofJsonPath, e);
                 break;
             }
-            // Verify old proofs without block timestamp or sibling hashes are skipped
-            if (pendingProof.blockTimestamp() == null
+            // Older proofs without timestamps or sibling hashes cannot be resumed.
+            if (pendingProof.block() != nextNumber
+                    || pendingProof.blockTimestamp() == null
                     || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)
                     || pendingProof.siblingHashesFromPrevBlockRoot().size() != NUM_SIBLINGS_PER_BLOCK) {
                 logger.warn(
-                        "Pending proof metadata from {} doesn't match required fields (not considering remaining - {})",
-                        proofJson.toPath(),
-                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
+                        "Pending proof metadata from {} doesn't match required fields; stopping recovery",
+                        proofJsonPath);
                 break;
             }
-            Block partialBlock = null;
-            final var name = proofJson.getName();
-            Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
-            if (contentsPath.toFile().exists()) {
-                try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contentsPath))) {
-                    partialBlock = parseBlock(in.readAllBytes(), maxReadDepth, maxReadSize);
-                } catch (IOException | ParseException e) {
-                    logger.error("Error reading zipped pending block contents from {}", contentsPath, e);
-                }
-            } else {
-                contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd"));
-                if (contentsPath.toFile().exists()) {
-                    try {
-                        partialBlock = parseBlock(Files.readAllBytes(contentsPath), maxReadDepth, maxReadSize);
-                    } catch (IOException | ParseException e) {
-                        logger.error("Error reading pending block contents from {}", contentsPath, e);
-                    }
-                }
-            }
-            if (partialBlock == null) {
-                logger.warn(
-                        "No pending block contents found for {} (not considering remaining - {})",
-                        proofJson.toPath(),
-                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
+            final var contents = BlockFileUtils.findPendingFileForProof(proofJsonPath);
+            if (contents.isEmpty()) {
+                logger.warn("No pending block contents found for {}; stopping recovery", proofJsonPath);
                 break;
-            } else {
-                pendingBlocks.addFirst(
-                        new OnDiskPendingBlock(partialBlock.items(), pendingProof, proofJsonPath, contentsPath));
             }
+            final var contentsPath = contents.orElseThrow();
+            final Block partialBlock;
+            try (final var in = BlockFileUtils.openInputStream(contentsPath)) {
+                partialBlock = parseBlock(in.readAllBytes(), maxReadDepth, maxReadSize);
+            } catch (IOException | ParseException e) {
+                logger.error("Error reading pending block contents from {}; stopping recovery", contentsPath, e);
+                break;
+            }
+            pendingBlocks.addFirst(
+                    new OnDiskPendingBlock(partialBlock.items(), pendingProof, proofJsonPath, contentsPath));
+            nextContiguousBlock--;
         }
         return pendingBlocks;
     }
@@ -330,15 +291,28 @@ public class FileBlockItemWriter implements BlockItemWriter {
      */
     public static void cleanUpPendingBlock(@NonNull final Path contentsPath) {
         requireNonNull(contentsPath);
-        final var name = contentsPath.getFileName().toString();
-        final var suffix = name.endsWith(".pnd.gz") ? ".pnd.gz" : ".pnd";
-        final var proofJsonPath = contentsPath.resolveSibling(name.replace(suffix, ".pnd.json"));
+        final var proofJsonPath = BlockFileUtils.pendingProofPathFor(contentsPath);
         logger.info("Cleaning up pending block ({}, {})", proofJsonPath, contentsPath);
         if (!proofJsonPath.toFile().delete()) {
             logger.warn("Failed to delete pending proof metadata at {}", proofJsonPath);
         }
         if (!contentsPath.toFile().delete()) {
             logger.warn("Failed to delete pending block contents at {}", contentsPath);
+        }
+        final long number = BlockStreamAccess.extractBlockNumber(contentsPath);
+        if (number < 0) {
+            return;
+        }
+        // An upgrade can leave a copy of this block under the legacy 36-digit name; delete it so it is never resumed.
+        for (final var stem :
+                List.of(BlockFileUtils.blockNumberToFileName(number), String.format(Locale.ROOT, "%036d", number))) {
+            for (final var suffix : List.of(".pnd.json", ".pnd.zstd", ".pnd.gz", ".pnd")) {
+                try {
+                    Files.deleteIfExists(contentsPath.resolveSibling(stem + suffix));
+                } catch (IOException e) {
+                    logger.warn("Failed to delete pending block file {}{}", stem, suffix, e);
+                }
+            }
         }
     }
 
@@ -348,30 +322,17 @@ public class FileBlockItemWriter implements BlockItemWriter {
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
         this.blockNumber = blockNumber;
-        final var blockFilePath = pathOf(blockNumber, completeFileName);
+        final var blockFilePath = nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber));
         OutputStream out = null;
         try {
             if (!Files.exists(nodeScopedBlockDir)) {
                 Files.createDirectories(nodeScopedBlockDir);
             }
 
-            /*
-            A block will contain many smaller items and writing each item individually is very inefficient. Because of
-            this, a series of nested buffers are used to write the contents of a block to disk. The outermost buffer
-            is the largest, and it collects the original items meant to be written. Then, once this buffer is full (or
-            flushed) the contents are sent to a GZIP buffer that compresses the raw items. Once the items are compressed
-            and fill the buffer, they are finally sent to the lowest buffer (the one doing the actual writing to disk).
-            Finally, once this lowest level buffer is full (or flushed) the contents are written to disk. By doing this
-            nested approach, we can minimize the number of synchronous calls writing to disk and improve performance.
-
-            While each buffer can be independently sized, a general rule of thumb for sizing is:
-            OuterBufferSize > InnerBufferSize > GZIPBufferSize in a 16:4:1 ratio
-            e.g. Outer: 4096 KB, Inner: 1024 KB, GZIP: 256 KB
-             */
-
+            // Buffer raw items before compression, and compressed bytes before writing to disk.
             out = Files.newOutputStream(blockFilePath);
             out = new BufferedOutputStream(out, blockFileBufferInnerSizeBytes);
-            out = new GZIPOutputStream(out, blockFileBufferGzipSizeBytes);
+            out = BlockFileUtils.newZstdOutputStream(out);
             out = new BufferedOutputStream(out, blockFileBufferOuterSizeBytes);
 
             this.writableStreamingData = new WritableStreamingData(out);
@@ -450,7 +411,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
 
             // Write a .mf file to indicate that the block file is complete.
-            final Path markerFile = pathOf(blockNumber, name -> name + ".mf");
+            final Path markerFile = nodeScopedBlockDir.resolve(BlockFileUtils.markerFileName(blockNumber));
             if (Files.exists(markerFile)) {
                 logger.info("Skipping block marker file for {} as it already exists", markerFile);
             } else {
@@ -466,11 +427,10 @@ public class FileBlockItemWriter implements BlockItemWriter {
     public Path flushPendingBlock(@NonNull final PendingProof pendingProof) {
         requireNonNull(pendingProof);
         if (state == State.OPEN) {
-            final Path pendingPath = pathOf(blockNumber, pendingFileName);
+            final Path pendingPath = nodeScopedBlockDir.resolve(BlockFileUtils.pendingFileName(blockNumber));
             try {
                 writableStreamingData.close();
-                writableStreamingData.flush();
-                Files.move(pathOf(blockNumber, completeFileName), pendingPath);
+                Files.move(nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber)), pendingPath);
             } catch (IOException e) {
                 logger.error("Error flushing pending block #{}", blockNumber, e);
                 return null;
@@ -497,18 +457,18 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     @Override
     public Path flushIncompleteBlock() {
-        // Persist the open, unproven block as a ".open.gz" triage artifact: close the stream and rename the
-        // partially-written ".blk.gz" to ".open.gz". We deliberately write no ".mf" completion marker and no
+        // Persist the open, unproven block as a ".open.zstd" triage artifact: close the stream and rename the
+        // partially-written ".blk.zstd" to ".open.zstd". We deliberately write no ".mf" completion marker and no
         // ".pnd.json" proof sidecar, so this block is never treated as a finished block nor picked up by pending-block
         // recovery. Best-effort: never throws.
         if (state != State.OPEN) {
             logger.warn("Cannot flush incomplete block #{} in non-OPEN state '{}'", blockNumber, state);
             return null;
         }
-        final Path incompletePath = pathOf(blockNumber, incompleteFileName);
+        final Path incompletePath = nodeScopedBlockDir.resolve(BlockFileUtils.incompleteFileName(blockNumber));
         try {
             writableStreamingData.close();
-            Files.move(pathOf(blockNumber, completeFileName), incompletePath);
+            Files.move(nodeScopedBlockDir.resolve(BlockFileUtils.blockFileName(blockNumber)), incompletePath);
             logger.info("Flushed incomplete block #{} for triage to {}", blockNumber, incompletePath);
             return incompletePath;
         } catch (final Exception e) {
@@ -521,30 +481,18 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    /**
-     * Get the path for a block file with the block number.
-     *
-     * @param blockNumber the block number for the block file
-     * @return Path to a block file for that block number
-     */
-    @NonNull
-    private Path pathOf(final long blockNumber, @NonNull final UnaryOperator<String> nameFn) {
-        return nodeScopedBlockDir.resolve(nameFn.apply(longToFileName(blockNumber)));
-    }
-
-    /**
-     * Convert a long to a 36-character string, padded with leading zeros.
-     * @param value the long to convert
-     * @return the 36-character string padded with leading zeros
-     */
-    @NonNull
-    public static String longToFileName(final long value) {
-        // Convert the signed long to an unsigned long using BigInteger for correct representation
-        BigInteger unsignedValue =
-                BigInteger.valueOf(value & Long.MAX_VALUE).add(BigInteger.valueOf(Long.MIN_VALUE & value));
-
-        // Format the unsignedValue as a 36-character string, padded with leading zeros to ensure we have enough digits
-        // for an unsigned long. However, to allow for future expansion, we use 36 characters as that's what UUID uses.
-        return String.format("%036d", unsignedValue);
+    @Override
+    public void abandonBlock() {
+        if (state != State.OPEN) {
+            return;
+        }
+        // Closing frees the native Zstandard context; the partial block file stays on disk without a marker.
+        try {
+            writableStreamingData.close();
+        } catch (final Exception e) {
+            logger.warn("Error closing abandoned block #{}", blockNumber, e);
+        } finally {
+            state = State.CLOSED;
+        }
     }
 }

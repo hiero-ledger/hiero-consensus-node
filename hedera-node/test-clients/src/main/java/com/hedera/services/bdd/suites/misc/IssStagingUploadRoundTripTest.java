@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.hapi.block.stream.Block;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.HapiBlockNode;
@@ -36,7 +37,6 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import com.sun.net.httpserver.HttpServer;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
@@ -51,7 +51,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -211,7 +210,7 @@ class IssStagingUploadRoundTripTest implements LifecycleTest {
                 .withEnv("GCS_ENABLE", "false")
                 .withEnv("SIG_REQUIRE", "true")
                 .withEnv("SIG_EXTENSION", "mf")
-                .withEnv("STREAM_EXTENSION", "gz")
+                .withEnv("STREAM_EXTENSION", "zstd")
                 .withEnv("REAPER_ENABLE", "true")
                 .withEnv("REAPER_INTERVAL", "5")
                 .withEnv("DIR_PATTERN", "block-*/*/*")
@@ -242,10 +241,10 @@ class IssStagingUploadRoundTripTest implements LifecycleTest {
             final List<String> keys = List.copyOf(s3.objects().keySet());
             final List<String> left = IssStagingTestSupport.stagedRegularFiles(issBlockDir);
             final String issKey = keys.stream()
-                    .filter(k -> k.matches(prefix + "(detect|failure)/[^/]+\\.iss\\.gz"))
+                    .filter(k -> k.matches(prefix + "(detect|failure)/[^/]+\\.iss\\.zstd"))
                     .findFirst()
                     .orElse(null);
-            final boolean triageUploaded = keys.stream().anyMatch(k -> k.matches(prefix + "triage/[^/]+\\.gz"));
+            final boolean triageUploaded = keys.stream().anyMatch(k -> k.matches(prefix + "triage/[^/]+\\.zstd"));
             if (issKey != null && triageUploaded && left.isEmpty()) {
                 assertIsBlock(s3.objects().get(issKey));
                 return;
@@ -263,12 +262,22 @@ class IssStagingUploadRoundTripTest implements LifecycleTest {
         }
     }
 
-    private static void assertIsBlock(final byte[] gzipped) {
-        try (final var in = new GZIPInputStream(new ByteArrayInputStream(gzipped))) {
-            final Block block = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
-            assertFalse(block.items().isEmpty(), "the uploaded ISS-round block has no items");
+    private static void assertIsBlock(final byte[] compressed) {
+        Path file = null;
+        try {
+            // BlockFileUtils picks the decompressor from the file suffix, so go through a .zstd temp file.
+            file = Files.createTempFile("uploaded-iss-block", ".zstd");
+            Files.write(file, compressed);
+            try (final var in = BlockFileUtils.openInputStream(file)) {
+                final Block block = Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
+                assertFalse(block.items().isEmpty(), "the uploaded ISS-round block has no items");
+            }
         } catch (final IOException | ParseException e) {
-            fail("the uploaded ISS-round block is not a gzipped Block", e);
+            fail("the uploaded ISS-round block is not a Zstandard-compressed Block", e);
+        } finally {
+            if (file != null) {
+                file.toFile().delete();
+            }
         }
     }
 

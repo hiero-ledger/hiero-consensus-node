@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.blocks.BlockStreamManager;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -81,19 +81,19 @@ class TriageBlockStagingCoordinatorTest {
 
         final Path streamDir = tempDir.resolve("stream");
         Files.createDirectories(streamDir);
-        final String pndBase = FileBlockItemWriter.longToFileName(7L);
-        final String openBase = FileBlockItemWriter.longToFileName(8L);
-        final Path pndGz = Files.write(streamDir.resolve(pndBase + ".pnd.gz"), new byte[] {1});
-        // A .pnd.gz carries a .pnd.json proof sidecar that must be staged alongside it.
+        final String pndBase = BlockFileUtils.blockNumberToFileName(7L);
+        final String openBase = BlockFileUtils.blockNumberToFileName(8L);
+        final Path pndFile = Files.write(streamDir.resolve(pndBase + ".pnd.zstd"), new byte[] {1});
+        // A .pnd.zstd carries a .pnd.json proof sidecar that must be staged alongside it.
         Files.write(streamDir.resolve(pndBase + ".pnd.json"), new byte[] {2});
-        final Path openGz = Files.write(streamDir.resolve(openBase + ".open.gz"), new byte[] {3});
-        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(pndGz, openGz));
+        final Path openFile = Files.write(streamDir.resolve(openBase + ".open.zstd"), new byte[] {3});
+        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(pndFile, openFile));
 
         subject.stageFlushedTriageBlocks(null);
 
-        assertThat(triageDir().resolve(pndBase + ".pnd.gz")).exists();
-        assertThat(triageDir().resolve(pndBase + ".pnd.json.gz")).exists();
-        assertThat(triageDir().resolve(openBase + ".open.gz")).exists();
+        assertThat(triageDir().resolve(pndBase + ".pnd.zstd")).exists();
+        assertThat(triageDir().resolve(pndBase + ".pnd.json.zstd")).exists();
+        assertThat(triageDir().resolve(openBase + ".open.zstd")).exists();
         // Each staged file gets its upload marker.
         assertThat(triageDir().resolve(pndBase + ".pnd.mf")).exists();
         assertThat(triageDir().resolve(pndBase + ".pnd.json.mf")).exists();
@@ -106,9 +106,9 @@ class TriageBlockStagingCoordinatorTest {
 
         final Path streamDir = tempDir.resolve("stream");
         Files.createDirectories(streamDir);
-        final String openBase = FileBlockItemWriter.longToFileName(8L);
-        final Path openGz = Files.write(streamDir.resolve(openBase + ".open.gz"), new byte[] {3});
-        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(openGz));
+        final String openBase = BlockFileUtils.blockNumberToFileName(8L);
+        final Path openFile = Files.write(streamDir.resolve(openBase + ".open.zstd"), new byte[] {3});
+        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(openFile));
 
         // A non-null folder (the ISS block's incident folder) is used verbatim, not the fresh-timestamp fallback.
         subject.stageFlushedTriageBlocks("2020-01-02T03-04-05Z");
@@ -117,7 +117,7 @@ class TriageBlockStagingCoordinatorTest {
                 .resolve("block-0.0.3")
                 .resolve("2020-01-02T03-04-05Z")
                 .resolve("triage")
-                .resolve(openBase + ".open.gz");
+                .resolve(openBase + ".open.zstd");
         assertThat(provided).exists();
         assertThat(triageDir()).doesNotExist(); // not under the fixed-clock fallback folder
     }
@@ -146,10 +146,10 @@ class TriageBlockStagingCoordinatorTest {
     void swallowsStagingErrorsWhenFlushedFileMissing() {
         when(config.triageStagingEnabled()).thenReturn(true);
         // A flushed file that no longer exists on disk must not abort staging or propagate.
-        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(tempDir.resolve("gone.open.gz")));
+        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(tempDir.resolve("gone.open.zstd")));
 
         assertThatCode(() -> subject.stageFlushedTriageBlocks(null)).doesNotThrowAnyException();
 
-        assertThat(triageDir().resolve("gone.open.gz")).doesNotExist();
+        assertThat(triageDir().resolve("gone.open.zstd")).doesNotExist();
     }
 }

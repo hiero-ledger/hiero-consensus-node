@@ -172,8 +172,10 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                     .filter(p -> {
                         final var name = p.getFileName().toString();
                         return name.endsWith(".blk.gz")
+                                || name.endsWith(".blk.zstd")
                                 || name.endsWith(".mf")
                                 || name.endsWith(".pnd.gz")
+                                || name.endsWith(".pnd.zstd")
                                 || name.endsWith(".pnd.json");
                     })
                     .forEach(p -> {

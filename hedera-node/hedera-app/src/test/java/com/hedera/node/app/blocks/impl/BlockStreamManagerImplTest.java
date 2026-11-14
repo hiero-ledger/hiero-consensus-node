@@ -3893,7 +3893,7 @@ class BlockStreamManagerImplTest {
                 })
                 .when(lifecycle)
                 .onCloseBlock(any());
-        final var flushedPath = java.nio.file.Path.of("000000000000000000000000000000000001.pnd.gz");
+        final var flushedPath = java.nio.file.Path.of("0000000000000000001.pnd.zstd");
         given(aWriter.flushPendingBlock(any())).willReturn(flushedPath);
 
         subject.init(state, FAKE_RESTART_BLOCK_HASH);
@@ -3913,7 +3913,7 @@ class BlockStreamManagerImplTest {
     @Test
     void flushedTriageBlockFilesExposesTheFlushedOpenBlockPath() {
         // The triage flush records the path the writer wrote, so the ISS-block-upload pipeline can find it.
-        final java.nio.file.Path issPath = java.nio.file.Path.of("000000000000000000000000000000000007.iss.gz");
+        final java.nio.file.Path issPath = java.nio.file.Path.of("0000000000000000007.iss.zstd");
         givenSubjectWith(
                 1,
                 2,
@@ -4061,6 +4061,99 @@ class BlockStreamManagerImplTest {
         signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
         verify(aWriter, never()).closeCompleteBlock();
         verify(aWriter).flushPendingBlock(any());
+    }
+
+    @Test
+    void abandonOpenBlocksReleasesPendingWriterWithoutCompletingIt() {
+        // A block is pending when a reconnect replaces the manager: its writer is released, not flushed or completed.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
+        doAnswer(invocationOnMock -> {
+                    signatureConsumer.set(invocationOnMock.getArgument(0));
+                    return completedFuture(null);
+                })
+                .when(mockSigningFuture)
+                .thenAcceptAsync(any());
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO);
+        final var pendingProofsFuture = subject.pendingBlockProofsFuture();
+        assertFalse(pendingProofsFuture.isDone());
+
+        subject.abandonOpenBlocks();
+
+        verify(aWriter).abandonBlock();
+        assertTrue(pendingProofsFuture.isDone());
+        // A late signature finds the queue empty and leaves the released writer alone
+        signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
+        verify(aWriter, never()).closeCompleteBlock();
+        verify(aWriter, never()).flushPendingBlock(any());
+        verify(aWriter, never()).flushIncompleteBlock();
+    }
+
+    @Test
+    void abandonOpenBlocksReleasesInProgressWriterOnce() {
+        // A block is left open between rounds when a reconnect replaces the manager.
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        assertFalse(subject.endRound(state, ROUND_NO));
+
+        subject.abandonOpenBlocks();
+        // The writer is already released, so a second call does nothing
+        assertDoesNotThrow(() -> subject.abandonOpenBlocks());
+
+        verify(aWriter).abandonBlock();
+        verify(aWriter, never()).closeCompleteBlock();
+        verify(aWriter, never()).flushPendingBlock(any());
+        verify(aWriter, never()).flushIncompleteBlock();
+    }
+
+    @Test
+    void abandonOpenBlocksSwallowsWriterFailure() {
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        doThrow(new IllegalStateException("boom")).when(aWriter).abandonBlock();
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+
+        assertDoesNotThrow(() -> subject.abandonOpenBlocks());
+        verify(aWriter).abandonBlock();
     }
 
     @Test

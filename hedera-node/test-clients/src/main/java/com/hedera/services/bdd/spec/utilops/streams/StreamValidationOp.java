@@ -22,6 +22,7 @@ import static java.util.stream.Collectors.toSet;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
@@ -73,7 +74,6 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
@@ -94,7 +94,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long BLOCK_NODE_READ_RETRY_MS = 2000L;
     // Under writerMode=GRPC the freeze block's proof finalizes asynchronously and the block node
     // serves it only after the proof completes (the consensus node flushes its in-memory pending
-    // block to .pnd.gz only on a fatal shutdown, so it is NOT on disk after a normal freeze). The
+    // block to .pnd.zstd only on a fatal shutdown, so it is NOT on disk after a normal freeze). The
     // StateChanges/BinaryStateChanges validators reconstruct the saved-state root, which needs that
     // freeze block, so the GRPC read waits until a served block reaches the saved-state round (the
     // freeze round). Bounded by STREAM_SETTLE_TIMEOUT; if the freeze block never arrives the BLOCKS
@@ -646,7 +646,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             }
             for (final var root : roots) {
                 final List<Path> candidates;
-                // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.gz.
+                // Depth 2 is enough for the actual layout: blockStreams/block-<...>/<N>.blk.zstd.
                 try (final var stream = Files.walk(root, 2)) {
                     candidates = stream.filter(p -> BlockStreamAccess.isBlockFile(p, true))
                             .filter(p -> BlockStreamAccess.extractBlockNumber(p) == targetBlockNumber)
@@ -682,7 +682,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             return Optional.empty();
         }
 
-        // Also read pending blocks (.pnd.gz) from subprocess nodes for the freeze block,
+        // Also read pending blocks (.pnd.zstd or legacy .pnd.gz/.pnd) from subprocess nodes for the freeze block,
         // deduplicating by block number (block node blocks take precedence over pending blocks)
         final var pendingBlocks = readPendingBlocksFromDisk(spec);
         if (!pendingBlocks.isEmpty()) {
@@ -717,10 +717,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                 continue;
             }
             try (final var stream = Files.walk(parentPath)) {
-                stream.filter(p -> {
-                            final var name = p.getFileName().toString();
-                            return name.endsWith(".pnd.gz") || name.endsWith(".pnd");
-                        })
+                stream.filter(BlockFileUtils::isPendingBlockFile)
                         .filter(p -> BlockStreamAccess.isBlockFile(p, false))
                         .forEach(p -> {
                             try {
@@ -813,12 +810,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
             log.warn("Skipping block without header; cannot determine block number");
             return;
         }
-        final String baseName = String.format("%036d", blockNumber);
-        final Path blockFile = dir.resolve(baseName + ".blk.gz");
-        try (final var out = new GZIPOutputStream(Files.newOutputStream(blockFile))) {
+        final Path blockFile = dir.resolve(BlockFileUtils.blockFileName(blockNumber));
+        try (final var out = BlockFileUtils.newZstdOutputStream(Files.newOutputStream(blockFile))) {
             out.write(Block.PROTOBUF.toBytes(block).toByteArray());
         }
-        Files.createFile(dir.resolve(baseName + ".mf"));
+        Files.createFile(BlockFileUtils.markerPathFor(blockFile));
     }
 
     private static boolean isStreamingWrappedRecordBlocks(@NonNull final HapiSpec spec) {

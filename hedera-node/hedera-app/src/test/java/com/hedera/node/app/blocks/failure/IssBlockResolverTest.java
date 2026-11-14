@@ -9,17 +9,19 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,9 +68,9 @@ class IssBlockResolverTest {
     @Test
     void resolvesExactBlockAcrossExtensionsWithSidecar() throws IOException {
         // block 1: rounds [1..4] (complete), block 2: rounds [5..8] (pending), block 3: round 9 (open)
-        writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, ".pnd.gz");
-        writeBlock(3, 9, ".open.gz");
+        writeBlock(1, 1, ".blk.zstd");
+        writeBlock(2, 5, ".pnd.zstd");
+        writeBlock(3, 9, ".open.zstd");
 
         // round 6 lives in block 2 (first round 5 <= 6 < 9)
         final List<IssBlockRef> refs = subject.resolve(6, 0);
@@ -78,30 +80,30 @@ class IssBlockResolverTest {
         assertThat(ref.blockNumber()).isEqualTo(2);
         // pending block includes its .pnd.json proof sidecar
         assertThat(ref.files()).hasSize(2);
-        assertThat(ref.files().get(0).getFileName().toString()).endsWith(".pnd.gz");
+        assertThat(ref.files().get(0).getFileName().toString()).endsWith(".pnd.zstd");
         assertThat(ref.files().get(1).getFileName().toString()).endsWith(".pnd.json");
     }
 
     @Test
     void roundInNewestOpenBlockResolvesToOpenArtifact() throws IOException {
-        writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, ".blk.gz");
-        writeBlock(3, 9, 12, ".open.gz"); // the flushed open block actually spans rounds 9..12
+        writeBlock(1, 1, ".blk.zstd");
+        writeBlock(2, 5, ".blk.zstd");
+        writeBlock(3, 9, 12, ".open.zstd"); // the flushed open block actually spans rounds 9..12
 
         final List<IssBlockRef> refs = subject.resolve(12, 0);
 
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(3);
         assertThat(refs.getFirst().files()).hasSize(1);
-        assertThat(refs.getFirst().files().getFirst().getFileName().toString()).endsWith(".open.gz");
+        assertThat(refs.getFirst().files().getFirst().getFileName().toString()).endsWith(".open.zstd");
     }
 
     @Test
     void includesPrecedingContextBlocksOldestToNewest() throws IOException {
-        writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, ".blk.gz");
-        writeBlock(3, 9, ".blk.gz");
-        writeBlock(4, 13, ".open.gz");
+        writeBlock(1, 1, ".blk.zstd");
+        writeBlock(2, 5, ".blk.zstd");
+        writeBlock(3, 9, ".blk.zstd");
+        writeBlock(4, 13, ".open.zstd");
 
         // round 10 is in block 3; request 2 preceding context blocks → blocks 1,2,3 oldest→newest
         final List<IssBlockRef> refs = subject.resolve(10, 2);
@@ -112,8 +114,8 @@ class IssBlockResolverTest {
 
     @Test
     void clampsPrecedingBlocksAtEarliestRetained() throws IOException {
-        writeBlock(5, 21, ".blk.gz");
-        writeBlock(6, 25, 26, ".open.gz"); // block 6 spans rounds 25..26
+        writeBlock(5, 21, ".blk.zstd");
+        writeBlock(6, 25, 26, ".open.zstd"); // block 6 spans rounds 25..26
 
         // request 10 preceding for the block containing round 26 (block 6) but only block 5 precedes it
         final List<IssBlockRef> refs = subject.resolve(26, 10);
@@ -123,12 +125,12 @@ class IssBlockResolverTest {
 
     @Test
     void ignoresCurrentlyOpenBlkGzWithoutCompletionMarker() throws IOException {
-        writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, 6, ".blk.gz"); // block 2 spans rounds 5..6 and is durable (.mf present)
-        // The currently-open block: a partial/garbage ".blk.gz" with NO ".mf" marker (as on disk while it is being
+        writeBlock(1, 1, ".blk.zstd");
+        writeBlock(2, 5, 6, ".blk.zstd"); // block 2 spans rounds 5..6 and is durable (.mf present)
+        // The currently-open block: a partial/garbage ".blk.zstd" with NO ".mf" marker (as on disk while it is being
         // written). It is the newest file, so a naive gallop would read it first and abort; it must be skipped.
         final Path nodeDir = tempDir.resolve("block-0.0.3");
-        Files.write(nodeDir.resolve(FileBlockItemWriter.longToFileName(3L) + ".blk.gz"), new byte[] {1, 2, 3});
+        Files.write(nodeDir.resolve(BlockFileUtils.blockNumberToFileName(3L) + ".blk.zstd"), new byte[] {1, 2, 3});
 
         // round 6 genuinely lives in durable block 2; the unmarked open block 3 must not break the search
         final List<IssBlockRef> refs = subject.resolve(6, 0);
@@ -139,22 +141,22 @@ class IssBlockResolverTest {
 
     @Test
     void roundInUnmarkedOpenBlockIsNotSubstitutedByPrecedingBlock() throws IOException {
-        writeBlock(1, 1, ".blk.gz"); // round [1]
-        writeBlock(2, 5, ".blk.gz"); // round [5], durable — its last round is 5
-        // The ISS round 6 lives in the currently-open block 3, still an unmarked ".blk.gz" (no ".mf"): excluded from
+        writeBlock(1, 1, ".blk.zstd"); // round [1]
+        writeBlock(2, 5, ".blk.zstd"); // round [5], durable — its last round is 5
+        // The ISS round 6 lives in the currently-open block 3, still an unmarked ".blk.zstd" (no ".mf"): excluded from
         // the search and unreadable. The resolver must NOT fall back to preceding block 2 just because 2's first round
         // (5) is <= 6 — that would upload the wrong block and let the coordinator mark the round done. It returns empty
-        // so the detection path keeps polling until block 3 closes (gets its ".mf") or is flushed to ".open.gz".
+        // so the detection path keeps polling until block 3 closes (gets its ".mf") or is flushed to ".open.zstd".
         final Path nodeDir = tempDir.resolve("block-0.0.3");
-        Files.write(nodeDir.resolve(FileBlockItemWriter.longToFileName(3L) + ".blk.gz"), new byte[] {1, 2, 3});
+        Files.write(nodeDir.resolve(BlockFileUtils.blockNumberToFileName(3L) + ".blk.zstd"), new byte[] {1, 2, 3});
 
         assertThat(subject.resolve(6, 0)).isEmpty();
     }
 
     @Test
     void roundWithinNewestMarkedBlockResolvesToIt() throws IOException {
-        writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, 8, ".blk.gz"); // newest durable block spans rounds 5..8; no open block on disk
+        writeBlock(1, 1, ".blk.zstd");
+        writeBlock(2, 5, 8, ".blk.zstd"); // newest durable block spans rounds 5..8; no open block on disk
 
         // round 7 is genuinely within the newest block, so it resolves immediately (no substitution, no waiting)
         final List<IssBlockRef> refs = subject.resolve(7, 0);
@@ -165,8 +167,8 @@ class IssBlockResolverTest {
 
     @Test
     void returnsEmptyWhenRoundPrecedesEarliestRetainedBlock() throws IOException {
-        writeBlock(10, 100, ".blk.gz");
-        writeBlock(11, 104, ".blk.gz");
+        writeBlock(10, 100, ".blk.zstd");
+        writeBlock(11, 104, ".blk.zstd");
 
         assertThat(subject.resolve(50, 0)).isEmpty();
     }
@@ -179,9 +181,9 @@ class IssBlockResolverTest {
     @Test
     void resolvesRecentRoundAmongManyBlocks() throws IOException {
         for (int i = 1; i <= 200; i++) {
-            writeBlock(i, i, ".blk.gz");
+            writeBlock(i, i, ".blk.zstd");
         }
-        writeBlock(201, 201, ".open.gz");
+        writeBlock(201, 201, ".open.zstd");
 
         final List<IssBlockRef> refs = subject.resolve(201, 0);
         assertThat(refs).hasSize(1);
@@ -190,10 +192,10 @@ class IssBlockResolverTest {
 
     @Test
     void headerlessNewestOpenBlockDoesNotAbortResolve() throws IOException {
-        // The real ISS block is a completed .blk.gz spanning rounds 5..6, so it genuinely contains round 6...
-        writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, 6, ".blk.gz");
-        // ...but the newest artifact is a header-only .open.gz: writes were dropped after notifyFatalEvent, so it has
+        // The real ISS block is a completed .blk.zstd spanning rounds 5..6, so it genuinely contains round 6...
+        writeBlock(1, 1, ".blk.zstd");
+        writeBlock(2, 5, 6, ".blk.zstd");
+        // ...but the newest artifact is a header-only .open.zstd: writes were dropped after notifyFatalEvent, so it has
         // a BlockHeader but no RoundHeader. It must be skipped, not abort the whole resolve and drop the real block.
         writeHeaderlessOpenBlock(3);
 
@@ -204,14 +206,14 @@ class IssBlockResolverTest {
     }
 
     @Test
-    void corruptGzipCandidateIsSkippedNotFatal() throws IOException {
-        writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, 6, ".blk.gz"); // block 2 spans rounds 5..6, so it genuinely contains round 6
-        // The newest artifact is a corrupt .open.gz whose gzip header is invalid, so GZIPInputStream's constructor
-        // throws (this is the file-descriptor-leak site). It must be skipped, not abort the resolve.
+    void corruptCandidateIsSkippedNotFatal() throws IOException {
+        writeBlock(1, 1, ".blk.zstd");
+        writeBlock(2, 5, 6, ".blk.zstd"); // block 2 spans rounds 5..6, so it genuinely contains round 6
+        // The newest artifact is a corrupt .open.zstd that is not a Zstandard frame, so reading it fails. It must be
+        // skipped, not abort the resolve.
         final Path nodeDir = tempDir.resolve("block-0.0.3");
         Files.createDirectories(nodeDir);
-        Files.write(nodeDir.resolve(FileBlockItemWriter.longToFileName(3L) + ".open.gz"), new byte[] {0, 1, 2, 3});
+        Files.write(nodeDir.resolve(BlockFileUtils.blockNumberToFileName(3L) + ".open.zstd"), new byte[] {0, 1, 2, 3});
 
         final List<IssBlockRef> refs = subject.resolve(6, 0);
 
@@ -221,9 +223,9 @@ class IssBlockResolverTest {
 
     @Test
     void roundInHeaderlessNewestOpenBlockIsNotSubstitutedByPrecedingBlock() throws IOException {
-        writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, ".blk.gz"); // durable, last round 5
-        // The ISS round 6 lives in the newest block, flushed as a header-only ".open.gz" (writes dropped after
+        writeBlock(1, 1, ".blk.zstd");
+        writeBlock(2, 5, ".blk.zstd"); // durable, last round 5
+        // The ISS round 6 lives in the newest block, flushed as a header-only ".open.zstd" (writes dropped after
         // notifyFatalEvent): LISTED but unreadable, so it cannot bound round 6 to block 2. Since block 2's last round
         // (5) is < 6, the resolver must NOT substitute preceding block 2 — it returns empty so the caller keeps polling
         // / surfaces the loss rather than staging the wrong block.
@@ -238,9 +240,9 @@ class IssBlockResolverTest {
         // but unreadable (header-only). A readable newer block (3) bounds the round, but because the block BETWEEN is
         // unreadable, block 1 is not proven to contain round 6 (its last round is 4) — so stage nothing, not the wrong
         // older block.
-        writeBlock(1, 1, 4, ".blk.gz");
+        writeBlock(1, 1, 4, ".blk.zstd");
         writeHeaderlessOpenBlock(2);
-        writeBlock(3, 9, 12, ".blk.gz");
+        writeBlock(3, 9, 12, ".blk.zstd");
 
         assertThat(subject.resolve(6, 0)).isEmpty();
     }
@@ -251,8 +253,8 @@ class IssBlockResolverTest {
         // directly
         // follow block 1, so it does not prove block 1 (last round 4) holds round 6: stage nothing, not the wrong
         // block.
-        writeBlock(1, 1, 4, ".blk.gz");
-        writeBlock(3, 9, 12, ".blk.gz");
+        writeBlock(1, 1, 4, ".blk.zstd");
+        writeBlock(3, 9, 12, ".blk.zstd");
 
         assertThat(subject.resolve(6, 0)).isEmpty();
     }
@@ -260,16 +262,16 @@ class IssBlockResolverTest {
     @Test
     void resolvesThePickAcrossAMissingBlockWhenItsLastRoundCoversTheRound() throws IOException {
         // Same gap, but round 3 is inside block 1 (rounds 1..4), which the last-round check confirms.
-        writeBlock(1, 1, 4, ".blk.gz");
-        writeBlock(3, 9, 12, ".blk.gz");
+        writeBlock(1, 1, 4, ".blk.zstd");
+        writeBlock(3, 9, 12, ".blk.zstd");
 
         assertThat(subject.resolve(3, 0).stream().map(IssBlockRef::blockNumber)).containsExactly(1L);
     }
 
     @Test
     void resolvingTheSameRoundTwiceReusesMemoizedRounds() throws IOException {
-        writeBlock(1, 1, 4, ".blk.gz");
-        writeBlock(2, 5, 7, ".blk.gz");
+        writeBlock(1, 1, 4, ".blk.zstd");
+        writeBlock(2, 5, 7, ".blk.zstd");
 
         // The second resolve exercises the first/last-round memo caches (no re-parse); both must resolve identically.
         assertThat(subject.resolve(6, 0)).hasSize(1);
@@ -278,21 +280,46 @@ class IssBlockResolverTest {
 
     @Test
     void forgetUnreadableLetsTheAuthoritativePathReReadAPreviouslyUnreadableBlock() throws IOException {
-        writeBlock(1, 1, 4, ".blk.gz");
+        writeBlock(1, 1, 4, ".blk.zstd");
         writeHeaderlessOpenBlock(2); // unreadable on first read -> negatively cached
-        writeBlock(3, 9, 12, ".blk.gz");
+        writeBlock(3, 9, 12, ".blk.zstd");
         assertThat(subject.resolve(6, 0)).isEmpty();
 
         // Block 2 later becomes a readable durable block that actually spans round 6.
         final Path nodeDir = tempDir.resolve("block-0.0.3");
-        Files.deleteIfExists(nodeDir.resolve(FileBlockItemWriter.longToFileName(2L) + ".open.gz"));
-        writeBlock(2, 5, 7, ".blk.gz");
+        Files.deleteIfExists(nodeDir.resolve(BlockFileUtils.blockNumberToFileName(2L) + ".open.zstd"));
+        writeBlock(2, 5, 7, ".blk.zstd");
 
         // The detection cache still skips block 2 (negatively cached from the earlier read)...
         assertThat(subject.resolve(6, 0)).isEmpty();
         // ...until the authoritative failure path clears the negative cache and re-reads it.
         subject.forgetUnreadable();
         assertThat(subject.resolve(6, 0).stream().map(IssBlockRef::blockNumber)).containsExactly(2L);
+    }
+
+    @Test
+    void resolvesLegacyGzipBlocksNextToCurrentOnes() throws IOException {
+        // Blocks 1 and 2 were written before the upgrade (36-digit names, gzip); block 3 after it.
+        writeBlock(1, 1, ".blk.gz");
+        writeBlock(2, 5, ".pnd.gz");
+        writeBlock(3, 9, ".blk.zstd");
+        writeBlock(4, 13, ".open.gz");
+
+        final List<IssBlockRef> refs = subject.resolve(9, 2);
+
+        assertThat(refs.stream().map(IssBlockRef::blockNumber)).containsExactly(1L, 2L, 3L);
+        assertThat(refs.get(0).files().getFirst().getFileName().toString()).isEqualTo(legacyName(1) + ".blk.gz");
+        assertThat(refs.get(1).files().stream().map(p -> p.getFileName().toString()))
+                .containsExactly(legacyName(2) + ".pnd.gz", legacyName(2) + ".pnd.json");
+        assertThat(refs.get(2).files().getFirst().getFileName().toString()).isEqualTo(BlockFileUtils.blockFileName(3));
+        // A legacy flushed open block is still found.
+        assertThat(subject.resolve(13, 0)
+                        .getFirst()
+                        .files()
+                        .getFirst()
+                        .getFileName()
+                        .toString())
+                .isEqualTo(legacyName(4) + ".open.gz");
     }
 
     private void writeHeaderlessOpenBlock(final long number) throws IOException {
@@ -304,8 +331,8 @@ class IssBlockResolverTest {
         final byte[] raw = Block.PROTOBUF.toBytes(block).toByteArray();
         final Path nodeDir = tempDir.resolve("block-0.0.3");
         Files.createDirectories(nodeDir);
-        try (final GZIPOutputStream out = new GZIPOutputStream(
-                Files.newOutputStream(nodeDir.resolve(FileBlockItemWriter.longToFileName(number) + ".open.gz")))) {
+        try (final OutputStream out = BlockFileUtils.newZstdOutputStream(
+                Files.newOutputStream(nodeDir.resolve(BlockFileUtils.incompleteFileName(number))))) {
             out.write(raw);
         }
     }
@@ -314,7 +341,10 @@ class IssBlockResolverTest {
         writeBlock(number, firstRound, firstRound, ext);
     }
 
-    /** Writes a block spanning {@code firstRound..lastRound} (a {@code RoundHeader} per round), so its last round is real. */
+    /**
+     * Writes a block spanning {@code firstRound..lastRound} (a {@code RoundHeader} per round), so its last round is
+     * real. A {@code .zstd} extension gives the current format; a {@code .gz} one gives the legacy 36-digit gzip file.
+     */
     private void writeBlock(final long number, final long firstRound, final long lastRound, final String ext)
             throws IOException {
         final List<BlockItem> items = new ArrayList<>();
@@ -330,16 +360,21 @@ class IssBlockResolverTest {
                 Block.PROTOBUF.toBytes(Block.newBuilder().items(items).build()).toByteArray();
         final Path nodeDir = tempDir.resolve("block-0.0.3");
         Files.createDirectories(nodeDir);
-        final String baseName = FileBlockItemWriter.longToFileName(number);
-        try (final GZIPOutputStream out =
-                new GZIPOutputStream(Files.newOutputStream(nodeDir.resolve(baseName + ext)))) {
+        final boolean legacy = ext.endsWith(".gz");
+        final String baseName = legacy ? legacyName(number) : BlockFileUtils.blockNumberToFileName(number);
+        final OutputStream file = Files.newOutputStream(nodeDir.resolve(baseName + ext));
+        try (final OutputStream out = legacy ? new GZIPOutputStream(file) : BlockFileUtils.newZstdOutputStream(file)) {
             out.write(raw);
         }
-        if (".blk.gz".equals(ext)) {
-            // A completed block has its ".mf" marker; the resolver only treats a marked ".blk.gz" as complete.
+        if (ext.startsWith(".blk")) {
+            // A completed block has its ".mf" marker; the resolver only treats a marked block file as complete.
             Files.createFile(nodeDir.resolve(baseName + ".mf"));
-        } else if (".pnd.gz".equals(ext)) {
+        } else if (ext.startsWith(".pnd")) {
             Files.writeString(nodeDir.resolve(baseName + ".pnd.json"), "{}");
         }
+    }
+
+    private static String legacyName(final long number) {
+        return String.format(Locale.ROOT, "%036d", number);
     }
 }

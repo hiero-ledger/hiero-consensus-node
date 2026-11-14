@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.BlockBytes;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -28,7 +29,6 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
-import java.util.zip.GZIPInputStream;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,25 +36,22 @@ import org.apache.logging.log4j.Logger;
 /**
  * Locates, on local disk, the block that contains a given ISS round (plus optionally a window of preceding blocks for
  * lead-up context), so they can be staged for triage. This is the source for the detection path in
- * {@code FILE} / {@code FILE_AND_GRPC} mode, where closed blocks are durable {@code .blk.gz} files on disk.
+ * {@code FILE} / {@code FILE_AND_GRPC} mode, where closed blocks are durable {@code .blk.zstd} files on disk.
  *
  * <p>Block files are named by block number, not round number, so the round is found by searching: the node writes a
- * {@code RoundHeader} as the first item of every round, block files are 36-digit zero-padded (lexicographic order ==
- * numeric order), and a block's first round increases monotonically with its block number. The search therefore reads
- * each candidate's first {@code RoundHeader}, scanning from the newest block inward — the ISS round is almost always
- * recent — and skipping any candidate whose first round cannot be read (e.g. a header-only {@code .open.gz}) rather
- * than aborting. It considers all three on-disk content kinds: {@code .blk.gz} (complete), {@code .pnd.gz} (pending,
- * with its {@code .pnd.json} proof sidecar), and {@code .open.gz} (the open block flushed at catastrophic failure).
+ * {@code RoundHeader} as the first item of every round, block files are named by their zero-padded block number, and a
+ * block's first round increases monotonically with its block number. The search therefore reads each candidate's first
+ * {@code RoundHeader}, scanning from the newest block inward — the ISS round is almost always recent — and skipping any
+ * candidate whose first round cannot be read (e.g. a header-only {@code .open.zstd}) rather than aborting. It considers
+ * all three on-disk content kinds: {@code .blk.zstd} (complete), {@code .pnd.zstd} (pending, with its {@code .pnd.json}
+ * proof sidecar), and {@code .open.zstd} (the open block flushed at catastrophic failure). Legacy {@code .gz} files
+ * left by an older version are read too.
  */
 public class IssBlockResolver {
     private static final Logger log = LogManager.getLogger(IssBlockResolver.class);
 
-    private static final String COMPLETE_EXT = StagingFiles.COMPLETE_EXT;
-    private static final String PENDING_EXT = StagingFiles.PENDING_EXT;
-    private static final String INCOMPLETE_EXT = StagingFiles.INCOMPLETE_EXT;
-    private static final String PENDING_PROOF_EXT = StagingFiles.PENDING_PROOF_EXT;
-    /** Written by {@code FileBlockItemWriter} only after a block is fully written and closed. */
-    private static final String MARKER_EXT = StagingFiles.COMPLETION_MARKER_EXT;
+    /** Suffixes of an open block flushed for triage: the current format, then the legacy one. */
+    private static final List<String> INCOMPLETE_EXTS = List.of(".open.zstd", ".open.gz");
 
     private final ConfigProvider configProvider;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
@@ -72,7 +69,7 @@ public class IssBlockResolver {
     private final Map<Long, Long> lastRoundByBlockNumber = new ConcurrentHashMap<>();
 
     /**
-     * Block numbers whose contents could not be read (corrupt, or a header-only {@code .open.gz}). Cached so the
+     * Block numbers whose contents could not be read (corrupt, or a header-only {@code .open.zstd}). Cached so the
      * detection poll (which re-invokes {@link #resolve} every 250ms) does not re-decompress the same unreadable file
      * each iteration. Unreadability is terminal for a given block number; the set is pruned to the retention window.
      */
@@ -123,9 +120,9 @@ public class IssBlockResolver {
 
         // Find the block containing the round: the rightmost block whose first round is <= round (first round
         // increases monotonically with block number). Scan from the newest end so a recent ISS — the common case — is
-        // found quickly. A candidate whose first RoundHeader cannot be read (a header-only .open.gz flushed after
-        // writes were dropped at fatal shutdown, or a corrupt gzip) is SKIPPED, never fatal: one unreadable block must
-        // not abort the resolve and drop an ISS block that is present on disk as a readable .blk.gz.
+        // found quickly. A candidate whose first RoundHeader cannot be read (a header-only .open.zstd flushed after
+        // writes were dropped at fatal shutdown, or a corrupt file) is SKIPPED, never fatal: one unreadable block must
+        // not abort the resolve and drop an ISS block that is present on disk as a readable .blk.zstd.
         final int maxReadDepth = config.maxReadDepth();
         final int maxReadSize = config.maxReadBytesSize();
         int issIndex = -1;
@@ -165,7 +162,7 @@ public class IssBlockResolver {
 
         // The loop picks the rightmost block whose FIRST round <= the ISS round: proof only that the round is in that
         // block OR a newer one. A readable newer block bounds it (its first round > round) — but if NO readable newer
-        // block does (the pick is the newest block, or every newer block was an unreadable/header-only ".open.gz"
+        // block does (the pick is the newest block, or every newer block was an unreadable/header-only ".open.zstd"
         // skipped above), the round may instead be in that newest, not-yet-durable/unreadable block. Returning the pick
         // would stage the WRONG block and let the coordinator mark the round done, so confirm the round is actually
         // within the pick (round <= its LAST round); if not, return empty so the caller keeps polling / surfaces the
@@ -222,33 +219,29 @@ public class IssBlockResolver {
             entries.forEach(path -> {
                 final String name = path.getFileName().toString();
                 final BlockKind kind;
-                final String numberPart;
-                if (name.endsWith(COMPLETE_EXT)) {
-                    numberPart = name.substring(0, name.length() - COMPLETE_EXT.length());
-                    // A .blk.gz is a finished, readable block only once its .mf completion marker exists. Without it,
-                    // this is the currently-open block still being written (a partial, unterminated gzip that would
-                    // fail to parse and abort the search), so skip it.
-                    if (!Files.exists(nodeDir.resolve(numberPart + MARKER_EXT))) {
+                if (BlockFileUtils.isCompleteBlockFile(path)) {
+                    // A block file is a finished, readable block only once its .mf completion marker exists. Without
+                    // it, this is the currently-open block still being written (a partial, unterminated stream that
+                    // would fail to parse and abort the search), so skip it.
+                    if (!Files.exists(BlockFileUtils.markerPathFor(path))) {
                         return;
                     }
                     kind = BlockKind.COMPLETE;
-                } else if (name.endsWith(PENDING_EXT)) {
+                } else if (BlockFileUtils.isPendingBlockFile(path)) {
                     kind = BlockKind.PENDING;
-                    numberPart = name.substring(0, name.length() - PENDING_EXT.length());
-                } else if (name.endsWith(INCOMPLETE_EXT)) {
+                } else if (INCOMPLETE_EXTS.stream().anyMatch(name::endsWith)) {
                     kind = BlockKind.INCOMPLETE;
-                    numberPart = name.substring(0, name.length() - INCOMPLETE_EXT.length());
                 } else {
                     return; // .pnd.json, .mf, or anything else
                 }
                 final long blockNumber;
                 try {
-                    blockNumber = Long.parseLong(numberPart);
+                    // Every content kind is named "<block number>.<kind>[.<compression>]".
+                    blockNumber = Long.parseLong(name.substring(0, name.indexOf('.')));
                 } catch (final NumberFormatException e) {
                     return;
                 }
-                final Path sidecar =
-                        (kind == BlockKind.PENDING) ? nodeDir.resolve(numberPart + PENDING_PROOF_EXT) : null;
+                final Path sidecar = (kind == BlockKind.PENDING) ? BlockFileUtils.pendingProofPathFor(path) : null;
                 final BlockFile candidate = new BlockFile(
                         blockNumber, kind, path, (sidecar != null && Files.exists(sidecar)) ? sidecar : null);
                 byNumber.merge(blockNumber, candidate, (a, b) -> a.kind().priority <= b.kind().priority ? a : b);
@@ -284,16 +277,15 @@ public class IssBlockResolver {
     /**
      * Parses {@code contents} into raw per-item {@link BlockBytes} (wire-identical to a {@code Block}, as in
      * {@code IssBufferBlockReader}) rather than the full {@code Block} object graph, so callers can deserialize items
-     * one at a time. The gzip is streamed straight in (no intermediate decompressed {@code byte[]}), bounded by
-     * {@code maxReadSize}. Each stream stage is its own resource: {@link GZIPInputStream}'s constructor eagerly reads
-     * the gzip header and can throw on an empty/truncated/corrupt file, so nesting the constructors would leak the
-     * already-opened {@link Files#newInputStream} descriptor. Empty if the file cannot be read or parsed.
+     * one at a time. The compressed file is streamed straight in (no intermediate decompressed {@code byte[]}), bounded
+     * by {@code maxReadSize}; {@link BlockFileUtils#openInputStream} picks the decompressor from the file suffix and
+     * closes the file if the decompressor cannot be built on an empty/truncated/corrupt file. Empty if the file cannot
+     * be read or parsed.
      */
     private static Optional<BlockBytes> parseBlockBytes(
             @NonNull final Path contents, final int maxReadDepth, final int maxReadSize) {
-        try (final var fileIn = Files.newInputStream(contents);
-                final var gzipIn = new GZIPInputStream(fileIn);
-                final ReadableStreamingData in = new ReadableStreamingData(gzipIn)) {
+        try (final var blockIn = BlockFileUtils.openInputStream(contents);
+                final ReadableStreamingData in = new ReadableStreamingData(blockIn)) {
             return Optional.of(BlockBytes.PROTOBUF.parse(in, false, false, maxReadDepth, maxReadSize));
         } catch (final IOException e) {
             log.warn("Failed to read block file {}", contents, e);

@@ -1569,6 +1569,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             if (blockStreamEnabled) {
                 notifications.unregister(StateHashedListener.class, app.blockStreamManager());
                 app.blockNodeConnectionManager().shutdown();
+                // The old manager handles no more rounds; close its block writers before the new one opens files
+                app.blockStreamManager().abandonOpenBlocks();
             }
         }
         if (trigger == RECONNECT) {

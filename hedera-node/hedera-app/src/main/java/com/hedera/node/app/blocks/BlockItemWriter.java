@@ -2,7 +2,7 @@
 package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -42,7 +42,7 @@ public interface BlockItemWriter {
     /**
      * Flushes to disk a block that is still waiting for a complete proof.
      * @param pendingProof the proof pending a signature
-     * @return the path of the flushed pending-block contents file ({@code .pnd.gz}), or {@code null} if nothing was
+     * @return the path of the flushed pending-block contents file ({@code .pnd.zstd}), or {@code null} if nothing was
      * written (e.g. not in an OPEN state, no buffered items, or an I/O error)
      */
     @Nullable
@@ -50,7 +50,7 @@ public interface BlockItemWriter {
 
     /**
      * Flushes the current OPEN, unproven block to local disk for triage after a catastrophic failure (e.g. an ISS),
-     * as an {@code .open.gz} artifact: the gzipped block items, parseable as a {@link
+     * as an {@code .open.zstd} artifact: the Zstandard-compressed block items, parseable as a {@link
      * com.hedera.hapi.block.stream.Block} for analysis. Unlike {@link #flushPendingBlock(PendingProof)}, this is
      * deliberately NOT a recoverable pending block — it has no {@code .pnd.json} proof sidecar (so pending-block
      * recovery never picks it up) and no completion marker (so it is never mistaken for a finished/proven block).
@@ -63,13 +63,19 @@ public interface BlockItemWriter {
      * an incomplete final round — e.g. read each round by its leading {@code RoundHeader} rather than assuming a clean
      * round boundary at end-of-file.
      *
-     * @return the path of the flushed {@code .open.gz} triage artifact, or {@code null} if nothing was written
+     * @return the path of the flushed {@code .open.zstd} triage artifact, or {@code null} if nothing was written
      */
     @Nullable
     Path flushIncompleteBlock();
 
+    /**
+     * Releases the resources of an open block that will never be completed, for example when a reconnect replaces
+     * the block stream manager. Unlike the flush methods, this writes no marker or proof file and renames nothing.
+     * Best-effort; implementations must not throw.
+     */
+    default void abandonBlock() {}
+
     default Path pendingProofPath(@NonNull final Path blockDir, final long blockNumber) {
-        final var baseName = FileBlockItemWriter.longToFileName(blockNumber);
-        return blockDir.resolve(baseName + ".pnd.json");
+        return blockDir.resolve(BlockFileUtils.pendingProofFileName(blockNumber));
     }
 }

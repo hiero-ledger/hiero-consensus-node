@@ -33,7 +33,7 @@ import org.hiero.base.crypto.DigestType;
  * @param maxReadBytesSize the max size in bytes of protobuf messages to read
  * @param blockFileBufferOuterSizeKb block file writer outer buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
- * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
+ * @param blockFileBufferGzipSizeKb unused legacy GZIP buffer size; retained for configuration compatibility
  * @param digestType the digest algorithm to use for block-root Merkle hashing; {@code SHA_256} (the default) uses
  *                   32-byte SHA-256 hashing, {@code SHA_384} uses 48-byte SHA-384
  */

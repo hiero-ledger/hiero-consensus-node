@@ -196,7 +196,7 @@ BLOCK_NODE_CUTOVER_VALUES_FILE="${WORK_DIR}/block-node-cutover-values.yaml"
 LEDGER_ID_EXTRACTOR_DIR="${WORK_DIR}/ledgerid-extractor"
 LEDGER_ID_EXTRACTOR_SRC="${LEDGER_ID_EXTRACTOR_DIR}/extract_ledger_id_publication.py"
 BN_TSS_PARAMS_LOCAL="${WORK_DIR}/tss-bootstrap-roster.json"
-BN_BLOCK_FILES_DIR="${WORK_DIR}/bn-block-files"
+BN_SEED_RECORD_FILES_DIR="${WORK_DIR}/bn-seed-record-files"
 BN_TSS_PARAMS_CONTAINER_PATH="${BN_TSS_PARAMS_CONTAINER_PATH:-/opt/hiero/block-node/application-state/tss-bootstrap-roster.json}"
 MIRROR_NODE_VALUES_FILE="${WORK_DIR}/mirror-node-values.yaml"
 MIRROR_PORT_FORWARD_PID=""
@@ -1123,11 +1123,13 @@ verify_block_node_has_blocks() {
   return 1
 }
 
-# Dependency-free Python extractor: walks the protobuf wire format of a block-stream file
-# and converts the LedgerIdPublicationTransactionBody (Block.items[1] ->
-# BlockItem.signed_transaction[4] -> SignedTransaction.bodyBytes[1] ->
+# Dependency-free Python extractor: walks the protobuf wire format of a V6 record file
+# (4-byte version, then a RecordStreamFile) and converts the LedgerIdPublicationTransactionBody
+# (RecordStreamFile.record_stream_items[3] -> RecordStreamItem.transaction[1] ->
+# Transaction.signedTransactionBytes[5] -> SignedTransaction.bodyBytes[1] ->
 # TransactionBody.ledger_id_publication[77]) into the TssData JSON that the
-# block-verification plugin reads from app.state.tssBootstrapFilePath.
+# block-verification plugin reads from app.state.tssBootstrapFilePath. validFromBlock is the
+# record file's block_number[5], the numbering the block stream continues after cutover.
 write_ledger_id_extractor() {
   mkdir -p "${LEDGER_ID_EXTRACTOR_DIR}"
   cat > "${LEDGER_ID_EXTRACTOR_SRC}" <<'EOF'
@@ -1137,7 +1139,6 @@ import sys
 import gzip
 import base64
 import json
-import os
 
 
 def read_varint(buf, pos):
@@ -1183,20 +1184,29 @@ def find_field(msg, field_num):
     return None
 
 
-def extract_from_block(data):
-    for fnum, wtype, val in iter_fields(data):
-        if fnum != 1 or wtype != 2:
-            continue
-        stx = find_field(val, 4)
-        if stx is None:
-            continue
-        body = find_field(stx, 1)
-        if body is None:
-            continue
-        pub = find_field(body, 77)
-        if pub is not None:
-            return pub
-    return None
+def transaction_body(txn):
+    stx = find_field(txn, 5)
+    if stx is not None:
+        return find_field(stx, 1)
+    return find_field(txn, 4)
+
+
+# Returns (publication, block_number); the block number follows the items on the wire.
+def extract_from_record_file(data):
+    version = int.from_bytes(data[:4], "big")
+    if version != 6:
+        raise ValueError("unsupported record file version %d" % version)
+    pub = None
+    block_number = 0
+    for fnum, wtype, val in iter_fields(data[4:]):
+        if fnum == 5 and wtype == 0:
+            block_number = val
+        elif fnum == 3 and wtype == 2 and pub is None:
+            txn = find_field(val, 1)
+            body = transaction_body(txn) if txn is not None else None
+            if body is not None:
+                pub = find_field(body, 77)
+    return pub, block_number
 
 
 def tss_data_json(pub, block_number):
@@ -1231,24 +1241,23 @@ def tss_data_json(pub, block_number):
 
 def main():
     if len(sys.argv) < 3:
-        sys.stderr.write("usage: extract.py <out.json> <blockFile.blk[.gz]> [...]\n")
+        sys.stderr.write("usage: extract.py <out.json> <recordFile.rcd.gz> [...]\n")
         sys.exit(2)
     out = sys.argv[1]
     for path in sys.argv[2:]:
         try:
             with open(path, "rb") as f:
-                raw = f.read()
-            data = gzip.decompress(raw) if path.endswith(".gz") else raw
-            pub = extract_from_block(data)
+                data = gzip.decompress(f.read())
+            pub, block_number = extract_from_record_file(data)
             if pub is not None:
-                block_number = int(os.path.basename(path).split(".", 1)[0])
                 with open(out, "w", encoding="utf-8") as o:
                     json.dump(tss_data_json(pub, block_number), o, separators=(",", ":"))
-                print("FOUND ledgerIdPublication in %s -> wrote canonical TssData JSON to %s" % (path, out))
+                print("FOUND ledgerIdPublication in %s (record block %d) -> wrote canonical TssData JSON to %s"
+                      % (path, block_number, out))
                 return
         except Exception as e:  # noqa: BLE001
             sys.stderr.write("skip %s: %s\n" % (path, e))
-    sys.stderr.write("No ledgerIdPublication found in any input block file\n")
+    # The caller scans one file at a time and reports when none of them has the publication.
     sys.exit(1)
 
 
@@ -1260,10 +1269,11 @@ EOF
 # Bootstrap the BN with the network's TSS ledger id so it can verify real-TSS-signed
 # blocks after the stage 3 upgrade. The BN only self-learns the ledger id from block 0; this
 # mid-chain BN never sees it, so we extract the LedgerIdPublication (published during stage 2)
-# from a MinIO .blk.gz, convert it to application-state TssData JSON, and roll the BN.
+# from the record stream in MinIO, convert it to application-state TssData JSON, and roll the BN.
+# The stage 2 block files are not used: they are preview blocks written before cutover.
 seed_block_node_tss_parameters() {
   require_cmd python3
-  local minio_pod creds_tmp u p in_pod_dir bn_pod
+  local minio_pod creds_tmp u p bn_pod
   minio_pod="$(kubectl -n "${MINIO_NAMESPACE}" get pods -o json 2>/dev/null | jq -r '
     .items[].metadata.name | select(test("^minio-"))' | head -n 1)"
   [[ -n "${minio_pod}" ]] || { echo "seed: no MinIO pod in ${MINIO_NAMESPACE}" >&2; return 1; }
@@ -1274,41 +1284,57 @@ seed_block_node_tss_parameters() {
   fi
   u="$(sed -n '1p' "${creds_tmp}")"; p="$(sed -n '2p' "${creds_tmp}")"; rm -f "${creds_tmp}"
 
-  in_pod_dir="/tmp/bn-blk-$$"
-  log "Copying block-stream files from MinIO ${MINIO_BUCKET}/blockStreams via in-pod mc"
-  if ! kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-      "rm -rf '${in_pod_dir}'; mkdir -p '${in_pod_dir}'; \
-       mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1; \
-       mc cp --recursive 'local/${MINIO_BUCKET}/blockStreams/' '${in_pod_dir}/' >/dev/null 2>&1"; then
-    echo "seed: in-pod mc cp of blockStreams failed" >&2; return 1
-  fi
-  rm -rf "${BN_BLOCK_FILES_DIR}"; mkdir -p "${BN_BLOCK_FILES_DIR}"
-  # Copy each block file out with a tar-free `kubectl exec ... cat` (kubectl cp shells out
-  # to tar, which the distroless MinIO image does not ship). Stdout without a TTY is a raw
-  # binary stream, so .blk.gz bytes survive intact.
-  local rel base dest pulled=0
-  while IFS= read -r rel; do
-    [[ -n "${rel}" ]] || continue
-    base="$(basename "${rel}")"
-    dest="${BN_BLOCK_FILES_DIR}/${base}"
-    kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- cat "${rel}" > "${dest}" 2>/dev/null
-    # `pulled=$((pulled + 1))` not `((pulled++))`: the latter returns exit 1 when pulled goes 0->1,
-    # which trips `set -e` on bash 5 (CI). An assignment always returns 0.
-    if [[ -s "${dest}" ]]; then pulled=$((pulled + 1)); else rm -f "${dest}"; fi
-  done < <(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
-            "for f in ${in_pod_dir}/*/*.blk.gz ${in_pod_dir}/*.blk.gz; do [ -f \"\$f\" ] && echo \"\$f\"; done" 2>/dev/null)
-  kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c "rm -rf '${in_pod_dir}'" >/dev/null 2>&1 || true
-
-  local blk_files=()
-  while IFS= read -r bf; do blk_files+=("${bf}"); done < <(find "${BN_BLOCK_FILES_DIR}" -type f -name '*.blk.gz' | sort)
-  [[ "${#blk_files[@]}" -gt 0 ]] || { echo "seed: no .blk.gz files retrieved from MinIO (pulled=${pulled})" >&2; return 1; }
-  log "Retrieved ${#blk_files[@]} block-stream files; extracting LedgerIdPublication"
+  # A record file is closed by the first transaction of a later record period, and nothing has
+  # to follow the publication, so submit transactions before looking for it.
+  nudge_consensus_with_transactions
 
   write_ledger_id_extractor
+  rm -rf "${BN_SEED_RECORD_FILES_DIR}"; mkdir -p "${BN_SEED_RECORD_FILES_DIR}"
   rm -f "${BN_TSS_PARAMS_LOCAL}"
-  if ! python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${blk_files[@]}"; then
-    echo "seed: no LedgerIdPublication found in block stream (was it published during stage 2?)" >&2; return 1
+  log "Looking for the LedgerIdPublication in MinIO ${MINIO_BUCKET}/recordstreams via in-pod mc"
+  # Newest first by file name (the consensus timestamp): the ledger id is published at the end
+  # of the stage 2 TSS ceremony. Every node uploads the same record files, so a name already
+  # read from one node is skipped for the others.
+  # Each file is read with a tar-free in-pod `mc cat` (kubectl cp shells out to tar, which the
+  # distroless MinIO image does not ship). Stdout without a TTY is a raw binary stream, so the
+  # .rcd.gz bytes survive intact. Poll, because the uploader ships a closed file a little later.
+  local mc_alias="mc alias set local 'http://minio-hl.${MINIO_NAMESPACE}.svc.cluster.local:9000' '${u}' '${p}' >/dev/null 2>&1"
+  local list_err="${WORK_DIR}/seed-mc-find.err"
+  local listing remote dest scanned=0 found=0 attempt=1 max_attempts=36
+  while (( attempt <= max_attempts )); do
+    listing="$(kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
+      "${mc_alias}; mc find 'local/${MINIO_BUCKET}/recordstreams' --name '*.rcd.gz'" 2>"${list_err}" \
+      | grep -v '/sidecar/' | awk -F/ '{ print $NF "\t" $0 }' | sort -r | cut -f2-)" || true
+    while IFS= read -r remote; do
+      [[ -n "${remote}" ]] || continue
+      dest="${BN_SEED_RECORD_FILES_DIR}/$(basename "${remote}")"
+      if [[ -e "${dest}" ]]; then continue; fi
+      # A failed or empty read leaves no file behind, so the next pass tries it again.
+      if ! kubectl -n "${MINIO_NAMESPACE}" exec "${minio_pod}" -c minio -- sh -c \
+          "${mc_alias}; mc cat '${remote}'" > "${dest}" 2>/dev/null || [[ ! -s "${dest}" ]]; then
+        rm -f "${dest}"
+        continue
+      fi
+      scanned=$((scanned + 1))
+      if python3 "${LEDGER_ID_EXTRACTOR_SRC}" "${BN_TSS_PARAMS_LOCAL}" "${dest}"; then
+        found=1
+        break
+      fi
+    done <<< "${listing}"
+    (( found == 1 )) && break
+    sleep 5
+    attempt=$((attempt + 1))
+  done
+  if (( found == 0 )); then
+    if (( scanned == 0 )); then
+      echo "seed: could not read any record file from MinIO ${MINIO_BUCKET}/recordstreams; last listing error:" >&2
+      cat "${list_err}" >&2 2>/dev/null || true
+    else
+      echo "seed: no LedgerIdPublication in ${scanned} record file(s) read from MinIO (was it published during stage 2?)" >&2
+    fi
+    return 1
   fi
+  log "Found the LedgerIdPublication after reading ${scanned} record file(s)"
   [[ -s "${BN_TSS_PARAMS_LOCAL}" ]] || { echo "seed: extracted TssData JSON is empty" >&2; return 1; }
 
   bn_pod="block-node-${BLOCK_NODE_ID}-0"

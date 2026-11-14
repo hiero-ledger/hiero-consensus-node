@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.hapi.utils.blocks.BlockFileUtils;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.FailureBlockStagingConfig;
@@ -106,25 +107,21 @@ public class TriageBlockStagingCoordinator {
     }
 
     /**
-     * Copies a flushed contents file (and, for a {@code .pnd.gz}, its gzipped {@code .pnd.json} sidecar) into
-     * {@code stageDir}.
+     * Copies a flushed contents file (and, for a pending block, its Zstandard-compressed {@code .pnd.json} sidecar)
+     * into {@code stageDir}.
      */
     private boolean stageOne(@NonNull final Path contents, @NonNull final Path stageDir) {
-        final Path dest = stageDir.resolve(contents.getFileName().toString());
         try {
-            StagingFiles.atomicCopy(contents, dest);
+            StagingFiles.stageContents(contents, stageDir);
         } catch (final IOException e) {
             log.warn("Failed to stage flushed triage file {}", contents, e);
             return false;
         }
-        final String name = contents.getFileName().toString();
-        if (name.endsWith(StagingFiles.PENDING_EXT)) {
-            final Path sidecar =
-                    contents.resolveSibling(name.substring(0, name.length() - StagingFiles.PENDING_EXT.length())
-                            + StagingFiles.PENDING_PROOF_EXT);
+        if (BlockFileUtils.isPendingBlockFile(contents)) {
+            final Path sidecar = BlockFileUtils.pendingProofPathFor(contents);
             if (Files.exists(sidecar)) {
                 try {
-                    StagingFiles.atomicGzipCopy(sidecar, stageDir.resolve(StagingFiles.stagedSidecarName(sidecar)));
+                    StagingFiles.atomicZstdCopy(sidecar, stageDir.resolve(StagingFiles.stagedSidecarName(sidecar)));
                 } catch (final IOException e) {
                     log.warn("Failed to stage triage proof sidecar {}", sidecar, e);
                 }
