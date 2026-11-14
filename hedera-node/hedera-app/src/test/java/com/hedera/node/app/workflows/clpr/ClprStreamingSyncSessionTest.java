@@ -122,12 +122,11 @@ class ClprStreamingSyncSessionTest {
         }
 
         @Test
-        @DisplayName("an unparseable message is rejected as INVALID_ARGUMENT")
+        @DisplayName("an unparseable message is rejected as INVALID_ARGUMENT, without the parser's detail")
         void rejectsMalformedMessage() {
             assertThatThrownBy(() -> session.onMessage(Bytes.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF})))
                     .isInstanceOf(StatusRuntimeException.class)
-                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                    .isEqualTo(Status.Code.INVALID_ARGUMENT);
+                    .hasMessage("INVALID_ARGUMENT: Invalid ClprStreamingSyncPayload");
         }
 
         @Test
@@ -136,9 +135,7 @@ class ClprStreamingSyncSessionTest {
 
             assertThatThrownBy(() -> session.onMessage(request))
                     .isInstanceOf(StatusRuntimeException.class)
-                    .hasMessageContaining("Invalid ClprStreamingSyncPayload")
-                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                    .isEqualTo(Status.Code.INVALID_ARGUMENT);
+                    .hasMessage("INVALID_ARGUMENT: Invalid ClprStreamingSyncPayload");
             verifyNoInteractions(stateAccessor, bundleSubmitter, stateProofManager);
         }
 
