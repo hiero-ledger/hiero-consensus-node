@@ -73,7 +73,6 @@ public final class CantonFixtures {
         return load("update-multihash-sha256");
     }
 
-    // Topology (PR B scope, co-located)
     public static byte[] topologyOwnerSet() {
         return load("topology-owner-set");
     }
