@@ -215,26 +215,23 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_PRE,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
-                final var config = context.configuration();
-                // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
-                throw new HandleException(
-                        e.getStatus(),
-                        (ctx, ignored) -> refundHookFee(
-                                context,
-                                ctx,
-                                hookCalls,
-                                numAttemptedHookCalls.get(),
-                                config.getConfigData(HooksConfig.class),
-                                config.getConfigData(AccountsConfig.class),
-                                topLevelPayer));
+                throw refundingUnattemptedHookCalls(e, context, hookCalls, numAttemptedHookCalls, topLevelPayer);
             }
         }
 
-        for (final var t : txns) {
-            new AssociateTokenRecipientsStep(t).doIn(transferContext);
-            new AdjustHbarChangesStep(t, topLevelPayer, entityIdFactory).doIn(transferContext);
-            new AdjustFungibleTokenChangesStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
-            new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
+        try {
+            for (final var t : txns) {
+                new AssociateTokenRecipientsStep(t).doIn(transferContext);
+                new AdjustHbarChangesStep(t, topLevelPayer, entityIdFactory).doIn(transferContext);
+                new AdjustFungibleTokenChangesStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
+                new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
+            }
+        } catch (HandleException e) {
+            if (hasHooks) {
+                // The post hook calls of pre-post hooks were paid for but will never run now
+                throw refundingUnattemptedHookCalls(e, context, hookCalls, numAttemptedHookCalls, topLevelPayer);
+            }
+            throw e;
         }
         if (hasHooks) {
             try {
@@ -246,18 +243,7 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_POST,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
-                final var config = context.configuration();
-                // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
-                throw new HandleException(
-                        e.getStatus(),
-                        (ctx, ignored) -> refundHookFee(
-                                context,
-                                ctx,
-                                hookCalls,
-                                numAttemptedHookCalls.get(),
-                                config.getConfigData(HooksConfig.class),
-                                config.getConfigData(AccountsConfig.class),
-                                topLevelPayer));
+                throw refundingUnattemptedHookCalls(e, context, hookCalls, numAttemptedHookCalls, topLevelPayer);
             }
         }
 
@@ -279,6 +265,29 @@ public class TransferExecutor extends BaseTokenHandler {
         if (!transferContext.getAssessedCustomFees().isEmpty()) {
             recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
         }
+    }
+
+    /**
+     * Returns a copy of the given exception that, on rollback, refunds the fees charged for the hook calls
+     * that were never attempted.
+     */
+    private HandleException refundingUnattemptedHookCalls(
+            @NonNull final HandleException e,
+            @NonNull final HandleContext context,
+            @NonNull final HookCalls hookCalls,
+            @NonNull final Counter numAttemptedHookCalls,
+            @NonNull final AccountID topLevelPayer) {
+        final var config = context.configuration();
+        return new HandleException(
+                e.getStatus(),
+                (ctx, ignored) -> refundHookFee(
+                        context,
+                        ctx,
+                        hookCalls,
+                        numAttemptedHookCalls.get(),
+                        config.getConfigData(HooksConfig.class),
+                        config.getConfigData(AccountsConfig.class),
+                        topLevelPayer));
     }
 
     private void refundHookFee(
