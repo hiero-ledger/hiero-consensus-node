@@ -168,7 +168,8 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                 logger.debug("Peer {} does not have channel {} yet: {}", peerId, channelId, e.getMessage());
                 return;
             }
-            // ClprSyncException: stream failure. ClientException: TLS channel could not be built. Both are
+            // ClprSyncException: stream failure. ClientException: destination validation or channel setup failed. Both
+            // are
             // peer-level failures for the breaker.
             peerSelector.recordFailure(peerId);
             // The status is in the message (not only in the stack trace) so failures can be told apart per line
