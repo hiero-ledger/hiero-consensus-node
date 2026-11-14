@@ -16,6 +16,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static java.util.Objects.requireNonNull;
 
@@ -247,6 +248,10 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private void handleSystemUpdates(final Dispatch dispatch) {
+        if (dispatch.txnCategory() != USER) {
+            return;
+        }
+
         // Notify responsible facility if system-file was uploaded.
         // Returns SUCCESS if no system-file was uploaded
         final var fileUpdateResult = systemFileUpdates.handleTxBody(

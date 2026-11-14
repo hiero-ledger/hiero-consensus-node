@@ -361,7 +361,7 @@ public final class IngestChecker {
         //     the payer and body (today, file operations) — failing fast instead of gossiping a transaction we
         //     already know will fail at consensus. A no-op for every other functionality. Applies to inner batch
         //     transactions too, like the checks above.
-        authorizationChecker.enforce(payerAccountId, functionality, txBody);
+        authorizationChecker.enforce(payerAccountId, functionality, txBody, innerTransaction);
 
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in

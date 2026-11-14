@@ -31,12 +31,15 @@ import com.hedera.node.app.service.file.impl.handlers.FileAppendHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileSignatureWaiversImpl;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
@@ -58,6 +61,12 @@ class FileAppendHandlerTest extends FileTestBase {
 
     @Mock
     private ReadableAccountStore accountStore;
+
+    @Mock
+    private HandleContext.SavepointStack stack;
+
+    @Mock
+    private StreamBuilder recordBuilder;
 
     @Mock
     private NodeInfo creatorInfo;
@@ -303,6 +312,10 @@ class FileAppendHandlerTest extends FileTestBase {
                 .fileAppend(OP_BUILDER.fileID(wellKnowUpgradeId()).contents(bytesNewContent))
                 .build();
         given(handleContext.body()).willReturn(txBody);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(recordBuilder);
+        given(recordBuilder.category()).willReturn(HandleContext.TransactionCategory.USER);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(SystemPrivilege.AUTHORIZED);
         given(storeFactory.writableStore(WritableUpgradeFileStore.class)).willReturn(writableUpgradeFileStore);
 
         subject.handle(handleContext);
@@ -313,6 +326,95 @@ class FileAppendHandlerTest extends FileTestBase {
             file = iterator.next();
         }
         assertEquals(bytesNewContentExpected, file);
+    }
+
+    @Test
+    void rejectsUpgradeFileAppendForNonTopLevelTransaction() {
+        final var additionalContent = "contents".getBytes();
+        final var bytesNewContent = Bytes.wrap(additionalContent);
+        final var txBody = TransactionBody.newBuilder()
+                .fileAppend(OP_BUILDER.fileID(wellKnowUpgradeId()).contents(bytesNewContent))
+                .build();
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(recordBuilder);
+        given(recordBuilder.category()).willReturn(HandleContext.TransactionCategory.BATCH_INNER);
+
+        assertFailsWith(ResponseCodeEnum.UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsScheduledUpgradeFileAppend() {
+        final var additionalContent = "contents".getBytes();
+        final var bytesNewContent = Bytes.wrap(additionalContent);
+        final var txBody = TransactionBody.newBuilder()
+                .fileAppend(OP_BUILDER.fileID(wellKnowUpgradeId()).contents(bytesNewContent))
+                .build();
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(recordBuilder);
+        given(recordBuilder.category()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+
+        assertFailsWith(ResponseCodeEnum.UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsUpgradeFileAppendForUnauthorizedPayer() {
+        final var additionalContent = "contents".getBytes();
+        final var bytesNewContent = Bytes.wrap(additionalContent);
+        final var txBody = TransactionBody.newBuilder()
+                .fileAppend(OP_BUILDER.fileID(wellKnowUpgradeId()).contents(bytesNewContent))
+                .build();
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(recordBuilder);
+        given(recordBuilder.category()).willReturn(HandleContext.TransactionCategory.USER);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(SystemPrivilege.UNAUTHORIZED);
+
+        assertFailsWith(ResponseCodeEnum.UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsSystemFileAppendForNonTopLevelTransaction() {
+        final var systemFileId = idFactory.newFileId(121L);
+        final var txBody = TransactionBody.newBuilder()
+                .fileAppend(OP_BUILDER.fileID(systemFileId).contents(Bytes.wrap("more".getBytes())))
+                .build();
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(recordBuilder);
+        given(recordBuilder.category()).willReturn(HandleContext.TransactionCategory.BATCH_INNER);
+
+        assertFailsWith(ResponseCodeEnum.UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsScheduledSystemFileAppend() {
+        final var systemFileId = idFactory.newFileId(121L);
+        final var txBody = TransactionBody.newBuilder()
+                .fileAppend(OP_BUILDER.fileID(systemFileId).contents(Bytes.wrap("more".getBytes())))
+                .build();
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(recordBuilder);
+        given(recordBuilder.category()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
+
+        assertFailsWith(ResponseCodeEnum.UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsSystemFileAppendForUnauthorizedPayer() {
+        final var systemFileId = idFactory.newFileId(121L);
+        final var txBody = TransactionBody.newBuilder()
+                .fileAppend(OP_BUILDER.fileID(systemFileId).contents(Bytes.wrap("more".getBytes())))
+                .build();
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(recordBuilder);
+        given(recordBuilder.category()).willReturn(HandleContext.TransactionCategory.USER);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(SystemPrivilege.UNAUTHORIZED);
+
+        assertFailsWith(ResponseCodeEnum.UNAUTHORIZED, () -> subject.handle(handleContext));
     }
 
     @Test

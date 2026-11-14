@@ -47,6 +47,7 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.SUCCESS_TXN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULED_TRANSACTION_NOT_IN_WHITELIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -85,22 +86,7 @@ public class FutureSchedulableOpsTest {
                         .withEntityMemo(randomUppercase(100))
                         .designatingPayer(SOFTWARE_UPDATE_ADMIN)
                         .payingWith(PAYING_ACCOUNT)
-                        .via(SUCCESS_TXN),
-                scheduleSign(A_SCHEDULE)
-                        .alsoSigningWith(SOFTWARE_UPDATE_ADMIN)
-                        .payingWith(PAYING_ACCOUNT)
-                        .via(SIGN_TX)
-                        .hasKnownStatus(SUCCESS),
-                getScheduleInfo(A_SCHEDULE).isExecuted(),
-                withOpContext((spec, opLog) -> {
-                    var triggeredTx = getTxnRecord(SUCCESS_TXN).scheduled();
-                    allRunFor(spec, triggeredTx);
-
-                    assertEquals(
-                            SUCCESS,
-                            triggeredTx.getResponseRecord().getReceipt().getStatus(),
-                            SCHEDULED_TRANSACTION_MUST_SUCCEED);
-                }));
+                        .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
     }
 
     @HapiTest
@@ -112,22 +98,18 @@ public class FutureSchedulableOpsTest {
                         .withEntityMemo(randomUppercase(100))
                         .designatingPayer(PAYING_ACCOUNT_2)
                         .payingWith(PAYING_ACCOUNT)
-                        .via(SUCCESS_TXN),
-                scheduleSign(A_SCHEDULE)
-                        .alsoSigningWith(PAYING_ACCOUNT_2, FREEZE_ADMIN)
-                        .payingWith(PAYING_ACCOUNT)
-                        .via(SIGN_TX)
-                        .hasKnownStatus(SUCCESS),
-                getScheduleInfo(A_SCHEDULE).isExecuted(),
-                withOpContext((spec, opLog) -> {
-                    var triggeredTx = getTxnRecord(SUCCESS_TXN).scheduled();
-                    allRunFor(spec, triggeredTx);
+                        .hasKnownStatus(SCHEDULED_TRANSACTION_NOT_IN_WHITELIST));
+    }
 
-                    assertEquals(
-                            AUTHORIZATION_FAILED,
-                            triggeredTx.getResponseRecord().getReceipt().getStatus(),
-                            "Scheduled transaction be AUTHORIZATION_FAILED!");
-                }));
+    @HapiTest
+    final Stream<DynamicTest> scheduledNormalUserFileUpdateWorksAsExpected() {
+        return hapiTest(
+                cryptoCreate(PAYING_ACCOUNT),
+                fileCreate("userFile").contents("initial"),
+                scheduleCreate(A_SCHEDULE, fileUpdate("userFile").contents("updated"))
+                        .withEntityMemo(randomUppercase(100))
+                        .payingWith(PAYING_ACCOUNT)
+                        .hasKnownStatus(SUCCESS));
     }
 
     @HapiTest

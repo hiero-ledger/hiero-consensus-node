@@ -4,6 +4,7 @@ package com.hedera.node.app.service.file.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.NestedKeys.nestedKeyList;
@@ -37,6 +38,7 @@ import com.hedera.node.app.service.file.impl.handlers.FileSignatureWaiversImpl;
 import com.hedera.node.app.service.file.impl.handlers.FileUpdateHandler;
 import com.hedera.node.app.service.file.impl.test.FileTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -376,6 +378,10 @@ class FileUpdateTest extends FileTestBase {
         given(handleContext.payer())
                 .willReturn(AccountID.newBuilder().accountNum(50L).build());
         when(handleContext.body()).thenReturn(txBody);
+        when(handleContext.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(recordBuilder);
+        when(recordBuilder.category()).thenReturn(HandleContext.TransactionCategory.USER);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(SystemPrivilege.AUTHORIZED);
 
         // expect:
         subject.handle(handleContext);
@@ -413,6 +419,10 @@ class FileUpdateTest extends FileTestBase {
                 OP_BUILDER.fileID(wellKnowUpgradeId()).contents(newContent).build();
         final var txBody = TransactionBody.newBuilder().fileUpdate(op).build();
         when(handleContext.body()).thenReturn(txBody);
+        when(handleContext.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(recordBuilder);
+        when(recordBuilder.category()).thenReturn(HandleContext.TransactionCategory.USER);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(SystemPrivilege.AUTHORIZED);
         given(storeFactory.writableStore(WritableUpgradeFileStore.class)).willReturn(writableUpgradeFileStore);
         subject.handle(handleContext);
 
@@ -421,6 +431,89 @@ class FileUpdateTest extends FileTestBase {
         assertNotNull(newFile.value());
         assertEquals(newContent.length(), newFile.value().length());
         assertEquals(newContent.toString(), newFile.value().toString());
+    }
+
+    @Test
+    void rejectsUpgradeFileUpdateForNonTopLevelTransaction() {
+        final var newContent = Bytes.wrap("STUFF".getBytes());
+        final var op =
+                OP_BUILDER.fileID(wellKnowUpgradeId()).contents(newContent).build();
+        final var txBody = TransactionBody.newBuilder().fileUpdate(op).build();
+        when(handleContext.body()).thenReturn(txBody);
+        when(handleContext.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(recordBuilder);
+        when(recordBuilder.category()).thenReturn(HandleContext.TransactionCategory.BATCH_INNER);
+
+        assertFailsWith(UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsScheduledUpgradeFileUpdate() {
+        final var newContent = Bytes.wrap("STUFF".getBytes());
+        final var op =
+                OP_BUILDER.fileID(wellKnowUpgradeId()).contents(newContent).build();
+        final var txBody = TransactionBody.newBuilder().fileUpdate(op).build();
+        when(handleContext.body()).thenReturn(txBody);
+        when(handleContext.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(recordBuilder);
+        when(recordBuilder.category()).thenReturn(HandleContext.TransactionCategory.SCHEDULED);
+
+        assertFailsWith(UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsUpgradeFileUpdateForUnauthorizedPayer() {
+        final var newContent = Bytes.wrap("STUFF".getBytes());
+        final var op =
+                OP_BUILDER.fileID(wellKnowUpgradeId()).contents(newContent).build();
+        final var txBody = TransactionBody.newBuilder().fileUpdate(op).build();
+        when(handleContext.body()).thenReturn(txBody);
+        when(handleContext.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(recordBuilder);
+        when(recordBuilder.category()).thenReturn(HandleContext.TransactionCategory.USER);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(SystemPrivilege.UNAUTHORIZED);
+
+        assertFailsWith(UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsSystemFileUpdateForNonTopLevelTransaction() {
+        final var systemFileId = idFactory.newFileId(112L);
+        final var op = OP_BUILDER.fileID(systemFileId).memo("newMemo").build();
+        final var txBody = TransactionBody.newBuilder().fileUpdate(op).build();
+        when(handleContext.body()).thenReturn(txBody);
+        when(handleContext.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(recordBuilder);
+        when(recordBuilder.category()).thenReturn(HandleContext.TransactionCategory.BATCH_INNER);
+
+        assertFailsWith(UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsScheduledSystemFileUpdate() {
+        final var systemFileId = idFactory.newFileId(112L);
+        final var op = OP_BUILDER.fileID(systemFileId).memo("newMemo").build();
+        final var txBody = TransactionBody.newBuilder().fileUpdate(op).build();
+        when(handleContext.body()).thenReturn(txBody);
+        when(handleContext.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(recordBuilder);
+        when(recordBuilder.category()).thenReturn(HandleContext.TransactionCategory.SCHEDULED);
+
+        assertFailsWith(UNAUTHORIZED, () -> subject.handle(handleContext));
+    }
+
+    @Test
+    void rejectsSystemFileUpdateForUnauthorizedPayer() {
+        final var systemFileId = idFactory.newFileId(112L);
+        final var op = OP_BUILDER.fileID(systemFileId).memo("newMemo").build();
+        final var txBody = TransactionBody.newBuilder().fileUpdate(op).build();
+        when(handleContext.body()).thenReturn(txBody);
+        when(handleContext.savepointStack()).thenReturn(stack);
+        when(stack.getBaseBuilder(StreamBuilder.class)).thenReturn(recordBuilder);
+        when(recordBuilder.category()).thenReturn(HandleContext.TransactionCategory.USER);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(SystemPrivilege.UNAUTHORIZED);
+
+        assertFailsWith(UNAUTHORIZED, () -> subject.handle(handleContext));
     }
 
     @Test

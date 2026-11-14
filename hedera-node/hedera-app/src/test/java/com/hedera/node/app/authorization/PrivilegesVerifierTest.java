@@ -517,6 +517,15 @@ class PrivilegesVerifierTest {
     }
 
     @Test
+    void unauthorizedAccountCannotUpdateUpgradeFile() throws InvalidProtocolBufferException {
+        // given:
+        var txn = exchangeRatesAdminTxn()
+                .setFileUpdate(FileUpdateTransactionBody.newBuilder().setFileID(file(150)));
+        // expect:
+        assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
+    }
+
+    @Test
     void fileUpdateRecognizesUnnecessary() throws InvalidProtocolBufferException {
         // given:
         var txn = exchangeRatesAdminTxn()

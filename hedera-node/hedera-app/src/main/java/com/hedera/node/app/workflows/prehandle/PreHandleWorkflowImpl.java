@@ -340,7 +340,8 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             // consensus means the submitting node failed its due diligence and is charged. This must precede
             // the batch-key check below, so a stray batch key on an unauthorized privileged file update cannot
             // mask the authorization failure and shift the charge from the node to the payer.
-            final var fileAuthFailure = authorizationChecker.failureFor(payer, txInfo.functionality(), txInfo.txBody());
+            final var fileAuthFailure =
+                    authorizationChecker.failureFor(payer, txInfo.functionality(), txInfo.txBody(), innerTransaction);
             if (fileAuthFailure != null) {
                 return nodeDueDiligenceFailure(
                         creatorInfo.accountId(), fileAuthFailure, txInfo, configuration.getVersion());

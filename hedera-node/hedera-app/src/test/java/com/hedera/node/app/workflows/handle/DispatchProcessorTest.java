@@ -299,6 +299,7 @@ class DispatchProcessorTest {
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
         given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.txnCategory()).willReturn(USER);
         given(authorizer.hasWaivedFees(PAYER_ACCOUNT_ID, CRYPTO_TRANSFER_TXN_INFO.functionality(), TXN_BODY))
                 .willReturn(true);
         given(recordBuilder.exchangeRate(any())).willReturn(recordBuilder);
@@ -898,29 +899,51 @@ class DispatchProcessorTest {
 
         subject.processDispatch(dispatch);
 
+        verify(systemFileUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody());
         verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder).status(SUCCESS);
         verify(feeAccumulator).chargeFee(PAYER_ACCOUNT_ID, FEES.totalFee(), null);
-        verify(feeAccumulator)
-                .chargeFee(PAYER_ACCOUNT_ID, FEES.withoutServiceComponent().totalFee(), null);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        assertFinished(IsRootStack.NO);
+    }
+
+    @Test
+    void systemUpdatesSkippedForBatchInnerDispatch() {
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.BATCH_INNER);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        subject.processDispatch(dispatch);
+
+        verify(systemFileUpdates, never()).handleTxBody(any(), any());
+        verify(platformStateUpdates, never()).handleTxBody(any(), any(), any());
+        verify(recordBuilder).status(SUCCESS);
         assertFinished(IsRootStack.NO);
     }
 
     @Test
     void happyPathFreeChildCryptoTransferAsExpected() {
         given(dispatch.fees()).willReturn(Fees.FREE);
-        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
         given(dispatchValidator.validateFeeChargingScenario(dispatch))
                 .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
         given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
         given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
         given(dispatch.handleContext()).willReturn(context);
-        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
         givenAuthorization(CRYPTO_TRANSFER_TXN_INFO);
 
         subject.processDispatch(dispatch);
 
+        verify(systemFileUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody());
         verify(platformStateUpdates, never()).handleTxBody(stack, CRYPTO_TRANSFER_TXN_INFO.txBody(), dispatch.config());
         verify(recordBuilder).status(SUCCESS);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
