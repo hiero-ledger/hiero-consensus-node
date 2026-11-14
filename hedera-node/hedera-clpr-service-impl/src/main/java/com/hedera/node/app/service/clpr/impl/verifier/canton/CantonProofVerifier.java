@@ -642,7 +642,7 @@ public final class CantonProofVerifier implements ClprVerifier {
      * {@link CantonVerdictVerifier#verifyBundleVerdict}; a new anchor is returned if it changed.
      *
      * @param proofBytes the bundle proof
-     * @param trustAnchor the channel's anchor, {@link CantonAnchor#decode}
+     * @param trustAnchor the channel's anchor, {@link CantonAnchor.Anchor#decode}
      * @param channelContext {@code channelId(32) || serviceAddress}
      * @param outbound the calling service's live outbound messages, for REPLY target checks
      * @return metadata of the proven write, the payloads, the new anchor and its id if the bundle changed it, and
