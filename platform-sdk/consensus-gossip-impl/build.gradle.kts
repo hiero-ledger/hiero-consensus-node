@@ -21,13 +21,21 @@ jmhModuleInfo {
 
 jmh {
     // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
-    includes.convention(listOf("GossipEventSerializationBenchmark", "SyncDecisionBenchmark"))
+    includes.convention(
+        listOf(
+            "GossipEventSerializationBenchmark",
+            "ShadowgraphBenchmark",
+            "SyncDecisionBenchmark",
+        ),
+    )
 }
 
 benchmarkTracking {
-    // the recording of 28 nodes takes more than the smoke run's heap and over a minute per fork;
-    // one parameter set is enough for the smoke run
+    // the recording of 28 nodes takes about 5 minutes per fork on a laptop; one parameter set is
+    // enough for the smoke run
     smokeArgs = listOf("-p", "numNodes=10")
+    // the recording of 10 nodes keeps up to about 3 GB live
+    smokeJvmArgs = "-Xms6g -Xmx6g"
 }
 
 testModuleInfo {
