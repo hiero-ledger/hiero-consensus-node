@@ -12,6 +12,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -41,8 +42,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
      * makes sense after the security model change that revoked use of top-level signatures; but for
      * now it is retained for backwards compatibility.)
      */
-    private static final FailureCustomizer STANDARD_FAILURE_CUSTOMIZER =
-            (body, code, enhancement) -> standardized(code);
+    private static final FailureCustomizer STANDARD_FAILURE_CUSTOMIZER = (_, code, _) -> standardized(code);
 
     private final AccountID senderId;
 
@@ -52,6 +52,11 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
     private final OutputFn outputFn;
     private final FailureCustomizer failureCustomizer;
     private final SuccessProcessor successProcessor;
+
+    @Nullable
+    private final ResponseCodeEnum preemptingFailureStatus;
+
+    private final HederaFunctionality functionality;
     private final VerificationStrategy verificationStrategy;
     private final DispatchGasCalculator dispatchGasCalculator;
 
@@ -63,7 +68,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         /**
          * A no-op customizer that simply returns the original failure code.
          */
-        FailureCustomizer NOOP_CUSTOMIZER = (body, code, enhancement) -> code;
+        FailureCustomizer NOOP_CUSTOMIZER = (_, code, _) -> code;
 
         /**
          * Customizes the failure status of a dispatch.
@@ -88,7 +93,7 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         /**
          * A no-op customizer that simply returns the original failure code.
          */
-        SuccessProcessor NOOP_PROCESSOR = (recordBuilder, accountStore, frame) -> {};
+        SuccessProcessor NOOP_PROCESSOR = (_, _, _) -> {};
 
         /**
          * Apply additional logic after success status of a dispatch.
@@ -188,6 +193,37 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
     }
 
     /**
+     * Convenience overload for a call that may be preempted, so that the synthetic body is never dispatched.
+     *
+     * @param attempt the attempt to translate to a dispatching
+     * @param syntheticBody the synthetic body to dispatch
+     * @param dispatchGasCalculator the dispatch gas calculator to use
+     * @param failureCustomizer the status customizer to use
+     * @param preemptingFailureStatus if not null, the status to return instead of dispatching the synthetic body
+     * @param functionality the functionality of the synthetic body, used to externalize a preempted dispatch
+     */
+    public DispatchForResponseCodeHtsCall(
+            @NonNull final HtsCallAttempt attempt,
+            @Nullable final TransactionBody syntheticBody,
+            @NonNull final DispatchGasCalculator dispatchGasCalculator,
+            @NonNull final FailureCustomizer failureCustomizer,
+            @Nullable final ResponseCodeEnum preemptingFailureStatus,
+            @NonNull final HederaFunctionality functionality) {
+        this(
+                attempt.enhancement(),
+                attempt.systemContractGasCalculator(),
+                attempt.addressIdConverter().convertSender(attempt.senderAddress()),
+                syntheticBody,
+                attempt.defaultVerificationStrategy(),
+                dispatchGasCalculator,
+                failureCustomizer,
+                SuccessProcessor.NOOP_PROCESSOR,
+                preemptingFailureStatus,
+                functionality,
+                STANDARD_OUTPUT_FN);
+    }
+
+    /**
      * Convenience overload that eases construction with a custom output function.
      *
      * @param attempt the attempt to translate to a dispatching
@@ -236,6 +272,49 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
             @NonNull final FailureCustomizer failureCustomizer,
             @NonNull final SuccessProcessor successProcessor,
             @NonNull final OutputFn outputFn) {
+        this(
+                enhancement,
+                gasCalculator,
+                senderId,
+                syntheticBody,
+                verificationStrategy,
+                dispatchGasCalculator,
+                failureCustomizer,
+                successProcessor,
+                null,
+                HederaFunctionality.NONE,
+                outputFn);
+    }
+
+    /**
+     * Most general constructor, which also takes a status that preempts the dispatch.
+     *
+     * @param enhancement the enhancement to use
+     * @param gasCalculator the gas calculator for the system contract
+     * @param senderId the id of the spender
+     * @param syntheticBody the synthetic body to dispatch
+     * @param verificationStrategy the verification strategy to use
+     * @param dispatchGasCalculator the dispatch gas calculator to use
+     * @param failureCustomizer the status customizer to use
+     * @param successProcessor the success processor to use
+     * @param preemptingFailureStatus if not null, the status to return instead of dispatching the synthetic body
+     * @param functionality the functionality of the synthetic body, used to externalize a preempted dispatch
+     * @param outputFn the output function to use
+     */
+    // too many parameters
+    @SuppressWarnings("java:S107")
+    public DispatchForResponseCodeHtsCall(
+            @NonNull final HederaWorldUpdater.Enhancement enhancement,
+            @NonNull final SystemContractGasCalculator gasCalculator,
+            @NonNull final AccountID senderId,
+            @Nullable final TransactionBody syntheticBody,
+            @NonNull final VerificationStrategy verificationStrategy,
+            @NonNull final DispatchGasCalculator dispatchGasCalculator,
+            @NonNull final FailureCustomizer failureCustomizer,
+            @NonNull final SuccessProcessor successProcessor,
+            @Nullable final ResponseCodeEnum preemptingFailureStatus,
+            @NonNull final HederaFunctionality functionality,
+            @NonNull final OutputFn outputFn) {
         super(gasCalculator, enhancement, false);
         this.senderId = Objects.requireNonNull(senderId);
         this.outputFn = Objects.requireNonNull(outputFn);
@@ -244,6 +323,8 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         this.dispatchGasCalculator = Objects.requireNonNull(dispatchGasCalculator);
         this.failureCustomizer = Objects.requireNonNull(failureCustomizer);
         this.successProcessor = Objects.requireNonNull(successProcessor);
+        this.preemptingFailureStatus = preemptingFailureStatus;
+        this.functionality = Objects.requireNonNull(functionality);
     }
 
     @Override
@@ -256,10 +337,16 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
                     INVALID_TRANSACTION_BODY,
                     false);
         }
-        final var recordBuilder = systemContractOperations()
-                .dispatch(syntheticBody, verificationStrategy, senderId, ContractCallStreamBuilder.class);
         final var gasRequirement =
                 dispatchGasCalculator.gasRequirement(syntheticBody, gasCalculator, enhancement, senderId);
+        if (preemptingFailureStatus != null) {
+            // Report the failure without dispatching, so no part of the synthetic body is applied
+            final var preemptedRecord = systemContractOperations()
+                    .externalizePreemptedDispatch(syntheticBody, preemptingFailureStatus, functionality);
+            return completionWith(gasRequirement, preemptedRecord, encodedRc(preemptingFailureStatus));
+        }
+        final var recordBuilder = systemContractOperations()
+                .dispatch(syntheticBody, verificationStrategy, senderId, ContractCallStreamBuilder.class);
         var status = recordBuilder.status();
         if (status != SUCCESS) {
             status = failureCustomizer.customize(syntheticBody, status, enhancement);

@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.updat
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.UpdateCommonDecoder.FAILURE_CUSTOMIZER;
 
-import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
@@ -11,6 +11,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Dispat
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
+import com.hedera.node.app.service.contract.impl.exec.utils.TokenTransactionBodyWrapper;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.Optional;
@@ -35,15 +36,21 @@ public class UpdateTokenCommonTranslator extends AbstractCallTranslator<HtsCallA
 
     @Override
     public Call callFrom(@NonNull HtsCallAttempt attempt) {
+        final var txnWrapper = nominalBodyFor(attempt);
         return new DispatchForResponseCodeHtsCall(
-                attempt, nominalBodyFor(attempt), UpdateCommons::gasRequirement, FAILURE_CUSTOMIZER);
+                attempt,
+                txnWrapper.body(),
+                UpdateCommons::gasRequirement,
+                FAILURE_CUSTOMIZER,
+                txnWrapper.preemptingStatus(),
+                HederaFunctionality.TOKEN_UPDATE);
     }
 
-    private TransactionBody nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
+    private TokenTransactionBodyWrapper nominalBodyFor(@NonNull final HtsCallAttempt attempt) {
         return updateMethodsMap.entrySet().stream()
                 .filter(entry -> attempt.isSelector(entry.getKey()))
                 .map(entry -> entry.getValue().decode(attempt))
                 .findFirst()
-                .orElse(null);
+                .orElse(TokenTransactionBodyWrapper.EMPTY);
     }
 }

@@ -13,16 +13,13 @@ import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalcu
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateDecoder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.update.address_0x16c.UpdateNFTsMetadataTranslator;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.swirlds.config.api.Configuration;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.junit.jupiter.api.BeforeEach;
@@ -88,12 +85,5 @@ class UpdateNFTsMetadataTranslatorTest {
 
         final var call = subject.callFrom(attempt);
         assertThat(call).isInstanceOf(DispatchForResponseCodeHtsCall.class);
-    }
-
-    @NonNull
-    Configuration getTestConfiguration(final boolean enableUpdateNFTsMetadata) {
-        return HederaTestConfigBuilder.create()
-                .withValue("contracts.systemContract.updateNFTsMetadata.enabled", enableUpdateNFTsMetadata)
-                .getOrCreateConfig();
     }
 }

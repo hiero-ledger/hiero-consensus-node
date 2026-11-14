@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_SUPPLY_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy.Decision.DELEGATE_TO_CRYPTOGRAPHIC_VERIFICATION;
@@ -17,7 +18,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
@@ -32,7 +32,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -43,7 +45,6 @@ import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.ClassicCreatesCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x167.CreateTranslator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -64,15 +65,12 @@ import org.mockito.Mock;
  * Unit tests for create token calls.
  */
 public class ClassicCreatesCallTest extends CallTestBase {
-    private static final org.hyperledger.besu.datatypes.Address FRAME_SENDER_ADDRESS = EIP_1014_ADDRESS;
+
     // Matches the default contracts.keys.legacyActivations
     private static final long LEGACY_ACTIVATION_NUM = 1062784L;
 
     @Mock
     private VerificationStrategy verificationStrategy;
-
-    @Mock
-    private AddressIdConverter addressIdConverter;
 
     @Mock
     private ContractCallStreamBuilder recordBuilder;
@@ -373,6 +371,34 @@ public class ClassicCreatesCallTest extends CallTestBase {
     }
 
     @Test
+    void preemptedCreateIsExternalizedWithoutDispatchingOrCollectingTheFee() {
+        given(systemContractOperations.externalizePreemptedDispatch(
+                        any(), eq(INVALID_TRANSACTION_BODY), eq(TOKEN_CREATE)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(INVALID_TRANSACTION_BODY);
+        subject = new ClassicCreatesCall(
+                gasCalculator,
+                mockEnhancement(),
+                PRETEND_CREATE_TOKEN,
+                verificationStrategy,
+                A_NEW_ACCOUNT_ID,
+                INVALID_TRANSACTION_BODY);
+
+        final var result = subject.execute(frame).fullResult().result();
+
+        // The call returns the status with a zero address, as for INSUFFICIENT_TX_FEE, and does not revert
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(
+                Bytes.wrap(CreateTranslator.CREATE_FUNGIBLE_TOKEN_V1
+                        .getOutputs()
+                        .encode(Tuple.of((long) INVALID_TRANSACTION_BODY.protoOrdinal(), ZERO_ADDRESS))
+                        .array()),
+                result.output());
+        verify(systemContractOperations, never()).dispatch(any(), any(), any(), any());
+        verifyNoInteractions(operations);
+    }
+
+    @Test
     void createFungibleTokenUnhappyPathRevertsWithReason() {
         commonGivens();
         given(recordBuilder.status()).willReturn(TOKEN_HAS_NO_SUPPLY_KEY);
@@ -393,7 +419,7 @@ public class ClassicCreatesCallTest extends CallTestBase {
                         .adminKey(AN_ED25519_KEY)
                         .build())
                 .build();
-        final var strategy = new AccountAuthorizingVerificationStrategy(SENDER_ID, key -> INVALID);
+        final var strategy = new AccountAuthorizingVerificationStrategy(SENDER_ID, _ -> INVALID);
         final var legacyCaller = mock(MessageFrame.class);
         given(legacyCaller.getRecipientAddress()).willReturn(asLongZeroAddress(LEGACY_ACTIVATION_NUM));
         given(legacyCaller.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);

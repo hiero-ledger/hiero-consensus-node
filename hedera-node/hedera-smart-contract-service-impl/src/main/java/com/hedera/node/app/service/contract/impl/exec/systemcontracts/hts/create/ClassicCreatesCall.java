@@ -69,6 +69,9 @@ public class ClassicCreatesCall extends AbstractCall {
     private final VerificationStrategy verificationStrategy;
     private final AccountID spenderId;
 
+    @Nullable
+    private final ResponseCodeEnum preemptingFailureStatus;
+
     /**
      * @param systemContractGasCalculator the gas calculator for the system contract
      * @param enhancement the enhancement to be used
@@ -82,10 +85,29 @@ public class ClassicCreatesCall extends AbstractCall {
             @Nullable final TransactionBody syntheticCreate,
             @NonNull final VerificationStrategy verificationStrategy,
             @NonNull final AccountID spender) {
+        this(systemContractGasCalculator, enhancement, syntheticCreate, verificationStrategy, spender, null);
+    }
+
+    /**
+     * @param systemContractGasCalculator the gas calculator for the system contract
+     * @param enhancement the enhancement to be used
+     * @param syntheticCreate the body of synthetic create operation
+     * @param verificationStrategy the verification strategy to use
+     * @param spender the spender account id
+     * @param preemptingFailureStatus if not null, the status to return instead of dispatching the create
+     */
+    public ClassicCreatesCall(
+            @NonNull final SystemContractGasCalculator systemContractGasCalculator,
+            @NonNull final HederaWorldUpdater.Enhancement enhancement,
+            @Nullable final TransactionBody syntheticCreate,
+            @NonNull final VerificationStrategy verificationStrategy,
+            @NonNull final AccountID spender,
+            @Nullable final ResponseCodeEnum preemptingFailureStatus) {
         super(systemContractGasCalculator, enhancement, false);
         this.verificationStrategy = requireNonNull(verificationStrategy);
         this.spenderId = spender;
         this.syntheticCreate = syntheticCreate;
+        this.preemptingFailureStatus = preemptingFailureStatus;
     }
 
     private record LegacyActivation(long contractNum, Bytes pbjAddress, Address besuAddress) {}
@@ -99,6 +121,15 @@ public class ClassicCreatesCall extends AbstractCall {
                             contractsConfigOf(frame).precompileHtsDefaultGasCost()),
                     INVALID_TRANSACTION_BODY,
                     false);
+        }
+        if (preemptingFailureStatus != null) {
+            // Report the failure without dispatching or collecting the fee, so nothing of the create is applied
+            return completionWith(
+                    FIXED_GAS_COST,
+                    systemContractOperations()
+                            .externalizePreemptedDispatch(syntheticCreate, preemptingFailureStatus, TOKEN_CREATE),
+                    RC_AND_ADDRESS_ENCODER.encode(
+                            Tuple.of((long) preemptingFailureStatus.protoOrdinal(), ZERO_ADDRESS)));
         }
         final var timestampSeconds = frame.getBlockValues().getTimestamp();
         final var timestamp = Timestamp.newBuilder().seconds(timestampSeconds).build();

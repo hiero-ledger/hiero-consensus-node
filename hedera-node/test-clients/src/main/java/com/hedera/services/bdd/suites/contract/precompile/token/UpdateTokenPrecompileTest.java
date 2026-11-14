@@ -3,6 +3,10 @@ package com.hedera.services.bdd.suites.contract.precompile.token;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecKey.Type.SECP_256K1;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.FEE_SCHEDULE_KEY;
@@ -12,12 +16,30 @@ import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.PAUSE_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.WIPE_KEY;
 import static com.hedera.services.bdd.spec.dsl.utils.DslUtils.contractIdKeyFor;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUppercase;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWithFunctionAbi;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
+import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FEE_SCHEDULE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_FREEZE_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
@@ -29,9 +51,11 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NAME_TOO
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
@@ -42,7 +66,12 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecKey;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
+import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
+import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -57,20 +86,41 @@ import org.junit.jupiter.api.Tag;
 public class UpdateTokenPrecompileTest {
     private static final long GAS_NEEDED = 1_000_000L;
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
+    // Name under which AuthorizeContractOperation registers the key it gives the contract for the shared token
+    private static final String SHARED_TOKEN_MANAGED_KEY = "sharedAuthorizedToken_TokenKeysContractManagedKey";
+    private static final String HTS_ADDRESS = "0x0000000000000000000000000000000000000167";
+    private static final String KEYLESS_TOKEN = "keylessToken";
+    private static final String KEYLESS_TREASURY = "keylessTreasury";
+    private static final String KEYLESS_ETH_SENDER_KEY = "keylessEthSenderKey";
+    private static final String KEYLESS_NEW_ADMIN_KEY = "keylessNewAdminKey";
+    private static final String KEYLESS_UPDATE_TXN = "keylessUpdateTxn";
 
     @Contract(contract = "UpdateTokenInfoContract", creationGas = 4_000_000L)
     static SpecContract updateTokenContract;
+
+    // Forwards an arbitrary TokenKey[] to updateTokenKeys at 0x167, reverting unless the precompile returns SUCCESS
+    @Contract(contract = "TokenKeysContract", creationGas = 2_000_000L)
+    static SpecContract updateTokenKeysContract;
 
     @FungibleToken(
             name = "immutableToken",
             keys = {FEE_SCHEDULE_KEY, SUPPLY_KEY, WIPE_KEY, PAUSE_KEY, FREEZE_KEY, KYC_KEY})
     static SpecFungibleToken immutableToken;
 
+    // Admin key handed to updateKeysCaller once in beforeAll; only used by tests that never change its keys
+    @FungibleToken(name = "sharedAuthorizedToken")
+    static SpecFungibleToken sharedAuthorizedToken;
+
     @Key
     static SpecKey ed25519Key;
 
     @Key(type = SECP_256K1)
     static SpecKey secp256k1Key;
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.doAdhoc(sharedAuthorizedToken.authorizeContracts(updateTokenKeysContract));
+    }
 
     @HapiTest
     @DisplayName("cannot update a missing token")
@@ -94,6 +144,240 @@ public class UpdateTokenPrecompileTest {
                         .call("tokenUpdateKeys", immutableToken, ed25519Key, secp256k1Key, updateTokenContract)
                         .gas(GAS_NEEDED)
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_IS_IMMUTABLE)));
+    }
+
+    @HapiTest
+    @DisplayName("updateTokenKeys from a contract that holds none of the keys is unauthorized")
+    public Stream<DynamicTest> validEntryFromUnauthorizedContractIsRejected(
+            @FungibleToken final SpecFungibleToken token) {
+        return hapiTest(
+                newKeyNamed("unauthorizedNewSupply"),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateTokenKeysContract
+                                .call("updateTokenKeys", token, new Tuple[] {
+                                    keyEntry(BigInteger.valueOf(0x10), ed25519Of(spec, "unauthorizedNewSupply"))
+                                })
+                                .via("unauthorizedTxn")
+                                .gas(GAS_NEEDED))),
+                returnedByUpdate("unauthorizedTxn", "updateTokenKeys", INVALID_SIGNATURE),
+                token.getInfo().andAssert(info -> info.hasSupplyKey(token.name())));
+    }
+
+    @HapiTest
+    @DisplayName("cannot update the keys of a token that has no keys at all, calling HTS directly")
+    public Stream<DynamicTest> cannotUpdateKeysOfKeylessTokenViaDirectEthereumCall() {
+        // cant use @FungibleToken because we need to create token with no keys
+        return hapiTest(
+                newKeyNamed(KEYLESS_ETH_SENDER_KEY).shape(SECP_256K1_SHAPE),
+                newKeyNamed(KEYLESS_NEW_ADMIN_KEY),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, KEYLESS_ETH_SENDER_KEY, ONE_HUNDRED_HBARS)),
+                cryptoCreate(KEYLESS_TREASURY),
+                // Created with no keys of any kind (so it is immutable)
+                tokenCreate(KEYLESS_TOKEN).treasury(KEYLESS_TREASURY),
+                withOpContext((spec, _) -> {
+                    final var token =
+                            asHeadlongAddress(asAddress(spec.registry().getTokenID(KEYLESS_TOKEN)));
+                    final var newAdminKey = spec.registry()
+                            .getKey(KEYLESS_NEW_ADMIN_KEY)
+                            .getEd25519()
+                            .toByteArray();
+                    final var adminKeyEntry = Tuple.of(
+                            BigInteger.ONE, Tuple.of(false, ZERO_ADDRESS, newAdminKey, new byte[0], ZERO_ADDRESS));
+                    allRunFor(
+                            spec,
+                            // Straight to the HTS system contract at 0x167, with no intermediary contract
+                            ethereumCallWithFunctionAbi(
+                                            false,
+                                            HTS_ADDRESS,
+                                            getABIFor(FUNCTION, "updateTokenKeys", "IHederaTokenService"),
+                                            token,
+                                            new Tuple[] {adminKeyEntry})
+                                    .signingWith(KEYLESS_ETH_SENDER_KEY)
+                                    .payingWith(GENESIS)
+                                    .gasLimit(GAS_NEEDED)
+                                    .via(KEYLESS_UPDATE_TXN),
+                            getTxnRecord(KEYLESS_UPDATE_TXN)
+                                    .andAllChildRecords()
+                                    .hasChildRecords(recordWith().status(TOKEN_IS_IMMUTABLE)));
+                }),
+                // The rejected update must not have set any key
+                getTokenInfo(KEYLESS_TOKEN)
+                        .hasEmptyAdminKey()
+                        .hasEmptyKycKey()
+                        .hasEmptyFreezeKey()
+                        .hasEmptyWipeKey()
+                        .hasEmptySupplyKey()
+                        .hasEmptyFeeScheduleKey()
+                        .hasEmptyPauseKey());
+    }
+
+    @HapiTest
+    @DisplayName("updateTokenKeys with duplicate keyTypes from an authorized contract applies them in order")
+    public Stream<DynamicTest> duplicateKeyTypesApplyInOrder(@FungibleToken final SpecFungibleToken token) {
+        final var supplyKeyType = BigInteger.valueOf(0x10);
+        return hapiTest(
+                newKeyNamed("dupContractFirstSupply"),
+                newKeyNamed("dupContractSecondSupply"),
+                token.authorizeContracts(updateTokenKeysContract),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateTokenKeysContract
+                                .call("updateTokenKeys", token, new Tuple[] {
+                                    keyEntry(supplyKeyType, ed25519Of(spec, "dupContractFirstSupply")),
+                                    keyEntry(supplyKeyType, ed25519Of(spec, "dupContractSecondSupply"))
+                                })
+                                .gas(GAS_NEEDED))),
+                // No conflict error: the last entry for the slot wins
+                token.getInfo().andAssert(info -> info.searchKeysGlobally().hasSupplyKey("dupContractSecondSupply")));
+    }
+
+    @HapiTest
+    @DisplayName("an undefined bit next to a defined one from an authorized contract is ignored")
+    public Stream<DynamicTest> strayUndefinedBitNextToAdminBitIsAppliedAsAdminKey(
+            @FungibleToken final SpecFungibleToken keysToken,
+            @FungibleToken final SpecFungibleToken keysWithMetadataToken,
+            @FungibleToken final SpecFungibleToken infoToken,
+            @FungibleToken final SpecFungibleToken infoWithMetadataToken) {
+        // Each case changes the admin key of its own token, so the cases cannot share one
+        return Stream.of(
+                strayBitNextToAdminBit("updateTokenKeys", keysToken),
+                strayBitNextToAdminBit("updateTokenKeysWithMetadata", keysWithMetadataToken),
+                strayBitNextToAdminBit("updateTokenInfo", infoToken),
+                strayBitNextToAdminBit("updateTokenInfoWithMetadata", infoWithMetadataToken));
+    }
+
+    @HapiTest
+    @DisplayName("an empty key list from an authorized contract succeeds and changes no keys")
+    public Stream<DynamicTest> emptyKeyListChangesNoKeys() {
+        return Stream.of(
+                        "updateTokenKeys",
+                        "updateTokenKeysWithMetadata",
+                        "updateTokenInfo",
+                        "updateTokenInfoWithMetadata")
+                .map(function -> authorizedContractUpdateKeepsAllKeys(
+                        function, function + "EmptyKeyList", false, _ -> new Tuple[0]));
+    }
+
+    @HapiTest
+    @DisplayName("keyType zero or only undefined bits from an authorized contract are rejected")
+    public Stream<DynamicTest> undefinedBitsAreRejected() {
+        // Bits 0x80 and up have no key at 0x167; 0x80 is only the metadata key at 0x16c, so there they start at 0x100
+        return Stream.of(
+                        rejectingUndefinedBits("updateTokenKeys", 7),
+                        rejectingUndefinedBits("updateTokenKeysWithMetadata", 8),
+                        rejectingUndefinedBits("updateTokenInfo", 7),
+                        rejectingUndefinedBits("updateTokenInfoWithMetadata", 8))
+                .flatMap(Function.identity());
+    }
+
+    @HapiTest
+    @DisplayName("a valid and an undefined entry from an authorized contract updates nothing")
+    public Stream<DynamicTest> validEntryWithUndefinedEntryUpdatesNothing() {
+        return Stream.of(
+                        "updateTokenKeys",
+                        "updateTokenKeysWithMetadata",
+                        "updateTokenInfo",
+                        "updateTokenInfoWithMetadata")
+                .map(function -> authorizedContractUpdateKeepsAllKeys(
+                        function, function + "ValidAndUndefined", true, newKeys -> new Tuple[] {
+                            keyEntry(BigInteger.valueOf(0x10), newKeys[0]),
+                            keyEntry(BigInteger.valueOf(0x100), newKeys[0])
+                        }));
+    }
+
+    private DynamicTest strayBitNextToAdminBit(@NonNull final String function, @NonNull final SpecFungibleToken token) {
+        return namedHapiTest(
+                function + "StrayBitNextToAdminBit",
+                token.authorizeContracts(updateTokenKeysContract),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateTokenKeysContract
+                                .call(function, token, new Tuple[] {
+                                    // 0x101 = admin (0x01) plus the undefined 0x100; the new admin key is the calling
+                                    // contract itself, so no extra signature is needed
+                                    Tuple.of(
+                                            BigInteger.valueOf(0x101),
+                                            Tuple.of(
+                                                    false,
+                                                    updateTokenKeysContract.addressOn(spec.targetNetworkOrThrow()),
+                                                    new byte[0],
+                                                    new byte[0],
+                                                    ZERO_ADDRESS))
+                                })
+                                .gas(GAS_NEEDED))),
+                updateTokenKeysContract.doWith(
+                        contract -> token.getInfo().andAssert(info -> info.hasAdminKey(contractIdKeyFor(contract)))));
+    }
+
+    private Stream<DynamicTest> rejectingUndefinedBits(@NonNull final String function, final int firstBit) {
+        return Stream.concat(
+                        Stream.of(BigInteger.ZERO),
+                        IntStream.range(firstBit, 16).mapToObj(BigInteger.ONE::shiftLeft))
+                .map(bit -> authorizedContractUpdateKeepsAllKeys(
+                        function, function + "UndefinedBit" + bit.toString(16), true, newKeys ->
+                                new Tuple[] {keyEntry(bit, newKeys[0])}));
+    }
+
+    private DynamicTest authorizedContractUpdateKeepsAllKeys(
+            @NonNull final String function,
+            @NonNull final String tag,
+            final boolean rejected,
+            @NonNull final Function<byte[][], Tuple[]> entries) {
+        final var newKey = tag + "NewKey";
+        final var txnName = tag + "Txn";
+        return namedHapiTest(
+                tag,
+                newKeyNamed(newKey),
+                withOpContext((spec, _) -> allRunFor(
+                        spec,
+                        updateTokenKeysContract
+                                .call(function, sharedAuthorizedToken, entries.apply(new byte[][] {
+                                    ed25519Of(spec, newKey)
+                                }))
+                                .via(txnName)
+                                .gas(GAS_NEEDED))),
+                returnedByUpdate(txnName, function, rejected ? INVALID_TRANSACTION_BODY : SUCCESS),
+                // Role keys are looked up by token name: the supply key is the original one, the rest were never set
+                sharedAuthorizedToken
+                        .getInfo()
+                        .andAssert(info -> info.hasSupplyKey(sharedAuthorizedToken.name())
+                                .hasEmptyKycKey()
+                                .hasEmptyFreezeKey()
+                                .hasEmptyWipeKey()
+                                .hasEmptyFeeScheduleKey()
+                                .hasEmptyPauseKey()
+                                .hasEmptyMetadataKey()),
+                // searchKeysGlobally() applies to the whole query, so the admin key needs its own query: it is
+                // still the key authorizeContracts() gave the contract (registered under this name)
+                sharedAuthorizedToken
+                        .getInfo()
+                        .andAssert(info -> info.searchKeysGlobally().hasAdminKey(SHARED_TOKEN_MANAGED_KEY)));
+    }
+
+    /**
+     * The contract does not revert on a rejection, so the call must succeed and return the response code of the
+     * precompile, which is also the status of the child record.
+     */
+    private static HapiGetTxnRecord returnedByUpdate(
+            @NonNull final String txnName, @NonNull final String function, @NonNull final ResponseCodeEnum status) {
+        return getTxnRecord(txnName)
+                .andAllChildRecords()
+                .hasPriority(recordWith()
+                        .status(SUCCESS)
+                        .contractCallResult(resultWith()
+                                .resultViaFunctionName(function, "TokenKeysContract", isLiteralResult(new Object[] {
+                                    (long) status.getNumber()
+                                }))))
+                .hasChildRecords(recordWith().status(status));
+    }
+
+    private static byte[] ed25519Of(@NonNull final HapiSpec spec, @NonNull final String keyName) {
+        return spec.registry().getKey(keyName).getEd25519().toByteArray();
+    }
+
+    private static Tuple keyEntry(@NonNull final BigInteger keyType, @NonNull final byte[] ed25519) {
+        return Tuple.of(keyType, Tuple.of(false, ZERO_ADDRESS, ed25519, new byte[0], ZERO_ADDRESS));
     }
 
     @HapiTest

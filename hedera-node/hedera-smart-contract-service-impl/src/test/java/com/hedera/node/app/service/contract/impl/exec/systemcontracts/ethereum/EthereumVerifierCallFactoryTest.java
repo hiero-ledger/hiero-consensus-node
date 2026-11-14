@@ -11,11 +11,10 @@ import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
-import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAddressChecks;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.SyntheticIds;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
@@ -53,9 +52,6 @@ class EthereumVerifierCallFactoryTest extends CallTestBase {
 
     @Mock
     private ProxyWorldUpdater updater;
-
-    @Mock
-    private ContractMetrics contractMetrics;
 
     private final SystemContractMethodRegistry registry = new SystemContractMethodRegistry();
     private EthereumVerifierCallFactory subject;

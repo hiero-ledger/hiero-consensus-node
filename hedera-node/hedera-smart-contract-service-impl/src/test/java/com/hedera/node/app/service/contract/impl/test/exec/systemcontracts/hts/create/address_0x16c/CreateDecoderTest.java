@@ -17,13 +17,13 @@ import static com.hedera.node.app.service.contract.impl.test.exec.systemcontract
 import static org.assertj.core.api.Assertions.assertThatList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.address_0x16c.CreateDecoder;
+import com.hedera.node.app.service.contract.impl.exec.utils.AddressIdConverter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,12 +53,15 @@ class CreateDecoderTest {
         byte[] inputBytes = CREATE_FUNGIBLE_TOKEN_WITH_METADATA
                 .encodeCall(CREATE_FUNGIBLE_WITH_META_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithMetadata(
+        final var transactionWrapper = subject.decodeCreateFungibleTokenWithMetadata(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         tokenAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isEmpty();
-        assertNotNull(transaction.tokenCreation().metadata());
-        assertEquals(Bytes.wrap("metadata"), transaction.tokenCreation().metadata());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isEmpty();
+        assertNotNull(transaction.tokenCreationOrThrow().metadata());
+        assertEquals(Bytes.wrap("metadata"), transaction.tokenCreationOrThrow().metadata());
     }
 
     @Test
@@ -67,13 +70,16 @@ class CreateDecoderTest {
         byte[] inputBytes = CREATE_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
                 .encodeCall(CREATE_FUNGIBLE_WITH_META_AND_FEES_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateFungibleTokenWithMetadataAndCustomFees(
+        final var transactionWrapper = subject.decodeCreateFungibleTokenWithMetadataAndCustomFees(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         tokenAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
-        customFeesAssertions(transaction.tokenCreation().customFees());
-        assertNotNull(transaction.tokenCreation().metadata());
-        assertEquals(Bytes.wrap("metadata"), transaction.tokenCreation().metadata());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isNotEmpty();
+        customFeesAssertions(transaction.tokenCreationOrThrow().customFees());
+        assertNotNull(transaction.tokenCreationOrThrow().metadata());
+        assertEquals(Bytes.wrap("metadata"), transaction.tokenCreationOrThrow().metadata());
     }
 
     @Test
@@ -81,12 +87,15 @@ class CreateDecoderTest {
         byte[] inputBytes = CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_META_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithMetadata(
+        final var transactionWrapper = subject.decodeCreateNonFungibleWithMetadata(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         nftAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isEmpty();
-        assertNotNull(transaction.tokenCreation().metadata());
-        assertEquals(Bytes.wrap("metadata"), transaction.tokenCreation().metadata());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isEmpty();
+        assertNotNull(transaction.tokenCreationOrThrow().metadata());
+        assertEquals(Bytes.wrap("metadata"), transaction.tokenCreationOrThrow().metadata());
     }
 
     @Test
@@ -95,12 +104,15 @@ class CreateDecoderTest {
         byte[] inputBytes = CREATE_NON_FUNGIBLE_TOKEN_WITH_METADATA_AND_CUSTOM_FEES
                 .encodeCall(CREATE_NON_FUNGIBLE_WITH_META_AND_FEES_TUPLE)
                 .array();
-        final TransactionBody transaction = subject.decodeCreateNonFungibleWithMetadataAndCustomFees(
+        final var transactionWrapper = subject.decodeCreateNonFungibleWithMetadataAndCustomFees(
                 inputBytes, SENDER_ID, nativeOperations, addressIdConverter);
+        final var transaction = transactionWrapper.body();
+        assertNotNull(transaction);
+        assertNull(transactionWrapper.preemptingStatus());
         nftAssertions(transaction);
-        assertThatList(transaction.tokenCreation().customFees()).isNotEmpty();
-        customFeesAssertions(transaction.tokenCreation().customFees());
-        assertNotNull(transaction.tokenCreation().metadata());
-        assertEquals(Bytes.wrap("metadata"), transaction.tokenCreation().metadata());
+        assertThatList(transaction.tokenCreationOrThrow().customFees()).isNotEmpty();
+        customFeesAssertions(transaction.tokenCreationOrThrow().customFees());
+        assertNotNull(transaction.tokenCreationOrThrow().metadata());
+        assertEquals(Bytes.wrap("metadata"), transaction.tokenCreationOrThrow().metadata());
     }
 }
