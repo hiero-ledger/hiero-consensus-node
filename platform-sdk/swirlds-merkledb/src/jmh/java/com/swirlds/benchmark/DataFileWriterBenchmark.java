@@ -118,17 +118,13 @@ public class DataFileWriterBenchmark {
     @Warmup(iterations = 0)
     public void writeInFile() throws IOException {
         long fileSize = 0;
-        BufferedData data;
-
         while (true) {
-            data = getRandomData();
+            final BufferedData data = getRandomData();
             fileSize += data.length();
             if (fileSize > maxFileSize) {
                 break;
             }
-
-            dataFileWriter.storeDataItem(data);
-            data.flip();
+            dataFileWriter.storeDataItem(out -> out.writeBytes(data), (int) data.length());
         }
     }
 

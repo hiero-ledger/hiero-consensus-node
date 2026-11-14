@@ -32,10 +32,8 @@ import java.util.function.Consumer;
  * containing {@link DataFileMetadata} followed by data items. Each data item is considered
  * as a black box.
  *
- * <p>{@link #close()} must be called after done writing data using {@link #storeDataItem(BufferedData)},
- * or {@link #storeDataItem(Consumer, int)}, or {@link #storeDataItemWithTag(BufferedData)}
- * any number of times. When a file writer is closed, the file size is set to the last byte of
- * the last data item written.
+ * <p>{@link #close()} must be called after done writing data any number of times. When a
+ * file writer is closed, the file size is set to the last byte of the last data item written.
  *
  * <p>Right after a data file writer is created, it's ready to write from multiple threads.
  * After all write calls are finished, the writer should be closed using {@link #close()}. It
@@ -267,18 +265,6 @@ public final class DataFileWriter {
      * Store a data item in file returning location it was stored at. The data item is written
      * with the {@link DataFileCommon#FIELD_DATAFILE_ITEMS} tag.
      *
-     * @param dataItem the data item to write
-     * @return the data location of written data in bytes
-     * @throws IOException if there was a problem appending data to file
-     */
-    public long storeDataItem(final BufferedData dataItem) throws IOException {
-        return storeDataItem(o -> o.writeBytes(dataItem), Math.toIntExact(dataItem.remaining()));
-    }
-
-    /**
-     * Store a data item in file returning location it was stored at. The data item is written
-     * with the {@link DataFileCommon#FIELD_DATAFILE_ITEMS} tag.
-     *
      * @param dataItemWriter the data item to write
      * @param dataItemSize the data item size, in bytes
      * @return the data location of written data in bytes
@@ -286,16 +272,46 @@ public final class DataFileWriter {
      */
     public long storeDataItem(final Consumer<WritableSequentialData> dataItemWriter, final int dataItemSize)
             throws IOException {
+        checkNotClosed();
         final int sizeToWrite = ProtoWriterTools.sizeOfDelimited(FIELD_DATAFILE_ITEMS, dataItemSize);
-        return store(
-                out -> ProtoWriterTools.writeDelimited(out, FIELD_DATAFILE_ITEMS, dataItemSize, dataItemWriter),
-                sizeToWrite);
+        checkSizeToWrite(sizeToWrite);
+
+        final long fileOffset = currentWriteOffset.getAndAdd(sizeToWrite);
+        final int writingWindowIndex = Math.toIntExact(fileOffset / dataBufferSize);
+        final WritingWindow writingWindow = getWritingWindow(writingWindowIndex);
+
+        try {
+            final MemoryData out = getTempLocalWriteBuffer(sizeToWrite);
+            // ProtoWriterTools.writeDelimited() inlined
+            ProtoWriterTools.writeTag(out, FIELD_DATAFILE_ITEMS);
+            out.writeVarInt(dataItemSize, false);
+            dataItemWriter.accept(out);
+            // Double check that we wrote the expected number of bytes
+            if (out.remaining() != 0) {
+                throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
+                        + (sizeToWrite - out.remaining()));
+            }
+
+            // The segment contains the same data as out above
+            final MemorySegment segment = SEGMENT_CACHE.get();
+            final long writingOffsetInWindow = fileOffset % dataBufferSize;
+            MemorySegment.copy(segment, 0, writingWindow.writeBuffer, writingOffsetInWindow, sizeToWrite);
+        } finally {
+            bytesWritten(fileOffset, sizeToWrite);
+        }
+
+        itemsCount.incrementAndGet();
+        // Return the offset where we wrote the data
+        return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
     }
 
     /**
      * Store a data item in file returning location it was stored at. The data item is written
      * as is, assuming the provided data item buffer already has the {@link
-     * DataFileCommon#FIELD_DATAFILE_ITEMS} tag and the item length.
+     * DataFileCommon#FIELD_DATAFILE_ITEMS} tag and the item length. The data item buffer is
+     * written to the file with respect its current position and limit. After this method
+     * returns, the buffer limit will be the same, and the current buffer position may or may
+     * not change.
      *
      * <p>This method is very similar to {@link #storeDataItem(Consumer, int)}. They are not
      * refactored to a single method to avoid lambda / method handle performance overhead.
@@ -305,37 +321,21 @@ public final class DataFileWriter {
      * @throws IOException if there was a problem appending data to the file
      */
     public long storeDataItemWithTag(final BufferedData dataItemWithTag) throws IOException {
+        checkNotClosed();
         final int sizeToWrite = Math.toIntExact(dataItemWithTag.remaining());
-        return store(out -> out.writeBytes(dataItemWithTag), sizeToWrite);
-    }
-
-    private long store(final Consumer<MemoryData> writer, final int sizeToWrite) throws IOException {
-        if (closed.get()) {
-            throw new IOException("Data file is already closed");
-        }
-
-        if (sizeToWrite > dataBufferSize) {
-            throw new IOException(
-                    ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + dataBufferSize);
-        }
+        checkSizeToWrite(sizeToWrite);
 
         final long fileOffset = currentWriteOffset.getAndAdd(sizeToWrite);
         final int writingWindowIndex = Math.toIntExact(fileOffset / dataBufferSize);
         final WritingWindow writingWindow = getWritingWindow(writingWindowIndex);
 
         try {
-            final MemoryData out = getTempLocalWriteBuffer(sizeToWrite);
-            writer.accept(out);
-            // double check that we wrote the expected number of bytes
-            if (out.remaining() != 0) {
-                throw new IOException("Estimated size / written bytes mismatch: expected=" + sizeToWrite + " written="
-                        + (sizeToWrite - out.remaining()));
+            final long writingOffsetInWindow = fileOffset % dataBufferSize;
+            final long bytesWritten = dataItemWithTag.writeTo(writingWindow.writeOut, writingOffsetInWindow);
+            if (bytesWritten != sizeToWrite) {
+                throw new IOException("Data item size / written bytes mismatch: expected=" + sizeToWrite + " written="
+                        + bytesWritten);
             }
-
-            // The segment contains the same data as out above
-            final MemorySegment segment = SEGMENT_CACHE.get();
-            final long writingOffset = fileOffset % dataBufferSize;
-            MemorySegment.copy(segment, 0, writingWindow.writeBuffer, writingOffset, sizeToWrite);
         } finally {
             bytesWritten(fileOffset, sizeToWrite);
         }
@@ -343,6 +343,11 @@ public final class DataFileWriter {
         itemsCount.incrementAndGet();
         // return the offset where we wrote the data
         return DataFileCommon.dataLocation(metadata.getIndex(), fileOffset);
+    }
+
+    // For testing purposes
+    long storeDataItem(final BufferedData dataItem) throws IOException {
+        return storeDataItem(o -> o.writeBytes(dataItem), Math.toIntExact(dataItem.remaining()));
     }
 
     /**
@@ -375,12 +380,27 @@ public final class DataFileWriter {
         fileChannel.close();
     }
 
+    private void checkNotClosed() throws IOException {
+        if (closed.get()) {
+            throw new IOException("Data file is already closed");
+        }
+    }
+
+    private void checkSizeToWrite(final int sizeToWrite) throws IOException {
+        if (sizeToWrite > dataBufferSize) {
+            throw new IOException(
+                    ERROR_DATA_ITEM_TOO_LARGE + " dataSize=" + sizeToWrite + ", bufferSize=" + dataBufferSize);
+        }
+    }
+
     private class WritingWindow {
 
         private final Arena arena = Arena.ofShared();
 
         // FUTURE WORK: use MemoryData to directly write data items to
         private final MemorySegment writeBuffer;
+        // MemoryData wrapped over writeBuffer
+        private final MemoryData writeOut;
 
         private final AtomicInteger bytesLeftToWrite;
 
@@ -390,6 +410,7 @@ public final class DataFileWriter {
             final long fileOffset = (long) windowIndex * dataBufferSize;
             // Mapped segment size is 2 x data buffer size to make sure writing windows are overlapped
             writeBuffer = fileChannel.map(MapMode.READ_WRITE, fileOffset, dataBufferSize * 2L, arena);
+            writeOut = MemoryData.wrap(writeBuffer);
             bytesLeftToWrite = new AtomicInteger(dataBufferSize);
         }
 
