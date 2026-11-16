@@ -154,7 +154,7 @@ public class DefaultStateSnapshotManager implements StateSnapshotManager {
                 fatalErrorConsumer.fatalError(
                         "Unable to write signed state for round " + round + " to " + directory,
                         e,
-                        SystemExitCode.FATAL_ERROR);
+                        SystemExitCode.STATE_SAVE_FAILED);
                 return null;
             }
             signedState.stateSavedToDisk();

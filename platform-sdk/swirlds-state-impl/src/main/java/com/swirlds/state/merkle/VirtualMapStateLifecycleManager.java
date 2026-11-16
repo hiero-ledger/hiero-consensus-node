@@ -232,10 +232,10 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
         log.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand (async) in {} for {}", targetPath, state);
 
         final VirtualMap virtualMap = state.getRoot();
-        final CompletableFuture<Void> snapshotFuture = virtualMap.createSnapshotAsync(targetPath);
-        // Return the map's own future rather than the whenComplete() stage: cancelling a dependent stage
-        // doesn't cancel its source, and the map must see the cancellation to skip the snapshot
-        snapshotFuture.whenComplete((_, error) -> {
+        final CompletableFuture<Void> mapSnapshot = virtualMap.createSnapshotAsync(targetPath);
+        // Return the whenComplete() stage, not the map's future, so a waiter only returns after the snapshot
+        // is logged and measured
+        final CompletableFuture<Void> snapshot = mapSnapshot.whenComplete((_, error) -> {
             if (error instanceof CancellationException) {
                 log.warn(
                         STATE_TO_DISK.getMarker(),
@@ -260,7 +260,14 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
             }
             snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
         });
-        return snapshotFuture;
+        // Cancelling a dependent stage doesn't cancel its source. Forward the cancellation, the map must see it
+        // to skip the snapshot
+        snapshot.whenComplete((_, error) -> {
+            if (error instanceof CancellationException) {
+                mapSnapshot.cancel(true);
+            }
+        });
+        return snapshot;
     }
 
     /**

@@ -1328,6 +1328,43 @@ class VirtualMapTests extends VirtualTestBase {
         }
     }
 
+    @Test
+    @DisplayName("A cancelled async snapshot is skipped, and doesn't shut down the map")
+    void cancelledAsyncSnapshotIsSkipped() throws InterruptedException {
+        final AtomicBoolean snapshotWritten = new AtomicBoolean();
+        final VirtualDataSourceBuilder builder = new InMemoryBuilder() {
+            @NonNull
+            @Override
+            public Path snapshot(@Nullable final Path destinationDir, @NonNull final VirtualDataSource snapshotMe) {
+                snapshotWritten.set(true);
+                return super.snapshot(destinationDir, snapshotMe);
+            }
+        };
+        final VirtualMap map0 = new VirtualMap(builder, DEFAULT_CONFIGURATION);
+        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
+        final VirtualMap map1 = map0.copy();
+        map0.getHash(); // forces copy to become hashed
+        final CompletableFuture<Void> snapshot = map0.createSnapshotAsync(testDirectory.resolve("asyncSnapshot"));
+        // Cancelled before map0 is released, so before it's flushed
+        snapshot.cancel(true);
+        map0.release();
+        try {
+            map0.waitUntilFlushed();
+            assertFalse(snapshotWritten.get(), "a cancelled snapshot should not be written");
+            // The pipeline isn't shut down: new copies can still be made, and the data is there
+            map1.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
+            final VirtualMap map2 = map1.copy();
+            try {
+                assertEquals(APPLE, map2.get(A_KEY, TestValueCodec.INSTANCE));
+                assertEquals(BANANA, map2.get(B_KEY, TestValueCodec.INSTANCE));
+            } finally {
+                map2.release();
+            }
+        } finally {
+            map1.release();
+        }
+    }
+
     /**
      * Runs the given operation with a data source builder that creates data source copies, which
      * are interrupted on flush, like a file channel would be. The operation must fail, close the

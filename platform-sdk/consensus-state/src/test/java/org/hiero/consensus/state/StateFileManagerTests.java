@@ -198,7 +198,7 @@ class StateFileManagerTests {
             validateSavingOfState(signedState);
         } else {
             assertNull(stateSavingResult, "If unsuccessful, should return null");
-            assertEquals(List.of(SystemExitCode.FATAL_ERROR), fatalErrors, "A failed save should fail the node");
+            assertEquals(List.of(SystemExitCode.STATE_SAVE_FAILED), fatalErrors, "A failed save should fail the node");
             assertFalse(signedState.hasStateBeenSavedToDisk(), "A failed save should not mark the state as saved");
         }
     }
@@ -240,7 +240,7 @@ class StateFileManagerTests {
         stateLifecycleManager.getMutableState().release();
 
         assertNull(stateSavingResult, "A failed snapshot should not be saved");
-        assertEquals(List.of(SystemExitCode.FATAL_ERROR), fatalErrors, "A failed snapshot should fail the node");
+        assertEquals(List.of(SystemExitCode.STATE_SAVE_FAILED), fatalErrors, "A failed snapshot should fail the node");
         assertFalse(signedState.hasStateBeenSavedToDisk(), "A failed snapshot should not mark the state as saved");
         assertFalse(
                 exists(signedStateFilePath.getSignedStateDirectory(signedState.getRound())),
