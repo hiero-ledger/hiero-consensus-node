@@ -1274,8 +1274,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var newTrustAnchor = bundleContent.newTrustAnchor();
         final var newTrustAnchorId = bundleContent.newTrustAnchorId();
 
-        // Persist proof-verified manifest and trust updates together.
-        // Stale manifests are ignored. An advancing manifest replaces the whole cached manifest.
+        // Persist the selected manifest and trust updates together. Replace the whole cached manifest on update.
         final var newEndpointManifest = bundleContent.newEndpointManifest();
         final boolean shouldUpdateManifest = validated.shouldUpdateManifest();
         final boolean shouldUpdateTrustAnchor = newTrustAnchor.length() > 0;
