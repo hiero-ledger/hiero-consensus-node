@@ -153,11 +153,6 @@ public class QueryHederaOperations implements HederaOperations {
     }
 
     @Override
-    public boolean collectClprFee(@NonNull final AccountID payerId, final long amount) {
-        throw new UnsupportedOperationException("Queries cannot collect fees");
-    }
-
-    @Override
     public void collectGasFee(@NonNull final AccountID payerId, long amount, boolean withNonceIncrement) {
         throw new UnsupportedOperationException("Queries cannot collect fees");
     }

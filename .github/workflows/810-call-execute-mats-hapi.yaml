@@ -56,8 +56,15 @@ permissions:
 
 jobs:
   hapi-tests-misc:
-    uses: ./.github/workflows/836-call-execute-hapi-misc.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Misc"
+      gradle-tasks: >-
+        hapiTestMisc
+        hapiTestGenesisSubProcess
+        hapiTestMiscEmbedded
+        hapiTestMiscRepeatable
+        :yahcli:testSubprocess
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -69,8 +76,16 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   hapi-tests-misc-records-crypto-and-serial:
-    uses: ./.github/workflows/837-call-execute-hapi-misc-records-crypto.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Misc Records, Crypto & Misc Serial"
+      gradle-tasks: >-
+        hapiTestMiscRecords
+        hapiTestMiscRecordsSerial
+        hapiTestCrypto
+        hapiTestCryptoEmbedded
+        hapiTestCryptoSerial
+        hapiTestMiscSerial
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -82,8 +97,14 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   hapi-tests-time-consuming-and-node-staking:
-    uses: ./.github/workflows/838-call-execute-hapi-token-time-consuming.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Time Consuming & Node Staking"
+      gradle-tasks: >-
+        hapiTestTimeConsuming
+        hapiTestTimeConsumingSerial
+        hapiTestNodeStaking
+        hapiTestNodeStakingSerial
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -95,8 +116,14 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   hapi-tests-simple-fees-and-nd-reconnect:
-    uses: ./.github/workflows/839-call-execute-hapi-simple-fees-nd-reconnect.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Simple Fees & ND Reconnect"
+      gradle-tasks: >-
+        hapiTestSimpleFees
+        hapiTestSimpleFeesEmbedded
+        hapiTestSimpleFeesSerial
+        hapiTestNDReconnect
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -108,8 +135,14 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   hapi-tests-smart-contracts-and-iss:
-    uses: ./.github/workflows/840-call-execute-hapi-smart-contract-iss.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Smart Contracts & ISS"
+      gradle-tasks: >-
+        hapiTestSmartContract
+        hapiTestSmartContractSerial
+        hapiTestIss
+        hapiTestIssGrpc
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -121,8 +154,12 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   hapi-tests-restart:
-    uses: ./.github/workflows/841-call-execute-hapi-restart.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Restart"
+      gradle-tasks: >-
+        hapiTestRestart
+        hapiTestPreCutover
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -134,8 +171,14 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   hapi-tests-atomic-batch:
-    uses: ./.github/workflows/842-call-execute-hapi-atomic-batch.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Atomic Batch"
+      gradle-tasks: >-
+        hapiTestAtomicBatch
+        hapiTestAtomicBatchSerial
+        hapiTestAtomicBatchEmbedded
+      runner: "hl-cn-hapi-lin-xl"
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -147,8 +190,13 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   hapi-tests-token-and-state-throttling:
-    uses: ./.github/workflows/843-call-execute-hapi-state-throttling.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "Token & State Throttling"
+      gradle-tasks: >-
+        hapiTestToken
+        hapiTestTokenSerial
+        hapiTestStateThrottling
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}
@@ -160,8 +208,16 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   hapi-tests-clpr:
-    uses: ./.github/workflows/870-call-execute-hapi-clpr.yaml
+    uses: ./.github/workflows/874-call-execute-hapi-suite.yaml
     with:
+      suite-name: "CLPR"
+      # CLPR (cross-ledger) HAPI suites: @Tag(CLPR), @Tag(CLPR)+embedded, and the
+      # @Tag(MULTINETWORK) subprocess suites. The harness installs TSS startup fixtures;
+      # WRAPS parameters are bundled in the 3.20.1 library, so no CI download is needed.
+      gradle-tasks: >-
+        hapiTestClpr
+        hapiTestClprEmbedded
+        hapiTestClprMultinetwork
       ref: ${{ inputs.ref }}
       java-distribution: ${{ inputs.java-distribution }}
       java-version: ${{ inputs.java-version }}

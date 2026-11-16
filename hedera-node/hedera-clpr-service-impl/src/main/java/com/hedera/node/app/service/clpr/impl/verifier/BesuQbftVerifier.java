@@ -6,10 +6,8 @@ import static com.hedera.node.app.service.clpr.impl.verifier.evm.ProofBytes.endp
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprQbftLedgerConfigurationPayload;
-import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.sun.jna.ptr.LongByReference;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
@@ -25,7 +23,6 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 /**
  * Verifies Besu QBFT bundle proofs against a peer ledger's execution state.
@@ -974,7 +971,11 @@ public final class BesuQbftVerifier {
                 throw ProofException.besuQbft("committedSeals[" + i + "] must be " + QBFT_SEAL_LENGTH
                         + " bytes (r||s||v), got " + seal.length);
             }
-            recoveredSigners.add(recoverEthereumAddress(commitSealMessageHash, seal));
+            try {
+                recoveredSigners.add(Secp256k1Recovery.recoverAddress(commitSealMessageHash, seal));
+            } catch (final IllegalArgumentException e) {
+                throw ProofException.besuQbft(e.getMessage(), e);
+            }
         }
 
         // 3. Sort recovered signers for deterministic duplicate detection and membership lookup.
@@ -1027,54 +1028,6 @@ public final class BesuQbftVerifier {
                             : headerChildren.get(i).rawBytes());
         }
         return MiscCryptoUtils.keccak256DigestOf(Rlp.encodeList(sealingHeaderFields));
-    }
-
-    /**
-     * Recover the 20-byte Ethereum address that signed {@code msgHash32} with the supplied
-     * 65-byte {@code r||s||v} signature.
-     */
-    @NonNull
-    static byte[] recoverEthereumAddress(@NonNull final byte[] msgHash32, @NonNull final byte[] seal65) {
-        if (msgHash32.length != 32) {
-            throw new IllegalArgumentException("msgHash must be 32 bytes");
-        }
-        if (seal65.length != QBFT_SEAL_LENGTH) {
-            throw new IllegalArgumentException("seal must be " + QBFT_SEAL_LENGTH + " bytes");
-        }
-        int v = seal65[64] & 0xFF;
-        if (v == 27 || v == 28) {
-            v -= 27;
-        }
-        if (v != 0 && v != 1) {
-            throw ProofException.besuQbft("committed seal v byte must be 0/1 (or 27/28), got " + (seal65[64] & 0xFF));
-        }
-        final byte[] compact = Arrays.copyOf(seal65, 64);
-        final var recoverableSig = new LibSecp256k1.secp256k1_ecdsa_recoverable_signature();
-        if (LibSecp256k1.secp256k1_ecdsa_recoverable_signature_parse_compact(
-                        LibSecp256k1.CONTEXT, recoverableSig, compact, v)
-                != 1) {
-            throw ProofException.besuQbft("failed to parse committed seal signature");
-        }
-        final var pubKey = new LibSecp256k1.secp256k1_pubkey();
-        if (LibSecp256k1.secp256k1_ecdsa_recover(LibSecp256k1.CONTEXT, pubKey, recoverableSig, msgHash32) != 1) {
-            throw ProofException.besuQbft("ecRecover failed for committed seal");
-        }
-        final ByteBuffer serializedPubKey = ByteBuffer.allocate(65);
-        final var serializedPubKeySize = new LongByReference(serializedPubKey.capacity());
-        if (LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                        LibSecp256k1.CONTEXT,
-                        serializedPubKey,
-                        serializedPubKeySize,
-                        pubKey,
-                        LibSecp256k1.SECP256K1_EC_UNCOMPRESSED)
-                != 1) {
-            throw ProofException.besuQbft("failed to serialize recovered public key");
-        }
-        final byte[] addr = EthSigsUtils.recoverAddressFromPubKey(serializedPubKey.array());
-        if (addr == null || addr.length != ADDRESS_LENGTH) {
-            throw ProofException.besuQbft("recovered address has wrong length");
-        }
-        return addr;
     }
 
     // -----------------------------------------------------------------------------------

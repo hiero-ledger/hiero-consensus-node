@@ -468,7 +468,7 @@ public class BlockNode extends BlockStreamingBase {
      * Notifies that this block node has a connection that has been closed. As a result of this, state such as active
      * connection counters will be decremented and the history entry associated with the connection will be updated.
      * Lastly, if the reason the connection was closed requires a cool down, then the cool down timestamp will be
-     * updated.
+     * updated. The cool down also applies to a connection that was closed before it ever became active.
      *
      * @param connection the connection that was closed
      */
@@ -487,22 +487,25 @@ public class BlockNode extends BlockStreamingBase {
 
         final BlockNodeEndpoint endpoint = connection.configuration().streamingEndpoint();
         final ConnectionHistory connHistory = connectionHistories.get(connection.connectionId());
+        final CloseReason closeReason;
 
         if (connHistory == null) {
+            // no history entry means the connection never became active (e.g. it failed to initialize)
+            closeReason = connection.closeReason();
             logger.warn(
-                    "[{}:{}] Block node does not have a history entry for connection ({})",
+                    "[{}:{}] Connection ({}) was closed before it became active (reason: {})",
                     endpoint.host(),
                     endpoint.port(),
-                    connection.connectionId());
-            return;
+                    connection.connectionId(),
+                    closeReason);
+        } else {
+            globalActiveStreamingConnectionCount.decrementAndGet();
+            localActiveStreamingConnectionCount.decrementAndGet();
+            connHistory.onClose(connection);
+            closeReason = connHistory.closeReason;
         }
 
-        globalActiveStreamingConnectionCount.decrementAndGet();
-        localActiveStreamingConnectionCount.decrementAndGet();
-        connHistory.onClose(connection);
-
-        final CloseReason closeReason = connHistory.closeReason;
-        if (closeReason.isDeviantCloseReason()) {
+        if (closeReason != null && closeReason.isDeviantCloseReason()) {
             applyCoolDown(new DeviantConnectionClose(closeReason));
         }
     }

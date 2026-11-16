@@ -16,6 +16,7 @@ import com.hedera.hapi.node.state.clpr.SeiStateProof;
 import com.hedera.hapi.node.state.clpr.SeiStorageProofEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
+import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.IOException;
@@ -288,7 +289,7 @@ class SeiTestnetFixtureTest {
                 final var timestamp = Instant.parse(sig.path("timestamp").asText());
                 final byte[] signBytes =
                         SeiHashing.precommitSignBytes(chainId, height, round, blockId, timestamp(timestamp));
-                assertThat(SeiHashing.verifyEd25519(
+                assertThat(Ed25519Verify.verify(
                                 validator.ed25519PubKey().toByteArray(),
                                 signBytes,
                                 B64.decode(sig.path("signature").asText())))
@@ -328,7 +329,7 @@ class SeiTestnetFixtureTest {
                     COMMIT.path("round").asLong(),
                     blockId,
                     wrongTimestamp);
-            assertThat(SeiHashing.verifyEd25519(
+            assertThat(Ed25519Verify.verify(
                             validator.ed25519PubKey().toByteArray(),
                             signBytes,
                             B64.decode(sig.path("signature").asText())))
@@ -353,7 +354,7 @@ class SeiTestnetFixtureTest {
                     COMMIT.path("round").asLong(),
                     blockId,
                     timestamp(timestamp));
-            assertThat(SeiHashing.verifyEd25519(
+            assertThat(Ed25519Verify.verify(
                             validator.ed25519PubKey().toByteArray(),
                             signBytes,
                             B64.decode(sig.path("signature").asText())))

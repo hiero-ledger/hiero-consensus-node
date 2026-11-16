@@ -1438,53 +1438,6 @@ class BesuQbftVerifierTest {
     }
 
     @Nested
-    class RecoverEthereumAddress {
-        @Test
-        void msgHashNot32Bytes_throwsIllegalArgumentException() {
-            assertThatThrownBy(() -> BesuQbftVerifier.recoverEthereumAddress(new byte[31], new byte[65]))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("msgHash must be 32 bytes");
-        }
-
-        @Test
-        void sealNot65Bytes_throwsIllegalArgumentException() {
-            assertThatThrownBy(() -> BesuQbftVerifier.recoverEthereumAddress(new byte[32], new byte[64]))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("seal must be 65 bytes");
-        }
-
-        @Test
-        void v27AndV28NormalizedCorrectly() {
-            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x01});
-            byte[] sig = sign(hash, VALIDATOR_PRIV);
-
-            byte[] sigWithOffset = Arrays.copyOf(sig, 65);
-            sigWithOffset[64] = (byte) (sig[64] + 27);
-
-            assertThat(BesuQbftVerifier.recoverEthereumAddress(hash, sigWithOffset))
-                    .isEqualTo(VALIDATOR_ADDR);
-        }
-
-        @Test
-        void vEquals2_throwsProofException() {
-            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x02});
-            byte[] sig = sign(hash, VALIDATOR_PRIV);
-            sig[64] = 2;
-
-            assertThatThrownBy(() -> BesuQbftVerifier.recoverEthereumAddress(hash, sig))
-                    .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("v byte must be 0/1 (or 27/28)");
-        }
-
-        @Test
-        void validSignatureRecoversCorrectAddress() {
-            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x03, 0x04, 0x05});
-            byte[] sig = sign(hash, VALIDATOR_PRIV);
-            assertThat(BesuQbftVerifier.recoverEthereumAddress(hash, sig)).isEqualTo(VALIDATOR_ADDR);
-        }
-    }
-
-    @Nested
     class EpochHeaderTests {
 
         private static final BesuQbftVerifier BUNDLE_SUBJECT =

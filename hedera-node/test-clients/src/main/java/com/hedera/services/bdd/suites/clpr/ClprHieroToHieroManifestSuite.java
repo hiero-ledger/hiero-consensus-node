@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.google.protobuf.ByteString;
@@ -100,7 +99,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "hello-manifest-1".getBytes(StandardCharsets.UTF_8))
-                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerA"),
                                                 contractCall(
@@ -110,7 +108,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "hello-manifest-2".getBytes(StandardCharsets.UTF_8))
-                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
@@ -131,7 +128,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "reply-manifest-1".getBytes(StandardCharsets.UTF_8))
-                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerB"),
                                                 contractCall(
@@ -141,7 +137,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "reply-manifest-2".getBytes(StandardCharsets.UTF_8))
-                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerB"))
                                         .findFirst()
@@ -230,7 +225,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "post-rotation".getBytes(StandardCharsets.UTF_8))
-                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerA2"))
                                         .findFirst()
@@ -279,7 +273,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                                 crypto.connectorId,
                                                                 new byte[20],
                                                                 "post-rotation-reply".getBytes(StandardCharsets.UTF_8))
-                                                        .sending(ONE_HBAR)
                                                         .gas(GAS)
                                                         .payingWith("callerB2"))
                                         .findFirst()

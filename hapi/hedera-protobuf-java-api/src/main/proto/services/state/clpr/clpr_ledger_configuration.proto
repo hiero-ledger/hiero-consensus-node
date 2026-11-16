@@ -86,7 +86,9 @@ message ClprThrottles {
     uint32 max_messages_per_bundle = 1;
 
     /**
-     * Maximum payload size in bytes for a single message.
+     * Maximum serialized size in bytes of a Data ClprMessagePayload, including
+     * connector_id, target_application, sender, message_data, and protobuf framing.
+     * Response and Control payloads are exempt from this limit.
      */
     uint32 max_message_payload_bytes = 2;
 

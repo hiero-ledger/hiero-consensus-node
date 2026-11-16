@@ -109,7 +109,15 @@ public abstract class VirtualMapReconnectTestBase {
         reconnectMultipleTimes(1);
     }
 
+    protected void reconnectWith(final Configuration configuration) {
+        reconnectMultipleTimes(1, configuration);
+    }
+
     protected void reconnectMultipleTimes(int attempts) {
+        reconnectMultipleTimes(attempts, configuration);
+    }
+
+    protected void reconnectMultipleTimes(int attempts, final Configuration configuration) {
         final VirtualMap copy = teacherMap.copy();
         teacherMap.reserve();
         learnerMap.reserve();
