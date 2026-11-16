@@ -20,6 +20,9 @@ Tracking issue: hiero-ledger/hiero-consensus-node#28275.
 | `001` XTS Dry Run | XTS | ref name, head sha |
 | `106` XTS Optional Tests | XTS | ref, ref name |
 
+`106` records jobs and context but no per-test timings: the only report it uploads is the static HTML
+`Three-Stage-Block-Stream-Cutover-TCK-Reports`, which has no JUnit `TEST-*.xml` files and does not match `ARTIFACT_RE`.
+
 Not covered: the cron shells `900`, `901` and `227` (they prime and dispatch, they run no tests). Adding a workflow means adding it to
 `WORKFLOWS` in `collect.py` (by file name) and adding a `publish-run-metrics` job that calls `865`, with every other job of the
 workflow in `needs` and `if: always()`.

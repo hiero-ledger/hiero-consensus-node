@@ -88,7 +88,11 @@ def context_from_env(environ):
     ctx = {}
     if environ.get("CTX_JSON"):
         parsed = json.loads(environ["CTX_JSON"])
-        if not isinstance(parsed, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in parsed.items()):
+        if not isinstance(parsed, dict):
+            raise ValueError("CTX_JSON must be a JSON object whose values are strings")
+        # An output that was never set (a skipped or cancelled job, or an empty value) arrives as null through toJSON().
+        parsed = {k: "" if v is None else v for k, v in parsed.items()}
+        if not all(isinstance(k, str) and isinstance(v, str) for k, v in parsed.items()):
             raise ValueError("CTX_JSON must be a JSON object whose values are strings")
         ctx.update(parsed)
     ctx.update({k[4:].lower(): v for k, v in sorted(environ.items()) if k.startswith("CTX_") and k != "CTX_JSON"})

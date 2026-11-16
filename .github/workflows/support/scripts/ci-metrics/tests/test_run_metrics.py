@@ -96,6 +96,10 @@ class Context(unittest.TestCase):
         env = {"CTX_JSON": '{"action": "push", "ref": "abc"}', "CTX_ACTION": "dispatch"}
         self.assertEqual(run_metrics.context_from_env(env), {"action": "dispatch", "ref": "abc"})
 
+    def test_json_null_value_becomes_empty_string(self):
+        env = {"CTX_JSON": '{"ref_name": "main", "failure_mode": null}'}
+        self.assertEqual(run_metrics.context_from_env(env), {"ref_name": "main", "failure_mode": ""})
+
     def test_json_context_must_be_an_object_of_strings(self):
         for bad in ('["a"]', '{"a": 1}', "not json"):
             with self.assertRaises(ValueError):
