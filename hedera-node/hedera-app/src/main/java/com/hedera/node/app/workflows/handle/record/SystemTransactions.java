@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXP
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
@@ -748,44 +749,36 @@ public class SystemTransactions {
             @NonNull final State state,
             @NonNull final SystemContext systemContext,
             @NonNull final Configuration config) {
-        final var clprConfig = config.getConfigData(ClprConfig.class);
         final var accountsConfig = config.getConfigData(AccountsConfig.class);
         final var accountNum = accountsConfig.clprAdmin();
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
-        // Synthetic creation leaves the entity allocator unchanged. Only use numbers reserved for the system.
-        if (!clprConfig.enabled()
+        if (!config.getConfigData(ClprConfig.class).enabled()
                 || accountNum < FIRST_POST_SYSTEM_FILE_ENTITY
-                || accountNum >= hederaConfig.firstUserEntity()
-                || (accountNum >= FIRST_RESERVED_SYSTEM_CONTRACT && accountNum <= LAST_RESERVED_SYSTEM_CONTRACT)
-                || accountNum == accountsConfig.stakingRewardAccount()
-                || accountNum == accountsConfig.nodeRewardAccount()
-                || accountNum == accountsConfig.feeCollectionAccount()
-                || accountNum == clprConfig.stakingAccount()) {
+                || accountNum >= config.getConfigData(HederaConfig.class).firstUserEntity()
+                || (accountNum >= FIRST_RESERVED_SYSTEM_CONTRACT && accountNum <= LAST_RESERVED_SYSTEM_CONTRACT)) {
             return;
         }
 
         final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
-        final var adminId = idFactory.newAccountId(accountNum);
-        if (accounts.get(adminId) != null) {
+        if (accounts.get(idFactory.newAccountId(accountNum)) != null) {
             return;
         }
-        final var treasury = accounts.get(idFactory.newAccountId(accountsConfig.treasury()));
-        if (treasury == null
-                || treasury.deleted()
-                || treasury.key() == null
-                || IMMUTABILITY_SENTINEL_KEY.equals(treasury.key())) {
-            log.warn("Cannot create CLPR admin account {} without an active treasury key", adminId);
-            return;
-        }
+
+        // Synthetic creation does not advance the allocator.
         final var entityNumber = state.getReadableStates(EntityIdService.NAME)
                 .<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)
                 .get();
         if (entityNumber == null || accountNum > entityNumber.number()) {
-            log.warn("Cannot create CLPR admin account {} ahead of the entity allocator", adminId);
+            log.warn("Cannot create CLPR admin account {} ahead of the entity allocator", accountNum);
             return;
         }
 
-        final var adminKey = treasury.keyOrThrow();
+        final var treasury = accounts.get(idFactory.newAccountId(accountsConfig.treasury()));
+        final var adminKey = treasury == null || treasury.deleted() ? null : treasury.key();
+        if (!isValid(adminKey)) {
+            log.warn("Cannot create CLPR admin account {} without an active treasury key", accountNum);
+            return;
+        }
+
         final var autoRenewPeriod =
                 new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration());
         systemContext.dispatchCreation(

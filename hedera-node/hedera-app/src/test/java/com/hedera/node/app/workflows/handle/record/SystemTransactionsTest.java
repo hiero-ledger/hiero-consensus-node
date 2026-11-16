@@ -663,7 +663,6 @@ class SystemTransactionsTest {
         final var accounts = givenAccountsState();
         given(accounts.get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         given(accounts.get(givenLocalAccountId(CUSTOM_CLPR_ADMIN_ACCOUNT_NUM))).willReturn(null);
-        givenTreasuryKey(accounts);
         givenCurrentEntityNumber(800L);
 
         final var systemContext = doPostUpgradeSetupWithMockContext(
