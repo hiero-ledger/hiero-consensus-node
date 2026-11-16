@@ -341,7 +341,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 oldAckedMessageId,
                 peerReceivedMessageId,
                 validated.newMessages().size());
-        // The local limit is expand-only, so it retains all previously advertised reply credit.
+        // The local limit is expand-only, so credit advertised under this rule cannot be revoked.
         final int queueCapacity = throttles.maxQueueDepth();
         final ReplyValidation replyValidation;
         try {

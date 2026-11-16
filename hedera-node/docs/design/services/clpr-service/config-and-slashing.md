@@ -68,10 +68,10 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 ### Queue monopolisation (CLPR-3.5, used by `ClprServiceApiImpl`)
 
-|           Key            | Default | Network? |                          Purpose                          |
-|--------------------------|---------|----------|-----------------------------------------------------------|
-| `connectorQueueQuotaPct` | `50`    | yes      | Max % of total queue depth a single connector may occupy. |
-| `maxQueueDepthCeiling` | `10000` | yes | Positive ceiling on newly configured local queue depth; does not revoke existing credit. |
+|           Key            | Default | Network? |                                         Purpose                                          |
+|--------------------------|---------|----------|------------------------------------------------------------------------------------------|
+| `connectorQueueQuotaPct` | `50`    | yes      | Max % of total queue depth a single connector may occupy.                                |
+| `maxQueueDepthCeiling`   | `10000` | yes      | Positive ceiling on newly configured local queue depth; does not revoke existing credit. |
 
 ### Dispatch gas budgets (CLPR-4.4 / 5.3)
 
