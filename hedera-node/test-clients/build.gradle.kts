@@ -299,11 +299,15 @@ val prCheckPropOverrides =
 // them with overriding(...) / @ConfigOverride (network-properties override, ordinal 101).
 // Used to enable CLPR by default for the CLPR tasks while letting the few negative suites
 // disable it per-spec. CLPR uses the production gas ceiling so escrow does not reserve the
-// much larger transaction gas allowance used by general HAPI contract tests.
+// much larger transaction gas allowance used by general HAPI contract tests. Embedded CLPR
+// suites complete channels whose fixture manifests (SyncCommitteeProofs) advertise peers in
+// 10.0.0.0/24, so that range is dialable there and those unreachable peers fail as UNAVAILABLE
+// rather than as rejected destinations.
 val prCheckDefaultOverrides =
     mapOf(
         "hapiTestClpr" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
-        "hapiTestClprEmbedded" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
+        "hapiTestClprEmbedded" to
+            "clpr.enabled=true,contracts.maxGasPerTransaction=15000000,clpr.additionalPeerEndpointCidrs=10.0.0.0/24",
         "hapiTestClprMultinetwork" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
     )
 // -PhapiTestConfigProfile=pre-cutover (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks in the
