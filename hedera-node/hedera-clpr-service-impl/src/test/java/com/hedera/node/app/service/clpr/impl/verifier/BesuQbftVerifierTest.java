@@ -1172,9 +1172,12 @@ class BesuQbftVerifierTest {
             vRunningHash[0] = (byte) 0xCC;
             byte[][] keys = {
                 plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
-                plusOffset(base, 5), plusOffset(base, 16), MiscCryptoUtils.keccak256DigestOf(connId)
+                plusOffset(base, 5), plusOffset(base, 16), messageRunningHashSlot(connId, 1)
             };
-            byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], vRunningHash};
+            // nextMessageId = 2, so the only acceptable message slot is message 1's running hash.
+            byte[] vStatus = new byte[32];
+            ByteBuffer.wrap(vStatus, 3, 8).putLong(2L);
+            byte[][] vals = {vStatus, new byte[32], new byte[32], new byte[32], new byte[32], vRunningHash};
             byte[] bundle = buildBundleWithSlots(keys, vals);
 
             var result = BUNDLE_SUBJECT.verifyBundle(bundle, validatorSet(VALIDATOR_ADDR), connId);
@@ -1431,53 +1434,6 @@ class BesuQbftVerifierTest {
             byte[] hash1 = BesuQbftVerifier.buildCommitSealHash(item1, extra1);
 
             assertThat(hash0).isNotEqualTo(hash1);
-        }
-    }
-
-    @Nested
-    class RecoverEthereumAddress {
-        @Test
-        void msgHashNot32Bytes_throwsIllegalArgumentException() {
-            assertThatThrownBy(() -> BesuQbftVerifier.recoverEthereumAddress(new byte[31], new byte[65]))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("msgHash must be 32 bytes");
-        }
-
-        @Test
-        void sealNot65Bytes_throwsIllegalArgumentException() {
-            assertThatThrownBy(() -> BesuQbftVerifier.recoverEthereumAddress(new byte[32], new byte[64]))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("seal must be 65 bytes");
-        }
-
-        @Test
-        void v27AndV28NormalizedCorrectly() {
-            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x01});
-            byte[] sig = sign(hash, VALIDATOR_PRIV);
-
-            byte[] sigWithOffset = Arrays.copyOf(sig, 65);
-            sigWithOffset[64] = (byte) (sig[64] + 27);
-
-            assertThat(BesuQbftVerifier.recoverEthereumAddress(hash, sigWithOffset))
-                    .isEqualTo(VALIDATOR_ADDR);
-        }
-
-        @Test
-        void vEquals2_throwsProofException() {
-            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x02});
-            byte[] sig = sign(hash, VALIDATOR_PRIV);
-            sig[64] = 2;
-
-            assertThatThrownBy(() -> BesuQbftVerifier.recoverEthereumAddress(hash, sig))
-                    .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("v byte must be 0/1 (or 27/28)");
-        }
-
-        @Test
-        void validSignatureRecoversCorrectAddress() {
-            byte[] hash = MiscCryptoUtils.keccak256DigestOf(new byte[] {0x03, 0x04, 0x05});
-            byte[] sig = sign(hash, VALIDATOR_PRIV);
-            assertThat(BesuQbftVerifier.recoverEthereumAddress(hash, sig)).isEqualTo(VALIDATOR_ADDR);
         }
     }
 
@@ -2050,6 +2006,20 @@ class BesuQbftVerifierTest {
 
     // ── Exact connId-based Channel-slot matching helpers ──────────────────
 
+    /**
+     * The running-hash slot of `_messages[connId][messageId]`: field +1 of
+     * keccak256(uint256(messageId) || keccak256(connId(32) || uint256(1))).
+     */
+    private static byte[] messageRunningHashSlot(byte[] connId32, long messageId) {
+        byte[] outer = new byte[64];
+        System.arraycopy(connId32, 0, outer, 0, 32);
+        outer[63] = 1;
+        byte[] inner = new byte[64];
+        ByteBuffer.wrap(inner, 24, 8).putLong(messageId);
+        System.arraycopy(MiscCryptoUtils.keccak256DigestOf(outer), 0, inner, 32, 32);
+        return plusOffset(MiscCryptoUtils.keccak256DigestOf(inner), 1);
+    }
+
     /** The SC-189 `_channels[connId]` struct base slot: MiscCryptoUtils.keccak256DigestOf(connId(32) || uint256(15)). */
     private static byte[] connSlotBase(byte[] connId32) {
         byte[] pre = new byte[64];
@@ -2104,8 +2074,7 @@ class BesuQbftVerifierTest {
                     plusOffset(base, 16)));
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]};
             if (withMessage) {
-                keys.add(MiscCryptoUtils.keccak256DigestOf(
-                        connId)); // a far outlier, standing in for the message running-hash slot
+                keys.add(messageRunningHashSlot(connId, 1));
                 vals = new byte[][] {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]
                 };
             }

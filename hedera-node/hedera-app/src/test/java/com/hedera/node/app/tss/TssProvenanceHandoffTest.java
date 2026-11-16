@@ -16,14 +16,17 @@ import com.hedera.hapi.node.state.hints.CRSStage;
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -45,11 +48,15 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Test;
 
 class TssProvenanceHandoffTest {
     private static final Instant ACTIVATION_TIME = Instant.ofEpochSecond(1_800_000_000L);
-    private static final Bytes ROSTER_HASH = Bytes.wrap("roster");
+    private static final Roster ROSTER = Roster.newBuilder()
+            .rosterEntries(RosterEntry.newBuilder().nodeId(0L).weight(1L).build())
+            .build();
+    private static final Bytes ROSTER_HASH = RosterUtils.hash(ROSTER).getBytes();
     private static final Bytes SOURCE_KEY = Bytes.wrap("source-key");
     private static final Bytes TARGET_KEY = Bytes.wrap("target-key");
     private static final Bytes THIRD_KEY = Bytes.wrap("third-key");
@@ -63,7 +70,7 @@ class TssProvenanceHandoffTest {
         final var first = provenance(1, 2, SOURCE_KEY, TARGET_KEY);
         prepareNext(state, first);
         final var stack = stackFor(state);
-        when(hintsService.handoff(any(), any(), any(), any()))
+        when(hintsService.handoff(any(), any(), any(), any(), any()))
                 .thenAnswer(invocation -> ((WritableHintsStore) invocation.getArgument(0))
                         .handoff(invocation.getArgument(1), invocation.getArgument(2), invocation.getArgument(3)));
 
@@ -117,8 +124,8 @@ class TssProvenanceHandoffTest {
                 hintsIn(stack),
                 historyService,
                 hintsService,
-                Roster.DEFAULT,
-                Roster.DEFAULT,
+                ROSTER,
+                ROSTER,
                 ROSTER_HASH,
                 ACTIVATION_TIME);
     }
@@ -182,6 +189,7 @@ class TssProvenanceHandoffTest {
         final var historyStates = state.getWritableStates(HistoryService.NAME);
         final var proof = HistoryProof.newBuilder()
                 .targetHistory(History.newBuilder().metadata(provenance.targetVerificationKey()))
+                .targetNodeWeights(new ProofNodeWeight(0L, 1L))
                 .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("proof")))
                 .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
                 .keyProvenanceSignature(provenance.signature())
@@ -209,7 +217,8 @@ class TssProvenanceHandoffTest {
                 .targetRosterHash(ROSTER_HASH)
                 .crsId(1L)
                 .numParties(8)
-                .hintsScheme(new HintsScheme(new PreprocessedKeys(Bytes.wrap(new byte[49]), key), List.of()))
+                .hintsScheme(new HintsScheme(
+                        new PreprocessedKeys(Bytes.wrap(new byte[49]), key), List.of(new NodePartyId(0L, 0, 1L))))
                 .build();
     }
 

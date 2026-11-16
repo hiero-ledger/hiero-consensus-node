@@ -3,6 +3,7 @@ package org.hiero.metrics.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -18,6 +19,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,12 +27,14 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.hiero.metrics.DoubleCounter;
 import org.hiero.metrics.DoubleGauge;
 import org.hiero.metrics.LongCounter;
 import org.hiero.metrics.LongGauge;
+import org.hiero.metrics.ObservableGauge;
 import org.hiero.metrics.ThreadUtils;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -115,7 +119,7 @@ public class MetricRegistryTest {
         void testUnmodifiableMetricsView() {
             MetricRegistry registry = MetricRegistry.builder().build();
             registry.register(LongCounter.builder("test_counter"));
-            Collection<Metric> metrics = registry.metrics();
+            Collection<Metric<?>> metrics = registry.metrics();
 
             assertThat(metrics).isNotEmpty();
             assertThatThrownBy(() -> metrics.add(mock(Metric.class)))
@@ -421,23 +425,35 @@ public class MetricRegistryTest {
     }
 
     @Test
-    void testRemovedMetricIsNotExportedAndRegisteredAgainIsAppended() {
+    void testRemovedMetricIsNotExportedAndRegisteredAgainIsSorted() {
         TestMetricsExporter exporter = new TestMetricsExporter();
         MetricRegistry registry =
                 MetricRegistry.builder().setMetricsExporter(exporter).build();
         registry.register(LongCounter.builder("metric_a"));
         registry.register(LongCounter.builder("metric_b"));
-        Iterator<MetricSnapshot> export = exporter.snapshotSupplier.get().iterator();
+        Iterator<MetricSnapshot> export = exporter.snapshot().iterator();
 
         registry.remove(LongCounter.key("metric_a"));
-        assertThat(exportedNames(exporter.snapshotSupplier.get())).containsExactly("metric_b");
+        assertThat(exportedNames(exporter.snapshot())).containsExactly("metric_b");
 
         List<String> seen = new ArrayList<>();
         export.forEachRemaining(s -> seen.add(s.name()));
         assertThat(seen).as("started export is not affected").containsExactly("metric_a", "metric_b");
 
         registry.register(LongGauge.builder("metric_a"));
-        assertThat(exportedNames(exporter.snapshotSupplier.get())).containsExactly("metric_b", "metric_a");
+        assertThat(exportedNames(exporter.snapshot())).containsExactly("metric_a", "metric_b");
+    }
+
+    @Test
+    void testExportedMetricsAreSortedByName() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        registry.register(LongCounter.builder("metric_b"));
+        registry.register(LongGauge.builder("metric_c"));
+        registry.register(LongCounter.builder("metric_a"));
+
+        assertThat(exportedNames(exporter.snapshot())).containsExactly("metric_a", "metric_b", "metric_c");
     }
 
     @Test
@@ -466,16 +482,68 @@ public class MetricRegistryTest {
                         }
                     }
                 },
-                () -> assertThat(exportedNames(exporter.snapshotSupplier.get()))
+                () -> assertThat(exportedNames(exporter.snapshot()))
                         .as("export has duplicate metrics")
                         .doesNotHaveDuplicates());
 
         List<MetricSnapshot> exported = new ArrayList<>();
-        exporter.snapshotSupplier.get().forEach(exported::add);
+        exporter.snapshot().forEach(exported::add);
         assertThat(exported)
                 .as("exported snapshots are the ones of the registered metrics")
                 .containsExactlyInAnyOrderElementsOf(
                         registry.metrics().stream().map(Metric::snapshot).toList());
+    }
+
+    @Test
+    void testMetricRegisteredDuringExportIsExportedByNextExport() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        AtomicInteger calls = new AtomicInteger();
+        ObservableGauge.builder("metric_a")
+                .observe(() -> {
+                    // the first call is made by the first export
+                    if (calls.incrementAndGet() == 1) {
+                        registry.register(LongCounter.builder("metric_b"));
+                    }
+                    return 1L;
+                })
+                .register(registry);
+
+        assertThat(exportedNames(exporter.snapshot()))
+                .as("registered after the export rebuilt the list")
+                .containsExactly("metric_a");
+        assertThat(exportedNames(exporter.snapshot())).containsExactly("metric_a", "metric_b");
+    }
+
+    @Test
+    void testRemovedMetricIsReleasedByNextExport() {
+        // skipped where System.gc() does not collect, for example with -XX:+DisableExplicitGC
+        WeakReference<Object> unreferenced = new WeakReference<>(new Object());
+        collectGarbage(unreferenced);
+        assumeTrue(unreferenced.get() == null, "System.gc() does not clear weak references in this JVM");
+
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        WeakReference<LongCounter> removed = new WeakReference<>(registry.register(LongCounter.builder("removed")));
+        exporter.snapshot();
+
+        assertThat(registry.remove(LongCounter.key("removed"))).isTrue();
+        collectGarbage(removed);
+        assertThat(removed.get())
+                .as("still referenced by the snapshot of the last export")
+                .isNotNull();
+
+        exporter.snapshot();
+        collectGarbage(removed);
+        assertThat(removed.get()).as("released by the next export").isNull();
+    }
+
+    private static void collectGarbage(WeakReference<?> reference) {
+        for (int i = 0; i < 10 && reference.get() != null; i++) {
+            System.gc();
+        }
     }
 
     @Test
@@ -493,7 +561,7 @@ public class MetricRegistryTest {
         assertThat(counter.getOrCreateLabeled("label", "a").get()).isEqualTo(2);
         assertThat(counter.removeIf(labelValues -> "b".equals(labelValues.get("label"))))
                 .isEqualTo(1);
-        assertThat(exportedNames(exporter.snapshotSupplier.get())).isEmpty();
+        assertThat(exportedNames(exporter.snapshot())).isEmpty();
     }
 
     private static List<String> exportedNames(MetricRegistrySnapshot registrySnapshot) {
@@ -509,7 +577,7 @@ public class MetricRegistryTest {
                 MetricRegistry.builder().setMetricsExporter(exporter).build();
         registry.register(LongCounter.builder("metric_a"));
 
-        Iterator<MetricSnapshot> export = exporter.snapshotSupplier.get().iterator();
+        Iterator<MetricSnapshot> export = exporter.snapshot().iterator();
         registry.register(LongCounter.builder("metric_b"));
 
         List<String> seen = new ArrayList<>();
@@ -518,24 +586,29 @@ public class MetricRegistryTest {
     }
 
     @Test
-    void testMeasurementAddedAfterUpdateIsWrittenWithCreationValue() {
+    void testMeasurementAddedAfterUpdateIsWrittenByNextExport() {
         TestMetricsExporter exporter = new TestMetricsExporter();
         MetricRegistry registry =
                 MetricRegistry.builder().setMetricsExporter(exporter).build();
         LongCounter counter = registry.register(LongCounter.builder("counter").addDynamicLabelNames("label"));
         counter.getOrCreateLabeled("label", "a");
 
-        MetricRegistrySnapshot export = exporter.snapshotSupplier.get();
+        MetricRegistrySnapshot export = exporter.snapshot();
         counter.getOrCreateLabeled(() -> 7L, "label", "b");
 
-        List<String> seen = new ArrayList<>();
-        for (MetricSnapshot metricSnapshot : export) {
+        assertThat(exportedMeasurements(export)).containsExactly("[a]=0");
+        assertThat(exportedMeasurements(exporter.snapshot())).containsExactly("[a]=0", "[b]=7");
+    }
+
+    private static List<String> exportedMeasurements(MetricRegistrySnapshot registrySnapshot) {
+        List<String> measurements = new ArrayList<>();
+        for (MetricSnapshot metricSnapshot : registrySnapshot) {
             for (MeasurementSnapshot measurementSnapshot : metricSnapshot) {
-                seen.add(measurementSnapshot.getDynamicLabelValues() + "="
+                measurements.add(measurementSnapshot.getDynamicLabelValues() + "="
                         + ((LongMeasurementSnapshot) measurementSnapshot).get());
             }
         }
-        assertThat(seen).containsExactly("[a]=0", "[b]=7");
+        return measurements;
     }
 
     @Test
@@ -984,7 +1057,11 @@ public class MetricRegistryTest {
         }
 
         public void verify(MetricRegistrySnapshotVerifier verifier) {
-            verifier.verify(snapshotSupplier.get());
+            verifier.verify(snapshot());
+        }
+
+        public MetricRegistrySnapshot snapshot() {
+            return snapshotSupplier.get();
         }
 
         @Override

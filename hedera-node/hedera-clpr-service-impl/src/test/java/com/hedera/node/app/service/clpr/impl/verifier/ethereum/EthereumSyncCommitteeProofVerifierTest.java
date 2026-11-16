@@ -36,7 +36,6 @@ import com.hedera.hapi.node.state.clpr.EthereumPosSyncCommittee;
 import com.hedera.hapi.node.state.clpr.EthereumPosTrustAnchor;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
-import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.Committee;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.ConfigBuilder;
@@ -139,6 +138,22 @@ class EthereumSyncCommitteeProofVerifierTest {
         assertThatThrownBy(() -> verify(bundlePayload))
                 .isInstanceOf(ProofException.class)
                 .hasMessageContaining(message);
+    }
+
+    @Test
+    void contextualProofRejectsAnotherChannelsGenuineStorageKeys() {
+        // A genuine proof of CHANNEL_ID's slots verifies under CHANNEL_CONTEXT.
+        final byte[] payload = bundle(delivery().build());
+        assertThat(verifier.verifyBundle(payload, TRUST_ANCHOR, CHANNEL_CONTEXT)
+                        .queueMetadata()
+                        .nextMessageId())
+                .isZero();
+        // Changing one channel-ID byte keeps the service address valid, so only the slot-key binding can reject it.
+        final byte[] otherContext = CHANNEL_CONTEXT.clone();
+        otherContext[0] ^= 1;
+        assertThatThrownBy(() -> verifier.verifyBundle(payload, TRUST_ANCHOR, otherContext))
+                .isInstanceOf(ProofException.class)
+                .hasMessageContaining("storage slot");
     }
 
     @Nested
@@ -637,8 +652,7 @@ class EthereumSyncCommitteeProofVerifierTest {
         void givenSlotsOfAnotherChannel_thenThrowsProofException() {
             final DeliveryBuilder builder =
                     delivery().withStorage(EMPTY_TRIE_ROOT, new byte[0][], channelSlots(deterministicBytes(32, 0x01)));
-            assertRejected(
-                    bundle(builder.build()), "proven storage is missing the channel's STATUS_AND_NEXT_MESSAGE_ID slot");
+            assertRejected(bundle(builder.build()), "queue proof contains an unexpected storage slot for this channel");
         }
 
         @Test
@@ -651,16 +665,17 @@ class EthereumSyncCommitteeProofVerifierTest {
         }
 
         @Test
-        @DisplayName("given a sixth slot, then its proven value is the last message running hash")
-        void givenSixthSlot_thenItsValueIsTheLastMessageRunningHash() {
-            final byte[] runningHash = deterministicBytes(32, 0xAB);
-            final DeliveryBuilder builder = delivery()
-                    .withSingleSlotStorage(slotKey(0x50), runningHash, channelSlotsAnd(CHANNEL_ID, slotKey(0x50)));
+        @DisplayName("given an unrelated sixth slot, then verifyBundle rejects the storage proof")
+        void givenUnrelatedSixthSlot_thenThrowsProofException() {
+            // nextMessageId 42 gets past the counter check, so the failure is the slot-key mismatch: slot
+            // 0x50 is not message 41's running-hash slot.
+            final byte[][] slots = channelSlots(CHANNEL_ID);
+            final byte[] statusSlot = new byte[32];
+            ByteBuffer.wrap(statusSlot, 3, 8).putLong(42L);
+            final DeliveryBuilder builder =
+                    delivery().withSingleSlotStorage(slots[0], statusSlot, channelSlotsAnd(CHANNEL_ID, slotKey(0x50)));
 
-            final ProvenQueueMetadata metadata = verify(bundle(builder.build())).queueMetadata();
-
-            assertThat(metadata.lastMessageRunningHash()).isEqualTo(runningHash);
-            assertThat(metadata.sentRunningHash()).isEqualTo(new byte[32]);
+            assertRejected(bundle(builder.build()), "last-message running-hash slot does not belong to this channel");
         }
 
         @Test

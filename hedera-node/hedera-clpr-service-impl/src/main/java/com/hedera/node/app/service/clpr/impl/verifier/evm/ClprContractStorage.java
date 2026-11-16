@@ -81,7 +81,8 @@ public final class ClprContractStorage {
      * <p>Every Channel slot must be present. Any other slot is taken as the last message's running-hash slot, whose
      * value becomes {@link ProvenQueueMetadata#lastMessageRunningHash()}; without one, that hash is 32 zero bytes. The
      * caller bounds how many slots a bundle may prove, so it normally adds at most one other slot; if it adds more, the
-     * last one added is used. Which message that slot belongs to is not checked here (#486).
+     * last one added is used. Which message that slot belongs to is not checked here; callers bind it to this channel's
+     * last queued message with {@code EvmChannelContext.orderQueueSlots} before decoding.
      *
      * <p>Solidity packs primitive fields starting at the LSB of a slot, so on a 32-byte big-endian storage word the
      * first-declared field sits at the right (high index of the byte array).

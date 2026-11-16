@@ -1415,6 +1415,76 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testSelectNewBlockNode_initializeFailureFailsOverToLowerPriorityNode() throws Throwable {
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(20L);
+        // Node 1 is the highest priority; its status check passes but its stream can never be opened
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig("localhost", 1234, 1);
+        final BlockNode node1 = new BlockNode(
+                configProvider, node1Config, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
+        final Future<Object> node1Future = mock(Future.class);
+        when(node1Future.state()).thenReturn(State.SUCCESS);
+        when(node1Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 12));
+        // Node 2 is a healthy, lower priority node
+        final BlockNodeConfiguration node2Config = newBlockNodeConfig("localhost", 2345, 2);
+        final BlockNode node2 = new BlockNode(
+                configProvider, node2Config, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
+        final Future<Object> node2Future = mock(Future.class);
+        when(node2Future.state()).thenReturn(State.SUCCESS);
+        when(node2Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 12));
+        // the first selection only checks the priority 1 group; the second only has Node 2 as a candidate
+        when(blockingIoExecutor.invokeAll(anyCollection(), anyLong(), any(TimeUnit.class)))
+                .thenReturn(List.of(node1Future), List.of(node2Future));
+
+        blockNodes().put(node1Config.streamingEndpoint(), node1);
+        blockNodes().put(node2Config.streamingEndpoint(), node2);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
+                mockConstruction(BlockNodeStreamingConnection.class, (connection, context) -> {
+                    final BlockNode selectedNode =
+                            (BlockNode) context.arguments().get(1);
+                    final BlockNodeConfiguration config = selectedNode.configuration();
+                    lenient().when(connection.configuration()).thenReturn(config);
+                    lenient()
+                            .when(connection.connectionId())
+                            .thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, context.getCount()));
+                    if (selectedNode == node1) {
+                        doThrow(new RuntimeException("Pipeline creation timed out"))
+                                .when(connection)
+                                .initialize();
+                        // mirror the real close(): record the reason and notify the manager
+                        doAnswer(invocation -> {
+                                    when(connection.closeReason()).thenReturn(invocation.getArgument(0));
+                                    connectionManager.notifyConnectionClosed(connection);
+                                    return null;
+                                })
+                                .when(connection)
+                                .close(any(CloseReason.class), any(Boolean.class), any());
+                    }
+                })) {
+            // first attempt: Node 1 is selected, but its connection fails to initialize
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.UNKNOWN, null);
+
+            assertThat(mockConnection.constructed()).hasSize(1);
+            assertThat(activeConnectionRef()).hasNullValue();
+            assertThat(node1.isStreamingCandidate()).isFalse();
+            assertThat(node2.isStreamingCandidate()).isTrue();
+
+            // second attempt: Node 1 is cooling down, so the lower priority Node 2 is selected
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.UNKNOWN, null);
+
+            final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
+            assertThat(createdConnections).hasSize(2);
+            final BlockNodeStreamingConnection node2Connection = createdConnections.get(1);
+            assertThat(node2Connection.configuration()).isEqualTo(node2Config);
+            assertThat(activeConnectionRef()).hasValue(node2Connection);
+            verify(node2Connection).updateConnectionState(ConnectionState.ACTIVE);
+        }
+
+        verify(blockingIoExecutor, times(2)).invokeAll(anyCollection(), anyLong(), any(TimeUnit.class));
+    }
+
+    @Test
     void testSelectNewBockNode_higherPriorityRequiredAndAvailable() throws Throwable {
         // create multiple block nodes with different priorities (1-3) but have the active connection be priority 2
         // this should trigger a node reselection where only nodes with higher priorities (i.e. priority 1) are selected

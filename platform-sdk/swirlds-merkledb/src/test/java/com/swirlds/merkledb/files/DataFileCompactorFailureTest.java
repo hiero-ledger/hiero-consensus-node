@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.CASableLongIndex;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,7 +61,7 @@ class DataFileCompactorFailureTest {
     void setUp() throws IOException {
         storeDir = tempDir.resolve("store");
         store = new FailingDataFileCollection(storeDir, STORE_NAME);
-        index = new LongListOffHeap(KEYS_PER_FILE, NUM_KEYS, 0);
+        index = new LongListSegment(KEYS_PER_FILE, NUM_KEYS, 0);
         index.updateValidRange(0, NUM_KEYS - 1);
         for (int file = 0; file < NUM_FILES; file++) {
             store.startWriting();

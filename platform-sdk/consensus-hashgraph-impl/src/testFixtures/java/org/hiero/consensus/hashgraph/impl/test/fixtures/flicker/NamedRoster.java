@@ -13,15 +13,20 @@ import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 
 /**
- * A roster whose nodes are named by letter: a name, and a weight per node letter.
+ * A roster whose nodes are named by letter: a name, and a weight per node letter. Each roster block in a
+ * {@code .graph} header is one of these.
  * <p>
  * A graph names each event's creator by the letter that starts the event's name, and {@link #nodeIdFor} gives every
  * letter one node id that depends on the letter alone. A roster built here therefore uses the same ids as the events
  * {@link GraphBuilder} builds, whatever weights it gives them.
+ * <p>
+ * Weights are declared in the {@code .graph} file itself rather than in a separate roster file, so they sit beside the
+ * graph's comments and the test that uses it, which explain what the weights make consensus do.
  *
  * @param name            the roster's name, such as {@code initial} or {@code after}
  * @param weightsByLetter each node's letter mapped to its weight, in declaration order. The order is the order of the
- *                        roster's entries, so the map is sequenced to keep the roster reproducible
+ *                        roster's entries and of the block {@link GraphWriter} writes, so the map is sequenced to
+ *                        keep both reproducible
  */
 public record NamedRoster(@NonNull String name, @NonNull SequencedMap<String, Long> weightsByLetter) {
 

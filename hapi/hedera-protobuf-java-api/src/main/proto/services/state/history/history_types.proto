@@ -55,6 +55,23 @@ message ProofKey {
 }
 
 /**
+ * A member and its original listed weight in a committed WRAPS address book.
+ * Every member is retained, including members whose selected key is the
+ * sentinel key. A sentinel member's listed weight is part of the commitment,
+ * even though it contributes no effective weight to the WRAPS signing quorum.
+ */
+message ProofNodeWeight {
+  /**
+   * The node id.
+   */
+  uint64 node_id = 1;
+  /**
+   * The original listed weight committed for this node.
+   */
+  uint64 weight = 2;
+}
+
+/**
  * A piece of new history in the form of an address book hash and
  * associated metadata.
  */
@@ -100,6 +117,16 @@ message HistoryProof {
    * can validate and persist explicit key provenance. Absent for genesis.
    */
   bytes key_provenance_signature = 5;
+  /**
+   * The complete target address book's weighted membership, ordered by node id.
+   * Together with target_proof_keys (and the sentinel for each member without a
+   * selected key), this reconstructs the committed target book independently of
+   * the platform roster, hinTS participant set, and subsequent key publications.
+   * The snapshot survives ordinary candidate-roster replacement and is required
+   * to extend a WRAPS proof after its original target roster has been pruned.
+   * Absent only on proofs written before this snapshot field was introduced.
+   */
+  repeated ProofNodeWeight target_node_weights = 6;
 }
 
 /**
@@ -191,6 +218,16 @@ message HistoryProofConstruction {
    * its grace period ended.
    */
   repeated uint64 wraps_excluded_node_ids = 14;
+
+  /**
+   * The WRAPS signing and book-selection protocol under which this attempt was
+   * created. Version zero identifies legacy attempts whose transcript and votes
+   * may have used hinTS-derived book positions or different source authority.
+   * An unfinished attempt from another protocol is replaced with a fresh
+   * construction id before any transcript or vote is replayed. Completed proofs
+   * retain their original version and committed trust root.
+   */
+  uint32 wraps_protocol_version = 15;
 }
 
 /**

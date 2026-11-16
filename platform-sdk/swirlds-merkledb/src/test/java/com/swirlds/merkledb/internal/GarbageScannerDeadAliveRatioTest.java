@@ -10,20 +10,30 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.internal.GarbageScanner.GarbageFileStats;
 import com.swirlds.merkledb.internal.GarbageScanner.IndexedGarbageFileStats;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class GarbageScannerDeadAliveRatioTest {
+
+    /// Indexes created by the current test, closed after it to free their off-heap memory.
+    private final List<LongList> indexes = new ArrayList<>();
+
+    @AfterEach
+    void closeIndexes() {
+        indexes.forEach(LongList::close);
+    }
 
     // ========================================================================
     // dead/alive ratio computation
@@ -167,10 +177,7 @@ class GarbageScannerDeadAliveRatioTest {
             // Only 2 unique alive entries → dead=3, alive=2, d/a = 1.5
             final DataFileReader file = mockFileReader(1, 0, 5, 1000);
 
-            final LongList index = new LongListHeap(
-                    DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
-                    4,
-                    DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+            final LongList index = newIndex(4);
             index.updateValidRange(0, 3);
             final long loc1 = DataFileCommon.dataLocation(1, 100);
             final long loc2 = DataFileCommon.dataLocation(1, 200);
@@ -198,10 +205,7 @@ class GarbageScannerDeadAliveRatioTest {
             // File 1: totalItems=4, all 4 entries distinct → alive=4, dead=0
             final DataFileReader file = mockFileReader(1, 0, 4, 1000);
 
-            final LongList index = new LongListHeap(
-                    DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
-                    4,
-                    DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+            final LongList index = newIndex(4);
             index.updateValidRange(0, 3);
             index.put(0, DataFileCommon.dataLocation(1, 100));
             index.put(1, DataFileCommon.dataLocation(1, 200));
@@ -417,21 +421,23 @@ class GarbageScannerDeadAliveRatioTest {
         return new GarbageScanner(index, fileCollection);
     }
 
-    private static LongList emptyIndex() {
-        return new LongListHeap(
-                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(), 1, DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+    private LongList newIndex(final long capacity) {
+        final LongList index = new LongListSegment(capacity, DEFAULT_MERKLE_DB_CONFIG);
+        indexes.add(index);
+        return index;
     }
 
-    private static LongList mockIndexWithEntries(final long[]... blocks) {
+    private LongList emptyIndex() {
+        return newIndex(1);
+    }
+
+    private LongList mockIndexWithEntries(final long[]... blocks) {
         long totalEntries = 0;
         for (final long[] block : blocks) {
             totalEntries += block.length;
         }
 
-        final LongList index = new LongListHeap(
-                DEFAULT_MERKLE_DB_CONFIG.longListChunkSize(),
-                Math.max(1, totalEntries),
-                DEFAULT_MERKLE_DB_CONFIG.longListReservedBufferSize());
+        final LongList index = newIndex(Math.max(1, totalEntries));
         index.updateValidRange(0, Math.max(0, totalEntries - 1));
 
         long key = 0;
