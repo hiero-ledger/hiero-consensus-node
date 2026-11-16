@@ -211,80 +211,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var validated = verifyAndValidateBundle(context, channel, ledgerConfig, nodeAccountId, penaltyAmount);
         final var bundleContent = validated.content();
         final var metadata = bundleContent.metadata();
-        final var newTrustAnchor = bundleContent.newTrustAnchor();
-        final var newTrustAnchorId = bundleContent.newTrustAnchorId();
 
-        // Spec §4.2 Step 1b: apply new_endpoint_manifest, and Step 1c: install successor
-        // trust anchor. Applied together in a single copyBuilder / put so a manifest update
-        // and a trust-anchor rotation carried by the same bundle are atomic (they're already
-        // covered by the same verifyBundle call). All node checks have passed before this write.
-        //
-        // Step 1b guard rules (per ADR "Propagating Updates Through Bundle Payloads"):
-        // - Applied only when newEndpointManifest.version() strictly advances the current
-        //   cached version. Absent or stale manifest → silent skip; the bundle is NOT
-        //   rejected for this reason alone. Manifest updates are allowed on CLOSING /
-        //   DRAINED channels (harmless, keeps the cache current for admin purposes).
-        // - Entire manifest replacement; no partial merge.
-        final var newEndpointManifest = bundleContent.newEndpointManifest();
-        final boolean shouldUpdateManifest = validated.shouldUpdateManifest();
-        final boolean shouldUpdateTrustAnchor = newTrustAnchor.length() > 0;
-        if (shouldUpdateManifest || shouldUpdateTrustAnchor) {
-            var updatedBuilder = channel.copyBuilder();
-            if (shouldUpdateManifest) {
-                log.debug(
-                        "[ClprSubmitBundle] applying new endpoint manifest conn={} version={}->{} entries={} endpoints={}",
-                        channelId,
-                        channel.endpointManifestVersion(),
-                        newEndpointManifest.version(),
-                        newEndpointManifest.endpoints().size(),
-                        newEndpointManifest.endpoints().stream()
-                                .map(e -> {
-                                    final var svc = e.serviceEndpoint();
-                                    return svc == null ? "?" : svc.ipAddress() + ":" + svc.port();
-                                })
-                                .collect(Collectors.joining(", ", "[", "]")));
-                // Apply this ledger's max_peer_endpoints policy before storing, mirroring
-                // ClprCompleteChannel — the peer's declared list must not override our storage
-                // bound (spec §3.10.5). Zero means no limit; entries beyond it are dropped in order.
-                final int rawPeerLimit = throttles.maxPeerEndpoints();
-                final var incomingEndpoints = newEndpointManifest.endpoints();
-                final var truncatedEndpoints = rawPeerLimit > 0 && incomingEndpoints.size() > rawPeerLimit
-                        ? incomingEndpoints.subList(0, rawPeerLimit)
-                        : incomingEndpoints;
-                final var storedManifest = newEndpointManifest
-                        .copyBuilder()
-                        .endpoints(truncatedEndpoints)
-                        .build();
-                updatedBuilder = updatedBuilder
-                        .endpointManifest(storedManifest)
-                        .endpointManifestVersion(storedManifest.version());
-                // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
-                // handled without an exception (see doHandle).
-                deferredPeerEndpoints.set(channelId, truncatedEndpoints);
-            }
-            if (shouldUpdateTrustAnchor) {
-                log.debug(
-                        "[ClprSubmitBundle] installing successor trust anchor conn={} trustAnchorLen={} trustAnchorId={}",
-                        channelId,
-                        newTrustAnchor.length(),
-                        shortHex(newTrustAnchorId));
-                updatedBuilder = updatedBuilder.trustAnchor(newTrustAnchor).trustAnchorId(newTrustAnchorId);
-            }
-            channel = updatedBuilder.build();
-            channelStore.put(channel);
-        }
-
-        // A metadata-less bundle carries only a state-proven update with no queue metadata or
-        // messages: a trust-anchor rotation (e.g. a Sei validator-set update) or an endpoint-manifest
-        // recovery (spec §8.1.4 manual recovery — the manifest was already applied at Step 1b above).
-        // Either is meaningful progress, so persist the successor / manifest above and stop before the
-        // metadata-dependent queue checks below.
+        // A proof can carry just a manifest or trust update. With no queue metadata there are no replies to check.
         if (metadata == null) {
-            log.debug(
-                    "[ClprSubmitBundle] state-update-only bundle accepted conn={} trustAnchorLen={} manifestUpdated={}",
-                    channelId,
-                    newTrustAnchor.length(),
-                    shouldUpdateManifest);
+            applyBundleStateUpdates(
+                    channel, validated, throttles.maxPeerEndpoints(), channelStore, deferredPeerEndpoints);
             return;
         }
 
@@ -365,6 +296,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         }
 
         // --- Pass 2: Mutations begin ---
+
+        // An ordering violation returns before either proof-verified update can change the channel.
+        channel = applyBundleStateUpdates(
+                channel, validated, throttles.maxPeerEndpoints(), channelStore, deferredPeerEndpoints);
 
         // Delete acked one-way outbound messages (control, reply). Data slots are deleted later when their inbound
         // reply is processed in Step 10.
@@ -1326,6 +1261,70 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 }
             });
         }
+    }
+
+    private static ClprChannel applyBundleStateUpdates(
+            @NonNull final ClprChannel channel,
+            @NonNull final ValidatedBundle validated,
+            final int maxPeerEndpoints,
+            @NonNull final WritableChannelStore channelStore,
+            @NonNull final DeferredPeerEndpoints deferredPeerEndpoints) {
+        final var bundleContent = validated.content();
+        final var channelId = channel.channelId();
+        final var newTrustAnchor = bundleContent.newTrustAnchor();
+        final var newTrustAnchorId = bundleContent.newTrustAnchorId();
+
+        // Persist proof-verified manifest and trust updates together.
+        // Stale manifests are ignored. An advancing manifest replaces the whole cached manifest.
+        final var newEndpointManifest = bundleContent.newEndpointManifest();
+        final boolean shouldUpdateManifest = validated.shouldUpdateManifest();
+        final boolean shouldUpdateTrustAnchor = newTrustAnchor.length() > 0;
+        if (shouldUpdateManifest || shouldUpdateTrustAnchor) {
+            var updatedBuilder = channel.copyBuilder();
+            if (shouldUpdateManifest) {
+                log.debug(
+                        "[ClprSubmitBundle] applying new endpoint manifest conn={} version={}->{} entries={} endpoints={}",
+                        channelId,
+                        channel.endpointManifestVersion(),
+                        newEndpointManifest.version(),
+                        newEndpointManifest.endpoints().size(),
+                        newEndpointManifest.endpoints().stream()
+                                .map(e -> {
+                                    final var svc = e.serviceEndpoint();
+                                    return svc == null ? "?" : svc.ipAddress() + ":" + svc.port();
+                                })
+                                .collect(Collectors.joining(", ", "[", "]")));
+                // Apply this ledger's max_peer_endpoints policy before storing, mirroring
+                // ClprCompleteChannel — the peer's declared list must not override our storage
+                // bound (spec §3.10.5). Zero means no limit; entries beyond it are dropped in order.
+                final var incomingEndpoints = newEndpointManifest.endpoints();
+                final var truncatedEndpoints = maxPeerEndpoints > 0 && incomingEndpoints.size() > maxPeerEndpoints
+                        ? incomingEndpoints.subList(0, maxPeerEndpoints)
+                        : incomingEndpoints;
+                final var storedManifest = newEndpointManifest
+                        .copyBuilder()
+                        .endpoints(truncatedEndpoints)
+                        .build();
+                updatedBuilder = updatedBuilder
+                        .endpointManifest(storedManifest)
+                        .endpointManifestVersion(storedManifest.version());
+                // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
+                // handled without an exception (see doHandle).
+                deferredPeerEndpoints.set(channelId, truncatedEndpoints);
+            }
+            if (shouldUpdateTrustAnchor) {
+                log.debug(
+                        "[ClprSubmitBundle] installing successor trust anchor conn={} trustAnchorLen={} trustAnchorId={}",
+                        channelId,
+                        newTrustAnchor.length(),
+                        shortHex(newTrustAnchorId));
+                updatedBuilder = updatedBuilder.trustAnchor(newTrustAnchor).trustAnchorId(newTrustAnchorId);
+            }
+            final var updated = updatedBuilder.build();
+            channelStore.put(updated);
+            return updated;
+        }
+        return channel;
     }
 
     /**

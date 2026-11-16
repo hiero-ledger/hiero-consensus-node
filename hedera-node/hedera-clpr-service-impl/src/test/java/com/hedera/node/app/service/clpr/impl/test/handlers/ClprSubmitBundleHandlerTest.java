@@ -1551,17 +1551,24 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("PAUSED stays PAUSED on incorrect response")
+    @DisplayName("An incorrect response leaves a paused channel and its state updates unchanged")
     void pausedStaysPausedOnIncorrectResponse() {
         putOutboundDataMessage(1);
         putOutboundDataMessage(3);
-        putChannel(ClprChannelStatus.PAUSED, 4, 0, ZERO_HASH);
-        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(replyPayload(3)));
-        setupHandleContext(bundle, true);
+        putChannelWithManifestVersion(ClprChannelStatus.PAUSED, 4, 0, ZERO_HASH, 1L);
+        final var before = channelStore.getChannel(CHANNEL_ID);
+        final var content = bundleEndingAt(2, ZERO_HASH, List.of(replyPayload(3)))
+                .copyBuilder()
+                .newEndpointManifest(buildManifest(2L, "10.0.0.7"))
+                .newTrustAnchor(Bytes.fromHex("01"))
+                .newTrustAnchorId(Bytes.fromHex("02"))
+                .build();
+        setupHandleContext(bundleTxn(content), true);
 
         subject.handle(handleContext);
 
-        assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(before);
+        verify(channelLifecycle, never()).seedPeerEndpoints(eq(CHANNEL_ID), any());
     }
 
     @Test
@@ -3032,7 +3039,7 @@ class ClprSubmitBundleHandlerTest {
             final var manifestOnlyContent = ClprBundleContent.newBuilder()
                     .newEndpointManifest(newManifest)
                     .build();
-            putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 1L);
+            putChannelWithManifestVersion(ClprChannelStatus.PAUSED, 1, 0, ZERO_HASH, 1L);
             setupHandleContextWithFlags(validSingleDataBundle(), true);
             given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(manifestOnlyContent);
 
@@ -3041,6 +3048,7 @@ class ClprSubmitBundleHandlerTest {
             final var updated = channelStore.getChannel(CHANNEL_ID);
             assertThat(updated.endpointManifestVersion()).isEqualTo(5L);
             assertThat(updated.endpointManifestOrThrow()).isEqualTo(newManifest);
+            assertThat(updated.status()).isEqualTo(ClprChannelStatus.PAUSED);
             // Queue state untouched; no application dispatch (no messages).
             assertThat(updated.nextMessageId()).isEqualTo(1L);
             assertThat(updated.receivedMessageId()).isZero();
