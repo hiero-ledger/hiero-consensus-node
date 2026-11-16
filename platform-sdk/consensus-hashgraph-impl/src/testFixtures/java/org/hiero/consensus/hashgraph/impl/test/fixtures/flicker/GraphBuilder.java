@@ -64,7 +64,7 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
  * <b>The creator id is hashed too</b>, and it is not a builder default either: it comes from the letter that starts
  * the event's name, through {@link NamedRoster#nodeIdFor}. So the graph alone fixes it, and building needs no roster.
  * A roster only matters when the events are fed to consensus, and it must then use the same ids, which
- * {@link NamedRoster#toRosterWrapper()} does.
+ * {@link NamedRoster#roster()} does.
  * <p>
  * <b>Events are hashed as they are built</b>, before being used as anyone's parent. {@code TestingEventBuilder}
  * installs a random placeholder hash and takes a parent's descriptor from whatever hash the parent carries at the

@@ -4,7 +4,9 @@ package org.hiero.consensus.hashgraph.impl.consensus.flicker;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.SequencedMap;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.EventSpec;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerGraph;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.GraphParseException;
@@ -59,13 +61,7 @@ class GraphParserTest {
         void rostersAreParsed() {
             final FlickerGraph graph = GraphParser.parse(GRAPH);
 
-            assertThat(graph.rosters().stream().map(NamedRoster::name)).containsExactly("initial", "after");
-            assertThat(graph.roster("after").weightsByLetter())
-                    .containsExactly(
-                            java.util.Map.entry("a", 4L),
-                            java.util.Map.entry("b", 1L),
-                            java.util.Map.entry("c", 1L),
-                            java.util.Map.entry("d", 4L));
+            assertThat(graph.rosters()).containsExactly(roster("initial", 1, 1, 1, 1), roster("after", 4, 1, 1, 4));
         }
 
         @Test
@@ -283,6 +279,16 @@ class GraphParserTest {
                 .filter(s -> s.name().equals(name))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /** A roster of nodes {@code a} to {@code d}, with the given weights, listed in that order. */
+    private static NamedRoster roster(final String name, final long a, final long b, final long c, final long d) {
+        final SequencedMap<String, Long> weights = new LinkedHashMap<>();
+        weights.put("a", a);
+        weights.put("b", b);
+        weights.put("c", c);
+        weights.put("d", d);
+        return NamedRoster.of(name, weights);
     }
 
     private static String replaceRow(final String row, final String replacement) {
