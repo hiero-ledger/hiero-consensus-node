@@ -130,6 +130,15 @@ public record HederaEvmTransaction(
         return pbjToTuweniBytes(payload);
     }
 
+    /**
+     * Returns the value transferred by this transaction as a Besu {@link Wei}.
+     *
+     * <p><b>Unit:</b> despite the type name, the amount is in <b>tinybars</b> (the raw {@code value} of this
+     * transaction), not weibars. This is what the {@code CALLVALUE} opcode (and {@code msg.value} in Solidity) observes.
+     * For Ethereum transactions the weibar {@code value} is already divided by 10<sup>10</sup> before it gets here.
+     *
+     * @return the transaction value in tinybars, wrapped in a {@code Wei}
+     */
     public Wei weiValue() {
         return Wei.of(value);
     }

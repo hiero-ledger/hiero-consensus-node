@@ -1362,6 +1362,8 @@ public class ContractCallSuite {
                 contractCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(DEPOSIT_AMOUNT))
                         .via(PAY_TXN)
                         .sending(DEPOSIT_AMOUNT),
+                // The contract requires msg.value == amount, so this pins that msg.value is in tinybars
+                getAccountBalance(PAY_RECEIVABLE_CONTRACT).hasTinyBars(DEPOSIT_AMOUNT),
                 getTxnRecord(PAY_TXN)
                         .hasPriority(
                                 recordWith().contractCallResult(resultWith().logs(inOrder()))));
@@ -2580,11 +2582,13 @@ public class ContractCallSuite {
         final var address = "123456";
         final var contract = "badEvmAddressContract";
 
-        return contractIdResultsInPrecheckFail(contract, spec -> ContractID.newBuilder()
-                .setShardNum(spec.shard())
-                .setRealmNum(spec.realm())
-                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
-                .build());
+        return contractIdResultsInPrecheckFail(
+                contract,
+                spec -> ContractID.newBuilder()
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
+                        .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
+                        .build());
     }
 
     @HapiTest
@@ -2600,11 +2604,13 @@ public class ContractCallSuite {
         final var address = "0000000000000000000000000000000000000000";
         final var contract = "zeroEvmAddressContract";
 
-        return contractIdResultsInPrecheckFail(contract, spec -> ContractID.newBuilder()
-                .setShardNum(spec.shard())
-                .setRealmNum(spec.realm())
-                .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
-                .build());
+        return contractIdResultsInPrecheckFail(
+                contract,
+                spec -> ContractID.newBuilder()
+                        .setShardNum(spec.shard())
+                        .setRealmNum(spec.realm())
+                        .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
+                        .build());
     }
 
     private Stream<DynamicTest> contractIdResultsInPrecheckFail(
