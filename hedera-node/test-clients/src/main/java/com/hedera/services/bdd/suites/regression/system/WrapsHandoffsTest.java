@@ -223,7 +223,9 @@ public class WrapsHandoffsTest implements LifecycleTest {
                                 LOG_POLL_INTERVAL,
                                 () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
                         .loggingOff(),
-                streamMustIncludePassWithReplayFrom(spec -> adoptedKeyWithDurableWitness(), WRAPS_PROOF_TIMEOUT)
+                streamMustIncludePassWithReplayFrom(
+                                spec -> BlockStreamAssertion.withFullStateValues(adoptedKeyWithDurableWitness()),
+                                WRAPS_PROOF_TIMEOUT)
                         .stopAfterFirstSuccess());
     }
 
