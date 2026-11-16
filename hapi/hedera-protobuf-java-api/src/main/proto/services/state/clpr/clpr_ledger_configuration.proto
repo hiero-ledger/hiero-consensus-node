@@ -87,14 +87,16 @@ message ClprThrottles {
 
     /**
      * Maximum serialized size in bytes of a Data or application reply ClprMessagePayload,
-     * including all metadata and protobuf framing. Oversized application returns produce
-     * an empty APPLICATION_ERROR reply. Hiero requires a local limit of at least 15 bytes
+     * including all metadata and protobuf framing. On Hiero, oversized application returns
+     * roll back the application dispatch before producing an empty APPLICATION_ERROR reply.
+     * Hiero requires a local limit of at least 15 bytes
      * so an empty error reply fits for every message id. If that reply exceeds the peer's
      * payload limit or conservative proof allowance, DATA is not dispatched and the empty
      * error is still enqueued to preserve protocol progress. The proof builder enforces
      * the actual serialized bundle limit. Incoming replies are hashed as attested, but an
-     * oversized reply is delivered to the application as an empty APPLICATION_ERROR.
-     * Slashing still follows the attested status. Control payloads are exempt.
+     * oversized reply preserves its execution status and uses Hiero's separate
+     * onClprResponseUnavailable callback without the response data. Slashing still follows
+     * the attested status. Control payloads are exempt.
      */
     uint32 max_message_payload_bytes = 2;
 

@@ -259,8 +259,24 @@ this budget. If even an empty error exceeds it, Hiero skips the application call
 queues exactly one empty `APPLICATION_ERROR`, and continues processing the bundle. ACK, anchor,
 manifest and config progress are retained. This minimum response can exceed an invalid peer limit
 or the conservative allowance; the proof builder still enforces the actual serialized bundle limit.
-Oversized incoming replies retain their attested hash and connector-fault status for slashing, while
-the application callback receives an empty `APPLICATION_ERROR`.
+After dispatch, an oversized or malformed ABI return rolls back the application call and its nested
+effects before Hiero queues an empty `APPLICATION_ERROR`. Connector compensation and the network fee
+for executed gas remain charged. A fitting successful return commits and produces `SUCCESS`.
+
+An incoming reply may have been generated successfully before the local payload limit decreased.
+Hiero preserves its attested execution status, hash, ACK and connector-fault slashing decision.
+When its serialized payload exceeds the current local limit, the originating application instead
+receives `onClprResponseUnavailable(bytes32 channelId, uint64 messageId, uint8 status)`, with the
+original status and no response data. `SUCCESS` still means the destination committed; unavailable
+data must not trigger compensation for failed execution. A fitting reply, including a legitimate
+empty response, uses the existing four-argument `onClprResponse` callback.
+
+The unavailable-data callback is a local application interface extension; reply wire fields and
+status values are unchanged. Applications must implement the new hook to receive this notification.
+Delivery remains best-effort: if the hook is absent or reverts, the reply is still accepted and ACKed,
+and Hiero does not fall back to an ordinary callback with misleading status or ambiguous empty data.
+Such applications must reconcile from the attested reply. See application dispatch details in
+[`clpr-hiero-impl-spec.md` §7](clpr-hiero-impl-spec.md#7-application-dispatch).
 
 ---
 

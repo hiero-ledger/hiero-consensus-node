@@ -534,6 +534,20 @@ require multi-network infrastructure.
 - A message whose execution exceeds `max_gas_per_message` is handled according to the platform's gas
   metering. On EVM platforms, the application callback receives a fixed gas stipend.
 
+### 3.10.4 Reply Size and Execution Outcome
+
+- A stateful destination application changes storage and returns a valid ABI result exceeding the
+  serialized reply budget. Its effects (including nested sends) roll back before an empty
+  `APPLICATION_ERROR` is queued, while compensation and executed-gas charges remain. A fitting
+  successful result commits; a genuine application revert also rolls back.
+- A peer queues a valid `SUCCESS` reply under the old limit, then the source lowers its payload
+  limit before receiving it. Acceptance preserves the attested hash, removes the original DATA
+  and advances ACK. The application receives `onClprResponseUnavailable` with `SUCCESS`, and must
+  not compensate for failed destination execution.
+- A fitting empty success uses the ordinary `onClprResponse` callback and is distinguishable from
+  unavailable data. An absent or reverting unavailable-data hook does not trigger an ordinary
+  callback or prevent protocol progress. Connector slashing uses the original attested status.
+
 ## 3.11 Metadata Exchange
 
 ### 3.11.1 `verifyMetadata`
