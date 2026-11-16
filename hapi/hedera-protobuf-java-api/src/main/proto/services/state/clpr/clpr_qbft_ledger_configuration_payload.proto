@@ -56,17 +56,18 @@ message StorageProofEntry {
  * verify the configuration against the source ledger's state root.
  *
  * The trust anchor is derived on the verifier side from
- * current_block_header (the QBFT validator set from extra_data, which
- * must have sealed that header, and its block number), the ClprService
- * address from the configuration, and the contract's code hash from
- * clpr_service_account_proof. Carrying the raw header instead of a
+ * current_block_header (its block number, and the QBFT validator set that
+ * must have sealed it: listed in its extra_data in header mode, or proven
+ * from the validator contract by contract_mode_validator_source in
+ * contract mode), the ClprService address from the configuration, and the
+ * contract's code hash from clpr_service_account_proof. Carrying the raw header instead of a
  * pre-computed anchor lets the verifier check the derivation rather
  * than trusting the source.
  */
 message ClprQbftLedgerConfigurationPayload {
     /**
-     * Not read by the verifier: every QBFT header lists the validator set that sealed it,
-     * so the initial set is taken from current_block_header. Kept for wire compatibility.
+     * Not read by the verifier: the initial set is taken from current_block_header (header
+     * mode) or contract_mode_validator_source (contract mode). Kept for wire compatibility.
      */
     BlockHeader genesis_block_header = 1;
 
@@ -104,4 +105,40 @@ message ClprQbftLedgerConfigurationPayload {
      * in the follow-up PR that wires eth_getProof.
      */
     repeated StorageProofEntry clpr_service_storage_proofs = 5;
+
+    /**
+     * Present only when the source ledger's QBFT validator set is managed by a validator smart
+     * contract (Besu's "contract" validator-selection mode) rather than listed in each block
+     * header's extra_data. Absent (the default) means header mode: the validator set is read
+     * from current_block_header.extra_data.
+     */
+    QbftContractModeValidatorSource contract_mode_validator_source = 6;
+}
+
+/**
+ * The QBFT contract-mode data a verifier needs to prove the source ledger's validator set: the
+ * validator contract's address and the storage slot of its `address[]` array, with a proof of the
+ * array (its length slot and every element slot) under current_block_header.state_root.
+ */
+message QbftContractModeValidatorSource {
+    /**
+     * The 20-byte address of the deployed validator contract.
+     */
+    bytes validator_contract_address = 1;
+
+    /**
+     * Storage slot of the validator contract's address[] array (32 bytes).
+     */
+    bytes array_slot = 2;
+
+    /**
+     * EIP-1186 account proof for the validator contract under current_block_header.state_root.
+     */
+    repeated bytes validator_contract_account_proof = 3;
+
+    /**
+     * EIP-1186 storage proofs for the array's length slot and every element slot. Only key and
+     * proof are read; the value comes from the proof's leaf.
+     */
+    repeated StorageProofEntry validator_contract_storage_proofs = 4;
 }

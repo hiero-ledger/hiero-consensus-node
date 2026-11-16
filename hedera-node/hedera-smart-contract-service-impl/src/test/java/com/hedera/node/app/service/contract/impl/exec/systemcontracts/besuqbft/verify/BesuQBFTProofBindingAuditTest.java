@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
 
@@ -63,8 +62,8 @@ class BesuQBFTProofBindingAuditTest extends CallTestBase {
                 new byte[0]);
         try (final var ignored = mockConstruction(
                 BesuQbftVerifier.class,
-                (mock, context) ->
-                        given(mock.verifyBundle(any(), any(), anyLong(), any())).willReturn(proven))) {
+                (mock, context) -> given(mock.verifyBundle(any(), any(BesuQbftVerifier.TrustAnchor.class), any()))
+                        .willReturn(proven))) {
             final var subject = new BesuQBFTVerifyBundleCall(
                     mockEnhancement(),
                     gasCalculator,
