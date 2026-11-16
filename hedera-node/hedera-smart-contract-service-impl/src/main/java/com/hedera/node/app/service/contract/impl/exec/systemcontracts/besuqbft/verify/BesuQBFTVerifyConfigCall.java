@@ -30,7 +30,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * verifier system contract (EVM address {@code 0x16f}).
  *
  * <p>The {@code stateProofBytes} is a proto-encoded {@code QbftLedgerConfigurationPayload}
- * containing the genesis block header, current block header, ledger configuration, account proof,
+ * containing the current block header (whose listed validators are the initial set), ledger configuration, account proof,
  * and storage proofs needed to verify the CLPR service contract's on-chain configuration.
  *
  * <p>Proof verification is delegated to
@@ -72,7 +72,7 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
         log.info("verifyConfig (QBFT) ENTER: stateProofBytes={} bytes", stateProofBytes.length);
 
         // The address/hash for the ledger config is derived from the payload
-        final var verifier = new BesuQbftVerifier(new BesuQbftVerifier.Config(null, null, 30_000L));
+        final var verifier = new BesuQbftVerifier(new BesuQbftVerifier.Config(null, null));
 
         final BesuQbftVerifier.VerifiedConfig verified;
         try {

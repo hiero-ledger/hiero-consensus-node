@@ -9,7 +9,7 @@ Usage: run_benchmarks.py --manifest FILE... --out DIR [options] [-- JMH argument
 The benchmarks come either from the manifests that the Gradle task jmhTracked writes for every module that tracks
 benchmarks (build/jmh/tracked.properties: module, jar, includes, profilers), which is how the nightly job finds them, or
 from one jar and one include pattern, which is how a calibration run names its benchmark. They run in the order given,
-and within a manifest in the order of its includes.
+and within a manifest in the order of its includes. --only limits the manifests' includes to the given names.
 
 Every parameter set of every matching benchmark runs in its own JMH invocation, with "-foe true", so that a loaded
 parameter set can be repeated alone. While the benchmarks run, record-benchmark-environment.sh --monitor records the
@@ -138,6 +138,9 @@ def main():
     parser.add_argument("--manifest", nargs="+", action="extend", default=[],
                         help="tracked.properties files of the modules, written by their jmhTracked task; instead of"
                              " --jar and --benchmark")
+    parser.add_argument("--only", default="",
+                        help="with --manifest: only the includes with these names, separated by commas or spaces"
+                             " (default: all)")
     parser.add_argument("--jar", help="the benchmark jar")
     parser.add_argument("--benchmark", help="JMH include pattern of the benchmarks to run")
     parser.add_argument("--out", required=True, help="results directory")
@@ -167,9 +170,17 @@ def main():
 
     if bool(args.manifest) == bool(args.jar or args.benchmark) or (args.jar is None) != (args.benchmark is None):
         parser.error("give either --manifest or both --jar and --benchmark")
+    selected = args.only.replace(",", " ").split()
+    if selected and not args.manifest:
+        parser.error("--only needs --manifest")
     if args.manifest:
         jobs = [(module, jar, pattern, profilers + args.profiler) for path in args.manifest
                 for module, jar, patterns, profilers in [read_manifest(path)] for pattern in patterns]
+        if selected:
+            unknown = [name for name in selected if name not in {job[2] for job in jobs}]
+            if unknown:
+                sys.exit(f"not tracked: {', '.join(unknown)}; tracked benchmarks: {', '.join(j[2] for j in jobs)}")
+            jobs = [job for job in jobs if job[2] in selected]
     else:
         jobs = [(None, args.jar, args.benchmark, args.profiler)]
 
