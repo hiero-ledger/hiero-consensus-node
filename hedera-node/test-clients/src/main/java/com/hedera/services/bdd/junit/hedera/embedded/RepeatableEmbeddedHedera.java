@@ -35,7 +35,6 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
 /**
  * An embedded Hedera node that handles transactions synchronously on ingest and thus
@@ -188,24 +187,26 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
     }
 
     /**
-     * Executes the transaction in the last-created event within its own round.
+     * Executes available transactions, each in its own round.
      */
     public void handleNextRoundIfPresent() {
-        final List<TimestampedTransaction> bufferedTransactions = hedera.getTransactionsForEvent();
-        if (!bufferedTransactions.isEmpty()) {
-            platform.lastCreatedEvent = new FakeEvent(
-                    defaultNodeId,
-                    time.now(),
-                    createAppPayloadWrapper(bufferedTransactions.getFirst().transaction()));
+        final var submittedEvent = platform.lastCreatedEvent;
+        platform.lastCreatedEvent = null;
+        // Draining the pool can return priority node transactions alongside the user's transaction.
+        for (final var buffered : hedera.getTransactionsForEvent()) {
+            handleEvent(new FakeEvent(defaultNodeId, time.now(), createAppPayloadWrapper(buffered.transaction())));
         }
-        if (platform.lastCreatedEvent != null) {
-            hedera.onPreHandle(platform.lastCreatedEvent, state, preHandleStateSignatureCallback);
-            final var round = platform.nextConsensusRound();
-            // Handle each transaction in own round
-            hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
-            hedera.onSealConsensusRound(round, state);
-            notifyStateHashed(round.getRoundNum());
+        if (submittedEvent != null) {
+            handleEvent(submittedEvent);
         }
+    }
+
+    private void handleEvent(@NonNull final FakeEvent event) {
+        hedera.onPreHandle(event, state, preHandleStateSignatureCallback);
+        final var round = platform.nextConsensusRound(event);
+        hedera.handleWorkflow().handleRound(state, round, handleStateSignatureCallback);
+        hedera.onSealConsensusRound(round, state);
+        notifyStateHashed(round.getRoundNum());
     }
 
     /**
@@ -252,11 +253,11 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
                             firstRoundTime)));
         }
 
-        private Round nextConsensusRound() {
+        private Round nextConsensusRound(@NonNull final FakeEvent event) {
             time.tick(roundDuration);
             final var firstRoundTime = time.now();
-            final var consensusEvents = List.<ConsensusEvent>of(new FakeConsensusEvent(
-                    requireNonNull(lastCreatedEvent), consensusOrder.getAndIncrement(), firstRoundTime));
+            final var consensusEvents = List.<ConsensusEvent>of(
+                    new FakeConsensusEvent(event, consensusOrder.getAndIncrement(), firstRoundTime));
             return new FakeRound(roundNo.getAndIncrement(), requireNonNull(roster), consensusEvents);
         }
     }
