@@ -522,10 +522,45 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         // since there is no matching history entry for the connection, the connection counters should not change
         assertThat(localActiveStreamingConnectionCount()).hasValue(1);
         assertThat(globalActiveStreamingConnectionCount).hasValue(1);
+        // no close reason was recorded, so there is nothing to cool down for
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+        assertThat(node.isStreamingCandidate()).isTrue();
 
         verify(connection).configuration();
         verify(connection, times(2)).connectionId();
+        verify(connection).closeReason();
         verifyNoMoreInteractions(connection);
+    }
+
+    @Test
+    void testOnClose_streamingConnectionNoHistory_deviantCloseReasonAppliesCoolDown() {
+        // a connection that failed before becoming active has no history entry
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        when(connection.configuration()).thenReturn(configuration);
+        when(connection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 135));
+        when(connection.closeReason()).thenReturn(CloseReason.INTERNAL_ERROR);
+
+        node.onClose(connection);
+
+        // the node must sit out the basic cool down so other block nodes can be selected
+        assertThat(nodeCoolDownTimestampRef()).hasValue(Instant.now(clock).plusSeconds(BASIC_COOL_DOWN_SECONDS));
+        assertThat(node.isStreamingCandidate()).isFalse();
+        assertThat(connectionHistories()).isEmpty();
+        assertThat(globalActiveStreamingConnectionCount).hasValue(0);
+        assertThat(localActiveStreamingConnectionCount()).hasValue(0);
+    }
+
+    @Test
+    void testOnClose_streamingConnectionNoHistory_nonDeviantCloseReasonSkipsCoolDown() {
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        when(connection.configuration()).thenReturn(configuration);
+        when(connection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 136));
+        when(connection.closeReason()).thenReturn(CloseReason.PERIODIC_RESET);
+
+        node.onClose(connection);
+
+        assertThat(nodeCoolDownTimestampRef()).hasNullValue();
+        assertThat(node.isStreamingCandidate()).isTrue();
     }
 
     @Test

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
+import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -9,12 +11,17 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
+import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -26,6 +33,7 @@ import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
+import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
@@ -33,6 +41,8 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -135,22 +145,62 @@ class ClprStreamingSyncSessionTest {
         @Test
         @DisplayName("an unknown channel is rejected as NOT_FOUND")
         void rejectsUnknownChannel() {
-            mockState(null, () -> assertThatThrownBy(
-                            () -> session.onMessage(bytes(payload(CHANNEL_ID, request(0L), null))))
-                    .isInstanceOf(StatusRuntimeException.class)
-                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                    .isEqualTo(Status.Code.NOT_FOUND));
+            mockState(
+                    null,
+                    () -> assertThatThrownBy(() -> session.onMessage(bytes(payload(CHANNEL_ID, request(0L), null))))
+                            .isInstanceOf(StatusRuntimeException.class)
+                            .extracting(e ->
+                                    ((StatusRuntimeException) e).getStatus().getCode())
+                            .isEqualTo(Status.Code.NOT_FOUND));
         }
 
         @Test
         @DisplayName("a CLOSED local channel is rejected as FAILED_PRECONDITION")
         void rejectsClosedChannel() {
-            mockState(channel(ClprChannelStatus.CLOSED, 6L, 0L, 0L), () -> assertThatThrownBy(
-                            () -> session.onMessage(bytes(payload(CHANNEL_ID, request(0L), null))))
-                    .isInstanceOf(StatusRuntimeException.class)
-                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
-                    .isEqualTo(Status.Code.FAILED_PRECONDITION));
+            mockState(
+                    channel(ClprChannelStatus.CLOSED, 6L, 0L, 0L),
+                    () -> assertThatThrownBy(() -> session.onMessage(bytes(payload(CHANNEL_ID, request(0L), null))))
+                            .isInstanceOf(StatusRuntimeException.class)
+                            .extracting(e ->
+                                    ((StatusRuntimeException) e).getStatus().getCode())
+                            .isEqualTo(Status.Code.FAILED_PRECONDITION));
         }
+    }
+
+    @Test
+    void streamingRequestSelectsCompactProofForTheAdvertisedAnchor() {
+        final var signature = Bytes.wrap(new byte[13_712]);
+        final var snapshot = mock(BlockProvenSnapshot.class);
+        final var path = MerklePath.newBuilder()
+                .siblings(
+                        SiblingNode.newBuilder().hash(Bytes.wrap(new byte[32])).build())
+                .build();
+        final var proof = StateProof.PROTOBUF.toBytes(StateProof.newBuilder()
+                .paths(path)
+                .signedBlockProof(TssSignedBlockProof.newBuilder()
+                        .blockSignature(signature)
+                        .build())
+                .build());
+        given(stateProofManager.supportsHieroProofV1()).willReturn(true);
+        given(stateProofManager.latestSnapshot()).willReturn(Optional.of(snapshot));
+        given(snapshot.tssSignature()).willReturn(signature);
+        given(snapshot.path()).willReturn(path);
+        given(stateProofManager.buildBundleProof(
+                        eq(snapshot), eq(CHANNEL_ID), eq(1L), any(), eq(true), anyBoolean(), any()))
+                .willReturn(new ClprStateProofManager.BundleProof(proof, 1, 1));
+        final var anchorHash = keccak256DigestOf(signature.slice(0, VK_LENGTH));
+        final var request = request(0)
+                .copyBuilder()
+                .currentTrustAnchorId(Bytes.fromHex("01").append(anchorHash))
+                .build();
+        final var expected =
+                ClprHieroProofCodec.encodeStateProof(ClprHieroProofCodec.compactStateProof(proof), List.of());
+
+        given(stateProofManager.verifyHieroProof(expected, anchorHash)).willReturn(true);
+        mockState(channel(ClprChannelStatus.ACTIVE, 2, 0, 0), () -> {
+            final var response = session.onMessage(bytes(payload(CHANNEL_ID, request, null)));
+            assertThat(response.bundleResponseOrThrow().bundlePayload()).isEqualTo(expected);
+        });
     }
 
     @Test
@@ -472,14 +522,17 @@ class ClprStreamingSyncSessionTest {
      */
     private void mockState(@Nullable final ClprChannel channel, final Runnable body) {
         given(channelStore.getChannel(CHANNEL_ID)).willReturn(channel);
-        try (var storeFactory = mockConstruction(ReadableStoreFactoryImpl.class, (mock, ctx) -> given(
-                                mock.readableStore(ReadableChannelStore.class))
-                        .willReturn(channelStore));
-                var manifestStore = mockConstruction(ReadableEndpointManifestStoreImpl.class, (mock, ctx) -> lenient()
-                        .when(mock.get())
-                        .thenReturn(ClprEndpointManifest.newBuilder()
-                                .version(LOCAL_MANIFEST_VERSION)
-                                .build()))) {
+        try (var storeFactory = mockConstruction(
+                        ReadableStoreFactoryImpl.class,
+                        (mock, ctx) -> given(mock.readableStore(ReadableChannelStore.class))
+                                .willReturn(channelStore));
+                var manifestStore = mockConstruction(
+                        ReadableEndpointManifestStoreImpl.class,
+                        (mock, ctx) -> lenient()
+                                .when(mock.get())
+                                .thenReturn(ClprEndpointManifest.newBuilder()
+                                        .version(LOCAL_MANIFEST_VERSION)
+                                        .build()))) {
             body.run();
         }
     }

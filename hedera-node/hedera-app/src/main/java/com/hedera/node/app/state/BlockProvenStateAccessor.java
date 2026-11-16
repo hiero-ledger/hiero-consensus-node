@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
@@ -16,8 +17,10 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -361,6 +364,20 @@ public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvid
         @NonNull
         public Bytes ledgerId() {
             return ledgerId;
+        }
+
+        @Override
+        @NonNull
+        public List<HintsKeyWitnessRecord> keyProvenanceWithWitnesses() {
+            try {
+                final var store = new ReadableHistoryStoreImpl(state.getReadableStates(HistoryService.NAME));
+                final var records = new ArrayList<HintsKeyWitnessRecord>();
+                store.keyProvenanceWithWitnesses().forEachRemaining(records::add);
+                return List.copyOf(records);
+            } catch (final IllegalArgumentException | IllegalStateException e) {
+                log.debug("Could not read key provenance from history store: {}", e.getMessage());
+                return List.of();
+            }
         }
 
         @Override

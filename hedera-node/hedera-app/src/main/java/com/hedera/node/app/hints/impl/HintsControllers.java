@@ -1,19 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.config.data.TssConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
@@ -52,6 +55,21 @@ public class HintsControllers {
     @Nullable
     private HintsController controller;
 
+    @Nullable
+    private HintsGenerationWeights controllerSourceGeneration;
+
+    @Nullable
+    private HintsConstruction resolvedHints;
+
+    @Nullable
+    private HistoryProofConstruction resolvedHistory;
+
+    @Nullable
+    private HintsGenerationWeights resolvedSourceGeneration;
+
+    private boolean resolvedRequiresHistory;
+    private boolean sourceInputsResolved;
+
     @Inject
     public HintsControllers(
             @NonNull final Executor executor,
@@ -86,14 +104,55 @@ public class HintsControllers {
             @NonNull final HintsConstruction construction,
             @NonNull final WritableHintsStore hintsStore,
             @Nullable final HintsConstruction activeHintsConstruction) {
+        return getOrCreateFor(activeRosters, construction, hintsStore, activeHintsConstruction, null);
+    }
+
+    /**
+     * Creates a controller using the complete history snapshot of the active hinTS generation for its
+     * vote denominator. A completed source scheme requires its matching history construction.
+     */
+    public @NonNull HintsController getOrCreateFor(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final HintsConstruction construction,
+            @NonNull final WritableHintsStore hintsStore,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(hintsStore);
-        if (currentConstructionId() != construction.constructionId()) {
+        final boolean requiresHistory = HintsGenerationWeights.requiresHistory(
+                configurationSupplier.get().getConfigData(TssConfig.class));
+        final HintsGenerationWeights sourceGeneration;
+        try {
+            if (sourceInputsResolved
+                    && Objects.equals(resolvedHints, activeHintsConstruction)
+                    && resolvedRequiresHistory == requiresHistory
+                    && (!requiresHistory || Objects.equals(resolvedHistory, activeHistoryConstruction))) {
+                sourceGeneration = resolvedSourceGeneration;
+            } else {
+                sourceGeneration = activeHintsConstruction != null && activeHintsConstruction.hasHintsScheme()
+                        ? (requiresHistory
+                                ? HintsGenerationWeights.from(activeHintsConstruction, activeHistoryConstruction)
+                                : HintsGenerationWeights.forScheme(activeHintsConstruction))
+                        : null;
+                resolvedHints = activeHintsConstruction;
+                resolvedHistory = requiresHistory ? activeHistoryConstruction : null;
+                resolvedSourceGeneration = sourceGeneration;
+                resolvedRequiresHistory = requiresHistory;
+                sourceInputsResolved = true;
+            }
+        } catch (HintsGenerationWeights.InvalidGenerationException e) {
+            // A rejected generation must leave no live controller reachable by transaction handlers.
+            stop();
+            throw e;
+        }
+        if (currentConstructionId() != construction.constructionId()
+                || !Objects.equals(sourceGeneration, controllerSourceGeneration)) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
-            controller = newControllerFor(activeRosters, construction, hintsStore, activeHintsConstruction);
+            controller = newControllerFor(activeRosters, construction, hintsStore, sourceGeneration);
+            controllerSourceGeneration = sourceGeneration;
         }
         return requireNonNull(controller);
     }
@@ -126,7 +185,12 @@ public class HintsControllers {
         if (controller != null) {
             controller.cancelPendingWork();
             controller = null;
+            controllerSourceGeneration = null;
         }
+        resolvedHints = null;
+        resolvedHistory = null;
+        resolvedSourceGeneration = null;
+        sourceInputsResolved = false;
     }
 
     /**
@@ -135,15 +199,15 @@ public class HintsControllers {
      * @param activeRosters the active rosters
      * @param construction  the hinTS construction
      * @param hintsStore    the hints store
-     * @param activeHintsConstruction the active hinTS construction, if any
+     * @param sourceGeneration the active hinTS generation's complete and eligible weights, if any
      * @return the controller
      */
     private HintsController newControllerFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HintsConstruction construction,
             @NonNull final WritableHintsStore hintsStore,
-            @Nullable final HintsConstruction activeHintsConstruction) {
-        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
+            @Nullable final HintsGenerationWeights sourceGeneration) {
+        final var weights = transitionWeightsFor(activeRosters, sourceGeneration);
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertHintsController(construction.constructionId());
         } else {
@@ -186,6 +250,30 @@ public class HintsControllers {
                     hintsStore,
                     onHintsFinished);
         }
+    }
+
+    /**
+     * Returns eligible source weights from the active scheme and a vote threshold of at least 1/3 of
+     * its complete committed generation, including nodes without a party in that scheme.
+     *
+     * @param activeRosters the active rosters
+     * @param sourceGeneration the active hinTS generation's complete and eligible weights, if any
+     * @return the transition weights
+     */
+    private static RosterTransitionWeights transitionWeightsFor(
+            @NonNull final ActiveRosters activeRosters, @Nullable final HintsGenerationWeights sourceGeneration) {
+        final var weights =
+                activeRosters.transitionWeights(sourceGeneration == null ? null : sourceGeneration.schemeWeights());
+        if (sourceGeneration == null) {
+            return weights;
+        }
+        final long total = sourceGeneration.totalWeight();
+        final long sourceThreshold = RosterTransitionWeights.atLeastOneThirdOfTotal(total);
+        return new RosterTransitionWeights(
+                weights.sourceNodeWeights(),
+                weights.targetNodeWeights(),
+                sourceThreshold,
+                weights.targetWeightThreshold());
     }
 
     /**

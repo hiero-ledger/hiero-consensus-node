@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -49,7 +50,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -783,6 +786,36 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(requestCall);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(bufferService);
+    }
+
+    @Test
+    void testClose_afterFailedInitializeCoolsDownBlockNode() throws Exception {
+        @SuppressWarnings("unchecked")
+        final Future<Object> mockFuture = mock(Future.class);
+        when(mockFuture.get(anyLong(), any(TimeUnit.class))).thenThrow(new TimeoutException("Simulated timeout"));
+        doReturn(mockFuture).when(pipelineExecutor).submit(any(Runnable.class));
+        // forward the close notification to the block node, as the real connection manager does
+        final AtomicReference<CloseReason> closeReasonWhenNotified = new AtomicReference<>();
+        doAnswer(invocation -> {
+                    closeReasonWhenNotified.set(connection.closeReason());
+                    blockNode.onClose(connection);
+                    return null;
+                })
+                .when(connectionManager)
+                .notifyConnectionClosed(connection);
+
+        assertThat(catchRuntimeException(() -> connection.initialize())).isNotNull();
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
+        assertThat(blockNode.isStreamingCandidate()).isTrue();
+
+        // this is how the connection manager closes a connection that failed to initialize
+        connection.close(CloseReason.INTERNAL_ERROR, true, null);
+
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
+        verify(connectionManager).notifyConnectionClosed(connection);
+        // the close reason must already be set when the block node is notified
+        assertThat(closeReasonWhenNotified).hasValue(CloseReason.INTERNAL_ERROR);
+        assertThat(blockNode.isStreamingCandidate()).isFalse();
     }
 
     @Test

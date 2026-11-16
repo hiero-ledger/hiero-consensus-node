@@ -30,7 +30,7 @@ import javax.inject.Singleton;
  * verifier supplied that turns out to be malicious or unreachable. The manifest version is unchanged, so a later bundle
  * that advances the peer's manifest replaces the cached one and may list the endpoint again.
  *
- * <p>Requires the CLPR admin key (network admin / superuser), enforced by {@code PrivilegesVerifier.checkClprAdmin}.
+ * <p>Requires an authorized CLPR admin payer.
  */
 @Singleton
 public final class ClprEvictPeerEndpointHandler extends AbstractClprHandler {
@@ -53,8 +53,7 @@ public final class ClprEvictPeerEndpointHandler extends AbstractClprHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        // Authorization enforced by PrivilegesVerifier.checkClprAdmin — only
-        // treasury and system admin accounts are permitted.
+        // PrivilegesVerifier authorizes the treasury, system admin, and configured CLPR admin.
     }
 
     @Override

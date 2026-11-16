@@ -17,7 +17,7 @@ import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
-import com.hedera.node.app.spi.workflows.PaidQueryHandler;
+import com.hedera.node.app.spi.workflows.FreeQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.ConfigProvider;
@@ -33,11 +33,10 @@ import org.apache.logging.log4j.Logger;
 /**
  * Handler for {@link HederaFunctionality#CLPR_GET_LEDGER_CONFIGURATION} queries.
  *
- * <p>Returns the current CLPR ledger configuration. No special authorization is required, but the query is
- * paid, since building and verifying its state proof costs real work.
+ * <p>Returns the current CLPR ledger configuration. No special authorization is required.
  */
 @Singleton
-public class ClprGetLedgerConfigurationHandler extends PaidQueryHandler {
+public class ClprGetLedgerConfigurationHandler extends FreeQueryHandler {
 
     private static final Logger log = LogManager.getLogger(ClprGetLedgerConfigurationHandler.class);
 

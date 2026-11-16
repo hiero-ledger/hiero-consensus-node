@@ -5,10 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
@@ -20,111 +17,72 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import org.hiero.hapi.support.fees.Extra;
-import org.hiero.hapi.support.fees.ExtraFeeReference;
+import java.util.EnumSet;
 import org.hiero.hapi.support.fees.FeeSchedule;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
- * Pins the CLPR fee proposal's prices in the genesis and network upgrade schedules, so that any drift in a
- * base fee, extra, free status, or node/network exemption is caught.
+ * Pins the production CLPR fee values inside the genesis {@code simpleFeesSchedules.json}.
+ *
+ * <p>Goal: catch any silent drift in the per-op base fee or accidental re-introduction of
+ * {@code nodeNetworkFeeExempt} on {@link HederaFunctionality#CLPR_SUBMIT_BUNDLE}. Every CLPR
+ * transaction functionality MUST appear in the schedule and MUST charge a flat 1/10¢
+ * ({@value #FLAT_CLPR_BASE_FEE_TINYCENTS} tinycents).
+ *
+ * <p>Structural validity of the JSON is already covered by
+ * {@code hedera-file-service-impl}'s {@code FeeScheduleTest.testLoadingFeeScheduleFromJson};
+ * this test only asserts CLPR-specific values.
  */
 class ClprGenesisFeeScheduleTest {
 
-    /** Tinycents per USD (10^8 tinycents per cent). */
-    private static final long USD = 10_000_000_000L;
+    /** 1/10th of a cent in tinycents (10^8 tinycents per cent ⇒ 10^7 per 0.1 cent). */
+    private static final long FLAT_CLPR_BASE_FEE_TINYCENTS = 10_000_000L;
 
-    private static final long ONE_CENT = USD / 100;
+    /**
+     * Relative path from the {@code hedera-clpr-service-impl} module's working directory
+     * (where Gradle runs tests) to the genesis fee schedule resource owned by
+     * {@code hedera-file-service-impl}.
+     */
+    private static final Path GENESIS_SCHEDULE_PATH = Path.of(
+            "..", "hedera-file-service-impl", "src", "main", "resources", "genesis", "simpleFeesSchedules.json");
 
-    /** Relative paths from the {@code hedera-clpr-service-impl} module's working directory (where Gradle runs tests). */
-    private static final List<Path> SCHEDULE_PATHS = List.of(
-            Path.of(
-                    "..",
-                    "hedera-file-service-impl",
-                    "src",
-                    "main",
-                    "resources",
-                    "genesis",
-                    "simpleFeesSchedules.json"),
-            Path.of("..", "configuration", "mainnet", "upgrade", "simpleFeesSchedules.json"),
-            Path.of("..", "configuration", "testnet", "upgrade", "simpleFeesSchedules.json"),
-            Path.of("..", "configuration", "previewnet", "upgrade", "simpleFeesSchedules.json"));
+    /** Every CLPR transaction functionality that MUST have a 1/10¢ flat fee. */
+    private static final EnumSet<HederaFunctionality> CLPR_TRANSACTION_OPS = EnumSet.of(
+            CLPR_UPDATE_LEDGER_CONFIGURATION,
+            CLPR_REGISTER_CHANNEL,
+            CLPR_COMPLETE_CHANNEL,
+            CLPR_CLOSE_CHANNEL,
+            CLPR_EVICT_PEER_ENDPOINT,
+            CLPR_REGISTER_CONNECTOR,
+            CLPR_COMPLETE_CONNECTOR,
+            CLPR_DEREGISTER_CONNECTOR,
+            CLPR_SUBMIT_BUNDLE);
 
-    private record Price(long baseFee, Map<Extra, Integer> includedExtras, boolean nodeNetworkExempt) {
-        static Price of(final long baseFee) {
-            return new Price(baseFee, Map.of(), false);
-        }
+    @Test
+    @DisplayName("Every CLPR transaction op has the flat 1/10¢ base fee in the genesis schedule")
+    void everyClprTransactionHasFlatFee() throws Exception {
+        final FeeSchedule schedule = loadGenesisSchedule();
 
-        Price withExtras(final Map<Extra, Integer> includedExtras) {
-            return new Price(baseFee, includedExtras, nodeNetworkExempt);
-        }
-
-        Price exemptFromNodeAndNetworkFees() {
-            return new Price(baseFee, includedExtras, true);
+        for (final HederaFunctionality functionality : CLPR_TRANSACTION_OPS) {
+            final var serviceDef = lookupServiceFee(schedule, functionality);
+            assertThat(serviceDef)
+                    .as("genesis schedule entry for %s", functionality)
+                    .isNotNull();
+            assertThat(serviceDef.baseFee())
+                    .as("baseFee for %s", functionality)
+                    .isEqualTo(FLAT_CLPR_BASE_FEE_TINYCENTS);
+            assertThat(serviceDef.nodeNetworkFeeExempt())
+                    .as("nodeNetworkFeeExempt for %s — endpoints MUST pay per spec §8.10", functionality)
+                    .isFalse();
         }
     }
 
-    /** The proposal's price for every CLPR transaction and query. */
-    private static final Map<HederaFunctionality, Price> EXPECTED = Map.ofEntries(
-            Map.entry(CLPR_REGISTER_CHANNEL, Price.of(100 * USD)),
-            Map.entry(CLPR_COMPLETE_CHANNEL, Price.of(100 * USD).withExtras(Map.of(Extra.STATE_BYTES, 8_192))),
-            Map.entry(CLPR_REGISTER_CONNECTOR, Price.of(10 * USD)),
-            Map.entry(CLPR_COMPLETE_CONNECTOR, Price.of(25 * USD)),
-            Map.entry(CLPR_DEREGISTER_CONNECTOR, Price.of(ONE_CENT)),
-            // A bundle costs $0.01 + bundle bytes, so its bytes are not charged again by the node and network
-            // fees; its verifier gas is billed at actual use, outside the schedule
-            Map.entry(
-                    CLPR_SUBMIT_BUNDLE,
-                    Price.of(ONE_CENT)
-                            .withExtras(Map.of(Extra.PROCESSING_BYTES, 0))
-                            .exemptFromNodeAndNetworkFees()),
-            // Admin-only: a privileged payer's fees are waived
-            Map.entry(CLPR_CLOSE_CHANNEL, Price.of(0)),
-            Map.entry(CLPR_EVICT_PEER_ENDPOINT, Price.of(0)),
-            Map.entry(CLPR_UPDATE_LEDGER_CONFIGURATION, Price.of(0)),
-            // Node self-publications must not depend on operator funding.
-            Map.entry(CLPR_ENDPOINT_PUBLICATION, Price.of(0).exemptFromNodeAndNetworkFees()),
-            Map.entry(CLPR_GET_LEDGER_CONFIGURATION, Price.of(ONE_CENT).withExtras(Map.of(Extra.GAS, 0))),
-            Map.entry(CLPR_GET_ENDPOINT_MANIFEST, Price.of(ONE_CENT).withExtras(Map.of(Extra.GAS, 0))));
-
-    @ParameterizedTest(name = "{0} prices {1} per the CLPR fee proposal")
-    @MethodSource("schedulesAndFunctions")
-    void scheduleMatchesProposal(final Path schedulePath, final HederaFunctionality functionality) throws Exception {
-        final var schedule = load(schedulePath);
-        final var expected = EXPECTED.get(functionality);
-
-        final var serviceDef = lookupServiceFee(schedule, functionality);
-
-        assertThat(serviceDef)
-                .as("%s entry for %s", schedulePath, functionality)
-                .isNotNull();
-        assertThat(serviceDef.baseFee()).as("baseFee for %s", functionality).isEqualTo(expected.baseFee());
-        assertThat(serviceDef.extras().stream()
-                        .collect(Collectors.toMap(ExtraFeeReference::name, ExtraFeeReference::includedCount)))
-                .as("extras for %s", functionality)
-                .isEqualTo(expected.includedExtras());
-        assertThat(serviceDef.nodeNetworkFeeExempt())
-                .as("nodeNetworkFeeExempt for %s", functionality)
-                .isEqualTo(expected.nodeNetworkExempt());
-        assertThat(serviceDef.free())
-                .as("free for %s", functionality)
-                .isEqualTo(functionality == CLPR_ENDPOINT_PUBLICATION);
-    }
-
-    private static Stream<Arguments> schedulesAndFunctions() {
-        return SCHEDULE_PATHS.stream()
-                .flatMap(path -> EXPECTED.keySet().stream().map(functionality -> Arguments.of(path, functionality)));
-    }
-
-    private static FeeSchedule load(final Path path) throws Exception {
-        assertThat(path).as("fee schedule must exist at the expected path").exists();
-        try (var in = Files.newInputStream(path)) {
+    private static FeeSchedule loadGenesisSchedule() throws Exception {
+        assertThat(GENESIS_SCHEDULE_PATH)
+                .as("genesis simpleFeesSchedules.json must exist at the expected sibling-module path")
+                .exists();
+        try (var in = Files.newInputStream(GENESIS_SCHEDULE_PATH)) {
             return FeeSchedule.JSON.parse(new ReadableStreamingData(in));
         }
     }

@@ -30,7 +30,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -125,13 +124,8 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
         final var contractAccount = accountStore.getContractById(op.connectorContractOrThrow());
         validateTrue(contractAccount != null && contractAccount.smartContract(), CLPR_INVALID_CONNECTOR_CONTRACT);
 
-        // 7. Verify the tinybar bond meets the USD minimum at the consensus-time exchange rate.
-        // Compare exactly: a fractional tinybar must be rounded up, and rate products can exceed a long.
-        final var rate = context.exchangeRateInfo().activeRate(context.consensusNow());
-        final var offeredValue = BigInteger.valueOf(op.lockedStake()).multiply(BigInteger.valueOf(rate.centEquiv()));
-        final var minimumValue =
-                BigInteger.valueOf(clprConfig.minLockedStakeTinycents()).multiply(BigInteger.valueOf(rate.hbarEquiv()));
-        validateTrue(offeredValue.compareTo(minimumValue) >= 0, CLPR_INSUFFICIENT_STAKE);
+        // 7. Verify locked_stake meets minimum
+        validateTrue(op.lockedStake() >= clprConfig.minLockedStake(), CLPR_INSUFFICIENT_STAKE);
 
         // 8. Transfer locked_stake from payer to CLPR staking account
         final var stakingAccountId = entityIdFactory.newAccountId(clprConfig.stakingAccount());

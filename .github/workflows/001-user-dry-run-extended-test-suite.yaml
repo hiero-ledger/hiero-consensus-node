@@ -218,7 +218,7 @@ jobs:
     uses: ./.github/workflows/816-call-build-publish-state-validator.yaml
     with:
       ref: ${{ inputs.ref }}
-      dry-run-enabled: "true"
+      dry-run-enabled: true
 
   xts-execution:
     name: Execute XTS

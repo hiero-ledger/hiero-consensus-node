@@ -18,13 +18,11 @@ abstract class enforces:
 2. **Channel lookup helpers:** `requireActiveChannel(...)` returns the
    `ClprChannel` or throws `HandleException` (e.g. `INVALID_CLPR_CHANNEL_ID`,
    `CLPR_CHANNEL_NOT_ACTIVE`).
-3. **Admin gating** for admin-only handlers (`closeChannel`, `redactMessage`,
-   `updateLedgerConfiguration`) is performed by the platform's `PrivilegesVerifier`
-   (`checkClprAdmin`) — payer must be **treasury or systemAdmin**. There is no separate
-   "CLPR admin key" stored in state or config. Handlers do not perform their own
-   signature checks for admin gating; the framework rejects unauthorized payers with
-   `AUTHORIZATION_FAILED` (or `NOT_SUPPORTED` if the throttle layer hasn't been wired
-   for the new functionality).
+3. **Admin gating** uses the platform's `PrivilegesVerifier`. The treasury, system
+   admin, and configured `accounts.clprAdmin` payer can submit `closeChannel`,
+   `evictPeerEndpoint`, and `updateLedgerConfiguration`.
+   The framework verifies the payer signature and rejects unauthorized payers with
+   `AUTHORIZATION_FAILED`.
 
 Subclasses implement `pureChecks`, `preHandle`, and `doHandle` (per
 `TransactionHandler` contract).
@@ -91,10 +89,9 @@ side-effects.
   The channel ID is public metadata; the commitment preimage is verified during reveal.
 - Reveal verifies signature `ECDSA(keccak256(connector_id ‖ 0x…16e))` (Hiero-specific
   binding from spec §6.3 callout).
-- Stake: `complete` converts `ClprConfig.minLockedStakeTinycents` (default $3,000) at the active
-  exchange rate for the transaction's consensus time and requires `locked_stake` to meet that minimum.
-  The submitted `locked_stake` is transferred in tinybars from payer to `ClprConfig.stakingAccount`
-  and stored on the connector. Existing locked stake is not continuously revalued as exchange rates change.
+- Stake: `complete` requires the connector's `min_locked_stake` (`ClprConfig.minLockedStake`)
+  to be transferred from payer to `ClprConfig.stakingAccount` via the transaction's
+  crypto-transfer list.
 - Register rejects a commitment already in `PENDING_CONNECTOR_COMMITMENTS` with
   `CLPR_CONNECTOR_ALREADY_EXISTS`.
 - Writes: `CONNECTORS[ClprConnectorKey] = ClprConnector{...}`. The commitment stays in
@@ -128,8 +125,8 @@ side-effects.
      bookkeep replies (`ClprMessageReply`).
 - State writes: channel's `received_running_hash`, `last_received_message_id`; per-data-
   message replies stored back into the queue (replies on the source-side queue).
-- Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.applySlash(...)`
-  and credits the submitting endpoint the full penalty via `reimburseEndpoint`. See
+- Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.slashConnector(...)`
+  and credits the submitting endpoint per `ClprConfig.endpointMarginPercent`. See
   [`config-and-slashing.md`](config-and-slashing.md).
 - On running-hash or ordering mismatch: channel moves to `PAUSED` (spec §4.5).
 

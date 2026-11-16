@@ -5,10 +5,18 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -22,6 +30,92 @@ import java.util.regex.Pattern;
  */
 final class ClprArgs {
     private ClprArgs() {}
+
+    private static final Set<PosixFilePermission> OWNER_RW =
+            Set.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
+
+    /**
+     * Writes an identity bundle and its companion private-key file. Both targets are checked for
+     * symlinks <em>before</em> anything is written, so a rejected target never leaves a stray key
+     * behind. Existing files at either target are preserved (see {@link #writeSecure}). If the
+     * bundle write fails after the key was written, the newly written key is removed so it cannot
+     * be orphaned from a bundle it does not match.
+     */
+    static void writeBundleAndKey(
+            final Path bundlePath, final String bundleJson, final Path keyPath, final String keyContent)
+            throws IOException {
+        requireNotSymlink(bundlePath);
+        requireNotSymlink(keyPath);
+        writeSecure(keyPath, keyContent);
+        try {
+            writeSecure(bundlePath, bundleJson);
+        } catch (final IOException | RuntimeException e) {
+            try {
+                Files.deleteIfExists(keyPath);
+            } catch (final IOException suppressed) {
+                e.addSuppressed(suppressed);
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Writes {@code content} to {@code path} with owner-only permissions (0600), refusing to
+     * follow symlinks. An existing file is never overwritten or deleted: it is first moved aside
+     * via {@link #backupIfExists(Path)}.
+     */
+    static void writeSecure(final Path path, final String content) throws IOException {
+        final var backup = backupIfExists(path);
+        if (backup != null) {
+            System.out.println("Existing " + path + " preserved as " + backup);
+        }
+        final var perms = PosixFilePermissions.asFileAttribute(OWNER_RW);
+        try (final var ch = FileChannel.open(
+                path,
+                Set.of(StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW, LinkOption.NOFOLLOW_LINKS),
+                perms)) {
+            final var buf = ByteBuffer.wrap(content.getBytes(StandardCharsets.UTF_8));
+            while (buf.hasRemaining()) {
+                if (ch.write(buf) <= 0) {
+                    throw new IOException("FileChannel.write made no progress on " + path);
+                }
+            }
+        }
+    }
+
+    /**
+     * Moves an existing regular file at {@code path} to {@code <name>.<epochMillis>.bak} in the
+     * same directory (restricted to owner-only, since it may hold a private key) so no key
+     * material is ever lost. Returns the backup path, or {@code null} if nothing existed.
+     *
+     * @throws IOException if {@code path} is a symlink or not a regular file, or the move fails
+     */
+    @Nullable
+    static Path backupIfExists(final Path path) throws IOException {
+        requireNotSymlink(path);
+        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+            return null;
+        }
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IOException("Refusing to replace non-regular file: " + path);
+        }
+        final var name = path.getFileName().toString();
+        var epoch = System.currentTimeMillis();
+        var backup = path.resolveSibling(name + "." + epoch + ".bak");
+        while (Files.exists(backup, LinkOption.NOFOLLOW_LINKS)) {
+            backup = path.resolveSibling(name + "." + (++epoch) + ".bak");
+        }
+        // No REPLACE_EXISTING: fail rather than clobber a backup created concurrently.
+        Files.move(path, backup);
+        Files.setPosixFilePermissions(backup, OWNER_RW);
+        return backup;
+    }
+
+    static void requireNotSymlink(final Path path) throws IOException {
+        if (Files.isSymbolicLink(path)) {
+            throw new IOException("Refusing to write through symlink: " + path);
+        }
+    }
 
     static byte[] requiredBytes(final String flagName, @Nullable final String hex) {
         if (hex == null || hex.isBlank()) {
