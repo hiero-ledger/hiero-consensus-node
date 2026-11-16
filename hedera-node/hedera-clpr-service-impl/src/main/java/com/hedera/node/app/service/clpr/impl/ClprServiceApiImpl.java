@@ -120,23 +120,20 @@ public class ClprServiceApiImpl implements ClprServiceApi {
             throw new HandleException(CLPR_PAYLOAD_TOO_LARGE);
         }
 
-        // Step 6: Limit locally initiated DATA so the peer can reply to the entire outstanding
-        // DATA prefix using the reply capacity reserved by its max_queue_depth. Count all queued
-        // slots conservatively, including the extra config-update slot when the config is stale.
+        // Step 6: The local limit bounds every queued slot, including a prepended config update.
+        // The peer's advertised credit bounds only DATA that still needs a terminal reply.
         final var nextMessageId = channel.nextMessageId();
         final var ackedMessageId = channel.ackedMessageId();
         final var maxQueueDepth = localThrottles.maxQueueDepth();
         final var peerMaxQueueDepth = peerThrottles == null ? 0 : peerThrottles.maxQueueDepth();
-        // Preserve the existing exclusive local limit. The peer's reserved capacity is inclusive.
+        // Preserve the existing exclusive local limit. Peer DATA credit is checked separately below.
         final var localSendQueueLimit = (long) maxQueueDepth - 1;
-        final var sendQueueLimit =
-                peerMaxQueueDepth > 0 ? Math.min(localSendQueueLimit, peerMaxQueueDepth) : localSendQueueLimit;
         final var queueDepthWithSend = nextMessageId - ackedMessageId;
         final var reservedSlots = configIsStale ? 1 : 0;
         log.debug(
                 "[CLPR-SEND] request conn={} connectorId={} targetApplication={} sender={} dataLen={} "
                         + "status={} nextMsgId={} ackedMsgId={} queueDepthWithSend={} reservedSlots={} "
-                        + "sendQueueLimit={} configStale={} sentRH={}",
+                        + "localSendQueueLimit={} configStale={} sentRH={}",
                 channelId,
                 connectorId,
                 targetApplication,
@@ -147,27 +144,39 @@ public class ClprServiceApiImpl implements ClprServiceApi {
                 ackedMessageId,
                 queueDepthWithSend,
                 reservedSlots,
-                sendQueueLimit,
+                localSendQueueLimit,
                 configIsStale,
                 shortHex(channel.sentRunningHash()));
-        if (queueDepthWithSend + reservedSlots > sendQueueLimit) {
+        if (queueDepthWithSend + reservedSlots > localSendQueueLimit) {
             log.debug(
-                    "[CLPR-SEND] queue full conn={} queueDepthWithSend={} reservedSlots={} sendQueueLimit={} "
+                    "[CLPR-SEND] queue full conn={} queueDepthWithSend={} reservedSlots={} localSendQueueLimit={} "
                             + "nextMsgId={} ackedMsgId={}",
                     channelId,
                     queueDepthWithSend,
                     reservedSlots,
-                    sendQueueLimit,
+                    localSendQueueLimit,
                     nextMessageId,
                     ackedMessageId);
             throw new HandleException(CLPR_QUEUE_FULL);
         }
 
-        // Step 6: Per-Connector queue quota check (CLPR-3.5)
+        // Reuse the existing connector-quota scan for peer credit, after the local depth check
+        // bounds its work. Each send rereads current state after upstream connector authorization,
+        // including queue changes made by nested sends or terminal-reply callbacks.
+        final var queuedData = countQueuedData(channelId, ackedMessageId, nextMessageId, connector.connectorId());
+        if (peerMaxQueueDepth > 0 && queuedData.total() >= peerMaxQueueDepth) {
+            log.debug(
+                    "[CLPR-SEND] peer DATA credit exhausted conn={} outstandingData={} peerMaxQueueDepth={}",
+                    channelId,
+                    queuedData.total(),
+                    peerMaxQueueDepth);
+            throw new HandleException(CLPR_QUEUE_FULL);
+        }
+
+        // Step 7: Per-Connector queue quota check (CLPR-3.5)
         final var clprConfig = configuration.getConfigData(ClprConfig.class);
         final var connectorQuota = (long) maxQueueDepth * clprConfig.connectorQueueQuotaPct() / 100;
-        final var connectorMessageCount =
-                countConnectorMessages(channelId, ackedMessageId, nextMessageId, connector.connectorId());
+        final var connectorMessageCount = queuedData.forConnector();
         log.debug(
                 "[CLPR-SEND] connector quota conn={} connectorId={} queuedForConnector={} "
                         + "connectorQuota={} inFlightBefore={}",
@@ -281,41 +290,48 @@ public class ClprServiceApiImpl implements ClprServiceApi {
         return ClprHashUtils.computeRunningHash(previousHash, payload);
     }
 
+    private record QueuedData(long total, long forConnector) {}
+
     /**
-     * Counts unacknowledged data messages in the queue belonging to the specified connector.
+     * Counts outstanding DATA once for both peer credit and the specified connector's quota.
+     * Control/reply slots require no reply credit. A DATA slot removed by an accepted terminal
+     * reply no longer consumes credit, even before the handler publishes its final ACK frontier.
      */
-    private long countConnectorMessages(
+    private QueuedData countQueuedData(
             @NonNull final Bytes channelId,
             final long ackedMessageId,
             final long nextMessageId,
             @NonNull final Bytes connectorId) {
-        long count = 0;
+        long total = 0;
+        long forConnector = 0;
         for (long id = ackedMessageId + 1; id < nextMessageId; id++) {
             final var value = messageQueueStore.getMessage(channelId, id);
             if (log.isDebugEnabled()) {
                 final var payload = value != null && value.hasPayload() ? value.payload() : null;
                 log.debug(
-                        "[CLPR-QUEUE-READ] connector quota scan conn={} messageId={} present={} kind={}",
+                        "[CLPR-QUEUE-READ] DATA credit/quota scan conn={} messageId={} present={} kind={}",
                         channelId,
                         id,
                         value != null,
                         payloadKind(payload));
             }
-            if (value != null && value.payload() != null && value.payload().message() != null) {
-                if (connectorId.equals(value.payload().message().connectorId())) {
-                    count++;
+            if (value != null && value.payload() != null && value.payload().hasMessage()) {
+                total++;
+                if (connectorId.equals(value.payload().messageOrThrow().connectorId())) {
+                    forConnector++;
                 }
             }
         }
         log.debug(
-                "[CLPR-QUEUE-READ] connector quota scan complete conn={} connectorId={} "
-                        + "rangeStart={} rangeEndExclusive={} matched={}",
+                "[CLPR-QUEUE-READ] DATA credit/quota scan complete conn={} connectorId={} "
+                        + "rangeStart={} rangeEndExclusive={} total={} forConnector={}",
                 channelId,
                 connectorId,
                 ackedMessageId + 1,
                 nextMessageId,
-                count);
-        return count;
+                total,
+                forConnector);
+        return new QueuedData(total, forConnector);
     }
 
     /**

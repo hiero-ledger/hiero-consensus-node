@@ -333,8 +333,9 @@ require multi-network infrastructure.
 - Connector must be registered and authorized. The CLPR Service calls `authorizeMessage()` on the
   Connector's authorization contract. If the Connector rejects, the message is not enqueued.
 - Payload size must not exceed the destination's `max_message_payload_bytes`.
-- New DATA must keep total outstanding depth below the current local `max_queue_depth`
-  and within the peer's most recently advertised outstanding-DATA credit.
+- New DATA must keep all outstanding slots below the current local `max_queue_depth`.
+  Outstanding DATA plus the new DATA must fit the peer's most recently advertised DATA credit;
+  configuration controls and replies consume local queue space but no peer DATA credit.
 - Message is assigned `next_message_id`; the counter increments.
 - Running hash is updated: `SHA-256(sent_running_hash || serialized_payload)`.
 - The `sender` field is stamped from the transaction caller (not caller-supplied).
@@ -358,7 +359,12 @@ require multi-network infrastructure.
 ### 3.4.4 Queue Depth Enforcement
 
 - Locally initiated DATA (including any prepended config update) must leave the queue at
-  `max_queue_depth - 1` slots or fewer and obey the peer's current DATA credit.
+  `max_queue_depth - 1` slots or fewer. Peer credit counts only outstanding DATA, across all connectors.
+- An empty queue with local limit 10, peer DATA credit 1, and a stale configuration must accept
+  a ConfigUpdate plus one DATA. A second DATA must fail until the first receives a terminal reply.
+- Mixed control/reply slots must not consume peer DATA credit, while still consuming local space.
+  Empty/redacted DATA still consumes credit; an accepted terminal reply releases it before nested
+  response callbacks. Repeated sends must reread current state and preserve connector quotas.
 - Each channel also reserves replies using the local historical maximum `H`, persisted as
   `MAX_QUEUE_DEPTH_HIGH_WATER`. Total outbound depth must remain at most `2 * H`.
 - A lowered `max_queue_depth` restricts new sends without revoking reply credit for earlier traffic.
