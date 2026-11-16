@@ -702,14 +702,16 @@ public class ClprStateProofManager {
                             "[CLPR-BUNDLE-BUILD] sending endpoint manifest before head message {} conn={}",
                             id,
                             channelId);
-                } else if (nativeProof && id == firstMessageId) {
-                    // Head-of-queue message can't fit even alone: the channel is wedged. It will be
-                    // re-attempted (and fail) every sync tick, the peer never acks, the queue never
-                    // drains.
+                } else if (id == firstMessageId) {
+                    // No message can advance the queue with this proof's overhead and peer limit.
+                    // A compact responder can still emit an ACK, which is not a skipped bundle;
+                    // keep this warning independent of skip metrics. An anchor advance can reduce
+                    // compact provenance overhead on the next attempt.
                     log.warn(
                             "buildBundleStateProof: head message {} alone exceeds peer max_sync_bytes "
-                                    + "(channel={} candidateBytes={} maxSyncBytes={}). Channel will "
-                                    + "deadlock — review peer max_sync_bytes vs. message sizing.",
+                                    + "(channel={} candidateBytes={} maxSyncBytes={}). Outbound queue cannot "
+                                    + "advance until proof overhead or message sizing is reduced, or the peer limit "
+                                    + "is raised.",
                             id,
                             channelId,
                             candidateSize,

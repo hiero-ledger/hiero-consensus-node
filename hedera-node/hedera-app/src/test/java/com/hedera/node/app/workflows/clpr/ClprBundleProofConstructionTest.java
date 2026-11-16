@@ -39,6 +39,10 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
+import com.hedera.node.app.spi.fixtures.util.LogCaptureExtension;
+import com.hedera.node.app.spi.fixtures.util.LoggingSubject;
+import com.hedera.node.app.spi.fixtures.util.LoggingTarget;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -62,7 +66,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /** Exercises compact bundle packing from the snapshot's binary-state API through the emitted envelope. */
-@ExtendWith(MockitoExtension.class)
+@ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
 class ClprBundleProofConstructionTest {
     private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[32]);
     private static final long FIRST_MESSAGE_ID = 11;
@@ -88,7 +92,11 @@ class ClprBundleProofConstructionTest {
     @Mock
     private ClprHieroProofSupport proofSupport;
 
+    @LoggingSubject
     private ClprStateProofManager proofManager;
+
+    @LoggingTarget
+    private LogCaptor logCaptor;
 
     @BeforeEach
     void setUp() {
@@ -138,6 +146,7 @@ class ClprBundleProofConstructionTest {
         assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID + expectedMessages);
         verify(proofSupport).verify(payload, keccak256DigestOf(SIGNING_KEY));
         verifyNoInteractions(tssVerifier);
+        assertThat(logCaptor.warnLogs()).isEmpty();
     }
 
     @Test
@@ -156,6 +165,58 @@ class ClprBundleProofConstructionTest {
         assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID);
         assertThat(producer.next(true)).isNull();
         verify(proofSupport, never()).reportSkip(any(), any());
+        assertThat(logCaptor.warnLogs()).isEmpty();
+    }
+
+    @Test
+    void oversizedCompactHeadWarnsEvenWhenResponderEmitsAck() throws Exception {
+        final var channel = channel(2, 8_192);
+        givenQueue(channel, 16_384, false);
+        final var producer = producer(channel, SIGNING_KEY, true);
+
+        final var payload = requireNonNull(producer.next(false));
+        final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
+
+        assertThat(proof.paths()).hasSize(1);
+        assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID);
+        assertThat(producer.next(false)).isNull();
+        verify(proofSupport, never()).reportSkip(any(), any());
+        assertThat(logCaptor.warnLogs())
+                .singleElement()
+                .asString()
+                .contains("head message " + FIRST_MESSAGE_ID + " alone exceeds peer max_sync_bytes")
+                .contains("channel=" + CHANNEL_ID, "candidateBytes=", "maxSyncBytes=8192");
+    }
+
+    @Test
+    void emptyCompactResponderEmitsAckWithoutWarningOrSizeSkip() throws Exception {
+        final var channel = channel(0, 8_192);
+        givenQueue(channel, 1, false);
+        final var producer = producer(channel, SIGNING_KEY, true);
+
+        final var payload = requireNonNull(producer.next(false));
+        final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
+
+        assertThat(proof.paths()).hasSize(1);
+        assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID);
+        verify(proofSupport, never()).reportSkip(any(), any());
+        assertThat(logCaptor.warnLogs()).isEmpty();
+    }
+
+    @Test
+    void compactByteLimitTrimsAfterFittingMessageWithoutWarningOrSizeSkip() throws Exception {
+        final var channel = channel(2, 8_192);
+        givenQueue(channel, 4_096, false);
+        final var producer = producer(channel, SIGNING_KEY);
+
+        final var payload = requireNonNull(producer.next(false));
+        final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
+
+        assertThat(proof.paths()).hasSize(2);
+        assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID + 1);
+        verify((BinaryState) provenState).getMerkleProof(FIRST_MESSAGE_ID + 1);
+        verify(proofSupport, never()).reportSkip(any(), any());
+        assertThat(logCaptor.warnLogs()).isEmpty();
     }
 
     @Test
@@ -205,12 +266,16 @@ class ClprBundleProofConstructionTest {
     }
 
     private ClprBundleProducer producer(final ClprChannel channel, final Bytes anchorKey) {
+        return producer(channel, anchorKey, false);
+    }
+
+    private ClprBundleProducer producer(final ClprChannel channel, final Bytes anchorKey, final boolean allowPureAck) {
         final var request = ClprBundleRequest.newBuilder()
                 .currentTrustAnchorId(Bytes.fromHex("01").append(keccak256DigestOf(anchorKey)))
                 .currentStatus(ACTIVE)
                 .currentReceivedMessageId(FIRST_MESSAGE_ID - 1)
                 .build();
-        return new ClprBundleProducer(proofManager, channel, request, false, 2);
+        return new ClprBundleProducer(proofManager, channel, request, allowPureAck, 2);
     }
 
     private void givenRetainedWitness() {
