@@ -12,8 +12,8 @@ import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 
 /**
- * A roster whose nodes are named by letter: a name, and a roster. Each roster block in a {@code .graph}
- * header is one of these.
+ * A named {@link RosterWrapper} whose node ids all come from {@link #nodeIdFor}, so
+ * each node can be referred to by its letter. Each roster block in a {@code .graph} header is one of these.
  * <p>
  * A graph names each event's creator by the letter that starts the event's name, and {@link #nodeIdFor} gives every
  * letter one node id that depends on the letter alone. A roster built here therefore uses the same ids as the events
@@ -33,12 +33,19 @@ public record NamedRoster(@NonNull String name, @NonNull RosterWrapper roster) {
     /** The gaps between consecutive letters' ids, repeated in this order; see {@link #nodeIdFor} for why. */
     private static final long[] GAPS = {1, 3, 2};
 
+    public NamedRoster {
+        requireNonNull(name, "name must not be null");
+        requireNonNull(roster, "roster must not be null");
+        // Check if all the node ids in the given roster map to a parseable letter
+        roster.rosterEntries().forEach(entry -> letterFor(entry.nodeId()));
+    }
+
     /**
      * Creates a {@code NamedRoster} from a name and a letter-to-weight map. Such a map is how a roster is defined in a
      * flicker graph.
      *
      * @param name the roster's name, such as {@code initial} or {@code after}
-     * @param weightsByLetter a map from a node's letter to its weight
+     * @param weightsByLetter each node's letter mapped to its weight. The map's order becomes the order of the roster's entries, and of the block {@link GraphWriter} writes.
      * @return the constructed {@code NamedRoster}
      */
     public static NamedRoster of(
@@ -68,14 +75,17 @@ public record NamedRoster(@NonNull String name, @NonNull RosterWrapper roster) {
      * <p>
      * {@code a} is one above {@link NodeId#FIRST_NODE_ID}, and each later letter adds a gap that cycles through 1, 3
      * and 2, so {@code a} to {@code g} are {@code 1, 2, 5, 7, 8, 11, 13} and {@code z} is {@code 50}. The id depends on
-     * the letter alone and strictly increases with it, so each letter has its own id, and a node keeps that id — and
-     * its events keep their hashes — in every roster and every graph in the suite.
+     * the letter alone and strictly increases with it, so each letter has its own id, and a node keeps that id in every
+     * roster and every graph in the suite. A graph's events therefore have the same creator ids, and the same hashes,
+     * whichever roster it runs under.
      * <p>
      * The ids are deliberately not the letters' positions. The consensus code holds two numbers for every node: its id,
      * and its index in the roster. If the ids here were {@code 0, 1, 2, 3} they would equal the indices of a roster
      * listed {@code a} to {@code d}, and any code that confused the two would pass every fixture in the suite. Starting
-     * one above the first node id keeps every letter's id greater than its position, so the two can never coincide.
-     * Adding gaps between the node ids ensures no code depends on contiguous ids. The gaps mirror
+     * one above the first node id makes every letter's id greater than its position in the alphabet. In a roster that
+     * lists its letters in alphabetical order, a node's index is at most that position, so its id and index never
+     * coincide. A roster listed in another order can still have a node whose id equals its index. The gaps between the
+     * ids make code that assumes contiguous ids fail these fixtures. The gaps mirror
      * {@code RosterWrapperFactory.createRandomNodeIds}, which advances one to three per node, so the values stay small
      * enough to hold in your head while debugging.
      *
