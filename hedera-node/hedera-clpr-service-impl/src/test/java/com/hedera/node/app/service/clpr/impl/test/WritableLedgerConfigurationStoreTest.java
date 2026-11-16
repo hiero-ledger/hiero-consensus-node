@@ -43,6 +43,22 @@ class WritableLedgerConfigurationStoreTest {
     }
 
     @Test
+    void unchangedReserveIsNotRewrittenOrStreamed() {
+        final var highWaterState = singleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, new ProtoLong(8));
+        final var states = MapWritableStates.builder()
+                .state(singleton(LEDGER_CONFIGURATION_STATE_ID, config(5)))
+                .state(highWaterState)
+                .build();
+        final var subject = new WritableLedgerConfigurationStore(states);
+
+        // Lowering the current limit below the retained reserve leaves the reserve unchanged.
+        subject.put(config(2));
+
+        assertThat(highWaterState.get()).isEqualTo(new ProtoLong(8));
+        assertThat(highWaterState.isModified()).isFalse();
+    }
+
+    @Test
     void initializesMissingReserveBeforeReplacingLegacyConfiguration() {
         final var states = MapWritableStates.builder()
                 .state(singleton(LEDGER_CONFIGURATION_STATE_ID, config(5)))
