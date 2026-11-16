@@ -754,22 +754,17 @@ public class BlockBufferService extends BlockStreamingBase {
 
         for (final BufferedBlock bufferedBlock : blocks) {
             final long blockNumber = bufferedBlock.blockNumber();
-            final long blockPeriodMillis = bufferedBlock.blockPeriodMillisOrElse(-1L);
-            final BlockState block = new BlockState(blockNumber, blockPeriodMillis);
-            long blockItemTotalSize = 0L;
-            for (final Bytes itemBytes : bufferedBlock.block().items()) {
-                block.addSerializedItem(itemBytes);
-                blockItemTotalSize += itemBytes.length();
-                ++totalItemsLoaded;
+            final BlockState block;
+            try {
+                block = restoreBlock(bufferedBlock);
+            } catch (final RuntimeException e) {
+                // The file parsed, but the block in it is invalid (e.g. an item with a malformed tag). Skip the block,
+                // just as BlockBufferIO skips block files that fail to parse.
+                logger.error("Failed to restore block {} from disk; ignoring block", blockNumber, e);
+                continue;
             }
-
-            final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
-            final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
-            final Timestamp openedTimestamp = bufferedBlock.openedTimestamp();
-            final Instant openedInstant = Instant.ofEpochSecond(openedTimestamp.seconds(), openedTimestamp.nanos());
-            logger.debug("Reconstructed block {} from disk and closed at {}", blockNumber, closedInstant);
-            block.closeBlock(closedInstant);
-            block.setOpenedTimestamp(openedInstant);
+            final long blockItemTotalSize = block.sizeBytes();
+            totalItemsLoaded += block.itemCount();
 
             if (bufferedBlock.isAcknowledged()) {
                 acknowledgeBlock(blockNumber);
@@ -791,6 +786,31 @@ public class BlockBufferService extends BlockStreamingBase {
                 numBlocksLoaded,
                 totalItemsLoaded,
                 totalBlockSizeLoaded);
+    }
+
+    /**
+     * Rebuilds a block that was read from disk. This only builds the block; it does not modify the buffer.
+     *
+     * @param bufferedBlock the block read from disk
+     * @return the rebuilt block, closed with its persisted timestamps
+     * @throws RuntimeException if the block's contents are invalid, e.g. an item with a malformed tag or a missing
+     * timestamp
+     */
+    private static BlockState restoreBlock(@NonNull final BufferedBlock bufferedBlock) {
+        final long blockNumber = bufferedBlock.blockNumber();
+        final BlockState block = new BlockState(blockNumber, bufferedBlock.blockPeriodMillisOrElse(-1L));
+        for (final Bytes itemBytes : bufferedBlock.block().items()) {
+            block.addSerializedItem(itemBytes);
+        }
+
+        final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
+        final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
+        final Timestamp openedTimestamp = bufferedBlock.openedTimestamp();
+        final Instant openedInstant = Instant.ofEpochSecond(openedTimestamp.seconds(), openedTimestamp.nanos());
+        logger.debug("Reconstructed block {} from disk and closed at {}", blockNumber, closedInstant);
+        block.closeBlock(closedInstant);
+        block.setOpenedTimestamp(openedInstant);
+        return block;
     }
 
     /**
