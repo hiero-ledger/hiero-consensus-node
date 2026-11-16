@@ -17,6 +17,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -76,6 +77,18 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
         final var storeFactory = context.storeFactory();
         final var configStore = storeFactory.writableStore(WritableLedgerConfigurationStore.class);
         final var existing = configStore.getConfiguration();
+
+        // A peer may still send against previously advertised credit. Never revoke it.
+        // A lowered network ceiling limits future growth without invalidating the current limit.
+        final int currentQueueDepth =
+                existing.throttlesOrElse(ClprThrottles.DEFAULT).maxQueueDepth();
+        final int requestedQueueDepth = supplied.throttlesOrThrow().maxQueueDepth();
+        final int queueDepthCeiling =
+                context.configuration().getConfigData(ClprConfig.class).maxQueueDepthCeiling();
+        HandleException.validateTrue(
+                requestedQueueDepth >= currentQueueDepth
+                        && (requestedQueueDepth == currentQueueDepth || requestedQueueDepth <= queueDepthCeiling),
+                INVALID_CLPR_CONFIGURATION);
 
         // Build the updated configuration, preserving immutable fields from genesis.
         // Source the trust anchor from this transaction's consensus state. Signed snapshot

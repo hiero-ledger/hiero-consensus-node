@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
-import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.impl.ReadableLedgerConfigurationStoreImpl;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
@@ -44,14 +43,5 @@ class ReadableLedgerConfigurationStoreImplTest {
                 .build();
         given(singletonState.get()).willReturn(config);
         assertThat(subject.getConfiguration()).isEqualTo(config);
-    }
-
-    @Test
-    void fallsBackToCurrentLimitBeforeLocalStateIsAvailable() {
-        given(singletonState.get())
-                .willReturn(ClprLedgerConfiguration.newBuilder()
-                        .throttles(ClprThrottles.newBuilder().maxQueueDepth(5))
-                        .build());
-        assertThat(subject.getMaxQueueDepthHighWater()).isEqualTo(5);
     }
 }

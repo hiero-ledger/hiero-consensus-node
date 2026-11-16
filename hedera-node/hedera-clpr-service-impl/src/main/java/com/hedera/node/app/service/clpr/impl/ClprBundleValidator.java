@@ -394,7 +394,7 @@ public class ClprBundleValidator {
      * @param channel the channel before this bundle is applied
      * @param bundle the result of {@link #validate} for the same channel and bundle
      * @param messageQueueStore this ledger's outbound message queue
-     * @param maxQueueDepth this ledger's historical ordinary queue budget, also reserved once for replies
+     * @param maxQueueDepth this ledger's expand-only ordinary queue budget, also reserved once for replies
      * @return the accepted prefix and its acknowledgement, or the first ordering violation
      * @throws PreCheckException with {@code CLPR_INTERNAL_STATE_CORRUPTION} if an outbound slot the peer has received
      *     is missing from the queue, or with {@code CLPR_NO_PROGRESS} if the bundle's only progress was a claimed
@@ -495,7 +495,7 @@ public class ClprBundleValidator {
                     : fullAck;
             final long remainingDepth = channel.nextMessageId() - prefixAck - 1;
             // A later reply can free space, so keep scanning even when an earlier prefix did not fit.
-            // Nested sends obey the current limit minus one (at most this historical budget minus one).
+            // Nested sends obey the expand-only current limit minus one.
             // A config update may fill that last ordinary slot; the other half remains reserved for replies.
             if (repliesNeeded == 0 || Math.max(maxQueueDepth, remainingDepth) + repliesNeeded <= 2 * maxQueueDepth) {
                 acceptedCount = count;

@@ -15,9 +15,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
-import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.app.service.clpr.impl.ClprLedgerConfigurationFile;
@@ -52,12 +50,6 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     /** Ledger configuration state ID */
     public static final int LEDGER_CONFIGURATION_STATE_ID =
             SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal();
-
-    /** Local-only historical queue reserve, added by {@link V0800ClprSchema}. */
-    public static final int MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID =
-            SingletonType.CLPRSERVICE_I_MAX_QUEUE_DEPTH_HIGH_WATER.protoOrdinal();
-
-    public static final String MAX_QUEUE_DEPTH_HIGH_WATER_KEY = "MAX_QUEUE_DEPTH_HIGH_WATER";
 
     /** Message queue state ID */
     public static final int MESSAGE_QUEUE_STATE_ID = StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUE.protoOrdinal();
@@ -163,7 +155,7 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
         var initialized = false;
         final var ledgerConfigurationState =
                 writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
-        var ledgerConfiguration = ledgerConfigurationState.get();
+        final var ledgerConfiguration = ledgerConfigurationState.get();
         if (ledgerConfiguration == null) {
             final var clprConfig = configuration.getConfigData(ClprConfig.class);
             // The CAIP-2 chain id is the network's HIP-26 EVM chain id in the eip155 namespace
@@ -185,16 +177,6 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                     .throttles(initialThrottles)
                     .build();
             ledgerConfigurationState.put(initialConfig);
-            ledgerConfiguration = initialConfig;
-            initialized = true;
-        }
-
-        final var highWaterState = writableStates.<ProtoLong>getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID);
-        if (highWaterState.get() == null) {
-            // Seed from persisted limits. Any earlier upgrade-file update already captured its old limit
-            // through WritableLedgerConfigurationStore.put(), so a reduction cannot lose that credit.
-            highWaterState.put(new ProtoLong(
-                    ledgerConfiguration.throttlesOrElse(ClprThrottles.DEFAULT).maxQueueDepth()));
             initialized = true;
         }
 

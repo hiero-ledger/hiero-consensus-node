@@ -341,7 +341,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 oldAckedMessageId,
                 peerReceivedMessageId,
                 validated.newMessages().size());
-        final int queueCapacity = Math.max(configStore.getMaxQueueDepthHighWater(), throttles.maxQueueDepth());
+        // The local limit is expand-only, so it retains all previously advertised reply credit.
+        final int queueCapacity = throttles.maxQueueDepth();
         final ReplyValidation replyValidation;
         try {
             replyValidation = bundleValidator.validateReplies(channel, validated, messageQueueStore, queueCapacity);
@@ -433,8 +434,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         var lastConfigTimestamp = channel.lastConfigTimestamp();
         final var outbound =
                 new OutboundQueue(messageQueueStore, channelStore, channelId, newAckedMessageId, 2L * queueCapacity);
-        // Use the historical ordinary half so a lower current limit cannot indefinitely defer its
-        // own advertisement. The other half remains reserved for replies under prior advertised credit.
+        // Controls use the ordinary half; the other half remains reserved for replies.
         if (isTimestampBefore(lastConfigTimestamp, configTimestamp) && outbound.depth() < queueCapacity) {
             log.debug(
                     "[ClprSubmitBundle] enqueueing config update conn={} lastConfigTimestamp={} newConfigTimestamp={}",

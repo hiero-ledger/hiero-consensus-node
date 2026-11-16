@@ -17,12 +17,4 @@ public interface ReadableLedgerConfigurationStore {
      */
     @NonNull
     ClprLedgerConfiguration getConfiguration();
-
-    /**
-     * Gets the locally retained queue credit, at least the current queue limit.
-     * This historical reserve is not part of the configuration proved to peers.
-     *
-     * @return the largest locally configured queue depth since tracking began
-     */
-    int getMaxQueueDepthHighWater();
 }

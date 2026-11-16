@@ -5,6 +5,7 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
@@ -27,6 +28,10 @@ public record ClprConfig(
         // with a synthetic ClprUpdateLedgerConfiguration, when they differ from the current ones.
         @ConfigProperty(defaultValue = "clprLedgerConfiguration.json")
         String upgradeLedgerConfigurationFile,
+
+        // Upper bound for new queue credit. Lowering this ceiling does not revoke existing credit.
+        @ConfigProperty(defaultValue = "10000") @Min(1) @NetworkProperty
+        int maxQueueDepthCeiling,
 
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty
         long minLockedStake,

@@ -2,11 +2,39 @@
 package com.hedera.node.config.data;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.validation.ConfigViolationException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ClprConfigTest {
+    @Test
+    void queueDepthCeilingMatchesBundledDefault() {
+        assertThat(HederaTestConfigBuilder.createConfig()
+                        .getConfigData(ClprConfig.class)
+                        .maxQueueDepthCeiling())
+                .isEqualTo(10_000);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, -1, Integer.MIN_VALUE})
+    void queueDepthCeilingMustBePositive(final int ceiling) {
+        final var builder = HederaTestConfigBuilder.create().withValue("clpr.maxQueueDepthCeiling", ceiling);
+        assertThatThrownBy(builder::getOrCreateConfig).isInstanceOf(ConfigViolationException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 10_000, Integer.MAX_VALUE})
+    void positiveQueueDepthCeilingsAreAccepted(final int ceiling) {
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("clpr.maxQueueDepthCeiling", ceiling)
+                .getOrCreateConfig();
+        assertThat(configuration.getConfigData(ClprConfig.class).maxQueueDepthCeiling())
+                .isEqualTo(ceiling);
+    }
 
     @Test
     void enabledByDefault() {

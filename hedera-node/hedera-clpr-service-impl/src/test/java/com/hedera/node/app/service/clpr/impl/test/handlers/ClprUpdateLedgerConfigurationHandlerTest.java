@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURAT
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -17,7 +16,6 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprUpdateLedgerConfigurationHandler;
@@ -39,6 +37,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -371,34 +370,56 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         org.mockito.Mockito.verify(handleContext, org.mockito.Mockito.never()).ledgerId();
     }
 
-    @Test
-    void adminReductionRetainsPriorCreditInLocalState() {
-        setupHandleContext(
-                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
+    @ParameterizedTest
+    @CsvSource({
+        "5,2,10,false",
+        "5,5,10,true",
+        "5,6,10,true",
+        "5,10,10,true",
+        "5,11,10,false",
+        "5,5,3,true",
+        "5,6,3,false",
+        "5,3,3,false",
+        "1,1,1,true",
+        "10000,2147483647,10000,false",
+        "2147483647,2147483647,10000,true"
+    })
+    void adminQueueCreditIsExpandOnlyWithinGrowthCeiling(
+            final int current, final int requested, final int ceiling, final boolean accepted) {
+        setupHandleContext(HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("clpr.maxQueueDepthCeiling", ceiling)
+                .getOrCreateConfig());
         final var oldConfig = validConfigBuilder()
-                .throttles(validThrottlesBuilder().maxQueueDepth(5))
+                .throttles(validThrottlesBuilder().maxQueueDepth(current))
                 .build();
         final var configValue = new AtomicReference<>(oldConfig);
-        final var reserveValue = new AtomicReference<ProtoLong>();
-        final var states = MapWritableStates.builder()
-                .state(new FunctionWritableSingletonState<>(
-                        LEDGER_CONFIGURATION_STATE_ID, "CONFIG", configValue::get, configValue::set))
-                .state(new FunctionWritableSingletonState<>(
-                        MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, "RESERVE", reserveValue::get, reserveValue::set))
-                .build();
+        final var configState = new FunctionWritableSingletonState<>(
+                LEDGER_CONFIGURATION_STATE_ID, "CONFIG", configValue::get, configValue::set);
+        final var states = MapWritableStates.builder().state(configState).build();
         final var realStore = new WritableLedgerConfigurationStore(states);
         given(storeFactory.writableStore(WritableLedgerConfigurationStore.class))
                 .willReturn(realStore);
         given(handleContext.body())
                 .willReturn(txnBodyWith(validConfigBuilder()
-                        .throttles(validThrottlesBuilder().maxQueueDepth(2))
+                        .throttles(validThrottlesBuilder().maxQueueDepth(requested))
                         .build()));
 
-        subject.handle(handleContext);
-
-        assertThat(realStore.getConfiguration().throttlesOrThrow().maxQueueDepth())
-                .isEqualTo(2);
-        assertThat(realStore.getMaxQueueDepthHighWater()).isEqualTo(5);
+        if (accepted) {
+            subject.handle(handleContext);
+            assertThat(realStore.getConfiguration().throttlesOrThrow().maxQueueDepth())
+                    .isEqualTo(requested);
+            assertThat(realStore.getConfiguration().timestampOrThrow().seconds())
+                    .isEqualTo(CONSENSUS_NOW.getEpochSecond());
+        } else {
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOfSatisfying(
+                            HandleException.class,
+                            failure -> assertThat(failure.getStatus()).isEqualTo(INVALID_CLPR_CONFIGURATION));
+            // Rejection must precede changes to timestamp, anchors, or any configuration field.
+            assertThat(realStore.getConfiguration()).isEqualTo(oldConfig);
+            assertThat(configState.isModified()).isFalse();
+        }
     }
 
     // --- Helpers ---

@@ -80,7 +80,7 @@ public final class ClprLedgerConfigurationFile {
      * Returns the throttles to seed at genesis: from {@link ClprConfig#ledgerConfigurationFile()} if it exists
      * and is valid, otherwise from {@link #BUNDLED_RESOURCE}. An invalid file is logged and ignored rather than
      * thrown, since seeding runs on the handle thread and an exception there would leave the CLPR singletons
-     * missing on this node. {@code max_gas_per_message} is capped at {@code contracts.maxGasPerTransaction}.
+     * missing on this node. Gas and queue depth are capped by their network ceilings.
      *
      * @param configuration the active configuration
      * @return the throttles to seed
@@ -111,7 +111,8 @@ public final class ClprLedgerConfigurationFile {
      * Returns the configuration to dispatch in a {@code ClprUpdateLedgerConfiguration} to apply the given
      * throttles from an upgrade file, or empty if they match the existing throttles. Applying unchanged
      * throttles would still set a new timestamp, which queues a config update on every channel.
-     * {@code max_gas_per_message} is capped at {@code contracts.maxGasPerTransaction}.
+     * Gas is capped at {@code contracts.maxGasPerTransaction}. Queue credit cannot decrease:
+     * its new value is {@code max(existing, min(file, clpr.maxQueueDepthCeiling))}.
      *
      * @param existing the existing ledger configuration
      * @param throttles the validated throttles from the upgrade file
@@ -125,7 +126,19 @@ public final class ClprLedgerConfigurationFile {
         requireNonNull(existing);
         requireNonNull(throttles);
         requireNonNull(configuration);
-        final var cappedThrottles = capped(throttles, configuration);
+        final int currentQueueDepth =
+                existing.throttlesOrElse(ClprThrottles.DEFAULT).maxQueueDepth();
+        if (throttles.maxQueueDepth() < currentQueueDepth) {
+            log.warn(
+                    "Ignoring CLPR upgrade-file queue depth reduction from {} to {}; advertised credit is expand-only",
+                    currentQueueDepth,
+                    throttles.maxQueueDepth());
+        }
+        final var boundedThrottles = capped(throttles, configuration);
+        final var cappedThrottles = boundedThrottles
+                .copyBuilder()
+                .maxQueueDepth(Math.max(currentQueueDepth, boundedThrottles.maxQueueDepth()))
+                .build();
         if (cappedThrottles.equals(existing.throttles())) {
             return Optional.empty();
         }
@@ -153,6 +166,9 @@ public final class ClprLedgerConfigurationFile {
         return throttles
                 .copyBuilder()
                 .maxGasPerMessage(Math.min(throttles.maxGasPerMessage(), maxGasPerTransaction))
+                .maxQueueDepth(Math.min(
+                        throttles.maxQueueDepth(),
+                        configuration.getConfigData(ClprConfig.class).maxQueueDepthCeiling()))
                 .build();
     }
 }

@@ -1363,16 +1363,16 @@ class ClprSubmitBundleHandlerTest {
 
     @ParameterizedTest
     @CsvSource({"1", "2", "3", "4", "5", "6", "7"})
-    void loweredQueueLimitStillDrainsPeerDataAheadOfReplies(final int bundleSize) {
-        // A had credit 5 and sent DATA 1..4 before governance lowered new-send credit to 2.
-        // B legitimately queued three DATA before learning of the reduction, then replies R1..R4.
+    void expandOnlyQueueLimitDrainsPeerDataAheadOfReplies(final int bundleSize) {
+        // A keeps its advertised credit of 5 even after its growth ceiling falls to 2.
+        // B legitimately queues three DATA ahead of replies R1..R4.
         putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 5, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
         for (int id = 1; id <= 4; id++) {
             putOutboundDataMessage(id);
         }
-        final var reducedConfig = createLedgerConfig()
+        final var currentConfig = createLedgerConfig()
                 .copyBuilder()
-                .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(2))
+                .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(5))
                 .build();
         final var peerMessages = List.of(
                 dataPayload(),
@@ -1382,6 +1382,9 @@ class ClprSubmitBundleHandlerTest {
                 replyPayload(2),
                 replyPayload(3),
                 replyPayload(4));
+        final var lowerCeiling = HederaTestConfigBuilder.create()
+                .withValue("clpr.maxQueueDepthCeiling", 2)
+                .getOrCreateConfig();
         int received = 0;
         while (received < peerMessages.size()) {
             final var channel = channelStore.getChannel(CHANNEL_ID);
@@ -1394,8 +1397,8 @@ class ClprSubmitBundleHandlerTest {
                             channel.receivedRunningHash(),
                             peerMessages.subList(received, end)),
                     true);
-            given(configStore.getConfiguration()).willReturn(reducedConfig);
-            given(configStore.getMaxQueueDepthHighWater()).willReturn(5);
+            given(configStore.getConfiguration()).willReturn(currentConfig);
+            given(handleContext.configuration()).willReturn(lowerCeiling);
 
             subject.handle(handleContext);
 
@@ -1414,8 +1417,8 @@ class ClprSubmitBundleHandlerTest {
                 .controlOrThrow()
                 .configUpdateOrThrow()
                 .configurationOrThrow();
-        assertThat(advertised.throttlesOrThrow().maxQueueDepth()).isEqualTo(2);
-        assertThat(advertised).isEqualTo(reducedConfig);
+        assertThat(advertised.throttlesOrThrow().maxQueueDepth()).isEqualTo(5);
+        assertThat(advertised).isEqualTo(currentConfig);
 
         // B can now receive and ACK A's config and replies, so both queues drain.
         setupHandleContext(
@@ -1426,14 +1429,14 @@ class ClprSubmitBundleHandlerTest {
                         channel.receivedRunningHash(),
                         List.of()),
                 true);
-        given(configStore.getConfiguration()).willReturn(reducedConfig);
+        given(configStore.getConfiguration()).willReturn(currentConfig);
+        given(handleContext.configuration()).willReturn(lowerCeiling);
         subject.handle(handleContext);
         assertThat(writableMessages.size()).isZero();
     }
 
     @Test
-    void historicalReplyCreditRemainsFiniteForPeerExceedingItsAdvertisedCredit() {
-        given(configStore.getMaxQueueDepthHighWater()).willReturn(5);
+    void replyCreditRemainsFiniteForPeerExceedingItsAdvertisedCredit() {
         putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 5, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
         for (int id = 1; id <= 4; id++) {
             putOutboundDataMessage(id);
@@ -1455,7 +1458,7 @@ class ClprSubmitBundleHandlerTest {
         given(configStore.getConfiguration())
                 .willReturn(createLedgerConfig()
                         .copyBuilder()
-                        .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(2))
+                        .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(5))
                         .build());
 
         subject.handle(handleContext);
