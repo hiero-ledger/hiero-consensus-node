@@ -96,8 +96,7 @@ zero balance. An existing account retains its key and balance.
 
 Automatic provisioning applies to account numbers from 200 up to
 `hedera.firstUserEntity` (exclusive), excluding the reserved contract range
-350–399. The account number must be below the next number available to the
-entity allocator.
+350–399.
 
 ### Authorization privileges for file updates and appends
 

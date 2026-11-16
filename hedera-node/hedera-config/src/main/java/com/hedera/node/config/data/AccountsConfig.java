@@ -9,6 +9,11 @@ import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
+/**
+ * Account configuration properties.
+ * @param clprAdmin the account number allowed to submit privileged CLPR transactions, in addition to the superusers;
+ *     a nonpositive number disables the role
+ */
 @ConfigData("accounts")
 public record AccountsConfig(
         @ConfigProperty(defaultValue = "54") @NetworkProperty
@@ -17,7 +22,6 @@ public record AccountsConfig(
         @ConfigProperty(defaultValue = "55") @NetworkProperty
         long addressBookAdmin,
 
-        // A nonpositive account number disables the delegated CLPR admin role.
         @ConfigProperty(defaultValue = "601") @NetworkProperty
         long clprAdmin,
 

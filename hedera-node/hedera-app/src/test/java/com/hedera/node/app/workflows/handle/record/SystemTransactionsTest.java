@@ -87,6 +87,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -125,6 +126,11 @@ class SystemTransactionsTest {
     private static final long CLPR_ADMIN_ACCOUNT_NUM = 601L;
     private static final long CUSTOM_CLPR_ADMIN_ACCOUNT_NUM = 850L;
     private static final long DISABLED_CLPR_ADMIN_ACCOUNT_NUM = -1L;
+    private static final Key GENESIS_KEY = Key.newBuilder()
+            .ed25519(HederaTestConfigBuilder.createConfig()
+                    .getConfigData(BootstrapConfig.class)
+                    .genesisPublicKey())
+            .build();
     private static final Key TREASURY_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"))
             .build();
@@ -568,17 +574,16 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void genesisSetupCreatesMissingConfiguredClprAdmin() {
+    void genesisSetupCreatesMissingConfiguredClprAdminWithGenesisKey() {
         final var accounts = givenAccountsState();
+        givenEntityIdStates();
         given(accounts.get(givenLocalAccountId(CUSTOM_CLPR_ADMIN_ACCOUNT_NUM))).willReturn(null);
-        givenTreasuryKey(accounts);
-        givenCurrentEntityNumber(1000L);
 
         final var systemContext = doGenesisSetup(HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", true)
                 .withValue("accounts.clprAdmin", CUSTOM_CLPR_ADMIN_ACCOUNT_NUM));
 
-        assertClprAdminAccountCreation(systemContext, CUSTOM_CLPR_ADMIN_ACCOUNT_NUM);
+        assertClprAdminAccountCreation(systemContext, CUSTOM_CLPR_ADMIN_ACCOUNT_NUM, GENESIS_KEY);
     }
 
     @Test
@@ -634,12 +639,11 @@ class SystemTransactionsTest {
         given(accounts.get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         given(accounts.get(givenLocalAccountId(CLPR_ADMIN_ACCOUNT_NUM))).willReturn(null);
         givenTreasuryKey(accounts);
-        givenCurrentEntityNumber(1000L);
 
         final var systemContext = doPostUpgradeSetupWithMockContext(
                 true, CLPR_LEDGER_CONFIGURATION, "data/config", CLPR_ADMIN_ACCOUNT_NUM);
 
-        assertClprAdminAccountCreation(systemContext, CLPR_ADMIN_ACCOUNT_NUM);
+        assertClprAdminAccountCreation(systemContext, CLPR_ADMIN_ACCOUNT_NUM, TREASURY_KEY);
     }
 
     @Test
@@ -655,20 +659,6 @@ class SystemTransactionsTest {
                 true, CLPR_LEDGER_CONFIGURATION, "data/config", CLPR_ADMIN_ACCOUNT_NUM);
 
         verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_ADMIN_ACCOUNT_NUM));
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void postUpgradeSkipsClprAdminAboveCurrentEntityNumber() {
-        final var accounts = givenAccountsState();
-        given(accounts.get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
-        given(accounts.get(givenLocalAccountId(CUSTOM_CLPR_ADMIN_ACCOUNT_NUM))).willReturn(null);
-        givenCurrentEntityNumber(800L);
-
-        final var systemContext = doPostUpgradeSetupWithMockContext(
-                true, CLPR_LEDGER_CONFIGURATION, "data/config", CUSTOM_CLPR_ADMIN_ACCOUNT_NUM);
-
-        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CUSTOM_CLPR_ADMIN_ACCOUNT_NUM));
     }
 
     @ParameterizedTest
@@ -1150,18 +1140,8 @@ class SystemTransactionsTest {
                 .willReturn(Account.newBuilder().key(TREASURY_KEY).build());
     }
 
-    private ReadableStates givenEntityIdStates() {
-        final var entityIdStates = mock(ReadableStates.class);
-        given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
-        return entityIdStates;
-    }
-
-    @SuppressWarnings("unchecked")
-    private void givenCurrentEntityNumber(final long number) {
-        final var entityIdStates = givenEntityIdStates();
-        final ReadableSingletonState<EntityNumber> entityNumberState = mock(ReadableSingletonState.class);
-        given(entityIdStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)).willReturn(entityNumberState);
-        given(entityNumberState.get()).willReturn(new EntityNumber(number));
+    private void givenEntityIdStates() {
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(mock(ReadableStates.class));
     }
 
     private SystemContext doPostUpgradeSetupWithMockContext(final boolean clprEnabled) {
@@ -1240,11 +1220,12 @@ class SystemTransactionsTest {
         return systemContext;
     }
 
-    private static void assertClprAdminAccountCreation(final SystemContext systemContext, final long accountNum) {
+    private static void assertClprAdminAccountCreation(
+            final SystemContext systemContext, final long accountNum, final Key expectedKey) {
         final var body = capturedAccountCreation(systemContext, accountNum);
         final var creation = body.cryptoCreateAccountOrThrow();
         assertEquals("CLPR admin account creation record", body.memo());
-        assertEquals(TREASURY_KEY, creation.key());
+        assertEquals(expectedKey, creation.key());
         assertEquals(0L, creation.initialBalance());
     }
 

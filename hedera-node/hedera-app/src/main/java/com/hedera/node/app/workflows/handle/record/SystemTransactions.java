@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXP
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.parseEd25519NodeAdminKeysFrom;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
@@ -373,8 +372,11 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
-        // The default CLPR admin number is in the treasury clone range created above.
-        maybeCreateClprAdminAccount(state, systemContext, config);
+        // Create the CLPR admin account only if CLPR is enabled and its number is not one of the accounts
+        // created above (the default is a treasury clone)
+        if (isClprAdminAccountMissing(state, config)) {
+            dispatchClprAdminAccountCreation(systemContext, systemKey, systemAutoRenewPeriod, config);
+        }
         // If requested, create accounts with aliases from the blocklist
         if (accountsConfig.blocklistEnabled()) {
             for (final var info : blocklistParser.parse(accountsConfig.blocklistResource())) {
@@ -519,12 +521,14 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
-        // Read the configuration again so CLPR setup uses the properties applied by this upgrade.
+        // Use the configuration as of now, so the upgrade's property overrides can enable CLPR
         final var currentConfig = configProvider.getConfiguration();
         if (isClprStakingAccountMissing(state, currentConfig)) {
             createClprStakingAccount(systemContext, currentConfig);
         }
-        maybeCreateClprAdminAccount(state, systemContext, currentConfig);
+        if (isClprAdminAccountMissing(state, currentConfig)) {
+            createClprAdminAccount(state, systemContext, currentConfig);
+        }
         maybeUpdateClprLedgerConfiguration(state, systemContext, currentConfig, adminConfig.upgradeSysFilesLoc());
         startupNetworks.clearCachedNetworks();
     }
@@ -675,6 +679,32 @@ public class SystemTransactions {
     }
 
     /**
+     * Returns whether CLPR is enabled but its admin account does not exist yet. Only an account number in the
+     * reserved system range, outside the system file and system contract numbers, is eligible, since synthetic
+     * creations do not advance the entity allocator. Reads no state while CLPR is disabled or the admin account
+     * number is ineligible.
+     *
+     * @param state the current state
+     * @param config the current configuration
+     * @return whether the CLPR admin account needs to be created
+     */
+    private boolean isClprAdminAccountMissing(@NonNull final State state, @NonNull final Configuration config) {
+        if (!config.getConfigData(ClprConfig.class).enabled()) {
+            return false;
+        }
+        final var adminAccountNum = config.getConfigData(AccountsConfig.class).clprAdmin();
+        if (adminAccountNum < FIRST_POST_SYSTEM_FILE_ENTITY
+                || adminAccountNum >= config.getConfigData(HederaConfig.class).firstUserEntity()
+                || (adminAccountNum >= FIRST_RESERVED_SYSTEM_CONTRACT
+                        && adminAccountNum <= LAST_RESERVED_SYSTEM_CONTRACT)) {
+            return false;
+        }
+        final var adminAccountId = idFactory.newAccountId(adminAccountNum);
+        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
+        return accounts.get(adminAccountId) == null;
+    }
+
+    /**
      * Applies the throttles in the CLPR ledger configuration upgrade file, if present, with a synthetic
      * {@code ClprUpdateLedgerConfiguration}. Skipped when CLPR is disabled (the handler would fail), when the
      * ledger configuration does not exist yet (it is seeded from the same file right after post-upgrade setup),
@@ -747,57 +777,26 @@ public class SystemTransactions {
     }
 
     /**
-     * Creates a missing CLPR admin account at its reserved number with a zero balance and the treasury's current key.
+     * Creates the CLPR admin account with the treasury's current key, so an upgrade honors any treasury key
+     * rotation since genesis.
      *
-     * @param state the state containing the existing accounts and entity allocator
-     * @param systemContext the context for dispatching the synthetic account creation
-     * @param config the network configuration effective for this setup
+     * @param state the current state
+     * @param systemContext the system context to dispatch in
+     * @param config the current configuration
      */
-    private void maybeCreateClprAdminAccount(
+    private void createClprAdminAccount(
             @NonNull final State state,
             @NonNull final SystemContext systemContext,
             @NonNull final Configuration config) {
         final var accountsConfig = config.getConfigData(AccountsConfig.class);
-        final var accountNum = accountsConfig.clprAdmin();
-        if (!config.getConfigData(ClprConfig.class).enabled()
-                || accountNum < FIRST_POST_SYSTEM_FILE_ENTITY
-                || accountNum >= config.getConfigData(HederaConfig.class).firstUserEntity()
-                || (accountNum >= FIRST_RESERVED_SYSTEM_CONTRACT && accountNum <= LAST_RESERVED_SYSTEM_CONTRACT)) {
-            return;
-        }
-
         final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
-        if (accounts.get(idFactory.newAccountId(accountNum)) != null) {
-            return;
-        }
-
-        // Synthetic creation leaves the allocator unchanged, so a higher number could be issued again later.
-        final var entityNumber = state.getReadableStates(EntityIdService.NAME)
-                .<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)
-                .get();
-        if (entityNumber == null || accountNum > entityNumber.number()) {
-            log.warn("Cannot create CLPR admin account {} ahead of the entity allocator", accountNum);
-            return;
-        }
-
-        // Read the key from state so provisioning honors treasury key rotations.
-        final var treasury = accounts.get(idFactory.newAccountId(accountsConfig.treasury()));
-        final var adminKey = treasury == null || treasury.deleted() ? null : treasury.key();
-        if (!isValid(adminKey)) {
-            log.warn("Cannot create CLPR admin account {} without an active treasury key", accountNum);
-            return;
-        }
-
-        final var autoRenewPeriod =
-                new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration());
-        systemContext.dispatchCreation(
-                b -> b.memo("CLPR admin account creation record")
-                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
-                                .key(adminKey)
-                                .autoRenewPeriod(autoRenewPeriod)
-                                .build())
-                        .build(),
-                accountNum);
+        final var treasury = requireNonNull(accounts.get(idFactory.newAccountId(accountsConfig.treasury())));
+        log.info("Creating CLPR admin account {}", idFactory.newAccountId(accountsConfig.clprAdmin()));
+        dispatchClprAdminAccountCreation(
+                systemContext,
+                treasury.keyOrThrow(),
+                new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration()),
+                config);
     }
 
     private static void dispatchClprStakingAccountCreation(
@@ -812,6 +811,21 @@ public class SystemTransactions {
                                 .build())
                         .build(),
                 config.getConfigData(ClprConfig.class).stakingAccount());
+    }
+
+    private static void dispatchClprAdminAccountCreation(
+            @NonNull final SystemContext systemContext,
+            @NonNull final Key key,
+            @NonNull final Duration autoRenewPeriod,
+            @NonNull final Configuration config) {
+        systemContext.dispatchCreation(
+                b -> b.memo("CLPR admin account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(key)
+                                .autoRenewPeriod(autoRenewPeriod)
+                                .build())
+                        .build(),
+                config.getConfigData(AccountsConfig.class).clprAdmin());
     }
 
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
