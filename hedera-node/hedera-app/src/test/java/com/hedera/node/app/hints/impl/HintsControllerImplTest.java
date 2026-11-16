@@ -251,8 +251,7 @@ class HintsControllerImplTest {
     void setsPreprocessingStartTimeWhenAllNodesHavePublished() {
         setupWith(UNFINISHED_CONSTRUCTION);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
-        // Both target nodes are already in the source
-        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
+        given(weights.numTargetNodesInSource()).willReturn(2);
         given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
                 .willReturn(CONSTRUCTION_WITH_START_TIME);
 
@@ -277,13 +276,45 @@ class HintsControllerImplTest {
     }
 
     @Test
+    void doesNotStartPreprocessingEarlyBeforeRunningTargetNodeOutsideSourcePublishes() {
+        // Node 2 is running but not yet a party in the source scheme, e.g. it was added at the last upgrade
+        setupWithRunningTargetNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
+        given(weights.numTargetNodesInSource()).willReturn(1);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        runScheduledTasks();
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        verify(store, never()).setPreprocessingStartTime(anyLong(), any());
+    }
+
+    @Test
+    void startsPreprocessingEarlyOnceRunningTargetNodeOutsideSourcePublishes() {
+        setupWithRunningTargetNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
+        given(weights.numTargetNodesInSource()).willReturn(1);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
+                .willReturn(CONSTRUCTION_WITH_START_TIME);
+
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION, INITIAL_CRS);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        runScheduledTasks();
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        verify(store).setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME);
+    }
+
+    @Test
     void publishesHintsKeyIfNotDoneBeforeGracePeriodOver() {
         setupWith(UNFINISHED_CONSTRUCTION);
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
-        // Both target nodes are already in the source
-        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
         given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
 
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
@@ -310,8 +341,6 @@ class HintsControllerImplTest {
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
-        // Both target nodes are already in the source
-        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
         given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
         given(weights.targetWeightThreshold()).willReturn(1L);
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
@@ -898,8 +927,7 @@ class HintsControllerImplTest {
     void setsPreprocessingStartTimeEvenWhenNodeIsNotActive() {
         setupWith(UNFINISHED_CONSTRUCTION);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
-        // Both target nodes are already in the source
-        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
+        given(weights.numTargetNodesInSource()).willReturn(2);
         given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
                 .willReturn(CONSTRUCTION_WITH_START_TIME);
 
@@ -923,8 +951,6 @@ class HintsControllerImplTest {
         // remove crs publication task
         scheduledTasks.poll();
         given(weights.numTargetNodesInSource()).willReturn(2);
-        // Both target nodes are already in the source
-        given(weights.targetNodeIds()).willReturn(new TreeSet<>(Set.of(0L, 1L)));
         given(weights.targetNodeWeights()).willReturn(new TreeMap<>(Map.of(SELF_ID, 1L)));
         given(weights.targetIncludes(SELF_ID)).willReturn(true);
 
@@ -944,6 +970,31 @@ class HintsControllerImplTest {
                 construction,
                 List.of(),
                 CRSState.newBuilder().stage(CRSStage.COMPLETED).crs(INITIAL_CRS).build());
+    }
+
+    private void setupWithRunningTargetNodesOutsideSource(
+            @NonNull final HintsConstruction construction, @NonNull final Set<Long> runningTargetNodesOutsideSource) {
+        lenient()
+                .when(store.getCrsStateFor(any()))
+                .thenReturn(CRSState.newBuilder()
+                        .stage(CRSStage.COMPLETED)
+                        .crs(INITIAL_CRS)
+                        .build());
+        subject = new HintsControllerImpl(
+                SELF_ID,
+                BLS_KEY_PAIR.privateKey(),
+                construction,
+                weights,
+                runningTargetNodesOutsideSource,
+                scheduledTasks::offer,
+                library,
+                Map.of(),
+                List.of(),
+                submissions,
+                context,
+                HederaTestConfigBuilder::createConfig,
+                store,
+                onHintsFinished);
     }
 
     private void setupWithFinalCrs(@NonNull final HintsConstruction construction) {

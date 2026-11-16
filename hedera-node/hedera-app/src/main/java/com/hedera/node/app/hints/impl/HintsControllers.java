@@ -235,11 +235,23 @@ public class HintsControllers {
             final var votes = hintsStore.getVotes(construction.constructionId(), voteNodeIds);
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var blsKeyPair = keyAccessor.getOrCreateBlsPrivateKey(construction.constructionId());
+            // Target nodes already running (in the active roster) that are not yet hinTS parties, e.g. nodes added
+            // at the last upgrade; the controller waits for their keys before it starts preprocessing early. Only a
+            // construction for the members the network already runs (a weight rotation) waits for them, since an
+            // upgrade's candidate roster must be ready as soon as possible, before its freeze
+            final var runningTargetNodesOutsideSource = new TreeSet<Long>();
+            final var currentNodeIds = new TreeSet<Long>();
+            activeRosters.currentRoster().rosterEntries().forEach(entry -> currentNodeIds.add(entry.nodeId()));
+            if (currentNodeIds.equals(weights.targetNodeIds())) {
+                runningTargetNodesOutsideSource.addAll(currentNodeIds);
+                runningTargetNodesOutsideSource.removeAll(weights.sourceNodeIds());
+            }
             return new HintsControllerImpl(
                     selfId,
                     blsKeyPair,
                     construction,
                     weights,
+                    runningTargetNodesOutsideSource,
                     executor,
                     library,
                     votes,
