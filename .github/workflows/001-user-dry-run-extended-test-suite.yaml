@@ -309,5 +309,5 @@ jobs:
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-
-        ${{ format('{{"ref_name":"{0}","head_sha":"{1}"}}',
-        github.ref_name, github.sha) }}
+        ${{ format('{{"ref_name":{0},"head_sha":{1}}}',
+        toJSON(github.ref_name), toJSON(github.sha)) }}

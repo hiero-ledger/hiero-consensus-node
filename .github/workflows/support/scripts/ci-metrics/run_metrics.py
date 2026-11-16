@@ -62,14 +62,13 @@ def citr_labels(run, context):
     run_attempt             the run attempt (a run is keyed by test_run_id and run_attempt)
     consensus_short_commit  the first 7 characters of the commit under test: context["tested_commit"] when the workflow
                             knows it (a full SHA), else the run's head commit for push and pull_request events. Left out
-                            when it is not known, never guessed: a dispatched run's head commit is the ref the workflow
+                            when it is not known or is not a full SHA (a short SHA from a manual dispatch must not lose
+                            the run's document), never guessed: a dispatched run's head commit is the ref the workflow
                             ran on, which can differ from the commit it tests.
     """
     labels = {"test_run_id": str(run["id"]), "run_attempt": str(run["run_attempt"])}
     commit = context.get("tested_commit") or (run["head_sha"] if run["event"] in ("push", "pull_request") else None)
-    if commit:
-        if not re.fullmatch(r"[0-9a-f]{40}", commit):
-            raise ValueError(f"the commit under test must be a full 40 character SHA, got {commit!r}")
+    if commit and re.fullmatch(r"[0-9a-f]{40}", commit):
         labels["consensus_short_commit"] = commit[:SHORT_COMMIT_LENGTH]
     return labels
 

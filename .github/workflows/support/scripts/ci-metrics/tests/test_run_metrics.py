@@ -76,10 +76,10 @@ class Citr(unittest.TestCase):
         tested = "fedcba9876543210fedcba9876543210fedcba98"
         self.assertEqual(run_metrics.citr_labels(self.run_("push"), {"tested_commit": tested})["consensus_short_commit"], "fedcba9")
 
-    def test_a_commit_that_is_not_a_full_sha_is_rejected(self):
+    def test_a_commit_that_is_not_a_full_sha_is_left_out_not_fatal(self):
         for bad in ("main", "abc1234", "0123456789ABCDEF0123456789ABCDEF01234567"):
-            with self.assertRaises(ValueError):
-                run_metrics.citr_labels(self.run_("workflow_dispatch"), {"tested_commit": bad})
+            self.assertEqual(run_metrics.citr_labels(self.run_("workflow_dispatch"), {"tested_commit": bad}),
+                             {"test_run_id": "4321", "run_attempt": "1"})
 
     def test_the_document_carries_the_labels(self):
         run = dict(raw_run(), event="pull_request", run_attempt=1, head_sha=self.SHA)

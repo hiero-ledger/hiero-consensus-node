@@ -808,6 +808,5 @@ jobs:
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-
-        ${{ format('{{"ref":"{0}","xts_proceed":"{1}","xts_tag_commit":"{2}","xts_branch":"{3}","tested_commit":"{4}"}}',
-        inputs.ref, needs.fetch-xts-candidate.outputs.xts-proceed, needs.fetch-xts-candidate.outputs.xts-tag-commit, needs.fetch-xts-candidate.outputs.xts-commit-branch,
-        needs.fetch-xts-candidate.outputs.xts-tag-commit || inputs.ref) }}
+        ${{ format('{{"ref":{0},"xts_proceed":{1},"xts_tag_commit":{2},"xts_branch":{3},"tested_commit":{4}}}',
+        toJSON(inputs.ref), toJSON(needs.fetch-xts-candidate.outputs.xts-proceed), toJSON(needs.fetch-xts-candidate.outputs.xts-tag-commit), toJSON(needs.fetch-xts-candidate.outputs.xts-commit-branch), toJSON(needs.fetch-xts-candidate.outputs.xts-tag-commit || inputs.ref)) }}

@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "865: [CALL] Publish Run Metrics"
 # Last job of a workflow run: writes the run's jobs, step timings, trigger context and per-test timings to one artifact,
-# `run-metrics`, while all of that still exists (the API drops step detail after ~18 days and the JUnit reports are kept
-# for 7). The caller adds every other job of its run to `needs`, so this one starts last, and calls it with
+# `run-metrics`, while the JUnit reports (kept 7 days) and the trigger context still exist. The artifact itself expires
+# after 14 days, less than the ~18 days the API keeps steps, so it does not extend step history; the jobs and steps are
+# there for convenience. The caller adds every other job of its run to `needs`, so this one starts last, and calls it with
 # `if: always()` so that cancelled runs are recorded too. A failure here never fails the calling run.
 # See .github/workflows/docs/ci-metrics.md.
 on:

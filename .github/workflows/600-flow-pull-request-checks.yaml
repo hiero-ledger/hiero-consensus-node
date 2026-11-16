@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "600: [FLOW] PR Checks"
 # The event action (opened, synchronize, labeled, reopened) goes in the run title so it is queryable through the
-# runs API (display_title). It shows which runs are re-triggers of a commit that already ran. See .github/ci-metrics.
+# runs API (display_title). It shows which runs are re-triggers of a commit that already ran. See .github/workflows/docs/ci-metrics.md.
 run-name: "PR #${{ github.event.pull_request.number }} ${{ github.event.action }}: ${{ github.event.pull_request.title }}"
 on:
   pull_request:
@@ -206,7 +206,5 @@ jobs:
     uses: ./.github/workflows/865-call-publish-run-metrics.yaml
     with:
       context: >-
-        ${{ format('{{"action":"{0}","head_sha":"{1}","docs_only":"{2}","enable_tests":"{3}","workflow_files_changed":"{4}","smart_contracts_changed":"{5}","failure_mode":"{6}"}}',
-        github.event.action, github.event.pull_request.head.sha, needs.detect-change-type.outputs.docs-only,
-        needs.detect-change-type.outputs.enable-tests, needs.detect-change-type.outputs.workflow-files-changed,
-        needs.detect-change-type.outputs.smart-contracts-changed, needs.mats-pr-checks.outputs.failure-mode) }}
+        ${{ format('{{"action":{0},"head_sha":{1},"docs_only":{2},"enable_tests":{3},"workflow_files_changed":{4},"smart_contracts_changed":{5},"failure_mode":{6}}}',
+        toJSON(github.event.action), toJSON(github.event.pull_request.head.sha), toJSON(needs.detect-change-type.outputs.docs-only), toJSON(needs.detect-change-type.outputs.enable-tests), toJSON(needs.detect-change-type.outputs.workflow-files-changed), toJSON(needs.detect-change-type.outputs.smart-contracts-changed), toJSON(needs.mats-pr-checks.outputs.failure-mode)) }}
