@@ -10,7 +10,6 @@ import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.entity.EntityCounts;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.token.NodePayment;
 import com.hedera.hapi.node.state.token.NodePayments;
@@ -32,8 +31,6 @@ import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -243,17 +240,5 @@ class BoundaryStateChangeListenerTest {
         listener.trackCollectedNodeFees(25);
 
         assertEquals(175, listener.nodeFeesCollected());
-    }
-
-    @ParameterizedTest
-    @ValueSource(longs = {0, 5})
-    void encodesPrimitiveLongAsPresentScalarWrapper(final long value) throws Exception {
-        final var update = new SingletonUpdateChange(
-                false, List.of(), BoundaryStateChangeListener.singletonUpdateChangeValueFor(new ProtoLong(value)));
-        final var parsed = SingletonUpdateChange.PROTOBUF.parseStrict(SingletonUpdateChange.PROTOBUF.toBytes(update));
-        assertEquals(
-                SingletonUpdateChange.NewValueOneOfType.PROTO_LONG_VALUE,
-                parsed.newValue().kind());
-        assertEquals(value, parsed.protoLongValueOrThrow());
     }
 }

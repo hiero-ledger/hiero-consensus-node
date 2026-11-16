@@ -3,10 +3,7 @@ package com.hedera.node.app.hapi.utils.blocks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -50,32 +47,10 @@ class BlockStreamUtilsTest {
         "STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS, ClprService.PENDING_CONNECTOR_COMMITMENTS",
         "STATE_ID_CLPR_ENDPOINT_MANIFEST, ClprService.ENDPOINT_MANIFEST",
         "STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION, ClprService.ENDPOINT_MANIFEST_CONSTRUCTION",
-        "STATE_ID_CLPR_MAX_QUEUE_DEPTH_HIGH_WATER, ClprService.MAX_QUEUE_DEPTH_HIGH_WATER",
         "STATE_ID_HINTS_KEY_PROVENANCE, HistoryService.HINTS_KEY_PROVENANCE",
         "STATE_ID_HINTS_KEY_WITNESSES, HistoryService.HINTS_KEY_WITNESSES"
     })
     void mapsStateIdentifiers(final StateIdentifier stateIdentifier, final String expectedStateName) {
         assertEquals(expectedStateName, BlockStreamUtils.stateNameOf(stateIdentifier.protoOrdinal()));
-    }
-
-    @ParameterizedTest
-    @ValueSource(longs = {0, 5, 127, 128, Integer.MAX_VALUE, Long.MAX_VALUE, Long.MIN_VALUE, -1})
-    void retainsPrimitiveSingletonWireEncodingAndPresence(final long value) throws Exception {
-        final var reserve = new ProtoLong(value);
-        final var update =
-                SingletonUpdateChange.newBuilder().protoLongValue(value).build();
-        // The previous field 24 was a ProtoLong message. Reconstruct its envelope using that
-        // unchanged state codec; its payload is at most 11 bytes, so the length is one byte.
-        final var oldPayload = ProtoLong.PROTOBUF.toBytes(reserve);
-        final var oldEncoding = Bytes.fromHex("c201")
-                .append(Bytes.wrap(new byte[] {(byte) oldPayload.length()}))
-                .append(oldPayload);
-        assertEquals(oldEncoding, SingletonUpdateChange.PROTOBUF.toBytes(update));
-        final var parsed = SingletonUpdateChange.PROTOBUF.parseStrict(oldEncoding);
-        // Zero must remain a present oneof value, not disappear as the unset/default case.
-        assertEquals(
-                SingletonUpdateChange.NewValueOneOfType.PROTO_LONG_VALUE,
-                parsed.newValue().kind());
-        assertEquals(reserve, BlockStreamUtils.singletonPutFor(parsed));
     }
 }

@@ -4,7 +4,6 @@ package com.hedera.node.app.services;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -75,7 +74,6 @@ class MigrationStateChangesTest {
         verify(state, times(2)).registerCommitListener(captor.capture());
         for (final var listener : captor.getAllValues()) {
             listener.singletonUpdateChange(LEDGER_CONFIGURATION_STATE_ID, ClprLedgerConfiguration.DEFAULT);
-            listener.singletonUpdateChange(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, new ProtoLong(8));
             listener.singletonUpdateChange(ENDPOINT_MANIFEST_STATE_ID, ClprEndpointManifest.DEFAULT);
             listener.singletonUpdateChange(
                     ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID, ClprEndpointManifestConstruction.DEFAULT);
@@ -88,7 +86,7 @@ class MigrationStateChangesTest {
         }
         final var changes = tracker.getStateChanges();
         assertThat(changes).hasSize(2);
-        assertThat(changes.getFirst().build().stateChanges()).hasSize(4);
+        assertThat(changes.getFirst().build().stateChanges()).hasSize(3);
         assertThat(changes.getLast().build().stateChanges())
                 .singleElement()
                 .satisfies(change -> assertThat(change.singletonUpdateOrThrow()

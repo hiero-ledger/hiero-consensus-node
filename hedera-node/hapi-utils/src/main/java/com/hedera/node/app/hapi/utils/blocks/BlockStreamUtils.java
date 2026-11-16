@@ -118,7 +118,6 @@ public final class BlockStreamUtils {
             case STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS -> "ClprService.PENDING_CONNECTOR_COMMITMENTS";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST -> "ClprService.ENDPOINT_MANIFEST";
             case STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION -> "ClprService.ENDPOINT_MANIFEST_CONSTRUCTION";
-            case STATE_ID_CLPR_MAX_QUEUE_DEPTH_HIGH_WATER -> "ClprService.MAX_QUEUE_DEPTH_HIGH_WATER";
         };
     }
 
@@ -133,7 +132,6 @@ public final class BlockStreamUtils {
             case NODE_REWARDS_VALUE -> singletonUpdateChange.nodeRewardsValueOrThrow();
             case BYTES_VALUE -> new ProtoBytes(singletonUpdateChange.bytesValueOrThrow());
             case STRING_VALUE -> new ProtoString(singletonUpdateChange.stringValueOrThrow());
-            case PROTO_LONG_VALUE -> new ProtoLong(singletonUpdateChange.protoLongValueOrThrow());
             case RUNNING_HASHES_VALUE -> singletonUpdateChange.runningHashesValueOrThrow();
             case THROTTLE_USAGE_SNAPSHOTS_VALUE -> singletonUpdateChange.throttleUsageSnapshotsValueOrThrow();
             case TIMESTAMP_VALUE -> singletonUpdateChange.timestampValueOrThrow();

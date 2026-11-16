@@ -730,9 +730,6 @@ message StateValue {
      */
     com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
-    /** Local CLPR queue reserve, excluded from peer configuration proofs. */
-    proto.ProtoLong ClprService_I_MAX_QUEUE_DEPTH_HIGH_WATER = 71;
-
     /**
      * Metadata of the round receipts queue.
      */
@@ -957,9 +954,6 @@ enum SingletonType {
    * change, and is deleted on close. Singleton state.
    */
   ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
-
-  /** Local CLPR queue reserve, excluded from peer configuration proofs. */
-  ClprService_I_MAX_QUEUE_DEPTH_HIGH_WATER = 71;
 
   // Queue metadata
 

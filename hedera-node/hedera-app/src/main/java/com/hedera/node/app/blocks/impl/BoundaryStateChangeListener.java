@@ -21,7 +21,6 @@ import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
@@ -235,9 +234,6 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             }
             case ProtoBytes protoBytes -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.BYTES_VALUE, protoBytes.value());
-            }
-            case ProtoLong protoLong -> {
-                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.PROTO_LONG_VALUE, protoLong.value());
             }
             case ProtoString protoString -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.STRING_VALUE, protoString.value());
