@@ -7,6 +7,7 @@ import static com.hedera.node.app.blocks.impl.BoundaryStateChangeListener.single
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.IRREVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -39,7 +40,10 @@ import java.util.function.Consumer;
  */
 public class ClprMaintenanceTransactions {
     private static final List<Integer> SINGLETON_IDS = List.of(
-                    LEDGER_CONFIGURATION_STATE_ID, ENDPOINT_MANIFEST_STATE_ID, ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
+                    LEDGER_CONFIGURATION_STATE_ID,
+                    ENDPOINT_MANIFEST_STATE_ID,
+                    ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
+                    MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID)
             .stream()
             .sorted()
             .toList();
@@ -67,7 +71,7 @@ public class ClprMaintenanceTransactions {
      *
      * @param states CLPR writable states
      * @param before the first event or user transaction that must follow this maintenance
-     * @param action maintenance restricted to the three CLPR singletons
+     * @param action maintenance restricted to the CLPR singletons
      * @param reason the reason for the maintenance
      */
     public void perform(

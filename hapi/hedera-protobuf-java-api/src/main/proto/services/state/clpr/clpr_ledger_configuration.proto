@@ -74,8 +74,6 @@ message ClprLedgerConfiguration {
      * Non-empty iff initial_trust_anchor is non-empty.
      */
     bytes initial_trust_anchor_id = 8;
-
-
 }
 
 /**

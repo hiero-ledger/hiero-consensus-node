@@ -5,6 +5,7 @@ import static com.hedera.node.app.blocks.impl.BoundaryStateChangeListener.single
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
@@ -111,7 +112,8 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     public static boolean isImmediateSingleton(final int stateId) {
         return stateId == LEDGER_CONFIGURATION_STATE_ID
                 || stateId == ENDPOINT_MANIFEST_STATE_ID
-                || stateId == ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+                || stateId == ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID
+                || stateId == MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
     }
 
     @Override

@@ -6,21 +6,26 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
@@ -33,13 +38,102 @@ import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 class ClprStateStreamingTest {
+    @Test
+    void upgradeFileReductionCapturesMissingReserveInTheSameTransactionAndRollbackPreservesIt() throws Exception {
+        final var original = ClprLedgerConfiguration.newBuilder()
+                .throttles(ClprThrottles.newBuilder().maxQueueDepth(5))
+                .build();
+        final var reduced = original.copyBuilder()
+                .throttles(original.throttlesOrThrow().copyBuilder().maxQueueDepth(2))
+                .build();
+        final var immediate = new ImmediateStateChangeListener();
+        final var boundary =
+                new BoundaryStateChangeListener(mock(StoreMetricsService.class), HederaTestConfigBuilder::createConfig);
+        final var config = new AtomicReference<>(original);
+        final var reserve = new AtomicReference<ProtoLong>();
+        final var configState = new FunctionWritableSingletonState<>(
+                LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", config::get, config::set);
+        final var reserveState = new FunctionWritableSingletonState<>(
+                MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, "MAX_QUEUE_DEPTH_HIGH_WATER", reserve::get, reserve::set);
+        configState.registerListener(change -> immediate.singletonUpdateChange(LEDGER_CONFIGURATION_STATE_ID, change));
+        reserveState.registerListener(
+                change -> immediate.singletonUpdateChange(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, change));
+        configState.registerListener(change -> boundary.singletonUpdateChange(LEDGER_CONFIGURATION_STATE_ID, change));
+        reserveState.registerListener(
+                change -> boundary.singletonUpdateChange(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, change));
+        final var states = MapWritableStates.builder()
+                .state(configState)
+                .state(reserveState)
+                .build();
+        final var state = mock(State.class);
+        given(state.getWritableStates(ClprService.NAME)).willReturn(states);
+        given(state.getReadableStates(ClprService.NAME)).willReturn(states);
+        final var stack = SavepointStackImpl.newRootStack(
+                state, 3, 50, boundary, immediate, StreamMode.BLOCKS, TraceDataSizeLimiter.NO_LIMIT);
+        stack.getBaseBuilder(StreamBuilder.class)
+                .signedTx(SignedTransaction.DEFAULT)
+                .status(SUCCESS)
+                .exchangeRate(ExchangeRateSet.DEFAULT)
+                .functionality(CLPR_UPDATE_LEDGER_CONFIGURATION)
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(AccountID.newBuilder().accountNum(50).build())
+                        .build());
+
+        // The synthetic upgrade-file update may run before singleton initialization.
+        new WritableLedgerConfigurationStore(stack.getWritableStates(ClprService.NAME)).put(reduced);
+        stack.commitFullStack();
+        final var output = stack.buildHandleOutput(Instant.ofEpochSecond(1234), ExchangeRateSet.DEFAULT);
+        final var changes = output.blockRecordSourceOrThrow().blockItems().stream()
+                .filter(BlockItem::hasStateChanges)
+                .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
+                .toList();
+        assertThat(changes)
+                .extracting(change -> change.stateId())
+                .containsExactlyInAnyOrder(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, LEDGER_CONFIGURATION_STATE_ID);
+        final var reserveChange = changes.stream()
+                .filter(change -> change.stateId() == MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID)
+                .findFirst()
+                .orElseThrow();
+        final var serialized = StateChange.PROTOBUF.toBytes(reserveChange);
+        assertThat(StateChange.PROTOBUF
+                        .parse(serialized)
+                        .singletonUpdateOrThrow()
+                        .protoLongValueOrThrow())
+                .isEqualTo(new ProtoLong(5));
+        assertThat(changes.stream()
+                        .filter(change -> change.stateId() == LEDGER_CONFIGURATION_STATE_ID)
+                        .findFirst()
+                        .orElseThrow()
+                        .singletonUpdateOrThrow()
+                        .clprLedgerConfigurationValue())
+                .isEqualTo(reduced);
+        assertThat(config.get()).isEqualTo(reduced);
+        assertThat(reserve.get()).isEqualTo(new ProtoLong(5));
+        assertThat(boundary.allStateChanges()).isEmpty();
+
+        immediate.reset(null);
+        final var rollbackStack = SavepointStackImpl.newRootStack(
+                state, 3, 50, boundary, immediate, StreamMode.BLOCKS, TraceDataSizeLimiter.NO_LIMIT);
+        new WritableLedgerConfigurationStore(rollbackStack.getWritableStates(ClprService.NAME))
+                .put(original.copyBuilder()
+                        .throttles(ClprThrottles.newBuilder().maxQueueDepth(9))
+                        .build());
+        rollbackStack.rollbackFullStack();
+        assertThat(config.get()).isEqualTo(reduced);
+        assertThat(reserve.get()).isEqualTo(new ProtoLong(5));
+        assertThat(immediate.getStateChanges()).isEmpty();
+        assertThat(boundary.allStateChanges()).isEmpty();
+    }
+
     static Stream<Arguments> singletonUpdates() {
         return Stream.of(
+                Arguments.of(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, new ProtoLong(5), new ProtoLong(8)),
                 Arguments.of(
                         LEDGER_CONFIGURATION_STATE_ID,
                         ClprLedgerConfiguration.DEFAULT,

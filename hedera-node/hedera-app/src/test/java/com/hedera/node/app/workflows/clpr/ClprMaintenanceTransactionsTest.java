@@ -8,6 +8,7 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
@@ -23,6 +24,8 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -70,6 +73,7 @@ class ClprMaintenanceTransactionsTest {
         given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
         states = MapWritableStates.builder()
                 .state(singleton(LEDGER_CONFIGURATION_STATE_ID, (ClprLedgerConfiguration) null))
+                .state(singleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, (ProtoLong) null))
                 .state(singleton(ENDPOINT_MANIFEST_STATE_ID, (ClprEndpointManifest) null))
                 .state(singleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID, (ClprEndpointManifestConstruction) null))
                 .build();
@@ -103,7 +107,8 @@ class ClprMaintenanceTransactionsTest {
                 .containsExactlyInAnyOrder(
                         LEDGER_CONFIGURATION_STATE_ID,
                         ENDPOINT_MANIFEST_STATE_ID,
-                        ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID);
+                        ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
+                        MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID);
         // Replaying each emitted value reconstructs every seeded singleton, including the empty construction.
         for (final var change : changes.stateChanges()) {
             final Object replayed = change.singletonUpdateOrThrow().newValue().value();
@@ -117,7 +122,36 @@ class ClprMaintenanceTransactionsTest {
     }
 
     @Test
+    void upgradeSeedsOnlyLocalReserveAndPreservesProvenConfiguration() {
+        final var config = ClprLedgerConfiguration.newBuilder()
+                .chainId("eip155:295")
+                .throttles(ClprThrottles.newBuilder().maxQueueDepth(7))
+                .build();
+        states.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
+                .put(config);
+        states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID).put(ClprEndpointManifest.DEFAULT);
+        states.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID)
+                .put(ClprEndpointManifestConstruction.DEFAULT);
+
+        initialize();
+        initialize();
+
+        assertThat(states.getSingleton(LEDGER_CONFIGURATION_STATE_ID).get()).isEqualTo(config);
+        assertThat(states.getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID).get())
+                .isEqualTo(new ProtoLong(7));
+        assertThat(capturedItems().getLast().stateChangesOrThrow().stateChanges())
+                .singleElement()
+                .satisfies(change -> {
+                    assertThat(change.stateId()).isEqualTo(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID);
+                    assertThat(change.singletonUpdateOrThrow().protoLongValueOrThrow())
+                            .isEqualTo(new ProtoLong(7));
+                });
+        verifyNoMoreInteractions(blockStreamManager);
+    }
+
+    @Test
     void repairsOnlyMissingConstruction() {
+        states.<ProtoLong>getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID).put(ProtoLong.DEFAULT);
         states.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
                 .put(ClprLedgerConfiguration.DEFAULT);
         states.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID).put(ClprEndpointManifest.DEFAULT);

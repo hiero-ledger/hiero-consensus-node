@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBo
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
@@ -95,6 +96,7 @@ import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.ProofNodeWeight;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RosterState;
@@ -1239,12 +1241,15 @@ class HandleWorkflowTest {
         givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
         final var clprStates = mock(WritableStates.class);
         final WritableSingletonState<ClprLedgerConfiguration> ledgerConfiguration = mock(WritableSingletonState.class);
+        final WritableSingletonState<ProtoLong> highWater = mock(WritableSingletonState.class);
         final WritableSingletonState<ClprEndpointManifest> manifest = mock(WritableSingletonState.class);
         final WritableSingletonState<ClprEndpointManifestConstruction> construction =
                 mock(WritableSingletonState.class);
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
         given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
                 .willReturn(ledgerConfiguration);
+        given(clprStates.<ProtoLong>getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID))
+                .willReturn(highWater);
         given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
                 .willReturn(manifest);
         given(clprStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
@@ -1259,6 +1264,7 @@ class HandleWorkflowTest {
         method.invoke(subject, state, NOW, UPGRADE_INITIALIZATION);
 
         verify(ledgerConfiguration).put(any(ClprLedgerConfiguration.class));
+        verify(highWater).put(any(ProtoLong.class));
         verify(manifest).put(any(ClprEndpointManifest.class));
         verify(construction).put(ClprEndpointManifestConstruction.DEFAULT);
     }
@@ -1283,6 +1289,8 @@ class HandleWorkflowTest {
                 .state(ledgerConfig)
                 .state(manifest)
                 .state(construction)
+                .state(clprSingleton(
+                        MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, "MAX_QUEUE_DEPTH_HIGH_WATER", (ProtoLong) null))
                 .build();
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
         givenSubjectWith(mode, BlockStreamWriterMode.FILE, emptyList(), Map.of("contracts.chainId", "299"));
@@ -1306,7 +1314,7 @@ class HandleWorkflowTest {
                                     .filter(BlockItem::hasStateChanges)
                                     .flatMap(item -> item.stateChangesOrThrow().stateChanges().stream())
                                     .toList();
-                            return updates.size() == 3
+                            return updates.size() == 4
                                     && reasonOf(items) == UPGRADE_INITIALIZATION
                                     && items.get(1).hasTransactionResult();
                         }),
@@ -1375,6 +1383,8 @@ class HandleWorkflowTest {
                         .state(construction)
                         .state(clprSingleton(
                                 LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", ClprLedgerConfiguration.DEFAULT))
+                        .state(clprSingleton(
+                                MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, "MAX_QUEUE_DEPTH_HIGH_WATER", ProtoLong.DEFAULT))
                         .build());
         givenClprRoster(Roster.DEFAULT);
         given(networkInfo.selfNodeInfo()).willReturn(creatorInfo);
@@ -1466,6 +1476,8 @@ class HandleWorkflowTest {
         final var clprStates = MapWritableStates.builder()
                 .state(clprSingleton(
                         LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", (ClprLedgerConfiguration) null))
+                .state(clprSingleton(
+                        MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, "MAX_QUEUE_DEPTH_HIGH_WATER", (ProtoLong) null))
                 .state(clprSingleton(ENDPOINT_MANIFEST_STATE_ID, "ENDPOINT_MANIFEST", (ClprEndpointManifest) null))
                 .state(clprSingleton(
                         ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID,
@@ -1499,7 +1511,7 @@ class HandleWorkflowTest {
                                                 .stateChangesOrThrow()
                                                 .stateChanges()
                                                 .size()
-                                        == 3),
+                                        == 4),
                         eq(firstEventTime.minusNanos(100)));
         assertEquals(
                 ClprEndpointManifestConstruction.DEFAULT,
@@ -1517,6 +1529,8 @@ class HandleWorkflowTest {
         final var clprStates = MapWritableStates.builder()
                 .state(clprSingleton(
                         LEDGER_CONFIGURATION_STATE_ID, "LEDGER_CONFIGURATION", ClprLedgerConfiguration.DEFAULT))
+                .state(clprSingleton(
+                        MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, "MAX_QUEUE_DEPTH_HIGH_WATER", ProtoLong.DEFAULT))
                 .state(clprSingleton(
                         ENDPOINT_MANIFEST_STATE_ID,
                         "ENDPOINT_MANIFEST",
@@ -1579,6 +1593,8 @@ class HandleWorkflowTest {
         final var clprStates = mock(WritableStates.class);
         given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
         given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(mock(WritableSingletonState.class));
+        given(clprStates.<ProtoLong>getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID))
                 .willReturn(mock(WritableSingletonState.class));
         given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
                 .willReturn(mock(WritableSingletonState.class));
