@@ -1370,9 +1370,9 @@ public class ContractCallSuite {
                         .hasPriority(recordWith()
                                 .contractCallResult(resultWith()
                                         .resultViaFunctionName(
-                                                GET_BALANCE, PAY_RECEIVABLE_CONTRACT, isLiteralResult(new Object[] {
-                                                    BigInteger.valueOf(DEPOSIT_AMOUNT)
-                                                })))),
+                                                GET_BALANCE,
+                                                PAY_RECEIVABLE_CONTRACT,
+                                                isLiteralResult(new Object[] {BigInteger.valueOf(DEPOSIT_AMOUNT)})))),
                 getTxnRecord(PAY_TXN)
                         .hasPriority(
                                 recordWith().contractCallResult(resultWith().logs(inOrder()))));
