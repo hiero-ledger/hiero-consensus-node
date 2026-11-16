@@ -41,6 +41,7 @@ import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
+import com.hedera.node.app.service.clpr.impl.ClprThrottlesUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
@@ -717,6 +718,32 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             if (unusedReimbursement > 0) {
                                 tokenServiceApi.transferFromTo(context.payer(), gasPayer, unusedReimbursement);
                             }
+                        }
+
+                        // The data returned by the CLPR application after processing a message is untrusted,
+                        // as the response payload is completely open. This way, we need to limit the size of it.
+                        // Without it, a reply is bounded only by the EVM memory the gas allows (megabytes), grows state
+                        // far beyond the data-message limit, and can exceed the peer's max_sync_bytes, wedging the
+                        // channel. Like a data message, the whole serialized reply payload is measured.
+                        final int maxReplyBytes = ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, throttles);
+                        final int replyBytes = ClprMessagePayload.PROTOBUF.measureRecord(
+                                OutboundQueue.replyPayload(receivedMessageId, replyStatus, responseData));
+                        if (replyBytes > maxReplyBytes) {
+                            log.warn(
+                                    "[ClprSubmitBundle] DATA reply exceeds max_message_payload_bytes conn={} "
+                                            + "receivedMsgId={} target={} connectorId={} replyStatus={} "
+                                            + "responseDataLen={} replyBytes={} maxReplyBytes={}; replacing with "
+                                            + "APPLICATION_ERROR and empty payload",
+                                    channelId,
+                                    receivedMessageId,
+                                    appContractId,
+                                    dataMsg.connectorId(),
+                                    replyStatus,
+                                    responseData.length(),
+                                    replyBytes,
+                                    maxReplyBytes);
+                            responseData = Bytes.EMPTY;
+                            replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                         }
 
                         // OutboundQueue reads/writes channel state directly from the
@@ -1416,13 +1443,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     status,
                     data.length(),
                     shortHex(data));
-            enqueue(ClprMessagePayload.newBuilder()
+            enqueue(replyPayload(inboundMessageId, status, data));
+        }
+
+        /** Builds the payload of a reply to the given inbound message. */
+        static ClprMessagePayload replyPayload(
+                final long inboundMessageId, @NonNull final ClprMessageReplyStatus status, @NonNull final Bytes data) {
+            return ClprMessagePayload.newBuilder()
                     .messageReply(ClprMessageReply.newBuilder()
                             .messageId(inboundMessageId)
                             .status(status)
                             .messageReplyData(data)
                             .build())
-                    .build());
+                    .build();
         }
 
         long nextMessageId() {
