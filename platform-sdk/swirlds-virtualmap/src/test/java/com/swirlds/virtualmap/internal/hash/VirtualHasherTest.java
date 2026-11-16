@@ -10,10 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualTestBase;
+import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.config.VirtualMapConfig_;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.reconnect.ConcurrentBlockingIterator;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
@@ -25,6 +29,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
@@ -390,6 +397,66 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final Hash hashItAgain = defaultHasher.hash(
                 chunkHeight, ds::loadHashChunk, oneDirtyLeaf.iterator(), firstLeafPath, lastLeafPath, null);
         assertEquals(expected, hashItAgain, "Expected equals");
+    }
+
+    @Test
+    @DisplayName("Leaf tasks run while hashing waits for more leaves, even with a single hashing thread")
+    void leafTasksRunWhileWaitingForLeavesWithSingleThread() throws Exception {
+        final VirtualMapConfig singleThreadConfig = ConfigurationBuilder.create()
+                .withConfigDataType(VirtualMapConfig.class)
+                .withValue(VirtualMapConfig_.NUM_HASH_THREADS, "1")
+                .build()
+                .getConfigData(VirtualMapConfig.class);
+        final int chunkHeight = 3;
+        final long firstLeafPath = 31;
+        final long lastLeafPath = firstLeafPath * 2;
+        final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, chunkHeight);
+        final Hash expected = hashTree(ds);
+        final List<VirtualLeafBytes> leaves = invalidateNodes(
+                ds, LongStream.range(firstLeafPath, lastLeafPath + 1).boxed());
+        final Set<Long> hashedChunkIds = ConcurrentHashMap.newKeySet();
+        final VirtualHashListener listener = new VirtualHashListener() {
+            @Override
+            public void onHashChunkHashed(final VirtualHashChunk chunk) {
+                synchronized (ds) {
+                    ds.updateHashChunk(chunk);
+                }
+                hashedChunkIds.add(chunk.getChunkId());
+            }
+        };
+
+        // Leaves are supplied the way the reconnect learner supplies them: through a blocking iterator, which
+        // waits for more leaves while the hasher has a single thread
+        final ConcurrentBlockingIterator<VirtualLeafBytes> iterator = new ConcurrentBlockingIterator<>(16);
+        final VirtualHasher hasher = new VirtualHasher(singleThreadConfig);
+        try {
+            final CompletableFuture<Hash> future =
+                    hasher.hashAsync(chunkHeight, ds::loadHashChunk, iterator, firstLeafPath, lastLeafPath, listener);
+            for (int i = 0; i < leaves.size(); i++) {
+                final long chunkId =
+                        VirtualHashChunk.pathToChunkId(leaves.get(i).path(), chunkHeight);
+                iterator.supply(leaves.get(i));
+                final boolean lastLeafInChunk = (i == leaves.size() - 1)
+                        || (VirtualHashChunk.pathToChunkId(leaves.get(i + 1).path(), chunkHeight) != chunkId);
+                if (!lastLeafInChunk) {
+                    continue;
+                }
+                // Like the learner when it reaches its leaf backlog threshold: no more leaves until the chunk
+                // with the supplied ones is hashed
+                final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+                while (!hashedChunkIds.contains(chunkId)) {
+                    if (System.nanoTime() > deadline) {
+                        fail("Leaf tasks don't run while hashing waits for more leaves");
+                    }
+                    Thread.sleep(1);
+                }
+            }
+            iterator.close();
+            assertEquals(expected, future.get(10, TimeUnit.SECONDS), "Expected equals");
+        } finally {
+            iterator.close();
+            hasher.shutdown();
+        }
     }
 
     /**

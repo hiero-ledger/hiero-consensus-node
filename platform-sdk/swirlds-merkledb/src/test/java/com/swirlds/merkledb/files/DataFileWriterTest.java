@@ -94,7 +94,7 @@ class DataFileWriterTest {
 
         for (int i = 0; i < iterations; i++) {
             dataFileWriter.storeDataItemWithTag(data);
-            data.flip();
+            data.reset();
         }
 
         dataFileWriter.close();

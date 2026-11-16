@@ -76,8 +76,8 @@ echo "exit $?"     # 1
   a pipeline also `measured.saturation.discardedPasses`.
 - `measured.gc.discardedPasses` is 0. If it is not, the heap is too small
   ([heap](/platform-sdk/docs/consensus-layer/benchmarks/calibration.md#heap)).
-- `measured.saturation.discardedPasses` is 0. If it is not, the pipeline gets its inputs too fast: lower the speedup
-  ([a pipeline](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#a-pipeline)).
+- `measured.saturation.discardedPasses` is 0. If it is not, the pipeline no longer keeps up with its recorded rate, or a
+  speedup is too high ([a pipeline](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#a-pipeline)).
 - `alloc.norm` matches what the production code should allocate per call.
 - `latency.samples` divided by the iterations shows how long an iteration must be for p99.99, about 10⁶ calls
   ([reporting](/platform-sdk/docs/consensus-layer/benchmarks/writing.md#reporting)); step 6 sets it.
