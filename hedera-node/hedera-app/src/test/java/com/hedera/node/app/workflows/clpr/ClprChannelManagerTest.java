@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -462,6 +463,41 @@ class ClprChannelManagerTest {
             subject.onChannelClosed(CHANNEL_ID_1);
 
             assertThat(subject.knownChannelsIds()).containsExactlyInAnyOrder(CHANNEL_ID_2);
+        }
+
+        @Test
+        @DisplayName("onChannelObserved tracks an unknown channel and schedules its tick on a started manager")
+        void onChannelObservedTracksUnknownChannel() {
+            subject.start();
+
+            subject.onChannelObserved(CHANNEL_ID_1);
+
+            assertThat(subject.knownChannelsIds()).containsExactly(CHANNEL_ID_1);
+            assertNotNull(subject.syncTickFuture(CHANNEL_ID_1));
+        }
+
+        @Test
+        @DisplayName("onChannelObserved keeps the tick of an already tracked channel")
+        void onChannelObservedKeepsTrackedChannelTick() {
+            subject.start();
+            subject.onChannelActivated(CHANNEL_ID_1);
+            final var tick = subject.syncTickFuture(CHANNEL_ID_1);
+
+            subject.onChannelObserved(CHANNEL_ID_1);
+
+            assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
+            assertFalse(tick.isCancelled());
+        }
+
+        @Test
+        @DisplayName("a channel observed before start() is scheduled when the manager starts")
+        void channelObservedBeforeStartIsScheduledOnStart() {
+            subject.onChannelObserved(CHANNEL_ID_1);
+            assertNull(subject.syncTickFuture(CHANNEL_ID_1));
+
+            subject.start();
+
+            assertNotNull(subject.syncTickFuture(CHANNEL_ID_1));
         }
 
         @Test

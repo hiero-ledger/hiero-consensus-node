@@ -78,6 +78,7 @@ class ClprRuntimeFacadeTest {
         subject.start();
         subject.stop();
         subject.onChannelActivated(Bytes.EMPTY);
+        subject.onChannelObserved(Bytes.EMPTY);
         subject.onChannelClosed(Bytes.EMPTY);
         subject.seedPeerEndpoints(Bytes.EMPTY, List.of());
         subject.recordPeerObservedManifestVersion(Bytes.EMPTY, 1L);
@@ -102,10 +103,12 @@ class ClprRuntimeFacadeTest {
 
         subject.start();
         subject.openStreamingSync();
+        subject.onChannelObserved(Bytes.EMPTY);
         subject.stop();
 
         assertThat(channelManagerProviderCalls).hasValue(1);
         verify(channelManager).start();
+        verify(channelManager).onChannelObserved(Bytes.EMPTY);
         assertThat(syncWorkflowProviderCalls).hasValue(1);
         verify(syncWorkflow).openStreamingSync();
         verify(channelManager).stop();

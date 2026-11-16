@@ -292,6 +292,23 @@ class HintsControllerImplTest {
     }
 
     @Test
+    void doesNotStartPreprocessingEarlyWhenKeysComeFromOtherThanTheRunningTargetNode() {
+        // Node 3 is running but not yet a party; nodes 1 and 2 publish, making up the count without node 3
+        setupWithRunningTargetNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(3L));
+        given(weights.numTargetNodesInSource()).willReturn(1);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION, INITIAL_CRS);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        runScheduledTasks();
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        verify(store, never()).setPreprocessingStartTime(anyLong(), any());
+    }
+
+    @Test
     void startsPreprocessingEarlyOnceRunningTargetNodeOutsideSourcePublishes() {
         setupWithRunningTargetNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
         given(weights.numTargetNodesInSource()).willReturn(1);
