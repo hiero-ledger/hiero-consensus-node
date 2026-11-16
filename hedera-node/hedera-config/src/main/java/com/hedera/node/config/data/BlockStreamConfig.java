@@ -59,7 +59,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "104857600") @Min(0) @NetworkProperty
         long maxBlockExecutionSizeBytes,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean maxBlockSizeLimitEnabled,
 
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty
