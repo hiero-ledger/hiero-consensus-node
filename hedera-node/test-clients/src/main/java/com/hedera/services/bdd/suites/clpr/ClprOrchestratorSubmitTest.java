@@ -190,7 +190,7 @@ public class ClprOrchestratorSubmitTest {
                         .setMaxMessagesPerBundle(100)
                         .setMaxMessagePayloadBytes(65536)
                         .setMaxGasPerMessage(1_000_000L)
-                        .setMaxQueueDepth(1000)
+                        .setMaxQueueDepth(10_000)
                         .setMaxSyncBytes(1_048_576L)
                         .build())
                 .build();

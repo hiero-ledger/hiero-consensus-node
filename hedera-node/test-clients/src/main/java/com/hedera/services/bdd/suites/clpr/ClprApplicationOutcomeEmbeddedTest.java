@@ -102,7 +102,7 @@ public class ClprApplicationOutcomeEmbeddedTest {
                     assertTrue(largeReply.getSerializedSize() <= 1024);
                 }),
                 // The local payload cap falls while the sync cap still easily fits the attested reply.
-                clprUpdateLedgerConfiguration().throttles(throttles(256)).payingWith(GENESIS),
+                updatePayloadLimit(256),
                 withOpContext((spec, log) -> {
                     final var original = data(spec, new byte[0]);
                     allRunFor(
@@ -141,11 +141,29 @@ public class ClprApplicationOutcomeEmbeddedTest {
                 // No flat compensation: a connector balance debit proves execution gas was charged.
                 overriding("clpr.messageExecutionCost", "0"),
                 overriding("clpr.endpointMarginPercent", "0"),
-                clprUpdateLedgerConfiguration().throttles(throttles(1024)).payingWith(GENESIS),
+                updatePayloadLimit(1024),
                 uploadInitCode(APPLICATION, CONNECTOR, VERIFIER),
                 contractCreate(APPLICATION, CONNECTOR_ID.toByteArray()).gas(2_000_000L),
                 contractCreate(CONNECTOR).balance(ONE_HUNDRED_HBARS),
                 contractCreate(VERIFIER).gas(2_000_000L)));
+    }
+
+    private static SpecOperation updatePayloadLimit(final int payloadLimit) {
+        return withOpContext((spec, log) -> {
+            final var current = spec.embeddedStateOrThrow()
+                    .getReadableStates(ClprService.NAME)
+                    .<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
+                    .get();
+            final var updated = pbjToProto(
+                            current.throttlesOrThrow(),
+                            com.hedera.hapi.node.state.clpr.ClprThrottles.class,
+                            ClprThrottles.class)
+                    .toBuilder()
+                    .setMaxMessagePayloadBytes(payloadLimit)
+                    .setMaxGasPerMessage(3_000_000L)
+                    .build();
+            allRunFor(spec, clprUpdateLedgerConfiguration().throttles(updated).payingWith(GENESIS));
+        });
     }
 
     private static SpecOperation outgoingCase(

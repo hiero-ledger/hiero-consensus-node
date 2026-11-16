@@ -132,7 +132,7 @@ public class ClprMessagesSuite {
     private static final int MAX_MESSAGES_PER_BUNDLE = 3;
 
     /** Queue depth limit installed on both networks; also checked by the config-proof freshness gate. */
-    private static final int MAX_QUEUE_DEPTH = 1000;
+    private static final int MAX_QUEUE_DEPTH = 10_000;
 
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Multi-message CLPR: 3×7 messages with EchoApplication auto-sync round-trip")

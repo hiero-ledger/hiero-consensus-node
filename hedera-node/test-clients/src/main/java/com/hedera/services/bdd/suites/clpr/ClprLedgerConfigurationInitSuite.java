@@ -49,7 +49,7 @@ public class ClprLedgerConfigurationInitSuite {
                 .setMaxMessagesPerBundle(200)
                 .setMaxMessagePayloadBytes(131_072) // 128 KB
                 .setMaxGasPerMessage(5_000_000L)
-                .setMaxQueueDepth(500)
+                .setMaxQueueDepth(10_000)
                 .setMaxSyncBytes(2_097_152L) // 2 MB
                 .build();
 
@@ -68,7 +68,7 @@ public class ClprLedgerConfigurationInitSuite {
                 //         (chain_id, protocol_version) were preserved from genesis.
                 clprGetLedgerConfiguration()
                         .maxMessagesPerBundle(200)
-                        .maxQueueDepth(500)
+                        .maxQueueDepth(10_000)
                         .maxGasPerMessage(5_000_000L)
                         .exposingConfigTo(updatedConfig -> {
                             final var genesis = genesisConfig.get();
