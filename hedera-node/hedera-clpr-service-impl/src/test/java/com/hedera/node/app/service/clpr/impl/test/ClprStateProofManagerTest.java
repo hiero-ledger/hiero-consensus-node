@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
@@ -184,12 +185,14 @@ class ClprStateProofManagerTest {
         "512,160,false,true,0,2,false",
         "512,160,false,false,1,2,false",
         "320,512,true,true,0,1,false",
+        "320,512,false,true,0,0,false",
         "160,512,true,true,0,0,false",
         "512,512,false,true,1,2,true",
         "2048,512,false,true,1,3,true",
         "512,160,false,true,0,2,true",
         "512,160,false,false,1,2,true",
-        "320,512,true,true,0,1,true"
+        "320,512,true,true,0,1,true",
+        "320,512,false,true,0,0,true"
     })
     void fitsProofWithinPeerLimitWithOptionalManifest(
             final long maxSyncBytes,
@@ -214,9 +217,12 @@ class ClprStateProofManagerTest {
                 .willReturn(Timestamp.newBuilder().seconds(1L).build());
         given(snapshot.path()).willReturn(MerklePath.DEFAULT);
         given(snapshot.tssSignature()).willReturn(signature);
-        if (!compact && expectedPathCount > 0) {
-            given(snapshot.ledgerId()).willReturn(Bytes.EMPTY);
-            given(tssVerifier.verifyTss(eq(Bytes.EMPTY), eq(signature), any())).willReturn(true);
+        if (!compact) {
+            // Accept the signature even when no bundle is expected, so a null result must come from sizing.
+            lenient().when(snapshot.ledgerId()).thenReturn(Bytes.EMPTY);
+            lenient()
+                    .when(tssVerifier.verifyTss(eq(Bytes.EMPTY), eq(signature), any()))
+                    .thenReturn(true);
         }
         given(binaryState.getKvPath(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(channelId))))
                 .willReturn(1L);

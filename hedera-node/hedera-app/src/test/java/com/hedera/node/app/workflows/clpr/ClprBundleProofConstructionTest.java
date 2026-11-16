@@ -141,6 +141,24 @@ class ClprBundleProofConstructionTest {
     }
 
     @Test
+    void manifestFirstBundleDoesNotReportSizeSkip() throws Exception {
+        final var channel = channel(2, 8_192);
+        givenQueue(channel, 16_384, true);
+        final var producer = producer(channel, SIGNING_KEY);
+
+        final var payload = requireNonNull(producer.next(true));
+        final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
+        assertThat(proof.paths()).hasSize(2);
+        final var manifestItem =
+                StateItem.PROTOBUF.parse(proof.paths().getLast().stateItemLeafOrThrow());
+        assertThat(manifestItem.valueOrThrow().hasClprServiceIEndpointManifest())
+                .isTrue();
+        assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID);
+        assertThat(producer.next(true)).isNull();
+        verify(proofSupport, never()).reportSkip(any(), any());
+    }
+
+    @Test
     void sendsWitnessWhenTheInitiatorQueueIsEmpty() throws Exception {
         final var channel = channel(0, 8_192);
         givenQueue(channel, 1, false);

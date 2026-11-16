@@ -26,7 +26,10 @@ public final class ClprThrottlesValidator {
      * the sender can never build a bundle that fits, the peer never acks, and the queue stalls
      * forever. This is a floor, not a sizing recommendation; operators should size generously per
      * the spec's rule of thumb {@code max_message_payload_bytes * max_messages_per_bundle +
-     * worst_case_proof_overhead}.
+     * worst_case_proof_overhead}. The channel leaf includes its cached peer endpoint manifest, so this fixed
+     * allowance does not guarantee fit for an arbitrarily large manifest (for example, when max_peer_endpoints
+     * is unlimited). Include the largest supported manifest and Merkle paths in the sizing budget; the proof
+     * builder's final serialized-size check remains authoritative.
      */
     public static final long MIN_PROOF_OVERHEAD_BYTES =
             MIN_STATE_PROOF_OVERHEAD_BYTES + CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;

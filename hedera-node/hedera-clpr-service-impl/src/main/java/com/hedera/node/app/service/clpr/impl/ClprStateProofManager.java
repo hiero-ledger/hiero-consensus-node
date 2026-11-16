@@ -640,8 +640,9 @@ public class ClprStateProofManager {
             if (allPaths.size() > 1
                     && payloadSize.applyAsLong(proofBuilder.paths(allPaths).build()) > maxBundlePayloadBytes) {
                 allPaths.removeLast();
-                log.debug(
-                        "Endpoint manifest proof exceeds peer max_sync_bytes (channel={} maxSyncBytes={})",
+                log.warn(
+                        "Endpoint manifest proof exceeds peer max_sync_bytes; omitting it until the manifest is reduced "
+                                + "or the peer limit is raised (channel={} maxSyncBytes={})",
                         channelId,
                         maxSyncBytes);
             }

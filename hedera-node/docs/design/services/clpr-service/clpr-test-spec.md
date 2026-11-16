@@ -480,6 +480,14 @@ require multi-network infrastructure.
 - If `max_sync_bytes` is configured too low (less than `max_message_payload_bytes` plus protocol overhead),
   no valid bundle can be constructed — the Channel is effectively deadlocked. This configuration should
   be prevented by throttle validation in `updateLedgerConfiguration`.
+- The fixed 64 KiB proof allowance is a minimum, not a guarantee for arbitrary channel leaves. The
+  channel leaf includes the cached peer endpoint manifest; an unlimited `max_peer_endpoints` can make
+  even a channel-only proof exceed this allowance. Size `max_sync_bytes` for the largest supported
+  cached manifest and Merkle paths as well as the complete message payload. Exercise both native and
+  compact proofs at that size, and verify oversized proofs are never sent.
+- A requested manifest that fits alone is sent before a head message that cannot fit alongside it.
+  This successful manifest-only compact bundle must not increment the skipped-bundle counter. If the
+  manifest cannot fit alone, the builder logs a warning and omits it so other progress can continue.
 
 ### 3.10.3 `MaxGasPerMessage`
 

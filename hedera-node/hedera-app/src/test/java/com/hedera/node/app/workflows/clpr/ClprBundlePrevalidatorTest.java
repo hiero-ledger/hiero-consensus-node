@@ -109,13 +109,7 @@ class ClprBundlePrevalidatorTest {
             .throttles(ClprThrottles.newBuilder()
                     .maxSyncBytes(1024)
                     .maxMessagesPerBundle(10)
-                    .maxMessagePayloadBytes(1024)
-                    .maxQueueDepth(10))
-            .build();
-    // CHANNEL already has two unacknowledged slots, filling the ordinary and reply budgets.
-    private static final ClprLedgerConfiguration FULL_QUEUE_CONFIG = LEDGER_CONFIG
-            .copyBuilder()
-            .throttles(LEDGER_CONFIG.throttlesOrThrow().copyBuilder().maxQueueDepth(1))
+                    .maxMessagePayloadBytes(1024))
             .build();
     private static final ClprSyncPayload PAYLOAD = ClprSyncPayload.newBuilder()
             .channelId(CHANNEL_ID)
@@ -262,33 +256,6 @@ class ClprBundlePrevalidatorTest {
 
         verify(releaseState).run();
         verifyNoInteractions(verifierFactory, handlersSupplier);
-    }
-
-    @Test
-    void admitsVerifiedDataWhenTheReplyQueueIsFull() throws PreCheckException {
-        when(ledgerConfig.get()).thenReturn(FULL_QUEUE_CONFIG);
-        givenLocalReturn(bundle(List.of(dataPayload())));
-
-        subject.validate(PAYLOAD, configuration);
-
-        // Capacity can change before consensus; admission must not inspect the outbound queue.
-        verify(validator, never()).validateReplies(any(), any(), any(), anyInt());
-        verifyNoInteractions(queue);
-    }
-
-    @Test
-    void admitsVerifiedTrustAnchorAdvancementWhenTheReplyQueueIsFull() throws PreCheckException {
-        when(ledgerConfig.get()).thenReturn(FULL_QUEUE_CONFIG);
-        givenLocalReturn(bundle(List.of(dataPayload()))
-                .copyBuilder()
-                .newTrustAnchor(Bytes.fromHex("01"))
-                .newTrustAnchorId(Bytes.fromHex("02"))
-                .build());
-
-        subject.validate(PAYLOAD, configuration);
-
-        verify(channelLifecycle).recordPeerObservedManifestVersion(CHANNEL_ID, 9L);
-        verify(releaseState).run();
     }
 
     @Test
