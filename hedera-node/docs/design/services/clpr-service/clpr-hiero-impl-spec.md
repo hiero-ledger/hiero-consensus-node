@@ -586,6 +586,7 @@ cross-platform spec section 4.2:
    Hiero runs it after both. One observable difference: a ConfigUpdate enqueued in step 7 must be acknowledged
    before `DRAINED` → `CLOSED`. So when step 7 enqueues a ConfigUpdate while processing a bundle from a peer that
    is already `CLOSED`, the Channel stays `DRAINED` and needs the admin recovery path.
+   Tracked in [#28316](https://github.com/hiero-ledger/hiero-consensus-node/issues/28316).
 
 **Failure isolation:** A failure on one message does not stop processing of remaining messages. Each message is
 handled independently.
