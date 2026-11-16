@@ -239,8 +239,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // covered by the same verifyBundle call). All node checks have passed before this write.
         //
         // Step 1b guard rules (per ADR "Propagating Updates Through Bundle Payloads"):
-        // - Ordinary bundles apply only advancing manifests. An authorized recovery bundle may
-        //   replace an exact cached version with an earlier proven manifest. Updates are allowed on CLOSING /
+        // - Applied only when newEndpointManifest.version() strictly advances the current
+        //   cached version. Absent or stale manifest → silent skip; the bundle is NOT
+        //   rejected for this reason alone. Manifest updates are allowed on CLOSING /
         //   DRAINED channels (harmless, keeps the cache current for admin purposes).
         // - Entire manifest replacement; no partial merge.
         final var newEndpointManifest = bundleContent.newEndpointManifest();
@@ -1300,6 +1301,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
      *
      * <p>Once the proof and the trust-anchor invariant pass, the peer's proven view of this ledger's
      * endpoint-manifest version (spec §4.5) is recorded, even if a later check rejects the bundle.
+     * An authorized recovery can replace the expected cached version with a strictly lower verified
+     * manifest without queue metadata or messages.
      *
      * @param context the handle context
      * @param channel the channel before this bundle is applied
