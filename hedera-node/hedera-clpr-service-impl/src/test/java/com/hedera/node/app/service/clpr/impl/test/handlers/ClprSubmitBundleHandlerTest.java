@@ -26,11 +26,13 @@ import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -154,6 +156,9 @@ class ClprSubmitBundleHandlerTest {
 
     @Mock
     private HandleContext handleContext;
+
+    @Mock
+    private HandleContext.SavepointStack applicationStack;
 
     @Mock
     private StoreFactory storeFactory;
@@ -1599,8 +1604,8 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("null EVM result defaults to empty response data")
-    void nullEvmResultDefaultsToEmpty() {
+    @DisplayName("null successful EVM result rolls back before reporting application failure")
+    void nullSuccessfulEvmResultRollsBack() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true);
@@ -1612,8 +1617,11 @@ class ClprSubmitBundleHandlerTest {
 
         final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
         assertThat(response).isNotNull();
-        assertThat(response.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+        assertThat(response.payload().messageReplyOrThrow().status())
+                .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+        verify(applicationStack).rollback();
+        verify(applicationStack, never()).commit();
     }
 
     @Test
@@ -1634,6 +1642,59 @@ class ClprSubmitBundleHandlerTest {
         assertThat(response.payload().messageReplyOrThrow().status())
                 .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+        verify(applicationStack).rollback();
+        verify(applicationStack, never()).commit();
+    }
+
+    @Test
+    void validAbiEmptyResponseCommitsSuccessfulApplication() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload())), true);
+        putConnector();
+        given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[0]));
+
+        subject.handle(handleContext);
+
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow()).isEqualTo(replyPayload(1));
+        verify(applicationStack).createSavepoint();
+        verify(applicationStack).commit();
+        verify(applicationStack, never()).rollback();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"oversized", "malformed", "truncated", "missing"})
+    void invalidSuccessfulResponseRollsBackBeforeSettlingExecutedGas(final String kind) {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(128))
+                .build());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload())), true);
+        putConnector();
+        pricedGasContext();
+        final var result = switch (kind) {
+            case "oversized" -> abiEncodeBytes(new byte[256]);
+            case "malformed" -> Bytes.fromHex("ff");
+            case "truncated" -> Bytes.wrap(new byte[32]);
+            default -> Bytes.EMPTY;
+        };
+        given(dispatchResult.getEvmCallResult()).willReturn(result);
+
+        subject.handle(handleContext);
+
+        final var order = inOrder(tokenServiceApi, applicationStack, handleContext, dispatchResult);
+        order.verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE + 800);
+        order.verify(applicationStack).createSavepoint();
+        order.verify(handleContext).dispatch(any(DispatchOptions.class));
+        order.verify(applicationStack).rollback();
+        order.verify(dispatchResult).getGasUsedForContractTxn();
+        order.verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 600L);
+        verify(applicationStack, never()).commit();
+        verify(handleContext).refundHandlerCharge(PAYER_ID, 1800L);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow())
+                .isEqualTo(replyPayloadWithStatus(1, ClprMessageReplyStatus.APPLICATION_ERROR));
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(1);
     }
 
     @Test
@@ -3259,7 +3320,7 @@ class ClprSubmitBundleHandlerTest {
 
     @ParameterizedTest
     @ValueSource(booleans = {false, true})
-    void oversizedInFlightReplySanitizesCallbackButPreservesAttestedSlashing(final boolean pricedGas) {
+    void oversizedInFlightReplyUsesUnavailableHookWithAttestedOutcomeAndSlashing(final boolean pricedGas) {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
         putOutboundDataMessage(1);
         putConnectorWithStake(100_000_000L, 0);
@@ -3273,7 +3334,7 @@ class ClprSubmitBundleHandlerTest {
                 .messageReply(ClprMessageReply.newBuilder()
                         .messageId(1)
                         .status(ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED)
-                        .messageReplyData(Bytes.wrap(new byte[] {1, 2, 3, 4})))
+                        .messageReplyData(Bytes.wrap(new byte[32])))
                 .build();
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply));
         setupHandleContext(bundle, true);
@@ -3284,7 +3345,7 @@ class ClprSubmitBundleHandlerTest {
         given(configStore.getConfiguration())
                 .willReturn(ledgerConfig
                         .copyBuilder()
-                        .throttles(ledgerConfig.throttlesOrThrow().copyBuilder().maxMessagePayloadBytes(3))
+                        .throttles(ledgerConfig.throttlesOrThrow().copyBuilder().maxMessagePayloadBytes(15))
                         .build());
 
         subject.handle(handleContext);
@@ -3316,11 +3377,11 @@ class ClprSubmitBundleHandlerTest {
         assertThat(captor.getValue().payerId()).isEqualTo(CONNECTOR_CONTRACT_ACCOUNT);
         assertThat(captor.getValue().throttling()).isEqualTo(HandleContext.ConsensusThrottling.ON);
         final var calldata = captor.getValue().body().contractCallOrThrow().functionParameters();
-        // After the selector, status is the third ABI word and the fifth word is the empty data length.
+        assertThat(calldata.slice(0, 4))
+                .isEqualTo(Bytes.wrap(new Function("onClprResponseUnavailable(bytes32,uint64,uint8)").selector()));
         assertThat(calldata.getByte(4 + 3 * 32 - 1))
-                .isEqualTo((byte) ClprMessageReplyStatus.APPLICATION_ERROR.protoOrdinal());
-        assertThat(calldata.length()).isEqualTo(4 + 5 * 32);
-        assertThat(calldata.slice(4 + 4 * 32, 32)).isEqualTo(ZERO_HASH);
+                .isEqualTo((byte) ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED.protoOrdinal());
+        assertThat(calldata.length()).isEqualTo(4 + 3 * 32);
     }
 
     @ParameterizedTest
@@ -3333,7 +3394,7 @@ class ClprSubmitBundleHandlerTest {
                 .messageReply(ClprMessageReply.newBuilder()
                         .messageId(1)
                         .status(ClprMessageReplyStatus.SUCCESS)
-                        .messageReplyData(Bytes.wrap(new byte[] {1, 2, 3})))
+                        .messageReplyData(Bytes.wrap(new byte[32])))
                 .build();
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply)), true);
         final var ledgerConfig = configStore.getConfiguration();
@@ -3351,14 +3412,60 @@ class ClprSubmitBundleHandlerTest {
         final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
         verify(handleContext).dispatch(captor.capture());
         final var calldata = captor.getValue().body().contractCallOrThrow().functionParameters();
-        // Status is the third ABI word; the data length is the fifth word and the data follows it.
-        final var expectedStatus = fits ? ClprMessageReplyStatus.SUCCESS : ClprMessageReplyStatus.APPLICATION_ERROR;
-        assertThat(calldata.getByte(4 + 3 * 32 - 1)).isEqualTo((byte) expectedStatus.protoOrdinal());
-        assertThat(calldata.length()).isEqualTo(4 + (fits ? 6 : 5) * 32);
-        assertThat(calldata.getByte(4 + 5 * 32 - 1)).isEqualTo((byte) (fits ? 3 : 0));
+        assertThat(calldata.getByte(4 + 3 * 32 - 1)).isEqualTo((byte) ClprMessageReplyStatus.SUCCESS.protoOrdinal());
+        assertThat(calldata.length()).isEqualTo(4 + (fits ? 6 : 3) * 32);
+        assertThat(calldata.slice(0, 4))
+                .isEqualTo(Bytes.wrap(new Function(
+                                fits
+                                        ? "onClprResponse(bytes32,uint64,uint8,bytes)"
+                                        : "onClprResponseUnavailable(bytes32,uint64,uint8)")
+                        .selector()));
         if (fits) {
-            assertThat(calldata.slice(4 + 5 * 32, 3)).isEqualTo(Bytes.wrap(new byte[] {1, 2, 3}));
+            assertThat(calldata.getByte(4 + 5 * 32 - 1)).isEqualTo((byte) 32);
+            assertThat(calldata.slice(4 + 5 * 32, 32)).isEqualTo(Bytes.wrap(new byte[32]));
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void unavailableHookFailureIsTerminalWithoutOrdinaryCallbackFallback(final boolean throwsException) {
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        putOutboundDataMessage(1);
+        putConnector();
+        final var reply = ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(1)
+                        .status(ClprMessageReplyStatus.SUCCESS)
+                        .messageReplyData(Bytes.wrap(new byte[32])))
+                .build();
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply)), true);
+        given(configStore.getConfiguration())
+                .willReturn(createLedgerConfig()
+                        .copyBuilder()
+                        .throttles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(15))
+                        .build());
+        if (throwsException) {
+            given(handleContext.dispatch(any(DispatchOptions.class)))
+                    .willThrow(new HandleException(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED));
+        } else {
+            given(dispatchResult.status()).willReturn(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED);
+        }
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(DispatchOptions.class);
+        verify(handleContext, times(1)).dispatch(captor.capture());
+        final var callData = captor.getValue().body().contractCallOrThrow().functionParameters();
+        assertThat(callData.slice(0, 4))
+                .isEqualTo(Bytes.wrap(new Function("onClprResponseUnavailable(bytes32,uint64,uint8)").selector()));
+        assertThat(callData.length()).isEqualTo(100);
+        assertThat(callData.getByte(99)).isEqualTo((byte) ClprMessageReplyStatus.SUCCESS.protoOrdinal());
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(channel.ackedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, List.of(reply)));
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
     }
 
     @Test
@@ -4438,6 +4545,7 @@ class ClprSubmitBundleHandlerTest {
                 .thenReturn(new HandleContext.DispatchMetadata(new java.util.HashMap<>()));
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
+        lenient().when(handleContext.savepointStack()).thenReturn(applicationStack);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
         // Default to self-submitted (creatorNodeId == endpointNodeId): the handler skips
         // endpoint-signature verification for self-submitted bundles. Tests that need to
@@ -4467,7 +4575,7 @@ class ClprSubmitBundleHandlerTest {
         lenient().when(handleContext.dispatch(any(DispatchOptions.class))).thenReturn(dispatchResult);
         lenient().when(dispatchResult.status()).thenReturn(ResponseCodeEnum.SUCCESS);
         lenient().when(dispatchResult.hasContractResult()).thenReturn(true);
-        lenient().when(dispatchResult.getEvmCallResult()).thenReturn(Bytes.EMPTY);
+        lenient().when(dispatchResult.getEvmCallResult()).thenReturn(abiEncodeBytes(new byte[0]));
         // Mock entity factory for staking account
         lenient().when(entityIdFactory.newAccountId(803L)).thenReturn(STAKING_ACCOUNT);
         // Staking account is escrowed with ample stake by default so slash reimbursements pay out in

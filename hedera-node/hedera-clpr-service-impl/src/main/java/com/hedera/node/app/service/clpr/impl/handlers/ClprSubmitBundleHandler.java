@@ -18,6 +18,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Timestamp;
@@ -104,6 +105,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     /** Function selector for onClprResponse(bytes32,uint64,uint8,bytes) = 0x3b74550e */
     private static final byte[] ON_CLPR_RESPONSE_SELECTOR = new byte[] {0x3b, 0x74, 0x55, 0x0e};
+
+    private static final byte[] ON_CLPR_RESPONSE_UNAVAILABLE_SELECTOR =
+            new Function("onClprResponseUnavailable(bytes32,uint64,uint8)").selector();
 
     // A CLPR transaction may dispatch several EVM calls in one transactional unit, so their written storage
     // slots must be traced explicitly for the block stream to say which call wrote which value
@@ -698,6 +702,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
                         }
                         HookDispatchStreamBuilder gasResult = null;
+                        final var applicationStack = context.savepointStack();
+                        applicationStack.createSavepoint();
+                        boolean commitApplication = false;
                         try {
                             log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch ENTER conn={} receivedMsgId={} "
@@ -727,7 +734,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             } catch (final Exception ignored) {
                                 // getEvmCallResult() throws when the child dispatch did not produce
                                 // an EVM result record (e.g. the target address has no bytecode).
-                                // Treat as empty return data — the reply status is set by result.status().
+                                // A successful call without the required bytes-return ABI is invalid and
+                                // must be rolled back before reporting application failure.
                                 log.debug(
                                         "[ClprSubmitBundle] step10 DATA dispatch produced no EVM result conn={} "
                                                 + "receivedMsgId={} target={} reason={}: {}",
@@ -798,7 +806,15 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     responseData = Bytes.EMPTY;
                                     replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                                 }
+                            } else if (result.status() == SUCCESS) {
+                                replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                             }
+                            // The child has committed into this parent savepoint. Keep successful
+                            // application effects only if their response can be delivered; otherwise
+                            // revert the whole child subtree, including nested CLPR sends. Failed
+                            // dispatches already reverted their effects and retain their failure record.
+                            commitApplication =
+                                    result.status() != SUCCESS || replyStatus == ClprMessageReplyStatus.SUCCESS;
                         } catch (final HandleException e) {
                             log.warn(
                                     "[ClprSubmitBundle] step10 DATA dispatch HandleException conn={} "
@@ -810,10 +826,21 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     e.getMessage());
                             replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                         } finally {
-                            final long actualGasFee = gasAccounting.settle(gasPayer, gasLimit, gasResult);
-                            final long unusedReimbursement = gasAccounting.costForGas(gasLimit) - actualGasFee;
-                            if (unusedReimbursement > 0) {
-                                tokenServiceApi.transferFromTo(context.payer(), gasPayer, unusedReimbursement);
+                            try {
+                                if (commitApplication) {
+                                    applicationStack.commit();
+                                } else {
+                                    applicationStack.rollback();
+                                }
+                            } finally {
+                                // Prepayment and settlement stay outside the application savepoint.
+                                // Removing a child stream builder leaves its EVM result available here,
+                                // so reverted application work still pays for the gas it executed.
+                                final long actualGasFee = gasAccounting.settle(gasPayer, gasLimit, gasResult);
+                                final long unusedReimbursement = gasAccounting.costForGas(gasLimit) - actualGasFee;
+                                if (unusedReimbursement > 0) {
+                                    tokenServiceApi.transferFromTo(context.payer(), gasPayer, unusedReimbursement);
+                                }
                             }
                         }
 
@@ -888,8 +915,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     final var attestedReplyData = reply.messageReplyData();
                     final long serializedReplyBytes = ClprMessagePayload.PROTOBUF.measureRecord(payload);
                     final boolean oversized = replyPayloadLimit > 0 && serializedReplyBytes > replyPayloadLimit;
-                    final var replyStatus = oversized ? ClprMessageReplyStatus.APPLICATION_ERROR : reply.status();
+                    final var replyStatus = reply.status();
                     final var replyData = oversized ? Bytes.EMPTY : attestedReplyData;
+                    final var callbackName = oversized ? "onClprResponseUnavailable" : "onClprResponse";
                     if (oversized) {
                         log.debug(
                                 "[ClprSubmitBundle] oversized incoming reply conn={} receivedMsgId={} "
@@ -916,7 +944,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             && callbackAccount != null
                             && gasLimit > 0
                             && callbackAccount.tinybarBalance() >= gasAccounting.costForGas(gasLimit)) {
-                        final var callData = encodeOnClprResponse(channelId, replyTargetId, replyStatus, replyData);
+                        // An old application may not implement the unavailable-result hook. Its
+                        // failure is best-effort; never retry the ordinary callback with a false
+                        // execution-failure status or an indistinguishable empty success result.
+                        final var callData = oversized
+                                ? encodeOnClprResponseUnavailable(channelId, replyTargetId, replyStatus)
+                                : encodeOnClprResponse(channelId, replyTargetId, replyStatus, replyData);
                         // Use EntityIdFactory so shard/realm match this network
                         final var senderContractId = entityIdFactory.newContractIdWithEvmAddress(senderAddress);
                         final var syntheticBody = TransactionBody.newBuilder()
@@ -930,8 +963,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         .build())
                                 .build();
                         log.debug(
-                                "[ClprSubmitBundle] dispatching onClprResponse to sender={} replyTargetId={} "
+                                "[ClprSubmitBundle] dispatching {} to sender={} replyTargetId={} "
                                         + "status={} replyDataLen={} callDataLen={} gas={} callData={}",
+                                callbackName,
                                 senderAddress,
                                 replyTargetId,
                                 replyStatus,
@@ -958,14 +992,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     CLPR_DISPATCH_METADATA,
                                     ON));
                             log.debug(
-                                    "[ClprSubmitBundle] onClprResponse dispatch SUCCESS to sender={} replyTargetId={}",
+                                    "[ClprSubmitBundle] {} dispatch returned to sender={} replyTargetId={} status={}",
+                                    callbackName,
                                     senderAddress,
-                                    replyTargetId);
+                                    replyTargetId,
+                                    gasResult.status());
                         } catch (final HandleException e) {
                             // Best-effort: callback failure does not stop bundle processing. Log so we can
                             // see when an application's onClprResponse rejected or reverted.
                             log.warn(
-                                    "[ClprSubmitBundle] onClprResponse dispatch FAILED to sender={} replyTargetId={}: {}",
+                                    "[ClprSubmitBundle] {} dispatch FAILED to sender={} replyTargetId={}: {}",
+                                    callbackName,
                                     senderAddress,
                                     replyTargetId,
                                     e.getMessage());
@@ -1370,6 +1407,11 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     @Nullable
     private static Bytes decodeApplicationResponse(@NonNull final Bytes abiResponse, final long maxPayloadBytes) {
+        // Even an empty bytes return needs its offset and length words. Reject truncated
+        // encodings before Headlong can interpret an offset-zero word as an empty value.
+        if (abiResponse.length() < 2 * ABI_WORD_BYTES) {
+            return null;
+        }
         // Bound the input before copying it for Headlong. ABI pads the payload to a whole word, so
         // also check the decoded length to distinguish sizes that have the same encoded length.
         // The caller then measures the complete serialized reply with its actual message id and status.
@@ -1436,6 +1478,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             buf.put(new byte[respPadded - respBytes.length]);
         }
 
+        return buf.array();
+    }
+
+    /** Preserves the attested outcome while explicitly notifying that its result data is unavailable. */
+    private static byte[] encodeOnClprResponseUnavailable(
+            @NonNull final Bytes channelId, final long messageId, @NonNull final ClprMessageReplyStatus status) {
+        final var buf = ByteBuffer.allocate(4 + 3 * 32);
+        buf.put(ON_CLPR_RESPONSE_UNAVAILABLE_SELECTOR);
+        buf.put(channelId.toByteArray());
+        buf.put(new byte[24]);
+        buf.putLong(messageId);
+        buf.put(new byte[31]);
+        buf.put((byte) status.protoOrdinal());
         return buf.array();
     }
 
