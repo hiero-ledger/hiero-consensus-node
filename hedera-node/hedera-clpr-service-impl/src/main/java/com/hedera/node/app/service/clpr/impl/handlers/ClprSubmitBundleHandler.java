@@ -812,7 +812,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             // The child has committed into this parent savepoint. Keep successful
                             // application effects only if their response can be delivered; otherwise
                             // revert the whole child subtree, including nested CLPR sends. Failed
-                            // dispatches already reverted their effects and retain their failure record.
+                            // dispatches already reverted their effects, so no additional parent rollback is needed.
                             commitApplication =
                                     result.status() != SUCCESS || replyStatus == ClprMessageReplyStatus.SUCCESS;
                         } catch (final HandleException e) {
