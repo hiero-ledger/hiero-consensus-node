@@ -308,10 +308,15 @@ DRAINED as part of initiating the close.
 - `closeChannel` on a CLOSING or CLOSED channel is rejected.
 - `closeChannel` on an ACTIVE or PAUSED channel succeeds (use an unacknowledged outbound Data
   Message to assert a persisted CLOSING state).
-- For the canonical admin recovery case, `closeChannel` on a DRAINED Channel succeeds and
-  transitions it to CLOSED. Cover a fully acknowledged outbound queue and one with unacknowledged
-  Response Messages, as when the peer's close-notification cannot be delivered; recovery is not
-  gated on acknowledgements.
+- **Current Hiero behavior:** `closeChannel` on a DRAINED Channel succeeds and transitions it to
+  CLOSED without checking acknowledgements. Cover both a fully acknowledged outbound queue and one with
+  unacknowledged Response Messages, including recovery when the peer's close-notification cannot be delivered.
+  **Canonical inconsistency:** [§2.1.1](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions),
+  [§3.4](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#34-endpoint-close-notification-obligation),
+  and the [§6.2 pseudo-API explanation](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#62-channel-management)
+  assume the recovery queue is fully acknowledged and nothing is abandoned, but the pseudo-API lists no
+  explicit acknowledgement guard for DRAINED → CLOSED. The unacknowledged-response case documents current
+  Hiero behavior rather than a settled canonical conformance requirement.
 - No admin halt or resume transactions exist.
 
 ## 3.3 Connector Lifecycle
