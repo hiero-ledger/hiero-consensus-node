@@ -20,6 +20,7 @@ import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -34,13 +35,14 @@ public class PrivilegesVerifier {
     private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
 
+    private final ConfigProvider configProvider;
     private final AccountsConfig accountsConfig;
     private final FilesConfig filesConfig;
     private final long numReservedSystemEntities;
 
     @Inject
     public PrivilegesVerifier(@NonNull final ConfigProvider configProvider) {
-        requireNonNull(configProvider, "configProvider cannot be null");
+        this.configProvider = requireNonNull(configProvider, "configProvider cannot be null");
 
         final var configuration = configProvider.getConfiguration();
         this.accountsConfig = configuration.getConfigData(AccountsConfig.class);
@@ -84,8 +86,8 @@ public class PrivilegesVerifier {
                 checkCryptoDelete(
                         effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
-            case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_CLOSE_CHANNEL, CLPR_EVICT_PEER_ENDPOINT ->
-                checkClprAdmin(payerId);
+            case CLPR_UPDATE_LEDGER_CONFIGURATION -> checkClprLedgerConfigurationUpdate(payerId);
+            case CLPR_CLOSE_CHANNEL, CLPR_EVICT_PEER_ENDPOINT -> checkClprAdmin(payerId);
             default -> SystemPrivilege.UNNECESSARY;
         };
     }
@@ -203,6 +205,21 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkClprAdmin(@NonNull final AccountID payerId) {
         return isSuperUser(payerId) ? AUTHORIZED : UNAUTHORIZED;
+    }
+
+    private SystemPrivilege checkClprLedgerConfigurationUpdate(@NonNull final AccountID payerId) {
+        if (isSuperUser(payerId)) {
+            return AUTHORIZED;
+        }
+        final var configuration = configProvider.getConfiguration();
+        final var clprAdmin = configuration.getConfigData(AccountsConfig.class).clprAdmin();
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        return clprAdmin > 0
+                        && payerId.accountNumOrElse(0L) == clprAdmin
+                        && payerId.shardNum() == hederaConfig.shard()
+                        && payerId.realmNum() == hederaConfig.realm()
+                ? AUTHORIZED
+                : UNAUTHORIZED;
     }
 
     private SystemPrivilege checkEntityDelete(final long entityNum) {

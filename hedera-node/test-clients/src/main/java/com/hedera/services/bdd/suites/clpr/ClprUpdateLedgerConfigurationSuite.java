@@ -4,8 +4,11 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -14,6 +17,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
@@ -35,6 +39,26 @@ public class ClprUpdateLedgerConfigurationSuite {
                 .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                 .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                 .payingWith(GENESIS));
+    }
+
+    @LeakyHapiTest(
+            requirement = PROPERTY_OVERRIDES,
+            overrides = {"accounts.clprAdmin"})
+    final Stream<DynamicTest> configuredClprAdminCanUpdateLedgerConfiguration() {
+        final var admin = "601";
+        final var throttles = HapiClprUpdateLedgerConfiguration.defaultThrottles();
+        return hapiTest(
+                cryptoTransfer(tinyBarsFromTo(GENESIS, admin, ONE_HUNDRED_HBARS))
+                        .payingWith(GENESIS),
+                overriding("accounts.clprAdmin", admin),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
+                        .throttles(throttles)
+                        .payingWith(admin)
+                        // The local network creates account 601 with the genesis key.
+                        .signedBy(GENESIS),
+                clprGetLedgerConfiguration()
+                        .exposingConfigTo(config -> assertEquals(throttles, config.getThrottles())));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)

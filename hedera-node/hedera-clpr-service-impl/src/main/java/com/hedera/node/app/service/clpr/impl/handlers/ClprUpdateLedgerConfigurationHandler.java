@@ -65,8 +65,7 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        // Authorization enforced by PrivilegesVerifier.checkClprAdmin — only
-        // treasury and system admin accounts are permitted.
+        // PrivilegesVerifier authorizes the treasury, system admin, and configured CLPR admin.
     }
 
     @Override

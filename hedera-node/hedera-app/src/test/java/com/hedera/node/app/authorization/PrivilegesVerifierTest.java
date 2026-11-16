@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.authorization;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.CommonUtils.functionOf;
@@ -40,6 +43,7 @@ import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -650,7 +654,7 @@ class PrivilegesVerifierTest {
 
     @ParameterizedTest(name = "{0} with payer {1} -> {2}")
     @MethodSource("clprAuthorizationCases")
-    void clprOperationsRequireSuperAdmin(HederaFunctionality operation, long payerNum, SystemOpAuthorization expected)
+    void defaultClprAuthorization(HederaFunctionality operation, long payerNum, SystemOpAuthorization expected)
             throws InvalidProtocolBufferException {
         final var txn = txnWithPayer(payerNum);
         switch (operation) {
@@ -666,7 +670,7 @@ class PrivilegesVerifierTest {
     }
 
     static Stream<Arguments> clprAuthorizationCases() {
-        // CLPR ops require a super user (treasury or systemAdmin). Other privileged
+        // By default, CLPR admin ops require a super user (treasury or systemAdmin). Other privileged
         // accounts (freeze admin, exchange-rates admin, etc.) and civilians are rejected.
         return Stream.of(
                 Arguments.of(
@@ -701,6 +705,45 @@ class PrivilegesVerifierTest {
                         SystemOpAuthorization.UNAUTHORIZED),
                 Arguments.of(
                         HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
+    }
+
+    @Test
+    void clprLedgerUpdateUsesCurrentAdminConfiguration() {
+        final var defaultConfig = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L);
+        final var config = new AtomicReference<>(defaultConfig);
+        final var verifier = new PrivilegesVerifier(config::get);
+        final var payer = toPbj(account(601));
+        final var body = com.hedera.hapi.node.transaction.TransactionBody.DEFAULT;
+
+        assertEquals(
+                SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(payer, CLPR_UPDATE_LEDGER_CONFIGURATION, body));
+
+        config.set(new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("accounts.clprAdmin", 601L)
+                        .getOrCreateConfig(),
+                2L));
+
+        assertEquals(SystemPrivilege.AUTHORIZED, verifier.hasPrivileges(payer, CLPR_UPDATE_LEDGER_CONFIGURATION, body));
+        assertEquals(
+                SystemPrivilege.UNAUTHORIZED,
+                verifier.hasPrivileges(
+                        payer.copyBuilder().accountNum(602).build(), CLPR_UPDATE_LEDGER_CONFIGURATION, body));
+        assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(payer, CLPR_CLOSE_CHANNEL, body));
+        assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(payer, CLPR_EVICT_PEER_ENDPOINT, body));
+        assertEquals(
+                SystemPrivilege.UNAUTHORIZED,
+                verifier.hasPrivileges(
+                        payer.copyBuilder().shardNum(1).build(), CLPR_UPDATE_LEDGER_CONFIGURATION, body));
+        assertEquals(
+                SystemPrivilege.UNAUTHORIZED,
+                verifier.hasPrivileges(
+                        payer.copyBuilder().realmNum(1).build(), CLPR_UPDATE_LEDGER_CONFIGURATION, body));
+
+        config.set(defaultConfig);
+
+        assertEquals(
+                SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(payer, CLPR_UPDATE_LEDGER_CONFIGURATION, body));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {

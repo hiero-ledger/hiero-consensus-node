@@ -129,24 +129,13 @@ See [C-6 in DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md#c-6) for the plan.
 
 ## E-5. `PrivilegesVerifier`-based admin gating
 
-Admin-gated CLPR operations — `closeChannel`, `redactMessage`, and
-`updateLedgerConfiguration` — require the transaction payer to be:
+The treasury (by default `0.0.2`) and system admin (by default `0.0.50`) can pay
+for `closeChannel`, `evictPeerEndpoint`, and `updateLedgerConfiguration`.
+The optional `accounts.clprAdmin` payer can pay for `updateLedgerConfiguration` only.
+See [privileged transactions](../../../privileged-transactions.md#authorization-privileges-for-clpr-transactions).
 
-- **Account `0.0.2`** — the treasury account (Hiero "superuser")
-- **Account `0.0.50`** — the system admin account
-
-This is enforced by `PrivilegesVerifier.checkClprAdmin` inside `AbstractClprHandler`.
-The framework rejects unauthorized payers with `AUTHORIZATION_FAILED` before the
-handler's `doHandle` method is invoked.
-
-**There is no separate CLPR admin key in state or config.** Hiero does not define a
-per-service admin key for CLPR. Admin authority is inherited from the platform's
-standard privileged-account model.
-
-This matches the standard Hedera platform admin model used by other system services
-(e.g., file update, token pause). It means CLPR admin ops require the same governance
-process as any other Hedera system operation — no additional key management or
-CLPR-specific governance.
+`PrivilegesVerifier` checks the payer's authority. The framework rejects unauthorized
+payers with `AUTHORIZATION_FAILED` before invoking the handler.
 
 **Canonical spec note:** the canonical spec should not require an admin key field on
 the CLPR Service state or in `ClprLedgerConfiguration`. Platforms choose their own
