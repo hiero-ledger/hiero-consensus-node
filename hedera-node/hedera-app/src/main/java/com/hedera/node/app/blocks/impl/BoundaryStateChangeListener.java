@@ -237,7 +237,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.BYTES_VALUE, protoBytes.value());
             }
             case ProtoLong protoLong -> {
-                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.PROTO_LONG_VALUE, protoLong);
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.PROTO_LONG_VALUE, protoLong.value());
             }
             case ProtoString protoString -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.STRING_VALUE, protoString.value());

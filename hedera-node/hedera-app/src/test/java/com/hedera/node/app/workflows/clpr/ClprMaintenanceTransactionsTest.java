@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.ENDPOINT_MANIFEST_RECONCILIATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.GENESIS_INITIALIZATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.singletonPutFor;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
@@ -111,7 +112,7 @@ class ClprMaintenanceTransactionsTest {
                         MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID);
         // Replaying each emitted value reconstructs every seeded singleton, including the empty construction.
         for (final var change : changes.stateChanges()) {
-            final Object replayed = change.singletonUpdateOrThrow().newValue().value();
+            final Object replayed = singletonPutFor(change.singletonUpdateOrThrow());
             assertThat(replayed).isEqualTo(states.getSingleton(change.stateId()).get());
         }
         assertThat(states.getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID).get())
@@ -144,7 +145,7 @@ class ClprMaintenanceTransactionsTest {
                 .satisfies(change -> {
                     assertThat(change.stateId()).isEqualTo(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID);
                     assertThat(change.singletonUpdateOrThrow().protoLongValueOrThrow())
-                            .isEqualTo(new ProtoLong(7));
+                            .isEqualTo(7L);
                 });
         verifyNoMoreInteractions(blockStreamManager);
     }

@@ -25,7 +25,6 @@ option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
-import "services/state/primitives.proto";
 import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
 import "services/state/addressbook/registered_node.proto";
@@ -844,7 +843,7 @@ message SingletonUpdateChange {
         com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction clpr_endpoint_manifest_construction_value = 23;
 
         /** A change to a local integer singleton, including the CLPR historical queue reserve. */
-        proto.ProtoLong proto_long_value = 24;
+        google.protobuf.Int64Value proto_long_value = 24;
     }
 }
 

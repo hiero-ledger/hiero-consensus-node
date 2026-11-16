@@ -133,7 +133,7 @@ public final class BlockStreamUtils {
             case NODE_REWARDS_VALUE -> singletonUpdateChange.nodeRewardsValueOrThrow();
             case BYTES_VALUE -> new ProtoBytes(singletonUpdateChange.bytesValueOrThrow());
             case STRING_VALUE -> new ProtoString(singletonUpdateChange.stringValueOrThrow());
-            case PROTO_LONG_VALUE -> singletonUpdateChange.protoLongValueOrThrow();
+            case PROTO_LONG_VALUE -> new ProtoLong(singletonUpdateChange.protoLongValueOrThrow());
             case RUNNING_HASHES_VALUE -> singletonUpdateChange.runningHashesValueOrThrow();
             case THROTTLE_USAGE_SNAPSHOTS_VALUE -> singletonUpdateChange.throttleUsageSnapshotsValueOrThrow();
             case TIMESTAMP_VALUE -> singletonUpdateChange.timestampValueOrThrow();

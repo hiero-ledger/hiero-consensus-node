@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.clpr;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.singletonPutFor;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
@@ -105,7 +106,7 @@ class ClprStateStreamingTest {
                         .parse(serialized)
                         .singletonUpdateOrThrow()
                         .protoLongValueOrThrow())
-                .isEqualTo(new ProtoLong(5));
+                .isEqualTo(5L);
         assertThat(changes.stream()
                         .filter(change -> change.stateId() == LEDGER_CONFIGURATION_STATE_ID)
                         .findFirst()
@@ -184,7 +185,7 @@ class ClprStateStreamingTest {
                 .toList();
         assertThat(changes).singleElement().satisfies(change -> {
             assertThat(change.stateId()).isEqualTo(id);
-            assertThat(change.singletonUpdateOrThrow().newValue().value()).isEqualTo(updated);
+            assertThat(singletonPutFor(change.singletonUpdateOrThrow())).isEqualTo(updated);
         });
         assertThat(boundary.allStateChanges()).isEmpty();
 

@@ -63,6 +63,12 @@ orders the schema independently of the software version.
 stored as `ProtoLong`. It tracks locally governed historical queue credit and never appears
 in the peer-proven ledger configuration or a hash-chained ConfigUpdate message.
 
+Block-stream consumers must support state ID 71 and `SingletonUpdateChange.proto_long_value`
+(field 24), a `google.protobuf.Int64Value`. Following the existing primitive-wrapper stream
+convention, replay converts that scalar back to the local `ProtoLong` state value. A present
+zero is an update, distinct from an unset oneof. The stream wrapper has the same protobuf wire
+encoding as `ProtoLong`; the state codec and state-root hashing remain unchanged.
+
 State IDs are `StateKey.KeyOneOfType.CLPRSERVICE_I_*.protoOrdinal()` (or
 `SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal()` for the singleton). Treat
 those constants as the canonical identity — the string keys are labels.
