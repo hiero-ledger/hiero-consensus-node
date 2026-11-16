@@ -44,7 +44,7 @@ import org.apache.logging.log4j.Logger;
  *       cleaning up an abandoned registration.</li>
  * </ol>
  * An explicit force-close marks an established channel CLOSED and discards its
- * outbound queue in bounded batches. Requires the CLPR admin key (network admin / superuser).
+ * outbound queue in bounded batches. Requires an authorized CLPR admin payer.
  */
 @Singleton
 public final class ClprCloseChannelHandler extends AbstractClprHandler {
@@ -71,8 +71,7 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        // Authorization enforced by PrivilegesVerifier.checkClprAdmin — only
-        // treasury and system admin accounts are permitted.
+        // PrivilegesVerifier authorizes the treasury, system admin, and configured CLPR admin.
     }
 
     @Override
