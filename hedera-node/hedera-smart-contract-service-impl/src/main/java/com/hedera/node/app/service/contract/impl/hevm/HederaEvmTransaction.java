@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
 import static java.util.Objects.requireNonNull;
 
@@ -135,22 +136,7 @@ public record HederaEvmTransaction(
     }
 
     public long upfrontCostGiven(final long gasPrice) {
-        return costWithValue(gasCostGiven(gasPrice));
-    }
-
-    /**
-     * Returns the given cost plus the value sent with this transaction, saturating at {@link Long#MAX_VALUE} so
-     * that a sum too large to represent is treated as unaffordable instead of wrapping to a negative number.
-     *
-     * @param cost the cost to add the value to
-     * @return the sum, or {@link Long#MAX_VALUE} if it does not fit in a long
-     */
-    public long costWithValue(final long cost) {
-        try {
-            return Math.addExact(cost, value);
-        } catch (ArithmeticException ignore) {
-            return Long.MAX_VALUE;
-        }
+        return clampedAdd(gasCostGiven(gasPrice), value);
     }
 
     public long unusedGas(final long gasUsed) {

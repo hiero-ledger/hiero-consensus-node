@@ -24,8 +24,7 @@ class HederaEvmTransactionTest {
     void upfrontCostSaturatesWhenValueIsCloseToTheMaximum() {
         final var subject = TestHelpers.wellKnownHapiCall(null, Long.MAX_VALUE - 1);
         assertEquals(Long.MAX_VALUE, subject.upfrontCostGiven(123L));
-        assertEquals(Long.MAX_VALUE, subject.costWithValue(2L));
-        assertEquals(Long.MAX_VALUE - 1, subject.costWithValue(0L));
+        assertEquals(Long.MAX_VALUE - 1, subject.upfrontCostGiven(0L));
     }
 
     @Test

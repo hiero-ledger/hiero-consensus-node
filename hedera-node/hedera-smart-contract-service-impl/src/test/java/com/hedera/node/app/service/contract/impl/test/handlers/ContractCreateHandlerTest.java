@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
@@ -390,6 +391,15 @@ class ContractCreateHandlerTest extends ContractHandlerTestBase {
                 .willReturn(TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD));
         given(pureChecksContext.body()).willReturn(txn1);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+
+        // check that negative gas is rejected, so the solvency estimate never multiplies a negative gas
+        final var negativeGasTxn = TransactionBody.newBuilder()
+                .transactionID(transactionID)
+                .contractCreateInstance(
+                        ContractCreateTransactionBody.newBuilder().gas(Long.MIN_VALUE))
+                .build();
+        given(pureChecksContext.body()).willReturn(negativeGasTxn);
+        assertThrowsPreCheck(() -> subject.pureChecks(pureChecksContext), INSUFFICIENT_GAS);
     }
 
     private TransactionBody contractCreateTransaction(final Key adminKey, final AccountID autoRenewId) {
