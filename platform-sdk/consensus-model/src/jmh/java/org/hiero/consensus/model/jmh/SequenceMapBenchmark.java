@@ -41,7 +41,8 @@ import org.openjdk.jmh.annotations.Warmup;
  * birth round. For every event, the orphan buffer and the tipset tracker look up each of the event's parents and then
  * add the event; the linker and deduplication only add it. After every consensus round, each of them moves the window
  * to the round's ancient threshold with {@link SequenceMap#shiftWindow(long)}, which removes the events of the birth
- * rounds below it. The benchmark measures one such shift.
+ * rounds below it. {@link #shiftWindow()} times each of these shifts; {@link #addEvent()} times the lookups and adds
+ * between them.
  *
  * <p>{@link FalconRecorder} simulates a network of {@link #numNodes} nodes once per trial, on the ping times of
  * mainnet, and records one of its nodes. The benchmark replays the events that its orphan buffer released, its own
@@ -101,6 +102,9 @@ public class SequenceMapBenchmark {
     /** The initial capacity of the maps of the linker, deduplication, and the orphan buffer, in birth rounds. */
     private static final int MAP_CAPACITY = 1024;
 
+    /** Signals that the ancient window is not used in a {@link Call} */
+    private static final long NOT_USED = -1L;
+
     /** The number of nodes in the simulated network. */
     @Param({"10", "28"})
     public int numNodes;
@@ -125,7 +129,7 @@ public class SequenceMapBenchmark {
     /**
      * The state of the map after a pass.
      *
-     * @param foundParents the number of parents that the lookups after the fill found
+     * @param foundParents the number of parents that were found while adding events
      * @param size         the number of events in the map
      * @param windowStart  the start of the map's window
      */
@@ -135,7 +139,7 @@ public class SequenceMapBenchmark {
     private Call[] calls;
 
     /** The number of calls that each invocation's setup makes: those before the first window that removes events. */
-    private int fillCalls;
+    private int numEventsBeforeFirstShift;
 
     /** The map, created once per trial and cleared by every invocation. */
     private SequenceMap<EventDescriptorWrapper, PlatformEvent> map;
@@ -156,7 +160,7 @@ public class SequenceMapBenchmark {
         final Recording recording = FalconRecorder.record(
                 RecordingSpec.builder(numNodes, SEED, EVENTS).build());
         calls = buildCalls(recording.nodes().getFirst().steps()).toArray(new Call[0]);
-        fillCalls = firstMovingWindow();
+        numEventsBeforeFirstShift = firstMovingWindow();
 
         map = new StandardSequenceMap<>(0, MAP_CAPACITY, true, EventDescriptorWrapper::birthRound);
         for (final Call call : calls) {
@@ -171,6 +175,7 @@ public class SequenceMapBenchmark {
      * @param steps the steps of the recorded node
      * @return the calls, in order
      */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
     private static List<Call> buildCalls(final List<Step> steps) {
         final List<Call> result = new ArrayList<>();
         for (final Step step : steps) {
@@ -181,7 +186,7 @@ public class SequenceMapBenchmark {
                     for (final EventDescriptorWrapper parent : event.getAllParents()) {
                         parent.hashCode();
                     }
-                    result.add(new Call(Kind.ADD_EVENT, event, 0));
+                    result.add(new Call(Kind.ADD_EVENT, event, NOT_USED));
                 }
                 case NewEventWindow window ->
                     result.add(new Call(Kind.SHIFT_WINDOW, null, window.window().ancientThreshold()));
@@ -200,7 +205,7 @@ public class SequenceMapBenchmark {
     @Setup(Level.Invocation)
     public void prepareInvocation() {
         map.clear();
-        for (int i = 0; i < fillCalls; i++) {
+        for (int i = 0; i < numEventsBeforeFirstShift; i++) {
             execute(calls[i]);
         }
         foundParents = 0;
@@ -295,7 +300,7 @@ public class SequenceMapBenchmark {
     private void replay(final Kind measured) {
         recorder.startMeasurement();
         recorder.pause();
-        for (int i = fillCalls; i < calls.length; i++) {
+        for (int i = numEventsBeforeFirstShift; i < calls.length; i++) {
             final Call call = calls[i];
             if (call.kind() == measured) {
                 if (recorder.isPaused()) {
