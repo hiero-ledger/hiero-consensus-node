@@ -5,6 +5,8 @@ import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDE
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -14,6 +16,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
@@ -41,24 +44,33 @@ public class ClprUpdateLedgerConfigurationSuite {
                 .payingWith(GENESIS));
     }
 
-    @LeakyHapiTest(
-            requirement = PROPERTY_OVERRIDES,
-            overrides = {"accounts.clprAdmin"})
-    final Stream<DynamicTest> configuredClprAdminCanUpdateLedgerConfiguration() {
+    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    final Stream<DynamicTest> defaultClprAdminCanSubmitAdminTransactions() {
+        // The local network creates account 601 with the genesis key.
         final var admin = "601";
+        final var missingChannelId = new byte[32];
         final var throttles = HapiClprUpdateLedgerConfiguration.defaultThrottles();
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, admin, ONE_HUNDRED_HBARS))
                         .payingWith(GENESIS),
-                overriding("accounts.clprAdmin", admin),
                 clprUpdateLedgerConfiguration()
                         .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                         .throttles(throttles)
                         .payingWith(admin)
-                        // The local network creates account 601 with the genesis key.
                         .signedBy(GENESIS),
-                clprGetLedgerConfiguration()
-                        .exposingConfigTo(config -> assertEquals(throttles, config.getThrottles())));
+                clprGetLedgerConfiguration().exposingConfigTo(config -> assertEquals(throttles, config.getThrottles())),
+                // Both operations must pass authorization to check whether the channel exists.
+                clprCloseChannel()
+                        .channelId(missingChannelId)
+                        .payingWith(admin)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND),
+                clprEvictPeerEndpoint()
+                        .channelId(missingChannelId)
+                        .endpoint("203.0.113.1", 50211)
+                        .payingWith(admin)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(CLPR_CHANNEL_NOT_FOUND));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)

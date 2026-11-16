@@ -86,8 +86,8 @@ public class PrivilegesVerifier {
                 checkCryptoDelete(
                         effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
-            case CLPR_UPDATE_LEDGER_CONFIGURATION -> checkClprLedgerConfigurationUpdate(payerId);
-            case CLPR_CLOSE_CHANNEL, CLPR_EVICT_PEER_ENDPOINT -> checkClprAdmin(payerId);
+            case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_CLOSE_CHANNEL, CLPR_EVICT_PEER_ENDPOINT ->
+                checkClprAdmin(payerId);
             default -> SystemPrivilege.UNNECESSARY;
         };
     }
@@ -204,10 +204,6 @@ public class PrivilegesVerifier {
     }
 
     private SystemPrivilege checkClprAdmin(@NonNull final AccountID payerId) {
-        return isSuperUser(payerId) ? AUTHORIZED : UNAUTHORIZED;
-    }
-
-    private SystemPrivilege checkClprLedgerConfigurationUpdate(@NonNull final AccountID payerId) {
         if (isSuperUser(payerId)) {
             return AUTHORIZED;
         }

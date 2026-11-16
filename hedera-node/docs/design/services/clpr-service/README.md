@@ -39,7 +39,7 @@ endpoint-to-endpoint sync.
 | Sync RPC (gRPC)             | `proto.ClprEndpointService` exposed by Netty server, routed via `ClprStreamingSyncMethod` to `ClprSyncWorkflowImpl`.                                    |
 | Outbound sync orchestration | `ClprChannelManager` (background scanner, `start()`/`stop()` from `Hedera.java`).                                                                       |
 | Storage                     | Merkle state via Schema; one schema `V0780ClprSchema` (schema version 0.78.0).                                                                          |
-| Admin                       | The treasury and system admin can pay for CLPR admin transactions. An optional `accounts.clprAdmin` payer can update ledger configuration. |
+| Admin                       | The treasury, system admin, and configured `accounts.clprAdmin` payer can submit privileged CLPR transactions. |
 | Lazy config propagation     | Performed in `ClprServiceApiImpl.sendMessage` (prepends a `ClprControlMessage.configUpdate` when channel's `lastConfigTimestamp` is stale).             |
 | Throttles                   | `ClprThrottles` (in singleton `ClprLedgerConfiguration`) enforced by handler/api code; `InboundSyncThrottle` enforces peer sync rate at the gRPC layer. |
 | Fees                        | One `ClprFeeCalculator` per CLPR `HederaFunctionality` reading `FeeSchedule.baseFee`.                                                                   |

@@ -18,9 +18,9 @@ abstract class enforces:
 2. **Channel lookup helpers:** `requireActiveChannel(...)` returns the
    `ClprChannel` or throws `HandleException` (e.g. `INVALID_CLPR_CHANNEL_ID`,
    `CLPR_CHANNEL_NOT_ACTIVE`).
-3. **Admin gating** uses the platform's `PrivilegesVerifier`. The treasury and system
-   admin can pay for `closeChannel`, `evictPeerEndpoint`, and `updateLedgerConfiguration`.
-   The optional `accounts.clprAdmin` payer can pay for `updateLedgerConfiguration` only.
+3. **Admin gating** uses the platform's `PrivilegesVerifier`. The treasury, system
+   admin, and configured `accounts.clprAdmin` payer can submit `closeChannel`,
+   `evictPeerEndpoint`, and `updateLedgerConfiguration`.
    The framework verifies the payer signature and rejects unauthorized payers with
    `AUTHORIZATION_FAILED`.
 

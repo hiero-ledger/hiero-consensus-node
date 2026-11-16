@@ -17,7 +17,7 @@ public record AccountsConfig(
         @ConfigProperty(defaultValue = "55") @NetworkProperty
         long addressBookAdmin,
 
-        @ConfigProperty(defaultValue = "-1") @NetworkProperty
+        @ConfigProperty(defaultValue = "601") @NetworkProperty
         long clprAdmin,
 
         @ConfigProperty(defaultValue = "57") @NetworkProperty
