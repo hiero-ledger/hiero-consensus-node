@@ -7,8 +7,7 @@ import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import net.i2p.crypto.eddsa.EdDSAEngine;
+import org.hiero.base.crypto.Ed25519;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 final class CryptoTestHelpers {
@@ -77,10 +76,11 @@ final class CryptoTestHelpers {
         final byte[] msgHash =
                 MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(msgPreimage)).toByteArray();
         try {
-            final var engine = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));
-            engine.initSign(Ed25519Utils.keyFrom(seed));
-            engine.update(msgHash);
-            return Bytes.wrap(engine.sign());
+            byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+            byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
+            Ed25519.newKeypair(publicKey, secretKey, seed);
+
+            return Bytes.wrap(Ed25519.sign(msgHash, secretKey));
         } catch (final Exception e) {
             throw new IllegalStateException("Failed to sign with Ed25519", e);
         }
