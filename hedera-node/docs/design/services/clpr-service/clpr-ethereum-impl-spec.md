@@ -171,12 +171,16 @@ interface IClprService {
 
     /// @notice Initiate graceful close of a Channel. ADMIN_ROLE only.
     /// @dev When called on a PENDING Channel, deletes it immediately (no drain needed).
-    ///      For ACTIVE or PAUSED → transitions to CLOSING. In-flight messages receive
-    ///      CHANNEL_CLOSED responses without dispatch. The Channel transitions
-    ///      through DRAINED to CLOSED automatically when all queues are fully drained.
+    ///      For ACTIVE or PAUSED → transitions to CLOSING and rejects new local
+    ///      sendMessage calls. Inbound Data Messages are dispatched normally, charged
+    ///      to the Connector, and answered with normal responses while queues drain.
+    ///      CLOSING → DRAINED once all outbound Data Messages are acknowledged;
+    ///      DRAINED → CLOSED once peer status is DRAINED or CLOSED and the entire
+    ///      outbound queue, including generated responses, is acknowledged.
     ///      If closed from PAUSED, the Channel cannot drain until the peer fixes
-    ///      the response ordering; once fixed, bundles process with CHANNEL_CLOSED
-    ///      responses and queues drain normally.
+    ///      response ordering; once fixed, bundles process normally while CLOSING.
+    ///      From DRAINED, admin recovery may transition directly to CLOSED once
+    ///      the entire outbound queue is acknowledged (failed close-notification).
     /// @param channelId The Channel ID.
     function closeChannel(bytes32 channelId) external;
 
@@ -817,9 +821,10 @@ submitBundle(channelId, proofBytes, remoteEndpointSignature, remoteEndpointPubli
   16. Retain acknowledged Data Messages (needed for response ordering).
 
   // --- Step 5a: Closing State Propagation ---
-  16a. If metadata.state is CLOSING or DRAINED, and channel.status == ACTIVE or PAUSED:
-       - Set channel.status = CLOSING.
+  16a. If metadata.status is CLOSING, DRAINED, or CLOSED, and channel.status == ACTIVE or PAUSED:
+       - Set channel.status = CLOSING before dispatch, so nested sendMessage calls are rejected.
        - Emit ChannelStatusChanged(channelId, previousStatus, 3 /* CLOSING */).
+       - Propagate the new status to the peer in the next proven queue metadata.
 
   // --- Step 5b: Lazy Config Propagation ---
   // Placed after ack update to ensure the ConfigUpdate appears at the correct
@@ -832,19 +837,19 @@ submitBundle(channelId, proofBytes, remoteEndpointSignature, remoteEndpointPubli
   // --- Step 6: Message Dispatch (see section 8 for details) ---
   17. For each message in order:
       - If Control: apply directly (update peer roster or config).
-      - If Data AND (channel.status == CLOSING || channel.status == DRAINED):
-          Generate CHANNEL_CLOSED response without dispatching to application.
-          Connector is not charged, not slashed.
-      - If Data (not CLOSING/DRAINED): resolve connector, charge, dispatch to application, enqueue response.
+      - If Data (including CLOSING/DRAINED): resolve connector, charge under the normal execution rules,
+          dispatch to application, and enqueue the normal response.
+          CLOSING/DRAINED reject new local sendMessage calls, not inbound Data Messages.
       - If Response: deliver to application, verify ordering.
   18. Update channel.receivedMessageId and channel.receivedRunningHash.
 
   // --- Step 6a: Drain Check (two-phase) ---
   18a. If channel.status == CLOSING || channel.status == DRAINED:
-       - If channel.status == CLOSING AND peer has acknowledged all our outbound messages:
-           Set channel.status = DRAINED.
+       - If channel.status == CLOSING AND no outbound Data Messages with ID > ackedMessageId remain:
+           Set channel.status = DRAINED; generated responses may still be unacknowledged.
            Emit ChannelStatusChanged(channelId, 3 /* CLOSING */, 4 /* DRAINED */).
-       - If channel.status == DRAINED AND peer's state == DRAINED:
+       - If channel.status == DRAINED AND metadata.status is DRAINED or CLOSED
+         AND ackedMessageId >= nextMessageId - 1 (all outbound messages, including generated responses, acked):
            Set channel.status = CLOSED.
            Emit ChannelStatusChanged(channelId, 4 /* DRAINED */, 5 /* CLOSED */).
 
@@ -1077,7 +1082,7 @@ if (response.messageId != channel.nextResponseExpectedId) {
 
 // --- Auto-resume if PAUSED and ordering is now correct ---
 // If admin closed the Channel while PAUSED (status is CLOSING), this block is skipped —
-// the Channel stays CLOSING and processes bundles with CHANNEL_CLOSED responses.
+// the Channel stays CLOSING and dispatches inbound Data Messages normally.
 if (channel.status == 2 /* PAUSED */) {
     channel.status = 1; // ACTIVE
     emit ChannelStatusChanged(channelId, 2 /* PAUSED */, 1 /* ACTIVE */);
@@ -1142,8 +1147,8 @@ ClprService function. If an application attempts this, the transaction reverts f
 **PAUSED recovery.** PAUSED is auto-recoverable: the Channel resumes automatically when the next
 bundle contains correctly ordered responses (see section 8.2), provided the admin hasn't closed it.
 Admin may close a PAUSED Channel (`closeChannel` transitions it to CLOSING). While CLOSING,
-bundles with out-of-order responses are still rejected; once the peer fixes the ordering, bundles
-process with CHANNEL_CLOSED responses and queues drain normally through DRAINED to CLOSED.
+bundles with out-of-order responses are still rejected; once the peer fixes the ordering, inbound
+Data Messages are dispatched normally and queues drain through DRAINED to CLOSED.
 
 If PAUSED persists (the peer never fixes its response ordering), the EIP-1967 proxy provides a recovery
 path as a last resort:
@@ -1162,9 +1167,14 @@ path as a last resort:
 This is a concrete motivation for the upgradeability strategy described in section 1.2.
 
 **CLOSING recovery.** CLOSING is irreversible. Once an admin calls `closeChannel`, the Channel
-transitions to CLOSING. In-flight Data Messages receive CHANNEL_CLOSED responses without dispatch.
-Acks continue flowing, queues drain, and the Channel transitions through DRAINED to CLOSED automatically
-when both sides are fully drained. There is no admin resume from CLOSING or DRAINED.
+transitions to CLOSING and rejects new local `sendMessage` calls. Inbound Data Messages continue to be
+dispatched normally, charged to the Connector, and answered with normal responses. Queue metadata carries
+CLOSING to the peer so it also stops accepting new local Data Messages. The Channel transitions to DRAINED
+once all outbound Data Messages are acknowledged; generated responses may still be in flight. It transitions
+to CLOSED only after the peer's proven status is DRAINED or CLOSED and the entire local outbound queue,
+including generated responses, is acknowledged. There is no admin resume from CLOSING or DRAINED.
+See the canonical [Channel status transitions](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions)
+and [bundle drain checks](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#42-bundle-verification-algorithm).
 
 ---
 

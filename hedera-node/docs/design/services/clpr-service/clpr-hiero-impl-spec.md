@@ -1,11 +1,13 @@
 # CLPR Hiero Implementation Specification
 
-This document maps the [CLPR Protocol Specification](clpr-service-spec.md) to Hiero's native constructs. It is the
-authoritative reference for engineers implementing CLPR on Hiero consensus nodes. Each section corresponds to a
-concrete implementation area and is designed to be decomposed directly into epics and issues.
+This document maps CLPR to Hiero's native constructs. The canonical
+[CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md)
+is the normative source for protocol behavior, including channel lifecycle semantics; its requirements take
+precedence over summaries here. See the [Hiero platform specification](clpr-hiero-spec.md) for platform choices
+and the [README](README.md) for the current implementation documentation map.
 
-For architectural rationale and cross-platform protocol details, see the companion
-[CLPR Design Document](clpr-service.md) and [CLPR Protocol Specification](clpr-service-spec.md).
+For architectural rationale, see the canonical
+[CLPR Design Document](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service.md).
 
 ---
 
@@ -142,9 +144,14 @@ message ClprCompleteChannelTransactionBody {
 // When called on a PENDING Channel, the Channel is deleted immediately
 // (no drain phase needed since no messages have been exchanged).
 // When called on ACTIVE or PAUSED, transitions to CLOSING (the
-// ClprQueueMetadata.state reflects the Channel status and is propagated to
-// the peer). When the peer acks all outbound messages, the Channel
-// transitions to DRAINED. Transitions to CLOSED when both sides are DRAINED.
+// ClprQueueMetadata.status reflects the Channel status and is propagated to
+// the peer). New local sendMessage calls are rejected; inbound messages
+// continue to be dispatched normally. When the peer acks all outbound Data
+// Messages, the Channel transitions to DRAINED. Response Messages may still
+// be generated and drain in DRAINED. Transitions to CLOSED when the peer is
+// DRAINED or CLOSED and all outbound messages have been acknowledged.
+// An admin may also close a stuck DRAINED Channel via the recovery path
+// once its entire outbound queue is acknowledged.
 // See cross-platform spec §2.1.1 for the full status transition table.
 message ClprCloseChannelTransactionBody {
   bytes channel_id = 1;
@@ -411,13 +418,19 @@ fingerprints are not rewritten.
 | `PENDING` | `ACTIVE`  | `ClprCompleteChannel` succeeds (reveal phase)                                         |
 | `PENDING` | (deleted) | Admin: `ClprCloseChannel` on a PENDING Channel (immediate deletion)                   |
 | `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`                           |
-| `ACTIVE`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer's `ClprQueueMetadata.state` is `CLOSING`/`DRAINED` |
+| `ACTIVE`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer's `ClprQueueMetadata.status` is `CLOSING`/`DRAINED`/`CLOSED` |
 | `PAUSED`  | `ACTIVE`  | Auto: peer fixes ordering (if admin hasn't closed)                                    |
-| `PAUSED`  | `CLOSING` | Admin: `ClprCloseChannel` — Channel drains once peer fixes ordering                   |
-| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound messages                                     |
-| `DRAINED` | `CLOSED`  | Auto: both sides are `DRAINED`                                                        |
+| `PAUSED`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer status is `CLOSING`/`DRAINED`/`CLOSED`; drain requires valid response ordering |
+| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound Data Messages; responses may still be in flight |
+| `DRAINED` | `CLOSED`  | Auto: peer is `DRAINED`/`CLOSED` and all outbound messages, including responses, are acknowledged |
+| `DRAINED` | `CLOSED`  | Admin: `ClprCloseChannel` recovery with the entire outbound queue acknowledged when the peer's close-notification cannot be delivered |
 
 `CLOSED` is a terminal state with no outgoing transitions.
+
+`CLOSING` and `DRAINED` reject new local `sendMessage` calls, but continue normal inbound application
+dispatch, connector charging, and response generation. `DRAINED` describes this side's outbound Data
+Messages, not an empty response queue. See the canonical
+[channel status semantics](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions).
 
 ```protobuf
 // Connector state.
@@ -511,7 +524,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction.              |
 | `ClprRegisterChannelHandler`           | `ClprRegisterChannel`           | Medium (commit phase: verifyConfig call, store verifier contract and code fingerprint, Channel creation in PENDING state). No ECDSA verification at this stage. The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
 | `ClprCompleteChannelHandler`           | `ClprCompleteChannel`           | Medium (reveal phase: ECDSA verify, keccak256(channel_id ‖ public_key) == stored commitment check, create Channel in ACTIVE state).                                                                                                                                                                        |
-| `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → transition to CLOSING; `ClprQueueMetadata.state` reflects Channel status; automatic transition to DRAINED when peer acks all outbound, then to CLOSED when both sides DRAINED)                                                                          |
+| `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                          |
 | `ClprRegisterConnectorHandler`         | `ClprRegisterConnector`         | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices.                               |
 | `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                                       |
 | `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                             |
@@ -524,11 +537,12 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 This is the most complex handler. Its `handle()` method implements the bundle verification algorithm from
 cross-platform spec section 4.2:
 
-1. **Verify Channel status.** Reject if `CLOSED`. **Note:** PAUSED, CLOSING, and DRAINED channels
+1. **Verify Channel status.** Reject if `PENDING` or `CLOSED`. **Note:** PAUSED, CLOSING, and DRAINED channels
    accept inbound bundles — syncs continue in both directions. PAUSED rejects bundles containing out-of-order
    responses (nothing is processed, dispatched, or acked); when a bundle arrives with correctly ordered
-   responses, the Channel auto-resumes to ACTIVE and processes normally. CLOSING and DRAINED generate
-   `CHANNEL_CLOSED` responses without dispatch for any new Data Messages.
+   responses, the Channel auto-resumes to ACTIVE and processes normally. CLOSING and DRAINED process
+   inbound Data Messages normally, including application dispatch, connector charging, and Response
+   Message generation. Only new locally originated Data Messages (`sendMessage`) are blocked.
 2. **Call verifier contract** via `verifyBundle(proof_bytes)`. On Hiero, verifiers are system contracts invoked
    through the `HandleContext.dispatchChildTransaction()` or a dedicated verifier dispatch mechanism (see
    [section 5](#5-verifier-integration)). If verification fails, charge the submitter and reject.
@@ -547,25 +561,26 @@ cross-platform spec section 4.2:
 
 6. **Acknowledgement update.** Update `acked_message_id` from `ClprQueueMetadata.received_message_id`. Delete
    acknowledged Response Messages and Control Messages from outbound queue.
-   **Queue state check:** After ack update, check `ClprQueueMetadata.state`. If `CLOSING` or `DRAINED` and
-   Channel is `ACTIVE` or `PAUSED`, transition to `CLOSING` (the local `ClprQueueMetadata.state` reflects
+   **Queue state check:** After ack update, check `ClprQueueMetadata.status`. If `CLOSING`, `DRAINED`, or `CLOSED` and
+   Channel is `ACTIVE` or `PAUSED`, transition to `CLOSING` (the local `ClprQueueMetadata.status` reflects
    the Channel status). The peer has initiated a close; this side mirrors it.
-   **Drain check:** If Channel is `CLOSING` and peer has acked all outbound messages
-   (`acked_message_id >= next_message_id - 1`), transition Channel to `DRAINED`. If both sides are
-   `DRAINED`, transition Channel to `CLOSED`.
 7. **Lazy config propagation check.** If `channel.last_config_timestamp < current_config.consensus_timestamp`, enqueue a
    ConfigUpdate Control Message containing the current `ClprLedgerConfiguration` on this Channel's outbound
    queue and set `channel.last_config_timestamp = current_config.consensus_timestamp`.
 8. **Message dispatch.** For each message in order:
    - **Control Message:** Apply directly (store peer config values from ConfigUpdate).
-   - **Data Message:** Resolve Connector via cross-chain mapping. Charge Connector (execution cost + margin).
+   - **Data Message (ACTIVE/CLOSING/DRAINED):** Resolve Connector via cross-chain mapping. Charge Connector (execution cost + margin).
      Dispatch to target application (see [section 7](#7-application-dispatch)). Generate Response Message and
      enqueue it.
    - **Response Message:** Verify ordering per spec section 4.5. If response ordering violation detected, set
      Channel to `PAUSED` and reject the entire bundle (no messages processed, no acks updated). When a
      subsequent bundle arrives with correctly ordered responses, auto-resume to ACTIVE and process normally.
-   - **Data Message (CLOSING/DRAINED):** If Channel is CLOSING or DRAINED, generate a `CHANNEL_CLOSED` response without
-     dispatching to the target application. Connector is not charged, not slashed.
+9. **Drain check (after dispatch).** Evaluate the latest outbound queue, including responses just
+   generated by message dispatch. If Channel is `CLOSING` and no outbound Data Messages with ID greater
+   than `acked_message_id` remain, transition Channel to `DRAINED`. Response Messages may remain in flight
+   during DRAINED. Transition from `DRAINED` to `CLOSED` only when the peer is `DRAINED` or `CLOSED`
+   and all outbound messages, including generated responses, are acknowledged
+   (`acked_message_id >= next_message_id - 1`). See canonical spec §4.2 Steps 5a–5b for the lifecycle conditions.
 
 **Failure isolation:** A failure on one message does not stop processing of remaining messages. Each message is
 handled independently.
@@ -1091,9 +1106,10 @@ prototype's `ClprMessage` only has `message_data`. The full fields must be added
 
 ### F-3: ClprMessageReplyStatus Missing from Prototype
 
-The prototype's `ClprMessageReply` has no status field. The cross-platform spec defines `ClprMessageReplyStatus`
-with six values (`SUCCESS`, `APPLICATION_ERROR`, `CONNECTOR_NOT_FOUND`, `CONNECTOR_UNDERFUNDED`, `REDACTED`,
-`CHANNEL_CLOSED`). `SUCCESS` is the zero value — there is no unspecified sentinel.
+The prototype's `ClprMessageReply` has no status field. The canonical spec defines `ClprMessageReplyStatus`
+with four values (`SUCCESS`, `APPLICATION_ERROR`, `CONNECTOR_NOT_FOUND`, `CONNECTOR_UNDERFUNDED`).
+`SUCCESS` is the zero value — there is no unspecified sentinel. Graceful close does not introduce a
+separate reply status: inbound Data Messages are dispatched normally in CLOSING and DRAINED.
 
 **Action:** Add the `ClprMessageReplyStatus` enum and the `status` field to `ClprMessageReply`.
 

@@ -186,7 +186,9 @@ Returned `SlashResult(updatedConnector, penaltyAmount, banned)` is consumed by
 - `APPLICATION_ERROR` — slashes destination connector (target was unsuitable).
 - `CONNECTOR_NOT_FOUND` — slashes source connector (lied about their own ID).
 - `CONNECTOR_UNDERFUNDED` — slashes source connector.
-- `SUCCESS`, `CHANNEL_CLOSED`, `REDACTED` — no slash.
+- `SUCCESS` — no slash. `CLOSING` and `DRAINED` channels still dispatch inbound Data Messages
+  and use the normal charging and reply-status rules; there is no separate channel-closed reply status.
+  See canonical [§2.1.1](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions).
 
 The endpoint payout always goes to the *submitting* endpoint, regardless of which side
 is at fault. See `ClprSubmitBundleHandler` for the exact branches.
