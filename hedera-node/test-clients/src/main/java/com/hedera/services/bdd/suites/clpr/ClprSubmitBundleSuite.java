@@ -17,7 +17,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
@@ -165,7 +164,7 @@ public class ClprSubmitBundleSuite {
                         .build())
                 .build();
         return hapiTest(
-                overriding("clpr.minLockedStakeTinycents", "0"),
+                overriding("clpr.minLockedStake", "100"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -293,7 +292,7 @@ public class ClprSubmitBundleSuite {
                         .build())
                 .build();
         return hapiTest(
-                overriding("clpr.minLockedStakeTinycents", "0"),
+                overriding("clpr.minLockedStake", "100"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
@@ -335,7 +334,6 @@ public class ClprSubmitBundleSuite {
                                 crypto.connectorId(),
                                 new byte[20],
                                 new byte[] {1, 2, 3})
-                        .sending(ONE_HBAR)
                         .gas(2_000_000L)
                         .payingWith("caller"),
                 // Bundle with peer=CLOSED: local ACTIVE → CLOSING (an unacked data message keeps the channel from

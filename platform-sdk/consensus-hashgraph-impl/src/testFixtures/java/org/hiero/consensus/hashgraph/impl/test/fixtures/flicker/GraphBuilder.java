@@ -20,7 +20,7 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
  * <p>
  * Specs must be listed in creation order: an event may only name parents defined earlier in the list. That is also the
  * order the events must be fed to {@link FlickerIntake}, so the returned list is the feed order. It is also the row
- * order of a {@code .graph} file, so {@code GraphParser} hands a file's rows over one for one with no reordering.
+ * order of a {@code .graph} file, so {@link GraphParser} hands a file's rows over one for one with no reordering.
  * <p>
  * <b>Four fields are specified on every event</b> rather than left to {@link TestingEventBuilder}'s defaults. All four
  * are hashed content, and hashes feed the final tie-break in consensus order, so a random value means a fixture that
@@ -185,7 +185,7 @@ public final class GraphBuilder {
 
     /**
      * Thrown when a spec sets a birth round below its parents'. Carries the offending event's name so that a caller
-     * holding line numbers — {@code GraphParser} — can point at the row rather than repeat the derivation.
+     * holding line numbers — {@link GraphParser} — can point at the row rather than repeat the derivation.
      */
     public static class BirthRoundViolation extends IllegalArgumentException {
         private final String eventName;

@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
-import static com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator.settleCompleteChannelFee;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -384,8 +383,6 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
         channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
-        settleCompleteChannelFee(
-                context, verifiedConfig.verifierGasUsed(), ClprChannel.PROTOBUF.measureRecord(channel));
         channelStore.put(channel);
         log.debug(
                 "[ClprCompleteChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "

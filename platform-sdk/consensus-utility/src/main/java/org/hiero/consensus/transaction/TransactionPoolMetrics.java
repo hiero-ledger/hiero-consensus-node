@@ -3,6 +3,7 @@ package org.hiero.consensus.transaction;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
+import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
@@ -30,6 +31,12 @@ public class TransactionPoolMetrics {
                     "Cycled when a platform transaction is submitted (platform transactions are always accepted).");
     private final SpeedometerMetric submittedPlatformTransactions;
 
+    private static final Counter.Config DROPPED_APP_TRANSACTIONS_CONFIG = new Counter.Config(
+                    PLATFORM_CATEGORY, "droppedAppTransactions")
+            .withDescription("The number of app transactions dropped from the transaction pool because they were "
+                    + "still waiting past their drop time when an event was built.");
+    private final Counter droppedAppTransactions;
+
     /**
      * Create metrics for the transaction pool.
      *
@@ -45,6 +52,7 @@ public class TransactionPoolMetrics {
         acceptedAppTransactions = metrics.getOrCreate(ACCEPTED_APP_TRANSACTIONS_CONFIG);
         rejectedAppTransactions = metrics.getOrCreate(REJECTED_APP_TRANSACTIONS_CONFIG);
         submittedPlatformTransactions = metrics.getOrCreate(SUBMITTED_PLATFORM_TRANSACTIONS_CONFIG);
+        droppedAppTransactions = metrics.getOrCreate(DROPPED_APP_TRANSACTIONS_CONFIG);
 
         metrics.getOrCreate(new FunctionGauge.Config<>(
                         PLATFORM_CATEGORY, "bufferedTransactions", Integer.class, getBufferedTransactionCount)
@@ -78,5 +86,14 @@ public class TransactionPoolMetrics {
      */
     public void recordSubmittedPlatformTransaction() {
         submittedPlatformTransactions.cycle();
+    }
+
+    /**
+     * Record that app transactions were dropped past their drop time.
+     *
+     * @param count the number of app transactions dropped
+     */
+    public void recordDroppedAppTransactions(final int count) {
+        droppedAppTransactions.add(count);
     }
 }

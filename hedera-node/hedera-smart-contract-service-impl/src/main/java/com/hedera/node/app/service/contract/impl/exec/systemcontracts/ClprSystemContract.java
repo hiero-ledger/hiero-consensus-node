@@ -28,11 +28,6 @@ public class ClprSystemContract extends AbstractClprSystemContract implements He
     }
 
     @Override
-    protected boolean isRouter() {
-        return true;
-    }
-
-    @Override
     protected FrameUtils.CallType callTypeOf(@NonNull final MessageFrame frame) {
         return FrameUtils.callTypeOf(frame, EntityType.REGULAR_ACCOUNT);
     }

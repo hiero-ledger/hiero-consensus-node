@@ -171,13 +171,6 @@ public interface FacilityInitModule {
     @Provides
     @ElementsIntoSet
     @Singleton
-    static Set<QueryFeeCalculator> provideClprQueryFeeCalculators(ClprServiceImpl clprService) {
-        return clprService.queryFeeCalculators();
-    }
-
-    @Provides
-    @ElementsIntoSet
-    @Singleton
     static Set<QueryFeeCalculator> provideNetworkQueryFeeCalculators(NetworkServiceImpl networkService) {
         return networkService.queryFeeCalculators();
     }

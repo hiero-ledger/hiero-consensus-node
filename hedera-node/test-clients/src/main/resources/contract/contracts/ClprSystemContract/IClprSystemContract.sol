@@ -2,8 +2,7 @@
 pragma solidity >=0.4.9 <0.9.0;
 
 interface IClprSystemContract {
-    /// Enqueue a cross-ledger message on the specified channel. The call must attach at least the part of its
-    /// fee not paid as gas; only that part is collected.
+    /// Enqueue a cross-ledger message on the specified channel.
     /// @param channelId 32-byte channel identifier
     /// @param connectorId 32-byte connector identifier (keccak256(channelId || pubKey || salt))
     /// @param targetApplication destination application address bytes on the peer ledger
@@ -14,13 +13,13 @@ interface IClprSystemContract {
         bytes32 connectorId,
         bytes calldata targetApplication,
         bytes calldata messageData
-    ) external payable returns (uint64 messageId);
+    ) external returns (uint64 messageId);
 
-    /// Returns queue delivery counters for a channel. Attach enough value for its fee top-up.
+    /// Returns queue delivery counters for a channel.
     /// @param channelId 32-byte channel identifier
     /// @return receivedMessageId total inbound messages processed (advances on each received bundle)
     /// @return ackedMessageId total outbound messages acknowledged (advances when peer confirms delivery)
     function getChannelQueueState(bytes32 channelId)
-        external payable
+        external
         returns (uint64 receivedMessageId, uint64 ackedMessageId);
 }

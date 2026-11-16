@@ -50,7 +50,7 @@ class ClprBundleValidatorTest {
     private static final ClprThrottles THROTTLES = ClprThrottles.newBuilder()
             .maxSyncBytes(1024)
             .maxMessagesPerBundle(10)
-            .maxMessagePayloadBytes(3)
+            .maxMessagePayloadBytes(ClprMessagePayload.PROTOBUF.measureRecord(dataPayload(3)))
             .build();
     private static final ClprLedgerConfiguration LEDGER_CONFIG = ClprLedgerConfiguration.newBuilder()
             .protocolVersion(1)
@@ -239,15 +239,86 @@ class ClprBundleValidatorTest {
         assertThat(subject.validate(CHANNEL, content, config).newMessages()).hasSize(1);
     }
 
+    @ParameterizedTest
+    @CsvSource({
+        "targetApplication, 0",
+        "targetApplication, 1",
+        "sender, 0",
+        "sender, 1",
+        "connectorId, 0",
+        "connectorId, 1"
+    })
+    void rejectsOversizedMessageMetadataBeforeSubmissionAndAtConsensus(final String field, final int dataBytes) {
+        final var oversized = Bytes.wrap(new byte[128]);
+        final var message = ClprMessage.newBuilder().messageData(Bytes.wrap(new byte[dataBytes]));
+        switch (field) {
+            case "targetApplication" -> message.targetApplication(oversized);
+            case "sender" -> message.sender(oversized);
+            case "connectorId" -> message.connectorId(oversized);
+            default -> throw new IllegalArgumentException(field);
+        }
+        final var payload = ClprMessagePayload.newBuilder().message(message).build();
+        final var content = bundle(CHANNEL, List.of(payload));
+
+        assertRejected(CHANNEL, content, CLPR_PAYLOAD_TOO_LARGE);
+        assertPrevalidationRejected(CHANNEL, content, CLPR_PAYLOAD_TOO_LARGE);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0, true", "-1, false"})
+    void enforcesCompleteSerializedPayloadBoundaryBeforeSubmissionAndAtConsensus(
+            final int limitOffset, final boolean accepted) throws PreCheckException {
+        final var payload = dataPayload(3);
+        final var serializedSize =
+                Math.toIntExact(ClprMessagePayload.PROTOBUF.toBytes(payload).length());
+        final var content = bundle(CHANNEL, List.of(payload));
+        final var config = LEDGER_CONFIG
+                .copyBuilder()
+                .throttles(THROTTLES.copyBuilder().maxMessagePayloadBytes(serializedSize + limitOffset))
+                .build();
+
+        if (accepted) {
+            assertThat(subject.validate(CHANNEL, content, config).newMessages()).containsExactly(payload);
+            subject.prevalidate(CHANNEL, content, config);
+        } else {
+            assertThatThrownBy(() -> subject.validate(CHANNEL, content, config))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+            assertThatThrownBy(() -> subject.prevalidate(CHANNEL, content, config))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+        }
+    }
+
+    @Test
+    void dataPayloadLimitDoesNotApplyToControlMessages() throws PreCheckException {
+        final var payload = configPayload(timestamp(11, 0));
+        final var content = bundle(CHANNEL, List.of(payload));
+        final var config = LEDGER_CONFIG
+                .copyBuilder()
+                .throttles(THROTTLES.copyBuilder().maxMessagePayloadBytes(1))
+                .build();
+        assertThat(ClprMessagePayload.PROTOBUF.toBytes(payload).length()).isGreaterThan(1);
+
+        assertThat(subject.validate(CHANNEL, content, config).newMessages()).containsExactly(payload);
+        subject.prevalidate(CHANNEL, content, config);
+    }
+
     @Test
     void dataPayloadLimitDoesNotApplyToReplyData() throws PreCheckException {
         final var reply = ClprMessagePayload.newBuilder()
                 .messageReply(ClprMessageReply.newBuilder().messageReplyData(Bytes.wrap(new byte[4])))
                 .build();
 
-        assertThat(subject.validate(CHANNEL, bundle(CHANNEL, List.of(reply)), LEDGER_CONFIG)
-                        .newMessages())
-                .containsExactly(reply);
+        final var content = bundle(CHANNEL, List.of(reply));
+        final var config = LEDGER_CONFIG
+                .copyBuilder()
+                .throttles(THROTTLES.copyBuilder().maxMessagePayloadBytes(1))
+                .build();
+        assertThat(ClprMessagePayload.PROTOBUF.toBytes(reply).length()).isGreaterThan(1);
+
+        assertThat(subject.validate(CHANNEL, content, config).newMessages()).containsExactly(reply);
+        subject.prevalidate(CHANNEL, content, config);
     }
 
     @Test

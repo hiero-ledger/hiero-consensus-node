@@ -3,13 +3,11 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.clpr
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
@@ -90,7 +88,6 @@ class SendMessageCallTest extends CallTestBase {
     };
     private static final byte[] TARGET_APP = new byte[] {10, 20, 30};
     private static final byte[] MESSAGE_DATA = new byte[] {1, 2, 3, 4, 5};
-    private static final long AUTHORIZATION_GAS_USED = 123L;
 
     private static final Bytes CONNECTOR_ID_BYTES = Bytes.wrap(CONNECTOR_ID);
     private static final ContractID CONNECTOR_CONTRACT_ID =
@@ -141,11 +138,6 @@ class SendMessageCallTest extends CallTestBase {
     @Mock
     private AbstractMutableEvmAccount contract;
 
-    /** The value sent with the call to the CLPR system contract. */
-    private Wei frameValue = Wei.ZERO;
-
-    private Wei frameGasPrice = Wei.ZERO;
-
     private void givenParentFrame(final long gas) {
         givenParentFrame(gas, Address.fromHexString("0x16e"), Code.EMPTY_CODE);
     }
@@ -170,10 +162,10 @@ class SendMessageCallTest extends CallTestBase {
                 .contract(address)
                 .originator(SENDER_ADDRESS)
                 .sender(SENDER_ADDRESS)
-                .gasPrice(frameGasPrice)
+                .gasPrice(Wei.ONE)
                 .inputData(org.apache.tuweni.bytes.Bytes.EMPTY)
-                .value(frameValue)
-                .apparentValue(frameValue)
+                .value(Wei.ZERO)
+                .apparentValue(Wei.ZERO)
                 .code(code)
                 .blockValues(mock(BlockValues.class))
                 .blockHashLookup((_, _) -> null)
@@ -200,7 +192,6 @@ class SendMessageCallTest extends CallTestBase {
         assertThat(result.get()).isNull();
         verifyNoInteractions(clprApi);
         final var child = frame.getMessageFrameStack().removeFirst();
-        child.decrementRemainingGas(AUTHORIZATION_GAS_USED);
         child.setOutputData(org.apache.tuweni.bytes.Bytes.wrap(output.toByteArray()));
         child.setState(state);
         child.notifyCompletion();
@@ -257,7 +248,6 @@ class SendMessageCallTest extends CallTestBase {
     @DisplayName("should revert with CLPR_AUTHORIZATION_FAILED when connector not found")
     void revertWhenConnectorNotFound() {
         givenConnectorLookup(null);
-        givenParentFrame(200_000L);
 
         final var subject = createSubject();
         assertThat(subject.scheduleChildFrame(frame, () -> {})).isFalse();
@@ -287,15 +277,14 @@ class SendMessageCallTest extends CallTestBase {
     }
 
     @Test
-    void suspendsOnSameStackAndMetersAuthorizationGas() {
+    void suspendsOnSameStackWithoutChargingAuthorizationGas() {
         givenConnectorLookup(connectorWithContract());
         givenParentFrame(200_000L);
         givenAuthorizationContract();
-        final var result = new AtomicReference<PricedResult>();
+        final var continuation = mock(Runnable.class);
         final var subject = createSubject();
 
-        assertThat(subject.scheduleChildFrame(frame, () -> result.set(subject.execute(frame))))
-                .isTrue();
+        assertThat(subject.scheduleChildFrame(frame, continuation)).isTrue();
 
         final var child = frame.getMessageFrameStack().getFirst();
         assertThat(frame.getState()).isEqualTo(MessageFrame.State.CODE_SUSPENDED);
@@ -314,8 +303,7 @@ class SendMessageCallTest extends CallTestBase {
                         CHANNEL_ID, TARGET_APP, SENDER_ADDRESS.getBytes().toArray(), MESSAGE_DATA));
         assertThat(child.getRemainingGas()).isEqualTo(50_000L);
         assertThat(frame.getRemainingGas()).isEqualTo(200_000L);
-        assertThat(result.get()).isNull();
-        verifyNoInteractions(clprApi);
+        verifyNoInteractions(continuation, clprApi);
 
         frame.getMessageFrameStack().removeFirst();
         child.decrementRemainingGas(12_345L);
@@ -323,8 +311,8 @@ class SendMessageCallTest extends CallTestBase {
         child.notifyCompletion();
 
         assertThat(frame.getState()).isEqualTo(MessageFrame.State.CODE_EXECUTING);
-        assertThat(frame.getRemainingGas()).isEqualTo(200_000L - 12_345L);
-        assertThat(result.get().fullResult().gasRequirement()).isEqualTo(127_520L);
+        assertThat(frame.getRemainingGas()).isEqualTo(200_000L);
+        verify(continuation).run();
     }
 
     @Test
@@ -480,21 +468,21 @@ class SendMessageCallTest extends CallTestBase {
     }
 
     @Test
-    void capsAuthorizationGasAtWhatRemainsAfterNativeCharge() {
+    void authorizesOnFixedBudgetWhenOnlySystemContractChargeRemains() {
         givenConnectorLookup(connectorWithContract());
-        givenParentFrame(130_000L);
+        givenParentFrame(100_000L);
         givenAuthorizationContract();
 
         assertThat(createSubject().scheduleChildFrame(frame, () -> {})).isTrue();
 
-        assertThat(frame.getMessageFrameStack().getFirst().getRemainingGas()).isEqualTo(2_480L);
-        assertThat(frame.getRemainingGas()).isEqualTo(130_000L);
+        assertThat(frame.getMessageFrameStack().getFirst().getRemainingGas()).isEqualTo(50_000L);
+        assertThat(frame.getRemainingGas()).isEqualTo(100_000L);
     }
 
     @Test
     void doesNotSpawnWhenGasCannotCoverSystemContractCharge() {
         givenConnectorLookup(connectorWithContract());
-        givenParentFrame(127_519L);
+        givenParentFrame(99_999L);
         final var subject = createSubject();
 
         assertThat(subject.scheduleChildFrame(frame, () -> {})).isFalse();
@@ -570,87 +558,6 @@ class SendMessageCallTest extends CallTestBase {
     @DisplayName("decodeBoolResult returns false for output shorter than 32 bytes")
     void decodeBoolResultShort() {
         assertThat(SendMessageCall.decodeBoolResult(Bytes.wrap(new byte[4]))).isFalse();
-    }
-
-    @Test
-    @DisplayName("should revert with INSUFFICIENT_TX_FEE, without authorizing, when the value does not cover the fee")
-    void revertsWithoutAuthorizingWhenValueDoesNotCoverFee() {
-        givenConnectorLookup(connectorWithContract());
-        givenValueFee(900L);
-        frameValue = Wei.of(899L);
-        givenParentFrame(200_000L);
-        final var subject = createSubject();
-
-        assertThat(subject.scheduleChildFrame(frame, () -> {})).isFalse();
-        final var result = subject.execute(frame);
-
-        assertThat(result.responseCode()).isEqualTo(INSUFFICIENT_TX_FEE);
-        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
-        assertThat(frame.getMessageFrameStack()).containsExactly(frame);
-        verifyNoInteractions(clprApi);
-        verify(updater, never()).collectClprFee(any(), anyLong());
-    }
-
-    @Test
-    @DisplayName("should collect the part of the fee gas does not pay from the sender, only on success")
-    void collectsValueFeeOnSuccess() {
-        givenConnectorLookup(connectorWithContract());
-        given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
-        given(clprApi.sendMessage(any(), any(), any(), any(), any())).willReturn(42L);
-        frameGasPrice = Wei.ONE;
-        givenValueFee(127_520L + AUTHORIZATION_GAS_USED + 900L);
-        given(updater.collectClprFee(SENDER_ID, 900L)).willReturn(true);
-        frameValue = Wei.of(1_000L);
-
-        final var result = executeAfterAuthorization(BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS);
-
-        assertThat(result.responseCode()).isEqualTo(SUCCESS);
-        assertThat(result.nonGasCost()).isEqualTo(900L);
-        verify(updater).collectClprFee(SENDER_ID, 900L);
-    }
-
-    @Test
-    @DisplayName("should not collect the value fee when the send fails")
-    void doesNotCollectValueFeeOnFailure() {
-        givenConnectorLookup(connectorWithContract());
-        given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
-        given(clprApi.sendMessage(any(), any(), any(), any(), any()))
-                .willThrow(new HandleException(CLPR_CHANNEL_NOT_FOUND));
-        givenValueFee(900L);
-        frameValue = Wei.of(1_000L);
-
-        final var result = executeAfterAuthorization(BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS);
-
-        assertThat(result.responseCode()).isEqualTo(CLPR_CHANNEL_NOT_FOUND);
-        assertThat(result.nonGasCost()).isZero();
-        verify(updater, never()).collectClprFee(any(), anyLong());
-    }
-
-    @Test
-    @DisplayName("should price message data bytes beyond those included at the STATE_BYTES rate")
-    void pricesExtraMessageBytesAtStateBytesRate() {
-        givenParentFrame(200_000L);
-        // 1,024 bytes are included in the price, so 10 extra bytes add $0.00010.
-        givenValueFee(0);
-        given(operations.valueInTinybars(1_000_000L)).willReturn(100L);
-        final var subject = new SendMessageCall(
-                mockEnhancement(),
-                gasCalculator,
-                new ContractCodeCache(),
-                SENDER_ID,
-                SENDER_ADDRESS,
-                CHANNEL_ID,
-                CONNECTOR_ID,
-                TARGET_APP,
-                new byte[1_034]);
-
-        final var result = subject.execute(frame);
-
-        assertThat(result.responseCode()).isEqualTo(INSUFFICIENT_TX_FEE);
-    }
-
-    private void givenValueFee(final long valueFee) {
-        given(operations.valueInTinybars(1_000_000_000L)).willReturn(valueFee);
     }
 
     private SendMessageCall createSubject() {

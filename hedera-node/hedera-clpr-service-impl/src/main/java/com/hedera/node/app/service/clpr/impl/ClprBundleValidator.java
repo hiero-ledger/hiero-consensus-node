@@ -342,7 +342,7 @@ public class ClprBundleValidator {
     }
 
     /**
-     * Checks the bundle's message count and, when the limit is positive, each data message's payload size.
+     * Checks the bundle's message count and, when the limit is positive, each data message's complete serialized payload size.
      *
      * @param messages the bundle's messages
      * @param throttles this ledger's throttles
@@ -358,7 +358,8 @@ public class ClprBundleValidator {
             for (final var payload : messages) {
                 if (payload.hasMessage()) {
                     validateTruePreCheck(
-                            payload.messageOrThrow().messageData().length() <= maxPayloadBytes, CLPR_PAYLOAD_TOO_LARGE);
+                            ClprMessagePayload.PROTOBUF.measureRecord(payload) <= maxPayloadBytes,
+                            CLPR_PAYLOAD_TOO_LARGE);
                 }
             }
         }
