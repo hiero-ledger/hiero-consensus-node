@@ -12,6 +12,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * ledger configuration file by {@link ClprLedgerConfigurationFile} (whose synthetic dispatches skip pureChecks).
  */
 public final class ClprThrottlesValidator {
+    /** Complete empty error reply with a ten-byte uint64 message id, status, and protobuf framing. */
+    public static final int MIN_MESSAGE_PAYLOAD_BYTES = 15;
+
     /** Conservative wire framing reserve above the serialized StateProof. */
     static final long CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES = 114L;
 
@@ -55,8 +58,8 @@ public final class ClprThrottlesValidator {
     private ClprThrottlesValidator() {}
 
     /**
-     * Returns whether the given throttles are valid: all fields positive, and max_sync_bytes leaves room
-     * for one max-sized message plus its proof overhead.
+     * Returns whether the given throttles are valid: all fields positive, the payload limit can carry
+     * any empty error reply, and max_sync_bytes leaves room for one max-sized message plus its proof overhead.
      *
      * @param throttles the throttles to check
      * @return whether the throttles are valid
@@ -64,7 +67,7 @@ public final class ClprThrottlesValidator {
     public static boolean areValidThrottles(@NonNull final ClprThrottles throttles) {
         requireNonNull(throttles);
         return throttles.maxMessagesPerBundle() > 0
-                && throttles.maxMessagePayloadBytes() > 0
+                && throttles.maxMessagePayloadBytes() >= MIN_MESSAGE_PAYLOAD_BYTES
                 && throttles.maxQueueDepth() > 0
                 && throttles.maxGasPerMessage() > 0
                 && throttles.maxSyncBytes() > 0

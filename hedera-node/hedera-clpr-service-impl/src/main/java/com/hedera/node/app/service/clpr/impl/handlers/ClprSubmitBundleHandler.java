@@ -4,7 +4,6 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -464,8 +463,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     finalReplyPayloadLimit,
                     maxSerializedReplyBytesAfterBundle(throttles, peerThrottles, validated.newMessages()));
         }
-        validateReplyBudgets(
-                channel.receivedMessageId(), newMessages, throttles, peerThrottles, finalReplyPayloadLimit);
         var receivedMessageId = channel.receivedMessageId();
         boolean bundleDecodeFailure = false;
         // Iterate the new tail only — replayed slots were dispatched in a prior bundle, so we
@@ -519,6 +516,27 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // We must be ACTIVE, CLOSING, or DRAINED (CLOSED channels are rejected at the top of the
                     // handler, and PAUSED channels quit before reaching per-message dispatch)
                     final var dataMsg = payload.messageOrThrow();
+                    final long replyPayloadLimit =
+                            Math.min(finalReplyPayloadLimit, maxSerializedReplyBytes(throttles, peerThrottles));
+                    final var emptyError =
+                            replyPayload(receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
+                    final int minimumReplyBytes = ClprMessagePayload.PROTOBUF.measureRecord(emptyError);
+                    if (minimumReplyBytes > replyPayloadLimit) {
+                        // The proof allowance is conservative, and a peer may advertise invalid limits.
+                        // Keep the hash-chained queue moving with the minimum protocol response, without
+                        // dispatching or charging for application work. The proof builder still checks
+                        // the actual serialized bundle size before transmission.
+                        log.warn(
+                                "[ClprSubmitBundle] minimum error reply exceeds conservative allowance conn={} "
+                                        + "receivedMsgId={} minimumReplyBytes={} maxSerializedReplyBytes={}; "
+                                        + "skipping application dispatch and enqueueing empty APPLICATION_ERROR",
+                                channelId,
+                                receivedMessageId,
+                                minimumReplyBytes,
+                                replyPayloadLimit);
+                        outbound.enqueueReply(receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
+                        continue;
+                    }
                     log.debug(
                             "[ClprSubmitBundle] step10 DATA conn={} receivedMsgId={} connectorId={} "
                                     + "targetApplication={} sender={} messageDataLen={} messageData={}",
@@ -722,8 +740,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             // `responseData.length == 0`) misfire.
                             if (rawEvmResult != null && rawEvmResult.length() > 0) {
                                 try {
-                                    final long replyPayloadLimit = Math.min(
-                                            finalReplyPayloadLimit, maxSerializedReplyBytes(throttles, peerThrottles));
                                     final var decoded = decodeApplicationResponse(rawEvmResult, replyPayloadLimit);
                                     if (decoded == null
                                             || ClprMessagePayload.PROTOBUF.measureRecord(
@@ -1331,37 +1347,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             }
         }
         return maxSerializedReplyBytes(localThrottles, peerThrottles);
-    }
-
-    /** Reject an impossible reply budget before dispatching any application in this prefix. */
-    private static void validateReplyBudgets(
-            final long receivedMessageId,
-            @NonNull final List<ClprMessagePayload> newMessages,
-            @NonNull final ClprThrottles localThrottles,
-            @Nullable final ClprThrottles peerThrottles,
-            final long finalReplyPayloadLimit) {
-        var currentPeerThrottles = peerThrottles;
-        long messageId = receivedMessageId;
-        for (final var payload : newMessages) {
-            messageId++;
-            if (payload.hasControl()) {
-                final var peerConfig =
-                        payload.controlOrThrow().configUpdateOrThrow().configuration();
-                if (peerConfig != null && peerConfig.throttles() != null) {
-                    currentPeerThrottles = peerConfig.throttles();
-                }
-            } else if (payload.hasMessage()) {
-                final long budget =
-                        Math.min(finalReplyPayloadLimit, maxSerializedReplyBytes(localThrottles, currentPeerThrottles));
-                // All non-SUCCESS statuses have the same one-byte enum encoding. The empty error
-                // must fit even if the application fails or its return value exceeds the budget.
-                HandleException.validateTrue(
-                        ClprMessagePayload.PROTOBUF.measureRecord(
-                                        replyPayload(messageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY))
-                                <= budget,
-                        CLPR_PAYLOAD_TOO_LARGE);
-            }
-        }
     }
 
     @Nullable

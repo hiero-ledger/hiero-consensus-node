@@ -261,6 +261,18 @@ written for Hiero must return this format.
 
 See [`verifier.md`](verifier.md) for the full verifier dispatch flow.
 
+**Reply size and minimum protocol progress:** `max_message_payload_bytes` bounds the complete
+serialized `ClprMessagePayload`, including the reply id, status and protobuf framing. Local
+configurations require at least 15 bytes, enough for an empty error reply at any message id.
+Application return data is bounded by the local limit, the peer's payload limit, and the peer's
+sync limit after a conservative proof allowance. Accepted and deferred config updates can lower
+this budget. If even an empty error exceeds it, Hiero skips the application call and its charges,
+queues exactly one empty `APPLICATION_ERROR`, and continues processing the bundle. ACK, anchor,
+manifest and config progress are retained. This minimum response can exceed an invalid peer limit
+or the conservative allowance; the proof builder still enforces the actual serialized bundle limit.
+Oversized incoming replies retain their attested hash and connector-fault status for slashing, while
+the application callback receives an empty `APPLICATION_ERROR`.
+
 ---
 
 ## E-9. Lazy `ConfigUpdate` prepended at send
