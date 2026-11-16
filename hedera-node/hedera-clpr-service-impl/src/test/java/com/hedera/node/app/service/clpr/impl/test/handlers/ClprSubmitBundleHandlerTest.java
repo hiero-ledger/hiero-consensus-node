@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -77,6 +78,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -86,13 +88,16 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -832,6 +837,64 @@ class ClprSubmitBundleHandlerTest {
         assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(inboundMessageId);
         assertThat(channelStore.getChannel(CHANNEL_ID).receivedRunningHash())
                 .isEqualTo(runningHashOver(ZERO_HASH, List.of(dataPayload())));
+    }
+
+    @Test
+    void minimumReplyWarningsAreRateLimitedAcrossBundlesAndResumeWithSuppressedCount() {
+        final var time = mock(Time.class);
+        final var initialTime = Instant.parse("2026-01-01T00:00:00Z");
+        subject = new ClprSubmitBundleHandler(
+                verifierFactory, entityIdFactory, channelLifecycle, new ClprBundleValidator(), time);
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1))
+                .build());
+        putConnector();
+        final var captured = new LogCaptor(LogManager.getLogger(ClprSubmitBundleHandler.class));
+        try {
+            final int[] messagesPerBundle = {3, 2, 1, 1};
+            final long[] elapsedSeconds = {0, 0, 59, 60};
+            int totalMessages = 0;
+            for (int bundle = 0; bundle < messagesPerBundle.length; bundle++) {
+                given(time.now()).willReturn(initialTime.plusSeconds(elapsedSeconds[bundle]));
+                final var before = channelStore.getChannel(CHANNEL_ID);
+                final var messages = Collections.nCopies(messagesPerBundle[bundle], dataPayload());
+                setupHandleContext(
+                        buildBundle(
+                                ClprChannelStatus.ACTIVE,
+                                before.receivedMessageId(),
+                                0,
+                                before.receivedRunningHash(),
+                                messages),
+                        true);
+
+                subject.handle(handleContext);
+
+                totalMessages += messages.size();
+                assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId())
+                        .isEqualTo(totalMessages);
+                assertThat(captured.warnLogs()).hasSize(bundle == 3 ? 2 : 1);
+            }
+            assertThat(captured.warnLogs().getFirst())
+                    .contains(
+                            "minimum error reply exceeds conservative allowance",
+                            "minimumReplyBytes=6",
+                            "maxSerializedReplyBytes=1",
+                            "skipping application dispatch")
+                    .doesNotContain("Due to rate limiting");
+            assertThat(captured.warnLogs().getLast()).contains("receivedMsgId=7", "5 times without being reported");
+            assertThat(writableMessages.size()).isEqualTo(totalMessages);
+            for (int id = 1; id <= totalMessages; id++) {
+                assertThat(messageQueueStore.getMessage(CHANNEL_ID, id).payloadOrThrow())
+                        .isEqualTo(replyPayloadWithStatus(id, ClprMessageReplyStatus.APPLICATION_ERROR));
+            }
+            verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+            verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        } finally {
+            captured.stopCapture();
+        }
     }
 
     @Test

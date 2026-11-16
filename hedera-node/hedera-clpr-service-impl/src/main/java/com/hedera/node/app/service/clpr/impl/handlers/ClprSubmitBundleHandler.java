@@ -62,9 +62,11 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -72,6 +74,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 
 /**
  * Handles {@link com.hedera.hapi.node.base.HederaFunctionality#CLPR_SUBMIT_BUNDLE} transactions.
@@ -85,6 +90,7 @@ import org.apache.logging.log4j.Logger;
 public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     private static final Logger log = LogManager.getLogger(ClprSubmitBundleHandler.class);
+    private static final Marker CLPR_MARKER = MarkerManager.getMarker("CLPR");
 
     private static final Bytes ZERO_HASH = Bytes.wrap(new byte[32]);
 
@@ -111,6 +117,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     private final EntityIdFactory entityIdFactory;
     private final ClprChannelLifecycle channelLifecycle;
     private final ClprBundleValidator bundleValidator;
+    // One bounded logger for the handler, shared across channels and bundles. The next emitted
+    // warning reports how many fallback events were suppressed during the previous interval.
+    private final RateLimitedLogger minimumReplyLogger;
 
     @Inject
     public ClprSubmitBundleHandler(
@@ -118,10 +127,21 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ClprChannelLifecycle channelLifecycle,
             @NonNull final ClprBundleValidator bundleValidator) {
+        this(verifierFactory, entityIdFactory, channelLifecycle, bundleValidator, Time.getCurrent());
+    }
+
+    /** Allows a controlled clock for diagnostics; the clock does not affect protocol behavior. */
+    public ClprSubmitBundleHandler(
+            @NonNull final ClprVerifierFactory verifierFactory,
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final ClprChannelLifecycle channelLifecycle,
+            @NonNull final ClprBundleValidator bundleValidator,
+            @NonNull final Time time) {
         this.verifierFactory = requireNonNull(verifierFactory);
         this.entityIdFactory = requireNonNull(entityIdFactory);
         this.channelLifecycle = requireNonNull(channelLifecycle);
         this.bundleValidator = requireNonNull(bundleValidator);
+        minimumReplyLogger = new RateLimitedLogger(log, requireNonNull(time), Duration.ofMinutes(1));
     }
 
     @Override
@@ -523,10 +543,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         // Keep the hash-chained queue moving with the minimum protocol response, without
                         // dispatching or charging for application work. The proof builder still checks
                         // the actual serialized bundle size before transmission.
-                        log.warn(
-                                "[ClprSubmitBundle] minimum error reply exceeds conservative allowance conn={} "
+                        minimumReplyLogger.warn(
+                                CLPR_MARKER,
+                                "[ClprSubmitBundle] minimum error reply exceeds conservative allowance "
+                                        + "(sample across channels) conn={} "
                                         + "receivedMsgId={} minimumReplyBytes={} maxSerializedReplyBytes={}; "
-                                        + "skipping application dispatch and enqueueing empty APPLICATION_ERROR",
+                                        + "skipping application dispatch and enqueueing an empty application error reply",
                                 channelId,
                                 receivedMessageId,
                                 minimumReplyBytes,
