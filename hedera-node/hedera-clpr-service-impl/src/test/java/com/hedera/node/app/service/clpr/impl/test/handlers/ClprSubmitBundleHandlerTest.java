@@ -887,6 +887,54 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
+    void configWithoutThrottlesPreservesImpossibleReplyBudgetBeforeDispatch() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var reducedThrottles =
+                defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1).build();
+        final var lowered = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(
+                                        createLedgerConfig().copyBuilder().throttles(reducedThrottles))))
+                .build();
+        final var withoutThrottles = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(createLedgerConfig()
+                                        .copyBuilder()
+                                        .throttles((ClprThrottles) null)
+                                        .timestamp(CONFIG_TIMESTAMP
+                                                .copyBuilder()
+                                                .seconds(CONFIG_TIMESTAMP.seconds() + 1)))))
+                .build();
+        final var restored = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder()
+                                .configuration(createLedgerConfig()
+                                        .copyBuilder()
+                                        .timestamp(CONFIG_TIMESTAMP
+                                                .copyBuilder()
+                                                .seconds(CONFIG_TIMESTAMP.seconds() + 2)))))
+                .build();
+        // The final budget fits a reply, but the DATA still sees the earlier one-byte cap.
+        // A configuration without throttles must not reset that cap to the local fallback.
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE,
+                        0,
+                        0,
+                        ZERO_HASH,
+                        List.of(lowered, withoutThrottles, dataPayload(), restored)),
+                true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        assertThat(writableMessages.size()).isZero();
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isZero();
+    }
+
+    @Test
     void earlierReplyHonorsPeerLimitLoweredLaterInBundle() {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
         final var reducedThrottles =

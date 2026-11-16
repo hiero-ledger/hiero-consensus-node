@@ -1347,7 +1347,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             if (payload.hasControl()) {
                 final var peerConfig =
                         payload.controlOrThrow().configUpdateOrThrow().configuration();
-                if (peerConfig != null) {
+                if (peerConfig != null && peerConfig.throttles() != null) {
                     currentPeerThrottles = peerConfig.throttles();
                 }
             } else if (payload.hasMessage()) {

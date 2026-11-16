@@ -50,14 +50,14 @@ orders the schema independently of the software version.
 
 ### States created
 
-|              Constant               |   Kind    |                         Key type                         |        Value type         |                                       Cap                                        |
-|-------------------------------------|-----------|----------------------------------------------------------|---------------------------|----------------------------------------------------------------------------------|
-| `CHANNELS_KEY`                      | KV        | `ProtoBytes` (32B channel ID)                            | `ClprChannel`             | `MAX_CHANNELS = 10 000`                                                          |
-| `PENDING_COMMITMENTS_KEY`           | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent)                                 |
-| `PENDING_CONNECTOR_COMMITMENTS_KEY` | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent — same constant, separate state) |
-| `MESSAGE_QUEUE_KEY`                 | KV        | `ClprMessageKey` (channelId + messageId)                 | `ClprMessageValue`        | per channel: at most `2 * H`, where `H` is the locally recorded historical `max_queue_depth`; new DATA obeys the current lower limit                 |
-| `CONNECTORS_KEY`                    | KV        | `ClprConnectorKey` (channel_id + connector_id, both 32B) | `ClprConnector`           | `MAX_CONNECTORS = 100 000`                                                       |
-| `LEDGER_CONFIGURATION_KEY`          | Singleton | —                                                        | `ClprLedgerConfiguration` | 1                                                                                |
+|              Constant               |   Kind    |                         Key type                         |        Value type         |                                                                 Cap                                                                  |
+|-------------------------------------|-----------|----------------------------------------------------------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `CHANNELS_KEY`                      | KV        | `ProtoBytes` (32B channel ID)                            | `ClprChannel`             | `MAX_CHANNELS = 10 000`                                                                                                              |
+| `PENDING_COMMITMENTS_KEY`           | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent)                                                                                     |
+| `PENDING_CONNECTOR_COMMITMENTS_KEY` | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent — same constant, separate state)                                                     |
+| `MESSAGE_QUEUE_KEY`                 | KV        | `ClprMessageKey` (channelId + messageId)                 | `ClprMessageValue`        | per channel: at most `2 * H`, where `H` is the locally recorded historical `max_queue_depth`; new DATA obeys the current lower limit |
+| `CONNECTORS_KEY`                    | KV        | `ClprConnectorKey` (channel_id + connector_id, both 32B) | `ClprConnector`           | `MAX_CONNECTORS = 100 000`                                                                                                           |
+| `LEDGER_CONFIGURATION_KEY`          | Singleton | —                                                        | `ClprLedgerConfiguration` | 1                                                                                                                                    |
 
 State IDs are `StateKey.KeyOneOfType.CLPRSERVICE_I_*.protoOrdinal()` (or
 `SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal()` for the singleton). Treat

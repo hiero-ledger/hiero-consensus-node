@@ -1003,10 +1003,10 @@ exercising a cross-ledger flow.
 
 ### Channel lifecycle (two-phase commit/reveal)
 
-| Phase  |         Command         |                         Description                         |
-|--------|-------------------------|-------------------------------------------------------------|
-| Commit | `clpr register-channel` | Submits `ClprRegisterChannel` with an ownership commitment. |
-| Reveal | `clpr complete-channel` | Submits `ClprCompleteChannel` opening the commitment.       |
+| Phase  |         Command         |                                        Description                                        |
+|--------|-------------------------|-------------------------------------------------------------------------------------------|
+| Commit | `clpr register-channel` | Submits `ClprRegisterChannel` with an ownership commitment.                               |
+| Reveal | `clpr complete-channel` | Submits `ClprCompleteChannel` opening the commitment.                                     |
 | Close  | `clpr close-channel`    | Requests graceful closure; `--force-close` abandons this side and purges a bounded batch. |
 
 `generate-channel-identity` produces a JSON identity bundle (random id, keypair,
