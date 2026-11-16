@@ -1364,6 +1364,15 @@ public class ContractCallSuite {
                         .sending(DEPOSIT_AMOUNT),
                 // The contract requires msg.value == amount, so this pins that msg.value is in tinybars
                 getAccountBalance(PAY_RECEIVABLE_CONTRACT).hasTinyBars(DEPOSIT_AMOUNT),
+                // address(this).balance (BALANCE/SELFBALANCE) must report the same tinybar amount as the ledger
+                contractCall(PAY_RECEIVABLE_CONTRACT, GET_BALANCE).via(GET_BALANCE),
+                getTxnRecord(GET_BALANCE)
+                        .hasPriority(recordWith()
+                                .contractCallResult(resultWith()
+                                        .resultViaFunctionName(
+                                                GET_BALANCE, PAY_RECEIVABLE_CONTRACT, isLiteralResult(new Object[] {
+                                                    BigInteger.valueOf(DEPOSIT_AMOUNT)
+                                                })))),
                 getTxnRecord(PAY_TXN)
                         .hasPriority(
                                 recordWith().contractCallResult(resultWith().logs(inOrder()))));
