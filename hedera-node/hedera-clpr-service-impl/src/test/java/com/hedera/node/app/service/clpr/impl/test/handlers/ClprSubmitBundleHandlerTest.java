@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
@@ -14,6 +15,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
+import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
+import static com.hedera.node.app.spi.authorization.SystemPrivilege.UNAUTHORIZED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,6 +31,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -1969,6 +1973,71 @@ class ClprSubmitBundleHandlerTest {
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_NO_PROGRESS));
         verify(channelLifecycle).recordPeerObservedManifestVersion(CHANNEL_ID, 7L);
+    }
+
+    @Test
+    void recoveryReplacesExpectedManifestWithoutAdvancingQueue() {
+        putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
+        final var replacement = buildManifest(3L, "10.0.0.5");
+        final var content =
+                ClprBundleContent.newBuilder().newEndpointManifest(replacement).build();
+        final var txn = bundleTxn(content);
+        setupHandleContext(
+                txn.copyBuilder()
+                        .clprSubmitBundle(
+                                txn.clprSubmitBundleOrThrow().copyBuilder().expectedCachedManifestVersion(5L))
+                        .build(),
+                true);
+
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(AUTHORIZED);
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.endpointManifestOrThrow()).isEqualTo(replacement);
+        assertThat(channel.endpointManifestVersion()).isEqualTo(3L);
+        assertThat(channel.receivedMessageId()).isZero();
+        assertThat(channel.ackedMessageId()).isZero();
+        verify(channelLifecycle).seedPeerEndpoints(CHANNEL_ID, replacement.endpoints());
+    }
+
+    @Test
+    void recoveryRejectsAChangedCachedVersion() {
+        putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 6L);
+        final var before = channelStore.getChannel(CHANNEL_ID);
+        final var content = ClprBundleContent.newBuilder()
+                .newEndpointManifest(buildManifest(3L, "10.0.0.5"))
+                .build();
+        final var txn = bundleTxn(content);
+        setupHandleContext(
+                txn.copyBuilder()
+                        .clprSubmitBundle(
+                                txn.clprSubmitBundleOrThrow().copyBuilder().expectedCachedManifestVersion(5L))
+                        .build(),
+                true);
+
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(AUTHORIZED);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(before);
+        verify(channelLifecycle, never()).seedPeerEndpoints(eq(CHANNEL_ID), any());
+    }
+
+    @Test
+    void recoveryRequiresAdminEvenWhenSubmittedByANode() {
+        final var txn = validSingleDataBundle();
+        setupHandleContext(
+                txn.copyBuilder()
+                        .clprSubmitBundle(
+                                txn.clprSubmitBundleOrThrow().copyBuilder().expectedCachedManifestVersion(5L))
+                        .build(),
+                true);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(UNAUTHORIZED);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(AUTHORIZATION_FAILED));
+        verifyNoInteractions(verifierFactory, channelLifecycle);
     }
 
     @Test

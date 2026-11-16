@@ -14,6 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -741,6 +742,25 @@ class PrivilegesVerifierTest {
                 3L));
 
         assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(alternatePayer, operation, body));
+    }
+
+    @Test
+    void onlyExplicitManifestRecoveryRequiresClprAdmin() {
+        final var config = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L);
+        final var verifier = new PrivilegesVerifier(() -> config);
+        final var operation = HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+        final var body = com.hedera.hapi.node.transaction.TransactionBody.newBuilder()
+                .clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT)
+                .build();
+        final var recovery = body.copyBuilder()
+                .clprSubmitBundle(ClprSubmitBundleTransactionBody.newBuilder().expectedCachedManifestVersion(5L))
+                .build();
+        final var civilian = toPbj(account(CIVILIAN));
+        final var admin = toPbj(account(601));
+
+        assertEquals(SystemPrivilege.UNNECESSARY, verifier.hasPrivileges(civilian, operation, body));
+        assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(civilian, operation, recovery));
+        assertEquals(SystemPrivilege.AUTHORIZED, verifier.hasPrivileges(admin, operation, recovery));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {
