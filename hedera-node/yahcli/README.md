@@ -925,6 +925,30 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
   --adminKey adminKey.pem
 ```
 
+# Key files and backups (CLPR identities)
+
+`clpr generate-channel-identity` and `clpr generate-connector-identity` write two files:
+
+- `<out>` — the public identity bundle (safe to share; it never contains the private key).
+- `<out>.key` — the private key as `0x<64 hex>` plus a newline, mode `0600`.
+
+**Nothing is ever overwritten or deleted.** If `<out>` or `<out>.key` already exists, it is first moved to
+`<name>.<epochMillis>.bak` (mode `0600`), so re-running a generator can never lose a key. Symlinked targets are
+refused. Backups are intentionally **never pruned**, so a key can always be recovered in an emergency:
+
+```
+find . -name '*.bak'            # list every backup, newest epoch last when sorted by name
+ls -l channel.json.key*.bak     # backups of one key file
+```
+
+Backups and `.key` files hold live private keys: protect them like keys, and keep them out of version control
+(`*.bak` is already in `.gitignore`; `*.key` is not yet — see `scripts/clpre2e/KEY-HYGIENE-KNOWN-GAPS.md`).
+
+The Python signers (`hedera-node/tools/sign-clpr-*-identity.py`) and `scripts/clpre2e/gen-channel-identity.sh` read the
+key only from `--key-file <path>`. They refuse a key file that is a symlink, or (unless `--allow-loose-key-file` /
+`ALLOW_LOOSE_KEY_FILE=1`) one that group/others can read or that you do not own, and they reject bundles that contain an
+inline `privateKey`.
+
 # Running `ivy` acceptance tests
 
 The `ivy` subcommand runs HAPI acceptance tests.
