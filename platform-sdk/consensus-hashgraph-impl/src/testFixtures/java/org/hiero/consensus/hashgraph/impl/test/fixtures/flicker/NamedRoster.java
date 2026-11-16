@@ -48,6 +48,7 @@ public record NamedRoster(@NonNull String name, @NonNull RosterWrapper roster) {
      * @param weightsByLetter each node's letter mapped to its weight. The map's order becomes the order of the roster's entries, and of the block {@link GraphWriter} writes.
      * @return the constructed {@code NamedRoster}
      */
+    @NonNull
     public static NamedRoster of(
             @NonNull final String name, @NonNull final SequencedMap<String, Long> weightsByLetter) {
         requireNonNull(name, "name must not be null");
