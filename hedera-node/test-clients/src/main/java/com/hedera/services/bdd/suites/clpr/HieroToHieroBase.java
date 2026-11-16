@@ -123,7 +123,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     /** Matches the {@link #buildLedgerConfig} default — used by overloads that only need to tune sync rate. */
     static final int DEFAULT_MAX_MESSAGES_PER_BUNDLE = 100;
     /** Matches the {@link #buildLedgerConfig} default — used by overloads that only need to tune sync rate. */
-    static final int DEFAULT_MAX_QUEUE_DEPTH = 1000;
+    static final int DEFAULT_MAX_QUEUE_DEPTH = 10_000;
 
     /**
      * How long {@link #awaitWrapsExtensible} waits for the first WRAPS-extensible recursive proof.

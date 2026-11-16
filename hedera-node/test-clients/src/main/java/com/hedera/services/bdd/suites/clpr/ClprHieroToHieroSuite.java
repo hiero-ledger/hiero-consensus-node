@@ -591,22 +591,31 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
     @MultiNetworkLeakyHapiTest
     @MultiNetworkHapiTest({
         @Network(
-                name = "ledgerA",
-                setupOverrides = @ConfigOverride(key = "clpr.connectorQueueQuotaPct", value = "100")),
-        @Network(name = "ledgerB", setupOverrides = @ConfigOverride(key = "clpr.connectorQueueQuotaPct", value = "100"))
+                name = "tightQueueLedgerA",
+                setupOverrides = {
+                    @ConfigOverride(key = "clpr.connectorQueueQuotaPct", value = "100"),
+                    @ConfigOverride(key = "clpr.maxQueueDepthCeiling", value = "4")
+                }),
+        @Network(
+                name = "tightQueueLedgerB",
+                setupOverrides = {
+                    @ConfigOverride(key = "clpr.connectorQueueQuotaPct", value = "100"),
+                    @ConfigOverride(key = "clpr.maxQueueDepthCeiling", value = "4")
+                })
     })
     @DisplayName("Multi-message round-trip with tight maxQueueDepth — sender + reply enqueue both respect the cap")
     Stream<DynamicTest> roundTripUnderTightMaxQueueDepth(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
+        // These isolated networks start with Q=4 through the genesis ceiling; an expand-only
+        // queue limit cannot be reduced after the shared general-purpose networks have started.
         // Characterization of multi-message round-trip under tight queue caps. Two interacting
         // constraints from the CLPR spec apply to the SENDER's app-initiated send path:
         //   1. Queue depth — spec §4.3 step 5
         //   2. Per-connector queue quota — spec §8.11
-        // The REPLY-enqueue path on B is intentionally exempt from the depth check per
-        // spec §4.2 step 6
+        // The REPLY-enqueue path on B uses the separately reserved Q slots, within the total 2Q bound.
         // This HAPI test characterizes the WORKING case: with maxQueueDepth=4 on both sides
         // (quota bumped to 100%) and 3 atomic sends from A, the depth check passes on every
-        // send, B's reply enqueue path bypasses the cap by design, the round-trip completes,
+        // send, B's replies use reserved capacity, the round-trip completes,
         // and both channels stay ACTIVE.
         final var crypto = new ClprCrypto();
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
