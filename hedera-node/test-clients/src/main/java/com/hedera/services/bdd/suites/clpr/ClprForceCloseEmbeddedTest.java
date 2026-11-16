@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -45,7 +46,7 @@ import org.junit.jupiter.api.Tag;
 public class ClprForceCloseEmbeddedTest {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.enabled"})
+            overrides = {"clpr.enabled", "accounts.clprAdmin"})
     final Stream<DynamicTest> adminForceClosePurgesSparseQueueAcrossBatches() {
         final var channelId = Bytes.wrap(new ClprChannelCrypto().channelId());
         final var otherChannelId = Bytes.wrap(new ClprChannelCrypto().channelId());
@@ -71,6 +72,14 @@ public class ClprForceCloseEmbeddedTest {
         return hapiTest(
                 overriding("clpr.enabled", "true"),
                 cryptoCreate("forceCloseCivilian").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("forceCloseAdmin").balance(ONE_HUNDRED_HBARS),
+                withOpContext((spec, opLog) -> allRunFor(
+                        spec,
+                        overriding(
+                                "accounts.clprAdmin",
+                                Long.toString(spec.registry()
+                                        .getAccountID("forceCloseAdmin")
+                                        .getAccountNum())))),
                 withOpContext((spec, opLog) -> spec.mutateEmbeddedState(state -> {
                     final var states = state.getWritableStates(ClprService.NAME);
                     final var channels = states.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
@@ -104,7 +113,7 @@ public class ClprForceCloseEmbeddedTest {
                 clprCloseChannel()
                         .channelId(channelId.toByteArray())
                         .forceClose(true)
-                        .payingWith(GENESIS),
+                        .payingWith("forceCloseAdmin"),
                 assertCleanup(initial, otherChannel, connectorKey, reply, 17, 1),
                 clprSubmitBundle()
                         .channelId(channelId.toByteArray())
@@ -121,7 +130,7 @@ public class ClprForceCloseEmbeddedTest {
                 clprCloseChannel()
                         .channelId(channelId.toByteArray())
                         .forceClose(true)
-                        .payingWith(GENESIS),
+                        .payingWith("forceCloseAdmin"),
                 assertCleanup(initial, otherChannel, connectorKey, reply, 19, 0));
     }
 

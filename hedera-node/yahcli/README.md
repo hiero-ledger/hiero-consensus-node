@@ -1020,6 +1020,8 @@ peer's `get-endpoint-manifest --proof-path`). The Hiero TSS verifier (`0.0.366`)
 the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
 
 `close-channel --channel-id <hex>` requests graceful closure and lets the queues drain.
+The payer must be the treasury, system admin, or local account selected by
+`accounts.clprAdmin`; see the [CLPR admin role](../docs/privileged-transactions.md#authorization-privileges-for-clpr-transactions).
 For an abandoned or wedged channel, an administrator can use `--force-close` to mark
 this side CLOSED immediately and discard queued messages without application callbacks.
 Each call examines at most 16 consecutive message IDs, including missing slots, so a

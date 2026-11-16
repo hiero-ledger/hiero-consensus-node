@@ -9,7 +9,8 @@ option java_multiple_files = true;
 
 /**
  * Initiates graceful closure of a CLPR Channel, or deletes an abandoned
- * pending ownership commitment. Requires the CLPR admin key.
+ * pending ownership commitment. Requires an authorized CLPR admin payer: the
+ * treasury, system admin, or local account configured by accounts.clprAdmin.
  *
  * When channel_id maps to an existing ACTIVE or PAUSED Channel,
  * transitions it to CLOSING. No new sendMessage calls are accepted.

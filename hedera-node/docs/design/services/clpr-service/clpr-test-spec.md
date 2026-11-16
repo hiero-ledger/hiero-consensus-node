@@ -288,8 +288,9 @@ require multi-network infrastructure.
 
 ### 3.2.7 Administrative Force-close (Hiero)
 
-- Only a CLPR administrator may set `force_close`; it cannot be combined with
-  `ownership_commitment` or used for a PENDING channel.
+- The treasury, system admin, and local payer configured by `accounts.clprAdmin`
+  may set `force_close`; other payers are rejected without changing channel state.
+  It cannot be combined with `ownership_commitment` or used for a PENDING channel.
 - An established channel becomes CLOSED immediately, even with unacknowledged slots.
 - Each transaction examines at most 16 consecutive IDs, including missing slots,
   starting after the actual ACK or at the persisted cleanup cursor. DATA, replies,
