@@ -128,6 +128,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final AtomicReference<DeferredRun> ready = new AtomicReference<>();
 
     private long maxNodeId;
+
+    /** How many nodes the network started with; its genesis nodes have ids {@code 0} to this size less one. */
+    private final int genesisSize;
+
     private PortLayout ports;
     private Network network;
     private Map<NodeId, KeysAndCerts> nodeKeys;
@@ -205,6 +209,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
+        this.genesisSize = nodes.size();
         this.ports = PortLayout.current();
         final var networkWithKeys = generateNetworkConfig(nodes(), ports.internalGossip(), ports.externalGossip());
         this.network = networkWithKeys.network();
@@ -617,6 +622,16 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public ServiceEndpoint grpcEndpointFor(final long nodeId) {
         return endpointFor(ports.grpc() + (int) nodeId * 2);
+    }
+
+    /**
+     * Returns how many nodes the network started with; its genesis nodes have ids {@code 0} to this size less one,
+     * and any node with a higher id was added later.
+     *
+     * @return the number of genesis nodes
+     */
+    public int genesisSize() {
+        return genesisSize;
     }
 
     /**
