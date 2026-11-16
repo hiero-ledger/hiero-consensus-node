@@ -52,12 +52,12 @@ public class PrivilegesVerifier {
     }
 
     /**
-     * Checks whether an account is exempt from paying fees.
+     * Evaluates the payer's system privileges for a transaction.
      *
      * @param payerId the payer {@link AccountID} for the transaction
      * @param functionality the {@link HederaFunctionality} of the transaction
      * @param txBody the {@link TransactionBody} of the transaction
-     * @return {@code true} if the account is exempt from paying fees, otherwise {@code false}
+     * @return the system privilege decision for the transaction
      */
     public SystemPrivilege hasPrivileges(
             @NonNull final AccountID payerId,
@@ -203,10 +203,17 @@ public class PrivilegesVerifier {
         return hasNodeCreatePrivilege(payerId) ? AUTHORIZED : UNAUTHORIZED;
     }
 
+    /**
+     * Authorizes the treasury, system admin, and configured local account for privileged CLPR transactions.
+     *
+     * @param payerId the transaction payer
+     * @return {@link SystemPrivilege#AUTHORIZED} for an allowed payer or {@link SystemPrivilege#UNAUTHORIZED}
+     */
     private SystemPrivilege checkClprAdmin(@NonNull final AccountID payerId) {
         if (isSuperUser(payerId)) {
             return AUTHORIZED;
         }
+        // Read the live network properties so account changes take effect without a restart.
         final var configuration = configProvider.getConfiguration();
         final var clprAdmin = configuration.getConfigData(AccountsConfig.class).clprAdmin();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);

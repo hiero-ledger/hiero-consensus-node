@@ -373,6 +373,7 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
+        // The default CLPR admin number is in the treasury clone range created above.
         maybeCreateClprAdminAccount(state, systemContext, config);
         // If requested, create accounts with aliases from the blocklist
         if (accountsConfig.blocklistEnabled()) {
@@ -518,7 +519,7 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
-        // Use the configuration as of now, so the upgrade's property overrides can enable CLPR
+        // Read the configuration again so CLPR setup uses the properties applied by this upgrade.
         final var currentConfig = configProvider.getConfiguration();
         if (isClprStakingAccountMissing(state, currentConfig)) {
             createClprStakingAccount(systemContext, currentConfig);
@@ -745,6 +746,13 @@ public class SystemTransactions {
                 config);
     }
 
+    /**
+     * Creates a missing CLPR admin account at its reserved number with a zero balance and the treasury's current key.
+     *
+     * @param state the state containing the existing accounts and entity allocator
+     * @param systemContext the context for dispatching the synthetic account creation
+     * @param config the network configuration effective for this setup
+     */
     private void maybeCreateClprAdminAccount(
             @NonNull final State state,
             @NonNull final SystemContext systemContext,
@@ -763,7 +771,7 @@ public class SystemTransactions {
             return;
         }
 
-        // Synthetic creation does not advance the allocator.
+        // Synthetic creation leaves the allocator unchanged, so a higher number could be issued again later.
         final var entityNumber = state.getReadableStates(EntityIdService.NAME)
                 .<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)
                 .get();
@@ -772,6 +780,7 @@ public class SystemTransactions {
             return;
         }
 
+        // Read the key from state so provisioning honors treasury key rotations.
         final var treasury = accounts.get(idFactory.newAccountId(accountsConfig.treasury()));
         final var adminKey = treasury == null || treasury.deleted() ? null : treasury.key();
         if (!isValid(adminKey)) {

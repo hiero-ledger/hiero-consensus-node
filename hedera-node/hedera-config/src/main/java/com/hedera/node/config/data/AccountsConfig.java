@@ -17,6 +17,7 @@ public record AccountsConfig(
         @ConfigProperty(defaultValue = "55") @NetworkProperty
         long addressBookAdmin,
 
+        // A nonpositive account number disables the delegated CLPR admin role.
         @ConfigProperty(defaultValue = "601") @NetworkProperty
         long clprAdmin,
 
