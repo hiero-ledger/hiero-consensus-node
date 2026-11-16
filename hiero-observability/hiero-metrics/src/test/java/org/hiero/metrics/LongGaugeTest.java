@@ -276,20 +276,20 @@ public class LongGaugeTest extends SettableMetricBaseTest<LongGauge, LongGauge.B
             metric.getOrCreateLabeled(() -> 100, "label1", "2").set(1);
 
             new MetricSnapshotVerifier(metric)
-                    .add(1, "label1", "2")
                     .add(2, "label1", "1")
+                    .add(1, "label1", "2")
                     .verify();
             new MetricSnapshotVerifier(metric)
-                    .add(1, "label1", "2")
                     .add(2, "label1", "1")
+                    .add(1, "label1", "2")
                     .verify();
 
             metric.getOrCreateLabeled("label1", "2").set(3);
             metric.getOrCreateLabeled("label1", "3").set(42);
 
             new MetricSnapshotVerifier(metric)
-                    .add(3, "label1", "2")
                     .add(2, "label1", "1") // unchanged
+                    .add(3, "label1", "2")
                     .add(42, "label1", "3")
                     .verify();
         }

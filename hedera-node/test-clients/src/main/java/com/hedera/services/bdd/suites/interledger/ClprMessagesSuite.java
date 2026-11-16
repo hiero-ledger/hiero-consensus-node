@@ -230,6 +230,7 @@ public class ClprMessagesSuite {
                                 .payingWith(GENESIS)
                                 .via("completeChannelB")),
                         clprRegisterConnector()
+                                .channelId(CHANNEL_ID.toByteArray())
                                 .commitment(connectorCommitment.toByteArray())
                                 .payingWith(GENESIS)
                                 .via("registerConnectorB"),
@@ -299,6 +300,7 @@ public class ClprMessagesSuite {
                                 .payingWith(GENESIS)
                                 .via("completeChannelA")),
                         clprRegisterConnector()
+                                .channelId(CHANNEL_ID.toByteArray())
                                 .commitment(connectorCommitment.toByteArray())
                                 .payingWith(GENESIS)
                                 .via("registerConnectorA"),

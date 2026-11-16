@@ -117,7 +117,9 @@ public class EventualStreamAssertion extends AbstractEventualStreamAssertion {
                 final Function<HapiSpec, BlockStreamAssertion> adaptedFactory =
                         s -> new RecordStreamToBlockAssertionAdapter(
                                 recordFactory.apply(s), shard, realm, hasPassedIfNothingFailed);
-                delegate = createBlockDelegate(adaptedFactory);
+                final var blockDelegate = createBlockDelegate(adaptedFactory);
+                // Keep the record path's background traffic, or an idle network never closes the last block
+                delegate = needsBackgroundTraffic ? blockDelegate.withBackgroundTraffic() : blockDelegate;
             } else {
                 final EventualRecordStreamAssertion recordAssertion;
                 if (hasPassedIfNothingFailed) {

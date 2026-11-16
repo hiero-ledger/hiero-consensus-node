@@ -96,7 +96,24 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
                 }
             }
         }
-        return applyStorageMutations(hookId, keys, values);
+        return applyStorageMutations(hookId, keys, values, false);
+    }
+
+    /**
+     * Persists the given slot values of an EVM hook, classifying each slot by whether it is already in the hook's
+     * storage list rather than by its value before the transaction. So persisting values that an earlier commit or
+     * a hook creation already applied changes nothing.
+     *
+     * @param hookId the EVM hook ID
+     * @param keys the minimal slot keys
+     * @param values the slot values; {@link Bytes#EMPTY} for a zero value
+     * @return the net change in number of storage slots used
+     * @throws HandleException if the hook ID is not found
+     */
+    public int persistSlotValues(
+            @NonNull final HookId hookId, @NonNull final List<Bytes> keys, @NonNull final List<Bytes> values)
+            throws HandleException {
+        return applyStorageMutations(hookId, keys, values, true);
     }
 
     /**
@@ -181,11 +198,10 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         final var details = creation.detailsOrThrow();
         final var hookId = new HookId(creation.entityIdOrThrow(), details.hookId());
         validateTrue(hookStates.get(hookId) == null, HOOK_ID_IN_USE);
-        final var type =
-                switch (details.hook().kind()) {
-                    case EVM_HOOK -> EVM_HOOK;
-                    default -> throw new IllegalStateException("Not an EVM hook - " + creation);
-                };
+        final var type = switch (details.hook().kind()) {
+            case EVM_HOOK -> EVM_HOOK;
+            default -> throw new IllegalStateException("Not an EVM hook - " + creation);
+        };
         final var evmHookSpec = details.evmHookOrThrow().specOrThrow();
         final var state = EvmHookState.newBuilder()
                 .hookId(hookId)
@@ -389,11 +405,15 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      * @param hookId the EVM hook ID
      * @param keys the slot keys to update
      * @param values the new slot values; use {@link Bytes#EMPTY} to remove a slot
+     * @param byListMembership whether to classify slots by storage list membership instead of original values
      * @return the net change in number of storage slots used
      * @throws HandleException if the hook ID is not found
      */
     private int applyStorageMutations(
-            @NonNull final HookId hookId, @NonNull final List<Bytes> keys, @NonNull final List<Bytes> values) {
+            @NonNull final HookId hookId,
+            @NonNull final List<Bytes> keys,
+            @NonNull final List<Bytes> values,
+            final boolean byListMembership) {
         // Ensure we have a unique set of keys, preserving the last update for each key
         final var skips = new boolean[keys.size()];
         final Set<Bytes> seen = new HashSet<>();
@@ -422,7 +442,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
             filteredValues = values;
         }
         // Now apply the filtered updates
-        final var view = getView(hookId, uniqueKeys);
+        final var view = getView(hookId, uniqueKeys, byListMembership);
         var firstKey = view.firstStorageKey();
         int removals = 0;
         int insertions = 0;
@@ -470,10 +490,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      * Returns a list of slot values for the given hook and keys.
      * @param hookId the hook ID
      * @param keys the keys
+     * @param byListMembership whether to classify slots by storage list membership instead of original values
      * @return a list of slots
      * @throws HandleException if the hook
      */
-    private EvmHookView getView(@NonNull final HookId hookId, @NonNull final List<Bytes> keys) throws HandleException {
+    private EvmHookView getView(
+            @NonNull final HookId hookId, @NonNull final List<Bytes> keys, final boolean byListMembership)
+            throws HandleException {
         requireNonNull(hookId);
         requireNonNull(keys);
         final var state = hookStates.get(hookId);
@@ -483,9 +506,29 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
         final List<Slot> slots = new ArrayList<>(keys.size());
         keys.forEach(key -> {
             final var slotKey = new EvmHookSlotKey(hookId, key);
-            final var slotValue = storage.getOriginalValue(slotKey);
+            final var slotValue = byListMembership
+                    ? listedSlotValue(slotKey, state.firstContractStorageKey())
+                    : storage.getOriginalValue(slotKey);
             slots.add(new Slot(slotKey, slotValue));
         });
         return new EvmHookView(state, slots);
+    }
+
+    /**
+     * Returns the current value of the given slot if it is in its hook's storage list, or null otherwise. A slot is
+     * in the list if it is the first key or has a neighbor; EVM writes preserve these links until persistence.
+     */
+    private @Nullable SlotValue listedSlotValue(@NonNull final EvmHookSlotKey slotKey, @NonNull final Bytes firstKey) {
+        final var value = storage.get(slotKey);
+        if (value == null
+                || !(slotKey.key().equals(firstKey)
+                        || !Bytes.EMPTY.equals(value.previousKey())
+                        || !Bytes.EMPTY.equals(value.nextKey()))) {
+            return null;
+        }
+        // Only presence matters for classification
+        return Bytes.EMPTY.equals(value.value())
+                ? value.copyBuilder().value(ZERO_KEY).build()
+                : value;
     }
 }

@@ -8,6 +8,7 @@ import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBloc
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -16,6 +17,7 @@ import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -1226,7 +1228,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withConfigDataType(BlockBufferConfig.class)
                 .withValue("blockStream.buffer.maxBlocks", 1)
                 .withValue("blockStream.buffer.workerInterval", workerInterval)
-                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC)
+                .withValue("blockStream.writerMode", BlockStreamWriterMode.GRPC)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
                 .withValue("blockStream.streamMode", StreamMode.BLOCKS)
                 .getOrCreateConfig();
@@ -1305,6 +1307,39 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, atLeastOnce()).recordBufferedBlocksPendingAck(anyInt());
         verify(blockStreamMetrics, atLeastOnce()).recordBufferSizeInBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void saturatedBufferPrunesInsteadOfBackPressuringWithFileAndGrpcWriter() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.buffer.maxBlocks", 1)
+                .withValue("blockStream.buffer.workerInterval", Duration.ofSeconds(1))
+                .withValue("blockStream.writerMode", BlockStreamWriterMode.FILE_AND_GRPC)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.streamMode", StreamMode.BLOCKS)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider, true);
+
+        // saturate the buffer with unacknowledged blocks
+        blockBufferService.openBlock(1L);
+        blockBufferService.closeBlock(1L);
+        blockBufferService.openBlock(2L);
+        blockBufferService.closeBlock(2L);
+        blockBufferService.openBlock(3L);
+        blockBufferService.closeBlock(3L);
+
+        // let the worker run, as in testBufferBackpressure
+        Thread.sleep(Duration.ofSeconds(2).plusMillis(250));
+
+        // the oldest unacknowledged blocks were pruned, and new blocks are never held back
+        assertThat(blockBufferService.getEarliestAvailableBlockNumber()).isEqualTo(3L);
+        assertTimeoutPreemptively(Duration.ofSeconds(1), blockBufferService::ensureNewBlocksPermitted);
+        verify(blockStreamMetrics, never()).recordBackPressureActive();
+        verify(blockStreamMetrics, atLeastOnce()).recordNumberOfBlocksPruned(anyInt());
     }
 
     @Test

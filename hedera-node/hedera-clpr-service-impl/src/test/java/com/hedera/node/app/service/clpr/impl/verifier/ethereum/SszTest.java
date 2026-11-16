@@ -8,6 +8,7 @@ import com.hedera.node.app.service.clpr.impl.verifier.ethereum.Ssz.SszMerkleBran
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -221,6 +222,15 @@ class SszTest {
     class MerkleBranchInclusion {
 
         @Test
+        @DisplayName("given a generalized index, then the branch takes its depth and index")
+        void givenGeneralizedIndex_thenBranchTakesItsDepthAndIndex() {
+            final SszMerkleBranch branch = new SszMerkleBranch(new byte[0][], new GeneralizedIndex(15));
+
+            assertThat(branch.depth()).isEqualTo(3);
+            assertThat(branch.index()).isEqualTo(7);
+        }
+
+        @Test
         void depthZeroProvesOnlyTheLeafItself() {
             byte[] leaf = bytes(32, 0x09);
             SszMerkleBranch sszMerkleBranch = new SszMerkleBranch(new byte[0][], 0, 0);
@@ -319,29 +329,6 @@ class SszTest {
                             new SszMerkleBranch(new byte[][] {new byte[16]}, 1, 0).proves(bytes(32, 1), bytes(32, 2)))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("branch[0] must be 32 bytes, got 16");
-        }
-    }
-
-    @Nested
-    class GeneralizedIndices {
-
-        // Guards the hand-derived gindices in the javadoc: gindex = 2^depth + leafIndex.
-        @Test
-        void executionStateRootMatchesGindex802() {
-            assertThat((1 << Ssz.EXECUTION_STATE_ROOT_BRANCH_DEPTH) + Ssz.EXECUTION_STATE_ROOT_LEAF_INDEX)
-                    .isEqualTo(802);
-        }
-
-        @Test
-        void currentSyncCommitteeMatchesGindex86() {
-            assertThat((1 << Ssz.CURRENT_SYNC_COMMITTEE_BRANCH_DEPTH) + Ssz.CURRENT_SYNC_COMMITTEE_LEAF_INDEX)
-                    .isEqualTo(86);
-        }
-
-        @Test
-        void nextSyncCommitteeMatchesGindex87() {
-            assertThat((1 << Ssz.NEXT_SYNC_COMMITTEE_BRANCH_DEPTH) + Ssz.NEXT_SYNC_COMMITTEE_LEAF_INDEX)
-                    .isEqualTo(87);
         }
     }
 

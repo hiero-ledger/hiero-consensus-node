@@ -57,6 +57,16 @@ service ClprService {
     rpc closeChannel (Transaction) returns (TransactionResponse);
 
     /**
+     * Remove a peer endpoint from a channel's cached endpoint manifest.
+     * <p>
+     * Stops every node dialing an endpoint a channel's verifier supplied.
+     * Requires the CLPR admin key.<br/>
+     * The request body MUST be a
+     * [ClprEvictPeerEndpointTransactionBody](#com.hedera.hapi.node.clpr.ClprEvictPeerEndpointTransactionBody)
+     */
+    rpc evictPeerEndpoint (Transaction) returns (TransactionResponse);
+
+    /**
      * Submit a bundle of cross-ledger messages.
      * <p>
      * Submits a bundle of messages received during a sync from a peer ledger.<br/>

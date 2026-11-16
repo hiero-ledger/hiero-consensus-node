@@ -176,7 +176,8 @@ public class ContainerNetwork extends AbstractNetwork {
     @Override
     @NonNull
     protected MiniNode doCreateMiniNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        throw new UnsupportedOperationException("MiniNode is currently not supported in ContainerNetwork");
+        // MiniNodes are not implemented, but we can return a regular ContainerNode for now.
+        return doCreateNode(nodeId, keysAndCerts);
     }
 
     /**

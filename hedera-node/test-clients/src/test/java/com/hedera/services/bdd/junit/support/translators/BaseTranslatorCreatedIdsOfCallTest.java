@@ -4,13 +4,17 @@ package com.hedera.services.bdd.junit.support.translators;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BYTECODE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.block.stream.output.CallContractOutput;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
+import com.hedera.hapi.block.stream.output.TransactionOutput;
 import com.hedera.hapi.block.stream.trace.EvmTraceData;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.CreatedContractIds;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
@@ -18,6 +22,8 @@ import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 /**
  * Tests for {@link BaseTranslator#addCreatedIdsOfCallTo}, which attributes contract creations to the call that made
@@ -68,6 +74,27 @@ class BaseTranslatorCreatedIdsOfCallTest {
         final var callWithoutTraces = new BlockTransactionParts(null, null, null, null, false, false, false);
 
         assertEquals(List.of(CREATED_BY_APPLICATION), createdIdsOf(callWithoutTraces, stateChanges));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, false", "false, true", "true, false", "true, true"})
+    void capturedIdsOverrideClprInferenceIncludingPresentEmptyLists(final boolean empty, final boolean withTraces) {
+        final var captured = empty ? List.<ContractID>of() : List.of(CREATED_BY_VERIFIER);
+        final var parts = new BlockTransactionParts(
+                null,
+                null,
+                withTraces ? callWithActions(create(CREATED_BY_APPLICATION)).traces() : null,
+                List.of(TransactionOutput.newBuilder()
+                        .contractCall(CallContractOutput.newBuilder()
+                                .evmTransactionResult(EvmTransactionResult.newBuilder()
+                                        .createdContractIds(new CreatedContractIds(captured))))
+                        .build()),
+                false,
+                false,
+                false);
+        final var stateChanges = List.of(bytecodeUpdate(CREATED_BY_APPLICATION), bytecodeUpdate(CREATED_BY_VERIFIER));
+
+        assertEquals(captured, createdIdsOf(parts, stateChanges));
     }
 
     private List<ContractID> createdIdsOf(final BlockTransactionParts parts, final List<StateChange> stateChanges) {

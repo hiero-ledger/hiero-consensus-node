@@ -26,14 +26,14 @@ import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
 import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.hiero.otter.fixtures.network.simulation.EventReceiver;
-import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
+import org.hiero.otter.fixtures.network.simulation.GossipNetwork;
 
 /**
- * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link SimulatedNetworkConnectivity}.
+ * Simulates the {@link Gossip} subsystem for a group of nodes running on a {@link GossipNetwork}.
  */
 public class SimulatedGossip implements Gossip, EventReceiver {
 
-    private final SimulatedNetworkConnectivity networkConnectivity;
+    private final GossipNetwork gossipNetwork;
     private final NodeId selfId;
     private IntakeEventCounter intakeEventCounter;
 
@@ -67,12 +67,11 @@ public class SimulatedGossip implements Gossip, EventReceiver {
     /**
      * Constructor.
      *
-     * @param networkConnectivity the network connections on which this gossip system will run
+     * @param gossipNetwork the simulated network this gossip system runs on
      * @param selfId the ID of the node running this gossip system
      */
-    public SimulatedGossip(
-            @NonNull final SimulatedNetworkConnectivity networkConnectivity, @NonNull final NodeId selfId) {
-        this.networkConnectivity = requireNonNull(networkConnectivity);
+    public SimulatedGossip(@NonNull final GossipNetwork gossipNetwork, @NonNull final NodeId selfId) {
+        this.gossipNetwork = requireNonNull(gossipNetwork);
         this.selfId = requireNonNull(selfId);
     }
 
@@ -134,11 +133,11 @@ public class SimulatedGossip implements Gossip, EventReceiver {
         eventInput.bindConsumer(event -> {
             // Self-created events have no sender until now; the network identifies the source by this field
             event.setSenderId(selfId);
-            networkConnectivity.submitEvent(event);
+            gossipNetwork.submitEvent(event);
         });
         eventWindowInput.bindConsumer(eventWindow -> {
             ownEventWindow = eventWindow;
-            networkConnectivity.updateEventWindow(selfId, eventWindow);
+            gossipNetwork.updateEventWindow(selfId, eventWindow);
             // Production reports on every sync with both windows current. Without this, the lag would stay at its
             // last value while this node catches up against peers whose windows no longer change.
             lastPeerWindows.forEach((peerId, peerWindow) -> {
@@ -235,7 +234,7 @@ public class SimulatedGossip implements Gossip, EventReceiver {
      * Resets this node's gossip point so that it will receive all necessary events after a restart.
      */
     public void onRestart() {
-        networkConnectivity.resetCursor(selfId);
+        gossipNetwork.resetCursor(selfId);
         // The restarted event creator has no lag recorded; stale peer windows must not be replayed against it.
         lastPeerWindows.clear();
     }

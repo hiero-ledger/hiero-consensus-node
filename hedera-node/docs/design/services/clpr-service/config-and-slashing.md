@@ -12,11 +12,27 @@ others are node-local.
 
 ### Top-level
 
-|        Key        |     Default      | Network? |                                                 Purpose                                                  |
-|-------------------|------------------|----------|----------------------------------------------------------------------------------------------------------|
-| `enabled`         | `false`          | yes      | Master flag. When `false`, CLPR APIs are inert and CLPR system contracts behave as nonexistent accounts. |
-| `chainId`         | `hiero:localnet` | yes      | CAIP-2 chain ID seeded into `LEDGER_CONFIGURATION` at genesis.                                           |
-| `protocolVersion` | `1`              | yes      | CLPR protocol version seeded into `LEDGER_CONFIGURATION`.                                                |
+|        Key        | Default | Network? |                                                 Purpose                                                  |
+|-------------------|---------|----------|----------------------------------------------------------------------------------------------------------|
+| `enabled`         | `false` | yes      | Master flag. When `false`, CLPR APIs are inert and CLPR system contracts behave as nonexistent accounts. |
+| `protocolVersion` | `1`     | yes      | CLPR protocol version seeded into `LEDGER_CONFIGURATION`.                                                |
+
+There is no CLPR chain ID property. The CAIP-2 `chain_id` seeded into `LEDGER_CONFIGURATION` at genesis is
+derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:<contracts.chainId>`:
+
+|   Network   | `contracts.chainId` | CLPR `chain_id` |
+|-------------|---------------------|-----------------|
+| mainnet     | `295`               | `eip155:295`    |
+| testnet     | `296`               | `eip155:296`    |
+| previewnet  | `297`               | `eip155:297`    |
+| dev/preprod | `298`               | `eip155:298`    |
+
+### Ledger configuration file (see [Throttles inside `ClprLedgerConfiguration`](#throttles-inside-clprledgerconfiguration))
+
+|               Key                |                  Default                   | Network? |                                        Purpose                                         |
+|----------------------------------|--------------------------------------------|----------|----------------------------------------------------------------------------------------|
+| `ledgerConfigurationFile`        | `data/config/clprLedgerConfiguration.json` | no       | File whose throttles are seeded into `LEDGER_CONFIGURATION` at genesis.                |
+| `upgradeLedgerConfigurationFile` | `clprLedgerConfiguration.json`             | no       | File in `networkAdmin.upgradeSysFilesLoc` whose throttles are applied at each upgrade. |
 
 ### Stake / slashing economics (consumed by `ClprSlashingUtils`)
 
@@ -62,6 +78,10 @@ others are node-local.
 |--------------------|-------------|----------|---------------------------------------------------------------------------|
 | `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
+> `ClprCompleteChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
+> (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
+> execution can't run unthrottled.
+>
 > The dispatched verifier call must carry at least the EIP-7623 calldata floor for its input, about 40 gas per byte
 > of (mostly non-zero) proof data. A Hiero state proof carries a ~13.7 KB TSS signature, so a `verifyConfig` call
 > needs ~0.6M gas, a `verifyConfig` with an endpoint manifest proof ~1.2M, and a `verifyBundle` ~0.6M plus ~60K per
@@ -78,11 +98,48 @@ others are node-local.
 
 ## Throttles inside `ClprLedgerConfiguration`
 
-Distinct from `ClprConfig` — these are *protocol-level* limits stored in state, set by
-the genesis migration and editable only via `CLPR_UPDATE_LEDGER_CONFIGURATION`. See
-[`state-and-protobufs.md`](state-and-protobufs.md) for default values. They are spec
-§7 fields (`max_messages_per_bundle`, `max_message_payload_bytes`, etc.) and are enforced
-in `ClprServiceApiImpl.sendMessage` and `ClprSubmitBundleHandler`.
+Distinct from `ClprConfig` — these are *protocol-level* limits stored in state, changed
+only by `CLPR_UPDATE_LEDGER_CONFIGURATION`. They are spec §7 fields
+(`max_messages_per_bundle`, `max_message_payload_bytes`, etc.) and are enforced in
+`ClprServiceApiImpl.sendMessage` and `ClprSubmitBundleHandler`.
+
+Like `throttles.json` and the fee schedules, they are loaded from a file on disk
+(`ClprLedgerConfigurationFile`). The file is a `ClprLedgerConfiguration` in protobuf JSON
+that sets **only** `throttles`; the node fixes every other field (`chain_id`,
+`protocol_version`, `service_address`, `timestamp`, trust anchors), and a file that sets any
+of them is rejected:
+
+```json
+{
+  "throttles": {
+    "maxMessagesPerBundle": 1000,
+    "maxMessagePayloadBytes": 65536,
+    "maxGasPerMessage": 15000000,
+    "maxQueueDepth": 10000,
+    "maxSyncBytes": 4194304
+  }
+}
+```
+
+|              |              Throttles              |                    CLPR ledger configuration                     |
+|--------------|-------------------------------------|------------------------------------------------------------------|
+| Genesis file | `bootstrap.throttleDefsJson.file`   | `clpr.ledgerConfigurationFile`                                   |
+| Fallback     | classpath `genesis/throttles.json`  | classpath `clpr/clprLedgerConfiguration.json` (the values above) |
+| Upgrade file | `networkAdmin.upgradeThrottlesFile` | `clpr.upgradeLedgerConfigurationFile`                            |
+| Applied by   | synthetic `FileUpdate`              | synthetic `ClprUpdateLedgerConfiguration` (payer `0.0.50`)       |
+
+- **Genesis.** The throttles come from `clpr.ledgerConfigurationFile` if it exists and is valid,
+  otherwise from the bundled resource. An invalid file (malformed JSON, unknown fields,
+  non-throttle fields, or throttles that fail validation) is logged as an error and ignored.
+- **Upgrade.** A file in `networkAdmin.upgradeSysFilesLoc` is applied by
+  `SystemTransactions.doPostUpgradeSetup`, but only if its throttles differ from the current
+  ones: every update sets a new `timestamp`, which queues a `ConfigUpdate` on every Channel.
+  It is skipped while CLPR is disabled (and applied at the next upgrade with CLPR enabled),
+  and when `LEDGER_CONFIGURATION` does not exist yet (it is then seeded from the same file).
+- `max_gas_per_message` is capped at `contracts.maxGasPerTransaction` in both cases, and the
+  throttles are validated like `CLPR_UPDATE_LEDGER_CONFIGURATION` validates them.
+- The file is node-local. As with `throttles.json`, every node must have an identical file, or
+  nodes seed different state and ISS.
 
 > Two throttle layers: `ClprConfig` for node behaviour (sync rate, retries),
 > `ClprLedgerConfiguration.throttles` for protocol-observable bundle/queue/payload
@@ -143,43 +200,23 @@ and endpoint incentives.
 
 ### Per-message charge on successful dispatch
 
-For every inbound data message that dispatches successfully (i.e., the application
-contract returns without reverting and the reply status is `SUCCESS`), the following
-transfer occurs:
+Application execution gas is paid to the network by the original bundle payer before
+any EVM execution. The parent holds the full transaction gas allowance until completion,
+then refunds unused fees. A later parent rollback retains payment for executed gas.
 
-1. **Connector is charged** — the receiving connector's contract account is debited:
+A receiving DATA connector reimburses actual gas plus the existing flat endpoint
+compensation (`messageExecutionCost + messageExecutionCost * endpointMarginPercent / 100`).
+The worst-case reimbursement is debited before the callback and unused reimbursement
+is returned afterward. Response callbacks reimburse actual gas without the DATA flat
+compensation; absent or underfunded source connectors skip best-effort delivery.
+Callbacks rejected by consensus throttling before execution incur no gas charge,
+so their entire gas reimbursement is returned to the connector.
 
-   ```
-   charge = messageExecutionCost + (messageExecutionCost * endpointMarginPercent / 100)
-   ```
-2. **Submitting endpoint is paid** — the entire `charge` is credited to the Hiero
-   consensus node that submitted the `ClprSubmitBundle` transaction. There is no
-   central treasury; the submitter receives the full amount.
-
-The submitting endpoint is identified by `endpoint_node_id` on the transaction body,
-resolved through `ReadableNodeStore`. The node's account receives the payment.
-
-### Why the submitter receives the full charge
-
-The economics are designed so that submitting nodes have a direct financial incentive
-to relay bundles promptly and honestly. A node that delays or censors bundles gives up
-the execution payment to whichever node eventually submits the same bundle. There is no
-"protocol fee" extracted to a treasury — the design assumes that enough competition
-among nodes will keep margins honest.
-
-### Planned gas-based model (E-10)
-
-The current flat `messageExecutionCost` is a placeholder. The planned model charges
-the connector the *actual gas consumed* by the application dispatch plus margin:
-
-```
-charge = gasUsed * gasPriceTinybars * (1 + endpointMarginPercent / 100)
-```
-
-The same "submitter receives all" rule applies. Under the gas-based model, high-gas
-messages cost connectors more and compensate submitters more, aligning costs with
-actual compute. See E-10 in [`clpr-hiero-spec.md`](clpr-hiero-spec.md) for the full
-rationale and implementation notes.
+The full sum of verifier and callback gas grants is capped by
+`contracts.maxGasPerTransaction`. Remaining callback payloads share the available gas,
+with each grant capped by `maxGasPerMessage`. EVM billing refunds do not restore granted
+execution capacity. See [E-10](clpr-hiero-spec.md#e-10-application-execution-gas-and-endpoint-compensation)
+for pricing, rollback, and grant-allocation details.
 
 ### Slashing payouts (non-success path)
 
@@ -194,8 +231,8 @@ When you change CLPR economics:
 1. Decide whether the lever is per-node (`ClprConfig` non-network) or
    network-consensus (`@NetworkProperty` or `ClprThrottles` in
    `LEDGER_CONFIGURATION`).
-2. For network-consensus levers, change requires either an upgrade with revised genesis
-   defaults *or* a `CLPR_UPDATE_LEDGER_CONFIGURATION` admin tx (for throttles only —
-   stake/slashing live in `ClprConfig`).
+2. For network-consensus levers, change requires either an upgrade with a revised
+   `clprLedgerConfiguration.json` *or* a `CLPR_UPDATE_LEDGER_CONFIGURATION` admin tx (for
+   throttles only — stake/slashing live in `ClprConfig`).
 3. Update unit tests in `ClprSlashingUtils` test class and any handler tests that pin
    default values.

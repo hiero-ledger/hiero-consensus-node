@@ -117,12 +117,12 @@ public class OpenMetricsHttpServerTest {
                 .addDynamicLabelNames(METHOD_LABEL, PATH_LABEL));
 
         callAndVerify("""
-                # TYPE no_labels_gauge_byte gauge
-                # UNIT no_labels_gauge_byte byte
-                # HELP no_labels_gauge_byte No labels gauge
                 # TYPE labeled_counter_requests counter
                 # UNIT labeled_counter_requests requests
                 # HELP labeled_counter_requests Labeled counter
+                # TYPE no_labels_gauge_byte gauge
+                # UNIT no_labels_gauge_byte byte
+                # HELP no_labels_gauge_byte No labels gauge
                 # EOF
                 """);
     }
@@ -139,15 +139,15 @@ public class OpenMetricsHttpServerTest {
                 .increment(8L);
 
         callAndVerify("""
-                # TYPE no_labels_gauge_byte gauge
-                # UNIT no_labels_gauge_byte byte
-                # HELP no_labels_gauge_byte No labels gauge
-                no_labels_gauge_byte 10.5
                 # TYPE labeled_counter_requests counter
                 # UNIT labeled_counter_requests requests
                 # HELP labeled_counter_requests Labeled counter
                 labeled_counter_requests_total{method="GET",path="/api/resource"} 5
                 labeled_counter_requests_total{method="POST",path="/api/resource"} 8
+                # TYPE no_labels_gauge_byte gauge
+                # UNIT no_labels_gauge_byte byte
+                # HELP no_labels_gauge_byte No labels gauge
+                no_labels_gauge_byte 10.5
                 # EOF
                 """);
     }

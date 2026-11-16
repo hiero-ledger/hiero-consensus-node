@@ -7,6 +7,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -59,9 +60,13 @@ public abstract class BlockStreamingBase {
     }
 
     /**
+     * Back pressure applies only when block nodes are the sole sink of a {@code BLOCKS} stream; with a file writer as
+     * well, every block stays on disk, so a saturated buffer prunes unacknowledged blocks instead of stalling.
+     *
      * @return true if back pressure is enabled, else false
      */
     final boolean isBackpressureEnabled() {
-        return bsConfig().streamMode() == StreamMode.BLOCKS && isStreamingEnabled();
+        final var config = bsConfig();
+        return config.streamMode() == StreamMode.BLOCKS && config.writerMode() == BlockStreamWriterMode.GRPC;
     }
 }

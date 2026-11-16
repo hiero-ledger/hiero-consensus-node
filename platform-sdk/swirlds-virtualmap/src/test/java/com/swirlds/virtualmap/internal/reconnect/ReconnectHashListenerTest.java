@@ -92,7 +92,7 @@ class ReconnectHashListenerTest {
         @ValueSource(ints = {2, 10, 100, 1000, 10_000, 100_000, 1_000_000})
         @DisplayName("Chunks are flushed during hashing")
         void chunksAreFlushedDuringHashing(int size) throws IOException {
-            final VirtualDataSource ds = new InMemoryBuilder().build("test", null, true, false);
+            final VirtualDataSource ds = new InMemoryBuilder().build("test", null, true);
 
             final VirtualMapStatistics statistics = new VirtualMapStatistics("test");
             final int hashChunkHeight = ds.getHashChunkHeight();

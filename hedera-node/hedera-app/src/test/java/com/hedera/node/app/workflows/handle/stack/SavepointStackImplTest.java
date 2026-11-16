@@ -353,6 +353,108 @@ class SavepointStackImplTest extends StateTestBase {
     }
 
     @Test
+    void rollbackActionFollowsChildChangesIntoTheParentSavepoint() {
+        final var root = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        root.createSavepoint();
+        final var child = SavepointStackImpl.newChildStack(
+                root, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+        final List<String> rolledBack = new ArrayList<>();
+        child.onRollback(() -> rolledBack.add("child"));
+
+        child.commitFullStack();
+
+        assertThat(rolledBack).isEmpty();
+        root.rollback();
+        assertThat(rolledBack).containsExactly("child");
+    }
+
+    @Test
+    void rollbackActionIsDiscardedOnceItsChangesCommitAtTheRoot() {
+        final var root = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        final List<String> rolledBack = new ArrayList<>();
+        root.onRollback(() -> rolledBack.add("root"));
+
+        root.commitFullStack();
+        root.rollbackFullStack();
+
+        assertThat(rolledBack).isEmpty();
+    }
+
+    @Test
+    void attachedValueIsVisibleOnlyToStacksOfEnclosedDispatches() {
+        final var root = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                streamMode,
+                TraceDataSizeLimiter.NO_LIMIT);
+        final var child =
+                SavepointStackImpl.newChildStack(root, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+        final var grandchild =
+                SavepointStackImpl.newChildStack(child, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+        final var sibling =
+                SavepointStackImpl.newChildStack(root, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+        final var marker = new Marker("child");
+
+        child.attach(Marker.class, marker);
+
+        assertThat(child.findInLineage(Marker.class)).isSameAs(marker);
+        assertThat(grandchild.findInLineage(Marker.class)).isSameAs(marker);
+        assertThat(root.findInLineage(Marker.class)).isNull();
+        assertThat(sibling.findInLineage(Marker.class)).isNull();
+
+        child.detach(Marker.class);
+
+        assertThat(child.findInLineage(Marker.class)).isNull();
+        assertThat(grandchild.findInLineage(Marker.class)).isNull();
+    }
+
+    @Test
+    void nearestAttachedValueWinsAndEachStackHoldsOnePerType() {
+        final var root = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                streamMode,
+                TraceDataSizeLimiter.NO_LIMIT);
+        final var child =
+                SavepointStackImpl.newChildStack(root, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+        final var grandchild =
+                SavepointStackImpl.newChildStack(child, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
+        final var rootMarker = new Marker("root");
+        final var childMarker = new Marker("child");
+
+        root.attach(Marker.class, rootMarker);
+        child.attach(Marker.class, childMarker);
+
+        assertThat(grandchild.findInLineage(Marker.class)).isSameAs(childMarker);
+        assertThatThrownBy(() -> child.attach(Marker.class, new Marker("again")))
+                .isInstanceOf(IllegalStateException.class);
+        assertThatCode(() -> grandchild.detach(Marker.class)).doesNotThrowAnyException();
+        assertThat(grandchild.findInLineage(Marker.class)).isSameAs(childMarker);
+    }
+
+    private record Marker(String name) {}
+
+    @Test
     void testConstructor() {
         // when
         final var stack = SavepointStackImpl.newRootStack(
@@ -449,9 +551,10 @@ class SavepointStackImplTest extends StateTestBase {
         final var records = new java.util.ArrayList<com.hedera.hapi.node.transaction.TransactionRecord>();
         handleOutput.recordSourceOrThrow().forEachTxnRecord(records::add);
 
-        assertThat(records).singleElement().satisfies(record -> assertThat(
-                        record.receiptOrThrow().blockNumber())
-                .isNull());
+        assertThat(records)
+                .singleElement()
+                .satisfies(record ->
+                        assertThat(record.receiptOrThrow().blockNumber()).isNull());
     }
 
     @Test

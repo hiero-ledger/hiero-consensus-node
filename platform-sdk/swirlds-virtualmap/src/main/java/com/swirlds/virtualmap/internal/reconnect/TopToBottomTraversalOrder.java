@@ -399,6 +399,36 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
         return sb.toString();
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Reports the number of active chunks (the current chunk plus pre-fetched ones) and the total sizes of
+     * their state, which is kept until each chunk's leaves are processed: internals not sent yet, clean
+     * internals, and dirty internals near the leaf rank. Example: {@code activeChunks=3, queuedInternals=120,
+     * cleanPaths=5321, someDirtyPaths=874}. Counting queued internals takes time proportional to their number,
+     * the other sizes are cheap.
+     */
+    @Override
+    public String getStatus() {
+        if (simpleMode) {
+            return "";
+        }
+        int chunkCount = 0;
+        long queuedInternals = 0;
+        long cleanPathCount = 0;
+        long someDirtyPathCount = 0;
+        for (final ChunkState chunk : activeChunks) {
+            chunkCount++;
+            queuedInternals += chunk.internals.size();
+            cleanPathCount += chunk.cleanPaths.size();
+            someDirtyPathCount += chunk.someDirtyPaths.size();
+        }
+        return "activeChunks=" + chunkCount
+                + ", queuedInternals=" + queuedInternals
+                + ", cleanPaths=" + cleanPathCount
+                + ", someDirtyPaths=" + someDirtyPathCount;
+    }
+
     private LeafRankStats statsForLeafRank(final int leafRank) {
         return (leafRank == lastLeafRank) ? lastLeafRankStats : firstLeafRankStats;
     }

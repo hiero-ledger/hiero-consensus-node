@@ -23,16 +23,24 @@ clone_repo_at_tag() {
   local url="$1"
   local dest="$2"
   local tag="$3"
+  local attempt
   local clone_cmd=(git clone --depth 1)
   if [[ -n "${tag}" ]]; then
     clone_cmd+=(--branch "${tag}")
   fi
   clone_cmd+=("${url}" "${dest}")
-  rm -rf "${dest}" >/dev/null 2>&1 || true
-  if ! run_step "Cloning ${url} (${tag:-default branch})" "${clone_cmd[@]}"; then
-    echo "Clone failed for ${url} at '${tag:-default branch}' — check that the tag exists and the host has network access" >&2
-    return 1
-  fi
+  # The clones run late in the scenario; retry a transient github.com failure instead of losing the run.
+  for attempt in 1 2 3; do
+    rm -rf "${dest}" >/dev/null 2>&1 || true
+    if run_step "Cloning ${url} (${tag:-default branch}), attempt ${attempt}/3" "${clone_cmd[@]}"; then
+      return 0
+    fi
+    if (( attempt < 3 )); then
+      sleep $((attempt * 15))
+    fi
+  done
+  echo "Clone failed for ${url} at '${tag:-default branch}' after 3 attempts — check that the tag exists and the host has network access" >&2
+  return 1
 }
 
 # Resolves TCK_REPO_DIR / JS_SDK_REPO_DIR: reuse the *_REPO_PATH checkouts as-is when given,

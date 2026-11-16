@@ -5,12 +5,10 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
-import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
-import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -70,7 +68,7 @@ public class WrapsMpcStateMachine {
      * <b>Important:</b> On acceptance, has the side effect of adding the publication to the phase messages map.
      * @param publication the new publication
      * @param currentPhase the current phase
-     * @param weights the weights for parties in the MPC
+     * @param quorum the canonical WRAPS quorum and source hinTS authority
      * @param gracePeriod the grace period for each phase of the protocol
      * @param phaseMessages the map of phase messages published so far
      * @return the transition
@@ -78,12 +76,12 @@ public class WrapsMpcStateMachine {
     public Transition onNext(
             @NonNull final WrapsMessagePublication publication,
             @NonNull final WrapsPhase currentPhase,
-            @NonNull final RosterTransitionWeights weights,
+            @NonNull final WrapsSigningQuorum quorum,
             @NonNull final Duration gracePeriod,
             @NonNull final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages) {
         requireNonNull(publication);
         requireNonNull(currentPhase);
-        requireNonNull(weights);
+        requireNonNull(quorum);
         requireNonNull(gracePeriod);
         requireNonNull(phaseMessages);
         // The final phase involves publishing votes, not messages, so abort
@@ -96,13 +94,11 @@ public class WrapsMpcStateMachine {
         }
         final var messages = phaseMessages.computeIfAbsent(currentPhase, p -> new TreeMap<>());
         if (currentPhase == R1) {
-            if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
+            if (!quorum.isEligibleSigner(publication.nodeId())
+                    || messages.putIfAbsent(publication.nodeId(), publication) != null) {
                 return Transition.rejectedAt(currentPhase);
             }
-            final long r1Weight = messages.values().stream()
-                    .mapToLong(p -> weights.sourceWeightOf(p.nodeId()))
-                    .sum();
-            if (r1Weight >= moreThanHalfOfTotal(weights.sourceNodeWeights())) {
+            if (quorum.isSatisfiedBy(messages.keySet())) {
                 return Transition.advanceTo(R2, publication.receiptTime().plus(gracePeriod));
             }
         } else {

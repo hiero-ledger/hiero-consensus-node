@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.file.impl.test.handlers;
 
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -15,9 +14,8 @@ public final class FileTestUtils {
     }
 
     static Key mockPayerLookup(Key key, AccountID accountId, ReadableAccountStore accountStore) {
-        final var account = mock(Account.class);
+        final var account = Account.newBuilder().accountId(accountId).key(key).build();
         lenient().when(accountStore.getAccountById(accountId)).thenReturn(account);
-        lenient().when(account.key()).thenReturn(key);
         return key;
     }
 }

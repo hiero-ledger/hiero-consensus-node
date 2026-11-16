@@ -34,10 +34,19 @@ public class RegisterConnectorCommand implements Callable<Integer> {
             description = "Hex-encoded connector commitment (32 bytes)")
     String commitmentHex;
 
+    @Option(
+            names = {"--channel-id"},
+            paramLabel = "<hex>",
+            required = true,
+            description = "Hex-encoded existing channel id (32 bytes) this connector serves")
+    String channelIdHex;
+
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
-        final var op = clprRegisterConnector().commitment(ClprArgs.requiredBytes("commitment", commitmentHex));
+        final var op = clprRegisterConnector()
+                .commitment(ClprArgs.requiredBytes("commitment", commitmentHex))
+                .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex));
         final var delegate = new ClprTxnSuite(config, "ClprRegisterConnector", op);
         delegate.runSuiteSync();
         return ClprOutcome.reportTxn(

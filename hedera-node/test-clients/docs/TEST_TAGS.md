@@ -25,10 +25,13 @@ balanced; for example, `hapiTestCrypto` includes only `CRYPTO`-tagged tests.
 | `BLOCK_NODE`       | `hapiTestBlockNodeCommunication`                                                  | Block-node integration tests                 |
 | `WRAPS`            | `hapiTestWraps`, `hapiTestCutover`                                                | TSS `wraps` / weighted re-signing tests      |
 | `CUTOVER`          | `hapiTestCutover`                                                                 | TSS cutover scenarios                        |
+| `PRE_CUTOVER`      | `hapiTestPreCutover` (not `hapiTestRestart`)                                      | Tests that need the pre-cutover block stream |
+| `BLOCK_HASHING`    | `hapiTestMisc`, `hapiTestMiscRecords`, `hapiTestPreCutover`                       | Block hashing, run in every stream mode      |
 | `LONG_RUNNING`     | `hapiTestTimeConsuming`, `hapiTestTimeConsumingSerial`                            | Tests that take a long time                  |
 | `NODE_STAKING`     | `hapiTestNodeStaking`, `hapiTestNodeStakingSerial`                                | Node stake-weight-changing tests             |
 | `STATE_THROTTLING` | `hapiTestStateThrottling`                                                         | State-rate-limit tests                       |
 | `ISS`              | `hapiTestIss`                                                                     | Intentional Inconsistent State scenarios     |
+| `ISS_GRPC`         | `hapiTestIssGrpc`                                                                 |                                              |
 
 `hapiTestMisc` and `hapiTestMiscSerial` catch everything not covered by the area tags above (the
 expression in `build.gradle.kts` is `!(INTEGRATION|CRYPTO|TOKEN|RESTART|…)`).
@@ -46,8 +49,8 @@ These tags force a test onto a particular network type.
 | `ONLY_SUBPROCESS` | same                   | The test must run in subprocess mode (e.g., requires real gossip).                                                                                                               |
 | `NOT_REPEATABLE`  | same                   | The test cannot run under `testRepeatable` (uses real time, randomness, or ECDSA keys).                                                                                          |
 
-`testEmbedded` excludes `RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS`.
-`testRepeatable` excludes `RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS`.
+`testEmbedded` excludes `RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|ISS_GRPC`.
+`testRepeatable` excludes `RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS|ISS_GRPC`.
 
 ## Execution-mode tags
 

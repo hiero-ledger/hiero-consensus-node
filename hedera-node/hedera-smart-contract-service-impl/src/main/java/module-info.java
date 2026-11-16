@@ -66,7 +66,6 @@ module com.hedera.node.app.service.contract.impl {
 
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
-    requires transitive com.hedera.node.app.service.clpr.impl;
     requires transitive com.hedera.node.app.service.clpr;
     requires transitive com.hedera.node.app.service.contract;
     requires transitive com.hedera.node.app.service.entityid;
@@ -90,6 +89,7 @@ module com.hedera.node.app.service.contract.impl {
     requires transitive tuweni.bytes;
     requires transitive tuweni.units;
     requires com.hedera.node.app.service.addressbook;
+    requires com.hedera.node.app.service.clpr.impl;
     requires com.swirlds.base;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;

@@ -4,6 +4,7 @@ package com.swirlds.virtualmap.sync;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -11,9 +12,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.api.validation.ConfigViolationException;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapLearner;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig_;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -45,6 +49,29 @@ class LearningSynchronizerTest {
     void tearDown() {
         // Not close(): it flushes buffered data, which fails if a test has already closed the sockets
         streams.disconnect();
+    }
+
+    @Test
+    @DisplayName("A leaf backlog threshold below twice the flush interval is rejected when the config is built")
+    void smallLeafBacklogThresholdRejected() {
+        assertThrows(
+                ConfigViolationException.class,
+                () -> ConfigurationBuilder.create()
+                        .autoDiscoverExtensions()
+                        .withValue(VirtualMapLearnerSyncConfig_.FLUSH_INTERVAL, "100")
+                        .withValue(VirtualMapLearnerSyncConfig_.LEAF_BACKLOG_THROTTLE_THRESHOLD, "199")
+                        .build());
+        assertThrows(
+                ConfigViolationException.class,
+                () -> ConfigurationBuilder.create()
+                        .autoDiscoverExtensions()
+                        .withValue(VirtualMapLearnerSyncConfig_.FLUSH_INTERVAL, "3000000")
+                        .build());
+        assertDoesNotThrow(() -> ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(VirtualMapLearnerSyncConfig_.FLUSH_INTERVAL, "100")
+                .withValue(VirtualMapLearnerSyncConfig_.LEAF_BACKLOG_THROTTLE_THRESHOLD, "200")
+                .build());
     }
 
     @Test
@@ -95,6 +122,7 @@ class LearningSynchronizerTest {
     void learnerAbortedIfTeacherDisconnects() {
         final VirtualMapLearner learner = mock(VirtualMapLearner.class);
         when(learner.getVirtualMapConfig()).thenReturn(DEFAULT_VIRTUAL_MAP_CONFIG);
+        when(learner.getHashChunkHeight()).thenReturn(6);
         streams.disconnectTeacher();
 
         assertThrows(

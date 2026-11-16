@@ -228,10 +228,12 @@ public class EmbeddedNetwork extends AbstractNetwork {
         // vars via ProcessUtils). Without this, e.g. the CLPR tasks' clpr.enabled=true never reaches an
         // embedded @Tag(CLPR) spec, which then runs with CLPR at its config default (false on this repo).
         // The test's own bootstrapOverrides layer on top (per-test wins), then the embedded-mandatory
-        // settings below: embedded networks require mocked TSS signatures and a 1-min staking period.
+        // settings below: embedded networks have no block node, so they write block files only, and
+        // require mocked TSS signatures and a 1-min staking period.
         final Map<String, String> effectiveOverrides = new HashMap<>(prCheckDefaultOverrides());
         effectiveOverrides.putAll(prCheckOverrides());
         effectiveOverrides.putAll(bootstrapOverrides);
+        effectiveOverrides.put("blockStream.writerMode", "FILE");
         effectiveOverrides.put("tss.forceMockSignatures", "true");
         effectiveOverrides.put("staking.periodMins", "1");
         if (mode == REPEATABLE) {

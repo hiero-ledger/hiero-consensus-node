@@ -30,8 +30,11 @@ permissions:
   actions: read
 
 jobs:
+  # A tag push releases only from the public repository. Every other job needs this one, so in a copy
+  # that isn't public a pushed tag starts nothing. A dispatch runs as before.
   prepare-tag-release:
     name: Prepare Release [Tag]
+    if: ${{ github.event_name != 'push' || github.event.repository.visibility == 'public' }}
     runs-on: hl-cn-default-lin-sm
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}

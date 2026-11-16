@@ -104,6 +104,13 @@ For subprocess tasks the chain is:
    `appliesTo(spec)` returns true and every `RecordStreamValidator`.
 3. Each validator's `validationErrorsIn(...)` is invoked; the operation fails if any error stream
    is non-empty.
+4. If the shared network streams to a block node, the block node must then hold every block that
+   node 0 completed (`BLOCKS`), or a wrapped record block for every record file (`BOTH`). A real
+   block node is asked for its last stored block, which counts only blocks it verified. In `BLOCKS`
+   mode the block node's copy is then read once, saved under `blockStreams-blocknode`, and compared
+   item by item with the validated disk copy. Proofs are skipped, since each block's proof comes from
+   whichever node sent it first. Per-method block node tests keep a simulator-only check, since they
+   often break their block nodes on purpose.
 
 For embedded tasks only `BlockContentsValidator` and `BlockNumberSequenceValidator` apply, since
 there is no persistent Merkle state to root-hash against and the recorded stream is not produced.

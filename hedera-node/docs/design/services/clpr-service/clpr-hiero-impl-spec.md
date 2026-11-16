@@ -324,10 +324,10 @@ Initial schema: `V0650ClprSchema` (version `0.65.0`, matching the anticipated re
 
 ### 2.3.1 Singletons
 
-|        State Key        |           Type            |                                                                                                                        Description                                                                                                                         |
-|-------------------------|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). Created at genesis from `clpr.chainId` and `clpr.protocolVersion` configuration properties. The `chain_id` and `protocol_version` are immutable after creation. |
-| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                       |
+|        State Key        |           Type            |                                                                                                                                     Description                                                                                                                                      |
+|-------------------------|---------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `LEDGER_CONFIGURATION`  | `ClprLedgerConfiguration` | This ledger's local CLPR configuration (chain_id, protocol_version, throttles, timestamp). Created at genesis with `chain_id` = `eip155:<contracts.chainId>` and `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation. |
+| `LOCAL_LEDGER_METADATA` | `ClprLocalLedgerMetadata` | Local metadata: generated ledger ID, roster hash used for current config, next short ledger ID. Exists in prototype.                                                                                                                                                                 |
 
 ### 2.3.2 Key-Value Stores
 
@@ -452,8 +452,8 @@ migration path:
 1. Schema `V0650ClprSchema` reads all existing prototype state.
 2. Existing `ClprLedgerId`-keyed entries are re-indexed under their corresponding `channel_id`.
 3. New state stores (`CHANNELS`, `CONNECTORS`, `CONNECTOR_INDEX`) are created empty.
-4. The `LEDGER_CONFIGURATION` singleton is created from `clpr.chainId` and `clpr.protocolVersion`
-   configuration properties. The `chain_id` and `protocol_version` are immutable after creation —
+4. The `LEDGER_CONFIGURATION` singleton is created with `chain_id` = `eip155:<contracts.chainId>` and
+   `protocol_version` from `clpr.protocolVersion`. The `chain_id` and `protocol_version` are immutable after creation —
    they can never be changed via `ClprUpdateLedgerConfiguration`.
    **Decision:** The prototype state structure was intentionally simplified for early development. The migration
    drops prototype-specific fields that do not map to the cross-platform spec (e.g., `next_ledger_short_id`
@@ -860,32 +860,38 @@ system (property files / dynamic config).
 
 **Hiero-specific properties** (no cross-platform equivalent):
 
-|               Property                |       Type        | Default |                                                    Description                                                     |
-|---------------------------------------|-------------------|---------|--------------------------------------------------------------------------------------------------------------------|
-| `clpr.enabled`                        | `boolean`         | `false` | Master enable switch. When false, CLPR transactions return `CLPR_NOT_ENABLED`; CLPR system contracts are inert.    |
-| `clpr.chainId`                        | `String`          | `""`    | CAIP-2 chain identifier. Set at genesis; immutable thereafter. Populates `ClprLedgerConfiguration.chain_id`.       |
-| `clpr.protocolVersion`                | `int`             | `1`     | CLPR protocol version. Set at genesis; immutable thereafter. Populates `ClprLedgerConfiguration.protocol_version`. |
-| `clpr.defaultSyncsPerSec`             | `int`             | `1`     | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known.                      |
-| `clpr.endpointPort`                   | `int`             | `50212` | Port for the `ClprEndpointService` gRPC server.                                                                    |
-| `clpr.maxBundlesPerSec`               | `int`             | `100`   | Total bundle submission capacity per second. Divided among registered endpoints.                                   |
-| `clpr.minConnectorStake`              | `long` (tinybars) | TBD     | Minimum Connector stake requirement.                                                                               |
-| `clpr.minConnectorBalance`            | `long` (tinybars) | TBD     | Minimum Connector initial balance.                                                                                 |
-| `clpr.connectorQueueQuotaPct`         | `int`             | `50`    | Maximum percentage of queue depth a single Connector can occupy.                                                   |
-| `clpr.queueFeeEscalationThresholdPct` | `int`             | `75`    | Queue fill percentage at which fee escalation begins.                                                              |
-| `clpr.slashBaseAmount`                | `long` (tinybars) | TBD     | Base slash amount for first offense.                                                                               |
-| `clpr.slashEscalationMultiplier`      | `double`          | `2.0`   | Multiplier applied to slash amount for each subsequent offense.                                                    |
-| `clpr.slashBanThreshold`              | `int`             | `3`     | Number of slashes before a Connector is banned.                                                                    |
+|               Property                |       Type        |                  Default                   |                                                    Description                                                     |
+|---------------------------------------|-------------------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| `clpr.enabled`                        | `boolean`         | `false`                                    | Master enable switch. When false, CLPR transactions return `CLPR_NOT_ENABLED`; CLPR system contracts are inert.    |
+| `clpr.protocolVersion`                | `int`             | `1`                                        | CLPR protocol version. Set at genesis; immutable thereafter. Populates `ClprLedgerConfiguration.protocol_version`. |
+| `clpr.ledgerConfigurationFile`        | `String`          | `data/config/clprLedgerConfiguration.json` | Node-local file whose throttles seed `ClprLedgerConfiguration.throttles` at genesis.                               |
+| `clpr.upgradeLedgerConfigurationFile` | `String`          | `clprLedgerConfiguration.json`             | File in `networkAdmin.upgradeSysFilesLoc` whose throttles are applied at each upgrade.                             |
+| `clpr.defaultSyncsPerSec`             | `int`             | `1`                                        | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known.                      |
+| `clpr.endpointPort`                   | `int`             | `50212`                                    | Port for the `ClprEndpointService` gRPC server.                                                                    |
+| `clpr.maxBundlesPerSec`               | `int`             | `100`                                      | Total bundle submission capacity per second. Divided among registered endpoints.                                   |
+| `clpr.minConnectorStake`              | `long` (tinybars) | TBD                                        | Minimum Connector stake requirement.                                                                               |
+| `clpr.minConnectorBalance`            | `long` (tinybars) | TBD                                        | Minimum Connector initial balance.                                                                                 |
+| `clpr.connectorQueueQuotaPct`         | `int`             | `50`                                       | Maximum percentage of queue depth a single Connector can occupy.                                                   |
+| `clpr.queueFeeEscalationThresholdPct` | `int`             | `75`                                       | Queue fill percentage at which fee escalation begins.                                                              |
+| `clpr.slashBaseAmount`                | `long` (tinybars) | TBD                                        | Base slash amount for first offense.                                                                               |
+| `clpr.slashEscalationMultiplier`      | `double`          | `2.0`                                      | Multiplier applied to slash amount for each subsequent offense.                                                    |
+| `clpr.slashBanThreshold`              | `int`             | `3`                                        | Number of slashes before a Connector is banned.                                                                    |
 
 **Hiero defaults for cross-platform parameters** (spec §7):
 
-|           Property            |  Type  | Hiero Default |       Spec Parameter        |
-|-------------------------------|--------|---------------|-----------------------------|
-| `clpr.maxQueueDepth`          | `int`  | `10000`       | `max_queue_depth`           |
-| `clpr.maxMessagePayloadBytes` | `int`  | `16384`       | `max_message_payload_bytes` |
-| `clpr.maxMessagesPerBundle`   | `int`  | `100`         | `max_messages_per_bundle`   |
-| `clpr.maxGasPerMessage`       | `long` | `1000000`     | `max_gas_per_message`       |
-| `clpr.maxSyncsPerSec`         | `int`  | `2`           | `max_syncs_per_sec`         |
-| `clpr.maxSyncBytes`           | `long` | `4194304`     | `max_sync_bytes`            |
+The throttles are not configuration properties. They are seeded at genesis from a `ClprLedgerConfiguration`
+file in protobuf JSON that may set only `throttles` (`clpr.ledgerConfigurationFile`, falling back to the bundled
+classpath resource `clpr/clprLedgerConfiguration.json`), and a changed copy of the file in
+`networkAdmin.upgradeSysFilesLoc` is applied at upgrade with a synthetic `ClprUpdateLedgerConfiguration`, the same
+way `throttles.json` is applied. The bundled defaults are:
+
+|       Spec Parameter        |                      Hiero Default                      |
+|-----------------------------|---------------------------------------------------------|
+| `max_queue_depth`           | `10000`                                                 |
+| `max_message_payload_bytes` | `65536`                                                 |
+| `max_messages_per_bundle`   | `1000`                                                  |
+| `max_gas_per_message`       | `15000000` (capped at `contracts.maxGasPerTransaction`) |
+| `max_sync_bytes`            | `4194304`                                               |
 
 ## 9.2 Relationship Between Config and State
 
@@ -895,8 +901,9 @@ system (property files / dynamic config).
   chain identity. These are the parameters that peers see and enforce.
 
 Some parameters appear in both (e.g., `maxQueueDepth`, `maxMessagePayloadBytes`). The on-ledger values are
-authoritative for cross-ledger purposes. The `chain_id` and `protocol_version` are set at genesis from
-`clpr.chainId` and `clpr.protocolVersion` configuration properties and are immutable thereafter. The mutable
+authoritative for cross-ledger purposes. The `chain_id` and `protocol_version` are set at genesis — `chain_id` is
+the CAIP-2 ID `eip155:<contracts.chainId>` (the HIP-26 EVM chain ID), `protocol_version` is `clpr.protocolVersion` —
+and are immutable thereafter. The mutable
 fields (throttles, endpoints) can be updated via `ClprUpdateLedgerConfiguration`. `service_address` is fixed to
 the CLPR system contract address (the value this ledger's endpoint manifest carries, which peers verify it
 against); an update may restate it or omit it, and any other value is rejected.

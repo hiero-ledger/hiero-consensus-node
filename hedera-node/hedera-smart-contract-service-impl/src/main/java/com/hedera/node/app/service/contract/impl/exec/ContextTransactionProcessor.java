@@ -65,6 +65,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final HevmTransactionFactory hevmTransactionFactory;
     private final CustomGasCharging gasCharging;
     private final ContractMetrics contractMetrics;
+    private final StorageAccountingScope storageAccountingScope;
 
     /**
      * @param hydratedEthTxData the hydrated Ethereum transaction data
@@ -78,6 +79,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
      * @param hevmTransactionFactory the factory for EVM transaction
      * @param processor a map from the version of the Hedera EVM to the transaction processor
      * @param customGasCharging the Hedera gas charging logic
+     * @param storageAccountingScope the storage accounting scope of this execution
      */
     @Inject
     public ContextTransactionProcessor(
@@ -92,7 +94,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
             @NonNull final TransactionProcessor processor,
             @NonNull final CustomGasCharging customGasCharging,
-            @NonNull final ContractMetrics contractMetrics) {
+            @NonNull final ContractMetrics contractMetrics,
+            @NonNull final StorageAccountingScope storageAccountingScope) {
         this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
@@ -105,10 +108,20 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
         this.gasCharging = requireNonNull(customGasCharging);
         this.contractMetrics = requireNonNull(contractMetrics);
+        this.storageAccountingScope = requireNonNull(storageAccountingScope);
     }
 
     @Override
     public CallOutcome call() {
+        storageAccountingScope.open();
+        try {
+            return doCall();
+        } finally {
+            storageAccountingScope.close();
+        }
+    }
+
+    private CallOutcome doCall() {
         // ONLY USED FOR METRICS: Measure the actual execution time.
         final var startTimeNanos = System.nanoTime();
 

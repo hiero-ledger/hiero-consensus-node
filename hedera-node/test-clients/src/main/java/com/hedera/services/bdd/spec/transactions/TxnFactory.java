@@ -17,6 +17,7 @@ import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCompleteChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprCompleteConnectorTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprDeregisterConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprEvictPeerEndpointTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprRegisterChannelTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprRegisterConnectorTransactionBody;
 import com.hederahashgraph.api.proto.java.ClprSubmitBundleTransactionBody;
@@ -351,6 +352,10 @@ public class TxnFactory {
     }
 
     public Consumer<ClprCloseChannelTransactionBody.Builder> defaultDefClprCloseChannelTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprEvictPeerEndpointTransactionBody.Builder> defaultDefClprEvictPeerEndpointTransactionBody() {
         return builder -> {};
     }
 

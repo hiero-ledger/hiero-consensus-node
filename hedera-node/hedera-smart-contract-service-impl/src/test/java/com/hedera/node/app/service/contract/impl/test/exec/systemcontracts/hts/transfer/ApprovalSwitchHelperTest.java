@@ -19,10 +19,12 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.key.RequirementVerifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.function.Predicate;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -31,33 +33,39 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ApprovalSwitchHelperTest {
     @Mock
-    private Predicate<Key> signatureTest;
+    private RequirementVerifier signatureTest;
 
     @Mock
     private HederaNativeOperations nativeOperations;
 
     @Test
     void switchesOnlyUnauthorizedDebitsToApprovals() {
-        given(nativeOperations.getAccountKey(OWNER_ID)).willReturn(AN_ED25519_KEY);
-        given(nativeOperations.getAccountKey(APPROVED_ID)).willReturn(B_SECP256K1_KEY);
+        given(nativeOperations.getAccount(OWNER_ID)).willReturn(account(OWNER_ID, AN_ED25519_KEY));
+        given(nativeOperations.getAccount(APPROVED_ID)).willReturn(account(APPROVED_ID, B_SECP256K1_KEY));
 
-        given(signatureTest.test(AN_ED25519_KEY)).willReturn(true);
-        given(signatureTest.test(B_SECP256K1_KEY)).willReturn(false);
+        given(signatureTest.test(KeyRequirement.forAccount(OWNER_ID, AN_ED25519_KEY)))
+                .willReturn(true);
+        given(signatureTest.test(KeyRequirement.forAccount(APPROVED_ID, B_SECP256K1_KEY)))
+                .willReturn(false);
 
-        final var output = APPROVAL_SWITCH_HELPER.switchToApprovalsAsNeededIn(
-                inputTransfer(), signatureTest, nativeOperations, AccountID.DEFAULT);
+        final var output =
+                APPROVAL_SWITCH_HELPER.switchToApprovalsAsNeededIn(inputTransfer(), signatureTest, nativeOperations);
 
         assertEquals(revisedTransfer(), output);
     }
 
     @Test
-    void doesNotSwitchSenderDebitsToApprovals() {
-        given(nativeOperations.getAccountKey(APPROVED_ID)).willReturn(B_SECP256K1_KEY);
+    void sharedKeyDoesNotAuthorizeOtherAccountDebits() {
+        given(nativeOperations.getAccount(OWNER_ID)).willReturn(account(OWNER_ID, B_SECP256K1_KEY));
+        given(signatureTest.test(KeyRequirement.forAccount(OWNER_ID, B_SECP256K1_KEY)))
+                .willReturn(true);
+        given(nativeOperations.getAccount(APPROVED_ID)).willReturn(account(APPROVED_ID, B_SECP256K1_KEY));
 
-        given(signatureTest.test(B_SECP256K1_KEY)).willReturn(false);
+        given(signatureTest.test(KeyRequirement.forAccount(APPROVED_ID, B_SECP256K1_KEY)))
+                .willReturn(false);
 
-        final var output = APPROVAL_SWITCH_HELPER.switchToApprovalsAsNeededIn(
-                inputTransfer(), signatureTest, nativeOperations, OWNER_ID);
+        final var output =
+                APPROVAL_SWITCH_HELPER.switchToApprovalsAsNeededIn(inputTransfer(), signatureTest, nativeOperations);
 
         assertEquals(revisedTransfer(), output);
     }
@@ -65,8 +73,12 @@ class ApprovalSwitchHelperTest {
     @Test
     void okToHaveEmptyTransfers() {
         final var output = APPROVAL_SWITCH_HELPER.switchToApprovalsAsNeededIn(
-                CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, AccountID.DEFAULT);
+                CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations);
         assertEquals(CryptoTransferTransactionBody.DEFAULT, output);
+    }
+
+    private static Account account(final AccountID id, final Key key) {
+        return Account.newBuilder().accountId(id).key(key).build();
     }
 
     private CryptoTransferTransactionBody inputTransfer() {

@@ -186,7 +186,7 @@ class FalconMiniIntakeEquivalenceTest {
      * @return the events in the order they are delivered
      */
     @NonNull
-    private static List<PlatformEvent> shuffledDeliveries(
+    static List<PlatformEvent> shuffledDeliveries(
             @NonNull final List<PlatformEvent> events,
             final int maxDisplacement,
             final double eventsPerRound,

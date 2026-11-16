@@ -29,6 +29,7 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
 
     // This class may be used in a multithreaded context, so we use volatile to ensure visibility of state changes
     private volatile long startIndex = 0;
+    private volatile boolean cleared = false;
 
     /**
      * Creates a new instance of {@link SingleNodeLogResultImpl}.
@@ -154,5 +155,14 @@ public class SingleNodeLogResultImpl implements SingleNodeLogResult {
     @Override
     public void clear() {
         startIndex = collector.currentLogEntriesCount();
+        cleared = true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isCleared() {
+        return cleared;
     }
 }
