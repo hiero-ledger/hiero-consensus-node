@@ -85,9 +85,9 @@ transaction, if within the window during which such a reversal is possible.
 The treasury and system admin can submit `ClprUpdateLedgerConfiguration`,
 `ClprCloseChannel`, and `ClprEvictPeerEndpoint`. To delegate ledger configuration
 updates, set the network property `accounts.clprAdmin` to the positive number of an existing
-account on the network. The default value of `-1` disables the role. Previewnet
-sets `accounts.clprAdmin=601`, authorizing `0.0.601` to sign and pay for
-`ClprUpdateLedgerConfiguration` transactions. Set `accounts.clprAdmin=-1` in the
+account on the network. On Previewnet, `accounts.clprAdmin=601` authorizes
+`0.0.601` to sign and pay for `ClprUpdateLedgerConfiguration` transactions.
+The default value of `-1` disables the role. Set `accounts.clprAdmin=-1` in the
 network properties file (`0.0.121`) to revoke the delegation.
 
 ### Authorization privileges for file updates and appends
