@@ -1151,6 +1151,158 @@ class ClprSubmitBundleHandlerTest {
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isEqualTo(queued);
     }
 
+    @ParameterizedTest
+    @CsvSource({"1", "2", "3", "4", "5", "6", "7"})
+    void loweredQueueLimitStillDrainsPeerDataAheadOfReplies(final int bundleSize) {
+        // A had credit 5 and sent DATA 1..4 before governance lowered new-send credit to 2.
+        // B legitimately queued three DATA before learning of the reduction, then replies R1..R4.
+        putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 5, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
+        for (int id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        final var reducedConfig = createLedgerConfig()
+                .copyBuilder()
+                .maxQueueDepthHighWater(5)
+                .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(2))
+                .build();
+        final var peerMessages = List.of(
+                dataPayload(),
+                dataPayload(),
+                dataPayload(),
+                replyPayload(1),
+                replyPayload(2),
+                replyPayload(3),
+                replyPayload(4));
+        int received = 0;
+        while (received < peerMessages.size()) {
+            final var channel = channelStore.getChannel(CHANNEL_ID);
+            final int end = Math.min(received + bundleSize, peerMessages.size());
+            setupHandleContext(
+                    buildBundle(
+                            ClprChannelStatus.ACTIVE,
+                            received,
+                            4,
+                            channel.receivedRunningHash(),
+                            peerMessages.subList(received, end)),
+                    true);
+            given(configStore.getConfiguration()).willReturn(reducedConfig);
+
+            subject.handle(handleContext);
+
+            final var updated = channelStore.getChannel(CHANNEL_ID);
+            assertThat(updated.receivedMessageId()).isEqualTo(end);
+            assertThat(updated.nextMessageId() - updated.ackedMessageId() - 1).isLessThanOrEqualTo(10);
+            assertThat(updated.lastConfigTimestamp()).isEqualTo(CONFIG_TIMESTAMP);
+            received = end;
+        }
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.ackedMessageId()).isEqualTo(4);
+        assertThat(channel.receivedRunningHash()).isEqualTo(runningHashOver(ZERO_HASH, peerMessages));
+        final var advertised = messageQueueStore
+                .getMessage(CHANNEL_ID, 5)
+                .payloadOrThrow()
+                .controlOrThrow()
+                .configUpdateOrThrow()
+                .configurationOrThrow();
+        assertThat(advertised.throttlesOrThrow().maxQueueDepth()).isEqualTo(2);
+        // Local reserve bookkeeping must not change the peer's hash-chained wire schema.
+        assertThat(advertised.maxQueueDepthHighWater()).isZero();
+
+        // B can now receive and ACK A's config and replies, so both queues drain.
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE,
+                        received,
+                        channel.nextMessageId() - 1,
+                        channel.receivedRunningHash(),
+                        List.of()),
+                true);
+        given(configStore.getConfiguration()).willReturn(reducedConfig);
+        subject.handle(handleContext);
+        assertThat(writableMessages.size()).isZero();
+    }
+
+    @Test
+    void historicalReplyCreditRemainsFiniteForPeerExceedingItsAdvertisedCredit() {
+        putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 5, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
+        for (int id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE,
+                        0,
+                        4,
+                        ZERO_HASH,
+                        List.of(
+                                dataPayload(),
+                                dataPayload(),
+                                dataPayload(),
+                                dataPayload(),
+                                dataPayload(),
+                                dataPayload())),
+                true);
+        given(configStore.getConfiguration())
+                .willReturn(createLedgerConfig()
+                        .copyBuilder()
+                        .maxQueueDepthHighWater(5)
+                        .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(2))
+                        .build());
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.receivedMessageId()).isEqualTo(5);
+        assertThat(updated.nextMessageId() - updated.ackedMessageId() - 1).isEqualTo(10);
+        assertThat(writableMessages.size()).isEqualTo(10);
+    }
+
+    @Test
+    void queueAboveTwiceReducedLimitStillAcceptsOneWayAck() {
+        // Five outstanding slots after the ACK exceed the reduced total capacity of four.
+        putChannel(ClprChannelStatus.ACTIVE, 7, 0, ZERO_HASH);
+        for (int id = 1; id <= 6; id++) {
+            putOutboundSlot(id, replyPayload(id));
+        }
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(dataPayload())), true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.ackedMessageId()).isEqualTo(1);
+        assertThat(channel.receivedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        assertThat(writableMessages.size()).isEqualTo(5);
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+    }
+
+    @Test
+    void deferredReplyKeepsOneWaySlotsPastTheAcceptedAck() {
+        putChannel(ClprChannelStatus.ACTIVE, 3, 0, ZERO_HASH);
+        putOutboundDataMessage(1);
+        putOutboundSlot(2, replyPayload(9));
+        putConnector();
+        // The peer has received both slots, but its reply to DATA 1 is deferred behind a third DATA.
+        setupHandleContext(
+                buildBundle(
+                        ClprChannelStatus.ACTIVE,
+                        0,
+                        2,
+                        ZERO_HASH,
+                        List.of(dataPayload(), dataPayload(), dataPayload(), replyPayload(1))),
+                true);
+        setQueueDepth(2);
+
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.receivedMessageId()).isEqualTo(2);
+        assertThat(channel.ackedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 2)).isNotNull();
+    }
+
     private void setQueueDepth(final int maxQueueDepth) {
         given(configStore.getConfiguration())
                 .willReturn(createLedgerConfig()
@@ -3083,9 +3235,15 @@ class ClprSubmitBundleHandlerTest {
         final var bundle = buildBundle(
                 ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), configPayload, dataPayload()));
         setupHandleContext(bundle, true);
+        final var callbackConfigTimestamps = new java.util.ArrayList<Timestamp>();
+        given(handleContext.dispatch(any(DispatchOptions.class))).willAnswer(ignored -> {
+            callbackConfigTimestamps.add(channelStore.getChannel(CHANNEL_ID).peerConfigTimestamp());
+            return dispatchResult;
+        });
 
         subject.handle(handleContext);
 
+        assertThat(callbackConfigTimestamps.get(1)).isEqualTo(newTimestamp);
         // After the bundle, peerConfigTimestamp must reflect C2's timestamp
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated.peerConfigTimestamp()).isEqualTo(newTimestamp);

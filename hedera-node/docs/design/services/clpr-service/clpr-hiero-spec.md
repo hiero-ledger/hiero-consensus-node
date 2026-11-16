@@ -267,28 +267,56 @@ See [`verifier.md`](verifier.md) for the full verifier dispatch flow.
 
 Hiero implements lazy config propagation per spec §1.3 / §4.3 step 1a.
 
-**Mechanism (in `ClprServiceApiImpl.sendMessage`, lines 124–141):**
+**On a local send:** compare the channel's `lastConfigTimestamp` with the local
+`ClprLedgerConfiguration.timestamp`. When stale, prepend a `ClprControlMessage.configUpdate`
+before DATA and reserve its slot in the ordinary send limit. The resulting outstanding
+queue must stay below the current local `max_queue_depth`, and within the peer's most
+recently advertised DATA credit.
 
-1. Read the channel's `lastConfigTimestamp`.
-2. Read the singleton `ClprLedgerConfiguration.timestamp`.
-3. If the channel's timestamp is older than the singleton's, **prepend a
-   `ClprControlMessage.configUpdate` to the queue** at `nextMessageId` before the
-   caller's data message.
-4. To guarantee the prepend fits, `sendMessage` reserves an extra slot: the
-   `max_queue_depth` check treats current depth + 2 as the threshold (one for the
-   config update, one for the data message) when a config prepend is needed.
+**On an inbound bundle:** after selecting the accepted prefix and its acknowledgement,
+enqueue a stale configuration if the outstanding queue uses less than the historical
+ordinary budget `H`. Its other `H` slots remain reserved for application replies. This
+lets a lowered limit be advertised even when outstanding DATA fills the new, smaller
+ordinary limit. A completely full ordinary budget can defer the update until traffic
+drains; it cannot revoke the reply credit needed to make that progress.
 
-**Mirrored on inbound:** `ClprSubmitBundleHandler` (lines 280–293) applies any
-`ConfigUpdate` control messages before processing data messages in the same bundle,
-updating `peerConfigTimestamp` mid-iteration. See drift review C?-9 for discussion of
-ordering semantics within a bundle.
+`H` is `max(max_queue_depth_high_water, throttles.max_queue_depth)` from the **local**
+configuration singleton. Genesis initializes the high-water field, and local configuration
+updates—including synthetic upgrade-file updates—retain the maximum of the prior reserve
+and the newly configured limit. Supplied or peer high-water values cannot inflate it.
+The local bookkeeping field is cleared before enqueuing a `ConfigUpdate`, preserving the
+peer's hash-chained message encoding. Lowering a limit restricts new local DATA sends but
+does not shrink the historical reserve; every channel's outbound depth remains bounded
+by `2 * H`. An acknowledgement of a configuration update alone cannot retire old credit:
+the peer can acknowledge it while DATA admitted under its previous view is still queued.
 
-**Why lazy rather than eager:** sending a config update on every ledger configuration
-change would require enqueuing one control message per active channel — O(channels)
-writes in `updateLedgerConfiguration`. Lazy propagation defers that cost to the next
-actual send, which may never happen on an idle channel.
+The configuration singleton's state proof still contains the high-water field. Peers using
+strict configuration parsing must upgrade their protobuf schema before verifying new-channel
+configuration proofs from this ledger. Clearing the field from `ConfigUpdate` protects the
+encoding for existing channels; it does not remove this new-channel schema coordination.
 
----
+Peers must not enqueue new DATA beyond the latest advertised outstanding-DATA credit.
+Already queued DATA may exceed a subsequently lowered limit and is allowed to drain.
+A peer that disregards advertised credit has no liveness guarantee; force-close provides
+administrative recovery. Legacy configurations with a zero high-water field use their
+current limit, and the first local update captures that limit even if no channel has yet
+been used. This does not reconstruct limits advertised before capacity tracking existed;
+operators must drain such legacy traffic before lowering an unrecorded historical limit.
+
+An inbound bundle accepts the longest prefix whose generated replies fit the reserve.
+Its received ID/hash and outbound DATA acknowledgement advance only through that prefix.
+One-way acknowledgements and independently proved anchor/manifest/status progress can
+advance even when no DATA fits. These queue-dependent decisions remain consensus-only,
+preserving the stale-state-safe admission checks from #27988: a relay can still pay a
+transaction fee when its bundle is rejected as full/no-progress at consensus.
+
+Accepted inbound `ConfigUpdate` messages update both local loop variables and the channel
+store before later callbacks, so nested `sendMessage` calls see the new peer limits.
+The pre-existing completion-time config propagation behavior is unchanged; retaining the
+local historical reserve also covers a peer using an older configuration proved before
+channel completion.
+
+Lazy publication avoids an O(channels) rewrite on each configuration change.
 
 ## E-10. Application execution gas and endpoint compensation
 

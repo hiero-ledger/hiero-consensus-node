@@ -380,7 +380,11 @@ class ClprServiceApiImplTest {
         final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 5, 3, staleTimestamp);
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
-        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100));
+        given(configStore.getConfiguration())
+                .willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100)
+                        .copyBuilder()
+                        .maxQueueDepthHighWater(500)
+                        .build());
         given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
                 .willReturn(connector);
 
@@ -391,7 +395,16 @@ class ClprServiceApiImplTest {
 
         // Two messages stored: config update at 5, data message at 6
         verify(messageQueueStore, times(2)).put(eq(CHANNEL_ID), any(Long.class), any(ClprMessageValue.class));
-        verify(messageQueueStore).put(eq(CHANNEL_ID), eq(5L), any(ClprMessageValue.class));
+        final var messageCaptor = ArgumentCaptor.forClass(ClprMessageValue.class);
+        verify(messageQueueStore).put(eq(CHANNEL_ID), eq(5L), messageCaptor.capture());
+        final var advertised = messageCaptor
+                .getValue()
+                .payloadOrThrow()
+                .controlOrThrow()
+                .configUpdateOrThrow()
+                .configurationOrThrow();
+        assertThat(advertised.maxQueueDepthHighWater()).isZero();
+        assertThat(advertised.throttlesOrThrow().maxQueueDepth()).isEqualTo(100);
         verify(messageQueueStore).put(eq(CHANNEL_ID), eq(6L), any(ClprMessageValue.class));
 
         // Channel updated with nextMessageId = 7, and lastConfigTimestamp updated

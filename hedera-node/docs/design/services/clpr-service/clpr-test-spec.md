@@ -332,7 +332,8 @@ require multi-network infrastructure.
 - Connector must be registered and authorized. The CLPR Service calls `authorizeMessage()` on the
   Connector's authorization contract. If the Connector rejects, the message is not enqueued.
 - Payload size must not exceed the destination's `max_message_payload_bytes`.
-- Queue depth must not exceed `max_queue_depth`.
+- New DATA must keep total outstanding depth below the current local `max_queue_depth`
+  and within the peer's most recently advertised outstanding-DATA credit.
 - Message is assigned `next_message_id`; the counter increments.
 - Running hash is updated: `SHA-256(sent_running_hash || serialized_payload)`.
 - The `sender` field is stamped from the transaction caller (not caller-supplied).
@@ -355,9 +356,22 @@ require multi-network infrastructure.
 
 ### 3.4.4 Queue Depth Enforcement
 
-- When the queue reaches `max_queue_depth`, new sendMessage calls are rejected.
-- When the peer acknowledges messages (advancing `acked_message_id`), queue space opens and sendMessage
-  succeeds again.
+- Locally initiated DATA (including any prepended config update) must leave the queue at
+  `max_queue_depth - 1` slots or fewer and obey the peer's current DATA credit.
+- Each channel also reserves replies using the local historical maximum `H`, persisted as
+  `max_queue_depth_high_water`. Total outbound depth must remain at most `2 * H`.
+- A lowered `max_queue_depth` restricts new sends without revoking reply credit for earlier traffic.
+  Test a reduction from 5 to 2 with four local DATA outstanding and peer traffic
+  `[DATA, DATA, DATA, REPLY1, REPLY2, REPLY3, REPLY4]`: bundle sizes 1–7 must progress and drain.
+- Test updates before any channel interaction, legacy zero high-water, repeated reductions,
+  increases, ignored supplied high-water values, and genesis/upgrade-file initialization.
+- Bundle backpressure accepts the longest fitting prefix, advances its received hash/ID and
+  acknowledgement consistently, and leaves later one-way slots queued. ACK-only/state-only
+  progress still works when depth exceeds a newly lowered limit.
+- A peer exceeding its advertised credit must not grow the queue beyond `2 * H`.
+- When the peer acknowledges messages (advancing `acked_message_id`), queue space opens and
+  sendMessage succeeds again. Queue checks occur at consensus, so rejected relay submissions
+  may still pay transaction fees.
 
 ## 3.5 Bundle Verification (`submitBundle`)
 

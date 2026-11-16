@@ -33,6 +33,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -363,6 +364,36 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         assertThat(captor.getValue().initialTrustAnchor()).isEqualTo(Bytes.EMPTY);
         assertThat(captor.getValue().initialTrustAnchorId()).isEqualTo(Bytes.EMPTY);
         org.mockito.Mockito.verify(handleContext, org.mockito.Mockito.never()).ledgerId();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"0,5,2,999,5", "8,5,2,0,8", "5,5,9,1,9"})
+    void preservesHistoricalReplyCreditBeforeAnyChannelInteraction(
+            final int priorHighWater,
+            final int priorLimit,
+            final int nextLimit,
+            final int suppliedHighWater,
+            final int expectedHighWater) {
+        final var configuration =
+                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig();
+        setupHandleContext(configuration);
+        given(configStore.getConfiguration())
+                .willReturn(validConfigBuilder()
+                        .maxQueueDepthHighWater(priorHighWater)
+                        .throttles(validThrottlesBuilder().maxQueueDepth(priorLimit))
+                        .build());
+        given(handleContext.body())
+                .willReturn(txnBodyWith(validConfigBuilder()
+                        .maxQueueDepthHighWater(suppliedHighWater)
+                        .throttles(validThrottlesBuilder().maxQueueDepth(nextLimit))
+                        .build()));
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
+        verify(configStore).put(captor.capture());
+        assertThat(captor.getValue().maxQueueDepthHighWater()).isEqualTo(expectedHighWater);
+        assertThat(captor.getValue().throttlesOrThrow().maxQueueDepth()).isEqualTo(nextLimit);
     }
 
     // --- Helpers ---

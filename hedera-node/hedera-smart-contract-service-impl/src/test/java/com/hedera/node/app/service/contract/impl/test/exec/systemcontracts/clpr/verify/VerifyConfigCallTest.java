@@ -314,6 +314,8 @@ class VerifyConfigCallTest extends CallTestBase {
                 .chainId("295")
                 .serviceAddress(SERVICE_ADDR)
                 .initialTrustAnchor(TRUST_ANCHOR)
+                // Configuration proofs include local capacity accounting even though ConfigUpdate omits it.
+                .maxQueueDepthHighWater(5)
                 .build();
     }
 

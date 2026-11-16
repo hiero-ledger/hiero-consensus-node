@@ -90,7 +90,13 @@ class ClprLedgerConfigurationFileTest {
                 .throttles(CUSTOM_THROTTLES)
                 .build();
 
-        for (final var config : new ClprLedgerConfiguration[] {withChainId, withTimestamp, withProtocolVersion}) {
+        final var withHighWater = ClprLedgerConfiguration.newBuilder()
+                .maxQueueDepthHighWater(100_000)
+                .throttles(CUSTOM_THROTTLES)
+                .build();
+
+        for (final var config :
+                new ClprLedgerConfiguration[] {withChainId, withTimestamp, withProtocolVersion, withHighWater}) {
             assertThatThrownBy(() ->
                             ClprLedgerConfigurationFile.parse(streamOf(ClprLedgerConfiguration.JSON.toJSON(config))))
                     .isInstanceOf(IllegalArgumentException.class)

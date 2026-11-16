@@ -11,6 +11,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.advertisedConfiguration;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.replyQueueCapacity;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
@@ -318,10 +320,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 oldAckedMessageId,
                 peerReceivedMessageId,
                 validated.newMessages().size());
+        final int queueCapacity = replyQueueCapacity(ledgerConfig);
         final ReplyValidation replyValidation;
         try {
-            replyValidation =
-                    bundleValidator.validateReplies(channel, validated, messageQueueStore, throttles.maxQueueDepth());
+            replyValidation = bundleValidator.validateReplies(channel, validated, messageQueueStore, queueCapacity);
         } catch (final PreCheckException e) {
             // Ineffective acknowledgement progress, local corruption and queue backpressure incur no node penalty.
             if (e.responseCode() == CLPR_INTERNAL_STATE_CORRUPTION) {
@@ -408,17 +410,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // enqueue a new config via a control message.
         final var configTimestamp = ledgerConfig.timestamp();
         var lastConfigTimestamp = channel.lastConfigTimestamp();
-        final var outbound = new OutboundQueue(
-                messageQueueStore, channelStore, channelId, newAckedMessageId, 2L * throttles.maxQueueDepth());
-        // Leave the reserved reply space available even when a configuration update is due.
-        if (isTimestampBefore(lastConfigTimestamp, configTimestamp) && outbound.depth() < throttles.maxQueueDepth()) {
+        final var outbound =
+                new OutboundQueue(messageQueueStore, channelStore, channelId, newAckedMessageId, 2L * queueCapacity);
+        // Use the historical ordinary half so a lower current limit cannot indefinitely defer its
+        // own advertisement. The other half remains reserved for replies under prior advertised credit.
+        if (isTimestampBefore(lastConfigTimestamp, configTimestamp) && outbound.depth() < queueCapacity) {
             log.debug(
                     "[ClprSubmitBundle] enqueueing config update conn={} lastConfigTimestamp={} newConfigTimestamp={}",
                     channelId,
                     lastConfigTimestamp,
                     configTimestamp);
-            final var configUpdate =
-                    ClprConfigUpdate.newBuilder().configuration(ledgerConfig).build();
+            final var configUpdate = ClprConfigUpdate.newBuilder()
+                    .configuration(advertisedConfiguration(ledgerConfig))
+                    .build();
             final var controlMessage =
                     ClprControlMessage.newBuilder().configUpdate(configUpdate).build();
             outbound.enqueue(
@@ -504,6 +508,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         if (peerConfig.throttles() != null) {
                             peerThrottles = peerConfig.throttles();
                         }
+                        // Subsequent nested sends must see the config already accepted in this prefix.
+                        channelStore.put(requireNonNull(channelStore.getChannel(channelId))
+                                .copyBuilder()
+                                .peerConfigTimestamp(peerConfigTimestamp)
+                                .peerThrottles(peerThrottles)
+                                .build());
                     }
                 } else if (payload.hasMessage()) {
                     // We must be ACTIVE, CLOSING, or DRAINED (CLOSED channels are rejected at the top of the

@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_QUOTA_EXCEEDED;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.advertisedConfiguration;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
@@ -193,8 +194,9 @@ public class ClprServiceApiImpl implements ClprServiceApi {
 
         // Step 2 (continued): If config is stale, enqueue a ConfigUpdate control message
         if (configIsStale) {
-            final var configUpdate =
-                    ClprConfigUpdate.newBuilder().configuration(ledgerConfig).build();
+            final var configUpdate = ClprConfigUpdate.newBuilder()
+                    .configuration(advertisedConfiguration(ledgerConfig))
+                    .build();
             final var controlMessage =
                     ClprControlMessage.newBuilder().configUpdate(configUpdate).build();
             final var controlPayload =

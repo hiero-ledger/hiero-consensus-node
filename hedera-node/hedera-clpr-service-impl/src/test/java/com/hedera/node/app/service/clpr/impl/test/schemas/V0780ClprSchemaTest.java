@@ -94,6 +94,7 @@ class V0780ClprSchemaTest {
             assertThat(throttles.maxMessagesPerBundle()).isEqualTo(1000);
             assertThat(throttles.maxGasPerMessage()).isEqualTo(15_000_000L);
             assertThat(throttles.maxQueueDepth()).isEqualTo(10_000);
+            assertThat(ledgerConfig.maxQueueDepthHighWater()).isEqualTo(10_000);
             assertThat(throttles.maxMessagePayloadBytes()).isEqualTo(65_536);
             assertThat(throttles.maxSyncBytes()).isEqualTo(4_194_304L);
         }));
@@ -125,6 +126,7 @@ class V0780ClprSchemaTest {
 
         verify(configurationState).put(org.mockito.ArgumentMatchers.assertArg(ledgerConfig -> {
             assertThat(ledgerConfig.chainId()).isEqualTo("eip155:299");
+            assertThat(ledgerConfig.maxQueueDepthHighWater()).isEqualTo(20_000);
             assertThat(ledgerConfig.throttlesOrThrow())
                     .isEqualTo(ClprThrottles.newBuilder()
                             .maxMessagesPerBundle(500)

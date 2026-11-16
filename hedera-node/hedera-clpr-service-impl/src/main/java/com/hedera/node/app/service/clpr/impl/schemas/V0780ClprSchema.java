@@ -167,12 +167,14 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                     Timestamp.newBuilder().seconds(1L).build();
             // The trust anchor fields remain unset until the history ledger ID is established.
             // The first configuration update after that point populates them from consensus state.
+            final var initialThrottles = ClprLedgerConfigurationFile.initialThrottles(configuration);
             final var initialConfig = ClprLedgerConfiguration.newBuilder()
                     .chainId(chainId)
                     .protocolVersion(clprConfig.protocolVersion())
                     .serviceAddress(CLPR_SERVICE_ADDRESS)
                     .timestamp(initializationTimestamp)
-                    .throttles(ClprLedgerConfigurationFile.initialThrottles(configuration))
+                    .throttles(initialThrottles)
+                    .maxQueueDepthHighWater(initialThrottles.maxQueueDepth())
                     .build();
             ledgerConfigurationState.put(initialConfig);
             initialized = true;
