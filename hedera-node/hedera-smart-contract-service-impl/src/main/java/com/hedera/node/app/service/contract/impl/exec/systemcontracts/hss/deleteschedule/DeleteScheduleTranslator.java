@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.deleteschedule;
 
+import static com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy.withAdditionalPrimitiveStrategy;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -13,8 +14,8 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.gas.DispatchType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
-import com.hedera.node.app.service.contract.impl.exec.scope.EitherOrVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.SpecificCryptoVerificationStrategy;
+import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.DispatchForResponseCodeHssCall;
@@ -161,8 +162,8 @@ public class DeleteScheduleTranslator extends AbstractCallTranslator<HssCallAtte
      * @return the custom verification strategy
      */
     @NonNull
-    private static EitherOrVerificationStrategy getCustomVerificationStrat(@NonNull HssCallAttempt attempt) {
-        return new EitherOrVerificationStrategy(
+    private static VerificationStrategy getCustomVerificationStrat(@NonNull HssCallAttempt attempt) {
+        return withAdditionalPrimitiveStrategy(
                 attempt.defaultVerificationStrategy(),
                 new SpecificCryptoVerificationStrategy(
                         attempt.redirectScheduleTxn().adminKeyOrElse(Key.DEFAULT)));

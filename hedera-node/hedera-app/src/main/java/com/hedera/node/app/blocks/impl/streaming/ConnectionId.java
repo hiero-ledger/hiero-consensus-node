@@ -34,7 +34,12 @@ public class ConnectionId {
         /**
          * Denotes a connection that intends to query server information from a block node.
          */
-        SERVER_STATUS("SVC"); // block node SerViCe
+        SERVER_STATUS("SVC"), // block node SerViCe
+        /**
+         * Denotes a connection that intends to request block acknowledgements from the block node. This type of
+         * connection WILL NOT stream blocks.
+         */
+        ACK_OBSERVING("OBS"); // acknowledgement OBServing
 
         private final String key;
 

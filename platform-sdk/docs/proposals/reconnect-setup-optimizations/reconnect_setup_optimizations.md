@@ -64,35 +64,57 @@ run one after the other.
 
 ### Idea
 
-Add `VirtualDataSourceBuilder.copy(VirtualDataSource source, String label, boolean compactionEnabled, boolean
-offlineUse)`. Its default implementation is today's `snapshot()` + `build()`, so other data source implementations
-keep working. `MerkleDbDataSourceBuilder` overrides it. With the pipeline and compaction paused, as for a snapshot
-today:
+Add `VirtualDataSourceBuilder.copy(VirtualDataSource source, boolean compactionEnabled)`, next to
+`VirtualDataSourceBuilder.snapshot()`. `VirtualMap` calls it inside the pipeline pause and gets a complete data source
+copy back, for the teacher, for the learner, and for `createSnapshot()`. Nothing is restored from a snapshot anymore.
+The MerkleDB builder creates a new temp dir for the copy and calls `MerkleDbDataSource.copy(Path storageDir, boolean
+compactionEnabled)`. `VirtualDataSource` gets no copy method: data sources are only copied through their builder.
 
-1. Flush the hash chunk cache, as `snapshot()` does.
-2. Hard-link the completed data files of the three stores into the copy's directory, once.
-3. Copy the three `LongListSegment` indexes in memory: allocate a new chunk for each non-null source chunk, and
-   `MemorySegment.copy()` into it. Chunks are independent, so the copy runs in parallel. The parallel long list
-   writes in [#26557](https://github.com/hiero-ledger/hiero-consensus-node/pull/26557) already split a list into
-   balanced, contiguous chunk ranges, one per writer task. The copy can use the same split, executor and thread
-   count setting.
-4. Build the new `MerkleDbDataSource` from these pieces, instead of loading files. Create its readers with the
-   source readers' `DataFileMetadata`, through the existing `DataFileReader(config, path, metadata)` constructor, so
-   no file headers are read.
+With the pipeline and compaction paused, `MerkleDbDataSource.copy()` makes a regular snapshot straight into the
+copy's directory, with one difference: the three indexes aren't written to files. Instead, each `LongListSegment`
+index is copied in memory: a new chunk is allocated for each non-null source chunk, and `MemorySegment.copy()` fills
+it. The chunks are copied in parallel on the data source's flush pool, which is idle while the pipeline is paused.
+The index copies run as snapshot executor tasks, next to the file links of the three stores and the metadata, the way
+`snapshot()` runs them today.
 
-If the source uses disk-based indexes (`merkleDb.useDiskIndices = true`), the override falls back to the default.
+Then the copy is created with the existing load path, from that directory, with one new constructor parameter: the
+copied indexes, used instead of index files. `HalfDiskHashMap` gets the same optional parameter for its bucket index.
+Loading opens a reader for every data file in the three stores and reads its header, as the rebuild does today. This
+runs inside the pause too, and took 1.2–1.3 s in the 1B-account test, which has about 43K data files. Running it
+after the pause would need a copy in two steps, prepared inside the pause and completed after it, which isn't worth
+the extra API. If reading the headers turns out to matter, passing the known file metadata into the load path is a
+small follow-up.
 
-### What the copy must carry over
+The hash chunk cache is handed over in memory too. A snapshot first writes the cached chunks, up to 262,144 of them,
+to a new hash file: 516 MB in 0.85 s in the 1B-account test. A copy skips that and gets the cached chunks in its own
+cache instead. Its copied hash chunk index points to older versions of these chunks on disk, as the source's index
+does, and both read cached chunks from the cache first. Cached chunks are never modified, so they're shared, not
+copied. The copy writes them when it's snapshotted, for example in `createSnapshot()`, after the pause.
 
-- **Data source:** `validLeafPathRange`, `initialCapacity`, `hashChunkHeight` and the loaded hash digest type.
-  The leaf record cache, the compaction coordinator and the garbage scanners start fresh, as after a rebuild today.
-- **Each `DataFileCollection`:** `validKeyRange`, the completed files, and `nextFileIndex` set to the highest file
-  index + 1, as the rebuild sets it today. Data locations encode file indexes, not paths, so the copied indexes stay
-  valid for the linked files.
-- **Readers:** `DataFileMetadata` is immutable, so the copy can reuse it. The readers themselves can't be shared,
-  because the source closes them when it compacts or closes.
-- **HalfDiskHashMap:** the bucket index and `numOfBuckets`. That's what `HalfDiskHashMap.snapshot()` writes. It
-  resizes only during a flush, which the pause excludes.
+So the copy is a snapshot whose indexes are handed over in memory instead of written to disk, and the
+directory is hard-linked once instead of twice.
+
+The parallel long list writes in [#26557](https://github.com/hiero-ledger/hiero-consensus-node/pull/26557) aren't
+used. They were dropped: writes to one index file are serialized by the kernel's per-file write lock, at about
+1.4–1.5 GB/s per file, so splitting a list across writer threads didn't pay off. An in-memory copy has no such lock.
+Copying the 26 GB leaf index on one thread took about 18 s, as long as writing it to a file, so the chunks are
+copied in parallel (see "Measured effect" below).
+
+There is no setting to choose how a data source is copied. The `offlineUse` flag, which made a copy use disk-based
+indexes to save memory, is removed from `VirtualDataSourceBuilder.build()` and the `MerkleDbDataSource` constructors.
+Disk-based indexes are only selected with `merkleDb.useDiskIndices`, for setups where memory matters more than
+performance. Such indexes aren't in memory, so `MerkleDbDataSource.copy()` writes them to the copy's snapshot, and the
+copy loads them from there, inside the pause. A copy always uses the copied indexes, also if index rebuilding is
+enforced (`merkleDb.indexRebuildingEnforced = true`): that setting is for indexes loaded from a saved state, and only
+tests set it in this repository.
+
+### What the copy carries over
+
+The snapshot carries everything today's rebuild loads, except the indexes: the data source metadata (leaf path range,
+initial capacity, hash chunk height), each `DataFileCollection`'s metadata and completed files, and the
+`HalfDiskHashMap` metadata (number of buckets). Data locations encode file indexes, not paths, so the copied indexes
+stay valid for the linked files. As after a rebuild today, the leaf record cache, the compaction coordinator and the
+garbage scanners start fresh, and the loaded hash digest type is the default.
 
 ### Why the copy is as consistent as `snapshot()`
 
@@ -104,22 +126,23 @@ The copy reads the same in-memory state that `snapshot()` writes to disk, under 
 while `pauseCompactionAndRun()` holds the coordinator's monitor.
 - `getAllCompletedFiles()` excludes files that are still being written.
 
-Like a snapshot, `copy()` must run inside the pipeline pause and set `snapshotInProgress`, so it can't overlap a
-snapshot of the same data source.
+Since the copy is a snapshot, it runs inside the pipeline pause and sets `snapshotInProgress`, so it can't overlap
+another snapshot of the same data source.
 
 ### `createSnapshot()`
 
-`createSnapshot()` uses disk-based indexes on purpose: `offlineUse` was added in
+`createSnapshot()` used disk-based indexes on purpose: `offlineUse` was added in
 [#16090](https://github.com/hiero-ledger/hiero-consensus-node/pull/16090) so that such copies "should use as little
-resources as possible". An in-memory copy there would add 34.4 GiB of off-heap memory on the learner, when it already
-holds the reconnect data source and, from the next cycle, its copy. Three options:
-- **Option A, memory-neutral:** inside the pause, write the source's index chunks straight into the copy's
-`LongListDisk` temp files. That's the parallel `writeToFile()` from #26557, aimed at a different file. It's one
-37 GB write instead of three passes, but the pause stays about as long as a snapshot.
-- **Option B, short pause:** inside the pause, make the in-memory copy (a few seconds). Outside it, write the copy to
-`LongListDisk` and free it. This holds 34.4 GiB of extra off-heap memory for about 30 s, against the `offlineUse`
-intent. On the learner, that raises non-reclaimable memory from about 186 GiB to about 220 GiB, out of a 256 GiB
-container limit.
+resources as possible". It now uses the same in-memory copy as the teacher and the learner (option B): the copy is made inside
+the pause, the cache is flushed to it, and it's written to the target dir. The copy holds 34.4 GiB of extra off-heap
+memory at 1B accounts until it's written, about 30 s. On the learner, that raises non-reclaimable memory from about
+186 GiB to about 220 GiB, out of a 256 GiB container limit. That's accepted for a simpler copy: no copy needs disk-based
+indexes anymore, so the code that restored them from a snapshot is gone.
+
+Alternatives that keep the copy memory-neutral, if that turns out to be needed:
+- **Option A:** inside the pause, write the source's index chunks straight into the copy's `LongListDisk` temp files.
+It's one 37 GB write instead of three passes, but the pause stays about as long as a snapshot: the write runs into the
+same per-file limit, about 18 s for the leaf index.
 - **Option C, mapped:** inside the pause, take the snapshot as today. Outside it, map the snapshot's index files
 instead of copying them into `LongListDisk` temp files (see "Alternative: map the indexes" below). Like option A, it
 pauses for a snapshot, needs no extra off-heap memory and makes two passes over the indexes instead of three. Unlike
@@ -133,21 +156,36 @@ pauses for a snapshot, needs no extra off-heap memory and makes two passes over 
 | Learner (`detachAsDataSourceCopy`) | 52–93 s                        | roughly 10–20 s                                           |
 | State write (`createSnapshot`)     | about 140 s, 28 s of it paused | about 80 s: about 30 s paused (A, C) or a few seconds (B) |
 
-# 26557 on its own speeds up snapshots about 3 times, which shrinks the snapshot half of each copy. The rebuild half
-
-remains, so step 1 still removes most of the copy time.
+A snapshot is bound by writing the 26.1 GB leaf index to a single file, at about 1.4–1.5 GB/s, about 18 s. Faster
+snapshots would shrink only the snapshot half of each copy. Step 1 removes both halves.
 
 Peak off-heap memory doesn't change for `detach()` and `detachAsDataSourceCopy()`: today's rebuild already allocates
 a second set of in-memory indexes.
+
+### Measured effect
+
+These are learner reconnects on the 1B-account performance network, with the learner 21–23K rounds behind. Times are
+measured from the start of the reconnect.
+
+|                Copy                | `main` | Step 1, one thread per index | Step 1, parallel chunk copy |
+|------------------------------------|--------|------------------------------|-----------------------------|
+| Teacher (`detach`)                 | 75.6 s | 19.6 s, 18.4 s of it paused  | 7.9 s                       |
+| Learner (`detachAsDataSourceCopy`) | 59.1 s | 23.2 s                       | 11.4 s and 7.7 s            |
+
+With one thread per index, "snapshot with copied indexes" took about 18 s on both nodes. Copying the leaf index took
+most of that time. With the parallel copy, the teacher's whole copy, including its pause, took less than 8 s.
+
+The copy waits for the lifecycle thread to finish its current work before the pipeline is paused. If a periodic
+snapshot is in progress, the wait can be about as long as that snapshot. That's the most likely reason why, in one
+reconnect, the teacher took 19.8 s while the learner's copy took 7.7 s. The copy log lines now show this wait
+separately from the pause.
 
 ### Alternative: map the indexes
 
 Instead of copying the indexes in memory, a copy can keep today's snapshot and map the snapshot's index files with
 `FileChannel.map(MapMode.PRIVATE, offset, length, arena)` instead of loading them. Mapping only sets up page tables. An
 entry is read from the file when it's first accessed, and a write goes to a private copy of its page, never to the
-file. [`LongListDiskSegment`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListDiskSegment.java),
-added in [#25903](https://github.com/hiero-ledger/hiero-consensus-node/pull/25903) for fast upgrades, already maps
-index chunks this way, with `MapMode.READ_WRITE`. A `PRIVATE` variant of it can back the copy's three indexes.
+file.
 
 Pros:
 - Loading the indexes, most of the rebuild, takes milliseconds: about 4,400 mapped 8 MiB chunks per data source.
@@ -181,9 +219,9 @@ Things to get right:
 ([`AbstractLongList.java:515`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/AbstractLongList.java#L515))
 puts every value at an offset of 4 mod 8. `LongListSegment` reads and updates values with volatile access and
 `compareAndSet`
-([`LongListSegment.java:222`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java#L222)),
-which need 8-byte alignment. The copy's index files need `LongListDiskSegment`'s layout, value `i` at a fixed
-offset, with the header padded to a page, so every chunk starts on a page boundary. These files are temporary and
+([`LongListSegment.java:278`](../../../../platform-sdk/swirlds-merkledb/src/main/java/com/swirlds/merkledb/collections/LongListSegment.java#L278)),
+which need 8-byte alignment. The copy's index files need a layout with value `i` at a fixed offset and the header
+padded to a page, so every chunk starts on a page boundary. These files are temporary and
 read only by the process that wrote them, so their format can change freely. Saved states keep today's format.
 2. **The mapped files must never change.** `PRIVATE` keeps the copy's writes out of the files. But on Linux, pages
 the copy hasn't written yet show later changes made to the file by anyone else, and truncating the file makes the
@@ -195,8 +233,8 @@ A snapshot that is only mapped by the same process doesn't need it. Without it, 
 at memory speed, until the kernel starts throttling dirty pages. How fast 37 GB can be written this way in the
 node's cgroup has to be measured.
 4. **The right `map()` overload.** `FileChannel.map(mode, position, size)` returns a `MappedByteBuffer`, limited to
-2 GiB. The overload with an `Arena` returns a `MemorySegment`. Map each chunk in its own shared arena, as
-`LongListDiskSegment` does, so chunks below the valid range can be unmapped one by one.
+2 GiB. The overload with an `Arena` returns a `MemorySegment`. Map each chunk in its own shared arena, so chunks
+below the valid range can be unmapped one by one.
 5. **Memory accounting.** Mapped pages are charged to the container's cgroup as page cache. The kernel can reclaim
 them, so they don't lead to OOM kills, but they count towards the container's memory usage. They don't appear in
 NMT or the MerkleDB off-heap metrics, so memory monitoring has to include file-backed memory.

@@ -314,6 +314,9 @@ message StateKey {
      */
     proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
 
+    /** The target hinTS construction ID for an adopted key's signing witness. */
+    proto.ProtoLong HistoryService_I_HINTS_KEY_WITNESSES = 70;
+
     // Queue states
     /** Queue index for adopted hinTS verification-key provenance. */
     uint64 HistoryService_I_HINTS_KEY_PROVENANCE = 69;
@@ -734,6 +737,9 @@ message StateValue {
 
     /** Explicit authorization links between adopted hinTS generations. */
     com.hedera.hapi.node.state.history.HintsKeyProvenance HistoryService_I_HINTS_KEY_PROVENANCE = 69;
+
+    /** Durable pending or completed block-signing witnesses for adopted keys. */
+    com.hedera.hapi.node.state.history.HintsKeyWitnessRecord HistoryService_I_HINTS_KEY_WITNESSES = 70;
 
     /**
      * Metadata of the queue state.<br/>

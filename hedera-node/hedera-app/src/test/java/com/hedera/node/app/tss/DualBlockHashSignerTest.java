@@ -15,6 +15,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsContext;
@@ -89,6 +90,18 @@ class DualBlockHashSignerTest {
         subject.onBlockStarted(123L);
 
         verify(succinctSignatureDelegate).onBlockStarted(123L);
+        verifyNoInteractions(rsaContext, submissions);
+    }
+
+    @Test
+    void forwardsKeyWitnessesToTheSuccinctDelegate() {
+        final var vk = Bytes.wrap("captured hinTS key");
+        final var witness =
+                HintsKeyWitness.newBuilder().targetHintsConstructionId(7).build();
+
+        subject.publishKeyWitness(vk, witness);
+
+        verify(succinctSignatureDelegate).publishKeyWitness(vk, witness);
         verifyNoInteractions(rsaContext, submissions);
     }
 

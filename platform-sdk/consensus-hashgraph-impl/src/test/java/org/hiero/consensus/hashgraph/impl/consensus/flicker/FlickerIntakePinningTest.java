@@ -40,7 +40,7 @@ class FlickerIntakePinningTest {
     void producesTheSameRoundsAsTheProductionHashgraphWiring() {
         final RosterWrapper roster = LadderGraph.roster();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final List<NamedEvent> graph = LadderGraph.build(roster);
+        final List<NamedEvent> graph = LadderGraph.build();
 
         // Each harness gets its own copies. Both hash and assign nGen in place, so sharing the objects would mean the
         // second run saw state the first one left behind.

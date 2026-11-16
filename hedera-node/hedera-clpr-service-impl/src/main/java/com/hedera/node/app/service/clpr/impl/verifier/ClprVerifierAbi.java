@@ -39,8 +39,11 @@ public final class ClprVerifierAbi {
      * encodes this {@link TupleType} directly and {@link EvmClprVerifier} decodes it. A {@code version == 0}
      * manifest member means "absent".
      */
-    public static final TupleType<Tuple> VERIFY_BUNDLE_RETURN = TupleType.parse(
-            "((uint64,bytes32,uint64,bytes32,uint8,uint64),bytes[],bytes,bytes,(uint64,bytes,(string,uint32,bytes,bytes)[]))");
+    public static final String VERIFY_BUNDLE_OUTPUTS =
+            "((uint64,bytes32,uint64,bytes32,uint8,uint64),bytes[],bytes,bytes,(uint64,bytes,(string,uint32,bytes,bytes)[]))";
+
+    /** {@link #VERIFY_BUNDLE_OUTPUTS} parsed, for the encode and decode sides. */
+    public static final TupleType<Tuple> VERIFY_BUNDLE_RETURN = TupleType.parse(VERIFY_BUNDLE_OUTPUTS);
 
     /**
      * The metadata-absent sentinel {@code metaTuple}: every field zero, with the two {@code bytes32}

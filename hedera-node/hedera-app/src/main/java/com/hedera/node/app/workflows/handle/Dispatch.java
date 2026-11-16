@@ -4,7 +4,6 @@ package com.hedera.node.app.workflows.handle;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.service.token.records.FinalizeContext;
@@ -12,6 +11,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
@@ -137,12 +137,12 @@ public interface Dispatch extends FeeCharging.Context {
     Instant consensusNow();
 
     /**
-     * The keys that must have signed to fully authorize the work
-     * in this dispatch.
+     * The individual authority requirements for this dispatch. Equal keys belonging to different
+     * accounts remain separate requirements.
      *
-     * @return the required keys
+     * @return the identity-scoped requirements
      */
-    Set<Key> requiredKeys();
+    Set<KeyRequirement> requiredKeyRequirements();
 
     /**
      * The hollow accounts that must have provided signatures proving

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app {
     exports com.hedera.node.app.authorization;
+    exports com.hedera.node.app.blocks.failure;
     exports com.hedera.node.app.blocks.impl.streaming.config;
     exports com.hedera.node.app.blocks.impl.streaming.obs;
     exports com.hedera.node.app.blocks.impl.streaming;

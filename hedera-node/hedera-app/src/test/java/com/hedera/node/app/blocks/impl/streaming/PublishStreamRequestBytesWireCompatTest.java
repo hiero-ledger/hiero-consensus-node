@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.block.internal.AcknowledgeOnlyBytes;
 import com.hedera.hapi.block.internal.BlockItemSetBytes;
 import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
+import org.hiero.block.api.PublishStreamRequest.AcknowledgeOnly;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.junit.jupiter.api.Test;
 
@@ -99,6 +101,21 @@ class PublishStreamRequestBytesWireCompatTest {
                 .build();
         final PublishStreamRequestBytes bytesReq = PublishStreamRequestBytes.newBuilder()
                 .endOfBlock(BlockEnd.newBuilder().blockNumber(42L))
+                .build();
+
+        final Bytes bytesWire = PublishStreamRequestBytes.PROTOBUF.toBytes(bytesReq);
+        assertThat(bytesWire).isEqualTo(PublishStreamRequest.PROTOBUF.toBytes(normal));
+        assertThat(PublishStreamRequest.PROTOBUF.parse(bytesWire)).isEqualTo(normal);
+    }
+
+    @Test
+    void acknowledgeOnlyRequestSerializesIdenticallyAndRoundTrips() throws ParseException {
+        final PublishStreamRequest normal = PublishStreamRequest.newBuilder()
+                .acknowledgeOnly(AcknowledgeOnly.newBuilder().blockNumber(42L).build())
+                .build();
+        final PublishStreamRequestBytes bytesReq = PublishStreamRequestBytes.newBuilder()
+                .acknowledgeOnly(
+                        AcknowledgeOnlyBytes.newBuilder().blockNumber(42L).build())
                 .build();
 
         final Bytes bytesWire = PublishStreamRequestBytes.PROTOBUF.toBytes(bytesReq);

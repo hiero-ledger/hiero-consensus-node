@@ -7,6 +7,7 @@ import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensibl
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsMessageDetails;
@@ -106,6 +107,22 @@ public interface ReadableHistoryStore {
      */
     @NonNull
     Iterator<HintsKeyProvenance> keyProvenance();
+
+    /**
+     * Returns the durable companion for an adopted generation, or null if that
+     * generation has never been adopted. A companion without a witness is pending.
+     */
+    @Nullable
+    HintsKeyWitnessRecord getKeyWitnessRecord(long targetHintsConstructionId);
+
+    /**
+     * Returns the augmented provenance records in adoption order, including
+     * records whose witness is still pending. Consumers may serialize each record
+     * with {@link HintsKeyWitnessRecord#PROTOBUF}; pending records can be intermediate
+     * links but cannot serve as the endpoint of a committed key update.
+     */
+    @NonNull
+    Iterator<HintsKeyWitnessRecord> keyProvenanceWithWitnesses();
 
     /**
      * Returns the ledger id initiating the chain of trusted history, if known.

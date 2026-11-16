@@ -122,6 +122,13 @@ public class HgcaaLogValidator {
                 // when a CLPR task runs with tss.forceMockSignatures=true
                 List.of("ClprGetLedgerConfigurationHandler", "TSS verification failed for ledgerId"),
                 List.of("ClprGetEndpointManifestHandler", "TSS verification failed for ledgerId"),
+                // Restart and roster-change tests can need another grace period while endpoints re-publish.
+                // Ignore only the recovery warning; errors and other manifest-construction warnings still fail.
+                List.of(
+                        " WARN ",
+                        "ClprEndpointManifestReconciler - [Clpr] construction #",
+                        " grace period expired with ",
+                        " target nodes published — extending (extensions used: "),
                 // Multi-network tests warm-start their networks from TSS fixtures in the startup network JSON
                 List.of("dev-only", "from startup network JSON"),
                 List.of("WRAPS enabled but this node cannot build recursive proofs", "TSS_LIB_WRAPS_ARTIFACTS_PATH=''"),

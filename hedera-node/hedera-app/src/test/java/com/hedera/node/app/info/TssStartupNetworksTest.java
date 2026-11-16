@@ -8,9 +8,12 @@ import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_
 import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -25,6 +28,10 @@ import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
+import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.tss.PreparedTssHandoff;
 import com.hedera.node.app.tss.TssKeyFiles;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
@@ -59,6 +66,83 @@ class TssStartupNetworksTest {
 
     @TempDir
     private Path tempDir;
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void restoresCompatibleRuntimeWithoutRequiringAHistorySnapshot(final boolean historyCompleted) {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("compatible-target"));
+        final var history = historyCompleted
+                ? prepared.history()
+                        .copyBuilder()
+                        .targetProof(prepared.history()
+                                .targetProofOrThrow()
+                                .copyBuilder()
+                                .targetNodeWeights(List.of()))
+                        .build()
+                : HistoryProofConstruction.DEFAULT;
+        final var hintsService = mock(HintsService.class);
+        final var historyService = mock(HistoryService.class);
+        when(hintsService.requiresHistoryWeights()).thenReturn(false);
+
+        TssStartupNetworks.initializeRuntime(prepared.next(), CRSState.DEFAULT, history, hintsService, historyService);
+
+        verify(hintsService).setActiveConstruction(prepared.next(), CRSState.DEFAULT);
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+        if (historyCompleted) {
+            verify(historyService).setLatestHistoryProof(history.targetProofOrThrow());
+        } else {
+            verifyNoInteractions(historyService);
+        }
+    }
+
+    @Test
+    void restoresStrictRuntimeWithTheExactCompletedHistorySnapshot() {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("strict-target"));
+        final var hintsService = mock(HintsService.class);
+        final var historyService = mock(HistoryService.class);
+        when(hintsService.requiresHistoryWeights()).thenReturn(true);
+        doAnswer(invocation -> {
+                    HintsGenerationWeights.from(invocation.getArgument(0), invocation.getArgument(2));
+                    return null;
+                })
+                .when(hintsService)
+                .setActiveConstruction(any(), any(), any());
+
+        TssStartupNetworks.initializeRuntime(
+                prepared.next(), CRSState.DEFAULT, prepared.history(), hintsService, historyService);
+
+        verify(hintsService).setActiveConstruction(prepared.next(), CRSState.DEFAULT, prepared.history());
+        verify(hintsService, never()).setActiveConstruction(any(), any());
+        verify(historyService).setLatestHistoryProof(prepared.history().targetProofOrThrow());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void defersStrictRuntimeForIncompleteOrMissingCanonicalHistorySnapshots(final boolean historyCompleted) {
+        final var prepared = new PreparedTssHandoff(Bytes.wrap("pending-target"));
+        final var history = historyCompleted
+                ? prepared.history()
+                        .copyBuilder()
+                        .targetProof(prepared.history()
+                                .targetProofOrThrow()
+                                .copyBuilder()
+                                .targetNodeWeights(List.of()))
+                        .build()
+                : HistoryProofConstruction.DEFAULT;
+        final var hintsService = mock(HintsService.class);
+        final var historyService = mock(HistoryService.class);
+        when(hintsService.requiresHistoryWeights()).thenReturn(true);
+
+        TssStartupNetworks.initializeRuntime(prepared.next(), CRSState.DEFAULT, history, hintsService, historyService);
+
+        verify(hintsService, never()).setActiveConstruction(any(), any());
+        verify(hintsService, never()).setActiveConstruction(any(), any(), any());
+        if (historyCompleted) {
+            verify(historyService).setLatestHistoryProof(history.targetProofOrThrow());
+        } else {
+            verifyNoInteractions(historyService);
+        }
+    }
 
     @ParameterizedTest
     @ValueSource(booleans = {true, false})

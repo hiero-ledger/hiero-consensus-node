@@ -58,6 +58,19 @@ document which major hardfork corresponds to each internal version.
 |        `v0.50` | [Cancun](https://github.com/ethereum/execution-specs/blob/master/network-upgrades/mainnet-upgrades/cancun.md)     | Adds opcodes `TSTORE`, `TLOAD`, and `MCOPY` opcodes, non-implementation of blobs, KZG precompile; new `SELFDESTRUCT` semantics  (HIPS-865 through -868)                   |
 |        `v0.51` | Cancun                                                                                                            | Adds Hedera Account Service System Contract at address `0x16a`.                                                                                                           |
 
+### Block-scoped opcodes without a block gas limit
+
+Ethereum defines `GASLIMIT` (`0x45`) as the current block header's gas limit (Yellow Paper Appendix H.2,
+`μ's[0] ≡ I_H_l`): one value for every transaction and every frame in the block, with each transaction's
+gas limit bounded by it. The Hiero block header carries no gas limit, and since
+[HIP-1249](https://hips.hedera.com/hip/hip-1249) the network throttles by ops-duration rather than gas, so
+the EVM exposes the nominal block gas limit configured by the network property `contracts.blockGasLimit`
+(default `150000000`). This applies on every EVM version. The default matches the block `gasLimit` the
+JSON-RPC relay reports for blocks produced at HAPI `0.69.0` or later (`150000000`; the relay reports
+`30000000` for earlier blocks), so `block.gaslimit` and `eth_getBlockByNumber` agree on current networks.
+It is intentionally not the transaction's gas limit (that is `T_g`, bounded by
+`contracts.maxGasPerTransaction`) nor the gas available to the current frame (`GAS`, `0x5A`).
+
 ## Open Questions
 
 The exact timing of versions that correspond to Ethereum Mainnet forks is out of scope of this document

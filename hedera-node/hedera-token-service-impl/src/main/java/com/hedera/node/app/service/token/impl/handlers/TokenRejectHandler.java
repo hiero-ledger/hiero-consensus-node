@@ -43,6 +43,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.AdjustFungibleTokenChangesStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.NFTOwnersChangeStep;
 import com.hedera.node.app.service.token.impl.handlers.transfer.TransferContextImpl;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -108,7 +109,7 @@ public class TokenRejectHandler extends BaseTokenHandler implements TransactionH
         if (key == null || !isValid(key)) {
             throw new PreCheckException(ACCOUNT_IS_IMMUTABLE);
         }
-        context.requireKey(key);
+        context.requireKeyRequirement(KeyRequirement.forAccount(ownerAccount.accountIdOrThrow(), key));
     }
 
     @SuppressWarnings("java:S2259")

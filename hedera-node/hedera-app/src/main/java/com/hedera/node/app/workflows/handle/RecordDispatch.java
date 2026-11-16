@@ -2,7 +2,6 @@
 package com.hedera.node.app.workflows.handle;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.service.token.records.FinalizeContext;
@@ -10,6 +9,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
@@ -33,7 +33,6 @@ public record RecordDispatch(
         @NonNull AppKeyVerifier keyVerifier,
         @NonNull NodeInfo creatorInfo,
         @NonNull Instant consensusNow,
-        @NonNull Set<Key> requiredKeys,
         @NonNull Set<Account> hollowAccounts,
         @NonNull HandleContext handleContext,
         @NonNull SavepointStackImpl stack,
@@ -42,4 +41,9 @@ public record RecordDispatch(
         @NonNull PreHandleResult preHandleResult,
         @NonNull HandleContext.ConsensusThrottling throttleStrategy,
         @Nullable FeeCharging customFeeCharging)
-        implements Dispatch {}
+        implements Dispatch {
+    @Override
+    public Set<KeyRequirement> requiredKeyRequirements() {
+        return preHandleResult.getRequiredKeyRequirements();
+    }
+}

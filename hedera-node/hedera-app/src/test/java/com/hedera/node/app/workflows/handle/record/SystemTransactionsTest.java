@@ -35,6 +35,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -54,6 +55,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
+import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -85,8 +87,10 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -119,6 +123,17 @@ class SystemTransactionsTest {
             AccountID.newBuilder().accountNum(3L).build();
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(800L).build();
+    private static final long CLPR_ADMIN_ACCOUNT_NUM = 601L;
+    private static final long CUSTOM_CLPR_ADMIN_ACCOUNT_NUM = 850L;
+    private static final long DISABLED_CLPR_ADMIN_ACCOUNT_NUM = -1L;
+    private static final Key GENESIS_KEY = Key.newBuilder()
+            .ed25519(HederaTestConfigBuilder.createConfig()
+                    .getConfigData(BootstrapConfig.class)
+                    .genesisPublicKey())
+            .build();
+    private static final Key TREASURY_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"))
+            .build();
     private static final long CLPR_STAKING_ACCOUNT_NUM = 803L;
     private static final ClprThrottles CLPR_THROTTLES = ClprThrottles.newBuilder()
             .maxMessagesPerBundle(1_000)
@@ -552,16 +567,45 @@ class SystemTransactionsTest {
     void genesisSetupCreatesClprStakingAccountWhenClprIsEnabled() {
         final var systemContext = doGenesisSetup(true);
 
-        final var body = capturedClprStakingAccountCreation(systemContext);
+        final var body = capturedAccountCreation(systemContext, CLPR_STAKING_ACCOUNT_NUM);
         assertEquals("CLPR staking account creation record", body.memo());
         assertEquals(
                 IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
     }
 
     @Test
+    void genesisSetupCreatesMissingConfiguredClprAdminWithGenesisKey() {
+        final var accounts = givenAccountsState();
+        givenEntityIdStates();
+        given(accounts.get(givenLocalAccountId(CUSTOM_CLPR_ADMIN_ACCOUNT_NUM))).willReturn(null);
+
+        final var systemContext = doGenesisSetup(HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("accounts.clprAdmin", CUSTOM_CLPR_ADMIN_ACCOUNT_NUM));
+
+        assertClprAdminAccountCreation(systemContext, CUSTOM_CLPR_ADMIN_ACCOUNT_NUM, GENESIS_KEY);
+    }
+
+    @Test
+    void genesisSetupDoesNotDuplicateDefaultClprAdminTreasuryClone() {
+        final var accounts = givenAccountsState();
+        givenEntityIdStates();
+        final var adminId = givenLocalAccountId(CLPR_ADMIN_ACCOUNT_NUM);
+        // The mock dispatch does not write the treasury clone created earlier in genesis.
+        given(accounts.get(adminId)).willReturn(Account.DEFAULT);
+
+        final var systemContext =
+                doGenesisSetup(HederaTestConfigBuilder.create().withValue("clpr.enabled", true));
+
+        final var body = capturedAccountCreation(systemContext, CLPR_ADMIN_ACCOUNT_NUM);
+        assertEquals("Synthetic zero-balance treasury clone", body.memo());
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void postUpgradeSkipsClprStakingAccountWhileClprIsDisabled() {
-        final var systemContext = doPostUpgradeSetupWithMockContext(false);
+        final var systemContext = doPostUpgradeSetupWithMockContext(
+                false, CLPR_LEDGER_CONFIGURATION, "data/config", CLPR_ADMIN_ACCOUNT_NUM);
 
         verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
         verify(state, never()).getReadableStates(TokenService.NAME);
@@ -573,7 +617,7 @@ class SystemTransactionsTest {
 
         final var systemContext = doPostUpgradeSetupWithMockContext(true);
 
-        final var body = capturedClprStakingAccountCreation(systemContext);
+        final var body = capturedAccountCreation(systemContext, CLPR_STAKING_ACCOUNT_NUM);
         assertEquals("CLPR staking account creation record", body.memo());
         assertEquals(
                 IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
@@ -587,6 +631,47 @@ class SystemTransactionsTest {
         final var systemContext = doPostUpgradeSetupWithMockContext(true);
 
         verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+    }
+
+    @Test
+    void postUpgradeCreatesMissingClprAdminWithCurrentTreasuryKey() {
+        final var accounts = givenAccountsState();
+        given(accounts.get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        given(accounts.get(givenLocalAccountId(CLPR_ADMIN_ACCOUNT_NUM))).willReturn(null);
+        givenTreasuryKey(accounts);
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(
+                true, CLPR_LEDGER_CONFIGURATION, "data/config", CLPR_ADMIN_ACCOUNT_NUM);
+
+        assertClprAdminAccountCreation(systemContext, CLPR_ADMIN_ACCOUNT_NUM, TREASURY_KEY);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradePreservesExistingClprAdmin() {
+        final var accounts = givenAccountsState();
+        given(accounts.get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        final var adminId = givenLocalAccountId(CLPR_ADMIN_ACCOUNT_NUM);
+        given(accounts.get(adminId))
+                .willReturn(Account.newBuilder().tinybarBalance(123L).build());
+
+        final var systemContext = doPostUpgradeSetupWithMockContext(
+                true, CLPR_LEDGER_CONFIGURATION, "data/config", CLPR_ADMIN_ACCOUNT_NUM);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_ADMIN_ACCOUNT_NUM));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {DISABLED_CLPR_ADMIN_ACCOUNT_NUM, 350L, 1001L})
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsProvisioningIneligibleClprAdmin(final long accountNum) {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+
+        final var systemContext =
+                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, "data/config", accountNum);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(accountNum));
+        verify(entityIdFactory, never()).newAccountId(accountNum);
     }
 
     @Test
@@ -1036,7 +1121,6 @@ class SystemTransactionsTest {
 
     @SuppressWarnings("unchecked")
     private ReadableKVState<AccountID, Account> givenAccountsState() {
-        given(entityIdFactory.newAccountId(CLPR_STAKING_ACCOUNT_NUM)).willReturn(CLPR_STAKING_ACCOUNT_ID);
         final var readableStates = mock(ReadableStates.class);
         final ReadableKVState<AccountID, Account> accounts = mock(ReadableKVState.class);
         given(state.getReadableStates(TokenService.NAME)).willReturn(readableStates);
@@ -1044,22 +1128,49 @@ class SystemTransactionsTest {
         return accounts;
     }
 
+    private AccountID givenLocalAccountId(final long accountNum) {
+        final var id = AccountID.newBuilder().accountNum(accountNum).build();
+        given(entityIdFactory.newAccountId(accountNum)).willReturn(id);
+        return id;
+    }
+
+    private void givenTreasuryKey(final ReadableKVState<AccountID, Account> accounts) {
+        final var treasuryId = givenLocalAccountId(2L);
+        given(accounts.get(treasuryId))
+                .willReturn(Account.newBuilder().key(TREASURY_KEY).build());
+    }
+
+    private void givenEntityIdStates() {
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(mock(ReadableStates.class));
+    }
+
     private SystemContext doPostUpgradeSetupWithMockContext(final boolean clprEnabled) {
         return doPostUpgradeSetupWithMockContext(clprEnabled, CLPR_LEDGER_CONFIGURATION, "data/config");
+    }
+
+    private SystemContext doPostUpgradeSetupWithMockContext(
+            final boolean clprEnabled,
+            @Nullable final ClprLedgerConfiguration ledgerConfiguration,
+            @NonNull final String upgradeSysFilesLoc) {
+        return doPostUpgradeSetupWithMockContext(
+                clprEnabled, ledgerConfiguration, upgradeSysFilesLoc, DISABLED_CLPR_ADMIN_ACCOUNT_NUM);
     }
 
     @SuppressWarnings("unchecked")
     private SystemContext doPostUpgradeSetupWithMockContext(
             final boolean clprEnabled,
             @Nullable final ClprLedgerConfiguration ledgerConfiguration,
-            @NonNull final String upgradeSysFilesLoc) {
+            @NonNull final String upgradeSysFilesLoc,
+            final long clprAdminAccountNum) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("nodes.enableDAB", "false")
                 .withValue("clpr.enabled", clprEnabled)
+                .withValue("accounts.clprAdmin", clprAdminAccountNum)
                 .withValue("networkAdmin.upgradeSysFilesLoc", upgradeSysFilesLoc)
                 .getOrCreateConfig();
         if (clprEnabled) {
+            given(entityIdFactory.newAccountId(CLPR_STAKING_ACCOUNT_NUM)).willReturn(CLPR_STAKING_ACCOUNT_ID);
             final var clprStates = mock(ReadableStates.class);
             final ReadableSingletonState<ClprLedgerConfiguration> ledgerConfigurationState =
                     mock(ReadableSingletonState.class);
@@ -1072,7 +1183,7 @@ class SystemTransactionsTest {
         final var selfNodeInfo = mock(NodeInfo.class);
         given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
-        // The simple fees file already exists, so the CLPR staking account is the only possible creation
+        // The simple fees file already exists, so only CLPR accounts might be created.
         final ReadableStates fileStates = mock(ReadableStates.class);
         final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
         given(state.getReadableStates(FileService.NAME)).willReturn(fileStates);
@@ -1088,13 +1199,18 @@ class SystemTransactionsTest {
     }
 
     private SystemContext doGenesisSetup(final boolean clprEnabled) {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
+        givenEntityIdStates();
+        return doGenesisSetup(HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", clprEnabled)
-                .getOrCreateConfig();
+                .withValue("accounts.clprAdmin", DISABLED_CLPR_ADMIN_ACCOUNT_NUM));
+    }
+
+    private SystemContext doGenesisSetup(final TestConfigBuilder configBuilder) {
+        final var config =
+                configBuilder.withValue("blockStream.streamMode", "BLOCKS").getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(startupNetworks.genesisNetworkOrThrow(any())).willThrow(new IllegalStateException("No genesis network"));
-        given(state.getReadableStates(any())).willReturn(mock(ReadableStates.class));
+        given(state.getReadableStates(AddressBookService.NAME)).willReturn(mock(ReadableStates.class));
         final var systemContext = mock(SystemContext.class);
         final var spySubject = spy(subject);
         doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
@@ -1104,10 +1220,19 @@ class SystemTransactionsTest {
         return systemContext;
     }
 
+    private static void assertClprAdminAccountCreation(
+            final SystemContext systemContext, final long accountNum, final Key expectedKey) {
+        final var body = capturedAccountCreation(systemContext, accountNum);
+        final var creation = body.cryptoCreateAccountOrThrow();
+        assertEquals("CLPR admin account creation record", body.memo());
+        assertEquals(expectedKey, creation.key());
+        assertEquals(0L, creation.initialBalance());
+    }
+
     @SuppressWarnings("unchecked")
-    private static TransactionBody capturedClprStakingAccountCreation(@NonNull final SystemContext systemContext) {
+    private static TransactionBody capturedAccountCreation(final SystemContext systemContext, final long accountNum) {
         final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
-        verify(systemContext).dispatchCreation(spec.capture(), eq(CLPR_STAKING_ACCOUNT_NUM));
+        verify(systemContext).dispatchCreation(spec.capture(), eq(accountNum));
         final var builder = TransactionBody.newBuilder();
         spec.getValue().accept(builder);
         return builder.build();
