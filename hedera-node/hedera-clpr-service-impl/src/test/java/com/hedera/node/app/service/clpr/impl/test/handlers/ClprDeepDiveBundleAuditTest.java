@@ -2026,7 +2026,8 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
         assertThat(conn.slashCount()).isEqualTo(0);
 
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
     }
 
     @Test
@@ -2046,7 +2047,8 @@ class ClprDeepDiveBundleAuditTest {
         assertThat(conn).isNotNull();
         assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
 
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
+        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), any(), anyLong());
     }
 
     @Test
