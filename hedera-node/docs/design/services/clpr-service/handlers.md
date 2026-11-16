@@ -69,8 +69,17 @@ side-effects.
 - Admin-gated.
 - Status transitions to `CLOSING` (then `DRAINED`/`CLOSED` per spec §2.1.1; depending on
   queue state at handle time).
+- `force_close=true` immediately marks an established channel CLOSED and examines at
+  most 16 consecutive outbound message IDs per transaction, including absent slots.
+  Existing slots of every payload type are removed without application callbacks;
+  DATA removal decrements its connector's in-flight count without going below zero.
+- Repeat force-close to advance `queue_purge_cursor` to `next_message_id` (or 1 for a
+  channel that never assigned IDs). `SUCCESS` accepts a batch, and also represents an
+  unchanged no-op once cleanup is finished. Node logs expose the cursor and completion;
+  no HAPI query currently exposes it.
 - **Lifecycle hook:** `onChannelClosed(channelId)` → orchestrator removes from
-  sync schedule.
+  sync schedule. Force-close is one-sided: the peer does not receive a CLOSED proof,
+  so its administrator must close and clean up that side independently.
 
 ### `ClprEvictPeerEndpointHandler` — admin endpoint eviction
 

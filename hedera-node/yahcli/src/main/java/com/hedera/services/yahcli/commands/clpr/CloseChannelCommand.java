@@ -33,7 +33,9 @@ public class CloseChannelCommand implements Callable<Integer> {
 
     @Option(
             names = {"--force-close"},
-            description = "Close immediately and discard a batch of queued messages. Repeat to continue cleanup.")
+            description = "Close this side immediately and examine up to 16 queued message IDs per call. "
+                    + "Repeat for remaining batches; SUCCESS also covers an already-complete no-op. "
+                    + "The peer administrator must separately close and clean up its side.")
     boolean forceClose;
 
     @Override
@@ -44,6 +46,11 @@ public class CloseChannelCommand implements Callable<Integer> {
                 .forceClose(forceClose);
         final var delegate = new ClprTxnSuite(config, "ClprCloseChannel", op);
         delegate.runSuiteSync();
-        return ClprOutcome.reportTxn(config, delegate, op, "closed CLPR channel", "could not close CLPR channel");
+        final var successAction = forceClose
+                ? "force-close cleanup request accepted; SUCCESS does not confirm cleanup is complete. "
+                        + "Check node cleanup logs for complete=true; repeat if more batches remain. "
+                        + "The peer administrator must separately close and clean up its side"
+                : "requested graceful CLPR channel closure";
+        return ClprOutcome.reportTxn(config, delegate, op, successAction, "could not close CLPR channel");
     }
 }

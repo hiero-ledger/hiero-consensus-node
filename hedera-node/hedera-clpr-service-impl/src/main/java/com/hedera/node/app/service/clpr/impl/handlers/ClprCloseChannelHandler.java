@@ -26,6 +26,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Handler for {@link HederaFunctionality#CLPR_CLOSE_CHANNEL} transactions.
@@ -46,6 +48,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public final class ClprCloseChannelHandler extends AbstractClprHandler {
+    private static final Logger log = LogManager.getLogger(ClprCloseChannelHandler.class);
 
     // A legacy slot can be several MiB. Limit how many slots a cleanup transaction reads.
     private static final int MAX_PURGE_SLOTS = 16;
@@ -129,11 +132,17 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
         final long cursor = channel.queuePurgeCursor();
         final long nextMessageId = channel.nextMessageId();
         if (cursor != 0 && cursor >= nextMessageId) {
+            log.info(
+                    "CLPR force-close cleanup already complete (channel={} cursor={} nextMessageId={} complete=true)",
+                    channelId,
+                    cursor,
+                    nextMessageId);
             return;
         }
 
         // An acknowledged slot has already been deleted. Do not alter the peer's actual acknowledgement.
         long nextId = cursor == 0 ? channel.ackedMessageId() + 1 : cursor;
+        final long firstId = nextId;
         if (nextId < nextMessageId) {
             final var queueStore = storeFactory.writableStore(WritableMessageQueueStore.class);
             final var connectorStore = storeFactory.writableStore(WritableConnectorStore.class);
@@ -165,6 +174,13 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
         if (channel.status() != ClprChannelStatus.CLOSED) {
             channelLifecycle.onChannelClosed(channelId);
         }
+        log.info(
+                "CLPR force-close cleanup (channel={} examinedIds={} cursor={} nextMessageId={} complete={})",
+                channelId,
+                nextId - firstId,
+                nextId,
+                nextMessageId,
+                nextId >= nextMessageId);
     }
 
     private static boolean queueFullyAcked(@NonNull final ClprChannel existingChannel) {

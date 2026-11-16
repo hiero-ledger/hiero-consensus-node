@@ -23,7 +23,13 @@ option java_multiple_files = true;
  *
  * With force_close set, immediately closes an established channel and
  * discards a bounded batch of unacknowledged messages from its outbound
- * queue. Repeat with force_close set to discard any remaining messages.
+ * queue. Each transaction examines at most 16 consecutive message IDs, including
+ * missing slots. Repeat with force_close set to discard any remaining messages.
+ * SUCCESS means the cleanup request was accepted; it does not guarantee that all
+ * queued messages were removed. Repeating after cleanup finishes is a no-op SUCCESS.
+ *
+ * Force-close is local: the CLOSED channel stops syncing, so the peer is not
+ * notified. The peer's administrator must separately close and clean up its side.
  */
 message ClprCloseChannelTransactionBody {
     /**
@@ -42,7 +48,9 @@ message ClprCloseChannelTransactionBody {
      * Abandon an established channel without waiting for peer acknowledgments.
      * The channel becomes terminal immediately and any abandoned messages are
      * discarded without application callbacks. May also be set on a CLOSED
-     * channel to continue cleanup. Mutually exclusive with ownership_commitment.
+     * channel to continue cleanup. SUCCESS may leave more batches to purge, and is
+     * also returned without changes after cleanup is complete. This does not close
+     * or purge the peer's channel. Mutually exclusive with ownership_commitment.
      */
     bool force_close = 3;
 }

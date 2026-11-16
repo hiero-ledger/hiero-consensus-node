@@ -464,6 +464,30 @@ class ClprCloseChannelHandlerTest {
     }
 
     @Test
+    void forceCloseDoesNotUnderflowConnectorInFlightCount() {
+        final var connectorKey = new ClprConnectorKey(CHANNEL_ID, COMMITMENT);
+        connectorStore.put(ClprConnector.newBuilder()
+                .channelId(CHANNEL_ID)
+                .connectorId(COMMITMENT)
+                .inFlightMessageCount(0)
+                .build());
+        putChannelWithMessageIds(ClprChannelStatus.ACTIVE, 2L, 0L);
+        queueStore.put(
+                CHANNEL_ID,
+                1L,
+                queueValue(ClprMessagePayload.newBuilder()
+                        .message(ClprMessage.newBuilder().connectorId(COMMITMENT))
+                        .build()));
+        setupForceCloseContext();
+
+        subject.handle(handleContext);
+
+        assertThat(queueStore.getMessage(CHANNEL_ID, 1L)).isNull();
+        assertThat(connectorStore.getConnector(connectorKey).inFlightMessageCount())
+                .isZero();
+    }
+
+    @Test
     void forceCloseRejectsPendingChannel() {
         putChannel(ClprChannelStatus.PENDING);
         setupForceCloseContext();

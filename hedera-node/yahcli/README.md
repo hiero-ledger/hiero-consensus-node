@@ -1007,7 +1007,7 @@ exercising a cross-ledger flow.
 |--------|-------------------------|-------------------------------------------------------------|
 | Commit | `clpr register-channel` | Submits `ClprRegisterChannel` with an ownership commitment. |
 | Reveal | `clpr complete-channel` | Submits `ClprCompleteChannel` opening the commitment.       |
-| Close  | `clpr close-channel`    | Terminates the channel.                                     |
+| Close  | `clpr close-channel`    | Requests graceful closure; `--force-close` abandons this side and purges a bounded batch. |
 
 `generate-channel-identity` produces a JSON identity bundle (random id, keypair,
 ownership commitment, reveal signature). Pass it back to `complete-channel` with
@@ -1018,6 +1018,18 @@ ownership commitment, reveal signature). Pass it back to `complete-channel` with
 peer's `get-ledger-configuration --proof-path`) and `--endpoint-manifest-proof` (written by the
 peer's `get-endpoint-manifest --proof-path`). The Hiero TSS verifier (`0.0.366`) requires both;
 the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
+
+`close-channel --channel-id <hex>` requests graceful closure and lets the queues drain.
+For an abandoned or wedged channel, an administrator can use `--force-close` to mark
+this side CLOSED immediately and discard queued messages without application callbacks.
+Each call examines at most 16 consecutive message IDs, including missing slots, so a
+sparse queue may require several calls. `SUCCESS` means the request was accepted; it
+may leave cleanup batches outstanding, and repeating after completion is a no-op
+`SUCCESS`. Node logs report the cleanup cursor, next message ID, and `complete=true`
+when cleanup is finished. No HAPI query currently exposes that cursor.
+
+Force-close stops local syncing and does not notify or purge the peer. Coordinate
+with the peer administrator to close and clean up the other side separately.
 
 ### Connector lifecycle
 

@@ -281,9 +281,27 @@ require multi-network infrastructure.
 
 ### 3.2.6 Invalid Transition Rejection
 
-- `closeChannel` on a CLOSING, DRAINED, or CLOSED channel is rejected.
+- Graceful `closeChannel` on a CLOSING or CLOSED channel is rejected; on DRAINED it
+  provides administrative recovery by transitioning to CLOSED.
 - `closeChannel` on an ACTIVE or PAUSED channel succeeds (transitions to CLOSING).
 - No admin halt or resume transactions exist.
+
+### 3.2.7 Administrative Force-close (Hiero)
+
+- Only a CLPR administrator may set `force_close`; it cannot be combined with
+  `ownership_commitment` or used for a PENDING channel.
+- An established channel becomes CLOSED immediately, even with unacknowledged slots.
+- Each transaction examines at most 16 consecutive IDs, including missing slots,
+  starting after the actual ACK or at the persisted cleanup cursor. DATA, replies,
+  and controls are discarded without callbacks. Other channels remain unchanged.
+- Purged DATA decrements the connector's in-flight count, with a floor of zero.
+- A subsequent force-close continues cleanup. Once the cursor reaches the next
+  unassigned ID (or 1 for an unused channel), further calls return no-op SUCCESS.
+  SUCCESS alone does not distinguish a partial batch from finished cleanup.
+- The channel's actual ACK, next message ID, and running hashes remain unchanged.
+  Closed channels reject ordinary sends and bundles while cleanup continues.
+- Force-close stops local syncing without notifying the peer. The peer's side and
+  its queued slots need separate administrator cleanup.
 
 ## 3.3 Connector Lifecycle
 
