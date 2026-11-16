@@ -372,6 +372,7 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
+        maybeCreateClprAdminAccount(state, systemContext, config);
         // If requested, create accounts with aliases from the blocklist
         if (accountsConfig.blocklistEnabled()) {
             for (final var info : blocklistParser.parse(accountsConfig.blocklistResource())) {
@@ -521,6 +522,7 @@ public class SystemTransactions {
         if (isClprStakingAccountMissing(state, currentConfig)) {
             createClprStakingAccount(systemContext, currentConfig);
         }
+        maybeCreateClprAdminAccount(state, systemContext, currentConfig);
         maybeUpdateClprLedgerConfiguration(state, systemContext, currentConfig, adminConfig.upgradeSysFilesLoc());
         startupNetworks.clearCachedNetworks();
     }
@@ -740,6 +742,60 @@ public class SystemTransactions {
                 systemContext,
                 new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration()),
                 config);
+    }
+
+    private void maybeCreateClprAdminAccount(
+            @NonNull final State state,
+            @NonNull final SystemContext systemContext,
+            @NonNull final Configuration config) {
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        final var accountsConfig = config.getConfigData(AccountsConfig.class);
+        final var accountNum = accountsConfig.clprAdmin();
+        final var hederaConfig = config.getConfigData(HederaConfig.class);
+        // Synthetic creation leaves the entity allocator unchanged. Only use numbers reserved for the system.
+        if (!clprConfig.enabled()
+                || accountNum < FIRST_POST_SYSTEM_FILE_ENTITY
+                || accountNum >= hederaConfig.firstUserEntity()
+                || (accountNum >= FIRST_RESERVED_SYSTEM_CONTRACT && accountNum <= LAST_RESERVED_SYSTEM_CONTRACT)
+                || accountNum == accountsConfig.stakingRewardAccount()
+                || accountNum == accountsConfig.nodeRewardAccount()
+                || accountNum == accountsConfig.feeCollectionAccount()
+                || accountNum == clprConfig.stakingAccount()) {
+            return;
+        }
+
+        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
+        final var adminId = idFactory.newAccountId(accountNum);
+        if (accounts.get(adminId) != null) {
+            return;
+        }
+        final var treasury = accounts.get(idFactory.newAccountId(accountsConfig.treasury()));
+        if (treasury == null
+                || treasury.deleted()
+                || treasury.key() == null
+                || IMMUTABILITY_SENTINEL_KEY.equals(treasury.key())) {
+            log.warn("Cannot create CLPR admin account {} without an active treasury key", adminId);
+            return;
+        }
+        final var entityNumber = state.getReadableStates(EntityIdService.NAME)
+                .<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)
+                .get();
+        if (entityNumber == null || accountNum > entityNumber.number()) {
+            log.warn("Cannot create CLPR admin account {} ahead of the entity allocator", adminId);
+            return;
+        }
+
+        final var adminKey = treasury.keyOrThrow();
+        final var autoRenewPeriod =
+                new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration());
+        systemContext.dispatchCreation(
+                b -> b.memo("CLPR admin account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(adminKey)
+                                .autoRenewPeriod(autoRenewPeriod)
+                                .build())
+                        .build(),
+                accountNum);
     }
 
     private static void dispatchClprStakingAccountCreation(

@@ -87,9 +87,18 @@ The treasury, system admin, and configured CLPR admin can submit
 `ClprUpdateLedgerConfiguration`, `ClprCloseChannel`, and `ClprEvictPeerEndpoint`.
 The network property `accounts.clprAdmin` defaults to `601`, which selects account
 number 601 in the network's shard and realm (`0.0.601` on Previewnet). To choose
-another CLPR admin, set the property to the positive number of an existing
-account in the network properties file (`0.0.121`). Set `accounts.clprAdmin=-1`
-to disable the delegation.
+another CLPR admin, set the property to a positive account number in the network
+properties file (`0.0.121`). Set `accounts.clprAdmin=-1` to disable the delegation.
+
+When CLPR is enabled, HCN creates a missing eligible CLPR admin account at genesis
+or after an upgrade. It creates the account with the treasury's current key and a
+zero balance. An existing account retains its key and balance.
+
+Automatic provisioning applies to account numbers from 200 up to
+`hedera.firstUserEntity` (exclusive), excluding the reserved contract range
+350–399 and the accounts designated for staking rewards, node rewards, fee
+collection, and CLPR staking. The account number must be below the next number
+available to the entity allocator.
 
 ### Authorization privileges for file updates and appends
 
