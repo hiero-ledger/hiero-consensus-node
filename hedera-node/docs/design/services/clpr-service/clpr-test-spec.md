@@ -308,9 +308,10 @@ DRAINED as part of initiating the close.
 - `closeChannel` on a CLOSING or CLOSED channel is rejected.
 - `closeChannel` on an ACTIVE or PAUSED channel succeeds (use an unacknowledged outbound Data
   Message to assert a persisted CLOSING state).
-- For the canonical admin recovery case, start with a DRAINED Channel whose entire outbound queue
-  is acknowledged and whose peer close-notification cannot be delivered. `closeChannel` succeeds
-  and transitions it to CLOSED.
+- For the canonical admin recovery case, `closeChannel` on a DRAINED Channel succeeds and
+  transitions it to CLOSED. Cover a fully acknowledged outbound queue and one with unacknowledged
+  Response Messages, as when the peer's close-notification cannot be delivered; recovery is not
+  gated on acknowledgements.
 - No admin halt or resume transactions exist.
 
 ## 3.3 Connector Lifecycle
@@ -623,6 +624,9 @@ Verify the Channel transitions to CLOSING, the
 execute, charge the Connector, and generate normal replies. The Channel transitions to DRAINED when the
 peer acknowledges all outbound Data Messages, even if generated responses remain in flight. It reaches
 CLOSED when the peer reports DRAINED or CLOSED and acknowledges the entire local outbound queue.
+Verify that both sides reach CLOSED, including when one side moves from CLOSING to CLOSED in a single
+bundle. This depends on the close-notification bundle, which Hiero does not yet send
+([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
 
 ### 4.1.4 Config Propagation Across Ledgers
 
@@ -854,10 +858,10 @@ enqueued, bundles can be submitted, and responses are correctly ordered. No admi
 ### 5.4.4 Admin Closes a PAUSED Channel
 
 While a Channel is PAUSED and has an unacknowledged outbound Data Message, call `closeChannel`.
-Verify the Channel transitions to CLOSING. Submit
-a bundle with out-of-order responses and verify it is still rejected (the ordering violation persists even in
-CLOSING). Then submit a bundle with correctly ordered responses and valid Data Messages: verify normal
-application dispatch, Connector charging, and replies. The Channel must not resume to ACTIVE or accept
+Verify the Channel transitions to CLOSING. Submit a bundle with out-of-order responses and verify it is
+not processed: no dispatch, no acknowledgement update, and no running-hash advance (the ordering violation
+persists even in CLOSING). Then submit a bundle with correctly ordered responses and valid Data Messages:
+verify normal application dispatch, Connector charging, and replies. The Channel must not resume to ACTIVE or accept
 new local `sendMessage` calls; it drains through DRAINED → CLOSED normally.
 
 ### 5.4.5 CLOSING Propagation via Metadata

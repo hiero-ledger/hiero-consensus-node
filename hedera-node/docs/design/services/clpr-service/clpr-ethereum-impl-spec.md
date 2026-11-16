@@ -1,12 +1,13 @@
 # CLPR Ethereum Implementation Specification
 
 This document is the Ethereum-specific implementation specification for the CLPR (Cross Ledger Protocol). It maps every
-construct from the [CLPR Protocol Specification](clpr-service-spec.md) to concrete Solidity contracts, storage layouts,
-function signatures, events, and gas analyses. Engineers should use this document to break the work into epics and
-issues.
+construct from the canonical
+[CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md)
+to concrete Solidity contracts, storage layouts, function signatures, events, and gas analyses. Engineers should use
+this document to break the work into epics and issues.
 
-For architectural rationale and design decisions, see the [CLPR Design Document](clpr-service.md). For the
-cross-platform protocol specification, see the [CLPR Protocol Specification](clpr-service-spec.md).
+For architectural rationale and design decisions, see the canonical
+[CLPR Design Document](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service.md).
 
 ---
 
@@ -179,8 +180,9 @@ interface IClprService {
     ///      outbound queue, including generated responses, is acknowledged.
     ///      If closed from PAUSED, the Channel cannot drain until the peer fixes
     ///      response ordering; once fixed, bundles process normally while CLOSING.
-    ///      From DRAINED, admin recovery may transition directly to CLOSED once
-    ///      the entire outbound queue is acknowledged (failed close-notification).
+    ///      From DRAINED → transitions directly to CLOSED (admin recovery when the
+    ///      peer's close-notification cannot be delivered); does not wait for
+    ///      outstanding acknowledgements.
     /// @param channelId The Channel ID.
     function closeChannel(bytes32 channelId) external;
 

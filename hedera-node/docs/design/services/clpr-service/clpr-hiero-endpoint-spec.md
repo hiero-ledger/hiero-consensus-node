@@ -4,15 +4,18 @@ This document specifies how the CLPR endpoint — the component responsible for 
 construction, and transaction submission — is implemented within the Hiero consensus node. Every Hiero consensus node
 IS a CLPR endpoint when CLPR is enabled. There is no separate process, sidecar, or external service.
 
-For the cross-platform protocol specification, see the companion
-[CLPR Protocol Specification](clpr-service-spec.md). For the architectural rationale and design overview, see the
-[CLPR Design Document](clpr-service.md).
+For the cross-platform protocol specification, see the canonical
+[CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md).
+For the architectural rationale and design overview, see the canonical
+[CLPR Design Document](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service.md).
 
 ---
 
 ## Notation
 
-This document uses RFC 2119 keywords per the [cross-platform spec](clpr-service-spec.md). Additional terms:
+This document uses RFC 2119 keywords per the
+[cross-platform spec](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md).
+Additional terms:
 
 - "Node" refers to a Hiero consensus node.
 - "Endpoint module" refers to the CLPR endpoint code running within a node.
@@ -210,7 +213,8 @@ pair to detect abuse (see Section 12.1).
 participate in syncs (both inbound and outbound). PAUSED Channels continue outbound syncs and accept inbound
 syncs, but reject inbound bundles containing out-of-order responses. CLOSING and DRAINED Channels continue
 syncing to drain queues. PENDING Channels do not sync. CLOSED Channels cease normal syncs but retain the
-final close-notification obligation described in Section 13.4.
+final close-notification obligation described in Section 13.4, which Hiero does not yet implement
+([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
 
 ## 3.2 Peer Endpoint Selection
 
@@ -954,8 +958,14 @@ close-notification bundle carrying CLOSED status and the final acknowledgement p
 [the canonical endpoint close-notification obligation](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#34-endpoint-close-notification-obligation).
 The endpoint retries until the peer accepts the bundle or rejects it because its Channel is already CLOSED.
 The peer can then complete its DRAINED → CLOSED transition using the final acknowledgement. If delivery is
-permanently unavailable, an admin may use the DRAINED → CLOSED recovery path only after the entire outbound
-queue is acknowledged.
+permanently unavailable, the peer's admin may use the DRAINED → CLOSED recovery path (`ClprCloseChannel` on the
+DRAINED Channel). That path does not check acknowledgements, so Response Messages without a proven
+acknowledgement may be left undelivered.
+
+**Implementation status.** The Hiero endpoint does not yet send the close-notification. Once a Channel is CLOSED,
+the sync orchestrator unschedules it and inbound sync sessions for it are refused. A peer that has not yet met
+its own DRAINED → CLOSED condition can therefore stay DRAINED until its admin uses the recovery path. Tracked
+in [#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315).
 
 ## 13.5 Submission Deduplication
 

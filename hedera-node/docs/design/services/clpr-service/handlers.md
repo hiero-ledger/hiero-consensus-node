@@ -68,15 +68,19 @@ side-effects.
 
 - Functionality: `CLPR_CLOSE_CHANNEL`. Spec §6.2 (`closeChannel`).
 - Admin-gated.
-- Status transitions to `CLOSING` (then `DRAINED`/`CLOSED` per spec §2.1.1; depending on
-  queue state at handle time).
+- From `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED` directly if the whole
+  outbound queue is already acknowledged. From `DRAINED`, status becomes `CLOSED`.
+  `CLOSING` and `CLOSED` are rejected; a `PENDING` Channel is deleted.
 - New local `sendMessage` calls are blocked during `CLOSING` and `DRAINED`. Inbound Data
   Messages still dispatch normally, charge the connector, and generate responses.
 - `DRAINED` means the peer has acknowledged this side's outbound Data Messages; responses
   may still be generated and drain before `CLOSED`. Admin may close a stuck `DRAINED`
-  Channel through the recovery path once its entire outbound queue is acknowledged (canonical spec §3.4).
-- **Lifecycle hook:** `onChannelClosed(channelId)` runs only when status becomes `CLOSED`;
-  the orchestrator continues syncing during `CLOSING` and `DRAINED`.
+  Channel through the recovery path (canonical spec §3.4); the handler does not check
+  acknowledgements for this transition.
+- **Lifecycle hook:** `onChannelClosed(channelId)` runs only when status becomes `CLOSED`
+  and unschedules the channel; the orchestrator continues syncing during `CLOSING` and
+  `DRAINED`. Implementation status: no close-notification bundle is sent after `CLOSED`
+  yet ([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
 
 ### `ClprEvictPeerEndpointHandler` — admin endpoint eviction
 

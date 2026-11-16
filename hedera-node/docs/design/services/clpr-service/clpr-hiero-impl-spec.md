@@ -150,8 +150,9 @@ message ClprCompleteChannelTransactionBody {
 // Messages, the Channel transitions to DRAINED. Response Messages may still
 // be generated and drain in DRAINED. Transitions to CLOSED when the peer is
 // DRAINED or CLOSED and all outbound messages have been acknowledged.
-// An admin may also close a stuck DRAINED Channel via the recovery path
-// once its entire outbound queue is acknowledged.
+// An admin may also move a stuck DRAINED Channel directly to CLOSED (the
+// recovery path when the peer's close-notification cannot be delivered);
+// this does not wait for outstanding acknowledgements.
 // See cross-platform spec §2.1.1 for the full status transition table.
 message ClprCloseChannelTransactionBody {
   bytes channel_id = 1;
@@ -412,18 +413,18 @@ fingerprints are not rewritten.
 
 **Channel Status Transitions** (see also cross-platform spec section 2.1.1):
 
-|   From    |    To     |                                        Trigger                                        |
-|-----------|-----------|---------------------------------------------------------------------------------------|
-| (new)     | `PENDING` | `ClprRegisterChannel` succeeds (commit phase)                                         |
-| `PENDING` | `ACTIVE`  | `ClprCompleteChannel` succeeds (reveal phase)                                         |
-| `PENDING` | (deleted) | Admin: `ClprCloseChannel` on a PENDING Channel (immediate deletion)                   |
-| `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`                           |
-| `ACTIVE`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer's `ClprQueueMetadata.status` is `CLOSING`/`DRAINED`/`CLOSED` |
-| `PAUSED`  | `ACTIVE`  | Auto: peer fixes ordering (if admin hasn't closed)                                    |
-| `PAUSED`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer status is `CLOSING`/`DRAINED`/`CLOSED`; drain requires valid response ordering |
-| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound Data Messages; responses may still be in flight |
-| `DRAINED` | `CLOSED`  | Auto: peer is `DRAINED`/`CLOSED` and all outbound messages, including responses, are acknowledged |
-| `DRAINED` | `CLOSED`  | Admin: `ClprCloseChannel` recovery with the entire outbound queue acknowledged when the peer's close-notification cannot be delivered |
+|   From    |    To     |                                                         Trigger                                                          |
+|-----------|-----------|--------------------------------------------------------------------------------------------------------------------------|
+| (new)     | `PENDING` | `ClprRegisterChannel` succeeds (commit phase)                                                                            |
+| `PENDING` | `ACTIVE`  | `ClprCompleteChannel` succeeds (reveal phase)                                                                            |
+| `PENDING` | (deleted) | Admin: `ClprCloseChannel` on a PENDING Channel (immediate deletion)                                                      |
+| `ACTIVE`  | `PAUSED`  | Auto: response ordering violation during `ClprSubmitBundle`                                                              |
+| `ACTIVE`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer's `ClprQueueMetadata.status` is `CLOSING`/`DRAINED`/`CLOSED`                          |
+| `PAUSED`  | `ACTIVE`  | Auto: peer fixes ordering (if admin hasn't closed)                                                                       |
+| `PAUSED`  | `CLOSING` | Admin: `ClprCloseChannel`, or peer status is `CLOSING`/`DRAINED`/`CLOSED`; drain requires valid response ordering        |
+| `CLOSING` | `DRAINED` | Auto: peer has acknowledged all outbound Data Messages; responses may still be in flight                                 |
+| `DRAINED` | `CLOSED`  | Auto: peer is `DRAINED`/`CLOSED` and all outbound messages, including responses, are acknowledged                        |
+| `DRAINED` | `CLOSED`  | Admin: `ClprCloseChannel` recovery when the peer's close-notification cannot be delivered; not gated on acknowledgements |
 
 `CLOSED` is a terminal state with no outgoing transitions.
 
@@ -524,7 +525,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 | `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction.              |
 | `ClprRegisterChannelHandler`           | `ClprRegisterChannel`           | Medium (commit phase: verifyConfig call, store verifier contract and code fingerprint, Channel creation in PENDING state). No ECDSA verification at this stage. The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
 | `ClprCompleteChannelHandler`           | `ClprCompleteChannel`           | Medium (reveal phase: ECDSA verify, keccak256(channel_id ‖ public_key) == stored commitment check, create Channel in ACTIVE state).                                                                                                                                                                        |
-| `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                          |
+| `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → graceful drain through CLOSING/DRAINED; DRAINED → CLOSED admin recovery; peer status and acknowledgements complete automatic closure per §2.1.1)                                                                                                        |
 | `ClprRegisterConnectorHandler`         | `ClprRegisterConnector`         | Medium (fund transfer, mapping setup). Records the `admin` field on the Connector state (defaults to the transaction payer if not specified in the body). The signing requirement includes the admin key if an explicit admin is provided; otherwise the payer key suffices.                               |
 | `ClprTopUpConnectorHandler`            | `ClprTopUpConnector`            | Low (balance update)                                                                                                                                                                                                                                                                                       |
 | `ClprWithdrawConnectorBalanceHandler`  | `ClprWithdrawConnectorBalance`  | Low (balance check + transfer)                                                                                                                                                                                                                                                                             |
@@ -581,6 +582,10 @@ cross-platform spec section 4.2:
    during DRAINED. Transition from `DRAINED` to `CLOSED` only when the peer is `DRAINED` or `CLOSED`
    and all outbound messages, including generated responses, are acknowledged
    (`acked_message_id >= next_message_id - 1`). See canonical spec §4.2 Steps 5a–5b for the lifecycle conditions.
+   Canonical §4.2 runs this check as Step 5b, before lazy config propagation (Step 5c) and dispatch (Step 6);
+   Hiero runs it after both. One observable difference: a ConfigUpdate enqueued in step 7 must be acknowledged
+   before `DRAINED` → `CLOSED`. So when step 7 enqueues a ConfigUpdate while processing a bundle from a peer that
+   is already `CLOSED`, the Channel stays `DRAINED` and needs the admin recovery path.
 
 **Failure isolation:** A failure on one message does not stop processing of remaining messages. Each message is
 handled independently.
