@@ -110,11 +110,14 @@ message ClprThrottles {
      * DATA uses at most max_queue_depth - 1 slots, including queued control/reply
      * messages. A peer MUST NOT enqueue new DATA if that would exceed the most
      * recently received advertised max_queue_depth in outstanding DATA to this
-     * ledger. DATA already outstanding when a lower limit arrives may drain.
+     * ledger. DATA already outstanding when an external peer advertises a lower
+     * limit may drain.
      *
-     * Hiero retains ordinary and reply budgets based on the local historical queue limit
-     * so DATA sent under an earlier higher limit can still be answered after a
-     * configuration reduction. Peers that exceed advertised credit can stall their
+     * On Hiero this local limit MUST NOT decrease. Administrator decreases fail with
+     * INVALID_CLPR_CONFIGURATION; increases are bounded by clpr.maxQueueDepthCeiling.
+     * Upgrade files preserve the existing limit when a lower value is requested.
+     * The current limit reserves both ordinary and reply capacity, for a total bound
+     * of twice max_queue_depth. Peers that exceed advertised credit can stall their
      * channel; administrative force-close remains available for recovery.
      */
     uint32 max_queue_depth = 4;

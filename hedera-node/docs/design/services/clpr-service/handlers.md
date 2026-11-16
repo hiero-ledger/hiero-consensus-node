@@ -160,6 +160,8 @@ side-effects.
 
 - Functionality: `CLPR_UPDATE_LEDGER_CONFIGURATION`. Spec §6.1.
 - Admin-gated.
+- Rejects a lower local `max_queue_depth` or growth above `clpr.maxQueueDepthCeiling` with
+  `INVALID_CLPR_CONFIGURATION` at consensus. Unchanged existing credit is allowed.
 - Writes the singleton `LEDGER_CONFIGURATION`. Bumps `timestamp`. Only path to add/edit
   `endpoints`. Throttle changes propagate to existing channels **lazily** via the
   next `sendMessage` (see `ClprServiceApiImpl` / [`evm-integration.md`](evm-integration.md)).

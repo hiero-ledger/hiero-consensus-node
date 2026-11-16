@@ -43,7 +43,7 @@ Defined alongside state types; the Java SPI is `ClprEndpointServiceDefinition` (
 service, no `Transaction` envelopes — payloads are raw `ClprSyncPayload` bytes). RPCs:
 `sync(ClprSyncPayload → ClprSyncPayload)`.
 
-## State schemas: `V0780ClprSchema` and `V0800ClprSchema`
+## State schema: `V0780ClprSchema`
 
 Path: `hedera-clpr-service-impl/.../impl/schemas/V0780ClprSchema.java`. Schema version `0.78.0`
 orders the schema independently of the software version.
@@ -55,19 +55,12 @@ orders the schema independently of the software version.
 | `CHANNELS_KEY`                      | KV        | `ProtoBytes` (32B channel ID)                            | `ClprChannel`             | `MAX_CHANNELS = 10 000`                                                                                                              |
 | `PENDING_COMMITMENTS_KEY`           | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent)                                                                                     |
 | `PENDING_CONNECTOR_COMMITMENTS_KEY` | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent — same constant, separate state)                                                     |
-| `MESSAGE_QUEUE_KEY`                 | KV        | `ClprMessageKey` (channelId + messageId)                 | `ClprMessageValue`        | per channel: at most `2 * H`, where `H` is the locally recorded historical `max_queue_depth`; new DATA obeys the current lower limit |
+| `MESSAGE_QUEUE_KEY`                 | KV        | `ClprMessageKey` (channelId + messageId)                 | `ClprMessageValue`        | per channel: at most `2 * max_queue_depth`; the local limit is expand-only |
 | `CONNECTORS_KEY`                    | KV        | `ClprConnectorKey` (channel_id + connector_id, both 32B) | `ClprConnector`           | `MAX_CONNECTORS = 100 000`                                                                                                           |
 | `LEDGER_CONFIGURATION_KEY`          | Singleton | —                                                        | `ClprLedgerConfiguration` | 1                                                                                                                                    |
 
-`V0800ClprSchema` adds the `MAX_QUEUE_DEPTH_HIGH_WATER` singleton (state ID 71),
-stored as `ProtoLong`. It tracks locally governed historical queue credit and never appears
-in the peer-proven ledger configuration or a hash-chained ConfigUpdate message.
-
-Block-stream consumers must support state ID 71 and `SingletonUpdateChange.proto_long_value`
-(field 24), a `google.protobuf.Int64Value`. Following the existing primitive-wrapper stream
-convention, replay converts that scalar back to the local `ProtoLong` state value. A present
-zero is an update, distinct from an unset oneof. The stream wrapper has the same protobuf wire
-encoding as `ProtoLong`; the state codec and state-root hashing remain unchanged.
+Queue capacity comes directly from the non-decreasing `max_queue_depth` in
+`LEDGER_CONFIGURATION`. No separate reserve singleton or block-stream value type is needed.
 
 State IDs are `StateKey.KeyOneOfType.CLPRSERVICE_I_*.protoOrdinal()` (or
 `SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal()` for the singleton). Treat
@@ -78,10 +71,9 @@ those constants as the canonical identity — the string keys are labels.
 `ClprServiceImpl.doGenesisSetup()` initializes missing singletons in the first round. The handle
 workflow also initializes them during post-upgrade setup. Both delegate to
 `V0780ClprSchema.initializeSingletons()` using the active network configuration and preserve existing
-values; schema startup only registers the state definitions. The local queue reserve is seeded
-from the persisted ledger configuration. If an upgrade-file change runs before this initialization,
-its configuration write initializes the reserve while retaining the old limit. Every configuration
-write atomically retains the largest prior reserve, old limit, and new limit.
+values; schema startup only registers the state definitions. Administrator transactions reject a
+lower queue limit. Upgrade-file updates retain existing credit when a lower limit is requested,
+and cap new growth at `clpr.maxQueueDepthCeiling`; see [configuration rules](config-and-slashing.md).
 
 Seeds `LEDGER_CONFIGURATION` with:
 

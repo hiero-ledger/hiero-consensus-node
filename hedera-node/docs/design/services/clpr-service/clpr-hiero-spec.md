@@ -295,33 +295,36 @@ A terminal reply removes its original DATA before its callback, making that cred
 nested sends even before the handler publishes its final ACK frontier.
 
 **On an inbound bundle:** after selecting the accepted prefix and its acknowledgement,
-enqueue a stale configuration if the outstanding queue uses less than the historical
-ordinary budget `H`. Its other `H` slots remain reserved for application replies. This
-lets a lowered limit be advertised even when outstanding DATA fills the new, smaller
-ordinary limit. A completely full ordinary budget can defer the update until traffic
-drains; it cannot revoke the reply credit needed to make that progress.
+enqueue a stale configuration if the outstanding queue uses less than the current
+ordinary budget `Q = throttles.max_queue_depth`. Another `Q` slots remain reserved for
+application replies, bounding total outbound depth by `2 * Q`. A full ordinary budget can
+defer the update until traffic drains; it cannot revoke the reply credit needed for progress.
 
-`H` is the greater of the local `MAX_QUEUE_DEPTH_HIGH_WATER` singleton and the current
-`throttles.max_queue_depth`. This implementation state is separate from the configuration
-proved to peers and from every `ConfigUpdate`; neither wire encoding changes. Genesis and
-post-upgrade setup initialize it from the persisted ledger configuration. The 0.80 schema
-creates the singleton for networks upgrading from earlier CLPR releases. Every configuration
-write—including synthetic upgrade-file updates—retains the maximum of the prior reserve,
-prior configured limit, and newly configured limit in the same transaction. The reserve is
-not a user-supplied configuration field, and peers cannot inflate it.
+The local `max_queue_depth` is expand-only. An administrator's update that lowers it fails
+at consensus with `INVALID_CLPR_CONFIGURATION`, without changing the configuration or its
+timestamp. An unchanged value is allowed. An increase must not exceed the positive network
+property `clpr.maxQueueDepthCeiling` (default 10,000). If the ceiling is later configured below
+the persisted limit, that existing credit remains valid, but further increases are rejected.
 
-Lowering a limit restricts new local DATA sends but does not shrink the historical reserve;
-every channel's outbound depth remains bounded by `2 * H`. An acknowledgement of a configuration
-update alone cannot retire old credit: the peer can acknowledge it while DATA admitted under
-its previous view is still queued.
+Genesis file values are capped at this ceiling. An upgrade file uses
+`max(existingDepth, min(fileDepth, ceiling))`; a lower requested value logs a warning and
+retains existing credit instead of failing the upgrade. If the normalized throttles are
+unchanged, no update transaction or timestamp change is needed. Other limits, including
+payload size, bundle size and sync size, remain adjustable in either direction.
+
+Because local queue credit never decreases, the current limit also covers all credit
+advertised since this rule took effect. No additional singleton, migration schema, or
+block-stream field is required. Peer configuration proofs and `ConfigUpdate` encodings
+remain unchanged. Acknowledging a configuration alone does not prove that previously
+admitted DATA has drained; supporting decreases would require an additional protocol or
+capacity mechanism in a future change.
 
 Peers must not enqueue new DATA beyond the latest advertised outstanding-DATA credit.
-Already queued DATA may exceed a subsequently lowered limit and is allowed to drain.
-A peer that disregards advertised credit has no liveness guarantee; force-close provides
-administrative recovery. Before the local reserve is initialized, reads use the current limit,
-and the first local update captures that limit even if no channel has yet been used. This
-does not reconstruct limits advertised before capacity tracking existed;
-operators must drain such legacy traffic before lowering an unrecorded historical limit.
+Incoming peer configuration updates still govern new sends to that peer; an external peer's
+lower credit does not discard already outstanding DATA. A peer that disregards advertised
+credit has no liveness guarantee; force-close provides administrative recovery. Limits
+lowered before this expand-only rule cannot be reconstructed from the current configuration;
+force-close remains available for legacy channels that cannot drain.
 
 An inbound bundle accepts the longest prefix whose generated replies fit the reserve.
 Its received ID/hash and outbound DATA acknowledgement advance only through that prefix.
@@ -332,9 +335,8 @@ transaction fee when its bundle is rejected as full/no-progress at consensus.
 
 Accepted inbound `ConfigUpdate` messages update both local loop variables and the channel
 store before later callbacks, so nested `sendMessage` calls see the new peer limits.
-The pre-existing completion-time config propagation behavior is unchanged; retaining the
-local historical reserve also covers a peer using an older configuration proved before
-channel completion.
+The pre-existing completion-time config propagation behavior is unchanged; the non-decreasing
+local limit also covers a peer using an older configuration proved before channel completion.
 
 Lazy publication avoids an O(channels) rewrite on each configuration change.
 
@@ -387,7 +389,7 @@ See also the economics section in [config-and-slashing.md](config-and-slashing.m
 ## E-11. CLPR singleton maintenance in the block stream
 
 Some CLPR singleton changes happen outside of any transaction handler: genesis and
-post-upgrade setup initialize missing `LEDGER_CONFIGURATION`, `MAX_QUEUE_DEPTH_HIGH_WATER`, `ENDPOINT_MANIFEST`, and
+post-upgrade setup initialize missing `LEDGER_CONFIGURATION`, `ENDPOINT_MANIFEST`, and
 `ENDPOINT_MANIFEST_CONSTRUCTION` singletons; post-upgrade setup reconciles the endpoint
 manifest with a changed roster; and every round (including rounds with no user
 transactions) the endpoint manifest reconciler may advance or close a construction.

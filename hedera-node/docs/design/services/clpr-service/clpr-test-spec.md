@@ -365,18 +365,23 @@ require multi-network infrastructure.
 - Mixed control/reply slots must not consume peer DATA credit, while still consuming local space.
   Empty/redacted DATA still consumes credit; an accepted terminal reply releases it before nested
   response callbacks. Repeated sends must reread current state and preserve connector quotas.
-- Each channel also reserves replies using the local historical maximum `H`, persisted as
-  `MAX_QUEUE_DEPTH_HIGH_WATER`. Total outbound depth must remain at most `2 * H`.
-- A lowered `max_queue_depth` restricts new sends without revoking reply credit for earlier traffic.
-  Test a reduction from 5 to 2 with four local DATA outstanding and peer traffic
-  `[DATA, DATA, DATA, REPLY1, REPLY2, REPLY3, REPLY4]`: bundle sizes 1–7 must progress and drain.
-- Test updates before any channel interaction, missing/zero local reserve, repeated reductions,
-  increases, and genesis/upgrade-file initialization. Configuration proofs and ConfigUpdate payloads
-  must retain their existing encoding regardless of the separately persisted local reserve.
+- Each channel reserves replies using the current local limit `Q = max_queue_depth`.
+  Total outbound depth must remain at most `2 * Q`.
+- The local queue limit is non-decreasing. Administrator decreases fail with
+  `INVALID_CLPR_CONFIGURATION` without changing any configuration field or timestamp; unchanged
+  values and increases up to `clpr.maxQueueDepthCeiling` succeed. Cover the ceiling boundary and
+  an existing limit above a subsequently lowered ceiling: retain that credit but reject growth.
+- Genesis caps queue depth at the configured ceiling. Upgrade files retain existing queue credit
+  when a smaller value is requested, cap new growth, and do not fail because of a requested decrease.
+  A normalized no-op must not change the timestamp; payload and other throttle changes still apply.
+- Exercise saturated queues and raise-only governance changes with independently delayed config
+  publication. With four local DATA outstanding at limit 5 and peer traffic
+  `[DATA, DATA, DATA, REPLY1, REPLY2, REPLY3, REPLY4]`, bundle sizes 1–7 must progress and drain.
+  Configuration proofs and ConfigUpdate payloads retain their existing encoding.
 - Bundle backpressure accepts the longest fitting prefix, advances its received hash/ID and
   acknowledgement consistently, and leaves later one-way slots queued. ACK-only/state-only
-  progress still works when depth exceeds a newly lowered limit.
-- A peer exceeding its advertised credit must not grow the queue beyond `2 * H`.
+  progress still works when the ordinary budget is full.
+- A peer exceeding its advertised credit must not grow the queue beyond `2 * Q`.
 - When the peer acknowledges messages (advancing `acked_message_id`), queue space opens and
   sendMessage succeeds again. Queue checks occur at consensus, so rejected relay submissions
   may still pay transaction fees.
