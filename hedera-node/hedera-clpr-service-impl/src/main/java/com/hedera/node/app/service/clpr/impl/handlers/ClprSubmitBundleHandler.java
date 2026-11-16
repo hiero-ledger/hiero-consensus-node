@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_DECODE_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_CORRUPTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -453,12 +454,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         var peerConfigTimestamp = channel.peerConfigTimestamp();
         var peerThrottles = channel.peerThrottles();
         // A later control message can lower the budget used to build proofs for these replies.
-        var finalReplyPayloadLimit = maxReplyPayloadBytesAfterBundle(throttles, peerThrottles, newMessages);
+        var finalReplyPayloadLimit = maxSerializedReplyBytesAfterBundle(throttles, peerThrottles, newMessages);
         if (hasDeferredMessages) {
             finalReplyPayloadLimit = Math.min(
                     finalReplyPayloadLimit,
-                    maxReplyPayloadBytesAfterBundle(throttles, peerThrottles, validated.newMessages()));
+                    maxSerializedReplyBytesAfterBundle(throttles, peerThrottles, validated.newMessages()));
         }
+        validateReplyBudgets(
+                channel.receivedMessageId(), newMessages, throttles, peerThrottles, finalReplyPayloadLimit);
         var receivedMessageId = channel.receivedMessageId();
         boolean bundleDecodeFailure = false;
         // Iterate the new tail only — replayed slots were dispatched in a prior bundle, so we
@@ -710,13 +713,16 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             if (rawEvmResult != null && rawEvmResult.length() > 0) {
                                 try {
                                     final long replyPayloadLimit = Math.min(
-                                            finalReplyPayloadLimit, maxReplyPayloadBytes(throttles, peerThrottles));
+                                            finalReplyPayloadLimit, maxSerializedReplyBytes(throttles, peerThrottles));
                                     final var decoded = decodeApplicationResponse(rawEvmResult, replyPayloadLimit);
-                                    if (decoded == null) {
+                                    if (decoded == null
+                                            || ClprMessagePayload.PROTOBUF.measureRecord(
+                                                            replyPayload(receivedMessageId, replyStatus, decoded))
+                                                    > replyPayloadLimit) {
                                         log.debug(
                                                 "[ClprSubmitBundle] oversized application response conn={} "
                                                         + "receivedMsgId={} target={} encodedResponseBytes={} "
-                                                        + "maxReplyPayloadBytes={}",
+                                                        + "maxSerializedReplyBytes={}",
                                                 channelId,
                                                 receivedMessageId,
                                                 appContractId,
@@ -835,17 +841,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // attested payload in the running hash and ACK, but bound what the application receives.
                     final long replyPayloadLimit = throttles.maxMessagePayloadBytes();
                     final var attestedReplyData = reply.messageReplyData();
-                    final boolean oversized = replyPayloadLimit > 0 && attestedReplyData.length() > replyPayloadLimit;
+                    final long serializedReplyBytes = ClprMessagePayload.PROTOBUF.measureRecord(payload);
+                    final boolean oversized = replyPayloadLimit > 0 && serializedReplyBytes > replyPayloadLimit;
                     final var replyStatus = oversized ? ClprMessageReplyStatus.APPLICATION_ERROR : reply.status();
                     final var replyData = oversized ? Bytes.EMPTY : attestedReplyData;
                     if (oversized) {
                         log.debug(
                                 "[ClprSubmitBundle] oversized incoming reply conn={} receivedMsgId={} "
-                                        + "replyTargetId={} replyDataBytes={} maxReplyPayloadBytes={}",
+                                        + "replyTargetId={} serializedReplyBytes={} maxSerializedReplyBytes={}",
                                 channelId,
                                 receivedMessageId,
                                 replyTargetId,
-                                attestedReplyData.length(),
+                                serializedReplyBytes,
                                 replyPayloadLimit);
                     }
 
@@ -958,8 +965,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     current - 1);
                         }
 
-                        if (replyStatus == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
-                                || replyStatus == ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED) {
+                        // The authenticated peer status determines connector fault even when the local
+                        // payload limit requires sanitizing the application callback.
+                        if (reply.status() == ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
+                                || reply.status() == ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED) {
                             final var slashResult =
                                     ClprSlashingUtils.applySlash(sourceConnector, clprConfig, connectorStore);
                             final var tokenServiceApi = storeFactory.serviceApi(TokenServiceApi.class);
@@ -976,7 +985,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                             + "connectorId={} replyStatus={} penalty={}",
                                     channelId,
                                     origDataMsg.connectorId(),
-                                    replyStatus,
+                                    reply.status(),
                                     slashResult.penaltyAmount());
                         }
                     } else {
@@ -1286,7 +1295,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         return bytes.length() <= 32 ? bytes.toHex() : bytes.slice(0, 32).toHex() + "...";
     }
 
-    private static long maxReplyPayloadBytes(
+    /** Budget for the entire serialized reply payload, including message id, status, and protobuf framing. */
+    private static long maxSerializedReplyBytes(
             @NonNull final ClprThrottles localThrottles, @Nullable final ClprThrottles peerThrottles) {
         final var destination = peerThrottles == null ? localThrottles : peerThrottles;
         final long localLimit = localThrottles.maxMessagePayloadBytes();
@@ -1297,7 +1307,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         return Math.max(0, Math.min(payloadLimit, syncLimit - MIN_PROOF_OVERHEAD_BYTES));
     }
 
-    private static long maxReplyPayloadBytesAfterBundle(
+    private static long maxSerializedReplyBytesAfterBundle(
             @NonNull final ClprThrottles localThrottles,
             @Nullable final ClprThrottles peerThrottles,
             @NonNull final List<ClprMessagePayload> newMessages) {
@@ -1306,17 +1316,49 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 final var config =
                         payload.controlOrThrow().configUpdateOrThrow().configuration();
                 if (config != null && config.hasThrottles()) {
-                    return maxReplyPayloadBytes(localThrottles, config.throttlesOrThrow());
+                    return maxSerializedReplyBytes(localThrottles, config.throttlesOrThrow());
                 }
             }
         }
-        return maxReplyPayloadBytes(localThrottles, peerThrottles);
+        return maxSerializedReplyBytes(localThrottles, peerThrottles);
+    }
+
+    /** Reject an impossible reply budget before dispatching any application in this prefix. */
+    private static void validateReplyBudgets(
+            final long receivedMessageId,
+            @NonNull final List<ClprMessagePayload> newMessages,
+            @NonNull final ClprThrottles localThrottles,
+            @Nullable final ClprThrottles peerThrottles,
+            final long finalReplyPayloadLimit) {
+        var currentPeerThrottles = peerThrottles;
+        long messageId = receivedMessageId;
+        for (final var payload : newMessages) {
+            messageId++;
+            if (payload.hasControl()) {
+                final var peerConfig =
+                        payload.controlOrThrow().configUpdateOrThrow().configuration();
+                if (peerConfig != null) {
+                    currentPeerThrottles = peerConfig.throttles();
+                }
+            } else if (payload.hasMessage()) {
+                final long budget =
+                        Math.min(finalReplyPayloadLimit, maxSerializedReplyBytes(localThrottles, currentPeerThrottles));
+                // All non-SUCCESS statuses have the same one-byte enum encoding. The empty error
+                // must fit even if the application fails or its return value exceeds the budget.
+                HandleException.validateTrue(
+                        ClprMessagePayload.PROTOBUF.measureRecord(
+                                        replyPayload(messageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY))
+                                <= budget,
+                        CLPR_PAYLOAD_TOO_LARGE);
+            }
+        }
     }
 
     @Nullable
     private static Bytes decodeApplicationResponse(@NonNull final Bytes abiResponse, final long maxPayloadBytes) {
         // Bound the input before copying it for Headlong. ABI pads the payload to a whole word, so
         // also check the decoded length to distinguish sizes that have the same encoded length.
+        // The caller then measures the complete serialized reply with its actual message id and status.
         final long maxPaddedPayloadBytes = ((maxPayloadBytes + ABI_WORD_BYTES - 1) / ABI_WORD_BYTES) * ABI_WORD_BYTES;
         if (abiResponse.length() > 2 * ABI_WORD_BYTES + maxPaddedPayloadBytes) {
             return null;
@@ -1324,6 +1366,16 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final byte[] response =
                 APPLICATION_RESPONSE_TYPE.decode(abiResponse.toByteArray()).get(0);
         return response.length > maxPayloadBytes ? null : Bytes.wrap(response);
+    }
+
+    private static ClprMessagePayload replyPayload(
+            final long messageId, @NonNull final ClprMessageReplyStatus status, @NonNull final Bytes data) {
+        return ClprMessagePayload.newBuilder()
+                .messageReply(ClprMessageReply.newBuilder()
+                        .messageId(messageId)
+                        .status(status)
+                        .messageReplyData(data))
+                .build();
     }
 
     /**
@@ -1543,13 +1595,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     status,
                     data.length(),
                     shortHex(data));
-            enqueue(ClprMessagePayload.newBuilder()
-                    .messageReply(ClprMessageReply.newBuilder()
-                            .messageId(inboundMessageId)
-                            .status(status)
-                            .messageReplyData(data)
-                            .build())
-                    .build());
+            enqueue(replyPayload(inboundMessageId, status, data));
         }
 
         long nextMessageId() {

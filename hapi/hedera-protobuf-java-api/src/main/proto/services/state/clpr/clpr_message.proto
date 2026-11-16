@@ -82,7 +82,8 @@ message ClprMessageReply {
     ClprMessageReplyStatus status = 2;
 
     /**
-     * Opaque application response bounded by the reply recipient's payload limit.
+     * Opaque application response. The entire serialized ClprMessagePayload, including
+     * this reply's id, status, and framing, is bounded by the recipient's payload limit.
      * A return that exceeds the reply budget produces an empty APPLICATION_ERROR reply.
      */
     bytes message_reply_data = 3;

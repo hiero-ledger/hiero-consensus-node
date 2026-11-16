@@ -620,7 +620,11 @@ class ClprBundleValidatorTest {
                 .copyBuilder()
                 .messages(replay, newReply)
                 .build();
-        final var validated = subject.validate(channel, content, LEDGER_CONFIG);
+        final var config = LEDGER_CONFIG
+                .copyBuilder()
+                .throttles(THROTTLES.copyBuilder().maxMessagePayloadBytes(1))
+                .build();
+        final var validated = subject.validate(channel, content, config);
 
         assertThat(subject.validateReplies(channel, validated, queue(Map.of(2L, dataPayload(1))), 1000))
                 .isEqualTo(new ReplyValidation.AckedThrough(
