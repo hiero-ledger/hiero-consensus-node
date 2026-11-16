@@ -27,7 +27,6 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
@@ -151,7 +150,6 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
-
     private final Map<Address, HederaSystemContract> systemContracts;
     private final ContractMetrics contractMetrics;
 
@@ -207,7 +205,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         // This must be done first as the system contract address range overlaps with system
         // accounts. Note that unlike EVM precompiles, we do allow sending value "to" Hedera
         // system contracts because they sometimes require fees greater than be reasonably
-        // paid using gas; for example, when creating a new token or sending a CLPR message. But the system contract
+        // paid using gas; for example, when creating a new token. But the system contract
         // only diverts this value to the network's fee collection accounts, instead of
         // actually receiving it.
 
@@ -231,7 +229,6 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
 
     private void handleSystemContractCall(
             @NonNull final CustomMessageCallContext context, @Nullable final OperationTracer tracer) {
-        final var systemContract = systemContracts.get(context.executableCodeAddress);
         if (context.isCodeDelegation) {
             final var recipientIsTokenOrScheduleAccount = context.contractAccount.stream()
                     .anyMatch(a -> a instanceof TokenEvmAccount || a instanceof ScheduleEvmAccount);
@@ -242,7 +239,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                 if (context.transfersValue) {
                     doHalt(context, INVALID_CONTRACT_ID, tracer);
                 } else {
-                    doExecuteSystemContract(context, systemContract);
+                    doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
                 }
             } else {
                 // For any other Hedera accounts: code delegation to System Contracts is a no-op - so just succeed.
@@ -253,14 +250,11 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                     doTransferValueOrHalt(context, tracer);
                 }
             }
-        } else if (context.transfersValue
-                && !isTokenCreation(context.frame)
-                && !(systemContract instanceof AbstractClprSystemContract clpr
-                        && clpr.acceptsValue(context.frame.getInputData()))) {
-            // Only token creation and priced CLPR calls can attach value.
+        } else if (context.transfersValue && !isTokenCreation(context.frame)) {
+            // System Contract calls that transfer value aren't allowed, unless they're token creation.
             doHalt(context, INVALID_CONTRACT_ID, tracer);
         } else {
-            doExecuteSystemContract(context, systemContract);
+            doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
         }
     }
 

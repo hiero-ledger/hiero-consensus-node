@@ -19,6 +19,7 @@ import com.hedera.hapi.node.state.clpr.SeiTrustAnchor;
 import com.hedera.hapi.node.state.clpr.SeiValidatorEntry;
 import com.hedera.hapi.node.state.clpr.SeiValidatorSet;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.EvmChannelContext;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -911,7 +912,7 @@ public final class SeiCometBftProofVerifier {
             }
             final byte[] signBytes = SeiHashing.precommitSignBytes(
                     header.chainId(), header.height(), commit.round(), blockId, timestamp);
-            if (!SeiHashing.verifyEd25519(
+            if (!Ed25519Verify.verify(
                     validator.ed25519PubKey().toByteArray(),
                     signBytes,
                     sig.signature().toByteArray())) {

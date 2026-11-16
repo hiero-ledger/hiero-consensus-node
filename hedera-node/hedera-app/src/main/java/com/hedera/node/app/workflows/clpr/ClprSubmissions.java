@@ -57,16 +57,14 @@ public class ClprSubmissions extends ConsensusSubmissions {
      */
     public CompletableFuture<Void> submitEndpointPublication(@NonNull final ClprEndpoint endpoint) {
         requireNonNull(endpoint);
-        final var clprConfig = appContext.configSupplier().get().getConfigData(ClprConfig.class);
-        if (!clprConfig.enabled()) {
+        if (!appContext.configSupplier().get().getConfigData(ClprConfig.class).enabled()) {
             return CompletableFuture.completedFuture(null);
         }
         log.info("[Clpr] submitting endpoint self-publication for endpoint {}", endpoint);
         return submitIfActive(
-                b -> b.transactionFee(clprConfig.manifestSubmissionMaxFee())
-                        .clprEndpointPublication(ClprEndpointPublicationTransactionBody.newBuilder()
-                                .endpoint(endpoint)
-                                .build()),
+                b -> b.clprEndpointPublication(ClprEndpointPublicationTransactionBody.newBuilder()
+                        .endpoint(endpoint)
+                        .build()),
                 onFailure);
     }
 }

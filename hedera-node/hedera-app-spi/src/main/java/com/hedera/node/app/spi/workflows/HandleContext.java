@@ -252,18 +252,6 @@ public interface HandleContext {
     TransactionBody body();
 
     /**
-     * Returns the actual category of the transaction being handled.
-     *
-     * <p>Use this category for handler authorization. It is independent of the deprecated
-     * {@link com.hedera.node.app.spi.fees.FeeCharging.Context#category()} used for fee accounting,
-     * which may report {@link TransactionCategory#CHILD} to preserve its charging semantics.
-     *
-     * @return the transaction's dispatch category
-     */
-    @NonNull
-    TransactionCategory transactionCategory();
-
-    /**
      * Gets the payer {@link AccountID}.
      *
      * @return the {@link AccountID} of the payer in this context

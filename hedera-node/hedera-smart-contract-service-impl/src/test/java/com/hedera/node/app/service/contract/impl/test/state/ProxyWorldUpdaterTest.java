@@ -125,26 +125,6 @@ class ProxyWorldUpdaterTest {
     }
 
     @Test
-    void recordsOnlyClprFeesFromCommittedFrames() {
-        given(hederaOperations.collectClprFee(SENDER_ID, 10L)).willReturn(true);
-        given(hederaOperations.collectClprFee(SENDER_ID, 20L)).willReturn(true);
-        final var committedChild = subject.updater();
-        assertTrue(committedChild.collectClprFee(SENDER_ID, 10L));
-        committedChild.commit();
-        final var revertedChild = subject.updater();
-        final var committedGrandchild = revertedChild.updater();
-        assertTrue(committedGrandchild.collectClprFee(SENDER_ID, 20L));
-        committedGrandchild.commit();
-        revertedChild.revert();
-        revertedChild.commit();
-        verify(hederaOperations, never()).recordClprFees(org.mockito.ArgumentMatchers.anyLong());
-
-        subject.commit();
-
-        verify(hederaOperations).recordClprFees(10L);
-    }
-
-    @Test
     void getsImmutableAccount() {
         given(evmFrameState.getAccount(ADDRESS_6)).willReturn(anImmutableAccount);
 

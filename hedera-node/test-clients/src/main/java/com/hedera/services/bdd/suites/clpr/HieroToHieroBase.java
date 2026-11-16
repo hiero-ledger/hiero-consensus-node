@@ -141,8 +141,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final String CLPR_CONTRACT = "ClprSystemContract";
     static final String SEND_MESSAGE = "sendMessage";
     static final String GET_QUEUE_STATE = "getChannelQueueState";
-    // Each send is paid partly with value, which costs its call a value-transfer surcharge on top of the send's gas
-    static final long GAS = 4_000_000L;
+    static final long GAS = 2_000_000L;
     static final long MIN_STAKE = 100L;
     /** How long {@link #awaitReceivedMessage} / {@link #awaitAckedMessage} wait for delivery once WRAPS is warm. */
     static final Duration DELIVERY_TIMEOUT = Duration.ofMinutes(1);
@@ -1773,7 +1772,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                                             crypto.connectorId,
                                                             new byte[20],
                                                             "probe".getBytes(StandardCharsets.UTF_8))
-                                                    .sending(ONE_HBAR)
                                                     .gas(GAS)
                                                     .payingWith("probeCaller")
                                                     .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED));
@@ -1825,7 +1823,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                                         crypto.connectorId,
                                                         new byte[20],
                                                         "active-probe".getBytes(StandardCharsets.UTF_8))
-                                                .sending(ONE_HBAR)
                                                 .gas(GAS)
                                                 .payingWith("activeProbeCaller")
                                                 .hasKnownStatus(ResponseCodeEnum.SUCCESS));
@@ -1847,7 +1844,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         crypto.connectorId,
                         new byte[20],
                         data.getBytes(StandardCharsets.UTF_8))
-                .sending(ONE_HBAR)
                 .gas(GAS)
                 .payingWith(caller);
     }
