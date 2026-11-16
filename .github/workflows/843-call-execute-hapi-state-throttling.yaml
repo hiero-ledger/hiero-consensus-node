@@ -1,175 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "843: [CALL] Exec HAPI Token Thrtl"
+name: "Deprecated: 843: [CALL] Exec HAPI Token Thrtl"
 on:
-  workflow_call:
-    inputs:
-      ref:
-        description: "The branch, tag or SHA to checkout."
-        required: false
-        type: string
-        default: ""
-      java-distribution:
-        description: "Java JDK Distribution:"
-        required: false
-        type: string
-        default: "temurin"
-      java-version:
-        description: "Java JDK Version:"
-        required: false
-        type: string
-      node-version:
-        description: "NodeJS Version:"
-        required: false
-        type: string
-        default: "24"
-      enable-network-log-capture:
-        description: "Network Log Capture Enabled"
-        required: false
-        type: string
-        default: "false"
-      hapi-test-config-profile:
-        description: "Node config profile for the HAPI tasks (e.g. pre-cutover); blank keeps the production defaults"
-        required: false
-        type: string
-        default: ""
-      name-suffix:
-        description: "Suffix for the job, check and artifact names (keeps reruns apart from MATS)"
-        required: false
-        type: string
-        default: ""
-    secrets:
-      access-token:
-        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
-        required: true
-      gradle-cache-username:
-        description: "The username used to authenticate with the Gradle Build Cache Node."
-        required: true
-      gradle-cache-password:
-        description: "The password used to authenticate with the Gradle Build Cache Node."
-        required: true
-    outputs:
-      failure-mode:
-        description: "Indicates the failure mode of the job, if any."
-        value: ${{ jobs.hapi-tests-token-and-state-throttling.outputs.failure-mode }}
+  workflow_dispatch:
 
 defaults:
   run:
     shell: bash
 
 permissions:
-  id-token: write
-  actions: read
-  pull-requests: write
-  statuses: write
-  checks: write
   contents: read
 
-env:
-  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
-  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
-  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
-  CG_EXEC: ionice -c 2 -n 2 nice -n 19
-  HAPI_TEST_CONFIG_PROFILE: ${{ inputs.hapi-test-config-profile }}
-
 jobs:
-  hapi-tests-token-and-state-throttling:
-    name: "HAPI Tests (Token & State Throttling)${{ inputs.name-suffix }}"
-    runs-on: hl-cn-hapi-lin-lg
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+  print-deprecated:
+    name: Print Deprecated Warning
+    runs-on: hl-cn-default-lin-sm
     steps:
-      - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
-          checkout-token: "${{ secrets.access-token }}"
-          setup-java: "true"
-          java-version: "${{ inputs.java-version }}"
-          java-distribution: "${{ inputs.java-distribution }}"
-          setup-gradle: "true"
-          setup-testlens: "true"
-          gradle-cache-read-only: "false"
-          setup-node: "true"
-          node-version: "${{ inputs.node-version }}"
-
-      - name: HAPI Testing (Token & State Throttling)
-        id: gradle-hapi-token-and-state-throttling
-        env:
-          LC_ALL: en.UTF-8
-          LANG: en_US.UTF-8
+      - name: Print Deprecation Warning
         run: |
-          status=0
-          run_subtask() {
-            local t=$1
-            echo "::group::$t"
-            if ${GRADLE_EXEC} "$t" --no-daemon; then
-              echo "::endgroup::"
-              return 0
-            fi
-            echo "::endgroup::"
-            status=1
-            echo "::error::$t failed"
-            echo "❌ $t FAILED — expand group above for details"
-          }
-          run_subtask hapiTestToken
-          run_subtask hapiTestTokenSerial
-          run_subtask hapiTestStateThrottling
-          exit $status
-
-      - name: Publish HAPI Test (Token & State Throttling) Reports
-        uses: step-security/publish-unit-test-result-action@681100d67b09305624c089873f12c545ee7cbc24 # v2.23.0
-        with:
-          check_name: "Node: HAPI Test (Token & State Throttling)${{ inputs.name-suffix }} Results"
-          json_thousands_separator: ","
-          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload HAPI Test (Token & State Throttling) Report Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: "HAPI Test (Token & State Throttling)${{ inputs.name-suffix }} Reports"
-          path: "**/test-clients/build/test-results/**/TEST-*.xml"
-          retention-days: 7
-
-      - name: Upload HAPI Test (Token & State Throttling) Network Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        # TEMP: also upload on green runs to measure hapiTestToken's CPU load (attempt in the name, so a
-        # rerun can't overwrite a failed attempt's logs); then restore the failure check and the name
-        if: ${{ !cancelled() && inputs.enable-network-log-capture }}
-        with:
-          name: "HAPI Test (Token & State Throttling)${{ inputs.name-suffix }} Network Logs (attempt ${{ github.run_attempt }})"
-          path: |
-            hedera-node/test-clients/build/*-test/**/output/**
-            hedera-node/test-clients/build/*-test/*.log
-            hedera-node/test-clients/output/**
-          retention-days: 7
-
-      - name: Upload HAPI Test (Token & State Throttling) Failure Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() && steps.gradle-hapi-token-and-state-throttling.conclusion == 'failure' }}
-        with:
-          name: "HAPI Test (Token & State Throttling)${{ inputs.name-suffix }} Failure Artifacts"
-          path: |
-            hedera-node/test-clients/build/**/*.blk.gz
-            hedera-node/test-clients/build/**/*.rcd.gz
-            hedera-node/test-clients/build/**/*.pb
-            hedera-node/test-clients/build/**/*.pces
-            hedera-node/test-clients/build/*-test/**/output/**
-            hedera-node/test-clients/build/*-test/**/*.log
-            hedera-node/test-clients/output/**
-          retention-days: 7
-
-      - name: Set Failure Mode Output
-        id: set-failure-mode
-        if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.gradle-hapi-token-and-state-throttling.outcome || 'skipped' }}" == "success" \
-             || "${{ steps.gradle-hapi-token-and-state-throttling.outcome || 'skipped' }}" == "skipped" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          elif [[ "${{ steps.gradle-hapi-token-and-state-throttling.outcome || 'skipped' }}" == "failure" ]]; then
-            echo "failure-mode=test" >> "${GITHUB_OUTPUT}"
-          else
-            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
-          fi
+          echo "::warning::This workflow is deprecated and will be removed in a future release."
+          exit 1

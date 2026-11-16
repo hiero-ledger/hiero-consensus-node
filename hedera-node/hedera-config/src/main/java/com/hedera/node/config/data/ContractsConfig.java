@@ -33,6 +33,9 @@ public record ContractsConfig(
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty
         long maxGasPerTransaction,
 
+        @ConfigProperty(defaultValue = "150000000") @NetworkProperty
+        long blockGasLimit,
+
         @ConfigProperty(defaultValue = "15000000") @NetworkProperty
         long maxGasPerSec,
 

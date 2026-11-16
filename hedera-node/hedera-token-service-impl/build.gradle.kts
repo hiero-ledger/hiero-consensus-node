@@ -26,3 +26,5 @@ testModuleInfo {
 
     opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
 }
+
+apply(from = "../../gradle/extra-fee-call-site-coverage.gradle.kts")

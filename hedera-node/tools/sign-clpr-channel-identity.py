@@ -6,11 +6,10 @@ or written by hand).
 
 Input file (e.g. channel.json) must contain at least:
   - channelId   (32 bytes, hex, 0x prefix optional)
-  - privateKey     (32 bytes, hex; an Ed25519 seed or a secp256k1 scalar)
   - signatureScheme  one of: "ED25519", "ECDSA" (alias), "ECDSA_SECP256K1"
 
 The script derives the matching public key, then computes:
-  publicKey            = derived from privateKey per scheme
+  publicKey            = derived from the private key per scheme
                          • ED25519:          32 bytes (raw point)
                          • ECDSA_SECP256K1:  64 bytes uncompressed X||Y (no 0x04 header)
   ownershipCommitment  = keccak256(channelId || publicKey)
@@ -23,21 +22,28 @@ SignatureType.ECDSA_SECP256K1 ("NONEwithECDSA") in the platform crypto module an
 the ECDSA_UNCOMPRESSED_KEY_LENGTH check in the handler.
 
 Output is the input JSON augmented with the three computed fields. By default
-the result is printed to stdout; pass --in-place to overwrite the input file or
---out <path> to write somewhere else.
+the result is printed to stdout; pass --out <path> to write it to a file instead.
+
+The private key is supplied ONLY via --key-file <path> (a file holding the 32-byte hex key,
+mode 0600). On POSIX a key file that is a symlink or non-regular file is always refused, and one
+readable by group/others or owned by someone else is refused unless --allow-loose-key-file is given.
+A bundle containing an inline privateKey field is rejected, and nothing is written.
 
 Dependencies:
-  pip install pycryptodome      # required: Ed25519 + Keccak-256
-  cast (Foundry)                 # required only for ECDSA_SECP256K1; install via foundryup
+  pip install pycryptodome              # required
+  pip install coincurve                 # required only for ECDSA_SECP256K1
+
+Existing files are never destroyed: if the --out target already exists it is
+first moved to <name>.<epochMillis>.bak (mode 0600), so a legacy bundle is never lost.
 """
 
 from __future__ import annotations  # PEP 604/585 annotations on Python 3.9
 
 import argparse
+import importlib.util
 import json
+import os
 import re
-import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -57,8 +63,18 @@ except ImportError as e:  # pragma: no cover — install hint
 # Helpers
 # -----------------------------------------------------------------------------
 
+# Shared key-file helpers live next to this script (same loading pattern as build-besu-qbft-config-payload.py).
+_spec = importlib.util.spec_from_file_location(
+    "clpr_identity_files", Path(__file__).with_name("clpr_identity_files.py"))
+_files = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_files)
+_check_key_file = _files._check_key_file
+_write_secure = _files._write_secure
+
+
 CHANNEL_ID_LEN = 32
 PRIVATE_KEY_LEN = 32
+
 
 ED25519 = "ED25519"
 ECDSA = "ECDSA_SECP256K1"
@@ -119,55 +135,33 @@ def ed25519_sign(seed: bytes, message: bytes) -> bytes:
 
 
 # -----------------------------------------------------------------------------
-# ECDSA secp256k1: shell out to Foundry's `cast` (no native Python secp256k1
-# without a third-party dep). `cast wallet sign --no-hash` signs a raw 32-byte
-# hash using deterministic RFC 6979, producing a canonical low-s signature.
+# ECDSA secp256k1: in-process via coincurve (libsecp256k1 bindings).
+# Keys are never passed on argv — no process-visible leak.
 # -----------------------------------------------------------------------------
 
-def _require_cast() -> str:
-    cast = shutil.which("cast")
-    if not cast:
-        raise RuntimeError(
-            "ECDSA_SECP256K1 requires Foundry's `cast` on PATH. Install foundry "
-            "(https://book.getfoundry.sh/getting-started/installation) and retry."
+def _coincurve():
+    """Import coincurve lazily so ED25519 users don't need it installed."""
+    try:
+        import coincurve
+    except ImportError as e:  # pragma: no cover — install hint
+        print(
+            "ERROR: ECDSA_SECP256K1 requires coincurve ({}). Install it with:\n  pip install coincurve".format(e),
+            file=sys.stderr,
         )
-    return cast
-
-
-def _cast(args: list[str]) -> str:
-    cast = _require_cast()
-    res = subprocess.run([cast, *args], capture_output=True, text=True, check=False)
-    if res.returncode != 0:
-        raise RuntimeError(
-            "`cast {}` failed (exit {}):\n{}".format(" ".join(args), res.returncode, res.stderr.strip())
-        )
-    return res.stdout.strip()
+        sys.exit(2)
+    return coincurve
 
 
 def secp256k1_pubkey(scalar: bytes) -> bytes:
     """Returns the 64-byte uncompressed public key (X||Y, no 0x04 prefix)."""
-    out = _cast(["wallet", "public-key", "--raw-private-key", "0x" + scalar.hex()])
-    return parse_hex(out, "cast public-key output", expected_len=64)
+    return _coincurve().PrivateKey(scalar).public_key.format(compressed=False)[1:]
 
 
 def secp256k1_sign(scalar: bytes, message_hash: bytes) -> bytes:
     """Signs the raw 32-byte hash and returns 64-byte r||s (drops the recovery byte)."""
     if len(message_hash) != 32:
         raise ValueError("ECDSA message hash must be 32 bytes; got {}".format(len(message_hash)))
-    out = _cast(
-        [
-            "wallet",
-            "sign",
-            "--no-hash",
-            "--private-key",
-            "0x" + scalar.hex(),
-            "0x" + message_hash.hex(),
-        ]
-    )
-    sig = parse_hex(out, "cast sign output")
-    if len(sig) != 65:
-        raise RuntimeError("expected 65-byte cast signature (r||s||v); got {} bytes".format(len(sig)))
-    return sig[:64]  # drop the trailing recovery byte
+    return _coincurve().PrivateKey(scalar).sign_recoverable(message_hash, hasher=None)[:64]
 
 
 # -----------------------------------------------------------------------------
@@ -193,11 +187,13 @@ def derive(channel_id: bytes, private_key: bytes, scheme: str) -> dict[str, byte
 
 
 def render_json(bundle: dict, derived: dict[str, bytes], scheme: str) -> str:
-    """Emit the channel-identity JSON in the same field order yahcli uses."""
+    """Emit the channel-identity JSON in the same field order yahcli uses.
+
+    The private key never appears in the bundle — it lives in the companion .key file.
+    """
     ordered: dict[str, str] = {
         "channelId": _ensure_0x(bundle["channelId"]),
         "publicKey": "0x" + derived["publicKey"].hex(),
-        "privateKey": _ensure_0x(bundle["privateKey"]),
         "signatureScheme": scheme,
         "ownershipCommitment": "0x" + derived["ownershipCommitment"].hex(),
         "signature": "0x" + derived["signature"].hex(),
@@ -221,9 +217,17 @@ def main(argv=None) -> int:
         epilog=__doc__,
     )
     parser.add_argument("input", help="Path to the channel identity JSON (e.g. channel.json).")
-    out = parser.add_mutually_exclusive_group()
-    out.add_argument("--out", help="Write the resulting JSON to this path.")
-    out.add_argument("--in-place", action="store_true", help="Overwrite the input file.")
+    parser.add_argument(
+        "--key-file",
+        help="Path to the file containing the hex-encoded private key (required).",
+    )
+    parser.add_argument(
+        "--allow-loose-key-file",
+        action="store_true",
+        help="Do not refuse a --key-file that group/others can access or that you do not own "
+             "(symlinks and non-regular files are always refused).",
+    )
+    parser.add_argument("--out", help="Write the resulting JSON to this path.")
     args = parser.parse_args(argv)
 
     in_path = Path(args.input)
@@ -236,7 +240,19 @@ def main(argv=None) -> int:
     try:
         scheme = normalize_scheme(bundle.get("signatureScheme", ""))
         channel_id = parse_hex(bundle.get("channelId"), "channelId", CHANNEL_ID_LEN)
-        private_key = parse_hex(bundle.get("privateKey"), "privateKey", PRIVATE_KEY_LEN)
+        if "privateKey" in bundle:
+            print(
+                "ERROR: the input bundle contains an inline privateKey, which is no longer supported. "
+                "Move the key into a file readable only by you (mode 0600), remove the privateKey "
+                "field from the bundle, and pass --key-file <path>. Nothing was written.",
+                file=sys.stderr,
+            )
+            return 2
+        if not args.key_file:
+            print("ERROR: no private key source: provide --key-file <path>", file=sys.stderr)
+            return 2
+        _check_key_file(Path(args.key_file), args.allow_loose_key_file)
+        private_key = parse_hex(Path(args.key_file).read_text().strip(), "key-file", PRIVATE_KEY_LEN)
     except ValueError as e:
         print("ERROR: {}".format(e), file=sys.stderr)
         return 2
@@ -250,11 +266,13 @@ def main(argv=None) -> int:
     rendered = render_json(bundle, derived, scheme)
 
     if args.out:
-        Path(args.out).write_text(rendered)
-        print("wrote {}".format(args.out), file=sys.stderr)
-    elif args.in_place:
-        in_path.write_text(rendered)
-        print("updated {}".format(in_path), file=sys.stderr)
+        target = Path(args.out)
+        try:
+            _write_secure(target, rendered)
+        except OSError as e:
+            print("ERROR: cannot write {}: {}".format(target, e), file=sys.stderr)
+            return 1
+        print("wrote {}".format(target), file=sys.stderr)
     else:
         sys.stdout.write(rendered)
 

@@ -73,6 +73,47 @@ public final class BlockRangeResolver {
     private final String gcpBlockStreamDir;
     private final String billingProject;
     private final Path localProbeDir;
+    private final BlockStore blockStore;
+
+    /**
+     * Lowest block number known to still exist in the bucket, refreshed lazily when a download fails. The source
+     * bucket has a retention policy that continuously deletes the oldest blocks, so this value only grows. Any block
+     * below it is considered evicted. {@code -1} until first refreshed.
+     */
+    private long firstAvailableBlock = -1;
+
+    /**
+     * Minimal view of the remote block store used by the resolver. Exists so the eviction handling can be tested
+     * without GCS.
+     */
+    interface BlockStore {
+        /** Downloads the given block into {@code localDir}; returns {@code false} on failure. */
+        boolean download(long blockNumber, @NonNull Path localDir);
+
+        /** Returns the lowest block number currently present, or {@code null} if it cannot be determined. */
+        @Nullable
+        Long firstBlock();
+
+        /** Returns the highest block number currently present, or {@code null} if it cannot be determined. */
+        @Nullable
+        Long lastBlock();
+    }
+
+    /**
+     * Rounds contained in a single block, or a marker that the block could not be inspected.
+     *
+     * @param evicted  {@code true} if the block file was removed from the bucket by the retention policy
+     * @param minRound the smallest {@code RoundHeader.roundNumber} in the block, or {@code -1}
+     * @param maxRound the largest {@code RoundHeader.roundNumber} in the block, or {@code -1}
+     */
+    private record BlockRounds(boolean evicted, long minRound, long maxRound) {
+        static final BlockRounds EVICTED = new BlockRounds(true, -1, -1);
+        static final BlockRounds UNKNOWN = new BlockRounds(false, -1, -1);
+
+        boolean hasRounds() {
+            return maxRound != -1;
+        }
+    }
 
     /**
      * Result of the block range resolution.
@@ -96,9 +137,41 @@ public final class BlockRangeResolver {
             @NonNull final String gcpBlockStreamDir,
             @Nullable final String billingProject,
             @NonNull final Path localProbeDir) {
+        this(gcpBlockStreamDir, billingProject, localProbeDir, new GcsBlockStore(gcpBlockStreamDir, billingProject));
+    }
+
+    BlockRangeResolver(
+            @NonNull final String gcpBlockStreamDir,
+            @Nullable final String billingProject,
+            @NonNull final Path localProbeDir,
+            @NonNull final BlockStore blockStore) {
         this.gcpBlockStreamDir = gcpBlockStreamDir;
         this.billingProject = billingProject;
         this.localProbeDir = localProbeDir;
+        this.blockStore = blockStore;
+    }
+
+    /** {@link BlockStore} backed by the {@code gcloud storage} CLI. */
+    private record GcsBlockStore(
+            @NonNull String gcpBlockStreamDir, @Nullable String billingProject) implements BlockStore {
+        @Override
+        public boolean download(final long blockNumber, @NonNull final Path localDir) {
+            return GcpPathHelper.downloadFile(blockFileUri(gcpBlockStreamDir, blockNumber), localDir, billingProject);
+        }
+
+        @Override
+        @Nullable
+        public Long firstBlock() {
+            final String uri = listFirstFile(gcpBlockStreamDir, billingProject);
+            return uri == null ? null : blockNumberFromUri(uri);
+        }
+
+        @Override
+        @Nullable
+        public Long lastBlock() {
+            final String uri = listLastFile(gcpBlockStreamDir, billingProject);
+            return uri == null ? null : blockNumberFromUri(uri);
+        }
     }
 
     /**
@@ -134,19 +207,35 @@ public final class BlockRangeResolver {
      * @return the resolved block range
      */
     public BlockRange resolveByRounds(final long originRound, final long targetRound) throws IOException {
+        return resolveByRounds(originRound, targetRound, 0L);
+    }
+
+    /**
+     * As {@link #resolveByRounds(long, long)}, but extends the right boundary by {@code marginRounds} past the
+     * target so the events that decide the target during replay are downloaded. The true {@code targetRound} is
+     * still resolved strictly (an out-of-range target throws); only the margin extension clamps to the stream tip.
+     */
+    public BlockRange resolveByRounds(final long originRound, final long targetRound, final long marginRounds)
+            throws IOException {
         log.info(CONSOLE, "Discovering block stream boundaries ...");
 
         log.info(CONSOLE, "  Listing first available block file ...");
-        final String firstFileUri = listFirstFile(gcpBlockStreamDir, billingProject);
+        final Long firstListed = blockStore.firstBlock();
 
+        // Note: listing the last file streams the whole directory and can take several minutes. Blocks at the
+        // start of the range may be deleted by the bucket's retention policy in the meantime; the round search
+        // below tolerates that (see probeBlockRounds).
         log.info(CONSOLE, "  Listing last available block file ...");
-        final String lastFileUri = listLastFile(gcpBlockStreamDir, billingProject);
+        final Long lastListed = blockStore.lastBlock();
 
-        if (firstFileUri == null || lastFileUri == null) {
+        if (firstListed == null || lastListed == null) {
             throw new IOException("No block files found in " + gcpBlockStreamDir);
         }
-        final long firstBlock = blockNumberFromUri(firstFileUri);
-        final long lastBlock = blockNumberFromUri(lastFileUri);
+        final long firstBlock = firstListed;
+        final long lastBlock = lastListed;
+        synchronized (this) {
+            firstAvailableBlock = Math.max(firstAvailableBlock, firstBlock);
+        }
         log.info(
                 CONSOLE,
                 "  Block stream range: [{}, {}] ({} blocks)",
@@ -160,9 +249,24 @@ public final class BlockRangeResolver {
             final long leftBlock = findBlockForTargetRound(firstBlock, lastBlock, originRound, executor);
             log.info(CONSOLE, "  Origin round {} found in block {}", originRound, leftBlock);
 
+            // Strict: the real target must be present in the stream (guards a target chosen past the tip).
             log.info(CONSOLE, "  Searching for block containing target round {} ...", targetRound);
-            final long rightBlock = findBlockForTargetRound(leftBlock, lastBlock, targetRound, executor);
-            log.info(CONSOLE, "  Target round {} found in block {}", targetRound, rightBlock);
+            final long targetBlock = findBlockForTargetRound(leftBlock, lastBlock, targetRound, executor);
+            log.info(CONSOLE, "  Target round {} found in block {}", targetRound, targetBlock);
+
+            final long rightBlock;
+            if (marginRounds <= 0) {
+                rightBlock = targetBlock;
+            } else {
+                final long marginRound = targetRound + marginRounds;
+                log.info(
+                        CONSOLE,
+                        "  Extending right boundary to round {} (target + {} decision margin) ...",
+                        marginRound,
+                        marginRounds);
+                rightBlock = findBlockForRoundClamped(targetBlock, lastBlock, marginRound, executor);
+                log.info(CONSOLE, "  Right boundary resolved to block {}", rightBlock);
+            }
 
             final BlockRange range = new BlockRange(leftBlock, rightBlock);
             cleanUpProbeFiles(range);
@@ -170,6 +274,28 @@ public final class BlockRangeResolver {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Like {@link #findBlockForTargetRound} but, when {@code round} is past the stream tip, returns the last
+     * available block instead of throwing. Used for the forward decision margin, which routinely asks for
+     * {@code target + DECISION_MARGIN_ROUNDS} — a round that usually does not exist yet. Taking everything
+     * available is correct: the surplus only supplies deciding events, and replay stops at the real target.
+     */
+    private long findBlockForRoundClamped(
+            final long leftBlock, final long lastAvailableBlock, final long round, final ExecutorService executor)
+            throws IOException {
+        final long maxRoundInLastBlock = getBlockRounds(lastAvailableBlock).maxRound();
+        if (maxRoundInLastBlock != -1 && round > maxRoundInLastBlock) {
+            log.info(
+                    CONSOLE,
+                    "  Requested round {} is past the stream tip (last available round {}); clamping to last block {}",
+                    round,
+                    maxRoundInLastBlock,
+                    lastAvailableBlock);
+            return lastAvailableBlock;
+        }
+        return findBlockForTargetRound(leftBlock, lastAvailableBlock, round, executor);
     }
 
     private static long blockNumberFromUri(@NonNull final String fileUri) {
@@ -357,6 +483,11 @@ public final class BlockRangeResolver {
      *
      * <p>The search downloads candidate block files, parses them to extract the maximum
      * {@code RoundHeader.roundNumber}, and narrows the range accordingly.</p>
+     *
+     * <p>The source bucket continuously deletes its oldest blocks (retention policy), so blocks near
+     * {@code leftBlock} may disappear while the search runs. A block confirmed as evicted (it is below the
+     * current first block of the bucket) only holds rounds older than anything still available, so it is
+     * treated as "below the target" rather than as an error.</p>
      */
     private long findBlockForTargetRound(
             final long leftBlock, final long lastAvailableBlock, final long targetRound, final ExecutorService executor)
@@ -368,7 +499,8 @@ public final class BlockRangeResolver {
                 lastAvailableBlock);
 
         // First, check if the target round is reachable: download the last available block and check
-        final long maxRoundInLastBlock = getMaxRound(lastAvailableBlock);
+        final BlockRounds lastRounds = getBlockRounds(lastAvailableBlock);
+        final long maxRoundInLastBlock = lastRounds.maxRound();
         if (maxRoundInLastBlock == -1) {
             throw new IOException(
                     "Failed to parse any round headers from the last available block " + lastAvailableBlock);
@@ -379,44 +511,72 @@ public final class BlockRangeResolver {
                     targetRound, maxRoundInLastBlock, lastAvailableBlock, gcpBlockStreamDir));
         }
 
+        // Cache of block number → rounds (to avoid re-downloading)
+        final ConcurrentHashMap<Long, BlockRounds> roundCache = new ConcurrentHashMap<>();
+        roundCache.put(lastAvailableBlock, lastRounds);
+
+        // Binary search invariant: the answer is in (lo, hi]; lo is below the target (or evicted).
+        long lo;
+        final long hi0 = lastAvailableBlock;
+
         // Check if the left boundary block already contains the target round
-        final long maxRoundInFirstBlock = getMaxRound(leftBlock);
-        if (maxRoundInFirstBlock >= targetRound) {
-            return leftBlock;
+        final BlockRounds firstRounds = probeBlockRounds(leftBlock);
+        roundCache.put(leftBlock, firstRounds);
+        if (firstRounds.evicted()) {
+            // The left boundary was deleted by the retention policy after it was discovered. Everything below the
+            // current first available block is gone, so restart the search from there.
+            final long firstAvailable = currentFirstAvailableBlock();
+            log.warn(
+                    "Block {} was removed from the bucket (retention policy) during the search; "
+                            + "continuing from the first available block {}",
+                    leftBlock,
+                    firstAvailable);
+            if (firstAvailable > hi0) {
+                throw new IOException("All blocks up to " + hi0 + " were removed from " + gcpBlockStreamDir
+                        + " while searching for round " + targetRound);
+            }
+            lo = firstAvailable - 1;
+        } else {
+            if (firstRounds.maxRound() >= targetRound) {
+                return checkedResult(leftBlock, firstRounds, targetRound);
+            }
+            lo = leftBlock;
         }
 
-        // Binary search between leftBlock and lastAvailableBlock
-        long lo = leftBlock;
-        long hi = lastAvailableBlock;
-
-        // Cache of block number → max round (to avoid re-downloading)
-        final ConcurrentHashMap<Long, Long> roundCache = new ConcurrentHashMap<>();
-        roundCache.put(leftBlock, maxRoundInFirstBlock);
-        roundCache.put(lastAvailableBlock, maxRoundInLastBlock);
-
+        long hi = hi0;
         while (hi - lo > 1) {
             final long range = hi - lo;
 
             if (range <= SEQUENTIAL_THRESHOLD) {
-                return sequentialBinarySearchForRound(lo, hi, targetRound, roundCache);
+                final long result = sequentialBinarySearchForRound(lo, hi, targetRound, roundCache);
+                return checkedResult(result, roundCache.get(result), targetRound);
             }
 
             // Scatter-gather: probe SCATTER_FACTOR evenly spaced blocks
             final List<Long> probes = distributeProbes(lo, hi, SCATTER_FACTOR);
             log.debug("Scatter-gather round search: probing {} blocks in [{}, {}]", probes.size(), lo, hi);
 
-            final ConcurrentHashMap<Long, Long> probeResults = parallelRoundCheck(probes, executor);
+            final ConcurrentHashMap<Long, BlockRounds> probeResults = parallelRoundCheck(probes, executor);
             roundCache.putAll(probeResults);
 
             // Find the narrowed bracket
             long newLo = lo;
             long newHi = hi;
             for (final long probe : probes) {
-                final Long maxRound = probeResults.get(probe);
-                if (maxRound == null || maxRound == -1) {
+                final BlockRounds rounds = probeResults.get(probe);
+                if (rounds == null) {
+                    continue;
+                }
+                if (rounds.evicted()) {
+                    // Removed by the retention policy: older than everything still available, hence below target
+                    newLo = Math.max(newLo, probe);
+                    continue;
+                }
+                if (!rounds.hasRounds()) {
                     // If we couldn't parse the block, treat it conservatively
                     continue;
                 }
+                final long maxRound = rounds.maxRound();
                 if (maxRound < targetRound) {
                     newLo = Math.max(newLo, probe);
                 } else {
@@ -428,7 +588,8 @@ public final class BlockRangeResolver {
             // If no progress was made (all probes failed), fall back to sequential search
             if (newLo == lo && newHi == hi) {
                 log.warn("Scatter-gather made no progress in [{}, {}]. Falling back to sequential search.", lo, hi);
-                return sequentialBinarySearchForRound(lo, hi, targetRound, roundCache);
+                final long result = sequentialBinarySearchForRound(lo, hi, targetRound, roundCache);
+                return checkedResult(result, roundCache.get(result), targetRound);
             }
 
             lo = newLo;
@@ -436,29 +597,49 @@ public final class BlockRangeResolver {
         }
 
         // At this point, hi is the block whose max round >= targetRound
-        return hi;
+        return checkedResult(hi, roundCache.get(hi), targetRound);
+    }
+
+    /**
+     * Returns {@code block} unchanged, logging a warning if it starts after {@code targetRound} — i.e. the target
+     * round itself is no longer in the stream (typically because the retention policy already removed it).
+     */
+    private long checkedResult(final long block, @Nullable final BlockRounds rounds, final long targetRound) {
+        if (rounds != null && rounds.hasRounds() && rounds.minRound() > targetRound) {
+            log.warn(
+                    CONSOLE,
+                    "  Round {} is not in the available block stream: the closest block {} starts at round {}. "
+                            + "Older blocks may have been removed by the bucket's retention policy.",
+                    targetRound,
+                    block,
+                    rounds.minRound());
+        }
+        return block;
     }
 
     /**
      * Sequential binary search for the block containing the target round, for small ranges.
      */
     private long sequentialBinarySearchForRound(
-            long lo, long hi, final long targetRound, final ConcurrentHashMap<Long, Long> roundCache) {
+            long lo, long hi, final long targetRound, final ConcurrentHashMap<Long, BlockRounds> roundCache) {
         while (hi - lo > 1) {
             final long mid = lo + (hi - lo) / 2;
-            final long maxRound = roundCache.computeIfAbsent(mid, block -> {
+            final BlockRounds rounds = roundCache.computeIfAbsent(mid, block -> {
                 try {
-                    return getMaxRound(block);
+                    return probeBlockRounds(block);
                 } catch (IOException e) {
                     log.error("Failed to parse block {}", block, e);
-                    return -1L;
+                    return BlockRounds.UNKNOWN;
                 }
             });
 
-            if (maxRound == -1) {
+            if (rounds.evicted()) {
+                // Removed by the retention policy: older than everything still available, hence below target
+                lo = mid;
+            } else if (!rounds.hasRounds()) {
                 // If we can't parse, try to narrow from the other side
                 hi = mid;
-            } else if (maxRound < targetRound) {
+            } else if (rounds.maxRound() < targetRound) {
                 lo = mid;
             } else {
                 hi = mid;
@@ -470,36 +651,91 @@ public final class BlockRangeResolver {
     // ========== Block parsing ==========
 
     /**
+     * Like {@link #getBlockRounds}, but returns {@link BlockRounds#EVICTED} instead of failing when the block can
+     * no longer be downloaded because the bucket's retention policy removed it. Eviction is confirmed by re-listing
+     * the first available block; a download failure for a block at or above it is still reported as an error.
+     */
+    @NonNull
+    private BlockRounds probeBlockRounds(final long blockNumber) throws IOException {
+        try {
+            return getBlockRounds(blockNumber);
+        } catch (BlockDownloadException e) {
+            if (isEvicted(blockNumber)) {
+                log.info("Block {} has been removed from the bucket by the retention policy", blockNumber);
+                return BlockRounds.EVICTED;
+            }
+            throw e;
+        }
+    }
+
+    /**
+     * Returns {@code true} if {@code blockNumber} is below the first block currently present in the bucket.
+     * Retention only ever removes the oldest blocks, so the cached watermark is only refreshed when it cannot
+     * already prove eviction.
+     */
+    private synchronized boolean isEvicted(final long blockNumber) {
+        if (blockNumber < firstAvailableBlock) {
+            return true;
+        }
+        final Long first = blockStore.firstBlock();
+        if (first != null) {
+            firstAvailableBlock = Math.max(firstAvailableBlock, first);
+        }
+        return blockNumber < firstAvailableBlock;
+    }
+
+    /** Returns the first block currently present in the bucket, refreshing the cached value. */
+    private synchronized long currentFirstAvailableBlock() {
+        final Long first = blockStore.firstBlock();
+        if (first != null) {
+            firstAvailableBlock = Math.max(firstAvailableBlock, first);
+        }
+        return firstAvailableBlock;
+    }
+
+    /** Signals that a block file could not be downloaded (it may or may not still exist). */
+    private static final class BlockDownloadException extends IOException {
+        BlockDownloadException(@NonNull final String message) {
+            super(message);
+        }
+    }
+
+    /**
      * Downloads a single block file (if not already in the local probe directory),
-     * parses it, and returns the maximum round number found in its {@code RoundHeader} items.
+     * parses it, and returns the range of round numbers found in its {@code RoundHeader} items.
      *
      * @param blockNumber the block number to inspect
-     * @return the maximum round number, or {@code -1} if no round headers were found
+     * @return the block's rounds; {@code minRound}/{@code maxRound} are {@code -1} if no round headers were found
+     * @throws BlockDownloadException if the file could not be downloaded
+     * @throws IOException            if the file could not be parsed
      */
-    private long getMaxRound(final long blockNumber) throws IOException {
+    @NonNull
+    private BlockRounds getBlockRounds(final long blockNumber) throws IOException {
         final String fileName = blockFileName(blockNumber);
         final Path localFile = localProbeDir.resolve(fileName);
 
         // Download if not already cached locally
         if (!localFile.toFile().exists() || localFile.toFile().length() == 0) {
-            final String uri = blockFileUri(gcpBlockStreamDir, blockNumber);
-            final boolean ok = GcpPathHelper.downloadFile(uri, localProbeDir, billingProject);
-            if (!ok) {
-                throw new IOException("Failed to download block file: " + uri);
+            if (!blockStore.download(blockNumber, localProbeDir)) {
+                throw new BlockDownloadException(
+                        "Failed to download block file: " + blockFileUri(gcpBlockStreamDir, blockNumber));
             }
         }
 
-        // Parse the block and extract max round
+        // Parse the block and extract min/max round
         try {
             final Block block = BlockStreamAccess.blockFrom(localFile);
+            long minRound = Long.MAX_VALUE;
             long maxRound = -1;
             for (final BlockItem item : block.items()) {
                 if (item.hasRoundHeader()) {
-                    maxRound = Math.max(maxRound, item.roundHeader().roundNumber());
+                    final long round = item.roundHeader().roundNumber();
+                    minRound = Math.min(minRound, round);
+                    maxRound = Math.max(maxRound, round);
                 }
             }
-            log.debug("Block {} → maxRound={}", blockNumber, maxRound);
-            return maxRound;
+            log.debug("Block {} → rounds [{}, {}]", blockNumber, minRound, maxRound);
+            return maxRound == -1 ? BlockRounds.UNKNOWN : new BlockRounds(false, minRound, maxRound);
         } catch (Exception e) {
             throw new IOException("Failed to parse block file: " + localFile, e);
         }
@@ -584,21 +820,21 @@ public final class BlockRangeResolver {
 
     /**
      * Downloads and parses multiple block files in parallel using the shared executor,
-     * returning block → maxRound mappings.
+     * returning block → rounds mappings.
      */
     @NonNull
-    private ConcurrentHashMap<Long, Long> parallelRoundCheck(
+    private ConcurrentHashMap<Long, BlockRounds> parallelRoundCheck(
             @NonNull final List<Long> blockNumbers, @NonNull final ExecutorService executor) {
-        final ConcurrentHashMap<Long, Long> results = new ConcurrentHashMap<>();
+        final ConcurrentHashMap<Long, BlockRounds> results = new ConcurrentHashMap<>();
         final List<CompletableFuture<Void>> futures = new ArrayList<>();
         for (final long blockNum : blockNumbers) {
             futures.add(CompletableFuture.runAsync(
                     () -> {
                         try {
-                            results.put(blockNum, getMaxRound(blockNum));
+                            results.put(blockNum, probeBlockRounds(blockNum));
                         } catch (IOException e) {
-                            log.warn("Failed to get max round for block {}: {}", blockNum, e.getMessage());
-                            results.put(blockNum, -1L);
+                            log.warn("Failed to get rounds for block {}: {}", blockNum, e.getMessage());
+                            results.put(blockNum, BlockRounds.UNKNOWN);
                         }
                     },
                     executor));

@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.KeyProvenanceSigner;
@@ -104,8 +105,9 @@ public class FakeHintsService implements HintsService {
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
-            @NonNull final Bytes adoptedRosterHash) {
-        return delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash);
+            @NonNull final Bytes adoptedRosterHash,
+            @NonNull final HistoryProofConstruction historyConstruction) {
+        return delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, historyConstruction);
     }
 
     @Override
@@ -130,6 +132,26 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void reconcile(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            @NonNull final Instant crsWorkTime,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
+        delegate.reconcile(activeRosters, hintsStore, now, crsWorkTime, tssConfig, isActive, activeHistoryConstruction);
+    }
+
+    @Override
+    public void activateSigning(
+            @NonNull final ReadableHintsStore hintsStore,
+            @NonNull final TssConfig tssConfig,
+            @Nullable final HistoryProofConstruction activeHistoryConstruction) {
+        delegate.activateSigning(hintsStore, tssConfig, activeHistoryConstruction);
+    }
+
+    @Override
     public boolean doGenesisSetup(
             @NonNull final WritableStates writableStates,
             @NonNull final Configuration configuration,
@@ -148,7 +170,15 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void setActiveConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
-        delegate.setActiveConstruction(construction, crsState);
+    public boolean requiresHistoryWeights() {
+        return delegate.requiresHistoryWeights();
+    }
+
+    @Override
+    public void setActiveConstruction(
+            @NonNull final HintsConstruction construction,
+            @NonNull final CRSState crsState,
+            @NonNull final HistoryProofConstruction historyConstruction) {
+        delegate.setActiveConstruction(construction, crsState, historyConstruction);
     }
 }

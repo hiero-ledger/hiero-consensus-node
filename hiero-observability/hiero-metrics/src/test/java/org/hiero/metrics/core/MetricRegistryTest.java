@@ -3,9 +3,14 @@ package org.hiero.metrics.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -14,17 +19,22 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import org.hiero.metrics.DoubleCounter;
 import org.hiero.metrics.DoubleGauge;
 import org.hiero.metrics.LongCounter;
 import org.hiero.metrics.LongGauge;
+import org.hiero.metrics.ObservableGauge;
 import org.hiero.metrics.ThreadUtils;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -109,7 +119,7 @@ public class MetricRegistryTest {
         void testUnmodifiableMetricsView() {
             MetricRegistry registry = MetricRegistry.builder().build();
             registry.register(LongCounter.builder("test_counter"));
-            Collection<Metric> metrics = registry.metrics();
+            Collection<Metric<?>> metrics = registry.metrics();
 
             assertThat(metrics).isNotEmpty();
             assertThatThrownBy(() -> metrics.add(mock(Metric.class)))
@@ -135,6 +145,13 @@ public class MetricRegistryTest {
             assertThatThrownBy(() -> createRegistryMockDiscovery(() -> null))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("metrics collection must not be null");
+        }
+
+        @Test
+        void testRegisterMetricsWithProviderReturningNullBuilderThrows() {
+            assertThatThrownBy(() -> createRegistryMockDiscovery(() -> Arrays.asList(LongCounter.builder("a"), null)))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("metric builder must not be null");
         }
 
         @Test
@@ -193,6 +210,15 @@ public class MetricRegistryTest {
             MetricRegistry registry = MetricRegistry.builder().build();
 
             assertThatThrownBy(() -> registry.containsMetric(null))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("metric key must not be null");
+        }
+
+        @Test
+        void testRemoveMetricWithNullKeyThrows() {
+            MetricRegistry registry = MetricRegistry.builder().build();
+
+            assertThatThrownBy(() -> registry.remove(null))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("metric key must not be null");
         }
@@ -369,6 +395,402 @@ public class MetricRegistryTest {
         registry.register(LongCounter.builder(name));
 
         assertThat(registry.containsMetric(LongGauge.key(name))).isFalse();
+    }
+
+    @Test
+    void testRemoveMetric() {
+        MetricRegistry registry = MetricRegistry.builder().build();
+        String name = "test_metric";
+        LongCounter counter = registry.register(LongCounter.builder(name));
+
+        assertThat(registry.remove(LongCounter.key(name))).isTrue();
+        assertThat(registry.containsMetric(LongCounter.key(name))).isFalse();
+        assertThat(registry.metrics()).isEmpty();
+        assertThat(registry.remove(LongCounter.key(name))).as("already removed").isFalse();
+
+        assertThat(registry.register(LongCounter.builder(name)))
+                .as("name can be registered again")
+                .isNotSameAs(counter);
+    }
+
+    @Test
+    void testRemoveMetricWithWrongNameOrTypeKeepsIt() {
+        MetricRegistry registry = MetricRegistry.builder().build();
+        String name = "test_metric";
+        registry.register(LongCounter.builder(name));
+
+        assertThat(registry.remove(LongCounter.key(name + "_"))).isFalse();
+        assertThat(registry.remove(LongGauge.key(name))).isFalse();
+        assertThat(registry.containsMetric(LongCounter.key(name))).isTrue();
+    }
+
+    @Test
+    void testRemovedMetricIsNotExportedAndRegisteredAgainIsSorted() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        registry.register(LongCounter.builder("metric_a"));
+        registry.register(LongCounter.builder("metric_b"));
+        Iterator<MetricSnapshot> export = exporter.snapshot().iterator();
+
+        registry.remove(LongCounter.key("metric_a"));
+        assertThat(exportedNames(exporter.snapshot())).containsExactly("metric_b");
+
+        List<String> seen = new ArrayList<>();
+        export.forEachRemaining(s -> seen.add(s.name()));
+        assertThat(seen).as("started export is not affected").containsExactly("metric_a", "metric_b");
+
+        registry.register(LongGauge.builder("metric_a"));
+        assertThat(exportedNames(exporter.snapshot())).containsExactly("metric_a", "metric_b");
+    }
+
+    @Test
+    void testExportedMetricsAreSortedByName() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        registry.register(LongCounter.builder("metric_b"));
+        registry.register(LongGauge.builder("metric_c"));
+        registry.register(LongCounter.builder("metric_a"));
+
+        assertThat(exportedNames(exporter.snapshot())).containsExactly("metric_a", "metric_b", "metric_c");
+    }
+
+    @Test
+    void testConcurrentRegisterAndRemoveKeepSnapshotConsistent() throws InterruptedException {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        final int threadCount = 4;
+        final int iterations = 20_000;
+        final int namesCount = 5;
+
+        ThreadUtils.runConcurrentAndCheck(
+                threadCount,
+                Duration.ofSeconds(10),
+                threadIdx -> () -> {
+                    for (int i = 0; i < iterations; i++) {
+                        final String name = "metric_" + (i % namesCount);
+                        if ((i + threadIdx) % 2 == 0) {
+                            try {
+                                registry.register(LongCounter.builder(name));
+                            } catch (IllegalArgumentException alreadyRegistered) {
+                                // another thread registered it first
+                            }
+                        } else {
+                            registry.remove(LongCounter.key(name));
+                        }
+                    }
+                },
+                () -> assertThat(exportedNames(exporter.snapshot()))
+                        .as("export has duplicate metrics")
+                        .doesNotHaveDuplicates());
+
+        List<MetricSnapshot> exported = new ArrayList<>();
+        exporter.snapshot().forEach(exported::add);
+        assertThat(exported)
+                .as("exported snapshots are the ones of the registered metrics")
+                .containsExactlyInAnyOrderElementsOf(
+                        registry.metrics().stream().map(Metric::snapshot).toList());
+    }
+
+    @Test
+    void testMetricRegisteredDuringExportIsExportedByNextExport() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        AtomicInteger calls = new AtomicInteger();
+        ObservableGauge.builder("metric_a")
+                .observe(() -> {
+                    // the first call is made by the first export
+                    if (calls.incrementAndGet() == 1) {
+                        registry.register(LongCounter.builder("metric_b"));
+                    }
+                    return 1L;
+                })
+                .register(registry);
+
+        assertThat(exportedNames(exporter.snapshot()))
+                .as("registered after the export rebuilt the list")
+                .containsExactly("metric_a");
+        assertThat(exportedNames(exporter.snapshot())).containsExactly("metric_a", "metric_b");
+    }
+
+    @Test
+    void testRemovedMetricIsReleasedByNextExport() {
+        // skipped where System.gc() does not collect, for example with -XX:+DisableExplicitGC
+        WeakReference<Object> unreferenced = new WeakReference<>(new Object());
+        collectGarbage(unreferenced);
+        assumeTrue(unreferenced.get() == null, "System.gc() does not clear weak references in this JVM");
+
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        WeakReference<LongCounter> removed = new WeakReference<>(registry.register(LongCounter.builder("removed")));
+        exporter.snapshot();
+
+        assertThat(registry.remove(LongCounter.key("removed"))).isTrue();
+        collectGarbage(removed);
+        assertThat(removed.get())
+                .as("still referenced by the snapshot of the last export")
+                .isNotNull();
+
+        exporter.snapshot();
+        collectGarbage(removed);
+        assertThat(removed.get()).as("released by the next export").isNull();
+    }
+
+    private static void collectGarbage(WeakReference<?> reference) {
+        for (int i = 0; i < 10 && reference.get() != null; i++) {
+            System.gc();
+        }
+    }
+
+    @Test
+    void testRemovedMetricStaysUsableButIsNotExported() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        LongCounter counter = registry.register(LongCounter.builder("removed").addDynamicLabelNames("label"));
+        counter.getOrCreateLabeled("label", "a").increment();
+
+        assertThat(registry.remove(LongCounter.key("removed"))).isTrue();
+        counter.getOrCreateLabeled("label", "a").increment();
+        counter.getOrCreateLabeled("label", "b").increment();
+
+        assertThat(counter.getOrCreateLabeled("label", "a").get()).isEqualTo(2);
+        assertThat(counter.removeIf(labelValues -> "b".equals(labelValues.get("label"))))
+                .isEqualTo(1);
+        assertThat(exportedNames(exporter.snapshot())).isEmpty();
+    }
+
+    private static List<String> exportedNames(MetricRegistrySnapshot registrySnapshot) {
+        List<String> names = new ArrayList<>();
+        registrySnapshot.forEach(s -> names.add(s.name()));
+        return names;
+    }
+
+    @Test
+    void testRegistryIterationStartedBeforeRegisterSeesFixedList() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        registry.register(LongCounter.builder("metric_a"));
+
+        Iterator<MetricSnapshot> export = exporter.snapshot().iterator();
+        registry.register(LongCounter.builder("metric_b"));
+
+        List<String> seen = new ArrayList<>();
+        export.forEachRemaining(s -> seen.add(s.name()));
+        assertThat(seen).containsExactly("metric_a");
+    }
+
+    @Test
+    void testMeasurementAddedAfterUpdateIsWrittenByNextExport() {
+        TestMetricsExporter exporter = new TestMetricsExporter();
+        MetricRegistry registry =
+                MetricRegistry.builder().setMetricsExporter(exporter).build();
+        LongCounter counter = registry.register(LongCounter.builder("counter").addDynamicLabelNames("label"));
+        counter.getOrCreateLabeled("label", "a");
+
+        MetricRegistrySnapshot export = exporter.snapshot();
+        counter.getOrCreateLabeled(() -> 7L, "label", "b");
+
+        assertThat(exportedMeasurements(export)).containsExactly("[a]=0");
+        assertThat(exportedMeasurements(exporter.snapshot())).containsExactly("[a]=0", "[b]=7");
+    }
+
+    private static List<String> exportedMeasurements(MetricRegistrySnapshot registrySnapshot) {
+        List<String> measurements = new ArrayList<>();
+        for (MetricSnapshot metricSnapshot : registrySnapshot) {
+            for (MeasurementSnapshot measurementSnapshot : metricSnapshot) {
+                measurements.add(measurementSnapshot.getDynamicLabelValues() + "="
+                        + ((LongMeasurementSnapshot) measurementSnapshot).get());
+            }
+        }
+        return measurements;
+    }
+
+    @Test
+    void testProviderMetricsRegisteredBeforeSnapshotSupplierSet() {
+        MetricsExporter exporter = mock(MetricsExporter.class);
+        List<String> seenAtAttach = new ArrayList<>();
+        doAnswer(invocation -> {
+                    Supplier<MetricRegistrySnapshot> supplier = invocation.getArgument(0);
+                    supplier.get().forEach(s -> seenAtAttach.add(s.name()));
+                    return null;
+                })
+                .when(exporter)
+                .setSnapshotSupplier(any());
+
+        MetricsRegistrationProvider provider1 =
+                () -> List.of(LongCounter.builder("metric1"), LongCounter.builder("metric2"));
+        MetricsRegistrationProvider provider2 = () -> List.of(LongCounter.builder("metric3"));
+
+        try (MockedStatic<MetricUtils> mockedUtils = mockStatic(MetricUtils.class)) {
+            mockedUtils
+                    .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
+                    .thenReturn(List.of(provider1, provider2));
+            MetricRegistry registry = MetricRegistry.builder()
+                    .setMetricsExporter(exporter)
+                    .discoverMetricProviders()
+                    .build();
+            assertThat(registry.metrics()).hasSize(3);
+        }
+
+        assertThat(seenAtAttach).containsExactly("metric1", "metric2", "metric3");
+        verify(exporter, times(1)).setSnapshotSupplier(any());
+    }
+
+    @Test
+    void testDuplicateProviderMetricClosesDiscoveredExporter() throws IOException {
+        MetricsExporter exporter = mock(MetricsExporter.class);
+        MetricsExporterFactory factory = mock(MetricsExporterFactory.class);
+        when(factory.createExporter(any(), any())).thenReturn(exporter);
+        MetricsRegistrationProvider provider =
+                () -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder(DUPLICATE_NAME));
+
+        try (MockedStatic<MetricUtils> mockedUtils = mockStatic(MetricUtils.class)) {
+            mockedUtils
+                    .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
+                    .thenReturn(List.of(provider));
+            mockedUtils
+                    .when(() -> MetricUtils.load(MetricsExporterFactory.class))
+                    .thenReturn(List.of(factory));
+
+            MetricRegistry.Builder builder = MetricRegistry.builder()
+                    .discoverMetricProviders()
+                    .discoverMetricsExporter(ConfigurationBuilder.create().build());
+
+            assertThatThrownBy(builder::build)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContainingAll("Duplicate metric name", DUPLICATE_NAME);
+        }
+
+        verify(exporter).close();
+        verify(exporter, never()).setSnapshotSupplier(any());
+    }
+
+    @Test
+    void testDuplicateProviderMetricDoesNotCloseExplicitExporter() throws IOException {
+        MetricsExporter exporter = mock(MetricsExporter.class);
+        MetricsRegistrationProvider provider =
+                () -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder(DUPLICATE_NAME));
+
+        assertThatThrownBy(() -> {
+                    try (MockedStatic<MetricUtils> mockedUtils = mockStatic(MetricUtils.class)) {
+                        mockedUtils
+                                .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
+                                .thenReturn(List.of(provider));
+                        MetricRegistry.builder()
+                                .setMetricsExporter(exporter)
+                                .discoverMetricProviders()
+                                .build();
+                    }
+                })
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContainingAll("Duplicate metric name", DUPLICATE_NAME);
+
+        verify(exporter, never()).close();
+        verify(exporter, never()).setSnapshotSupplier(any());
+    }
+
+    @Test
+    void testProviderFailureSkipsExporterDiscovery() {
+        MetricsExporterFactory factory = mock(MetricsExporterFactory.class);
+        IllegalStateException failure = new IllegalStateException("provider failed");
+        MetricsRegistrationProvider provider = () -> {
+            throw failure;
+        };
+
+        try (MockedStatic<MetricUtils> mockedUtils = mockStatic(MetricUtils.class)) {
+            mockedUtils
+                    .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
+                    .thenReturn(List.of(provider));
+            mockedUtils
+                    .when(() -> MetricUtils.load(MetricsExporterFactory.class))
+                    .thenReturn(List.of(factory));
+
+            MetricRegistry.Builder builder = MetricRegistry.builder()
+                    .discoverMetricProviders()
+                    .discoverMetricsExporter(ConfigurationBuilder.create().build());
+
+            assertThatThrownBy(builder::build).isSameAs(failure);
+        }
+
+        verifyNoInteractions(factory);
+    }
+
+    @Test
+    void testSnapshotSupplierFailureClosesDiscoveredExporter() throws IOException {
+        MetricsExporter exporter = mock(MetricsExporter.class);
+        IllegalStateException failure = new IllegalStateException("attach failed");
+        doThrow(failure).when(exporter).setSnapshotSupplier(any());
+
+        assertThatThrownBy(() -> buildWithDiscoveredExporter(exporter)).isSameAs(failure);
+
+        verify(exporter).close();
+        assertThat(failure.getSuppressed()).isEmpty();
+    }
+
+    @Test
+    void testExporterCloseFailureIsSuppressed() throws IOException {
+        MetricsExporter exporter = mock(MetricsExporter.class);
+        IllegalStateException failure = new IllegalStateException("attach failed");
+        IOException closeFailure = new IOException("close failed");
+        doThrow(failure).when(exporter).setSnapshotSupplier(any());
+        doThrow(closeFailure).when(exporter).close();
+
+        assertThatThrownBy(() -> buildWithDiscoveredExporter(exporter)).isSameAs(failure);
+
+        verify(exporter).close();
+        assertThat(failure.getSuppressed()).containsExactly(closeFailure);
+    }
+
+    @Test
+    void testFailedBuildKeepsExplicitExporter() throws IOException {
+        MetricsExporter explicitExporter = mock(MetricsExporter.class);
+        MetricsExporter discoveredExporter = mock(MetricsExporter.class);
+        MetricsExporterFactory factory = mock(MetricsExporterFactory.class);
+        when(factory.createExporter(any(), any())).thenReturn(discoveredExporter);
+        MetricsRegistrationProvider duplicateProvider =
+                () -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder(DUPLICATE_NAME));
+        MetricsRegistrationProvider validProvider = () -> List.of(LongCounter.builder("metric1"));
+
+        try (MockedStatic<MetricUtils> mockedUtils = mockStatic(MetricUtils.class)) {
+            mockedUtils
+                    .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
+                    .thenReturn(List.of(duplicateProvider));
+            mockedUtils
+                    .when(() -> MetricUtils.load(MetricsExporterFactory.class))
+                    .thenReturn(List.of(factory));
+
+            MetricRegistry.Builder builder = MetricRegistry.builder()
+                    .setMetricsExporter(explicitExporter)
+                    .discoverMetricProviders()
+                    .discoverMetricsExporter(ConfigurationBuilder.create().build());
+
+            assertThatThrownBy(builder::build).isInstanceOf(IllegalArgumentException.class);
+            verify(discoveredExporter).close();
+
+            mockedUtils
+                    .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
+                    .thenReturn(List.of(validProvider));
+            when(factory.createExporter(any(), any())).thenReturn(null);
+
+            MetricRegistry registry = builder.build();
+            assertThat(registry.hasMetricsExporter()).isTrue();
+        }
+
+        verify(explicitExporter).setSnapshotSupplier(any());
+        verify(explicitExporter, never()).close();
+        verify(discoveredExporter, never()).setSnapshotSupplier(any());
+    }
+
+    private static MetricRegistry buildWithDiscoveredExporter(MetricsExporter exporter) {
+        MetricsExporterFactory factory = mock(MetricsExporterFactory.class);
+        when(factory.createExporter(any(), any())).thenReturn(exporter);
+        return createRegistryMockDiscovery(ConfigurationBuilder.create().build(), factory);
     }
 
     @Test
@@ -635,7 +1057,11 @@ public class MetricRegistryTest {
         }
 
         public void verify(MetricRegistrySnapshotVerifier verifier) {
-            verifier.verify(snapshotSupplier.get());
+            verifier.verify(snapshot());
+        }
+
+        public MetricRegistrySnapshot snapshot() {
+            return snapshotSupplier.get();
         }
 
         @Override

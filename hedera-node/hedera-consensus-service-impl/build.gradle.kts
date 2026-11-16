@@ -8,13 +8,15 @@ mainModuleInfo { annotationProcessor("dagger.compiler") }
 testModuleInfo {
     requires("com.hedera.node.app")
     requires("com.hedera.node.app.service.consensus.impl")
-    requires("com.swirlds.state.api.test.fixtures")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.config.test.fixtures")
-    requires("com.google.protobuf")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.state.api.test.fixtures")
+    requires("com.google.protobuf")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
 }
+
+apply(from = "../../gradle/extra-fee-call-site-coverage.gradle.kts")

@@ -14,9 +14,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.EventSpec;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.GraphBuilder;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
-import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -44,25 +41,20 @@ class GraphBuilderStabilityTest {
 
     private static final long SEED = 20261013L;
 
-    private static final int A = 0;
-    private static final int B = 1;
-    private static final int C = 2;
-    private static final int D = 3;
-
     /** Two fully-connected layers over genesis. Nothing here is special; it only needs to be more than one layer. */
     private static final List<EventSpec> BASE = List.of(
-            genesis("a0", A),
-            genesis("b0", B),
-            genesis("c0", C),
-            genesis("d0", D),
-            event("a1", A, "a0", "b0", "c0", "d0"),
-            event("b1", B, "b0", "a0", "c0", "d0"),
-            event("c1", C, "c0", "a0", "b0", "d0"),
-            event("d1", D, "d0", "a0", "b0", "c0"),
-            event("a2", A, "a1", "b1", "c1", "d1"),
-            event("b2", B, "b1", "a1", "c1", "d1"),
-            event("c2", C, "c1", "a1", "b1", "d1"),
-            event("d2", D, "d1", "a1", "b1", "c1"));
+            genesis("a0"),
+            genesis("b0"),
+            genesis("c0"),
+            genesis("d0"),
+            event("a1", "a0", "b0", "c0", "d0"),
+            event("b1", "b0", "a0", "c0", "d0"),
+            event("c1", "c0", "a0", "b0", "d0"),
+            event("d1", "d0", "a0", "b0", "c0"),
+            event("a2", "a1", "b1", "c1", "d1"),
+            event("b2", "b1", "a1", "c1", "d1"),
+            event("c2", "c1", "a1", "b1", "d1"),
+            event("d2", "d1", "a1", "b1", "c1"));
 
     /**
      * The same graph with one inert event inserted in the middle of the list.
@@ -74,24 +66,22 @@ class GraphBuilderStabilityTest {
      */
     private static List<EventSpec> withInsertion() {
         final List<EventSpec> specs = new ArrayList<>(BASE);
-        specs.add(9, event("a3", A, "a2")); // directly after a2, before b2
+        specs.add(9, event("a3", "a2")); // directly after a2, before b2
         return List.copyOf(specs);
     }
 
     @Test
     @DisplayName("inserting an event that reaches nothing leaves every hash unchanged")
     void insertingAnInertEventDisturbsNothing() {
-        final RosterWrapper roster = roster();
-
-        final Map<String, Hash> before = hashesByName(GraphBuilder.build(BASE, new Random(SEED), roster));
-        final Map<String, Hash> after = hashesByName(GraphBuilder.build(withInsertion(), new Random(SEED), roster));
+        final Map<String, Hash> before = hashesByName(GraphBuilder.build(BASE, new Random(SEED)));
+        final Map<String, Hash> after = hashesByName(GraphBuilder.build(withInsertion(), new Random(SEED)));
 
         final List<String> disturbed = before.keySet().stream()
                 .filter(name -> !before.get(name).equals(after.get(name)))
                 .toList();
 
         assertThat(disturbed)
-                .as("events whose hash changed when an unrelated event was inserted above them")
+                .as("events whose hash changed when an unrelated event was inserted among them")
                 .isEmpty();
     }
 
@@ -107,14 +97,12 @@ class GraphBuilderStabilityTest {
     @Test
     @DisplayName("inserting an event that becomes a parent disturbs exactly its descendants")
     void insertingAParentDisturbsExactlyItsDescendants() {
-        final RosterWrapper roster = roster();
-
         final List<EventSpec> edited = new ArrayList<>(BASE);
-        edited.add(8, event("b1a", B, "b1")); // after d1, before b2 is defined
-        edited.replaceAll(spec -> "b2".equals(spec.name()) ? event("b2", B, "b1a", "a1", "c1", "d1") : spec);
+        edited.add(8, event("b1a", "b1")); // after d1, before b2 is defined
+        edited.replaceAll(spec -> "b2".equals(spec.name()) ? event("b2", "b1a", "a1", "c1", "d1") : spec);
 
-        final Map<String, Hash> before = hashesByName(GraphBuilder.build(BASE, new Random(SEED), roster));
-        final Map<String, Hash> after = hashesByName(GraphBuilder.build(List.copyOf(edited), new Random(SEED), roster));
+        final Map<String, Hash> before = hashesByName(GraphBuilder.build(BASE, new Random(SEED)));
+        final Map<String, Hash> after = hashesByName(GraphBuilder.build(List.copyOf(edited), new Random(SEED)));
 
         final List<String> disturbed = before.keySet().stream()
                 .filter(name -> !before.get(name).equals(after.get(name)))
@@ -128,18 +116,12 @@ class GraphBuilderStabilityTest {
     @Test
     @DisplayName("the seed no longer determines any hash in a built graph")
     void hashesDoNotDependOnTheSeed() {
-        final RosterWrapper roster = roster();
-
-        final Map<String, Hash> one = hashesByName(GraphBuilder.build(BASE, new Random(SEED), roster));
-        final Map<String, Hash> two = hashesByName(GraphBuilder.build(BASE, new Random(SEED + 1), roster));
+        final Map<String, Hash> one = hashesByName(GraphBuilder.build(BASE, new Random(SEED)));
+        final Map<String, Hash> two = hashesByName(GraphBuilder.build(BASE, new Random(SEED + 1)));
 
         assertThat(two)
                 .as("with every hashed field pinned, nothing the builder still draws from the Random reaches the hash")
                 .isEqualTo(one);
-    }
-
-    private static RosterWrapper roster() {
-        return RosterWrapperFactory.randomRoster(new Random(SEED), 4, WeightGenerators.BALANCED);
     }
 
     private static Map<String, Hash> hashesByName(final List<NamedEvent> graph) {

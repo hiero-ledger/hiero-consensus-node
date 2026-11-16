@@ -69,7 +69,10 @@ class ClprStateProofManagerTest {
     @BeforeEach
     void setUp() {
         subject = new ClprStateProofManager(
-                snapshotProvider, tssVerifier, HederaTestConfigBuilder.createConfigProvider());
+                snapshotProvider,
+                tssVerifier,
+                HederaTestConfigBuilder.createConfigProvider(),
+                (proof, anchor) -> false);
         binaryState = (BinaryState) provenState;
     }
 
@@ -110,7 +113,10 @@ class ClprStateProofManagerTest {
     @DisplayName("blockStream.digestType=SHA_256 -> proof still built correctly, hashing with SHA-256 end-to-end")
     void sha256ConfiguredBuildsValidProof() throws Exception {
         subject = new ClprStateProofManager(
-                snapshotProvider, tssVerifier, configProviderWithDigestType(DigestType.SHA_256));
+                snapshotProvider,
+                tssVerifier,
+                configProviderWithDigestType(DigestType.SHA_256),
+                (proof, anchor) -> false);
         final var manifest = ClprEndpointManifest.newBuilder().version(5L).build();
         givenProvableSnapshot();
         given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID))
@@ -173,12 +179,17 @@ class ClprStateProofManagerTest {
 
     @ParameterizedTest
     @CsvSource({
-        "512,512,false,true,1,2",
-        "2048,512,false,true,1,3",
-        "512,160,false,true,0,2",
-        "512,160,false,false,1,2",
-        "320,512,true,true,0,1",
-        "160,512,true,true,0,0"
+        "512,512,false,true,1,2,false",
+        "2048,512,false,true,1,3,false",
+        "512,160,false,true,0,2,false",
+        "512,160,false,false,1,2,false",
+        "320,512,true,true,0,1,false",
+        "160,512,true,true,0,0,false",
+        "512,512,false,true,1,2,true",
+        "2048,512,false,true,1,3,true",
+        "512,160,false,true,0,2,true",
+        "512,160,false,false,1,2,true",
+        "320,512,true,true,0,1,true"
     })
     void fitsProofWithinPeerLimitWithOptionalManifest(
             final long maxSyncBytes,
@@ -186,7 +197,8 @@ class ClprStateProofManagerTest {
             final boolean allowPureAck,
             final boolean includeManifest,
             final int expectedMessageCount,
-            final int expectedPathCount)
+            final int expectedPathCount,
+            final boolean compact)
             throws Exception {
         final var channelId = Bytes.wrap(new byte[32]);
         final var channelLeaf = Bytes.wrap(new byte[64]);
@@ -194,9 +206,15 @@ class ClprStateProofManagerTest {
         final var manifestLeaf = Bytes.wrap(new byte[manifestLeafBytes]);
         final var signature = Bytes.wrap(new byte[] {1});
         final var messageKey = new ClprMessageKey(channelId, 1L);
-        givenSnapshotState();
+        if (!compact) {
+            given(snapshotProvider.latestSnapshot()).willReturn(Optional.of(snapshot));
+        }
+        given(snapshot.state()).willReturn(provenState);
+        given(snapshot.blockTimestamp())
+                .willReturn(Timestamp.newBuilder().seconds(1L).build());
+        given(snapshot.path()).willReturn(MerklePath.DEFAULT);
         given(snapshot.tssSignature()).willReturn(signature);
-        if (expectedPathCount > 0) {
+        if (!compact && expectedPathCount > 0) {
             given(snapshot.ledgerId()).willReturn(Bytes.EMPTY);
             given(tssVerifier.verifyTss(eq(Bytes.EMPTY), eq(signature), any())).willReturn(true);
         }
@@ -210,12 +228,23 @@ class ClprStateProofManagerTest {
             given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(3L);
             given(binaryState.getMerkleProof(3L)).willReturn(new MerkleProof(manifestLeaf, List.of(), List.of()));
         }
+        // Compact selection must use its outgoing envelope size for the manifest as well as messages.
+        final long compactOverhead = compact ? 512L : 0L;
         final var throttles = ClprThrottles.newBuilder()
                 .maxMessagesPerBundle(1)
-                .maxSyncBytes(maxSyncBytes)
+                .maxSyncBytes(maxSyncBytes + compactOverhead)
                 .build();
 
-        final var bundle = subject.buildBundleProof(channelId, 1L, throttles, allowPureAck, includeManifest);
+        final var bundle = compact
+                ? subject.buildBundleProof(
+                        snapshot,
+                        channelId,
+                        1L,
+                        throttles,
+                        allowPureAck,
+                        includeManifest,
+                        proof -> proof.protobufSize() + compactOverhead)
+                : subject.buildBundleProof(channelId, 1L, throttles, allowPureAck, includeManifest);
 
         if (expectedPathCount == 0) {
             assertThat(bundle).isNull();
@@ -226,6 +255,8 @@ class ClprStateProofManagerTest {
         assertThat(bundle.lastMessageId()).isEqualTo(expectedMessageCount);
         final var proof = StateProof.PROTOBUF.parse(bundle.payload().toReadableSequentialData());
         assertThat(proof.paths()).hasSize(expectedPathCount);
+        assertThat(proof.protobufSize() + compactOverhead)
+                .isLessThanOrEqualTo(ClprStateProofManager.maxBundlePayloadBytes(throttles));
         assertThat(proof.paths().getFirst().stateItemLeaf()).isEqualTo(channelLeaf);
         if (expectedMessageCount > 0) {
             assertThat(proof.paths().getLast().stateItemLeaf()).isEqualTo(messageLeaf);

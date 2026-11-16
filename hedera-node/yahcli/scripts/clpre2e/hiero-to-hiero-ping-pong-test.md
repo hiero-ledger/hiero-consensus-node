@@ -333,6 +333,10 @@ in its own commitment.
 ./yahcli -n alice -p 2 clpr generate-channel-identity --out channel.json
 ```
 
+This writes two files: the public bundle `channel.json` and the private key `channel.json.key`
+(mode 0600). If either already exists it is moved to `<name>.<epochMillis>.bak` rather than overwritten;
+those backups contain live keys and are never pruned — see "Key files and backups" in the yahcli README.
+
 Inspect the result:
 
 ```bash

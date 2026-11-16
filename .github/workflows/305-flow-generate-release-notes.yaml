@@ -33,7 +33,8 @@ jobs:
   generate-release-notes-tag:
     name: Generate Release Notes (Tag)
     uses: ./.github/workflows/853-call-create-github-release.yaml
-    if: ${{ github.event_name == 'push' }}
+    # A tag push generates notes only in the public repository. A dispatch runs as before.
+    if: ${{ github.event_name == 'push' && github.event.repository.visibility == 'public' }}
     with:
       ref: ${{ github.sha }}
       release-version: ${{ github.ref_name }}

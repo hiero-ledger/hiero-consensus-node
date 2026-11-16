@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.SequencedMap;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
@@ -145,6 +146,28 @@ public class RosterWrapperFactory {
     @NonNull
     public static RosterWrapper createRosterWrapper(@NonNull final RosterEntry... rosterEntries) {
         return RosterWrapper.of(new Roster(List.of(rosterEntries)));
+    }
+
+    /**
+     * Create a RosterWrapper with one entry per node, each carrying only its node id and weight.
+     * <p>
+     * The roster lists its entries in the map's iteration order, which is why the map must be sequenced: the same map
+     * always produces the same roster. Unlike {@link #randomRoster}, the entries have no certificate or gossip
+     * endpoint, so this suits tests that need exact node ids and weights but never verify a signature or connect to a
+     * peer.
+     *
+     * @param weightsByNodeId each node's id mapped to its weight
+     * @return a {@link RosterWrapper} instance
+     */
+    @NonNull
+    public static RosterWrapper createRosterWrapper(@NonNull final SequencedMap<NodeId, Long> weightsByNodeId) {
+        final List<RosterEntry> rosterEntries = weightsByNodeId.entrySet().stream()
+                .map(entry -> RosterEntry.newBuilder()
+                        .nodeId(entry.getKey().id())
+                        .weight(entry.getValue())
+                        .build())
+                .toList();
+        return createRosterWrapper(rosterEntries);
     }
 
     /**

@@ -130,8 +130,10 @@ public class RepeatableBlockExecutionBudgetTests {
                 @ConfigOverride(key = "blockStream.maxBlockSizeLimitEnabled", value = "false"),
                 @ConfigOverride(key = "scheduling.longTermEnabled", value = "true")
             })
-    Stream<DynamicTest> dueScheduleExecutesInFullBlock() {
+    Stream<DynamicTest> dueScheduleWithNonExemptPayerIsRejectedInFullBlock() {
+        final var payerBefore = new AtomicLong();
         final var receiverBefore = new AtomicLong();
+        final var chargedFee = new AtomicLong();
         final var fullBlock = new AtomicLong();
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -139,12 +141,75 @@ public class RepeatableBlockExecutionBudgetTests {
                 overriding("blockStream.maxBlockSizeLimitEnabled", "true"),
                 withOpContext((spec, log) -> openNextBlock(spec)),
                 // Paid by an account outside the throttle-exempt range
-                scheduleCreate("exemptSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 7)))
+                scheduleCreate("nonExemptSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 7)))
                         .designatingPayer(PAYER)
                         .alsoSigningWith(PAYER)
                         .waitForExpiry()
                         .expiringIn(2)
-                        .via("scheduleCreation"),
+                        .via("nonExemptCreation"),
+                withOpContext((spec, log) -> {
+                    fillBlock(spec);
+                    fullBlock.set(spec.embeddedHederaOrThrow()
+                            .hedera()
+                            .blockStreamManager()
+                            .blockNo());
+                }),
+                viewAccount(PAYER, account -> payerBefore.set(account.tinybarBalance())),
+                viewAccount(RECEIVER, account -> receiverBefore.set(account.tinybarBalance())),
+                withOpContext((spec, log) -> {
+                    spec.embeddedHederaOrThrow().tick(Duration.ofSeconds(3));
+                    // A throttle-exempt submission still runs, and triggers the due schedule without touching PAYER
+                    allRunFor(
+                            spec,
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, "98", 1))
+                                    .payingWith(GENESIS)
+                                    .hasKnownStatus(SUCCESS));
+                }),
+                // The rejected schedule is still consumed, so a later block never retries it
+                getScheduleInfo("nonExemptSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
+                getTxnRecord("nonExemptCreation")
+                        .scheduled()
+                        .hasPriority(recordWith().status(THROTTLED_AT_CONSENSUS))
+                        .exposingTo(record -> {
+                            assertTrue(record.getTransactionFee() > 0);
+                            chargedFee.set(record.getTransactionFee());
+                        }),
+                // The scheduled payer is charged only the throttle fees, and the transfer itself never happens
+                viewAccount(
+                        PAYER, account -> assertEquals(payerBefore.get() - chargedFee.get(), account.tinybarBalance())),
+                viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get(), account.tinybarBalance())),
+                withOpContext((spec, log) -> assertStillInFullBlock(spec, fullBlock.get())));
+    }
+
+    @RestartHapiTest(
+            restartOverrides = {
+                @ConfigOverride(key = "blockStream.streamMode", value = "BLOCKS"),
+                @ConfigOverride(key = "blockStream.blockPeriod", value = "60s"),
+                @ConfigOverride(key = "blockStream.maxBlockExecutionSizeBytes", value = "16384"),
+                @ConfigOverride(key = "blockStream.maxBlockSizeLimitEnabled", value = "false"),
+                @ConfigOverride(key = "scheduling.longTermEnabled", value = "true")
+            })
+    Stream<DynamicTest> onlyDueSchedulesWithThrottleExemptPayerExecuteInFullBlock() {
+        final var receiverBefore = new AtomicLong();
+        final var fullBlock = new AtomicLong();
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L),
+                overriding("blockStream.maxBlockSizeLimitEnabled", "true"),
+                withOpContext((spec, log) -> openNextBlock(spec)),
+                // Paid by an account in the throttle-exempt range
+                scheduleCreate("exemptSchedule", cryptoTransfer(tinyBarsFromTo(GENESIS, RECEIVER, 7)))
+                        .designatingPayer(GENESIS)
+                        .waitForExpiry()
+                        .expiringIn(2)
+                        .via("exemptCreation"),
+                // Paid by an account outside the throttle-exempt range
+                scheduleCreate("nonExemptSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 11)))
+                        .designatingPayer(PAYER)
+                        .alsoSigningWith(PAYER)
+                        .waitForExpiry()
+                        .expiringIn(2)
+                        .via("nonExemptCreation"),
                 withOpContext((spec, log) -> {
                     fillBlock(spec);
                     fullBlock.set(spec.embeddedHederaOrThrow()
@@ -155,18 +220,22 @@ public class RepeatableBlockExecutionBudgetTests {
                 viewAccount(RECEIVER, account -> receiverBefore.set(account.tinybarBalance())),
                 withOpContext((spec, log) -> {
                     spec.embeddedHederaOrThrow().tick(Duration.ofSeconds(3));
-                    // The triggering submission is rejected, but the due schedule still executes after it
+                    // The triggering submission is rejected, but both due schedules are still processed after it
                     allRunFor(
                             spec,
                             cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1))
                                     .payingWith(PAYER)
                                     .hasKnownStatus(THROTTLED_AT_CONSENSUS));
                 }),
-                // Executed expiry schedules are purged; the scheduled record and balance prove execution.
+                // Both schedules are consumed, but only the one with a throttle-exempt payer executes
                 getScheduleInfo("exemptSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
-                getTxnRecord("scheduleCreation")
+                getScheduleInfo("nonExemptSchedule").hasCostAnswerPrecheck(INVALID_SCHEDULE_ID),
+                getTxnRecord("exemptCreation")
                         .scheduled()
                         .hasPriority(recordWith().status(SUCCESS)),
+                getTxnRecord("nonExemptCreation")
+                        .scheduled()
+                        .hasPriority(recordWith().status(THROTTLED_AT_CONSENSUS)),
                 viewAccount(RECEIVER, account -> assertEquals(receiverBefore.get() + 7, account.tinybarBalance())),
                 withOpContext((spec, log) -> assertStillInFullBlock(spec, fullBlock.get())));
     }
@@ -301,20 +370,21 @@ public class RepeatableBlockExecutionBudgetTests {
                 cryptoCreate(RECEIVER).balance(0L),
                 overriding("blockStream.maxBlockSizeLimitEnabled", "true"),
                 withOpContext((spec, log) -> openNextBlock(spec)),
+                // Paid by a throttle-exempt account, so the full block does not reject them
                 scheduleCreate("firstSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1)))
-                        .designatingPayer(PAYER)
+                        .designatingPayer(GENESIS)
                         .alsoSigningWith(PAYER)
                         .waitForExpiry()
                         .expiringIn(2)
                         .via("firstCreation"),
                 scheduleCreate("secondSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 10)))
-                        .designatingPayer(PAYER)
+                        .designatingPayer(GENESIS)
                         .alsoSigningWith(PAYER)
                         .waitForExpiry()
                         .expiringIn(2)
                         .via("secondCreation"),
                 scheduleCreate("thirdSchedule", cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 100)))
-                        .designatingPayer(PAYER)
+                        .designatingPayer(GENESIS)
                         .alsoSigningWith(PAYER)
                         .waitForExpiry()
                         .expiringIn(2)

@@ -13,13 +13,21 @@ jmhModuleInfo {
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.benchmark.tools")
     requires("org.hiero.consensus.gossip.impl")
+    requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.hiero.otter.fixtures")
     requires("jmh.core")
 }
 
 jmh {
     // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
-    includes.convention(listOf("GossipEventSerializationBenchmark"))
+    includes.convention(listOf("GossipEventSerializationBenchmark", "SyncDecisionBenchmark"))
+}
+
+benchmarkTracking {
+    // the recording of 28 nodes takes more than the smoke run's heap and over a minute per fork;
+    // one parameter set is enough for the smoke run
+    smokeArgs = listOf("-p", "numNodes=10")
 }
 
 testModuleInfo {

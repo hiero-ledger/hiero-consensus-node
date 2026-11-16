@@ -29,6 +29,12 @@ public class AppThrottleAdviser implements ThrottleAdviser {
     }
 
     @Override
+    public void leakCapacityForNOfUnscaled(final int n, @NonNull final HederaFunctionality function) {
+        requireNonNull(function);
+        networkUtilizationManager.leakCapacityForNOfUnscaled(n, function);
+    }
+
+    @Override
     public long availableOpsDurationCapacity() {
         return networkUtilizationManager.availableOpsDurationCapacity(consensusNow);
     }

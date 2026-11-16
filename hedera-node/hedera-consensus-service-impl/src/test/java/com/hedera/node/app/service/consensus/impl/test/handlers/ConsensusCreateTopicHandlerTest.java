@@ -20,7 +20,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -634,8 +633,7 @@ class ConsensusCreateTopicHandlerTest extends ConsensusTestBase {
     // Note: there are more tests in ConsensusCreateTopicHandlerParityTest.java
 
     private Key mockPayerLookup(Key key) {
-        final var account = mock(Account.class);
-        given(account.key()).willReturn(key);
+        final var account = Account.newBuilder().accountId(payerId).key(key).build();
         given(accountStore.getAccountById(payerId)).willReturn(account);
         return key;
     }

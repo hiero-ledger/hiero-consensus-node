@@ -146,8 +146,8 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     }
 
     /**
-     * Create a copy of this event while populating only the data received via gossip. Consensus data will not be
-     * copied.
+     * Create a copy of this event while populating only the data received via gossip, the hash, and the origin.
+     * Consensus data will not be copied.
      *
      * @return a copy of this event
      */

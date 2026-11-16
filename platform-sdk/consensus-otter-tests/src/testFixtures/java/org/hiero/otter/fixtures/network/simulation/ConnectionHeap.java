@@ -6,7 +6,7 @@ import java.util.Arrays;
 
 /**
  * A binary min-heap of connections, ordered by the arrival time of the item at the head of each connection's queue and
- * then by the position of the connection's sender in node id order. Delivery uses it to find the connection holding
+ * then by the position of the connection's sender in roster order. Delivery uses it to find the connection holding
  * the earliest item among many without looking at all of them.
  *
  * <p>It is written out by hand rather than being a {@link java.util.PriorityQueue}, because it is consulted for every
@@ -30,7 +30,7 @@ final class ConnectionHeap<T extends InTransit> {
     private InFlightQueue<T>[] connections = new InFlightQueue[INITIAL_CAPACITY];
 
     /**
-     * The position in node id order of the sender of each connection in {@link #connections}. It breaks ties between
+     * The position in roster order of the sender of each connection in {@link #connections}. It breaks ties between
      * connections whose heads arrive at the same instant.
      */
     private int[] senderRanks = new int[INITIAL_CAPACITY];
@@ -65,7 +65,7 @@ final class ConnectionHeap<T extends InTransit> {
      * Adds a connection.
      *
      * @param connection the connection to add, which must not be empty
-     * @param senderRank the position of the connection's sender in node id order
+     * @param senderRank the position of the connection's sender in roster order
      */
     void add(@NonNull final InFlightQueue<T> connection, final int senderRank) {
         if (size == connections.length) {
@@ -110,7 +110,7 @@ final class ConnectionHeap<T extends InTransit> {
      * Puts a connection at the top and moves it down to where it belongs.
      *
      * @param connection the connection to put at the top, replacing the one that was there
-     * @param senderRank the position of the connection's sender in node id order
+     * @param senderRank the position of the connection's sender in roster order
      */
     private void siftDownFromTop(@NonNull final InFlightQueue<T> connection, final int senderRank) {
         final InFlightQueue<T>[] heap = connections;
@@ -141,7 +141,7 @@ final class ConnectionHeap<T extends InTransit> {
      * arrive at the same instant, if its sender has the lower node id.
      *
      * @param connection a connection that is not empty
-     * @param senderRank the position of that connection's sender in node id order
+     * @param senderRank the position of that connection's sender in roster order
      * @param slot       a slot of the heap, holding a connection from a different sender
      * @return {@code true} if {@code connection} comes before the connection in {@code slot}
      */

@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.balanceof.BalanceOfTranslator.BALANCE_OF;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
@@ -14,7 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
@@ -22,6 +28,7 @@ import static org.mockito.Mockito.lenient;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.scope.AccountAuthorizingVerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall;
@@ -64,6 +71,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 
 class HtsCallAttemptTest extends CallAttemptTestBase {
@@ -101,6 +109,31 @@ class HtsCallAttemptTest extends CallAttemptTestBase {
                 new TokenUriTranslator(systemContractMethodRegistry, contractMetrics),
                 new OwnerOfTranslator(systemContractMethodRegistry, contractMetrics),
                 new DecimalsTranslator(systemContractMethodRegistry, contractMetrics));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void qualifiedDelegateAccountAuthorityFollowsMethodCallerSemantics(final boolean classicTransfer) {
+        given(addressIdConverter.convertSender(OWNER_BESU_ADDRESS)).willReturn(A_NEW_ACCOUNT_ID);
+        given(addressIdConverter.convertSender(EIP_1014_ADDRESS)).willReturn(B_NEW_ACCOUNT_ID);
+        given(verificationStrategies.activatingOnlyContractKeysFor(EIP_1014_ADDRESS, true, nativeOperations))
+                .willReturn(new AccountAuthorizingVerificationStrategy(B_NEW_ACCOUNT_ID, strategy));
+        final var method =
+                classicTransfer ? ClassicTransfersTranslator.TRANSFER_TOKEN : Erc20TransfersTranslator.ERC_20_TRANSFER;
+        final var subject = createHtsCallAttempt(
+                HTS_167_CONTRACT_ID,
+                Bytes.wrap(method.selector()),
+                OWNER_BESU_ADDRESS,
+                EIP_1014_ADDRESS,
+                true,
+                DEFAULT_CONFIG,
+                List.of());
+
+        final var actual =
+                assertInstanceOf(AccountAuthorizingVerificationStrategy.class, subject.defaultVerificationStrategy());
+        assertTrue(actual.authorizesAccount(classicTransfer ? B_NEW_ACCOUNT_ID : A_NEW_ACCOUNT_ID));
+        assertFalse(actual.authorizesAccount(classicTransfer ? A_NEW_ACCOUNT_ID : B_NEW_ACCOUNT_ID));
+        assertSame(strategy, actual.primitiveStrategy());
     }
 
     @Test

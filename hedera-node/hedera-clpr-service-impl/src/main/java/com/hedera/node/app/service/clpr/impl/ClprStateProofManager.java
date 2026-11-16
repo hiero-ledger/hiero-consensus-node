@@ -35,10 +35,13 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.function.ToLongFunction;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Builds real {@code StateProof} payloads from the VirtualMap Merkle tree for CLPR bundle sync.
@@ -53,15 +56,18 @@ public class ClprStateProofManager {
 
     private final BlockProvenSnapshotProvider snapshotProvider;
     private final TssVerifier tssVerifier;
+    private final ClprHieroProofSupport hieroProofSupport;
     private final ConfigProvider configProvider;
 
     @Inject
     public ClprStateProofManager(
             @NonNull final BlockProvenSnapshotProvider snapshotProvider,
             @NonNull final TssVerifier tssVerifier,
-            @NonNull final ConfigProvider configProvider) {
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final ClprHieroProofSupport hieroProofSupport) {
         this.snapshotProvider = requireNonNull(snapshotProvider);
         this.tssVerifier = requireNonNull(tssVerifier);
+        this.hieroProofSupport = requireNonNull(hieroProofSupport);
         this.configProvider = requireNonNull(configProvider);
     }
 
@@ -72,10 +78,30 @@ public class ClprStateProofManager {
      * {@code BlockStreamManagerImpl.digestOrThrow()}.
      */
     private MessageDigest digestOrThrow() {
-        return CommonUtils.digestOrThrow(configProvider
+        return CommonUtils.digestOrThrow(blockDigestType());
+    }
+
+    private DigestType blockDigestType() {
+        return configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .digestType());
+                .digestType();
+    }
+
+    /** The compact V1 profile only supports SHA-256 block roots. */
+    public boolean supportsHieroProofV1() {
+        return blockDigestType() == DigestType.SHA_256;
+    }
+
+    /** Validates a serialized compact envelope before the sender can offer it. */
+    public boolean verifyHieroProof(@NonNull final Bytes envelope, @NonNull final Bytes anchorId) {
+        return hieroProofSupport.verify(envelope, anchorId);
+    }
+
+    /** Reports why a compact bundle could not be sent for a channel. */
+    public void reportHieroProofSkip(
+            @NonNull final Bytes channelId, @NonNull final ClprHieroProofSupport.SkipReason reason) {
+        hieroProofSupport.reportSkip(channelId, reason);
     }
 
     /**
@@ -92,6 +118,18 @@ public class ClprStateProofManager {
      *                      messages and so consumes nothing from the queue
      */
     public record BundleProof(@NonNull Bytes payload, int messageCount, long lastMessageId) {}
+
+    /** Returns a reserved signed snapshot for callers that also need its signing key or history. */
+    @NonNull
+    public Optional<BlockProvenSnapshot> latestSnapshot() {
+        return snapshotProvider.latestSnapshot();
+    }
+
+    /** Returns the peer's bundle payload budget after reserving room for the sync transport. */
+    public static long maxBundlePayloadBytes(@NonNull final ClprThrottles peerThrottles) {
+        return Math.max(CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES, peerThrottles.maxSyncBytes())
+                - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
+    }
 
     /**
      * Returns this ledger's id as carried on the latest signed snapshot. Empty bytes when no
@@ -335,40 +373,86 @@ public class ClprStateProofManager {
                         allowPureAck);
                 return null;
             }
-            if (!(snapshot.state() instanceof BinaryState binaryState)) {
-                log.warn(
-                        "CLPR state proof requires BinaryState; got {}",
-                        snapshot.state().getClass().getSimpleName());
-                return null;
-            }
-            try {
-                final var built = buildProof(
-                        binaryState,
-                        snapshot,
+            return buildBundleProof(
+                    snapshot,
+                    channelId,
+                    firstMessageId,
+                    peerThrottles,
+                    allowPureAck,
+                    includeEndpointManifest,
+                    StateProof::protobufSize,
+                    true);
+        }
+    }
+
+    /**
+     * Builds the inner state proof for a compact bundle from a caller-owned snapshot. Message selection
+     * uses the size of the outgoing envelope. The caller must validate the complete envelope before sending.
+     */
+    @Nullable
+    public BundleProof buildBundleProof(
+            @NonNull final BlockProvenSnapshot snapshot,
+            @NonNull final Bytes channelId,
+            final long firstMessageId,
+            @NonNull final ClprThrottles peerThrottles,
+            final boolean allowPureAck,
+            final boolean includeEndpointManifest,
+            @NonNull final ToLongFunction<StateProof> payloadSize) {
+        return buildBundleProof(
+                snapshot,
+                channelId,
+                firstMessageId,
+                peerThrottles,
+                allowPureAck,
+                includeEndpointManifest,
+                payloadSize,
+                false);
+    }
+
+    @Nullable
+    private BundleProof buildBundleProof(
+            @NonNull final BlockProvenSnapshot snapshot,
+            @NonNull final Bytes channelId,
+            final long firstMessageId,
+            @NonNull final ClprThrottles peerThrottles,
+            final boolean allowPureAck,
+            final boolean includeEndpointManifest,
+            @NonNull final ToLongFunction<StateProof> payloadSize,
+            final boolean nativeProof) {
+        if (!(snapshot.state() instanceof BinaryState binaryState)) {
+            log.warn(
+                    "CLPR state proof requires BinaryState; got {}",
+                    snapshot.state().getClass().getSimpleName());
+            return null;
+        }
+        try {
+            final var built = buildProof(
+                    binaryState,
+                    snapshot,
+                    channelId,
+                    firstMessageId,
+                    peerThrottles,
+                    allowPureAck,
+                    includeEndpointManifest,
+                    payloadSize,
+                    nativeProof);
+            if (built == null) {
+                log.debug(
+                        "[CLPR-BUNDLE-BUILD] buildProof returned null conn={} firstMessageId={} allowPureAck={} "
+                                + "maxMessages={} maxSyncBytes={}",
                         channelId,
                         firstMessageId,
-                        peerThrottles,
                         allowPureAck,
-                        includeEndpointManifest);
-                if (built == null) {
-                    log.debug(
-                            "[CLPR-BUNDLE-BUILD] buildProof returned null conn={} firstMessageId={} allowPureAck={} "
-                                    + "maxMessages={} maxSyncBytes={}",
-                            channelId,
-                            firstMessageId,
-                            allowPureAck,
-                            peerThrottles.maxMessagesPerBundle(),
-                            peerThrottles.maxSyncBytes());
-                    return null;
-                }
-                final var validated = assertValidBundleOrNull(built.payload(), snapshot.ledgerId(), channelId);
-                return validated == null
-                        ? null
-                        : new BundleProof(validated, built.messageCount(), built.lastMessageId());
-            } catch (final Exception e) {
-                log.warn("Failed to build CLPR state proof for channel {}: {}", channelId, e.getMessage(), e);
+                        peerThrottles.maxMessagesPerBundle(),
+                        peerThrottles.maxSyncBytes());
                 return null;
             }
+            return !nativeProof || assertValidBundleOrNull(built.payload(), snapshot.ledgerId(), channelId) != null
+                    ? built
+                    : null;
+        } catch (final Exception e) {
+            log.warn("Failed to build CLPR state proof for channel {}: {}", channelId, e.getMessage(), e);
+            return null;
         }
     }
 
@@ -486,18 +570,20 @@ public class ClprStateProofManager {
             final long firstMessageId,
             @NonNull final ClprThrottles peerThrottles,
             final boolean allowPureAck,
-            final boolean includeEndpointManifest) {
+            final boolean includeEndpointManifest,
+            @NonNull final ToLongFunction<StateProof> payloadSize,
+            final boolean nativeProof) {
 
         final int maxMessages = peerThrottles.maxMessagesPerBundle();
         final long maxSyncBytes = peerThrottles.maxSyncBytes();
-        if (maxSyncBytes <= CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES) {
+        final long maxBundlePayloadBytes = maxBundlePayloadBytes(peerThrottles);
+        if (maxBundlePayloadBytes == 0) {
             log.debug(
                     "Peer max_sync_bytes cannot fit the sync envelope (channel={} maxSyncBytes={})",
                     channelId,
                     maxSyncBytes);
             return null;
         }
-        final long maxBundlePayloadBytes = maxSyncBytes - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
         log.debug(
                 "[CLPR-BUNDLE-BUILD] start conn={} firstMessageId={} maxMessages={} maxSyncBytes={} "
                         + "maxBundlePayloadBytes={} allowPureAck={} snapshotTimestamp={}",
@@ -551,7 +637,8 @@ public class ClprStateProofManager {
         // ── Endpoint manifest singleton leaf (spec §4.9) ──────────────────────────
         if (includeEndpointManifest) {
             addEndpointManifest(allPaths, binaryState, channelId, extendedSibs, digest);
-            if (allPaths.size() > 1 && proofBuilder.paths(allPaths).build().protobufSize() > maxBundlePayloadBytes) {
+            if (allPaths.size() > 1
+                    && payloadSize.applyAsLong(proofBuilder.paths(allPaths).build()) > maxBundlePayloadBytes) {
                 allPaths.removeLast();
                 log.debug(
                         "Endpoint manifest proof exceeds peer max_sync_bytes (channel={} maxSyncBytes={})",
@@ -600,16 +687,21 @@ public class ClprStateProofManager {
                     .appendSiblingNodes(extendedSibs)
                     .build();
             allPaths.add(candidatePath);
-            final int candidateSize = proofBuilder.paths(allPaths).build().protobufSize();
+            messageLeafCount++;
+            final long candidateSize = payloadSize.applyAsLong(StateProof.newBuilder()
+                    .paths(allPaths)
+                    .signedBlockProof(tssProof)
+                    .build());
             if (candidateSize > maxBundlePayloadBytes) {
                 // Drop the last path and stop appending — it will be re-attempted next tick.
                 allPaths.removeLast();
+                messageLeafCount--;
                 if (id == firstMessageId && hasManifestPath) {
                     log.debug(
                             "[CLPR-BUNDLE-BUILD] sending endpoint manifest before head message {} conn={}",
                             id,
                             channelId);
-                } else if (id == firstMessageId) {
+                } else if (nativeProof && id == firstMessageId) {
                     // Head-of-queue message can't fit even alone: the channel is wedged. It will be
                     // re-attempted (and fail) every sync tick, the peer never acks, the queue never
                     // drains.
@@ -632,7 +724,6 @@ public class ClprStateProofManager {
                 }
                 break;
             }
-            messageLeafCount++;
             log.debug(
                     "[CLPR-QUEUE-READ] bundle builder included queue leaf conn={} messageId={} msgPath={} "
                             + "candidateBytes={} includedMessages={} firstMessageId={}",
@@ -675,19 +766,19 @@ public class ClprStateProofManager {
         // ── Assemble final StateProof ──────────────────────────────────────────────
 
         final var proof = proofBuilder.paths(allPaths).build();
-        final int proofSize = proof.protobufSize();
 
         // Final safety check: if even the channel-only (pure-ACK) proof exceeds the cap, the
         // Channel is stuck — the peer will reject every bundle we send. Surface loudly so
         // operators can fix the misconfigured max_sync_bytes (spec §1.1 deadlock warning).
-        if (proofSize > maxBundlePayloadBytes) {
+        final long finalPayloadSize = payloadSize.applyAsLong(proof);
+        if (nativeProof && finalPayloadSize > maxBundlePayloadBytes) {
             log.warn(
                     "buildBundleStateProof: bundle exceeds peer max_sync_bytes even after trimming "
                             + "(channel={} firstMessageId={} bundleBytes={} maxSyncBytes={} envelopeReserve={}). "
                             + "Channel may deadlock — review peer's max_sync_bytes vs. message+proof sizing.",
                     channelId,
                     firstMessageId,
-                    proofSize,
+                    finalPayloadSize,
                     maxSyncBytes,
                     CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES);
             return null;

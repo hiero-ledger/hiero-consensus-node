@@ -23,6 +23,9 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
 
 class SeiVerifyBundleCallTest extends CallTestBase {
+    /** Opaque here: the verifier is mocked, so these tests only check that the context is passed through. */
+    private static final byte[] CHANNEL_CONTEXT = new byte[52];
+
     private static final byte[] BUNDLE_PAYLOAD = {1, 2, 3};
     private static final byte[] TRUST_ANCHOR = {4, 5, 6};
     private static final byte[] BLOCK_HASH = filled(32, 0x01);
@@ -42,7 +45,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var verified = verified(content, null, null);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             final var result = subject().execute(frame);
@@ -76,7 +79,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var verified = verified(content, null, null);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             final var out =
@@ -96,7 +99,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             assertThat(subject().execute(frame).responseCode()).isEqualTo(SUCCESS);
@@ -116,7 +119,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             assertFailed(subject().execute(frame));
@@ -131,7 +134,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var verified = verified(content, newAnchor, newAnchorId);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             final var out =
@@ -150,7 +153,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var verified = verified(content, newAnchor, newAnchorId);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             final var out =
@@ -172,7 +175,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 verifiedBundle().trustAnchor(newAnchor, newAnchorId).build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             final var result = subject().execute(frame);
@@ -197,7 +200,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var verified = verifiedBundle().build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             assertFailed(subject().execute(frame));
@@ -207,7 +210,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     @Test
     void rejectsVerifierProofException() {
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenThrow(ProofException.sei("bad proof"));
 
             assertFailed(subject().execute(frame));
@@ -217,7 +220,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     @Test
     void rejectsUnexpectedVerifierException() {
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenThrow(new IllegalStateException("boom"));
 
             assertFailed(subject().execute(frame));
@@ -233,7 +236,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             assertFailed(subject().execute(frame));
@@ -245,7 +248,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var content = ClprBundleContent.newBuilder().build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified(content, null, null));
 
             assertFailed(subject().execute(frame));
@@ -257,7 +260,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var mismatched = metadata().copyBuilder().nextMessageId(43).build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified(content(mismatched, Bytes.EMPTY, Bytes.EMPTY), null, null));
 
             assertFailed(subject().execute(frame));
@@ -269,7 +272,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var content = content(metadata(), Bytes.wrap(new byte[] {1}), Bytes.wrap(new byte[] {2}));
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified(content, null, null));
 
             assertFailed(subject().execute(frame));
@@ -281,7 +284,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var content = content(metadata(), Bytes.wrap(new byte[] {1}), Bytes.wrap(new byte[] {2}));
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified(content, new byte[] {3}, new byte[] {4}));
 
             assertFailed(subject().execute(frame));
@@ -295,10 +298,11 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         final var verified = verified(content, null, null);
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
-            final var result = new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR)
+            final var result = new SeiVerifyBundleCall(
+                            mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT)
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
@@ -328,10 +332,11 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
-            final var result = new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR)
+            final var result = new SeiVerifyBundleCall(
+                            mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT)
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
@@ -364,7 +369,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             final var result = subject().execute(frame);
@@ -405,7 +410,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             assertFailed(subject().execute(frame));
@@ -425,7 +430,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
                 .build();
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
-            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT))
                     .thenReturn(verified);
 
             assertFailed(subject().execute(frame));
@@ -433,8 +438,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
     }
 
     private SeiVerifyBundleCall subject() {
-        final byte[] channelContext = {7, 8, 9};
-        return new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
+        return new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
     }
 
     private static SeiCometBftProofVerifier.VerifiedBundle verified(
