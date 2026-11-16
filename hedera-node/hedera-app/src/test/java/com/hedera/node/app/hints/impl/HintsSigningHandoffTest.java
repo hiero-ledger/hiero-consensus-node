@@ -54,7 +54,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * partial signature under the previous construction cannot decide how this node signs a post-handoff block.
  */
 @ExtendWith(MockitoExtension.class)
-class HintsSigningHandoffHijackTest {
+class HintsSigningHandoffTest {
     private static final long OLD_CONSTRUCTION_ID = 1L;
     private static final long NEW_CONSTRUCTION_ID = 2L;
     private static final long MINORITY_NODE_ID = 1L;
@@ -147,7 +147,7 @@ class HintsSigningHandoffHijackTest {
     }
 
     @Test
-    void peerPreviousConstructionSignatureCannotHijackPostHandoffBlockSigning() {
+    void blockIsSignedUnderActiveConstructionAfterPeerPreviousConstructionSignature() {
         givenHandoffInsideBlockTen();
         givenPreviousConstructionSignatureInPreHandle();
 
