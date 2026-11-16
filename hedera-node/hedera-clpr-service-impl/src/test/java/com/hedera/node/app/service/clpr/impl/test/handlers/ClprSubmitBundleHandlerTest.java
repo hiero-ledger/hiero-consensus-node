@@ -1304,7 +1304,6 @@ class ClprSubmitBundleHandlerTest {
         }
         final var reducedConfig = createLedgerConfig()
                 .copyBuilder()
-                .maxQueueDepthHighWater(5)
                 .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(2))
                 .build();
         final var peerMessages = List.of(
@@ -1328,6 +1327,7 @@ class ClprSubmitBundleHandlerTest {
                             peerMessages.subList(received, end)),
                     true);
             given(configStore.getConfiguration()).willReturn(reducedConfig);
+            given(configStore.getMaxQueueDepthHighWater()).willReturn(5);
 
             subject.handle(handleContext);
 
@@ -1347,8 +1347,7 @@ class ClprSubmitBundleHandlerTest {
                 .configUpdateOrThrow()
                 .configurationOrThrow();
         assertThat(advertised.throttlesOrThrow().maxQueueDepth()).isEqualTo(2);
-        // Local reserve bookkeeping must not change the peer's hash-chained wire schema.
-        assertThat(advertised.maxQueueDepthHighWater()).isZero();
+        assertThat(advertised).isEqualTo(reducedConfig);
 
         // B can now receive and ACK A's config and replies, so both queues drain.
         setupHandleContext(
@@ -1366,6 +1365,7 @@ class ClprSubmitBundleHandlerTest {
 
     @Test
     void historicalReplyCreditRemainsFiniteForPeerExceedingItsAdvertisedCredit() {
+        given(configStore.getMaxQueueDepthHighWater()).willReturn(5);
         putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 5, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
         for (int id = 1; id <= 4; id++) {
             putOutboundDataMessage(id);
@@ -1387,7 +1387,6 @@ class ClprSubmitBundleHandlerTest {
         given(configStore.getConfiguration())
                 .willReturn(createLedgerConfig()
                         .copyBuilder()
-                        .maxQueueDepthHighWater(5)
                         .throttles(defaultTestThrottles().copyBuilder().maxQueueDepth(2))
                         .build());
 

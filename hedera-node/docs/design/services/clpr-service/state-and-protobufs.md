@@ -43,7 +43,7 @@ Defined alongside state types; the Java SPI is `ClprEndpointServiceDefinition` (
 service, no `Transaction` envelopes — payloads are raw `ClprSyncPayload` bytes). RPCs:
 `sync(ClprSyncPayload → ClprSyncPayload)`.
 
-## State schema: `V0780ClprSchema`
+## State schemas: `V0780ClprSchema` and `V0800ClprSchema`
 
 Path: `hedera-clpr-service-impl/.../impl/schemas/V0780ClprSchema.java`. Schema version `0.78.0`
 orders the schema independently of the software version.
@@ -59,6 +59,10 @@ orders the schema independently of the software version.
 | `CONNECTORS_KEY`                    | KV        | `ClprConnectorKey` (channel_id + connector_id, both 32B) | `ClprConnector`           | `MAX_CONNECTORS = 100 000`                                                                                                           |
 | `LEDGER_CONFIGURATION_KEY`          | Singleton | —                                                        | `ClprLedgerConfiguration` | 1                                                                                                                                    |
 
+`V0800ClprSchema` adds the `MAX_QUEUE_DEPTH_HIGH_WATER` singleton (state ID 71),
+stored as `ProtoLong`. It tracks locally governed historical queue credit and never appears
+in the peer-proven ledger configuration or a hash-chained ConfigUpdate message.
+
 State IDs are `StateKey.KeyOneOfType.CLPRSERVICE_I_*.protoOrdinal()` (or
 `SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal()` for the singleton). Treat
 those constants as the canonical identity — the string keys are labels.
@@ -68,7 +72,10 @@ those constants as the canonical identity — the string keys are labels.
 `ClprServiceImpl.doGenesisSetup()` initializes missing singletons in the first round. The handle
 workflow also initializes them during post-upgrade setup. Both delegate to
 `V0780ClprSchema.initializeSingletons()` using the active network configuration and preserve existing
-values; schema startup only registers the state definitions.
+values; schema startup only registers the state definitions. The local queue reserve is seeded
+from the persisted ledger configuration. If an upgrade-file change runs before this initialization,
+its configuration write initializes the reserve while retaining the old limit. Every configuration
+write atomically retains the largest prior reserve, old limit, and new limit.
 
 Seeds `LEDGER_CONFIGURATION` with:
 

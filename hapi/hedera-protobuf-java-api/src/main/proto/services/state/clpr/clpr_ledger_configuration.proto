@@ -75,21 +75,7 @@ message ClprLedgerConfiguration {
      */
     bytes initial_trust_anchor_id = 8;
 
-    /**
-     * Largest local max_queue_depth advertised since reply-capacity tracking began.
-     * Hiero maintains this value at genesis and on every local configuration update;
-     * a supplied value is ignored. Zero in legacy state falls back to the current
-     * max_queue_depth. Peer values never set this ledger's reserve. This local
-     * accounting field is omitted from outgoing ConfigUpdate messages.
-     * It remains present in configuration state proofs, so strict peer verifiers
-     * MUST recognize this field before verifying new-channel configuration proofs.
-     *
-     * Each channel retains this many reply slots and this many ordinary slots so a
-     * lower advertised limit cannot strand DATA sent under an earlier limit. Thus
-     * lowering max_queue_depth limits new local sends but does not revoke historical
-     * reply capacity. Total outbound depth is bounded by twice this value.
-     */
-    uint32 max_queue_depth_high_water = 9;
+
 }
 
 /**
@@ -126,7 +112,7 @@ message ClprThrottles {
      * recently received advertised max_queue_depth in outstanding DATA to this
      * ledger. DATA already outstanding when a lower limit arrives may drain.
      *
-     * Hiero retains ordinary and reply budgets based on max_queue_depth_high_water
+     * Hiero retains ordinary and reply budgets based on the local historical queue limit
      * so DATA sent under an earlier higher limit can still be answered after a
      * configuration reduction. Peers that exceed advertised credit can stall their
      * channel; administrative force-close remains available for recovery.

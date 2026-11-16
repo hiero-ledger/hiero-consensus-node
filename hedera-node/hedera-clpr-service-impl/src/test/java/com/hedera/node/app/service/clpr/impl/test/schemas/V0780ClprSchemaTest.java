@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.test.schemas;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
@@ -14,6 +15,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
@@ -48,6 +50,9 @@ class V0780ClprSchemaTest {
     @Mock
     private WritableSingletonState<ClprEndpointManifestConstruction> constructionState;
 
+    @Mock
+    private WritableSingletonState<ProtoLong> highWaterState;
+
     private V0780ClprSchema subject;
     private Configuration configuration;
 
@@ -78,6 +83,8 @@ class V0780ClprSchemaTest {
 
     @Test
     void initializesMissingSingletons() {
+        given(writableStates.<ProtoLong>getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID))
+                .willReturn(highWaterState);
         given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
                 .willReturn(configurationState);
         given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
@@ -94,12 +101,12 @@ class V0780ClprSchemaTest {
             assertThat(throttles.maxMessagesPerBundle()).isEqualTo(1000);
             assertThat(throttles.maxGasPerMessage()).isEqualTo(15_000_000L);
             assertThat(throttles.maxQueueDepth()).isEqualTo(10_000);
-            assertThat(ledgerConfig.maxQueueDepthHighWater()).isEqualTo(10_000);
             assertThat(throttles.maxMessagePayloadBytes()).isEqualTo(65_536);
             assertThat(throttles.maxSyncBytes()).isEqualTo(4_194_304L);
         }));
         verify(manifestState).put(org.mockito.ArgumentMatchers.any(ClprEndpointManifest.class));
         verify(constructionState).put(ClprEndpointManifestConstruction.DEFAULT);
+        verify(highWaterState).put(new ProtoLong(10_000));
     }
 
     @Test
@@ -114,6 +121,8 @@ class V0780ClprSchemaTest {
                 .withValue("contracts.maxGasPerTransaction", 15_000_000L)
                 .withValue("clpr.ledgerConfigurationFile", file.toString())
                 .getOrCreateConfig();
+        given(writableStates.<ProtoLong>getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID))
+                .willReturn(highWaterState);
         given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
                 .willReturn(configurationState);
         given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
@@ -124,9 +133,9 @@ class V0780ClprSchemaTest {
         assertThat(V0780ClprSchema.initializeSingletons(writableStates, fileConfiguration))
                 .isTrue();
 
+        verify(highWaterState).put(new ProtoLong(20_000));
         verify(configurationState).put(org.mockito.ArgumentMatchers.assertArg(ledgerConfig -> {
             assertThat(ledgerConfig.chainId()).isEqualTo("eip155:299");
-            assertThat(ledgerConfig.maxQueueDepthHighWater()).isEqualTo(20_000);
             assertThat(ledgerConfig.throttlesOrThrow())
                     .isEqualTo(ClprThrottles.newBuilder()
                             .maxMessagesPerBundle(500)
@@ -141,12 +150,15 @@ class V0780ClprSchemaTest {
 
     @Test
     void doesNotOverwriteExistingSingletons() {
+        given(writableStates.<ProtoLong>getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID))
+                .willReturn(highWaterState);
         given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
                 .willReturn(configurationState);
         given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
                 .willReturn(manifestState);
         given(writableStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
                 .willReturn(constructionState);
+        given(highWaterState.get()).willReturn(new ProtoLong(10_000));
         given(configurationState.get()).willReturn(ClprLedgerConfiguration.DEFAULT);
         given(manifestState.get()).willReturn(ClprEndpointManifest.DEFAULT);
         given(constructionState.get()).willReturn(ClprEndpointManifestConstruction.DEFAULT);
@@ -157,5 +169,30 @@ class V0780ClprSchemaTest {
         verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
         verify(manifestState, never()).put(org.mockito.ArgumentMatchers.any());
         verify(constructionState, never()).put(org.mockito.ArgumentMatchers.any());
+        verify(highWaterState, never()).put(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void upgradeSeedsLocalReserveFromPersistedConfiguration() {
+        given(writableStates.<ProtoLong>getSingleton(MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID))
+                .willReturn(highWaterState);
+        given(writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(configurationState);
+        given(writableStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(manifestState);
+        given(writableStates.<ClprEndpointManifestConstruction>getSingleton(ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID))
+                .willReturn(constructionState);
+        given(configurationState.get())
+                .willReturn(ClprLedgerConfiguration.newBuilder()
+                        .throttles(ClprThrottles.newBuilder().maxQueueDepth(5))
+                        .build());
+        given(manifestState.get()).willReturn(ClprEndpointManifest.DEFAULT);
+        given(constructionState.get()).willReturn(ClprEndpointManifestConstruction.DEFAULT);
+
+        assertThat(V0780ClprSchema.initializeSingletons(writableStates, configuration))
+                .isTrue();
+
+        verify(highWaterState).put(new ProtoLong(5));
+        verify(configurationState, never()).put(org.mockito.ArgumentMatchers.any());
     }
 }

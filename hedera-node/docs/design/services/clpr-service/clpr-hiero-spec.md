@@ -292,27 +292,26 @@ lets a lowered limit be advertised even when outstanding DATA fills the new, sma
 ordinary limit. A completely full ordinary budget can defer the update until traffic
 drains; it cannot revoke the reply credit needed to make that progress.
 
-`H` is `max(max_queue_depth_high_water, throttles.max_queue_depth)` from the **local**
-configuration singleton. Genesis initializes the high-water field, and local configuration
-updates—including synthetic upgrade-file updates—retain the maximum of the prior reserve
-and the newly configured limit. Supplied or peer high-water values cannot inflate it.
-The local bookkeeping field is cleared before enqueuing a `ConfigUpdate`, preserving the
-peer's hash-chained message encoding. Lowering a limit restricts new local DATA sends but
-does not shrink the historical reserve; every channel's outbound depth remains bounded
-by `2 * H`. An acknowledgement of a configuration update alone cannot retire old credit:
-the peer can acknowledge it while DATA admitted under its previous view is still queued.
+`H` is the greater of the local `MAX_QUEUE_DEPTH_HIGH_WATER` singleton and the current
+`throttles.max_queue_depth`. This implementation state is separate from the configuration
+proved to peers and from every `ConfigUpdate`; neither wire encoding changes. Genesis and
+post-upgrade setup initialize it from the persisted ledger configuration. The 0.80 schema
+creates the singleton for networks upgrading from earlier CLPR releases. Every configuration
+write—including synthetic upgrade-file updates—retains the maximum of the prior reserve,
+prior configured limit, and newly configured limit in the same transaction. The reserve is
+not a user-supplied configuration field, and peers cannot inflate it.
 
-The configuration singleton's state proof still contains the high-water field. Peers using
-strict configuration parsing must upgrade their protobuf schema before verifying new-channel
-configuration proofs from this ledger. Clearing the field from `ConfigUpdate` protects the
-encoding for existing channels; it does not remove this new-channel schema coordination.
+Lowering a limit restricts new local DATA sends but does not shrink the historical reserve;
+every channel's outbound depth remains bounded by `2 * H`. An acknowledgement of a configuration
+update alone cannot retire old credit: the peer can acknowledge it while DATA admitted under
+its previous view is still queued.
 
 Peers must not enqueue new DATA beyond the latest advertised outstanding-DATA credit.
 Already queued DATA may exceed a subsequently lowered limit and is allowed to drain.
 A peer that disregards advertised credit has no liveness guarantee; force-close provides
-administrative recovery. Legacy configurations with a zero high-water field use their
-current limit, and the first local update captures that limit even if no channel has yet
-been used. This does not reconstruct limits advertised before capacity tracking existed;
+administrative recovery. Before the local reserve is initialized, reads use the current limit,
+and the first local update captures that limit even if no channel has yet been used. This
+does not reconstruct limits advertised before capacity tracking existed;
 operators must drain such legacy traffic before lowering an unrecorded historical limit.
 
 An inbound bundle accepts the longest prefix whose generated replies fit the reserve.
@@ -379,7 +378,7 @@ See also the economics section in [config-and-slashing.md](config-and-slashing.m
 ## E-11. CLPR singleton maintenance in the block stream
 
 Some CLPR singleton changes happen outside of any transaction handler: genesis and
-post-upgrade setup initialize missing `LEDGER_CONFIGURATION`, `ENDPOINT_MANIFEST`, and
+post-upgrade setup initialize missing `LEDGER_CONFIGURATION`, `MAX_QUEUE_DEPTH_HIGH_WATER`, `ENDPOINT_MANIFEST`, and
 `ENDPOINT_MANIFEST_CONSTRUCTION` singletons; post-upgrade setup reconciles the endpoint
 manifest with a changed roster; and every round (including rounds with no user
 transactions) the endpoint manifest reconciler may advance or close a construction.

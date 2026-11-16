@@ -3,7 +3,6 @@ package com.hedera.node.app.service.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -37,23 +36,6 @@ public final class ClprThrottlesValidator {
      */
     public static final long MIN_PROOF_OVERHEAD_BYTES =
             MIN_STATE_PROOF_OVERHEAD_BYTES + CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
-
-    /**
-     * Local ordinary/reply reserve. A configuration reduction must not revoke the credit
-     * under which a peer may already have queued DATA ahead of replies needed to drain us.
-     * Legacy configurations have no high-water field, so their current limit seeds the reserve.
-     */
-    public static int replyQueueCapacity(@NonNull final ClprLedgerConfiguration configuration) {
-        return Math.max(
-                configuration.maxQueueDepthHighWater(),
-                configuration.throttlesOrElse(ClprThrottles.DEFAULT).maxQueueDepth());
-    }
-
-    /** Excludes local capacity accounting from the peer's hash-chained configuration message. */
-    public static ClprLedgerConfiguration advertisedConfiguration(
-            @NonNull final ClprLedgerConfiguration configuration) {
-        return configuration.copyBuilder().maxQueueDepthHighWater(0).build();
-    }
 
     private ClprThrottlesValidator() {}
 

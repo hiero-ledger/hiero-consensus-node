@@ -5,6 +5,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -15,6 +17,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.impl.WritableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprUpdateLedgerConfigurationHandler;
@@ -26,14 +29,16 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
+import com.swirlds.state.test.fixtures.MapWritableStates;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -366,34 +371,34 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         org.mockito.Mockito.verify(handleContext, org.mockito.Mockito.never()).ledgerId();
     }
 
-    @ParameterizedTest
-    @CsvSource({"0,5,2,999,5", "8,5,2,0,8", "5,5,9,1,9"})
-    void preservesHistoricalReplyCreditBeforeAnyChannelInteraction(
-            final int priorHighWater,
-            final int priorLimit,
-            final int nextLimit,
-            final int suppliedHighWater,
-            final int expectedHighWater) {
-        final var configuration =
-                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig();
-        setupHandleContext(configuration);
-        given(configStore.getConfiguration())
-                .willReturn(validConfigBuilder()
-                        .maxQueueDepthHighWater(priorHighWater)
-                        .throttles(validThrottlesBuilder().maxQueueDepth(priorLimit))
-                        .build());
+    @Test
+    void adminReductionRetainsPriorCreditInLocalState() {
+        setupHandleContext(
+                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
+        final var oldConfig = validConfigBuilder()
+                .throttles(validThrottlesBuilder().maxQueueDepth(5))
+                .build();
+        final var configValue = new AtomicReference<>(oldConfig);
+        final var reserveValue = new AtomicReference<ProtoLong>();
+        final var states = MapWritableStates.builder()
+                .state(new FunctionWritableSingletonState<>(
+                        LEDGER_CONFIGURATION_STATE_ID, "CONFIG", configValue::get, configValue::set))
+                .state(new FunctionWritableSingletonState<>(
+                        MAX_QUEUE_DEPTH_HIGH_WATER_STATE_ID, "RESERVE", reserveValue::get, reserveValue::set))
+                .build();
+        final var realStore = new WritableLedgerConfigurationStore(states);
+        given(storeFactory.writableStore(WritableLedgerConfigurationStore.class))
+                .willReturn(realStore);
         given(handleContext.body())
                 .willReturn(txnBodyWith(validConfigBuilder()
-                        .maxQueueDepthHighWater(suppliedHighWater)
-                        .throttles(validThrottlesBuilder().maxQueueDepth(nextLimit))
+                        .throttles(validThrottlesBuilder().maxQueueDepth(2))
                         .build()));
 
         subject.handle(handleContext);
 
-        final var captor = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
-        verify(configStore).put(captor.capture());
-        assertThat(captor.getValue().maxQueueDepthHighWater()).isEqualTo(expectedHighWater);
-        assertThat(captor.getValue().throttlesOrThrow().maxQueueDepth()).isEqualTo(nextLimit);
+        assertThat(realStore.getConfiguration().throttlesOrThrow().maxQueueDepth())
+                .isEqualTo(2);
+        assertThat(realStore.getMaxQueueDepthHighWater()).isEqualTo(5);
     }
 
     // --- Helpers ---

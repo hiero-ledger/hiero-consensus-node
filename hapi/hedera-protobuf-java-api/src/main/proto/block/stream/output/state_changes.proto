@@ -25,6 +25,7 @@ option java_multiple_files = true;
 
 import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
+import "services/state/primitives.proto";
 import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
 import "services/state/addressbook/registered_node.proto";
@@ -559,6 +560,9 @@ enum StateIdentifier {
      */
     STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
+    /** Local CLPR historical queue reserve. Singleton state. */
+    STATE_ID_CLPR_MAX_QUEUE_DEPTH_HIGH_WATER = 71;
+
     /**
      * A state identifier for the round receipts queue. Queue state.
      */
@@ -667,7 +671,7 @@ message SingletonUpdateChange {
     /** Sorted, unique top-level fields to reset; valid only when partial is true. */
     repeated uint32 cleared_fields = 10002;
 
-    // Field numbers 24 through 10000 are intentionally left unused so that
+    // Field numbers 25 through 10000 are intentionally left unused so that
     // they remain available for future `new_value` singleton oneof members.
 
     oneof new_value {
@@ -838,6 +842,9 @@ message SingletonUpdateChange {
          * absent between constructions (deleted on close).
          */
         com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction clpr_endpoint_manifest_construction_value = 23;
+
+        /** A change to a local integer singleton, including the CLPR historical queue reserve. */
+        proto.ProtoLong proto_long_value = 24;
     }
 }
 

@@ -359,12 +359,13 @@ require multi-network infrastructure.
 - Locally initiated DATA (including any prepended config update) must leave the queue at
   `max_queue_depth - 1` slots or fewer and obey the peer's current DATA credit.
 - Each channel also reserves replies using the local historical maximum `H`, persisted as
-  `max_queue_depth_high_water`. Total outbound depth must remain at most `2 * H`.
+  `MAX_QUEUE_DEPTH_HIGH_WATER`. Total outbound depth must remain at most `2 * H`.
 - A lowered `max_queue_depth` restricts new sends without revoking reply credit for earlier traffic.
   Test a reduction from 5 to 2 with four local DATA outstanding and peer traffic
   `[DATA, DATA, DATA, REPLY1, REPLY2, REPLY3, REPLY4]`: bundle sizes 1–7 must progress and drain.
-- Test updates before any channel interaction, legacy zero high-water, repeated reductions,
-  increases, ignored supplied high-water values, and genesis/upgrade-file initialization.
+- Test updates before any channel interaction, missing/zero local reserve, repeated reductions,
+  increases, and genesis/upgrade-file initialization. Configuration proofs and ConfigUpdate payloads
+  must retain their existing encoding regardless of the separately persisted local reserve.
 - Bundle backpressure accepts the longest fitting prefix, advances its received hash/ID and
   acknowledgement consistently, and leaves later one-way slots queued. ACK-only/state-only
   progress still works when depth exceeds a newly lowered limit.

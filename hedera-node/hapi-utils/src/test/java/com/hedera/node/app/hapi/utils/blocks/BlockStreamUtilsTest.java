@@ -3,7 +3,9 @@ package com.hedera.node.app.hapi.utils.blocks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateIdentifier;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -47,10 +49,21 @@ class BlockStreamUtilsTest {
         "STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS, ClprService.PENDING_CONNECTOR_COMMITMENTS",
         "STATE_ID_CLPR_ENDPOINT_MANIFEST, ClprService.ENDPOINT_MANIFEST",
         "STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION, ClprService.ENDPOINT_MANIFEST_CONSTRUCTION",
+        "STATE_ID_CLPR_MAX_QUEUE_DEPTH_HIGH_WATER, ClprService.MAX_QUEUE_DEPTH_HIGH_WATER",
         "STATE_ID_HINTS_KEY_PROVENANCE, HistoryService.HINTS_KEY_PROVENANCE",
         "STATE_ID_HINTS_KEY_WITNESSES, HistoryService.HINTS_KEY_WITNESSES"
     })
     void mapsStateIdentifiers(final StateIdentifier stateIdentifier, final String expectedStateName) {
         assertEquals(expectedStateName, BlockStreamUtils.stateNameOf(stateIdentifier.protoOrdinal()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 5})
+    void restoresLocalIntegerSingleton(final long value) throws Exception {
+        final var reserve = new ProtoLong(value);
+        final var update =
+                SingletonUpdateChange.newBuilder().protoLongValue(reserve).build();
+        final var parsed = SingletonUpdateChange.PROTOBUF.parseStrict(SingletonUpdateChange.PROTOBUF.toBytes(update));
+        assertEquals(reserve, BlockStreamUtils.singletonPutFor(parsed));
     }
 }

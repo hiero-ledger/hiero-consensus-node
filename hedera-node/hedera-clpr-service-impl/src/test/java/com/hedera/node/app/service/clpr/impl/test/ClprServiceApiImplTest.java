@@ -380,11 +380,7 @@ class ClprServiceApiImplTest {
         final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 5, 3, staleTimestamp);
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
-        given(configStore.getConfiguration())
-                .willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100)
-                        .copyBuilder()
-                        .maxQueueDepthHighWater(500)
-                        .build());
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 100));
         given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
                 .willReturn(connector);
 
@@ -403,7 +399,7 @@ class ClprServiceApiImplTest {
                 .controlOrThrow()
                 .configUpdateOrThrow()
                 .configurationOrThrow();
-        assertThat(advertised.maxQueueDepthHighWater()).isZero();
+        assertThat(advertised).isEqualTo(configStore.getConfiguration());
         assertThat(advertised.throttlesOrThrow().maxQueueDepth()).isEqualTo(100);
         verify(messageQueueStore).put(eq(CHANNEL_ID), eq(6L), any(ClprMessageValue.class));
 

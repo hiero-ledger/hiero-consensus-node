@@ -76,6 +76,13 @@ class ClprLedgerConfigurationFileTest {
     }
 
     @Test
+    void rejectsLocalReserveAsAUserSuppliedConfigurationField() {
+        assertThatThrownBy(() -> ClprLedgerConfigurationFile.parse(streamOf("{\"maxQueueDepthHighWater\":100000}")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Malformed CLPR ledger configuration");
+    }
+
+    @Test
     void rejectsNonThrottleFields() {
         final var withChainId = ClprLedgerConfiguration.newBuilder()
                 .chainId("eip155:1")
@@ -90,13 +97,7 @@ class ClprLedgerConfigurationFileTest {
                 .throttles(CUSTOM_THROTTLES)
                 .build();
 
-        final var withHighWater = ClprLedgerConfiguration.newBuilder()
-                .maxQueueDepthHighWater(100_000)
-                .throttles(CUSTOM_THROTTLES)
-                .build();
-
-        for (final var config :
-                new ClprLedgerConfiguration[] {withChainId, withTimestamp, withProtocolVersion, withHighWater}) {
+        for (final var config : new ClprLedgerConfiguration[] {withChainId, withTimestamp, withProtocolVersion}) {
             assertThatThrownBy(() ->
                             ClprLedgerConfigurationFile.parse(streamOf(ClprLedgerConfiguration.JSON.toJSON(config))))
                     .isInstanceOf(IllegalArgumentException.class)

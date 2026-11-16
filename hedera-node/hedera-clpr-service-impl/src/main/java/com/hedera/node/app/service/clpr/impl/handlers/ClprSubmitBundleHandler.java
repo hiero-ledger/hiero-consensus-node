@@ -10,8 +10,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES;
-import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.advertisedConfiguration;
-import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.replyQueueCapacity;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
@@ -319,7 +317,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 oldAckedMessageId,
                 peerReceivedMessageId,
                 validated.newMessages().size());
-        final int queueCapacity = replyQueueCapacity(ledgerConfig);
+        final int queueCapacity = Math.max(configStore.getMaxQueueDepthHighWater(), throttles.maxQueueDepth());
         final ReplyValidation replyValidation;
         try {
             replyValidation = bundleValidator.validateReplies(channel, validated, messageQueueStore, queueCapacity);
@@ -419,9 +417,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     channelId,
                     lastConfigTimestamp,
                     configTimestamp);
-            final var configUpdate = ClprConfigUpdate.newBuilder()
-                    .configuration(advertisedConfiguration(ledgerConfig))
-                    .build();
+            final var configUpdate =
+                    ClprConfigUpdate.newBuilder().configuration(ledgerConfig).build();
             final var controlMessage =
                     ClprControlMessage.newBuilder().configUpdate(configUpdate).build();
             outbound.enqueue(
