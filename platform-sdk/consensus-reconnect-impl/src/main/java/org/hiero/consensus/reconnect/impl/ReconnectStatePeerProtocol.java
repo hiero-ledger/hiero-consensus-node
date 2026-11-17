@@ -17,6 +17,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
@@ -26,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.concurrent.throttle.RateLimitedLogger;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -305,12 +307,17 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             // reconnect from this same round received a state, that state wasn't accepted. Requests carry hash
             // prefixes, and someone who controls a leaf's contents could craft two values whose hashes share a
             // prefix, which would make every reconnect from this state fail. Send full hashes instead.
-            final boolean fullHashes = lastReceivedFromRound.get() == round;
-            if (fullHashes) {
+            final int hashPrefixLength;
+            if (lastReceivedFromRound.get() == round) {
+                hashPrefixLength = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
                 logger.warn(
                         RECONNECT.getMarker(),
                         "A state received earlier by a reconnect from round {} wasn't accepted, sending full hashes",
                         round);
+            } else {
+                hashPrefixLength = configuration
+                        .getConfigData(VirtualMapLearnerSyncConfig.class)
+                        .hashPrefixLength();
             }
             final ReconnectStateLearner learner = new ReconnectStateLearner(
                     configuration,
@@ -321,7 +328,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     reconnectSocketTimeout,
                     reconnectMetrics,
                     stateLifecycleManager,
-                    fullHashes);
+                    hashPrefixLength);
 
             logger.info(
                     RECONNECT.getMarker(),

@@ -26,7 +26,7 @@ public class LearnerPullVirtualTreeSendTask implements Runnable {
 
     private final AsyncOutputStream out;
     private final LearnerTreeExchanger treeExchanger;
-    private final boolean fullHashes;
+    private final int hashPrefixLength;
 
     private final CountDownLatch tasksDone;
 
@@ -37,19 +37,19 @@ public class LearnerPullVirtualTreeSendTask implements Runnable {
      * 		the output stream, this object is responsible for closing this when finished
      * @param treeExchanger
      * 		the exchanger used to determine what to send to the teacher
-     * @param fullHashes
-     *      whether to send full hashes rather than hash prefixes
+     * @param hashPrefixLength
+     *      the number of leading hash bytes to send in requests
      * @param tasksDone
      *      the counter to decrease when this task is finished
      */
     public LearnerPullVirtualTreeSendTask(
             final AsyncOutputStream out,
             final LearnerTreeExchanger treeExchanger,
-            final boolean fullHashes,
+            final int hashPrefixLength,
             final CountDownLatch tasksDone) {
         this.out = out;
         this.treeExchanger = treeExchanger;
-        this.fullHashes = fullHashes;
+        this.hashPrefixLength = hashPrefixLength;
         this.tasksDone = tasksDone;
     }
 
@@ -71,7 +71,7 @@ public class LearnerPullVirtualTreeSendTask implements Runnable {
                     Thread.sleep(0, 1);
                     continue;
                 }
-                sendRequest(new PullVirtualTreeRequest(path, treeExchanger.getNodeHash(path), fullHashes));
+                sendRequest(new PullVirtualTreeRequest(path, treeExchanger.getNodeHash(path), hashPrefixLength));
                 treeExchanger.onRequestSend();
             }
         } catch (final InterruptedException ex) {

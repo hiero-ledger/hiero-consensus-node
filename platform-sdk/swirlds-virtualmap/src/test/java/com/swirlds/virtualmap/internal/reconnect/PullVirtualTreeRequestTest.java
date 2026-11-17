@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.MerklePathUtils;
 import java.util.Random;
 import org.hiero.base.crypto.Cryptography;
@@ -20,12 +21,15 @@ import org.junit.jupiter.api.Test;
 
 class PullVirtualTreeRequestTest {
 
+    private static final int PREFIX_LENGTH = 16;
+    private static final int FULL_HASH_LENGTH = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+
     @Test
     @DisplayName("Round-trip serialization with path and hash")
     void roundTrip() {
         final long path = 42;
         final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
-        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(path, hash);
+        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(path, hash, PREFIX_LENGTH);
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));
@@ -35,13 +39,9 @@ class PullVirtualTreeRequestTest {
         assertNotNull(deserialized);
         assertEquals(original.path(), deserialized.path());
         assertNotNull(deserialized.hashPrefix());
-        assertEquals(
-                PullVirtualTreeRequest.HASH_PREFIX_LENGTH,
-                deserialized.hashPrefix().length());
+        assertEquals(PREFIX_LENGTH, deserialized.hashPrefix().length());
         assertArrayEquals(
-                hash.getBytes()
-                        .slice(0, PullVirtualTreeRequest.HASH_PREFIX_LENGTH)
-                        .toByteArray(),
+                hash.getBytes().slice(0, PREFIX_LENGTH).toByteArray(),
                 deserialized.hashPrefix().toByteArray());
         assertTrue(deserialized.matches(hash));
     }
@@ -50,7 +50,8 @@ class PullVirtualTreeRequestTest {
     @DisplayName("Round-trip serialization for root path")
     void roundTripRootPath() {
         final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
-        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, hash);
+        final PullVirtualTreeRequest original =
+                new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, hash, PREFIX_LENGTH);
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));
@@ -68,8 +69,8 @@ class PullVirtualTreeRequestTest {
     void sizeMatchesActualOutput() {
         final Random random = new Random();
         for (final long path : new long[] {MerklePathUtils.ROOT_PATH, 100}) {
-            final PullVirtualTreeRequest request =
-                    new PullVirtualTreeRequest(path, randomHash(random, Cryptography.DEFAULT_DIGEST_TYPE));
+            final PullVirtualTreeRequest request = new PullVirtualTreeRequest(
+                    path, randomHash(random, Cryptography.DEFAULT_DIGEST_TYPE), PREFIX_LENGTH);
             final BufferedData out = BufferedData.wrap(new byte[request.getSizeInBytes()]);
             request.writeTo(out);
             assertEquals(request.getSizeInBytes(), out.position());
@@ -79,12 +80,11 @@ class PullVirtualTreeRequestTest {
     @Test
     @DisplayName("Request carries only the hash prefix")
     void sizeWithHashPrefix() {
-        final PullVirtualTreeRequest request =
-                new PullVirtualTreeRequest(1, randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE));
+        final PullVirtualTreeRequest request = new PullVirtualTreeRequest(
+                1, randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE), PREFIX_LENGTH);
 
         // path: tag + fixed64; hash prefix: tag + length + prefix bytes
-        assertEquals(1 + Long.BYTES + 1 + 1 + PullVirtualTreeRequest.HASH_PREFIX_LENGTH, request.getSizeInBytes());
-        assertTrue(PullVirtualTreeRequest.HASH_PREFIX_LENGTH < Cryptography.DEFAULT_DIGEST_TYPE.digestLength());
+        assertEquals(1 + Long.BYTES + 1 + 1 + PREFIX_LENGTH, request.getSizeInBytes());
     }
 
     @Test
@@ -92,7 +92,7 @@ class PullVirtualTreeRequestTest {
     void matches() {
         final Random random = new Random();
         final Hash hash = randomHash(random, Cryptography.DEFAULT_DIGEST_TYPE);
-        final PullVirtualTreeRequest request = new PullVirtualTreeRequest(5, hash);
+        final PullVirtualTreeRequest request = new PullVirtualTreeRequest(5, hash, PREFIX_LENGTH);
 
         assertTrue(request.matches(hash));
         assertTrue(request.matches(new Hash(hash.copyToByteArray(), Cryptography.DEFAULT_DIGEST_TYPE)));
@@ -100,19 +100,19 @@ class PullVirtualTreeRequestTest {
 
         // A difference in the prefix is a mismatch
         final byte[] prefixChanged = hash.copyToByteArray();
-        prefixChanged[PullVirtualTreeRequest.HASH_PREFIX_LENGTH - 1] ^= 1;
+        prefixChanged[PREFIX_LENGTH - 1] ^= 1;
         assertFalse(request.matches(new Hash(prefixChanged, Cryptography.DEFAULT_DIGEST_TYPE)));
 
         // A difference after the prefix isn't seen
         final byte[] suffixChanged = hash.copyToByteArray();
-        suffixChanged[PullVirtualTreeRequest.HASH_PREFIX_LENGTH] ^= 1;
+        suffixChanged[PREFIX_LENGTH] ^= 1;
         assertTrue(request.matches(new Hash(suffixChanged, Cryptography.DEFAULT_DIGEST_TYPE)));
     }
 
     @Test
     @DisplayName("A null hash on the learner matches only a null hash on the teacher")
     void nullHashMatches() {
-        final PullVirtualTreeRequest request = new PullVirtualTreeRequest(7, Cryptography.NULL_HASH);
+        final PullVirtualTreeRequest request = new PullVirtualTreeRequest(7, Cryptography.NULL_HASH, PREFIX_LENGTH);
         assertTrue(request.matches(Cryptography.NULL_HASH));
         assertFalse(request.matches(randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE)));
     }
@@ -129,27 +129,31 @@ class PullVirtualTreeRequestTest {
     }
 
     @Test
-    @DisplayName("Parsing rejects a hash prefix of the wrong length")
-    void wrongPrefixLength() throws Exception {
+    @DisplayName("A prefix of any length is parsed and compared with the beginning of the hash")
+    void anyPrefixLength() throws Exception {
         final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
-        final byte[] bytes = new byte[64];
-        final BufferedData out = BufferedData.wrap(bytes);
-        ProtoWriterTools.writeLong(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_PATH, 3);
-        // neither a prefix nor a full hash
-        ProtoWriterTools.writeBytes(
-                out,
-                PullVirtualTreeRequest.FIELD_PULLREQUEST_HASH_PREFIX,
-                hash.getBytes().slice(0, PullVirtualTreeRequest.HASH_PREFIX_LENGTH + 4));
-        final BufferedData in = BufferedData.wrap(bytes, 0, (int) out.position());
+        final byte[] longerThanHash = new byte[FULL_HASH_LENGTH + 1];
+        hash.getBytes().writeTo(longerThanHash, 0);
+        for (final Bytes prefix :
+                new Bytes[] {hash.getBytes().slice(0, 1), hash.getBytes().slice(0, 20), Bytes.wrap(longerThanHash)}) {
+            final byte[] bytes = new byte[64];
+            final BufferedData out = BufferedData.wrap(bytes);
+            ProtoWriterTools.writeLong(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_PATH, 3);
+            ProtoWriterTools.writeBytes(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_HASH_PREFIX, prefix);
+            final BufferedData in = BufferedData.wrap(bytes, 0, (int) out.position());
 
-        assertThrows(IllegalArgumentException.class, () -> PullVirtualTreeRequest.parseFrom(in));
+            final PullVirtualTreeRequest request = PullVirtualTreeRequest.parseFrom(in);
+            assertEquals(prefix, request.hashPrefix());
+            // A prefix longer than the hash never matches
+            assertEquals(prefix.length() <= FULL_HASH_LENGTH, request.matches(hash));
+        }
     }
 
     @Test
     @DisplayName("Round-trip serialization with a full hash")
     void roundTripFullHash() {
         final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
-        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(42, hash, true);
+        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(42, hash, FULL_HASH_LENGTH);
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));
@@ -158,14 +162,17 @@ class PullVirtualTreeRequestTest {
         assertEquals(42, deserialized.path());
         assertArrayEquals(hash.copyToByteArray(), deserialized.hashPrefix().toByteArray());
         // path: tag + fixed64; hash: tag + length + hash bytes
-        assertEquals(1 + Long.BYTES + 1 + 1 + PullVirtualTreeRequest.FULL_HASH_LENGTH, original.getSizeInBytes());
+        assertEquals(1 + Long.BYTES + 1 + 1 + FULL_HASH_LENGTH, original.getSizeInBytes());
+
+        // A prefix length beyond the hash length sends the full hash
+        assertEquals(original, new PullVirtualTreeRequest(42, hash, FULL_HASH_LENGTH + 10));
     }
 
     @Test
     @DisplayName("A full hash matches only the same hash, even if only the last byte differs")
     void fullHashMatches() {
         final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
-        final PullVirtualTreeRequest request = new PullVirtualTreeRequest(5, hash, true);
+        final PullVirtualTreeRequest request = new PullVirtualTreeRequest(5, hash, FULL_HASH_LENGTH);
 
         assertTrue(request.matches(new Hash(hash.copyToByteArray(), Cryptography.DEFAULT_DIGEST_TYPE)));
 
@@ -179,7 +186,7 @@ class PullVirtualTreeRequestTest {
     void largePath() {
         final long largePath = Long.MAX_VALUE - 1;
         final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
-        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(largePath, hash);
+        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(largePath, hash, PREFIX_LENGTH);
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));

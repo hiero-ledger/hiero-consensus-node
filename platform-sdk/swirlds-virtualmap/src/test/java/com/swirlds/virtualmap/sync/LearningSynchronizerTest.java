@@ -52,6 +52,21 @@ class LearningSynchronizerTest {
     }
 
     @Test
+    @DisplayName("A hash prefix length below 8 is rejected when the config is built")
+    void shortHashPrefixLengthRejected() {
+        assertThrows(
+                ConfigViolationException.class,
+                () -> ConfigurationBuilder.create()
+                        .autoDiscoverExtensions()
+                        .withValue(VirtualMapLearnerSyncConfig_.HASH_PREFIX_LENGTH, "7")
+                        .build());
+        assertDoesNotThrow(() -> ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(VirtualMapLearnerSyncConfig_.HASH_PREFIX_LENGTH, "8")
+                .build());
+    }
+
+    @Test
     @DisplayName("A leaf backlog threshold below twice the flush interval is rejected when the config is built")
     void smallLeafBacklogThresholdRejected() {
         assertThrows(

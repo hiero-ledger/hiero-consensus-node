@@ -7,6 +7,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.validation.ConfigViolation;
 import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.api.validation.annotation.Max;
+import com.swirlds.config.api.validation.annotation.Min;
 import com.swirlds.config.api.validation.annotation.Positive;
 import com.swirlds.config.extensions.validators.DefaultConfigViolation;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -56,6 +57,13 @@ import java.time.Duration;
  *                                               leaves waiting for hashing or flushing, when leaves are received faster
  *                                               than they are hashed, for example when hashing threads are blocked on
  *                                               flusher backpressure. Each leaf takes a few hundred bytes of heap.
+ * @param hashPrefixLength                       The number of leading bytes of its node hashes the learner sends to the
+ *                                               teacher, which compares them with its own hashes to find the nodes
+ *                                               that differ. Fewer bytes make requests smaller, but a prefix that
+ *                                               matches for different hashes makes the reconnect fail validation, and
+ *                                               the next reconnect from the same state sends full hashes. At least 8,
+ *                                               since shorter prefixes match by chance too often in a large state. A
+ *                                               value of the hash length or more sends full hashes.
  */
 // spotless:off
 @ConfigData("reconnect.learner")
@@ -67,7 +75,8 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "10000") @Positive @Max(1073741824) int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
         @ConfigProperty(defaultValue = "2000000") @Positive int flushInterval,
-        @ConfigProperty(defaultValue = "4000000") @Positive @ConstraintMethod("validateLeafBacklogThrottleThreshold") int leafBacklogThrottleThreshold) {
+        @ConfigProperty(defaultValue = "4000000") @Positive @ConstraintMethod("validateLeafBacklogThrottleThreshold") int leafBacklogThrottleThreshold,
+        @ConfigProperty(defaultValue = "16") @Min(8) int hashPrefixLength) {
 // spotless:on
 
     private static final String LEAF_BACKLOG_THROTTLE_THRESHOLD = "reconnect.learner.leafBacklogThrottleThreshold";

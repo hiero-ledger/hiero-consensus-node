@@ -18,6 +18,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.state.test.fixtures.merkle.TestStateUtils;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig;
 import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -314,6 +315,8 @@ final class ReconnectTest {
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
                 stateLifecycleManager,
-                false);
+                receiverConfiguration
+                        .getConfigData(VirtualMapLearnerSyncConfig.class)
+                        .hashPrefixLength());
     }
 }

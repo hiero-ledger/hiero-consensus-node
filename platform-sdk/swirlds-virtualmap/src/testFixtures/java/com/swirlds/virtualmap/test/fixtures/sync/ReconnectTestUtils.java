@@ -57,25 +57,6 @@ public final class ReconnectTestUtils {
     public static VirtualMap testSynchronization(
             final VirtualMap learnerMap, final VirtualMap teacherMap, final Configuration configuration)
             throws Exception {
-        return testSynchronization(learnerMap, teacherMap, configuration, false);
-    }
-
-    /**
-     * Performs synchronization between learner and teacher maps.
-     *
-     * @param learnerMap leaner map to synchronize with teacher map
-     * @param teacherMap teacher map as desired virtual map
-     * @param configuration configuration
-     * @param fullHashes whether the learner sends full hashes rather than hash prefixes
-     * @return resulting map after synchronization
-     * @throws Exception if any exception happens during synchronization
-     */
-    public static VirtualMap testSynchronization(
-            final VirtualMap learnerMap,
-            final VirtualMap teacherMap,
-            final Configuration configuration,
-            final boolean fullHashes)
-            throws Exception {
         System.out.println("------------");
         System.out.println("learner map: " + learnerMap.getMetadata());
         System.out.println("teacher map: " + teacherMap.getMetadata());
@@ -85,7 +66,7 @@ public final class ReconnectTestUtils {
 
         try (PairedStreams streams = new PairedStreams()) {
             final LearningSynchronizer learner =
-                    new LearningSynchronizer(getStaticThreadManager(), configuration, metrics, fullHashes) {
+                    new LearningSynchronizer(getStaticThreadManager(), configuration, metrics) {
 
                         @Override
                         protected StandardWorkGroup createStandardWorkGroup(

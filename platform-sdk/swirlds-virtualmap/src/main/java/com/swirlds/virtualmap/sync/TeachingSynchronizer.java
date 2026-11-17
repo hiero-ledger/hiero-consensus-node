@@ -193,10 +193,10 @@ public class TeachingSynchronizer {
 
         logger.info(
                 RECONNECT.getMarker(),
-                "Teacher sending root node response: firstLeafPath={}, lastLeafPath={}, fullHashes={}",
+                "Teacher sending root node response: firstLeafPath={}, lastLeafPath={}, hashPrefixLength={}",
                 firstLeafPath,
                 lastLeafPath,
-                rootRequest.hashPrefix().length() == PullVirtualTreeRequest.FULL_HASH_LENGTH);
+                rootRequest.hashPrefix().length());
         final byte[] responseBytes = new byte[rootResponse.getSizeInBytes()];
         rootResponse.writeTo(BufferedData.wrap(responseBytes));
         try {

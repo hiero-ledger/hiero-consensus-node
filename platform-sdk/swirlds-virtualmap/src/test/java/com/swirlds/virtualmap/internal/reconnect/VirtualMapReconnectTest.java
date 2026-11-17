@@ -41,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("Virtual Map Reconnect Test")
 class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
@@ -304,10 +305,15 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         copy.release();
     }
 
-    @Test
+    @ParameterizedTest
+    @ValueSource(ints = {8, 16, 32, 64})
     @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect")})
-    @DisplayName("Reconnect with full hashes instead of hash prefixes")
-    void reconnectWithFullHashes() throws Exception {
+    @DisplayName("Reconnect with hash prefixes of different lengths, up to full hashes")
+    void reconnectWithHashPrefixLength(final int hashPrefixLength) throws Exception {
+        final Configuration prefixConfig = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(VirtualMapLearnerSyncConfig_.HASH_PREFIX_LENGTH, Integer.toString(hashPrefixLength))
+                .build();
         for (int i = 0; i < 200; i++) {
             final Bytes key = TestKey.longToKey(i);
             teacherMap.put(key, new TestValue("value" + i), TestValueCodec.INSTANCE);
@@ -324,7 +330,7 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         teacherMap.reserve();
         learnerMap.reserve();
 
-        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration, true);
+        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, prefixConfig);
 
         assertEquals(
                 "changed20",

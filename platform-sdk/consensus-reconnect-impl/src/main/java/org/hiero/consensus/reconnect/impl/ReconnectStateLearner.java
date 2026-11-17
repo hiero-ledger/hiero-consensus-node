@@ -82,7 +82,7 @@ public class ReconnectStateLearner {
      * @param reconnectSocketTimeout the amount of time that should be used for the socket timeout
      * @param statistics reconnect metrics
      * @param stateLifecycleManager the state lifecycle manager
-     * @param fullHashes whether to send full node hashes to the teacher rather than hash prefixes
+     * @param hashPrefixLength the number of leading bytes of node hashes to send to the teacher
      */
     public ReconnectStateLearner(
             @NonNull final Configuration configuration,
@@ -93,7 +93,7 @@ public class ReconnectStateLearner {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            final boolean fullHashes) {
+            final int hashPrefixLength) {
         this(
                 configuration,
                 threadManager,
@@ -102,7 +102,7 @@ public class ReconnectStateLearner {
                 reconnectSocketTimeout,
                 statistics,
                 stateLifecycleManager,
-                new LearningSynchronizer(threadManager, configuration, requireNonNull(metrics), fullHashes));
+                new LearningSynchronizer(threadManager, configuration, requireNonNull(metrics), hashPrefixLength));
     }
 
     /**
