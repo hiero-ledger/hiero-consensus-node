@@ -65,8 +65,8 @@ exceeding the ...-byte max-block-size-throttle limit; rejecting further dispatch
 
 ## Note on budget sizes
 
-The budgets here (4–64 KiB) are shrunk from the mainnet 100 MiB so a single one-node network crosses them in a handful
+The budgets here (4–64 KiB) are shrunk from the mainnet 50 MiB so a single one-node network crosses them in a handful
 of transactions and the proof stays fast. The amplification ratios are the point, not the absolute budget: a FileAppend
 re-emits the whole file, an EVM call emits its whole return/revert payload, an approval re-emits the whole allowance
-list — each for the price of one small transaction — so the same ratios fill the real 100 MiB budget at mainnet scale.
+list — each for the price of one small transaction — so the same ratios fill the real 50 MiB budget at mainnet scale.
 Full worst-case sizing, high-volume multipliers and mitigations are in the `.context` reports on the analysis branch.

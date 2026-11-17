@@ -28,7 +28,7 @@ import org.junit.jupiter.api.DynamicTest;
  * <p>The signed transaction itself is a block item, so its wire bytes count against the execution budget directly —
  * before any state-change or output amplification. Input bytes are priced (~$0.00001/byte), but the high-volume lanes
  * throttle by <em>operations</em>, not bytes: max-size transactions across the HIP-1313 high-volume lanes alone are
- * ~3.8× the 52.4 MB/s budget bar in plain input (see {@code .context} reports). The mitigations evaluated are
+ * ~7.6× the 26.2 MB/s budget bar in plain input (see {@code .context} reports). The mitigations evaluated are
  * byte-aware high-volume buckets (reusing the jumbo-transaction bytes throttle) and block-utilization pricing.
  *
  * <p>This proof floods near-maximum {@code ConsensusSubmitMessage} transactions (~{@value #MESSAGE_BYTES}-byte message,
