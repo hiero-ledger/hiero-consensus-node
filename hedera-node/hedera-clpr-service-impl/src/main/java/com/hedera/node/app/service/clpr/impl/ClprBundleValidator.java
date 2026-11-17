@@ -495,8 +495,8 @@ public class ClprBundleValidator {
                     : fullAck;
             final long remainingDepth = channel.nextMessageId() - prefixAck - 1;
             // A later reply can free space, so keep scanning even when an earlier prefix did not fit.
-            // Nested sends obey the expand-only current limit minus one.
-            // A config update may fill that last ordinary slot; the other half remains reserved for replies.
+            // Nested sends, including a prepended config update, fit in the ordinary half.
+            // The other half remains reserved for replies.
             if (repliesNeeded == 0 || Math.max(maxQueueDepth, remainingDepth) + repliesNeeded <= 2 * maxQueueDepth) {
                 acceptedCount = count;
                 acceptedAck = prefixAck;

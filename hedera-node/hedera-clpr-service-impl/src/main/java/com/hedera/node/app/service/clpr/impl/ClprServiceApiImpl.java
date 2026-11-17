@@ -124,13 +124,13 @@ public class ClprServiceApiImpl implements ClprServiceApi {
         final var ackedMessageId = channel.ackedMessageId();
         final var maxQueueDepth = localThrottles.maxQueueDepth();
         final var peerMaxQueueDepth = peerThrottles == null ? 0 : peerThrottles.maxQueueDepth();
-        // Preserve the existing exclusive local limit. Peer DATA credit is checked separately below.
+        // Existing slots plus the new DATA may use Q - 1 slots. The last ordinary slot is
+        // available for a ConfigUpdate on this send, even on an otherwise idle Q=2 channel.
         final var localSendQueueLimit = (long) maxQueueDepth - 1;
-        final var queueDepthWithSend = nextMessageId - ackedMessageId;
-        final var reservedSlots = configIsStale ? 1 : 0;
+        final var queueDepthWithData = nextMessageId - ackedMessageId;
         log.debug(
                 "[CLPR-SEND] request conn={} connectorId={} targetApplication={} sender={} dataLen={} "
-                        + "status={} nextMsgId={} ackedMsgId={} queueDepthWithSend={} reservedSlots={} "
+                        + "status={} nextMsgId={} ackedMsgId={} queueDepthWithData={} "
                         + "localSendQueueLimit={} configStale={} sentRH={}",
                 channelId,
                 connectorId,
@@ -140,18 +140,16 @@ public class ClprServiceApiImpl implements ClprServiceApi {
                 channel.status(),
                 nextMessageId,
                 ackedMessageId,
-                queueDepthWithSend,
-                reservedSlots,
+                queueDepthWithData,
                 localSendQueueLimit,
                 configIsStale,
                 shortHex(channel.sentRunningHash()));
-        if (queueDepthWithSend + reservedSlots > localSendQueueLimit) {
+        if (queueDepthWithData > localSendQueueLimit) {
             log.debug(
-                    "[CLPR-SEND] queue full conn={} queueDepthWithSend={} reservedSlots={} localSendQueueLimit={} "
+                    "[CLPR-SEND] queue full conn={} queueDepthWithData={} localSendQueueLimit={} "
                             + "nextMsgId={} ackedMsgId={}",
                     channelId,
-                    queueDepthWithSend,
-                    reservedSlots,
+                    queueDepthWithData,
                     localSendQueueLimit,
                     nextMessageId,
                     ackedMessageId);

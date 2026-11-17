@@ -102,6 +102,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     private static final Bytes ZERO_HASH = Bytes.wrap(new byte[32]);
 
     private static final int ABI_WORD_BYTES = 32;
+    private static final Bytes APPLICATION_RESPONSE_OFFSET = Bytes.wrap(ByteBuffer.allocate(ABI_WORD_BYTES)
+            .putInt(ABI_WORD_BYTES - Integer.BYTES, ABI_WORD_BYTES)
+            .array());
     private static final TupleType<?> APPLICATION_RESPONSE_TYPE = TupleType.parse("(bytes)");
 
     /**
@@ -1419,9 +1422,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     @Nullable
     private static Bytes decodeApplicationResponse(@NonNull final Bytes abiResponse, final long maxPayloadBytes) {
-        // Even an empty bytes return needs its offset and length words. Reject truncated
-        // encodings before Headlong can interpret an offset-zero word as an empty value.
-        if (abiResponse.length() < 2 * ABI_WORD_BYTES) {
+        // A single dynamic bytes value starts immediately after its offset word. Headlong
+        // accepts gaps before the tail, but checks its length, padding and full consumption.
+        if (abiResponse.length() < 2 * ABI_WORD_BYTES || !abiResponse.matchesPrefix(APPLICATION_RESPONSE_OFFSET)) {
             return null;
         }
         // Bound the input before copying it for Headlong. ABI pads the payload to a whole word, so

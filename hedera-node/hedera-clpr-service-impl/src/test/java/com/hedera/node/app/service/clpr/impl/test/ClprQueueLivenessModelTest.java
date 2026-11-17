@@ -33,7 +33,8 @@ import org.junit.jupiter.params.provider.ValueSource;
  * Exhaustive small-state model that uses the production acknowledgement/prefix validator.
  *
  * <p>Two ACTIVE ledgers start at Q=2 and may independently expand once to Q=3, advertising that
- * change lazily. Exploration includes arbitrary interleavings of sends, fresh partial bundles, ACKs,
+ * change lazily. A same-depth configuration update may also make either advertisement stale.
+ * Exploration includes arbitrary interleavings of sends, fresh partial bundles, ACKs,
  * and every feasible number of nested sends per DATA/reply callback. A single connector has 100% quota. Message sizes,
  * proofs, execution and transport succeed; other throttle values remain fixed. Message ids are
  * translated after acknowledgement, so exploration covers unbounded operation, not a fixed trace.
@@ -48,7 +49,8 @@ class ClprQueueLivenessModelTest {
     @ParameterizedTest
     @ValueSource(ints = {1, 2})
     void expandOnlyGovernancePreservesBoundsAndADrainPath(final int bundleLimit) {
-        final var initialSide = new Side(2, 2, false, 1, 0, 0, List.of());
+        // Both idle peers have a newer local configuration with unchanged queue credit.
+        final var initialSide = new Side(2, 2, true, 1, 0, 0, List.of());
         final var initial = new State(initialSide, initialSide);
         final Set<State> reachable = new HashSet<>();
         final var pending = new ArrayDeque<State>();
@@ -61,19 +63,9 @@ class ClprQueueLivenessModelTest {
                 final var current = state.side(side);
                 final var sent = send(current);
                 if (sent != null) successors.add(state.replace(side, sent).canonical());
-                if (current.limit == 2) {
-                    successors.add(state.replace(
-                                    side,
-                                    new Side(
-                                            3,
-                                            current.peerLimit,
-                                            true,
-                                            current.next,
-                                            current.acked,
-                                            current.received,
-                                            current.queue))
-                            .canonical());
-                }
+                if (!current.configPending)
+                    successors.add(state.replace(side, current.withPendingConfig(current.limit)));
+                if (current.limit == 2) successors.add(state.replace(side, current.withPendingConfig(3)));
             }
             for (final var successor : successors) {
                 for (final var side : List.of(successor.a, successor.b)) {
@@ -81,7 +73,8 @@ class ClprQueueLivenessModelTest {
                 }
                 if (reachable.add(successor)) pending.addLast(successor);
             }
-            assertTrue(reachable.size() < 10_000, "Canonicalization must keep the model finite");
+            // Repeated same-depth updates expand this model to just over 50,000 distinct states.
+            assertTrue(reachable.size() < 60_000, "Canonicalization must keep the model finite");
         }
         assertTrue(reachable.size() > 100, "Explore interleavings, not only the empty initial state");
         assertCanDrain(reachable, bundleLimit, true);
@@ -234,7 +227,7 @@ class ClprQueueLivenessModelTest {
 
     private static Side send(final Side side) {
         final long depthWithSend = side.next - side.acked;
-        if (depthWithSend + (side.configPending ? 1 : 0) > side.limit - 1L) return null;
+        if (depthWithSend > side.limit - 1L) return null;
         if (side.queue.stream().filter(slot -> slot.kind == Kind.DATA).count() >= side.peerLimit) return null;
         var current = side;
         if (side.configPending) {
@@ -310,6 +303,10 @@ class ClprQueueLivenessModelTest {
 
     private record Side(
             int limit, int peerLimit, boolean configPending, long next, long acked, long received, List<Slot> queue) {
+        private Side withPendingConfig(final int newLimit) {
+            return new Side(newLimit, peerLimit, true, next, acked, received, queue);
+        }
+
         private Side withQueue(final List<Slot> updated) {
             return new Side(limit, peerLimit, configPending, next, acked, received, updated);
         }

@@ -310,9 +310,9 @@ public class ClprStateProofManager {
      * {@code peerThrottles.maxSyncBytes()} (spec §1.1 sender-side cap). Messages that don't fit
      * stay in the outbound queue and are picked up by the next sync tick — no bookkeeping needed
      * since the queue is keyed by {@code messageId}. If the peer needs the endpoint manifest and
-     * it fits on its own but cannot fit alongside the first message, send the manifest first. When the peer reports the
-     * updated version in its next request, the message can be sent. A manifest that cannot fit
-     * even without messages is omitted so the queue and permitted acknowledgements can progress.
+     * it fits on its own but cannot fit alongside the first message, prove just the manifest
+     * without queue metadata. When the peer reports that version, send the queued head.
+     * Omit a manifest that exceeds the limit even on its own.
      *
      * <p>When the local outbound queue has no message at {@code firstMessageId} the behaviour
      * depends on {@code allowPureAck}: responder paths pass {@code true} so the channel-only
@@ -639,7 +639,11 @@ public class ClprStateProofManager {
             addEndpointManifest(allPaths, binaryState, channelId, extendedSibs, digest);
             if (allPaths.size() > 1
                     && payloadSize.applyAsLong(proofBuilder.paths(allPaths).build()) > maxBundlePayloadBytes) {
-                allPaths.removeLast();
+                final var manifestOnly =
+                        proofBuilder.paths(List.of(allPaths.removeLast())).build();
+                if (payloadSize.applyAsLong(manifestOnly) <= maxBundlePayloadBytes) {
+                    return new BundleProof(StateProof.PROTOBUF.toBytes(manifestOnly), 0, firstMessageId - 1);
+                }
                 log.warn(
                         "Endpoint manifest proof exceeds peer max_sync_bytes; omitting it until the manifest is reduced "
                                 + "or the peer limit is raised (channel={} maxSyncBytes={})",
@@ -698,6 +702,9 @@ public class ClprStateProofManager {
                 allPaths.removeLast();
                 messageLeafCount--;
                 if (id == firstMessageId && hasManifestPath) {
+                    // Without a message leaf the channel would attest its queue tip, ahead of the
+                    // receiver. Send only the manifest so the receiver can accept it at its current ID.
+                    allPaths.removeFirst();
                     log.debug(
                             "[CLPR-BUNDLE-BUILD] sending endpoint manifest before head message {} conn={}",
                             id,
@@ -738,7 +745,7 @@ public class ClprStateProofManager {
                     firstMessageId);
         }
 
-        // A proof with no message leaves carries the channel's status and current ack frontier
+        // A channel proof with no message leaves carries the channel's status and current ack frontier
         // (channel.receivedMessageId / receivedRunningHash), plus any requested endpoint
         // manifest. Responder paths (`allowPureAck=true`) need this so they can acknowledge
         // an inbound message even when the local outbound queue is empty — without it, the

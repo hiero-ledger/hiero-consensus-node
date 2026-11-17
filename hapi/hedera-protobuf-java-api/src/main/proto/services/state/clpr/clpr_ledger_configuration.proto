@@ -107,8 +107,9 @@ message ClprThrottles {
 
     /**
      * Current ordinary outbound queue limit per Channel. Hiero's locally initiated
-     * DATA uses at most max_queue_depth - 1 slots, including queued control/reply
-     * messages. A peer MUST NOT enqueue new DATA if that would exceed the most
+     * DATA and all previously queued slots may use up to max_queue_depth - 1 slots.
+     * A ConfigUpdate prepended by this send may use the last ordinary slot.
+     * A peer MUST NOT enqueue new DATA if that would exceed the most
      * recently received advertised max_queue_depth in outstanding DATA to this
      * ledger. DATA already outstanding when an external peer advertises a lower
      * limit may drain.

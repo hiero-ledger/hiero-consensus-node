@@ -30,6 +30,7 @@ import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.state.binary.MerkleProof;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
@@ -180,19 +181,23 @@ class ClprStateProofManagerTest {
 
     @ParameterizedTest
     @CsvSource({
-        "512,512,false,true,1,2,false",
-        "2048,512,false,true,1,3,false",
-        "512,160,false,true,0,2,false",
-        "512,160,false,false,1,2,false",
-        "320,512,true,true,0,1,false",
-        "320,512,false,true,0,0,false",
-        "160,512,true,true,0,0,false",
-        "512,512,false,true,1,2,true",
-        "2048,512,false,true,1,3,true",
-        "512,160,false,true,0,2,true",
-        "512,160,false,false,1,2,true",
-        "320,512,true,true,0,1,true",
-        "320,512,false,true,0,0,true"
+        "512,512,false,true,1,channel message,false",
+        "2048,512,false,true,1,channel manifest message,false",
+        "512,160,false,true,0,manifest,false",
+        "512,160,true,true,0,manifest,false",
+        "512,260,false,true,0,manifest,false",
+        "512,160,false,false,1,channel message,false",
+        "320,512,true,true,0,channel,false",
+        "320,512,false,true,0,none,false",
+        "160,512,true,true,0,none,false",
+        "512,512,false,true,1,channel message,true",
+        "2048,512,false,true,1,channel manifest message,true",
+        "512,160,false,true,0,manifest,true",
+        "512,160,true,true,0,manifest,true",
+        "512,260,false,true,0,manifest,true",
+        "512,160,false,false,1,channel message,true",
+        "320,512,true,true,0,channel,true",
+        "320,512,false,true,0,none,true"
     })
     void fitsProofWithinPeerLimitWithOptionalManifest(
             final long maxSyncBytes,
@@ -200,7 +205,7 @@ class ClprStateProofManagerTest {
             final boolean allowPureAck,
             final boolean includeManifest,
             final int expectedMessageCount,
-            final int expectedPathCount,
+            final String expectedPaths,
             final boolean compact)
             throws Exception {
         final var channelId = Bytes.wrap(new byte[32]);
@@ -226,10 +231,11 @@ class ClprStateProofManagerTest {
         }
         given(binaryState.getKvPath(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(new ProtoBytes(channelId))))
                 .willReturn(1L);
-        given(binaryState.getKvPath(MESSAGE_QUEUE_STATE_ID, ClprMessageKey.PROTOBUF.toBytes(messageKey)))
-                .willReturn(2L);
+        lenient()
+                .when(binaryState.getKvPath(MESSAGE_QUEUE_STATE_ID, ClprMessageKey.PROTOBUF.toBytes(messageKey)))
+                .thenReturn(2L);
         given(binaryState.getMerkleProof(1L)).willReturn(new MerkleProof(channelLeaf, List.of(), List.of()));
-        given(binaryState.getMerkleProof(2L)).willReturn(new MerkleProof(messageLeaf, List.of(), List.of()));
+        lenient().when(binaryState.getMerkleProof(2L)).thenReturn(new MerkleProof(messageLeaf, List.of(), List.of()));
         if (includeManifest) {
             given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(3L);
             given(binaryState.getMerkleProof(3L)).willReturn(new MerkleProof(manifestLeaf, List.of(), List.of()));
@@ -252,7 +258,7 @@ class ClprStateProofManagerTest {
                         proof -> proof.protobufSize() + compactOverhead)
                 : subject.buildBundleProof(channelId, 1L, throttles, allowPureAck, includeManifest);
 
-        if (expectedPathCount == 0) {
+        if (expectedPaths.equals("none")) {
             assertThat(bundle).isNull();
             return;
         }
@@ -260,16 +266,12 @@ class ClprStateProofManagerTest {
         assertThat(bundle.messageCount()).isEqualTo(expectedMessageCount);
         assertThat(bundle.lastMessageId()).isEqualTo(expectedMessageCount);
         final var proof = StateProof.PROTOBUF.parse(bundle.payload().toReadableSequentialData());
-        assertThat(proof.paths()).hasSize(expectedPathCount);
+        final var leafNames = Map.of(channelLeaf, "channel", manifestLeaf, "manifest", messageLeaf, "message");
+        assertThat(proof.paths())
+                .extracting(path -> leafNames.get(path.stateItemLeaf()))
+                .containsExactly(expectedPaths.split(" "));
         assertThat(proof.protobufSize() + compactOverhead)
                 .isLessThanOrEqualTo(ClprStateProofManager.maxBundlePayloadBytes(throttles));
-        assertThat(proof.paths().getFirst().stateItemLeaf()).isEqualTo(channelLeaf);
-        if (expectedMessageCount > 0) {
-            assertThat(proof.paths().getLast().stateItemLeaf()).isEqualTo(messageLeaf);
-        }
-        if (expectedPathCount > 1 + expectedMessageCount) {
-            assertThat(proof.paths().get(1).stateItemLeaf()).isEqualTo(manifestLeaf);
-        }
         final var envelope = ClprSyncPayload.newBuilder()
                 .channelId(channelId)
                 .bundlePayload(bundle.payload())

@@ -1670,7 +1670,16 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"oversized", "malformed", "truncated", "missing"})
+    @ValueSource(
+            strings = {
+                "oversized",
+                "malformed",
+                "truncated",
+                "missing",
+                "unalignedOffset",
+                "gapBeforeTail",
+                "trailingWord"
+            })
     void invalidSuccessfulResponseRollsBackBeforeSettlingExecutedGas(final String kind) {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
         channelStore.put(channelStore
@@ -1685,6 +1694,13 @@ class ClprSubmitBundleHandlerTest {
             case "oversized" -> abiEncodeBytes(new byte[256]);
             case "malformed" -> Bytes.fromHex("ff");
             case "truncated" -> Bytes.wrap(new byte[32]);
+            case "unalignedOffset", "gapBeforeTail" -> {
+                final int offset = kind.equals("unalignedOffset") ? 33 : 64;
+                final byte[] encoded = new byte[offset + 32];
+                encoded[31] = (byte) offset;
+                yield Bytes.wrap(encoded);
+            }
+            case "trailingWord" -> abiEncodeBytes(new byte[0]).append(Bytes.wrap(new byte[32]));
             default -> Bytes.EMPTY;
         };
         given(dispatchResult.getEvmCallResult()).willReturn(result);

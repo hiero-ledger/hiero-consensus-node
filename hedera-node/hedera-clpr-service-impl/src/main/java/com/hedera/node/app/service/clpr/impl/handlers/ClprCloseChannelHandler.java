@@ -123,7 +123,7 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
         }
     }
 
-    private void forceClose(
+    private static void forceClose(
             @NonNull final StoreFactory storeFactory,
             @NonNull final WritableChannelStore channelStore,
             @NonNull final ClprChannel channel) {
@@ -170,9 +170,8 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
                 .status(ClprChannelStatus.CLOSED)
                 .queuePurgeCursor(nextId)
                 .build());
-        if (channel.status() != ClprChannelStatus.CLOSED) {
-            channelLifecycle.onChannelClosed(channelId);
-        }
+        // The sync tick unschedules the channel when it observes CLOSED in committed state.
+        // An enclosing batch can still roll back this write and its queue cleanup.
         log.info(
                 "CLPR force-close cleanup (channel={} examinedIds={} cursor={} nextMessageId={} complete={})",
                 channelId,

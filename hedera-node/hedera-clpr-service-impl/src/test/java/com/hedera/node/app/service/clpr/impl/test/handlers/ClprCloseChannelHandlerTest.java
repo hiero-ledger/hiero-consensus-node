@@ -444,7 +444,22 @@ class ClprCloseChannelHandlerTest {
                 .isZero();
         assertThat(queueStore.getMessage(anotherChannel, 2L)).isEqualTo(queueValue(largeReply));
         assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
-        then(channelLifecycle).should().onChannelClosed(CHANNEL_ID);
+        then(channelLifecycle).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void rollingBackForceCloseKeepsTheActiveChannelRegisteredForSync() {
+        putChannelWithMessageIds(ClprChannelStatus.ACTIVE, 1L, 0L);
+        writableChannels.commit();
+        setupForceCloseContext();
+
+        subject.handle(handleContext);
+        assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.CLOSED);
+
+        writableChannels.reset();
+        assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(channelStore.getChannel(CHANNEL_ID).queuePurgeCursor()).isZero();
+        then(channelLifecycle).shouldHaveNoInteractions();
     }
 
     @Test

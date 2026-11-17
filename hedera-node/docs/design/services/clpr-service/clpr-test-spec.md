@@ -366,7 +366,8 @@ DRAINED as part of initiating the close.
 - Connector must be registered and authorized. The CLPR Service calls `authorizeMessage()` on the
   Connector's authorization contract. If the Connector rejects, the message is not enqueued.
 - Payload size must not exceed the destination's `max_message_payload_bytes`.
-- New DATA must keep all outstanding slots below the current local `max_queue_depth`.
+- Existing slots plus new DATA must stay below the current local `max_queue_depth`.
+  A config update prepended on that send may use the last ordinary slot.
   Outstanding DATA plus the new DATA must fit the peer's most recently advertised DATA credit;
   configuration controls and replies consume local queue space but no peer DATA credit.
 - Message is assigned `next_message_id`; the counter increments.
@@ -391,8 +392,9 @@ DRAINED as part of initiating the close.
 
 ### 3.4.4 Queue Depth Enforcement
 
-- Locally initiated DATA (including any prepended config update) must leave the queue at
-  `max_queue_depth - 1` slots or fewer. Peer credit counts only outstanding DATA, across all connectors.
+- With both peers idle at queue depth 2, a same-depth configuration change must allow each peer
+  to enqueue a ConfigUpdate and DATA together. After both queues drain, each peer can send again.
+  Peer credit counts only outstanding DATA, across all connectors.
 - An empty queue with local limit 10, peer DATA credit 1, and a stale configuration must accept
   a ConfigUpdate plus one DATA. A second DATA must fail until the first receives a terminal reply.
 - Mixed control/reply slots must not consume peer DATA credit, while still consuming local space.
@@ -563,7 +565,9 @@ DRAINED as part of initiating the close.
   even a channel-only proof exceed this allowance. Size `max_sync_bytes` for the largest supported
   cached manifest and Merkle paths as well as the complete message payload. Exercise both native and
   compact proofs at that size, and verify oversized proofs are never sent.
-- A requested manifest that fits alone is sent before a head message that cannot fit alongside it.
+- A requested manifest that fits alone is sent without a channel leaf when the head message cannot
+  fit alongside it. The receiver accepts the manifest at its current message ID, then receives
+  the queued head in the next sync.
   This successful manifest-only compact bundle must not increment the skipped-bundle counter. If the
   manifest cannot fit alone, the builder logs a warning and omits it so other progress can continue.
 

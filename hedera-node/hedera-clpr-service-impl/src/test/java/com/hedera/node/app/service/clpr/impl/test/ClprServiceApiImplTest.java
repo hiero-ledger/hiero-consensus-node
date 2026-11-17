@@ -540,11 +540,10 @@ class ClprServiceApiImplTest {
     }
 
     @Test
-    @DisplayName("stale config: should reject when queueDepth = maxQueueDepth-1 — control update needs the last slot")
-    void rejectsWhenQueueAlmostFullWithStaleConfig() {
-        // queueDepth(9) + reservedSlots(1) = 10 >= maxQueueDepth(10) → QUEUE_FULL
+    @DisplayName("stale config and DATA cannot exceed the ordinary queue limit")
+    void rejectsWhenOnlyOneOrdinarySlotRemainsForConfigAndData() {
         final var staleTimestamp = Timestamp.newBuilder().seconds(500).nanos(0).build();
-        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 9, 0, staleTimestamp);
+        final var channel = createChannelWithTimestamp(ClprChannelStatus.ACTIVE, 10, 0, staleTimestamp);
         final var connector = createConnector();
         given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
         given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 10));
@@ -638,6 +637,40 @@ class ClprServiceApiImplTest {
         assertThat(storedMessage.connectorId()).isEqualTo(SOURCE_CONNECTOR_ADDRESS);
         assertThat(storedMessage.targetApplication()).isEqualTo(TARGET_APP);
         assertThat(storedMessage.messageData()).isEqualTo(MESSAGE_DATA);
+    }
+
+    @Test
+    void idleDepthTwoChannelCanSendAfterASameDepthConfigurationUpdate() {
+        final var channel = createChannelWithTimestamp(
+                ClprChannelStatus.ACTIVE,
+                1,
+                0,
+                Timestamp.newBuilder().seconds(500).build());
+        final Map<Long, ClprMessageValue> queue = new HashMap<>();
+        final var liveChannel = useLiveQueue(channel, queue);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1024, 2));
+
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isEqualTo(2);
+        assertThat(queue.get(1L)
+                        .payloadOrThrow()
+                        .controlOrThrow()
+                        .configUpdateOrThrow()
+                        .configurationOrThrow()
+                        .throttlesOrThrow()
+                        .maxQueueDepth())
+                .isEqualTo(2);
+        assertThat(queue.get(2L).payloadOrThrow().hasMessage()).isTrue();
+        assertThat(liveChannel.get().lastConfigTimestamp()).isEqualTo(CONFIG_TIMESTAMP);
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .has(responseCode(CLPR_QUEUE_FULL));
+
+        // Once the peer returns a terminal reply, the next send needs only one ordinary slot.
+        queue.clear();
+        liveChannel.set(liveChannel.get().copyBuilder().ackedMessageId(2).build());
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
+                .isEqualTo(3);
+        assertThat(queue).containsOnlyKeys(3L);
     }
 
     @Test

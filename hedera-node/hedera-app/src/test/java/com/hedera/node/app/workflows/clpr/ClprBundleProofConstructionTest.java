@@ -157,7 +157,7 @@ class ClprBundleProofConstructionTest {
 
         final var payload = requireNonNull(producer.next(true));
         final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
-        assertThat(proof.paths()).hasSize(2);
+        assertThat(proof.paths()).hasSize(1);
         final var manifestItem =
                 StateItem.PROTOBUF.parse(proof.paths().getLast().stateItemLeafOrThrow());
         assertThat(manifestItem.valueOrThrow().hasClprServiceIEndpointManifest())

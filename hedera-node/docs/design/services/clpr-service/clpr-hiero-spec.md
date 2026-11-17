@@ -286,8 +286,8 @@ Hiero implements lazy config propagation per spec §1.3 / §4.3 step 1a.
 
 **On a local send:** compare the channel's `lastConfigTimestamp` with the local
 `ClprLedgerConfiguration.timestamp`. When stale, prepend a `ClprControlMessage.configUpdate`
-before DATA and reserve its slot in the ordinary send limit. All outstanding slots,
-including controls and replies, must stay below the current local `max_queue_depth`.
+before DATA. Existing slots plus the new DATA may use up to `max_queue_depth - 1` slots.
+A configuration update prepended by the same send can use the last ordinary slot.
 Separately, outstanding DATA plus the new DATA must fit the peer's most recently advertised
 DATA credit; controls and replies do not consume that credit. The existing bounded connector
 quota scan also counts total DATA, so this needs no additional persistent counter or queue scan.
