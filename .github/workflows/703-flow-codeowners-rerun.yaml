@@ -13,6 +13,9 @@ defaults:
 
 permissions:
   actions: write
+  # Initialize Job checks out the repository with GITHUB_TOKEN. Without this,
+  # the checkout works only where the repository is public.
+  contents: read
 
 concurrency:
   group: codeowners-rerun-${{ github.workflow }}-${{ github.event.pull_request.number }}
