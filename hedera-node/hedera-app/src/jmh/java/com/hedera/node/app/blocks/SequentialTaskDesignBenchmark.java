@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
-
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import java.security.MessageDigest;
@@ -11,6 +9,7 @@ import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.crypto.DigestType;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
@@ -31,11 +30,11 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <ul>
  *   <li><b>currentDesign</b> mirrors production as of this writing: {@code SequentialTask.onExecute()}
- *       does both the leaf hash ({@code IncrementalStreamingHasher.addLeaf}, an O(item size) SHA-384
- *       digest) <i>and</i> the writer append, so the expensive hashing work is serialized across the
+ *       does both the leaf hash ({@code IncrementalStreamingHasher.addLeaf}, an O(item size) digest using
+ *       the hasher's own {@code MessageDigest}) <i>and</i> the writer append, so the expensive hashing work is serialized across the
  *       whole block even though it has no data dependency on other items.
- *   <li><b>proposedDesign</b> moves the SHA-384 leaf digest into the parallel stage (computed
- *       concurrently per item, same as serialization already is) and leaves only the O(1) Merkle
+ *   <li><b>proposedDesign</b> moves the leaf digest into the parallel stage (computed concurrently per
+ *       item with a thread-local {@code MessageDigest}, same as serialization already is) and leaves only the O(1) Merkle
  *       fold-up ({@code IncrementalStreamingHasher.addNodeByHash}) plus the writer append in the
  *       sequential stage — the only two things that actually require item order.
  * </ul>
@@ -44,7 +43,7 @@ import org.openjdk.jmh.annotations.Warmup;
  * (an initial {@code send()}, a hand-off from the parallel stage, and a chain-link from the next
  * task), and both pay for a simulated writer append (a plain {@code arraycopy} into a preallocated
  * buffer, no real disk I/O — consistent with {@code NoOpBlockItemWriter} used elsewhere in this
- * benchmark suite) so the only difference measured is where the SHA-384 work happens.
+ * benchmark suite) so the only difference measured is where the leaf-hash work happens.
  *
  * The benchmark method itself accumulates {@code itemCount} items (mirroring items arriving
  * throughout a block period via non-blocking {@code addItem} calls) and then joins the chain
@@ -55,7 +54,8 @@ import org.openjdk.jmh.annotations.Warmup;
  * {@code itemCount * itemSizeBytes} sets the total raw block size. {@code sizing} is {@code
  * "<itemCount>,<itemSizeBytes>"} rather than two independent {@code @Param} fields so the matrix below can be
  * curated (varying item count and item size independently at matched total block sizes) instead of exploding
- * into every combination.
+ * into every combination. {@code digestType} covers both block digests: SHA-256 (the {@code blockStream.digestType}
+ * default) and SHA-384 (blocks before the SHA-256 migration).
  */
 @State(Scope.Benchmark)
 @Fork(1)
@@ -75,11 +75,16 @@ public class SequentialTaskDesignBenchmark {
     })
     private String sizing;
 
+    @Param({"SHA_256", "SHA_384"})
+    private DigestType digestType;
+
     private int itemCount;
     private int itemSizeBytes;
 
     private ForkJoinPool pool;
     private byte[][] items;
+    // One digest per ParallelTask worker thread, mirroring BlockStreamManagerImpl.LEAF_HASH_DIGESTS.
+    private ThreadLocal<MessageDigest> leafDigests;
 
     public static void main(String... args) throws Exception {
         org.openjdk.jmh.Main.main(new String[] {"SequentialTaskDesignBenchmark", "-v", "EXTRA"});
@@ -92,6 +97,8 @@ public class SequentialTaskDesignBenchmark {
         itemSizeBytes = Integer.parseInt(parts[1]);
 
         pool = new ForkJoinPool(Math.max(2, Runtime.getRuntime().availableProcessors()));
+        final var type = digestType;
+        leafDigests = ThreadLocal.withInitial(type::buildDigest);
 
         // Sanity-check the redesign before measuring anything: hashing leaves in the parallel stage
         // must produce the exact same Merkle root as hashing them in the sequential stage, since this
@@ -106,7 +113,8 @@ public class SequentialTaskDesignBenchmark {
         }
 
         System.out.printf(
-                ">>> itemCount=%d itemSizeBytes=%d totalBlockBytes=%.1fMB cores=%d%n",
+                ">>> digest=%s itemCount=%d itemSizeBytes=%d totalBlockBytes=%.1fMB cores=%d%n",
+                digestType,
                 itemCount,
                 itemSizeBytes,
                 (itemCount * (long) itemSizeBytes) / (1024.0 * 1024.0),
@@ -119,7 +127,7 @@ public class SequentialTaskDesignBenchmark {
     }
 
     /**
-     * Current production split: SequentialTask does the SHA-384 leaf hash AND the writer append.
+     * Current production split: SequentialTask does the leaf hash AND the writer append.
      * Disabled by default (no {@code @Benchmark}) so a plain {@code :app:jmh} run doesn't execute it —
      * uncomment {@code @Benchmark} to re-enable.
      */
@@ -129,7 +137,7 @@ public class SequentialTaskDesignBenchmark {
     }
 
     /**
-     * Proposed split: ParallelTask does the SHA-384 leaf hash; SequentialTask only folds + writes.
+     * Proposed split: ParallelTask does the leaf hash; SequentialTask only folds + writes.
      * Disabled by default (no {@code @Benchmark}) so a plain {@code :app:jmh} run doesn't execute it —
      * uncomment {@code @Benchmark} to re-enable.
      */
@@ -140,7 +148,7 @@ public class SequentialTaskDesignBenchmark {
 
     private byte[] runChain(final boolean hashInParallelStage) {
         final var writeBuffer = new byte[itemCount * itemSizeBytes];
-        final var chain = new TaskChain(pool, sha384DigestOrThrow(), writeBuffer, hashInParallelStage);
+        final var chain = new TaskChain(pool, digestType.buildDigest(), leafDigests, writeBuffer, hashInParallelStage);
         // ACCUMULATE: items arrive non-blocking, exactly like writeItem()/addItem() during a round.
         for (final var item : items) {
             chain.addItem(item);
@@ -159,8 +167,10 @@ public class SequentialTaskDesignBenchmark {
         }
         final var pool = new ForkJoinPool(4);
         try {
-            final var sequentialHash = new TaskChain(pool, sha384DigestOrThrow(), new byte[64 * 37], false);
-            final var parallelHash = new TaskChain(pool, sha384DigestOrThrow(), new byte[64 * 37], true);
+            final var sequentialHash =
+                    new TaskChain(pool, digestType.buildDigest(), leafDigests, new byte[64 * 37], false);
+            final var parallelHash =
+                    new TaskChain(pool, digestType.buildDigest(), leafDigests, new byte[64 * 37], true);
             for (final var item : sample) {
                 sequentialHash.addItem(item);
                 parallelHash.addItem(item);
@@ -179,12 +189,13 @@ public class SequentialTaskDesignBenchmark {
 
     /**
      * Faithful reimplementation of {@code BlockStreamManagerImpl.BlockStreamManagerTask} /
-     * {@code ParallelTask} / {@code SequentialTask}, parametrized so the SHA-384 leaf hash can be
-     * computed in either stage.
+     * {@code ParallelTask} / {@code SequentialTask}, parametrized so the leaf hash can be computed in
+     * either stage.
      */
     private static final class TaskChain {
         private final ForkJoinPool pool;
         private final IncrementalStreamingHasher hasher;
+        private final ThreadLocal<MessageDigest> leafDigests;
         private final byte[] writeBuffer;
         private final boolean hashInParallelStage;
         private int writeOffset;
@@ -194,10 +205,12 @@ public class SequentialTaskDesignBenchmark {
         TaskChain(
                 final ForkJoinPool pool,
                 final MessageDigest digest,
+                final ThreadLocal<MessageDigest> leafDigests,
                 final byte[] writeBuffer,
                 final boolean hashInParallelStage) {
             this.pool = pool;
             this.hasher = new IncrementalStreamingHasher(digest, new ArrayList<>(), 0);
+            this.leafDigests = leafDigests;
             this.writeBuffer = writeBuffer;
             this.hashInParallelStage = hashInParallelStage;
             this.currentTask = new SequentialTask();
@@ -235,7 +248,7 @@ public class SequentialTaskDesignBenchmark {
             @Override
             protected boolean onExecute() {
                 final byte[] precomputedHash =
-                        hashInParallelStage ? BlockImplUtils.hashLeaf(sha384DigestOrThrow(), item) : null;
+                        hashInParallelStage ? BlockImplUtils.hashLeaf(leafDigests.get(), item) : null;
                 out.deliver(item, precomputedHash);
                 return true;
             }
@@ -263,9 +276,12 @@ public class SequentialTaskDesignBenchmark {
 
             @Override
             protected boolean onExecute() {
-                final byte[] hash =
-                        hashInParallelStage ? precomputedHash : BlockImplUtils.hashLeaf(sha384DigestOrThrow(), item);
-                hasher.addNodeByHash(hash);
+                if (hashInParallelStage) {
+                    hasher.addNodeByHash(precomputedHash);
+                } else {
+                    // Mirrors the pre-change SequentialTask: addLeaf hashes with the hasher's own digest.
+                    hasher.addLeaf(item);
+                }
 
                 // Simulate the writer's buffered append (no real disk I/O, matching NoOpBlockItemWriter).
                 System.arraycopy(item, 0, writeBuffer, writeOffset, item.length);

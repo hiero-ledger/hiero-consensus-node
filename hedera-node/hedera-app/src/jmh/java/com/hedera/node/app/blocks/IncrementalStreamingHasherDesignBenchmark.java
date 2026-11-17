@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
-
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import java.security.MessageDigest;
@@ -10,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.crypto.DigestType;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
@@ -45,6 +44,10 @@ public class IncrementalStreamingHasherDesignBenchmark {
     @Param({"1000", "20000", "200000"})
     private int leafCount;
 
+    // SHA-256 is the blockStream.digestType default; SHA-384 covers blocks before the SHA-256 migration.
+    @Param({"SHA_256", "SHA_384"})
+    private DigestType digestType;
+
     private byte[][] leaves;
 
     public static void main(String... args) throws Exception {
@@ -56,9 +59,9 @@ public class IncrementalStreamingHasherDesignBenchmark {
         final var random = new Random(42);
         leaves = new byte[leafCount][];
         for (int i = 0; i < leafCount; i++) {
-            // Already "hashed" 48-byte SHA-384-sized leaves, matching addNodeByHash's expected input; this isolates
-            // the stack data structure from the (unrelated, unchanged) leaf-hashing cost.
-            leaves[i] = new byte[48];
+            // Already "hashed" digest-sized leaves, matching addNodeByHash's expected input; this isolates the stack
+            // data structure from the (unrelated, unchanged) leaf-hashing cost.
+            leaves[i] = new byte[digestType.digestLength()];
             random.nextBytes(leaves[i]);
         }
 
@@ -72,7 +75,7 @@ public class IncrementalStreamingHasherDesignBenchmark {
     // Disabled by default (no @Benchmark) so a plain :app:jmh run doesn't execute it — uncomment to re-enable.
     // @Benchmark
     public byte[] current_arrayDeque() {
-        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), new ArrayList<>(), 0);
+        final var hasher = new IncrementalStreamingHasher(digestType.buildDigest(), new ArrayList<>(), 0);
         for (final var leaf : leaves) {
             hasher.addNodeByHash(leaf);
         }
@@ -82,7 +85,7 @@ public class IncrementalStreamingHasherDesignBenchmark {
     // Disabled by default (no @Benchmark) so a plain :app:jmh run doesn't execute it — uncomment to re-enable.
     // @Benchmark
     public byte[] legacy_linkedList() {
-        final var hasher = new LegacyLinkedListHasher(sha384DigestOrThrow());
+        final var hasher = new LegacyLinkedListHasher(digestType.buildDigest());
         for (final var leaf : leaves) {
             hasher.addNodeByHash(leaf);
         }
