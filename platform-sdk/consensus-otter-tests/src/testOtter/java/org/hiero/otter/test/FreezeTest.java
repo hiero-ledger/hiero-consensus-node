@@ -12,6 +12,7 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
+import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
 /**
  * Tests that multiple freezes of the network work correctly, and that all nodes are able to freeze, restart, and
@@ -48,6 +49,15 @@ public class FreezeTest {
 
         for (int i = 0; i < NUM_FREEZE_ITERATIONS; i++) {
             network.freeze();
+
+            // In the container environment, a node can report FREEZE_COMPLETE before the test has received its
+            // freeze round. The node sends rounds to the test from the last consumer of the hashgraph's round
+            // output, so the transaction handler can handle the freeze round and save the freeze state first.
+            // Wait until all nodes report the same last round before reading the freeze round.
+            timeManager.waitForCondition(
+                    () -> allNodesAgreeOnLastRound(network),
+                    Duration.ofSeconds(30),
+                    "Nodes did not report the same last round after the freeze");
             final long freezeRound =
                     network.nodes().getFirst().newConsensusResult().lastRoundNum();
 
@@ -73,5 +83,19 @@ public class FreezeTest {
         }
 
         assertThat(network.newEventStreamResults()).haveEqualFiles();
+    }
+
+    /**
+     * Checks whether all nodes of the network report the same last round.
+     *
+     * @param network the network to check
+     * @return {@code true} if all nodes report the same last round, {@code false} otherwise
+     */
+    private static boolean allNodesAgreeOnLastRound(@NonNull final Network network) {
+        return network.newConsensusResults().results().stream()
+                        .mapToLong(SingleNodeConsensusResult::lastRoundNum)
+                        .distinct()
+                        .count()
+                == 1;
     }
 }
