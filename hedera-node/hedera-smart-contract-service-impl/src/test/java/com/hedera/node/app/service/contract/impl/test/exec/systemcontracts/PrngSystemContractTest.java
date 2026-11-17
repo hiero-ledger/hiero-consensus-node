@@ -8,17 +8,22 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EXPECTE
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PRECOMPILE_CONTRACT_FAILED_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PRECOMPILE_CONTRACT_SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
@@ -28,10 +33,12 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhance
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
@@ -290,6 +297,80 @@ class PrngSystemContractTest {
 
         // then:
         assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);
+    }
+
+    @Test
+    void haltsWithoutChildRecordWhenInputExceedsTransactionMaxBytes() {
+        // given: only the config is reachable, so any attempt to build a record would fail the test
+        given(initialFrame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE))
+                .willReturn(BOTH_MODE_CONFIG);
+        stack.push(initialFrame);
+        stack.addFirst(messageFrame);
+        given(messageFrame.getMessageFrameStack()).willReturn(stack);
+        given(messageFrame.getRemainingGas()).willReturn(10_000L);
+        final int maxBytes = BOTH_MODE_CONFIG.getConfigData(HederaConfig.class).transactionMaxBytes();
+        final var oversized = Bytes.concatenate(PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, Bytes.wrap(new byte[maxBytes]));
+
+        // when:
+        final var actual = subject.computeFully(PRNG_CONTRACT_ID, oversized, messageFrame);
+
+        // then: halted, all remaining gas consumed, nothing externalized
+        assertEquals(10_000L, actual.gasRequirement());
+        assertEquals(Optional.of(INVALID_OPERATION), actual.result().haltReason());
+        verify(messageFrame, never()).getWorldUpdater();
+        verifyNoInteractions(systemContractOperations, systemContractGasCalculator);
+    }
+
+    @Test
+    void recordsOnlyTheSelectorInSuccessfulChildRecord() {
+        // given: a valid selector followed by bytes PRNG never reads
+        givenCommon();
+        commonMocks();
+        final var input = Bytes.concatenate(PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS, Bytes.wrap(new byte[1024]));
+        given(messageFrame.getInputData()).willReturn(input);
+        given(messageFrame.isStatic()).willReturn(false);
+        given(proxyWorldUpdater.entropy()).willReturn(EXPECTED_RANDOM_NUMBER);
+        given(systemContractGasCalculator.canonicalGasRequirement(any())).willReturn(GAS_REQUIRED);
+        when(systemContractOperations.dispatch(any(), any(), any(), any())).thenReturn(streamBuilder);
+        when(streamBuilder.contractCallResult(any())).thenReturn(streamBuilder);
+        when(streamBuilder.entropyBytes(any())).thenReturn(streamBuilder);
+
+        // when:
+        final var actual = subject.computeFully(PRNG_CONTRACT_ID, input, messageFrame);
+
+        // then: same result, but both streams carry only the 4-byte selector
+        assertEqualContractResult(PRECOMPILE_CONTRACT_SUCCESS_RESULT, actual, GAS_REQUIRED);
+        final var selector = tuweniToPbjBytes(PSEUDO_RANDOM_SYSTEM_CONTRACT_ADDRESS);
+        final var txResult = ArgumentCaptor.forClass(EvmTransactionResult.class);
+        verify(streamBuilder).evmCallTransactionResult(txResult.capture());
+        assertEquals(selector, txResult.getValue().internalCallContextOrThrow().callData());
+        final var recordResult = ArgumentCaptor.forClass(ContractFunctionResult.class);
+        verify(streamBuilder).contractCallResult(recordResult.capture());
+        assertEquals(selector, recordResult.getValue().functionParameters());
+    }
+
+    @Test
+    void recordsOnlyTheSelectorInFailedChildRecord() {
+        // given: an unknown selector followed by trailing bytes
+        commonMocks();
+        givenCommon();
+        final var input = Bytes.concatenate(EXPECTED_RANDOM_NUMBER, Bytes.wrap(new byte[1024]));
+        given(messageFrame.getInputData()).willReturn(input);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
+        given(systemContractGasCalculator.canonicalGasRequirement(any())).willReturn(GAS_REQUIRED);
+        when(systemContractOperations.externalizePreemptedDispatch(any(), any(), eq(UTIL_PRNG)))
+                .thenReturn(streamBuilder);
+
+        // when:
+        final var actual = subject.computeFully(PRNG_CONTRACT_ID, input, messageFrame);
+
+        // then:
+        assertEqualContractResult(PRECOMPILE_CONTRACT_FAILED_RESULT, actual, GAS_REQUIRED);
+        final var txResult = ArgumentCaptor.forClass(EvmTransactionResult.class);
+        verify(streamBuilder).evmCallTransactionResult(txResult.capture());
+        assertEquals(
+                tuweniToPbjBytes(input.slice(0, 4)),
+                txResult.getValue().internalCallContextOrThrow().callData());
     }
 
     @Test

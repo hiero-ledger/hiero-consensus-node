@@ -4,6 +4,8 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract.FUNCTION_SELECTOR_LENGTH;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -29,6 +31,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.state.AbstractProxyEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
@@ -69,6 +72,12 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
             @NonNull ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
         requireNonNull(input);
         requireNonNull(frame);
+
+        // Same input bound as the other native system contracts (see AbstractNativeSystemContract): an input
+        // larger than a whole transaction halts the frame, consumes its remaining gas and externalizes nothing
+        if (input.size() > configOf(frame).getConfigData(HederaConfig.class).transactionMaxBytes()) {
+            return haltResult(INVALID_OPERATION, frame.getRemainingGas());
+        }
 
         // compute the gas requirement
         final long gasRequirement = calculateGas(frame);
@@ -117,10 +126,11 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
             }
             final var senderId = account.hederaId();
 
+            final var callData = recordedCallData(frame);
             var data = successResultOfZeroValueTraceable(
-                    gasRequirement, randomNum, frame.getRemainingGas(), frame.getInputData(), senderId);
+                    gasRequirement, randomNum, frame.getRemainingGas(), callData, senderId);
             final var txResult = txSuccessResultOfZeroValueTraceable(
-                    gasRequirement, randomNum, frame.getRemainingGas(), frame.getInputData(), senderId);
+                    gasRequirement, randomNum, frame.getRemainingGas(), callData, senderId);
 
             // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCallResult.
             final var streamMode =
@@ -154,7 +164,7 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
                 return;
             }
             final var senderId = account.hederaId();
-            final var callData = tuweniToPbjBytes(frame.getInputData());
+            final var callData = tuweniToPbjBytes(recordedCallData(frame));
             final var contractResult = ContractFunctionResult.newBuilder()
                     .gasUsed(gasRequirement)
                     .functionParameters(callData)
@@ -186,6 +196,16 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
         } catch (Exception e) {
             log.warn("Failed to externalize PRNG failure record", e);
         }
+    }
+
+    /**
+     * Returns the call data to externalize in a child record. {@code getPseudorandomSeed()} takes no arguments, so
+     * the selector is all of any legitimate input; anything after it is never read, and copying it would let one
+     * memory region be re-emitted in every child record for the fixed PRNG gas price.
+     */
+    private static Bytes recordedCallData(@NonNull final MessageFrame frame) {
+        final var input = frame.getInputData();
+        return input.slice(0, Math.min(FUNCTION_SELECTOR_LENGTH, input.size()));
     }
 
     private TransactionBody synthBody() {
