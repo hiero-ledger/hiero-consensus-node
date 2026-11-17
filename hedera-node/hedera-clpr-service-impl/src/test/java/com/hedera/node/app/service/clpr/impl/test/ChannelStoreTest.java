@@ -176,7 +176,9 @@ class ChannelStoreTest {
                                 .build());
         given(readableStates.<ClprChannelIndex>getSingleton(CHANNEL_INDEX_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        CHANNEL_INDEX_STATE_ID, "ClprService:CHANNEL_INDEX", () -> ClprChannelIndex.newBuilder()
+                        CHANNEL_INDEX_STATE_ID,
+                        "ClprService:CHANNEL_INDEX",
+                        () -> ClprChannelIndex.newBuilder()
                                 .lastSequenceNumber(3L)
                                 .build()));
         given(readableStates.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID))
