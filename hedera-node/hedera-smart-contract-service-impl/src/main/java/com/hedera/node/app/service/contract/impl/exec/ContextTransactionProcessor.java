@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -22,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -63,6 +65,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     private final HevmTransactionFactory hevmTransactionFactory;
     private final CustomGasCharging gasCharging;
     private final ContractMetrics contractMetrics;
+    private final StorageAccountingScope storageAccountingScope;
 
     /**
      * @param hydratedEthTxData the hydrated Ethereum transaction data
@@ -76,6 +79,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
      * @param hevmTransactionFactory the factory for EVM transaction
      * @param processor a map from the version of the Hedera EVM to the transaction processor
      * @param customGasCharging the Hedera gas charging logic
+     * @param storageAccountingScope the storage accounting scope of this execution
      */
     @Inject
     public ContextTransactionProcessor(
@@ -90,7 +94,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             @NonNull final HevmTransactionFactory hevmTransactionFactory,
             @NonNull final TransactionProcessor processor,
             @NonNull final CustomGasCharging customGasCharging,
-            @NonNull final ContractMetrics contractMetrics) {
+            @NonNull final ContractMetrics contractMetrics,
+            @NonNull final StorageAccountingScope storageAccountingScope) {
         this.context = requireNonNull(context);
         this.hydratedEthTxData = hydratedEthTxData;
         this.addOnTracers = addOnTracers;
@@ -103,10 +108,20 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
         this.hevmTransactionFactory = requireNonNull(hevmTransactionFactory);
         this.gasCharging = requireNonNull(customGasCharging);
         this.contractMetrics = requireNonNull(contractMetrics);
+        this.storageAccountingScope = requireNonNull(storageAccountingScope);
     }
 
     @Override
     public CallOutcome call() {
+        storageAccountingScope.open();
+        try {
+            return doCall();
+        } finally {
+            storageAccountingScope.close();
+        }
+    }
+
+    private CallOutcome doCall() {
         // ONLY USED FOR METRICS: Measure the actual execution time.
         final var startTimeNanos = System.nanoTime();
 
@@ -139,7 +154,7 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                                 .transactionIDOrElse(TransactionID.DEFAULT)
                                 .accountIDOrElse(AccountID.DEFAULT),
                         rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
-                        contractsConfig.chargeGasOnEvmHandleException());
+                        !hevmTransaction.isClprDispatch() && contractsConfig.chargeGasOnEvmHandleException());
             }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
@@ -248,7 +263,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     hevmTransaction.withException(e),
                     senderId,
                     sender,
-                    hevmTransaction.isContractCall() && contractsConfig.chargeGasOnEvmHandleException());
+                    hevmTransaction.isContractCall()
+                            && !hevmTransaction.isClprDispatch()
+                            && contractsConfig.chargeGasOnEvmHandleException());
 
             // Update the ops duration throttle
             if (shouldApplyOpsDurationThrottle) {
@@ -284,15 +301,19 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
     }
 
     private HederaEvmTransaction safeCreateHevmTransaction() {
+        final var clprDispatchMetadata = context.dispatchMetadata()
+                .getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class)
+                .orElse(null);
         try {
-            final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
+            final var hevmTransaction =
+                    hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer(), clprDispatchMetadata);
             validatePayloadLength(hevmTransaction);
             return hevmTransaction;
         } catch (IllegalArgumentException e1) {
             return hevmTransactionFactory.fromContractTxException(
-                    context.body(), new HandleException(INVALID_TRANSACTION));
+                    context.body(), new HandleException(INVALID_TRANSACTION), clprDispatchMetadata);
         } catch (HandleException e) {
-            return hevmTransactionFactory.fromContractTxException(context.body(), e);
+            return hevmTransactionFactory.fromContractTxException(context.body(), e, clprDispatchMetadata);
         }
     }
 

@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.hedera.node.app.state.merkle.SchemaApplicationType.MIGRATION;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
-import static com.hedera.node.app.state.merkle.VersionUtils.alreadyIncludesStateDefs;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
@@ -32,7 +30,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -45,11 +42,11 @@ import org.apache.logging.log4j.Logger;
  * <p>When the Hedera application starts, it creates an instance of {@link MerkleSchemaRegistry} for
  * each {@link Service}, and passes it to the service as part of construction. The {@link Service}
  * then registers each and every {@link Schema} that it has. Each {@link Schema} is associated with
- * a {@link SemanticVersion}.
+ * a {@link SemanticVersion} that orders it among the service's other schemas.
  *
  * <p>The Hedera application then calls {@code com.hedera.node.app.Hedera#migrateSchemas(com.swirlds.state.merkle.VirtualMapState, com.hedera.hapi.node.base.SemanticVersion, com.swirlds.platform.system.InitTrigger, com.swirlds.config.api.Configuration)} on each {@link MerkleSchemaRegistry} instance, supplying it the
- * application version number and the newly created (or deserialized) but not yet hashed copy of the {@link State}. The registry determines which {@link Schema}s to apply, possibly taking multiple migration steps,
- * to transition the merkle tree from its current version to the final version.
+ * application version number and the newly created (or deserialized) but not yet hashed copy of the {@link State}. The registry applies
+ * every registered {@link Schema}, in order, no matter which versions of the software and state are involved.
  */
 public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
     private static final Logger logger = LogManager.getLogger(MerkleSchemaRegistry.class);
@@ -105,18 +102,16 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
     private record RedefinedWritableStates(WritableStates beforeStates, WritableStates afterStates) {}
 
     /**
-     * Called by the application after saved states have been loaded to perform the migration. Given
-     * the supplied versions, applies all necessary migrations for every {@link Schema} newer than
-     * {@code previousVersion} and no newer than {@code currentVersion}.
-     *
-     * <p>If the {@code previousVersion} and {@code currentVersion} are the same, then we do not need
-     * to migrate, but instead we just call {@link Schema#restart(MigrationContext)} to allow the schema
-     * to perform any necessary logic on restart. Most services have nothing to do, but some may need
-     * to read files from disk, and could potentially change their state as a result.
+     * Called by the application after saved states have been loaded to initialize this service's
+     * states. Applies the state definitions (and removals) of every registered {@link Schema}, in
+     * order, and then calls {@link Schema#restart(MigrationContext)} on the latest schema, to allow
+     * it to perform any necessary logic on startup. Neither {@code previousVersion} nor
+     * {@code currentVersion} affects which schemas are applied; they are only validated and made
+     * available to the {@link MigrationContext}.
      *
      * @param state the state for this registry to use.
      * @param previousVersion The version of state loaded from disk. Possibly null.
-     * @param currentVersion The current version. Never null. Must be newer than {@code
+     * @param currentVersion The current software version. Never null. Must be at least {@code
      * previousVersion}.
      * @param appConfig The system configuration to use at the time of migration
      * @param platformConfig The platform configuration to use for subsequent object initializations
@@ -165,33 +160,25 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
                 () -> HapiUtils.toString(currentVersion),
                 () -> HapiUtils.toString(latestVersion));
         for (final var schema : schemas) {
-            final var applications =
-                    schemaApplications.computeApplications(previousVersion, latestVersion, schema, appConfig);
+            final var applications = schemaApplications.computeApplications(latestVersion, schema, appConfig);
             logger.info("Applying {} schema {} ({})", serviceName, schema.getVersion(), applications);
-            // Now we can migrate the schema and then commit all the changes
             // We just have one merkle tree -- the just-loaded working tree -- to work from.
             // We get a ReadableStates for everything in the current tree, but then wrap
             // it with a FilteredReadableStates that is locked into exactly the set of states
             // available at this moment in time. This is done to make sure that even after we
             // add new states into the tree, it doesn't increase the number of states that can
-            // be seen by the schema migration code
+            // be seen by the schema's restart() hook
             final var readableStates = state.getReadableStates(serviceName);
             final var previousStates = new FilteredReadableStates(readableStates, readableStates.stateIds());
             // Similarly, we distinguish between the writable states before and after
             // applying the schema's state definitions. This is done to ensure that we
             // commit all state changes made by applying this schema's state definitions;
-            // but also prevent its migrate() and restart() hooks from accidentally using
-            // states that were actually removed by this schema
+            // but also prevent its restart() hook from accidentally using states that
+            // were actually removed by this schema
             final WritableStates writableStates;
             final WritableStates newStates;
             if (applications.contains(STATE_DEFINITIONS)) {
-                final var schemasAlreadyInState = schemas.tailSet(schema).stream()
-                        .filter(s -> s != schema
-                                && previousVersion != null
-                                && alreadyIncludesStateDefs(previousVersion, s.getVersion()))
-                        .toList();
-                final var redefinedWritableStates =
-                        applyStateDefinitions(schema, schemasAlreadyInState, appConfig, state);
+                final var redefinedWritableStates = applyStateDefinitions(schema, appConfig, state);
                 writableStates = redefinedWritableStates.beforeStates();
                 newStates = redefinedWritableStates.afterStates();
             } else {
@@ -206,14 +193,12 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
                     previousVersion,
                     roundNumber,
                     sharedValues,
-                    startupNetworks);
-            if (applications.contains(MIGRATION)) {
-                schema.migrate(migrationContext);
-            }
+                    startupNetworks,
+                    trigger == InitTrigger.RECONNECT);
             if (applications.contains(RESTART)) {
                 schema.restart(migrationContext);
             }
-            // Now commit all the service-specific changes made during this service's update or migration
+            // Now commit all the service-specific changes made while applying this schema
             if (writableStates instanceof MerkleWritableStates mws) {
                 mws.commit();
                 migrationStateChanges.trackCommit();
@@ -225,28 +210,22 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
 
     private RedefinedWritableStates applyStateDefinitions(
             @NonNull final Schema<SemanticVersion> schema,
-            @NonNull final List<Schema<SemanticVersion>> schemasAlreadyInState,
             @NonNull final Configuration nodeConfiguration,
             @NonNull final State state) {
         // Create the new states (based on the schema) which, thanks to the above, does not
-        // expand the set of states that the migration code will see
+        // expand the set of states that the schema's restart() hook will see as previous
+        // states. Creating a state only registers its metadata, so a state that a later
+        // schema removes is simply unregistered again when that schema is applied.
         schema.statesToCreate(nodeConfiguration).stream()
                 .sorted(Comparator.comparing(StateDefinition::stateKey))
                 .forEach(def -> {
-                    final var stateKey = def.stateKey();
-                    final var stateId = def.stateId();
-                    if (schemasAlreadyInState.stream()
-                            .anyMatch(s -> s.statesToRemove().contains(stateId))) {
-                        logger.info("  Skipping {} as it is removed by a later schema", stateKey);
-                        return;
-                    }
-                    logger.info("  Ensuring {} has state {}", serviceName, stateKey);
+                    logger.info("  Ensuring {} has state {}", serviceName, def.stateKey());
                     final var md = new StateMetadata<>(serviceName, def);
                     state.initializeState(md);
                 });
 
         // Create the "before" and "after" writable states (we won't commit anything
-        // from these states until we have completed migration for this schema)
+        // from these states until we have finished applying this schema)
         final var statesToRemove = schema.statesToRemove();
         final var writableStates = state.getWritableStates(serviceName);
         final var remainingStates = new HashSet<>(writableStates.stateIds());

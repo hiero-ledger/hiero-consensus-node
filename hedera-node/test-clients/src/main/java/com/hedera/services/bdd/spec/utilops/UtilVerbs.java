@@ -68,6 +68,7 @@ import static com.hederahashgraph.api.proto.java.FreezeType.FREEZE_UPGRADE;
 import static com.hederahashgraph.api.proto.java.FreezeType.PREPARE_UPGRADE;
 import static com.hederahashgraph.api.proto.java.FreezeType.TELEMETRY_UPGRADE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -253,7 +254,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -1180,13 +1181,16 @@ public class UtilVerbs {
     }
 
     private static final String EXTERNALIZED_LEDGER_ID_LOG_PATTERN = "Externalizing ledger id ([0-9a-fA-F]+)";
+    // Genesis WRAPS proving can take several minutes under concurrent HAPI load, beyond the
+    // subprocess network's timeout for discovering an already available ledger id.
+    private static final Duration LEDGER_ID_EXTERNALIZATION_TIMEOUT = Duration.ofMinutes(5);
 
     /**
      * Returns an operation that looks up the ledger id of the target network and passes it to the given callback.
      * <p>
      * On a subprocess network with {@code tss.historyEnabled=true} the active ledger id changes once during the
-     * lifetime of the network: the configured {@code ledger.id} is replaced by the address-book hash externalized
-     * by the genesis chain-of-trust proof, and the change is announced by an {@code Externalizing ledger id} log
+     * lifetime of the network: the configured {@code ledger.id} is replaced by the ledger id externalized by the
+     * genesis chain-of-trust proof, and the change is announced by an {@code Externalizing ledger id} log
      * line. Because the proof runs asynchronously while the test framework is already issuing transactions, a
      * spec that reads the ledger id naively can observe the old configured value once and the externalized value
      * a few rounds later (failing any byte-exact assertion that captures the id early and re-reads it later). To
@@ -1195,6 +1199,8 @@ public class UtilVerbs {
      * history disabled, {@code blockStream.streamMode=RECORDS} (which deactivates TSS regardless of
      * {@code tss.historyEnabled}), or on non-subprocess networks, the externalization log never appears and we
      * fall back to a plain {@code getAccountInfo(GENESIS)} query, which returns the configured ledger id directly.
+     * Invoke this operation before any contract call whose recorded result will be compared with the ledger id;
+     * a call made before externalization retains the old id in its result even after this wait completes.
      *
      * @param ledgerIdConsumer the callback to pass the ledger id to
      * @return the operation exposing the ledger id to the callback
@@ -1231,7 +1237,7 @@ public class UtilVerbs {
             if (waitForExternalization) {
                 return exposeExternalizedLedgerIdFromHgcaaLogTo(
                         NodeSelector.byNodeId(0),
-                        LEDGER_ID_TIMEOUT,
+                        LEDGER_ID_EXTERNALIZATION_TIMEOUT,
                         Duration.ofSeconds(1),
                         () -> new SpecOperation[] {
                             cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, 1L))
@@ -2190,7 +2196,10 @@ public class UtilVerbs {
             HapiFileUpdate updateSubOp = fileUpdate(fileName)
                     .contents(byteString.substring(0, position))
                     .hasKnownStatusFrom(
-                            SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, SUCCESS_BUT_MISSING_EXPECTED_OPERATION)
+                            SUCCESS,
+                            FEE_SCHEDULE_FILE_PART_UPLOADED,
+                            CONFIG_FILE_PART_UPLOADED,
+                            SUCCESS_BUT_MISSING_EXPECTED_OPERATION)
                     .noLogging()
                     .payingWith(payer);
             updateCustomizer.accept(updateSubOp);
@@ -2209,7 +2218,7 @@ public class UtilVerbs {
                 int newPosition = Math.min(fileSize, position + BYTES_4K);
                 var appendSubOp = fileAppend(fileName)
                         .content(byteString.substring(position, newPosition).toByteArray())
-                        .hasKnownStatusFrom(SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED)
+                        .hasKnownStatusFrom(SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, CONFIG_FILE_PART_UPLOADED)
                         .noLogging()
                         .payingWith(payer);
                 appendCustomizer.accept(appendSubOp, totalAppendsRequired - numAppends);
@@ -2708,10 +2717,12 @@ public class UtilVerbs {
     public static HapiSpecOperation validateRecordTransactionFees(String txn, Set<AccountID> feeRecipients) {
         return assertionsHold((spec, assertLog) -> {
             final AtomicReference<TransactionRecord> txnRecord = new AtomicReference<>();
-            allRunFor(spec, withStrictCostAnswerValidation(() -> getTxnRecord(txn)
-                    .payingWith(EXCHANGE_RATE_CONTROL)
-                    .exposingTo(txnRecord::set)
-                    .logged()));
+            allRunFor(
+                    spec,
+                    withStrictCostAnswerValidation(() -> getTxnRecord(txn)
+                            .payingWith(EXCHANGE_RATE_CONTROL)
+                            .exposingTo(txnRecord::set)
+                            .logged()));
             final var rcd = txnRecord.get();
             long realFee = rcd.getTransferList().getAccountAmountsList().stream()
                     .filter(aa -> feeRecipients.contains(aa.getAccountID()))
@@ -3204,20 +3215,7 @@ public class UtilVerbs {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
                 .getEcdsaPrivateKey(CommonUtils.hex(key.getECDSASecp256K1().toByteArray()));
-
-        byte[] privateKeyByteArray;
-        byte[] dByteArray = ((BCECPrivateKey) privateKey).getD().toByteArray();
-        if (dByteArray.length < 32) {
-            privateKeyByteArray = new byte[32];
-            System.arraycopy(dByteArray, 0, privateKeyByteArray, 32 - dByteArray.length, dByteArray.length);
-        } else if (dByteArray.length == 32) {
-            privateKeyByteArray = dByteArray;
-        } else {
-            privateKeyByteArray = new byte[32];
-            System.arraycopy(dByteArray, dByteArray.length - 32, privateKeyByteArray, 0, 32);
-        }
-
-        return privateKeyByteArray;
+        return ECDSASecp256k1.asPrivateKeyByteArray32(privateKey);
     }
 
     public static PrivateKey getEd25519PrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {

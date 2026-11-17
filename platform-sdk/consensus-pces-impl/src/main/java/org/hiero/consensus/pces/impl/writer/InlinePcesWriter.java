@@ -54,4 +54,11 @@ public interface InlinePcesWriter {
      */
     @InputWireLabel("minimum identifier to store")
     void setMinimumBirthRoundToStore(@NonNull Long minimumBirthRoundToStore);
+
+    /**
+     * Cleanup/destroy method which makes sure we are not in the middle of processing the event
+     * when we close PCES file; this instance of PcesWriter is not usable and not possible to recover after using it.
+     * This method will be called from a random thread, take care about memory visibility versus rest of the class
+     */
+    void destroy();
 }

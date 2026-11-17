@@ -16,6 +16,6 @@ public class MetricsConfigurationExtension implements ConfigurationExtension {
      */
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(MetricsConfig.class, PrometheusConfig.class);
+        return Set.of(ConsensusLayerMetricsConfig.class, MetricsConfig.class, PrometheusConfig.class);
     }
 }

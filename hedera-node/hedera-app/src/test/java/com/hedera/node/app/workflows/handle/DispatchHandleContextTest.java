@@ -17,8 +17,12 @@ import static com.hedera.node.app.spi.authorization.SystemPrivilege.IMPERMISSIBL
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.subDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_RESERVATION;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
@@ -58,6 +62,7 @@ import com.hedera.hapi.node.base.SignaturePair;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
@@ -151,6 +156,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
@@ -335,6 +341,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void failsFastOnNegativeAmounts() {
         assertThrows(IllegalArgumentException.class, () -> subject.tryToChargePayer(-123L));
         assertThrows(IllegalArgumentException.class, () -> subject.refundBestEffort(payerId, -123L));
+        assertThrows(IllegalArgumentException.class, () -> subject.refundHandlerCharge(payerId, -123L));
     }
 
     @Test
@@ -351,6 +358,23 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         subject.refundBestEffort(payerId, 123L);
 
         verify(feeCharging).refund(payerId, subject, new Fees(0, 123L, 0));
+    }
+
+    @Test
+    void handlerGasRefundUsesTheSameFeeComponentAsTryToCharge() {
+        subject.refundHandlerCharge(payerId, 123L);
+
+        verify(feeCharging).refund(payerId, subject, new Fees(0, 0, 123L));
+    }
+
+    @Test
+    void handlerGasRefundUsesNetworkAccumulatorWhenExtraChargesBypassStrategy() {
+        given(feeCharging.bypassForExtraHandlerCharges()).willReturn(true);
+
+        subject.refundHandlerCharge(payerId, 123L);
+
+        verify(feeAccumulator).refundFee(payerId, 123L);
+        verify(feeCharging, never()).refund(any(), any(), any());
     }
 
     @Test
@@ -554,14 +578,19 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
         @Test
         void overrideSignatureMapIsUsedInsteadOfContextMap() {
-            // txnInfo uses SignatureMap.DEFAULT (0 bytes). An override with sig pairs produces
-            // a non-zero signatureMapSize, which is reflected in ChildFeeContext.numTxnBytes().
-            final var sigPair = SignaturePair.newBuilder()
-                    .pubKeyPrefix(Bytes.wrap(new byte[6]))
-                    .ed25519(Bytes.wrap(new byte[64]))
-                    .build();
+            // txnInfo uses SignatureMap.DEFAULT (0 bytes/pairs). An override with sig pairs produces
+            // a non-zero signatureMapSize/signatureCount, reflected in numTxnBytes()/numTxnSignatures().
+            final var sigPairs = List.of(
+                    SignaturePair.newBuilder()
+                            .pubKeyPrefix(Bytes.wrap(new byte[6]))
+                            .ed25519(Bytes.wrap(new byte[64]))
+                            .build(),
+                    SignaturePair.newBuilder()
+                            .pubKeyPrefix(Bytes.wrap(new byte[6]))
+                            .ecdsaSecp256k1(Bytes.wrap(new byte[64]))
+                            .build());
             final var overrideSigMap =
-                    SignatureMap.newBuilder().sigPair(sigPair).build();
+                    SignatureMap.newBuilder().sigPair(sigPairs).build();
             final var fees = new Fees(1L, 2L, 3L);
             given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
             final var captor = ArgumentCaptor.forClass(FeeContext.class);
@@ -573,6 +602,20 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             final var expectedSigMapSize = SignatureMap.PROTOBUF.measureRecord(overrideSigMap);
             final var expectedTxnBytes = TransactionBody.PROTOBUF.measureRecord(txBody) + expectedSigMapSize;
             assertThat(feeContext.numTxnBytes()).isEqualTo(expectedTxnBytes);
+            assertThat(feeContext.numTxnSignatures()).isEqualTo(sigPairs.size());
+        }
+
+        @Test
+        void noOverrideSignatureMapMeansNoSignaturesCharged() {
+            final var fees = new Fees(1L, 2L, 3L);
+            given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
+            final var captor = ArgumentCaptor.forClass(FeeContext.class);
+
+            subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO, null);
+
+            verify(dispatcher).dispatchComputeFees(captor.capture());
+            final var feeContext = (ChildFeeContext) captor.getValue();
+            assertThat(feeContext.numTxnSignatures()).isZero();
         }
 
         @SuppressWarnings("ConstantConditions")
@@ -893,8 +936,51 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     }
 
     @Test
-    void dispatchMetadata_exposesInjectedMetadata() {
-        assertSame(EMPTY_METADATA, subject.dispatchMetadata());
+    void dispatchMetadata_isMutableAndIsolatedFromOtherContexts() {
+        subject.dispatchMetadata().putMetadata(CLPR_GAS_RESERVATION, txnInfo);
+
+        assertThat(subject.dispatchMetadata().getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class))
+                .containsSame(txnInfo);
+        assertThat(EMPTY_METADATA.getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class))
+                .isEmpty();
+        assertThat(createContext(txBody).dispatchMetadata().getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class))
+                .isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"true, true, true", "true, true, false", "true, false, true", "false, true, true"})
+    void passesGasReservationOnlyToDirectVerifierChild(
+            final boolean hasReservation,
+            final boolean isVerifier,
+            final boolean isClprParent,
+            @Mock final HandleContext childContext) {
+        if (isClprParent) {
+            subject = createContext(txBody.copyBuilder()
+                    .clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT)
+                    .build());
+        }
+        final var childMetadata = new HandleContext.DispatchMetadata(EMPTY_METADATA);
+        if (hasReservation) {
+            subject.dispatchMetadata().putMetadata(CLPR_GAS_RESERVATION, txnInfo);
+        }
+        final var metadata = new HandleContext.DispatchMetadata(CLPR_DISPATCH, new Object());
+        if (isVerifier) {
+            metadata.putMetadata(CLPR_VERIFIER, true);
+        }
+        if (hasReservation && isVerifier && isClprParent) {
+            given(childDispatch.handleContext()).willReturn(childContext);
+            given(childContext.dispatchMetadata()).willReturn(childMetadata);
+        }
+
+        subject.dispatch(stepDispatch(payerId, txBody, StreamBuilder.class, NOOP_SIGNED_TX_CUSTOMIZER, metadata));
+
+        assertThat(childMetadata
+                        .getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class)
+                        .isPresent())
+                .isEqualTo(hasReservation && isVerifier && isClprParent);
+        assertThat(metadata.getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class))
+                .isEmpty();
+        verify(dispatchProcessor).processDispatch(childDispatch);
     }
 
     @Test
@@ -957,6 +1043,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         doReturn(ledgerIdSingleton).when(historyStates).getSingleton(LEDGER_ID_STATE_ID);
         given(ledgerIdSingleton.get()).willReturn(new ProtoBytes(externalizedId));
         assertEquals(externalizedId, subject.ledgerId());
+        assertEquals(externalizedId, subject.historyLedgerId());
     }
 
     @Test
@@ -967,6 +1054,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         doReturn(ledgerIdSingleton).when(historyStates).getSingleton(LEDGER_ID_STATE_ID);
         given(ledgerIdSingleton.get()).willReturn(ProtoBytes.DEFAULT);
         assertEquals(Bytes.fromHex("00"), subject.ledgerId());
+        assertEquals(Bytes.EMPTY, subject.historyLedgerId());
     }
 
     private void mockNeeded() {

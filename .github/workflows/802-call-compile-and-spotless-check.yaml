@@ -21,7 +21,7 @@ on:
         description: "NodeJS Version:"
         type: string
         required: false
-        default: "20"
+        default: "24"
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -81,7 +81,7 @@ jobs:
 
       - name: Compile Application Code
         id: compile-source
-        run: ${GRADLE_EXEC} assemble :yahcli:yahCliJar
+        run: ${GRADLE_EXEC} assemble :yahcli:fatModuleJar
 
       - name: Spotless Check
         id: spotless-check

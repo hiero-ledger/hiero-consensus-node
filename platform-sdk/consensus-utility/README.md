@@ -5,12 +5,12 @@ handling, orphan tracking, and monitoring utilities.
 
 ## Architecture
 
-The top of the supporting module DAG — sits above model, concurrent, metrics, and roster.
+The top of the supporting module DAG — sits above `consensus-model` and `consensus-metrics`.
 
 ## Dependency Rules
 
 May depend on:
-- `consensus-model`, `consensus-concurrent`, `consensus-metrics`, `consensus-roster`
+- `consensus-model`, `consensus-metrics`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
 
 Must not depend on:

@@ -17,6 +17,12 @@ default_duration: 72000
 # Default timeout in seconds: how long Chewie will wait for resources before failing.
 # Default: 3600s (1 hour)
 default_timeout: 3600
+
+# Default MDLT production run length in seconds. This is the length of the long-running test the 835
+# executor launches after its 3-minute smoke run; it is not an allocation lifetime. Keep
+# default_duration long enough to outlive it.
+# Default: 432000s (5 days)
+default_mdlt_length: 432000
 # Optional: restrict which workflow files may use Chewie in this repository.
 # If omitted, any workflow from an allowed branch may request resources.
 # workflows:

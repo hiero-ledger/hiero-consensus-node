@@ -255,7 +255,10 @@ public class FileUpdateSuite {
 
         return hapiTest(
                 fileCreate("test").entityMemo(firstMemo).contents(old4K),
-                fileUpdate("test").entityMemo(ZERO_BYTE_MEMO).contents(new4k).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                fileUpdate("test")
+                        .entityMemo(ZERO_BYTE_MEMO)
+                        .contents(new4k)
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 fileUpdate("test").entityMemo(secondMemo).contents(new4k),
                 getFileContents("test").hasContents(ignore -> new4k),
                 getFileInfo("test").hasMemo(secondMemo));
@@ -283,7 +286,7 @@ public class FileUpdateSuite {
         return hapiTest(
                 fileCreate("test"), doWithStartupConfig("entities.maxLifetime", maxLifetime -> fileUpdate("test")
                         .lifetime(parseLong(maxLifetime) + 12_345L)
-                        .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)));
+                        .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)));
     }
 
     @LeakyEmbeddedHapiTest(

@@ -5,8 +5,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.handleExec;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.CompletableFuture.supplyAsync;
-import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -16,14 +14,11 @@ import com.hedera.services.bdd.spec.dsl.SpecEntityRegistrar;
 import com.hedera.services.bdd.spec.dsl.operations.deferred.DoWithModelOperation;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -64,21 +59,14 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements 
      * @param <M> the type of the model returned by the supplier
      */
     private static class DeferredResult<M> {
-        private static final Duration SCHEDULING_TIMEOUT = Duration.ofSeconds(10);
-
-        /**
-         * Counts down when the supplier has been scheduled by the creating thread.
-         */
-        private final CountDownLatch latch = new CountDownLatch(1);
         /**
          * The supplier of the future result.
          */
         private final Supplier<Result<M>> supplier;
         /**
-         * The future result, if this supplier was the privileged one.
+         * The future result; created up front so losing threads can join it before the winner schedules the supplier.
          */
-        @Nullable
-        private CompletableFuture<Result<M>> future;
+        private volatile CompletableFuture<Result<M>> future = new CompletableFuture<>();
 
         public DeferredResult(@NonNull final Supplier<Result<M>> supplier) {
             this.supplier = requireNonNull(supplier);
@@ -88,41 +76,25 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements 
          * Schedules the supplier to run asynchronously, marking it as the privileged supplier for this entity.
          */
         public void getAsync() {
-            future = supplyAsync(supplier);
-            latch.countDown();
+            final var pending = future;
+            try {
+                pending.completeAsync(supplier);
+            } catch (Throwable t) {
+                pending.completeExceptionally(t);
+                throw t;
+            }
         }
 
         /**
-         * Returns the future result, if it has been scheduled.
+         * Returns the future result.
          */
-        public Optional<CompletableFuture<Result<M>>> maybeFuture() {
-            return Optional.ofNullable(future);
-        }
-
-        /**
-         * Blocks until the future result is available, then returns it.
-         */
-        public @NonNull CompletableFuture<Result<M>> futureOrThrow() {
-            awaitScheduling();
-            return requireNonNull(future);
+        public @NonNull CompletableFuture<Result<M>> future() {
+            return future;
         }
 
         public void swap(@NonNull final Result<M> result) {
             requireNonNull(result);
             future = CompletableFuture.completedFuture(result);
-        }
-
-        private void awaitScheduling() {
-            if (future == null) {
-                abortAndThrowIfInterrupted(
-                        () -> {
-                            if (!latch.await(SCHEDULING_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS)) {
-                                throw new IllegalStateException(
-                                        "Result future not scheduled within " + SCHEDULING_TIMEOUT);
-                            }
-                        },
-                        "Interrupted while awaiting scheduling of the result future");
-            }
         }
     }
 
@@ -168,7 +140,7 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements 
         requireNonNull(network);
         return Optional.ofNullable(results.computeIfAbsent(network.name(), k -> new AtomicReference<>())
                         .get())
-                .flatMap(DeferredResult::maybeFuture)
+                .map(DeferredResult::future)
                 .map(CompletableFuture::join)
                 .map(Result::registrar)
                 .orElse(null);
@@ -192,7 +164,7 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements 
         if (resultFutureRef.compareAndSet(null, deferredResult)) {
             deferredResult.getAsync();
         }
-        return resultFutureRef.get().futureOrThrow().join().registrar();
+        return resultFutureRef.get().future().join().registrar();
     }
 
     /**
@@ -213,7 +185,7 @@ public abstract class AbstractSpecEntity<O extends SpecOperation, M> implements 
     public M modelOrThrow(@NonNull final HederaNetwork network) {
         requireNonNull(network);
         return requireNonNull(requireNonNull(results.get(network.name())).get())
-                .futureOrThrow()
+                .future()
                 .join()
                 .model();
     }

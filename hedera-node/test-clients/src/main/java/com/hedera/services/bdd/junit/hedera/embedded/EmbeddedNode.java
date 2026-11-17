@@ -79,9 +79,8 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         final var log4j2ConfigLoc = getExternalPath(LOG4J2_XML).toString();
         if (isForShared(log4j2ConfigLoc)) {
             System.setProperty("log4j.configurationFile", log4j2ConfigLoc);
-            try (var ignored = Configurator.initialize(null, "")) {
-                // Only initialize logging for the shared embedded network
-            }
+            // Not initialize(), which no-ops once a per-method network has already logged
+            Configurator.reconfigure(getExternalPath(LOG4J2_XML).toUri());
         }
         return this;
     }

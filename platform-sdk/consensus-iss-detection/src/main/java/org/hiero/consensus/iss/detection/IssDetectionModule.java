@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.iss.detection;
 
-import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.iss.detection.internal.IssDetector.DO_NOT_IGNORE_ROUNDS;
-
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Queue;
 import org.hiero.base.file.FileSystemManager;
@@ -26,7 +22,6 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.scratchpad.Scratchpad;
-import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
@@ -40,8 +35,20 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
  */
 public class IssDetectionModule {
 
-    @Nullable
+    @NonNull
     private final ComponentWiring<IssDetector, List<IssNotification>> issDetectorWiring;
+
+    @NonNull
+    private final InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> systemTransactionsInputWire;
+
+    @NonNull
+    private final InputWire<ReservedSignedState> stateInputWire;
+
+    @NonNull
+    private final InputWire<ReservedSignedState> overridingStateInputWire;
+
+    @NonNull
+    private final InputWire<NoInput> signalEndOfPreconsensusReplayInputWire;
 
     /**
      * Constructor of {@code IssDetectionModule}
@@ -69,20 +76,23 @@ public class IssDetectionModule {
             final long latestFreezeRound,
             @NonNull final FatalErrorConsumer fatalErrorConsumer) {
 
-        // Set up wiring
+        // Set up wired components
         final IssDetectionWiringConfig wiringConfig = configuration.getConfigData(IssDetectionWiringConfig.class);
         this.issDetectorWiring = new ComponentWiring<>(model, IssDetector.class, wiringConfig.issDetector());
         final ComponentWiring<IssHandler, Void> issHandlerWiring =
                 new ComponentWiring<>(model, IssHandler.class, wiringConfig.issHandler());
 
+        // Set up input wires
+        systemTransactionsInputWire = issDetectorWiring.getInputWire(IssDetector::handleStateSignatureTransactions);
+        stateInputWire = issDetectorWiring.getInputWire(IssDetector::handleState);
+        overridingStateInputWire = issDetectorWiring.getInputWire(IssDetector::overridingState);
+        signalEndOfPreconsensusReplayInputWire =
+                issDetectorWiring.getInputWire(IssDetector::signalEndOfPreconsensusReplay);
+
         // Wire components
         issDetectorWiring
                 .<IssNotification>getSplitOutput()
                 .solderTo(issHandlerWiring.getInputWire(IssHandler::issObserved));
-
-        // Force not soldered wires to be built
-        issDetectorWiring.getInputWire(IssDetector::overridingState);
-        issDetectorWiring.getInputWire(IssDetector::signalEndOfPreconsensusReplay);
 
         // Create and bind components
         final Scratchpad<IssScratchpad> issScratchpad =
@@ -108,15 +118,8 @@ public class IssDetectionModule {
             ignorePreconsensusSignatures = issRound != null && issRound.getValue() >= initialStateRound;
         }
 
-        // A round that we will completely skip ISS detection for. Needed for tests that process state modification
-        // without a software upgrade (in production this feature should not be used).
-        final long roundToIgnore =
-                configuration.getConfigData(StateConfig.class).validateInitialState()
-                        ? DO_NOT_IGNORE_ROUNDS
-                        : initialStateRound;
-
         final IssDetector issDetector = new DefaultIssDetector(
-                time, configuration, metrics, roster, ignorePreconsensusSignatures, roundToIgnore, latestFreezeRound);
+                time, configuration, metrics, roster, ignorePreconsensusSignatures, latestFreezeRound);
         issDetectorWiring.bind(issDetector);
         final IssHandler issHandler = new DefaultIssHandler(configuration, fatalErrorConsumer, issScratchpad);
         issHandlerWiring.bind(issHandler);
@@ -130,8 +133,7 @@ public class IssDetectionModule {
     @InputWireLabel("post consensus state signatures")
     @NonNull
     public InputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> systemTransactionsInputWire() {
-        return requireNonNull(issDetectorWiring, "Not initialized")
-                .getInputWire(IssDetector::handleStateSignatureTransactions);
+        return systemTransactionsInputWire;
     }
 
     /**
@@ -142,7 +144,7 @@ public class IssDetectionModule {
     @InputWireLabel("hashed states")
     @NonNull
     public InputWire<ReservedSignedState> stateInputWire() {
-        return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::handleState);
+        return stateInputWire;
     }
 
     /**
@@ -153,14 +155,13 @@ public class IssDetectionModule {
     @InputWireLabel("overriding state")
     @NonNull
     public InputWire<ReservedSignedState> overridingStateInputWire() {
-        return requireNonNull(issDetectorWiring, "Not initialized").getInputWire(IssDetector::overridingState);
+        return overridingStateInputWire;
     }
 
     @InputWireLabel("signal end of preconsensus replay")
     @NonNull
     public InputWire<NoInput> signalEndOfPreconsensusReplayInputWire() {
-        return requireNonNull(issDetectorWiring, "Not initialized")
-                .getInputWire(IssDetector::signalEndOfPreconsensusReplay);
+        return signalEndOfPreconsensusReplayInputWire;
     }
 
     /**
@@ -170,6 +171,6 @@ public class IssDetectionModule {
      */
     @NonNull
     public OutputWire<IssNotification> issNotificationOutputWire() {
-        return requireNonNull(issDetectorWiring, "Not initialized").getSplitOutput();
+        return issDetectorWiring.getSplitOutput();
     }
 }

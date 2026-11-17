@@ -12,11 +12,9 @@ module org.hiero.consensus.status.monitor {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.wiring.framework;
-    requires com.hedera.node.hapi;
     requires com.swirlds.logging;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.roster;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

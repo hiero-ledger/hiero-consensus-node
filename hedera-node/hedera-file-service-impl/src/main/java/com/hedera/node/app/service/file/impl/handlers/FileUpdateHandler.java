@@ -2,12 +2,16 @@
 package com.hedera.node.app.service.file.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_FILE_SIZE_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.isMutable;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.preValidate;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
+import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateWacl;
+import static com.hedera.node.app.spi.validation.AttributeValidator.isWithinNestedKeyLimit;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -72,6 +76,15 @@ public class FileUpdateHandler implements TransactionHandler {
         if (transactionBody.fileID() == null) {
             throw new PreCheckException(INVALID_FILE_ID);
         }
+        // Enforce the nested-key depth cap at ingest (uniformly, before any signature waiver) so an over-deep WACL
+        // key is rejected without charging the payer; structural validity is still enforced later, at handle.
+        if (transactionBody.hasKeys()) {
+            for (final var key : transactionBody.keysOrThrow().keys()) {
+                if (!isWithinNestedKeyLimit(key)) {
+                    throw new PreCheckException(BAD_ENCODING);
+                }
+            }
+        }
     }
 
     /**
@@ -135,7 +148,7 @@ public class FileUpdateHandler implements TransactionHandler {
         // First validate this file is mutable; and the pending mutations are allowed
         if (wantsToMutateNonExpiryField(fileUpdate)) {
             if (handleContext.hasPrivilegedAuthorization() != SystemPrivilege.AUTHORIZED) {
-                validateTrue(file.hasKeys() && !file.keys().keys().isEmpty(), UNAUTHORIZED);
+                validateTrue(isMutable(file), UNAUTHORIZED);
             }
 
             validateMaybeNewMemo(handleContext.attributeValidator(), fileUpdate);
@@ -153,6 +166,7 @@ public class FileUpdateHandler implements TransactionHandler {
         final var accountsConfig = handleContext.configuration().getConfigData(AccountsConfig.class);
         resolveMutableBuilderAttributes(
                 fileUpdate, builder, fileServiceConfig, file, fileID, accountsConfig, handleContext.payer());
+        validateWacl(fileUpdate.keys());
         fileStore.put(builder.build());
     }
 

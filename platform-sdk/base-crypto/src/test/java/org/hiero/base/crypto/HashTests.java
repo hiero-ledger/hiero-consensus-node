@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -22,30 +23,29 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.function.ThrowingSupplier;
 
 public class HashTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
+        ConstructableRegistry.getInstance()
+                .registerConstructable(new ClassConstructorPair(Hash.class, () -> new Hash(DEFAULT_DIGEST_TYPE)));
     }
 
     @Test
     public void exceptionTests() {
-        final byte[] nonZeroHashValue = new byte[DigestType.SHA_384.digestLength()];
+        final byte[] nonZeroHashValue = new byte[DEFAULT_DIGEST_TYPE.digestLength()];
         Arrays.fill(nonZeroHashValue, Byte.MAX_VALUE);
 
-        final Hash hash = new Hash(DigestType.SHA_384);
+        final Hash hash = new Hash(DEFAULT_DIGEST_TYPE);
 
-        assertDoesNotThrow((ThrowingSupplier<Hash>) Hash::new);
-        assertDoesNotThrow(() -> new Hash(nonZeroHashValue));
-        assertDoesNotThrow(() -> new Hash(DigestType.SHA_384));
+        assertDoesNotThrow(() -> new Hash(nonZeroHashValue, DEFAULT_DIGEST_TYPE));
+        assertDoesNotThrow(() -> new Hash(DEFAULT_DIGEST_TYPE));
         assertDoesNotThrow(() -> new Hash(DigestType.SHA_512));
 
         assertThrows(NullPointerException.class, () -> new Hash((DigestType) null));
-        assertThrows(NullPointerException.class, () -> new Hash((byte[]) null));
-        assertThrows(NullPointerException.class, () -> new Hash((Bytes) null));
+        assertThrows(NullPointerException.class, () -> new Hash((byte[]) null, DEFAULT_DIGEST_TYPE));
+        assertThrows(NullPointerException.class, () -> new Hash((Bytes) null, DEFAULT_DIGEST_TYPE));
         assertThrows(IllegalArgumentException.class, () -> new Hash((Hash) null));
 
         assertThrows(NullPointerException.class, () -> new Hash(nonZeroHashValue, null));
@@ -64,7 +64,7 @@ public class HashTests {
         ioStream.getOutput().writeSerializable(original, true);
         ioStream.startReading();
 
-        final Hash copy = ioStream.getInput().readSerializable(true, Hash::new);
+        final Hash copy = ioStream.getInput().readSerializable(true, () -> new Hash(DEFAULT_DIGEST_TYPE));
         assertEquals(original, copy);
     }
 

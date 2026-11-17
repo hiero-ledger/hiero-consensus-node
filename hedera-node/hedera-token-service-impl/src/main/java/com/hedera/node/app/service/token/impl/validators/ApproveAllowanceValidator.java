@@ -11,8 +11,10 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_DELEGATING_SPEN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_ACCOUNT_SAME_AS_OWNER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.AccountIDType.NOT_ALIASED_ID;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.TokenValidations.PERMIT_PAUSED;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
@@ -31,9 +33,9 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -203,7 +205,7 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
                         expiryValidator,
                         INVALID_DELEGATING_SPENDER,
                         INVALID_DELEGATING_SPENDER,
-                        TokenHandlerHelper.AccountIDType.ALIASED_ID);
+                        NOT_ALIASED_ID);
 
                 if (allowance.hasApprovedForAll()) {
                     validateFalse(
@@ -268,6 +270,28 @@ public class ApproveAllowanceValidator extends AllowanceValidator {
                 SPENDER_ACCOUNT_SAME_AS_OWNER);
         final var relation = tokenRelStore.get(ownerId, tokenId);
         validateTrue(relation != null, TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+    }
+
+    /**
+     * Validates that every spender is named by account number, unless HTS or HAS dispatched the allowances.
+     *
+     * @param context handle context
+     */
+    public void validateSpendersNamedByNumber(@NonNull final HandleContext context) {
+        // HTS and HAS dispatch allowances as CHILD transactions
+        if (context.savepointStack().getBaseBuilder(StreamBuilder.class).category() == CHILD) {
+            return;
+        }
+        final var op = context.body().cryptoApproveAllowanceOrThrow();
+        for (final var allowance : op.cryptoAllowances()) {
+            validateFalse(allowance.spenderOrThrow().hasAlias(), INVALID_ALLOWANCE_SPENDER_ID);
+        }
+        for (final var allowance : op.tokenAllowances()) {
+            validateFalse(allowance.spenderOrThrow().hasAlias(), INVALID_ALLOWANCE_SPENDER_ID);
+        }
+        for (final var allowance : op.nftAllowances()) {
+            validateFalse(allowance.spenderOrThrow().hasAlias(), INVALID_ALLOWANCE_SPENDER_ID);
+        }
     }
 
     /**

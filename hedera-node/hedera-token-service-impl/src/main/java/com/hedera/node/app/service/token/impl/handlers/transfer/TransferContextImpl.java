@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers.transfer;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
+import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isSerializedProtoKey;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 
@@ -18,13 +19,14 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The context of a token transfer. This is used to pass information between the steps of the transfer.
@@ -35,7 +37,8 @@ public class TransferContextImpl implements TransferContext {
     private final HandleContext context;
     private int numAutoCreations;
     private int numLazyCreations;
-    private final Map<Bytes, AccountID> resolutions = new LinkedHashMap<>();
+    private final Map<AccountID, AccountID> resolutions = new LinkedHashMap<>();
+    private final Set<AccountID> autoCreatedAccountIds = new LinkedHashSet<>();
     private final List<TokenAssociation> automaticAssociations = new ArrayList<>();
     private final List<ItemizedAssessedFee> itemizedAssessedFees = new ArrayList<>();
     private CryptoTransferTransactionBody syntheticBody = null;
@@ -99,14 +102,17 @@ public class TransferContextImpl implements TransferContext {
 
         if (account != null) {
             final var id = account.accountId();
-            resolutions.put(aliasedId.alias(), id);
+            resolutions.put(aliasedId, id);
             return id;
         }
         return null;
     }
 
     @Override
-    public void createFromAlias(final Bytes alias, final int reqMaxAutoAssociations) {
+    public void createFromAlias(final AccountID aliasedId, final int reqMaxAutoAssociations) {
+        final var alias = aliasedId.aliasOrThrow();
+        // A long-zero address names an existing numeric account; it is never a creation alias.
+        validateTrue(!isEntityNumAlias(alias), INVALID_ALIAS_KEY);
         // if it is a serialized proto key, auto-create account
         if (AliasUtils.isOfEvmAddressSize(alias)) {
             // if it is an evm address create a hollow account
@@ -120,7 +126,8 @@ public class TransferContextImpl implements TransferContext {
 
         // Keep the created account in the resolutions map
         final var createdAccount = autoAccountCreator.create(alias, reqMaxAutoAssociations, highVolume);
-        resolutions.put(alias, createdAccount);
+        resolutions.put(aliasedId, createdAccount);
+        autoCreatedAccountIds.add(createdAccount);
     }
 
     @Override
@@ -138,8 +145,13 @@ public class TransferContextImpl implements TransferContext {
         throw new UnsupportedOperationException("Not yet implemented");
     }
 
-    public Map<Bytes, AccountID> resolutions() {
+    public Map<AccountID, AccountID> resolutions() {
         return resolutions;
+    }
+
+    @Override
+    public boolean isAutoCreated(final AccountID accountId) {
+        return autoCreatedAccountIds.contains(accountId);
     }
 
     @Override

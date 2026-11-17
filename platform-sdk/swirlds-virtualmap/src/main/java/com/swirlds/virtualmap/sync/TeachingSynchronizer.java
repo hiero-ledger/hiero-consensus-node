@@ -52,8 +52,8 @@ public class TeachingSynchronizer {
             @NonNull final VirtualMap teacherMap,
             @NonNull final ThreadManager threadManager,
             @NonNull final Configuration config) {
-
-        teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
+        Objects.requireNonNull(teacherMap, "teacher map is null");
+        teacherView = teacherMap.detach();
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
         this.syncConfig =
                 Objects.requireNonNull(config, "config is null").getConfigData(VirtualMapTeacherSyncConfig.class);

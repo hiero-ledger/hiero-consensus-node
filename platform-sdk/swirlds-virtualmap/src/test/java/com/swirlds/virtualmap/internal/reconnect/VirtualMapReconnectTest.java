@@ -12,9 +12,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig_;
+import com.swirlds.virtualmap.config.VirtualMapTeacherSyncConfig_;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -51,6 +55,30 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
     @DisplayName("Empty teacher and empty learner")
     void emptyTeacherAndLearner() {
         assertDoesNotThrow(this::reconnect, "Should not throw a Exception");
+    }
+
+    @Test
+    @DisplayName("Leaves are requested again after the leaf backlog threshold is reached many times")
+    void smallLeafBacklogThreshold() {
+        // Every leaf or hash chunk fills a flush, and the threshold is smaller than the leaves of a few hash chunks.
+        // If a requested leaf never left the backlog, or the backlog could be all in hash chunks that aren't
+        // complete yet, the learner would stop requesting leaves, and reconnect would time out
+        final Configuration smallBacklogConfig = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(VirtualMapLearnerSyncConfig_.ASYNC_STREAM_IDLE_TIMEOUT, "5s")
+                .withValue(VirtualMapTeacherSyncConfig_.ASYNC_STREAM_IDLE_TIMEOUT, "5s")
+                .withValue(VirtualMapLearnerSyncConfig_.FLUSH_INTERVAL, "1")
+                .withValue(VirtualMapLearnerSyncConfig_.LEAF_BACKLOG_THROTTLE_THRESHOLD, "2")
+                .build();
+        // The learner has some of the teacher's leaves, some of them with other values, and some leaves the
+        // teacher doesn't have, so there are clean leaves, dirty leaves, and deleted leaves
+        for (int i = 0; i < 3_000; i++) {
+            teacherMap.put(TestKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
+        }
+        for (int i = 1_000; i < 4_000; i++) {
+            learnerMap.put(TestKey.longToKey(i), new TestValue((i % 2 == 0) ? i : -i), TestValueCodec.INSTANCE);
+        }
+        assertDoesNotThrow(() -> reconnectWith(smallBacklogConfig), "Should not throw a Exception");
     }
 
     @Test

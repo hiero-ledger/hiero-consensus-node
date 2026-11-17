@@ -3,14 +3,12 @@ package com.swirlds.merkledb.test.fixtures;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
-import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metric;
@@ -20,6 +18,7 @@ import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
 import java.nio.file.Files;
@@ -28,6 +27,7 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -39,9 +39,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -168,18 +167,25 @@ public class MerkleDbTestUtils {
     }
 
     /**
-     * Creates a hash containing an int repeated 6 times as longs.
+     * Creates a deterministic test hash using {@link Cryptography#DEFAULT_DIGEST_TYPE}.
      *
-     * @return hash with digest an array of 6 longs determined by the given value
+     * <p>The input integer's four bytes are repeated consecutively in big-endian
+     * order throughout the digest. Any trailing bytes that cannot hold a complete
+     * copy remain zero. No cryptographic hashing is performed.
+     *
+     * @param value the value used to populate the hash bytes
+     * @return a test hash with the default digest type and its required length
      */
     public static Hash hash(final int value) {
-        final byte[] hardCoded =
+        final byte[] valueBytes =
                 new byte[] {(byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) value};
-        final byte[] digest = new byte[DigestType.SHA_384.digestLength()];
-        for (int i = 0; i < 6; i++) {
-            System.arraycopy(hardCoded, 0, digest, i * 6 + 4, 4);
+        final byte[] digest = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
+
+        for (int offset = 0; offset + valueBytes.length <= digest.length; offset += valueBytes.length) {
+            System.arraycopy(valueBytes, 0, digest, offset, valueBytes.length);
         }
-        return new Hash(digest, DigestType.SHA_384);
+
+        return new Hash(digest, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /** Code from method java.util.Collections.shuffle(); */
@@ -249,54 +255,11 @@ public class MerkleDbTestUtils {
         return metric.orElse(null);
     }
 
-    public static MerkleDbDataSource createDataSource(
-            final FileSystemManager fileSystemManager,
-            final long size,
-            final boolean compactionEnabled,
-            boolean preferDiskBasedIndexes) {
-        return createDataSource(
-                DEFAULT_CONFIGURATION,
-                fileSystemManager,
-                DEFAULT_TABLE_NAME,
-                size,
-                compactionEnabled,
-                preferDiskBasedIndexes);
-    }
-
-    public static MerkleDbDataSource createDataSource(
-            final Configuration configuration,
-            final FileSystemManager fileSystemManager,
-            final String name,
-            final long size,
-            final boolean compactionEnabled,
-            boolean preferDiskBasedIndexes) {
-        MerkleDbDataSourceBuilder dataSourceBuilder =
-                new MerkleDbDataSourceBuilder(configuration, fileSystemManager, size);
-        return (MerkleDbDataSource) dataSourceBuilder.build(name, null, compactionEnabled, preferDiskBasedIndexes);
-    }
-
-    public static MerkleDbDataSource restoreDataSource(
-            final FileSystemManager fileSystemManager,
-            final Path dbPath,
-            final String name,
-            final boolean compactionEnabled)
-            throws IOException {
-        return new MerkleDbDataSource(
-                dbPath, DEFAULT_MERKLE_DB_CONFIG, fileSystemManager, name, compactionEnabled, false);
-    }
-
     /**
      * Asserts that all databases are closed within a certain time frame.
      */
     public static void assertAllDatabasesClosed() {
         assertSomeDatabasesStillOpen(0L);
-    }
-
-    public static void assertDatabaseFolderDeleted(MerkleDbDataSource dataSource) {
-        assertEventuallyFalse(
-                () -> Files.exists(dataSource.getDbPaths().storageDir.resolve(dataSource.getTableName())),
-                Duration.ofSeconds(1),
-                "Database should have been deleted");
     }
 
     /**
@@ -307,8 +270,42 @@ public class MerkleDbTestUtils {
     public static void assertSomeDatabasesStillOpen(@NonNull final Long expectedOpenCount) {
         assertEventuallyEquals(
                 expectedOpenCount,
-                MerkleDbDataSource::getCountOfOpenDatabases,
+                MerkleDbDataSourceBuilder::getCountOfOpenDatabases,
                 Duration.of(5, ChronoUnit.SECONDS),
                 "Expected " + expectedOpenCount + " open databases.");
+    }
+
+    /**
+     * Asserts that no MerkleDb data source storage directory is left behind in the given directory,
+     * which is expected to be the temp dir of a {@code FileSystemManager}.
+     *
+     * <p>Unlike {@link #assertAllDatabasesClosed()}, which only reads the open data source counter,
+     * this looks at the file system, so it also catches a data source that was closed but failed to
+     * remove its storage dir. Such a directory may well be empty by then, which is why this matches
+     * on the name rather than on any file inside it.
+     *
+     * @param tempDir the directory that data source storage dirs are created in
+     */
+    public static void assertNoDatabaseFolders(@NonNull final Path tempDir) {
+        final List<Path> databaseFolders;
+        try (final Stream<Path> entries = Files.list(tempDir)) {
+            databaseFolders = entries.filter(Files::isDirectory)
+                    // 'contains', not 'startsWith': FileSystemManager.resolveNewTemp() prefixes the
+                    // tag with a timestamp and a counter, so the marker sits in the middle of the
+                    // name. Using 'startsWith' here would match nothing and pass vacuously.
+                    .filter(p -> p.getFileName().toString().contains(MerkleDbDataSourceBuilder.FOLDER_PREFIX))
+                    .toList();
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to list temp directory: " + tempDir, e);
+        }
+        assertTrue(databaseFolders.isEmpty(), "Database folders should have been deleted: " + databaseFolders);
+    }
+
+    /**
+     * Returns the directory within {@code snapshotDir} that holds the data source files, matching
+     * the layout {@link MerkleDbDataSourceBuilder} writes and reads.
+     */
+    public static Path snapshotDataDir(@NonNull final Path snapshotDir, @NonNull final String label) {
+        return snapshotDir.resolve("data").resolve(label);
     }
 }

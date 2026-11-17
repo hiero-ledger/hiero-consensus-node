@@ -133,12 +133,12 @@ public class PrivilegedOpsTest {
                                 .receiverSigRequired(true)
                                 .payingWith(CIVILIAN)
                                 .signedBy(CIVILIAN, GENESIS)
-                                .hasPrecheck(AUTHORIZATION_FAILED),
+                                .hasKnownStatus(AUTHORIZATION_FAILED),
                         cryptoUpdate(ACCOUNT_2)
                                 .receiverSigRequired(true)
                                 .payingWith(SYSTEM_ADMIN)
                                 .signedBy(SYSTEM_ADMIN, GENESIS)
-                                .hasPrecheck(AUTHORIZATION_FAILED),
+                                .hasKnownStatus(AUTHORIZATION_FAILED),
                         cryptoUpdate(ACCOUNT_2)
                                 .receiverSigRequired(false)
                                 .payingWith(GENESIS)

@@ -62,6 +62,7 @@ public class BlockStreamMetrics {
     private LongGauge connRecv_latestBlockSkipBlockGauge;
     private LongGauge connRecv_latestBlockResendBlockGauge;
     private LongGauge connRecv_latestBlockBehindPublisherGauge;
+    private Counter connRecv_observerIgnored;
 
     // connectivity metrics
     private Counter conn_onCompleteCounter;
@@ -78,7 +79,8 @@ public class BlockStreamMetrics {
     private RunningAverageMetric conn_blockEndSentToAckLatency;
     private RunningAverageMetric conn_blockClosedToAckLatency;
     private RunningAverageMetric conn_headerSentToBlockEndSentLatency;
-    private LongGauge conn_activeConnectionCount;
+    private LongGauge conn_activeStreamingConnectionCount;
+    private LongGauge conn_activeObservingConnectionCount;
     private final Map<CloseReason, Counter> conn_closeReasonCounters = new EnumMap<>(CloseReason.class);
 
     // buffer metrics
@@ -99,6 +101,9 @@ public class BlockStreamMetrics {
     private LongGauge buffer_totBytesGauge;
     private LongGauge buffer_numBlocksGauge;
     private LongGauge buffer_numBlocksPendingAckGauge;
+    private DoubleGauge buffer_unackedBlocksSaturationGauge;
+    private DoubleGauge buffer_unackedBytesSaturationGauge;
+    private DoubleGauge buffer_inProgressBlocksSaturationGauge;
 
     // wrapped record hashes (record stream) metrics
     // (FUTURE) Remove after cutover
@@ -126,7 +131,7 @@ public class BlockStreamMetrics {
 
     private void registerBufferMetrics() {
         final DoubleGauge.Config saturationCfg = newDoubleGauge(GROUP_BUFFER, "saturation")
-                .withDescription("The percent (0.0 to 100.0) of buffered blocks that haven't been acknowledged");
+                .withDescription("The overall maximum buffer saturation as a percent (0.0 to 100.0)");
         buffer_saturationGauge = metrics.getOrCreate(saturationCfg);
 
         final LongGauge.Config latestBlockOpenedCfg = newLongGauge(GROUP_BUFFER, "latestBlockOpened")
@@ -194,6 +199,18 @@ public class BlockStreamMetrics {
         final LongGauge.Config numBlocksPendingAck = newLongGauge(GROUP_BUFFER, "numBlocksPendingAck")
                 .withDescription("The number of blocks buffered that are pending acknowledgement");
         buffer_numBlocksPendingAckGauge = metrics.getOrCreate(numBlocksPendingAck);
+
+        final DoubleGauge.Config unackedBlocksSaturation = newDoubleGauge(GROUP_BUFFER, "unackedBlocksSaturation")
+                .withDescription("The percent (0.0 to 100.0) of buffered blocks that haven't been acknowledged");
+        buffer_unackedBlocksSaturationGauge = metrics.getOrCreate(unackedBlocksSaturation);
+
+        final DoubleGauge.Config unackedBytesSaturation = newDoubleGauge(GROUP_BUFFER, "unackedBytesSaturation")
+                .withDescription("The percent (0.0 to 100.0) of buffered bytes that haven't been acknowledged");
+        buffer_unackedBytesSaturationGauge = metrics.getOrCreate(unackedBytesSaturation);
+
+        final DoubleGauge.Config inProgressBlocksSaturation = newDoubleGauge(GROUP_BUFFER, "inProgressBlocksSaturation")
+                .withDescription("The percent (0.0 to 100.0) of blocks that have been opened but not yet closed");
+        buffer_inProgressBlocksSaturationGauge = metrics.getOrCreate(inProgressBlocksSaturation);
     }
 
     private void registerWrappedRecordHashesMetrics() {
@@ -220,6 +237,33 @@ public class BlockStreamMetrics {
 
     public void recordWrappedRecordHashesHasGaps(final boolean hasGaps) {
         recordHashes_hasGapsGauge.set(hasGaps ? 1 : 0);
+    }
+
+    /**
+     * Record the saturation percentage for in-progress blocks in the buffer.
+     *
+     * @param saturationPercent the saturation as a percentage
+     */
+    public void recordInProgressBlocksSaturation(final double saturationPercent) {
+        buffer_inProgressBlocksSaturationGauge.set(saturationPercent);
+    }
+
+    /**
+     * Record the saturation percentage for unacknowledged blocks buffered.
+     *
+     * @param saturationPercent the saturation as a percentage
+     */
+    public void recordUnackedBlocksSaturation(final double saturationPercent) {
+        buffer_unackedBlocksSaturationGauge.set(saturationPercent);
+    }
+
+    /**
+     * Record the saturation percentage for unacknowledged block bytes buffered.
+     *
+     * @param saturationPercent the saturation as a percentage
+     */
+    public void recordUnackedBytesSaturation(final double saturationPercent) {
+        buffer_unackedBytesSaturationGauge.set(saturationPercent);
     }
 
     /**
@@ -427,10 +471,15 @@ public class BlockStreamMetrics {
                         "Number of times a pipeline onNext() or onComplete() operation timed out on a block node connection");
         conn_pipelineOperationTimeoutCounter = metrics.getOrCreate(pipelineTimeoutCfg);
 
-        final LongGauge.Config activeConnectionCountCfg = new LongGauge.Config(
-                        CATEGORY, GROUP_CONN + "_activeConnectionCount")
+        final LongGauge.Config activeStreamingConnectionCountCfg = new LongGauge.Config(
+                        CATEGORY, GROUP_CONN + "_activeStreamingConnectionCount")
                 .withDescription("Current number of active streaming connections to block nodes");
-        conn_activeConnectionCount = metrics.getOrCreate(activeConnectionCountCfg);
+        conn_activeStreamingConnectionCount = metrics.getOrCreate(activeStreamingConnectionCountCfg);
+
+        final LongGauge.Config activeObservingConnectionCountCfg = new LongGauge.Config(
+                        CATEGORY, GROUP_CONN + "_activeObservingConnectionCount")
+                .withDescription("Current number of active acknowledgement observing connections to block nodes");
+        conn_activeObservingConnectionCount = metrics.getOrCreate(activeObservingConnectionCountCfg);
 
         for (final CloseReason closeReason : CloseReason.values()) {
             final String metricName = "connClose_" + toCamelCase(closeReason.name());
@@ -445,8 +494,17 @@ public class BlockStreamMetrics {
      *
      * @param connectionCount the latest connection count
      */
-    public void recordActiveConnectionCount(final long connectionCount) {
-        conn_activeConnectionCount.set(connectionCount);
+    public void recordActiveStreamingConnectionCount(final long connectionCount) {
+        conn_activeStreamingConnectionCount.set(connectionCount);
+    }
+
+    /**
+     * Record the number of active connections that are observing acknowledgements from block nodes.
+     *
+     * @param connectionCount the latest connection count
+     */
+    public void recordActiveObservingConnectionCount(final long connectionCount) {
+        conn_activeObservingConnectionCount.set(connectionCount);
     }
 
     /**
@@ -606,6 +664,10 @@ public class BlockStreamMetrics {
         final LongGauge.Config latestBlockBehindCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockBehindPublisher")
                 .withDescription("The latest block number received in a BehindPublisher response");
         this.connRecv_latestBlockBehindPublisherGauge = metrics.getOrCreate(latestBlockBehindCfg);
+
+        final Counter.Config observerIgnoredCfg = newCounter(GROUP_CONN_RECV, "responsesIgnoredAsObserving")
+                .withDescription("The number of ignored responses from the block node over observing connections");
+        this.connRecv_observerIgnored = metrics.getOrCreate(observerIgnoredCfg);
     }
 
     /**
@@ -675,6 +737,13 @@ public class BlockStreamMetrics {
      */
     public void recordLatestBlockBehindPublisher(final long blockNumber) {
         connRecv_latestBlockBehindPublisherGauge.set(blockNumber);
+    }
+
+    /**
+     * Record a response from the block node as being ignored because it was not valid for an observing connection.
+     */
+    public void recordIgnoredResponseWhileObserving() {
+        connRecv_observerIgnored.increment();
     }
 
     // Connection SEND metrics -----------------------------------------------------------------------------------------

@@ -4,7 +4,7 @@ package org.hiero.consensus.io.counting;
 import com.swirlds.base.units.UnitConstants;
 
 /**
- * An interface for getting the number of bytes that have passed through a stream since the last reset
+ * An interface for getting the number of bytes that have passed through a stream since the last reset and since creation of the stream.
  */
 public interface ByteCounter {
 
@@ -14,6 +14,13 @@ public interface ByteCounter {
      * @return the number of bytes that have passed by this stream since the last reset
      */
     long getCount();
+
+    /**
+     * The number of bytes that have passed by this stream since the creation, regardless of resets
+     *
+     * @return total number of bytes since the creation of the stream
+     */
+    long getTotalCount();
 
     /**
      * Get the number of bytes, in kibibytes.

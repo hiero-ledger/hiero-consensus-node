@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.base.utility {
-    exports org.hiero.base;
     exports org.hiero.base.constructable;
     exports org.hiero.base.exceptions;
-    exports org.hiero.base.io;
+    exports org.hiero.base.file;
     exports org.hiero.base.io.exceptions;
     exports org.hiero.base.io.streams;
+    exports org.hiero.base.io;
     exports org.hiero.base.iterator;
-    exports org.hiero.base.utility;
     exports org.hiero.base.structures;
-    exports org.hiero.base.file;
+    exports org.hiero.base.utility;
+    exports org.hiero.base;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;

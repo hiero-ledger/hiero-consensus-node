@@ -8,10 +8,15 @@ deduplicating, and topologically ordering events before emitting them downstream
 The API half of the event-intake module pair. For how intake works, see the
 [event-intake topic](../docs/consensus-layer/architecture/topics/event-intake.md).
 
+## Benchmarks
+
+The JMH benchmarks in `src/jmh` follow the
+[benchmark conventions](../docs/consensus-layer/benchmarks/README.md).
+
 ## Dependency Rules
 
 May depend on:
-- `consensus-model`, `consensus-metrics`, `consensus-roster`, `consensus-utility`
+- `consensus-model`, `consensus-metrics`, `consensus-utility`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
 `consensus-wiring-framework`
 

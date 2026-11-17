@@ -101,26 +101,75 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
 
     @Override
     public Call callFrom(@NonNull HssCallAttempt attempt) {
+        if (attempt.isSelector(SIGN_SCHEDULE)) {
+            return callFromSignSchedule(attempt);
+        }
         final var body = bodyFor(scheduleIdFor(attempt));
         return new DispatchForResponseCodeHssCall(
-                attempt, body, SignScheduleTranslator::gasRequirement, keySetFor(attempt));
+                attempt,
+                body,
+                (txBody, gasCalculator, enhancement, payerId) ->
+                        gasRequirement(txBody, gasCalculator, enhancement, payerId, null),
+                attempt.keySetFor());
     }
 
     /**
-     * Calculates the gas requirement for a {@code signSchedule()} call.
+     * Handles {@code signSchedule(address, bytes)} by decoding the call and parsing its signature map
+     * exactly once, then reusing the schedule ID and signature map for gas calculation and key extraction.
+     *
+     * @param attempt the call attempt
+     * @return the call to dispatch
+     */
+    private Call callFromSignSchedule(@NonNull final HssCallAttempt attempt) {
+        final var call = SIGN_SCHEDULE.decodeCall(attempt.inputBytes());
+        final var scheduleId = requireNonNull(getScheduleIDFromCall(attempt, call));
+        final var signatureBlob = (byte[]) call.get(SIGNATURE_MAP_INDEX);
+        validateSignatureMapMaxLength(attempt, signatureBlob.length);
+        final var signatureMap = parseSignatureMap(signatureBlob);
+        final var body = bodyFor(scheduleId);
+        return new DispatchForResponseCodeHssCall(
+                attempt,
+                body,
+                (txBody, gasCalculator, enhancement, payerId) ->
+                        gasRequirement(txBody, gasCalculator, enhancement, payerId, signatureMap),
+                getKeyForSignSchedule(attempt, scheduleId, signatureMap));
+    }
+
+    /**
+     * Calculates the gas requirement for a {@code signSchedule()} call. When {@code signatureMap} is
+     * non-null (i.e. for {@code signSchedule(address,bytes)}), its size is used to price the extra
+     * signatures the caller supplied.
      *
      * @param body                        the transaction body
      * @param systemContractGasCalculator the gas calculator
      * @param enhancement                 the enhancement
      * @param payerId                     the payer ID
+     * @param signatureMap                the caller-supplied signature map, or null if none
      * @return the gas requirement
      */
     public static long gasRequirement(
             @NonNull final TransactionBody body,
             @NonNull final SystemContractGasCalculator systemContractGasCalculator,
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final AccountID payerId) {
-        return systemContractGasCalculator.gasRequirement(body, DispatchType.SCHEDULE_SIGN, payerId);
+            @NonNull final AccountID payerId,
+            @Nullable final SignatureMap signatureMap) {
+        return systemContractGasCalculator.gasRequirement(body, DispatchType.SCHEDULE_SIGN, payerId, signatureMap);
+    }
+
+    /**
+     * Parses a signature map's serialized bytes, wrapping any parse failure as an
+     * {@code INVALID_TRANSACTION_BODY} {@link HandleException}.
+     *
+     * @param signatureBlob the serialized signature map bytes
+     * @return the parsed signature map
+     */
+    @NonNull
+    private static SignatureMap parseSignatureMap(@NonNull final byte[] signatureBlob) {
+        try {
+            return requireNonNull(SignatureMap.PROTOBUF.parseStrict(wrap(signatureBlob)));
+        } catch (@NonNull final ParseException | NullPointerException ex) {
+            throw new HandleException(INVALID_TRANSACTION_BODY);
+        }
     }
 
     /**
@@ -151,17 +200,10 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
         requireNonNull(attempt);
         if (attempt.isSelector(SIGN_SCHEDULE_PROXY)) {
             return getScheduleIDForSignScheduleProxy(attempt);
-        } else if (attempt.isSelector(SIGN_SCHEDULE)) {
-            return getScheduleIDForSignSchedule(attempt);
         } else if (attempt.isSelector(AUTHORIZE_SCHEDULE)) {
             return getScheduleIDForAuthorizeSchedule(attempt);
         }
         throw new IllegalStateException("Unexpected function selector");
-    }
-
-    private static ScheduleID getScheduleIDForSignSchedule(@NonNull HssCallAttempt attempt) {
-        final var call = SIGN_SCHEDULE.decodeCall(attempt.inputBytes());
-        return getScheduleIDFromCall(attempt, call);
     }
 
     private static ScheduleID getScheduleIDForAuthorizeSchedule(@NonNull HssCallAttempt attempt) {
@@ -185,23 +227,6 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
     }
 
     /**
-     * Extracts the key set for a {@code signSchedule(address, bytes)} call. Otherwise, delegates to the call attempt.
-     *
-     * @param attempt the call attempt
-     * @return the key set
-     */
-    private Set<Key> keySetFor(@NonNull HssCallAttempt attempt) {
-        requireNonNull(attempt);
-
-        // Check for the signSchedule(address, bytes) call.  This form of key set extraction will never be used
-        // for the HIP 756 calls and thus we treat it separately.
-        if (attempt.isSelector(SIGN_SCHEDULE)) {
-            return getKeyForSignSchedule(attempt);
-        }
-        return attempt.keySetFor();
-    }
-
-    /**
      * Validates the max size in bytes of the signatures map in {@code signSchedule(address, bytes)}
      * based on the max regular transaction size.
      *
@@ -215,23 +240,26 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
         validateTrue(signaturesMapBytesSize <= maxRegularTxnSize, INVALID_TRANSACTION_BODY);
     }
 
-    @VisibleForTesting
+    /**
+     * Extracts the key set for a {@code signSchedule(address, bytes)} call from an already-decoded
+     * schedule ID and signature map, avoiding re-decoding the call or re-parsing the signature map.
+     *
+     * @param attempt      the call attempt
+     * @param scheduleId   the already-resolved schedule ID
+     * @param signatureMap the already-parsed signature map
+     * @return the key set
+     */
     @NonNull
-    public static Set<Key> getKeyForSignSchedule(@NonNull HssCallAttempt attempt) {
-        requireNonNull(attempt);
+    private static Set<Key> getKeyForSignSchedule(
+            @NonNull final HssCallAttempt attempt,
+            @NonNull final ScheduleID scheduleId,
+            @NonNull final SignatureMap signatureMap) {
         final Set<Key> keys = new HashSet<>();
-        final var call = SIGN_SCHEDULE.decodeCall(attempt.inputBytes());
-        final var scheduleId = requireNonNull(getScheduleIDFromCall(attempt, call));
-
         final var message = messageFromScheduleId(scheduleId);
-
-        final var signatureBlob = (byte[]) call.get(SIGNATURE_MAP_INDEX);
-        validateSignatureMapMaxLength(attempt, signatureBlob.length);
         try {
             final var chainId =
                     attempt.configuration().getConfigData(ContractsConfig.class).chainId();
-            final var sigMap = preprocessEcdsaSignatures(
-                    requireNonNull(SignatureMap.PROTOBUF.parseStrict(wrap(signatureBlob))), chainId);
+            final var sigMap = preprocessEcdsaSignatures(signatureMap, chainId);
             for (var sigPair : sigMap.sigPair()) {
                 // For ED25519 and ECDSA keys, verify the key and add it to the key set if verified
                 if (sigPair.hasEd25519()) {
@@ -249,7 +277,7 @@ public class SignScheduleTranslator extends AbstractCallTranslator<HssCallAttemp
                     }
                 }
             }
-        } catch (@NonNull final ParseException | NullPointerException | IllegalArgumentException ex) {
+        } catch (@NonNull final NullPointerException | IllegalArgumentException ex) {
             throw new HandleException(INVALID_TRANSACTION_BODY);
         }
         return keys;

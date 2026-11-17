@@ -3,6 +3,7 @@ package com.hedera.node.app.service.consensus.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_SCHEDULE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.A_NONNULL_KEY;
 import static com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestUtils.EMPTY_KEYLIST;
@@ -23,12 +24,15 @@ import static org.mockito.Mockito.doThrow;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusUpdateTopicTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.FixedCustomFeeList;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusUpdateTopicHandler;
@@ -223,6 +227,65 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     }
 
     @Test
+    @DisplayName("Degenerate (empty threshold) submit key update fails")
+    void validatesDegenerateSubmitKey() {
+        givenValidTopic(AccountID.newBuilder().accountNum(0).build(), false);
+        refreshStoresWithCurrentTopicInBothReadableAndWritable();
+
+        // The empty-threshold key collapses to empty but is not the empty-KeyList removal sentinel, so the
+        // final pass before the put rejects it rather than storing an unsatisfiable key.
+        final var op =
+                OP_BUILDER.topicID(topicId).submitKey(EMPTY_THRESHOLD_KEY).build();
+        final var txn = TransactionBody.newBuilder().consensusUpdateTopic(op).build();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.attributeValidator()).willReturn(attributeValidator);
+
+        assertFailsWith(BAD_ENCODING, () -> subject.handle(handleContext));
+
+        final var newTopic = writableTopicState.get(topicId);
+        assertEquals(topic.submitKey(), newTopic.submitKey());
+    }
+
+    @Test
+    @DisplayName("Degenerate (empty threshold) fee schedule key update fails")
+    void validatesDegenerateFeeScheduleKey() {
+        givenValidTopic(AccountID.newBuilder().accountNum(0).build(), false);
+        refreshStoresWithCurrentTopicInBothReadableAndWritable();
+
+        final var op =
+                OP_BUILDER.topicID(topicId).feeScheduleKey(EMPTY_THRESHOLD_KEY).build();
+        final var txn = TransactionBody.newBuilder().consensusUpdateTopic(op).build();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.attributeValidator()).willReturn(attributeValidator);
+
+        assertFailsWith(INVALID_CUSTOM_FEE_SCHEDULE_KEY, () -> subject.handle(handleContext));
+
+        final var newTopic = writableTopicState.get(topicId);
+        assertEquals(topic.feeScheduleKey(), newTopic.feeScheduleKey());
+    }
+
+    @Test
+    @DisplayName("Degenerate submit key does not change the status of an update failing for another reason")
+    void degenerateSubmitKeyKeepsOtherFailureStatus() {
+        givenValidTopic(AccountID.newBuilder().accountNum(0).build(), false);
+        refreshStoresWithCurrentTopicInBothReadableAndWritable();
+
+        final var op = OP_BUILDER
+                .topicID(topicId)
+                .submitKey(EMPTY_THRESHOLD_KEY)
+                .memo("Please mind the vase")
+                .build();
+        final var txn = TransactionBody.newBuilder().consensusUpdateTopic(op).build();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.attributeValidator()).willReturn(attributeValidator);
+        willThrow(new HandleException(ResponseCodeEnum.MEMO_TOO_LONG))
+                .given(attributeValidator)
+                .validateMemo(op.memo());
+
+        assertFailsWith(ResponseCodeEnum.MEMO_TOO_LONG, () -> subject.handle(handleContext));
+    }
+
+    @Test
     @DisplayName("Too long memo update fails")
     void validatesNewMemo() {
         givenValidTopic(AccountID.newBuilder().accountNum(0).build(), false);
@@ -413,8 +476,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("payer key as admin key is allowed")
     void noneOfFieldsSetHaveNoRequiredKeys() throws PreCheckException {
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op = OP_BUILDER
                 .expirationTime(Timestamp.newBuilder().build())
@@ -432,8 +496,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("Missing topicId from ReadableTopicStore fails")
     void missingTopicFails() throws PreCheckException {
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op =
                 OP_BUILDER.topicID(TopicID.newBuilder().topicNum(123L).build()).build();
@@ -453,8 +518,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
                 .transactionID(TransactionID.newBuilder().accountID(payerId))
                 .consensusUpdateTopic(OP_BUILDER.topicID(topicId))
                 .build();
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
         final var context = new FakePreHandleContext(accountStore, txBody);
         context.registerStore(ReadableTopicStore.class, readableStore);
 
@@ -464,8 +530,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("Update admin key in preHandle as expected")
     void adminKeyAndOpAdminKeyAdded() throws PreCheckException {
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op = OP_BUILDER
                 .adminKey(anotherKey)
@@ -486,10 +553,14 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @Test
     @DisplayName("Update autoRenewAccount in preHandle as expected")
     void autoRenewAccountKeyAdded() throws PreCheckException {
-        given(accountStore.getAccountById(autoRenewId)).willReturn(autoRenewAccount);
-        given(autoRenewAccount.key()).willReturn(autoRenewKey);
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(autoRenewId))
+                .willReturn(Account.newBuilder()
+                        .accountId(autoRenewId)
+                        .key(autoRenewKey)
+                        .build());
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op = OP_BUILDER.autoRenewAccount(autoRenewId).topicID(topicId).build();
         final var context = new FakePreHandleContext(accountStore, txnWith(op));
@@ -506,8 +577,9 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     @DisplayName("Missing autoRenewAccount update fails")
     void missingAutoRenewAccountFails() throws PreCheckException {
         given(accountStore.getAccountById(autoRenewId)).willReturn(null);
-        given(accountStore.getAccountById(payerId)).willReturn(account);
-        given(account.key()).willReturn(adminKey);
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(adminKey).build());
 
         final var op = OP_BUILDER.autoRenewAccount(autoRenewId).topicID(topicId).build();
 
@@ -520,6 +592,73 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
     private void assertFailsWith(final ResponseCodeEnum status, final Runnable something) {
         final var ex = assertThrows(HandleException.class, something::run);
         assertEquals(status, ex.getStatus());
+    }
+
+    // A fee schedule key shaped KeyList([KeyList([])]): collapses to empty, is not the removal sentinel, and
+    // could be persisted before stored keys were validated.
+    private static final Key NESTED_EMPTY_KEY_LIST = Key.newBuilder()
+            .keyList(KeyList.newBuilder()
+                    .keys(Key.newBuilder().keyList(KeyList.DEFAULT).build()))
+            .build();
+
+    @Test
+    @DisplayName("Fee-only update fails closed when the stored fee schedule key is structurally invalid")
+    void feeOnlyUpdateFailsClosedOnMalformedStoredFeeScheduleKey() throws PreCheckException {
+        topic = topic.copyBuilder().feeScheduleKey(NESTED_EMPTY_KEY_LIST).build();
+        refreshStoresWithCurrentTopicOnlyInReadable();
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(anotherKey).build());
+
+        final var op = OP_BUILDER
+                .topicID(topicId)
+                .customFees(FixedCustomFeeList.DEFAULT)
+                .build();
+        final var context = new FakePreHandleContext(accountStore, txnWith(op));
+        context.registerStore(ReadableTopicStore.class, readableStore);
+
+        assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
+    }
+
+    @Test
+    @DisplayName("Admin-and-fee update fails closed when the stored fee schedule key is structurally invalid")
+    void adminAndFeeUpdateFailsClosedOnMalformedStoredFeeScheduleKey() throws PreCheckException {
+        topic = topic.copyBuilder().feeScheduleKey(EMPTY_THRESHOLD_KEY).build();
+        refreshStoresWithCurrentTopicOnlyInReadable();
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(anotherKey).build());
+
+        final var op = OP_BUILDER
+                .topicID(topicId)
+                .memo("new memo")
+                .customFees(FixedCustomFeeList.DEFAULT)
+                .build();
+        final var context = new FakePreHandleContext(accountStore, txnWith(op));
+        context.registerStore(ReadableTopicStore.class, readableStore);
+
+        assertThrowsPreCheck(() -> subject.preHandle(context), INVALID_CUSTOM_FEE_SCHEDULE_KEY);
+    }
+
+    @Test
+    @DisplayName("Fee-only update requires a valid stored fee schedule key")
+    void feeOnlyUpdateRequiresValidStoredFeeScheduleKey() throws PreCheckException {
+        // The fixture's default fee schedule key is not a structurally valid key, so seed a real one
+        topic = topic.copyBuilder().feeScheduleKey(key).build();
+        refreshStoresWithCurrentTopicOnlyInReadable();
+        given(accountStore.getAccountById(payerId))
+                .willReturn(
+                        Account.newBuilder().accountId(payerId).key(anotherKey).build());
+
+        final var op = OP_BUILDER
+                .topicID(topicId)
+                .customFees(FixedCustomFeeList.DEFAULT)
+                .build();
+        final var context = new FakePreHandleContext(accountStore, txnWith(op));
+        context.registerStore(ReadableTopicStore.class, readableStore);
+
+        assertDoesNotThrow(() -> subject.preHandle(context));
+        assertThat(context.requiredNonPayerKeys()).containsExactly(key);
     }
 
     private TransactionBody txnWith(final ConsensusUpdateTopicTransactionBody op) {

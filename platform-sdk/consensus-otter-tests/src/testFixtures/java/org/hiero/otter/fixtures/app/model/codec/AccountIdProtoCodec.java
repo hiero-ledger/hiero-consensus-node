@@ -29,7 +29,7 @@ import org.hiero.otter.fixtures.app.model.schema.AccountIdSchema;
 /**
  * Protobuf Codec for AccountId model object. Generated based on protobuf schema.
  */
-public final class AccountIdProtoCodec implements Codec<AccountId> {
+public final class AccountIdProtoCodec extends Codec<AccountId> {
     /**
      * An initial capacity for the ArrayList where unknown fields are collected.
      * To optimize parsing unknown fields, we store the max value we've seen so far.
@@ -70,7 +70,8 @@ public final class AccountIdProtoCodec implements Codec<AccountId> {
      * @return Parsed AccountId model object or null if data input was null or empty
      * @throws ParseException If parsing fails
      */
-    public @NonNull AccountId parse(
+    @Override
+    protected @NonNull AccountId parseImpl(
             @NonNull final ReadableSequentialData input,
             final boolean strictMode,
             final boolean parseUnknownFields,
@@ -176,7 +177,8 @@ public final class AccountIdProtoCodec implements Codec<AccountId> {
      * @param out The output stream to write to
      * @throws IOException If there is a problem writing
      */
-    public void write(@NonNull AccountId data, @NonNull final WritableSequentialData out) throws IOException {
+    @Override
+    protected void writeImpl(@NonNull AccountId data, @NonNull final WritableSequentialData out) throws IOException {
         // [1] - id
         writeLong(out, AccountIdSchema.ID, data.id(), true);
 
@@ -200,7 +202,8 @@ public final class AccountIdProtoCodec implements Codec<AccountId> {
      * @return The number of bytes written to the output array.
      * @throws IndexOutOfBoundsException If the output array is not large enough to hold the entire item.
      */
-    public int write(@NonNull AccountId data, @NonNull byte[] output, final int startOffset) {
+    @Override
+    protected int writeImpl(@NonNull AccountId data, @NonNull byte[] output, final int startOffset) {
         int offset = startOffset;
         // [1] - id
         offset += ProtoArrayWriterTools.writeInt64(output, offset, AccountIdSchema.ID, data.id(), true);
@@ -215,22 +218,6 @@ public final class AccountIdProtoCodec implements Codec<AccountId> {
     }
 
     /**
-     * Reads from this data input the length of the data within the input. The implementation may
-     * read all the data, or just some special serialized data, as needed to find out the length of
-     * the data.
-     *
-     * @param input The input to use
-     * @return The length of the data item in the input
-     * @throws ParseException If parsing fails
-     */
-    public int measure(@NonNull final ReadableSequentialData input) throws ParseException {
-        final var start = input.position();
-        parse(input);
-        final var end = input.position();
-        return (int) (end - start);
-    }
-
-    /**
      * Compute number of bytes that would be written when calling {@code write()} method.
      *
      * @param data The input model data to measure write bytes for
@@ -238,23 +225,6 @@ public final class AccountIdProtoCodec implements Codec<AccountId> {
      */
     public int measureRecord(AccountId data) {
         return data.protobufSize();
-    }
-
-    /**
-     * Compares the given item with the bytes in the input, and returns false if it determines that
-     * the bytes in the input could not be equal to the given item. Sometimes we need to compare an
-     * item in memory with serialized bytes and don't want to incur the cost of deserializing the
-     * entire object, when we could have determined the bytes do not represent the same object very
-     * cheaply and quickly.
-     *
-     * @param item The item to compare. Cannot be null.
-     * @param input The input with the bytes to compare
-     * @return true if the bytes represent the item, false otherwise.
-     * @throws ParseException If parsing fails
-     */
-    public boolean fastEquals(@NonNull AccountId item, @NonNull final ReadableSequentialData input)
-            throws ParseException {
-        return item.equals(parse(input));
     }
 
     /**

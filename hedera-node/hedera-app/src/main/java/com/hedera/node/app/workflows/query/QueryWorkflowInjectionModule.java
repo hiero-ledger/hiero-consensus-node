@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.query;
 
-import com.hedera.hapi.node.base.ResponseType;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.components.QueryInjectionComponent;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.file.impl.handlers.FileHandlers;
@@ -14,7 +14,6 @@ import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.token.impl.handlers.TokenHandlers;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.records.RecordCache;
-import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
@@ -29,7 +28,6 @@ import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
 
@@ -38,13 +36,11 @@ import javax.inject.Singleton;
  */
 @Module(subcomponents = {QueryInjectionComponent.class})
 public interface QueryWorkflowInjectionModule {
-    Runnable NO_OP = () -> {};
-
     @Provides
     @Singleton
     @UserQueries
     static QueryWorkflow provideUserQueryWorkflow(
-            @NonNull final Function<ResponseType, AutoCloseableWrapper<State>> stateAccessor,
+            @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final SubmissionManager submissionManager,
             @NonNull final QueryChecker queryChecker,
             @NonNull final IngestChecker ingestChecker,
@@ -80,7 +76,7 @@ public interface QueryWorkflowInjectionModule {
     @Singleton
     @OperatorQueries
     static QueryWorkflow provideOperatorQueryWorkflow(
-            @NonNull final Function<ResponseType, AutoCloseableWrapper<State>> stateAccessor,
+            @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final SubmissionManager submissionManager,
             @NonNull final QueryChecker queryChecker,
             @NonNull final IngestChecker ingestChecker,
@@ -113,20 +109,14 @@ public interface QueryWorkflowInjectionModule {
     }
 
     @Provides
-    @Singleton
-    static Function<ResponseType, AutoCloseableWrapper<State>> provideStateAccess(
-            @NonNull final WorkingStateAccessor workingStateAccessor) {
-        return responseType -> new AutoCloseableWrapper<>(workingStateAccessor.getState(), NO_OP);
-    }
-
-    @Provides
     static QueryHandlers provideQueryHandlers(
             @NonNull final ConsensusHandlers consensusHandlers,
             @NonNull final FileHandlers fileHandlers,
             @NonNull final NetworkAdminHandlers networkHandlers,
             @NonNull final Supplier<ContractHandlers> contractHandlers,
             @NonNull final ScheduleHandlers scheduleHandlers,
-            @NonNull final TokenHandlers tokenHandlers) {
+            @NonNull final TokenHandlers tokenHandlers,
+            @NonNull final ClprHandlers clprHandlers) {
         return new QueryHandlers(
                 consensusHandlers.consensusGetTopicInfoHandler(),
                 contractHandlers.get().contractGetBySolidityIDHandler(),
@@ -152,7 +142,9 @@ public interface QueryWorkflowInjectionModule {
                 tokenHandlers.tokenGetInfoHandler(),
                 tokenHandlers.tokenGetAccountNftInfosHandler(),
                 tokenHandlers.tokenGetNftInfoHandler(),
-                tokenHandlers.tokenGetNftInfosHandler());
+                tokenHandlers.tokenGetNftInfosHandler(),
+                clprHandlers.clprGetLedgerConfigurationHandler(),
+                clprHandlers.clprGetEndpointManifestHandler());
     }
 
     @Provides

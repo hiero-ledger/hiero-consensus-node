@@ -1,36 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.dispatch;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.NO_DUPLICATE;
+import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.OTHER_NODE;
+import static com.hedera.node.app.state.HederaRecordCache.DuplicateCheckResult.SAME_NODE;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newCreatorError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newGenesisWaiver;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerUniqueError;
+import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.NODE_DUE_DILIGENCE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.annotations.LiveConsensusNode;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.signature.DefaultKeyVerifier;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
+import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.handle.Dispatch;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -50,11 +60,11 @@ public class DispatchValidator {
     private final AppFeeCharging feeCharging;
 
     /**
-     * True on every live consensus node (genesis/restart/reconnect), false only in the in-process standalone
-     * transaction executor. Supplied as a per-component constant (see {@link LiveConsensusNode}), so it does not
-     * depend on how the node booted or on incidental state such as whether a block record manager is present.
+     * Decides whether a NODE-category dispatch with a non-node-controlled payer must be rejected. A live consensus node
+     * enforces this; the in-process standalone transaction executor binds a no-op. Encapsulated behind a policy object
+     * so this validator does not need to know why the standalone executor is exempt, only whether to reject.
      */
-    private final boolean liveConsensusNode;
+    private final NodeControlledPayerGuard nodeControlledPayerGuard;
 
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
@@ -66,7 +76,7 @@ public class DispatchValidator {
      * @param transactionChecker the transaction checker
      * @param feeCharging the fee-charging strategy
      * @param systemEntitiesCreatedFlag the genesis system-entities-created flag (present only on a genesis boot)
-     * @param liveConsensusNode true on a live consensus node, false in the standalone transaction executor
+     * @param nodeControlledPayerGuard the NODE-category foreign-payer guard for this component
      */
     @Inject
     public DispatchValidator(
@@ -74,12 +84,12 @@ public class DispatchValidator {
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final AppFeeCharging feeCharging,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
-            @LiveConsensusNode final boolean liveConsensusNode) {
+            @NonNull final NodeControlledPayerGuard nodeControlledPayerGuard) {
         this.recordCache = requireNonNull(recordCache);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.feeCharging = requireNonNull(feeCharging);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
-        this.liveConsensusNode = liveConsensusNode;
+        this.nodeControlledPayerGuard = requireNonNull(nodeControlledPayerGuard);
     }
 
     /**
@@ -94,70 +104,57 @@ public class DispatchValidator {
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             return newGenesisWaiver(dispatch.creatorInfo().accountId());
         }
-        // A NODE-category dispatch skips payer-signature verification below, so its payer MUST be
-        // node-controlled: the system admin account (synthetic system transactions) or the creator
-        // node's own account (gossiped node-submitted votes that the node pays for itself). Any other
-        // payer means a node is charging a foreign account it never authorized; treat it as a node
-        // due-diligence failure so the creator node is charged instead of the named payer. Genesis is
-        // already waived above. This applies on every live consensus node regardless of how it booted
-        // (genesis/restart/reconnect); only the in-process standalone transaction executor is exempt,
-        // since it has no gossip source and legitimately dispatches NODE transactions with a chosen payer.
-        if (liveConsensusNode && dispatch.txnCategory() == NODE && !payerIsNodeControlled(dispatch)) {
+        // A NODE-category dispatch skips payer-signature verification below, so its payer MUST be node-controlled.
+        // Any other payer means a node is charging a foreign account it never authorized; treat it as a node
+        // due-diligence failure so the creator node is charged instead of the named payer. Genesis is already waived
+        // above. The guard enforces this on a live consensus node and is a no-op in the standalone executor, which
+        // legitimately dispatches NODE transactions with a caller-chosen payer.
+        if (nodeControlledPayerGuard.rejectsForeignNodePayer(dispatch)) {
             return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_ACCOUNT_ID);
         }
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {
             return newCreatorError(dispatch.creatorInfo().accountId(), creatorError);
-        } else {
-            final var payer =
-                    getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
-            final var category = dispatch.txnCategory();
-            // Check payer signature for all batch inner transactions, scheduled, and user transactions
-            final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH_INNER;
-            if (requiresPayerSig && !isHollow(payer)) {
-                // Skip payer verification for hollow accounts because ingest only submits valid signatures
-                // for hollow payers; and if an account is still hollow here, its alias cannot have changed
-                final var verification = dispatch.keyVerifier().verificationFor(payer.keyOrThrow());
-                if (verification.failed()) {
-                    return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
-                }
+        }
+        final var payer = getPayerAccount(dispatch.readableStoreFactory(), dispatch.payerId(), dispatch.txnCategory());
+        final var category = dispatch.txnCategory();
+        // Check payer signature for all batch inner transactions, scheduled, and user transactions
+        final var requiresPayerSig = category == SCHEDULED || category == USER || category == BATCH_INNER;
+        if (requiresPayerSig) {
+            // A hollow payer has no key to verify against; it is authorized by a signature from the key behind
+            // its alias. Ingest checks that signature, but a transaction can reach consensus without passing
+            // any node's ingest, so it must be verified here, before the payer is charged
+            final var verification = isHollow(payer)
+                    ? dispatch.keyVerifier().verificationFor(payer.alias())
+                    : dispatch.keyVerifier()
+                            .verificationFor(KeyRequirement.forAccount(payer.accountIdOrThrow(), payer.keyOrThrow()));
+            if (verification.failed()) {
+                return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_SIGNATURE);
             }
-            final var duplicateCheckResult = category != USER && category != NODE && category != BATCH_INNER
-                    ? NO_DUPLICATE
-                    : recordCache.hasDuplicate(
-                            dispatch.txnInfo().txBody().transactionIDOrThrow(),
-                            dispatch.creatorInfo().nodeId());
-            return switch (duplicateCheckResult) {
-                case NO_DUPLICATE -> getFinalPayerValidation(payer, DuplicateStatus.NO_DUPLICATE, dispatch);
-                case SAME_NODE -> newCreatorError(dispatch.creatorInfo().accountId(), DUPLICATE_TRANSACTION);
-                case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
-            };
         }
-    }
-
-    /**
-     * Returns whether the given dispatch's payer is permitted for a NODE-category transaction, which skips
-     * payer-signature verification. Only two payers are node-controlled and therefore legitimate: the configured
-     * system admin account (used by synthetically dispatched system transactions such as node fee payments) and
-     * the creator node's own account (used by gossiped node-submitted votes the node pays for itself).
-     *
-     * @param dispatch the dispatch
-     * @return true if the payer is the system admin account or the creator node's own account
-     */
-    private boolean payerIsNodeControlled(@NonNull final Dispatch dispatch) {
-        final var payerId = dispatch.payerId();
-        if (payerId.equals(dispatch.creatorInfo().accountId())) {
-            return true;
-        }
-        final var config = dispatch.config();
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
-        final var accountsConfig = config.getConfigData(AccountsConfig.class);
-        final var systemAdminId = AccountID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .accountNum(accountsConfig.systemAdmin())
-                .build();
-        return payerId.equals(systemAdminId);
+        final var duplicateCheckResult = category != USER && category != NODE && category != BATCH_INNER
+                ? NO_DUPLICATE
+                : recordCache.hasDuplicate(
+                        dispatch.txnInfo().txBody().transactionIDOrThrow(),
+                        dispatch.creatorInfo().nodeId());
+        return switch (duplicateCheckResult) {
+            case NO_DUPLICATE -> {
+                // An atomic batch is only as valid as its inner transactions, and ingest checks each of them against
+                // the same state the batch is about to run on. So before any inner runs, repeat those per-inner checks
+                // here; an inner that fails one is a batch the submitting node should have rejected, and the node is
+                // charged for it as for any other due-diligence failure. (An inner that fails later, while the batch
+                // runs, was made to fail by an earlier inner and is the batch payer's problem, not the node's.)
+                // Only a batch that is about to run has its inners checked: a duplicate batch never runs them, and a
+                // copy re-sent through other nodes must charge its payer as any other duplicate does, not each node
+                // for an inner that the first copy made fail.
+                final var innerCreatorError = innerCreatorErrorIfKnown(dispatch);
+                yield innerCreatorError != null
+                        ? newCreatorError(dispatch.creatorInfo().accountId(), innerCreatorError)
+                        : getFinalPayerValidation(payer, DuplicateStatus.NO_DUPLICATE, dispatch);
+            }
+            case SAME_NODE -> newCreatorError(dispatch.creatorInfo().accountId(), DUPLICATE_TRANSACTION);
+            case OTHER_NODE -> getFinalPayerValidation(payer, DuplicateStatus.DUPLICATE, dispatch);
+        };
     }
 
     /**
@@ -212,6 +209,100 @@ public class DispatchValidator {
             case SO_FAR_SO_GOOD -> getExpiryError(dispatch);
             case UNKNOWN_FAILURE, PAYER_UNWILLING_OR_UNABLE_TO_PAY_SERVICE_FEE, PRE_HANDLE_FAILURE -> null;
         };
+    }
+
+    /**
+     * For a top-level atomic batch, returns the first status with which one of its inner transactions fails a check
+     * the submitting node must have passed it through at ingest; or null if every inner passes them all, or the
+     * dispatch is not a top-level atomic batch.
+     * <p>
+     * Each inner is checked on its own against the state the batch starts from, exactly as ingest checks it: the
+     * pre-handle result (recomputed at handle time, so it reflects that state), the timebox, that the payer exists
+     * and is not deleted, the payer signature, a duplicate submitted by the same node, and the payer's solvency for
+     * that inner's fees, including that its offered fee covers them. The fees are computed the way the inner's own
+     * dispatch computes them, so the two agree.
+     *
+     * @param dispatch the dispatch
+     * @return the status of the first inner that fails an ingest-level check, or null if none does
+     */
+    @Nullable
+    private ResponseCodeEnum innerCreatorErrorIfKnown(@NonNull final Dispatch dispatch) {
+        if (dispatch.txnCategory() != USER || dispatch.txnInfo().functionality() != ATOMIC_BATCH) {
+            return null;
+        }
+        final var innerResults = dispatch.preHandleResult().innerResults();
+        if (innerResults == null) {
+            return null;
+        }
+        final var creatorInfo = dispatch.creatorInfo();
+        final var accountStore = dispatch.readableStoreFactory().readableStore(ReadableAccountStore.class);
+        final var hederaConfig = dispatch.config().getConfigData(HederaConfig.class);
+        for (final var innerResult : innerResults) {
+            if (innerResult.status() == NODE_DUE_DILIGENCE_FAILURE) {
+                return innerResult.responseCode();
+            }
+            final var txInfo = innerResult.txInfo();
+            if (txInfo == null) {
+                continue;
+            }
+            final var body = txInfo.txBody();
+            try {
+                transactionChecker.checkTimeBox(
+                        body, dispatch.consensusNow(), TransactionChecker.RequireMinValidLifetimeBuffer.NO);
+            } catch (PreCheckException e) {
+                return e.responseCode();
+            }
+            final var payerId = txInfo.payerID();
+            final var payer = accountStore.getAccountById(payerId);
+            if (payer == null) {
+                return PAYER_ACCOUNT_NOT_FOUND;
+            } else if (payer.deleted()) {
+                return PAYER_ACCOUNT_DELETED;
+            }
+            // A hollow inner payer's alias signature is checked when the inner itself is dispatched
+            if (!isHollow(payer)) {
+                final var verifier = new DefaultKeyVerifier(hederaConfig, innerResult.getVerificationResults());
+                if (verifier.verificationFor(payer.keyOrThrow()).failed()) {
+                    return INVALID_PAYER_SIGNATURE;
+                }
+            }
+            final var duplicateCheckResult =
+                    recordCache.hasDuplicate(body.transactionIDOrThrow(), creatorInfo.nodeId());
+            if (duplicateCheckResult == SAME_NODE) {
+                return DUPLICATE_TRANSACTION;
+            }
+            // Ingest computes the same fees for the inner, so a body whose fees cannot be computed would have
+            // failed there too; report it as the node's error instead of letting it escape the dispatch
+            final Fees fees;
+            try {
+                fees = dispatch.handleContext()
+                        .dispatchComputeFees(body, payerId, ComputeDispatchFeesAsTopLevel.YES, txInfo.signatureMap());
+            } catch (HandleException e) {
+                return e.getStatus();
+            }
+            final var validation = feeCharging.validate(
+                    payer,
+                    creatorInfo.accountId(),
+                    // Ingest compares the offered fee and the payer balance against the fees without the service
+                    // component, so do the same here; otherwise an inner that ingest accepts could be rejected
+                    fees.withoutServiceComponent(),
+                    body,
+                    duplicateCheckResult == OTHER_NODE,
+                    txInfo.functionality(),
+                    // Validate as ingest does, which treats each inner as a top-level transaction (including the
+                    // check that the offered fee covers the fees), so that a failure here is exactly one that the
+                    // submitting node should have caught
+                    USER);
+            // Only a failure the submitting node should have caught is the node's error. A payer whose balance
+            // dropped after ingest below the node fee is charged by the inner's own dispatch, as a top-level
+            // transaction would be; but an offered fee below the fees stays the node's error, since the inner's
+            // own dispatch does not check it.
+            final var status = validation.maybeErrorStatus();
+            if (status != null && (!validation.creatorDidDueDiligence() || status == INSUFFICIENT_TX_FEE)) {
+                return status;
+            }
+        }
+        return null;
     }
 
     /**

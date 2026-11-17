@@ -224,6 +224,14 @@ jobs:
           git config --global core.autocrlf false
           git config --global core.eol lf
 
+      # setup-gradle keeps an existing ~/.gradle, which can sit on a different drive than the checkout
+      # (windows-2022 20261025.346.1 (and later) ships C:\Users\runneradmin\.gradle with the checkout on D:).
+      # The PBJ compiler cannot relativize paths across drives, so place the Gradle User Home next
+      # to the checkout.
+      - name: Keep Gradle User Home on the Workspace Drive (Windows)
+        if: ${{ runner.os == 'Windows' }}
+        run: printf 'GRADLE_USER_HOME=%s\\.gradle\n' "${RUNNER_WORKSPACE%\\*}" >> "${GITHUB_ENV}"
+
       - name: Prepare Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:

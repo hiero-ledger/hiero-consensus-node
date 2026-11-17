@@ -1,5 +1,55 @@
 {
   "buckets": [
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprBundles",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprSubmitBundle"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprUpdateLedgerConfiguration",
+            "ClprRegisterChannel",
+            "ClprCompleteChannel",
+            "ClprCloseChannel",
+            "ClprEvictPeerEndpoint",
+            "ClprRegisterConnector",
+            "ClprCompleteConnector",
+            "ClprDeregisterConnector"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprQueryLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 1000000,
+          "operations": [
+            "ClprGetLedgerConfiguration",
+            "ClprGetEndpointManifest"
+          ]
+        }
+      ]
+    },
 	{
 	  "name": "ThroughputLimits",
 	  "burstPeriod": 1,
@@ -43,7 +93,17 @@
 			"RegisteredNodeCreate",
 			"RegisteredNodeUpdate",
 			"RegisteredNodeDelete",
-		  	"AtomicBatch"
+				"AtomicBatch",
+				"ClprUpdateLedgerConfiguration",
+				"ClprRegisterChannel",
+				"ClprCompleteChannel",
+				"ClprCloseChannel",
+				"ClprEvictPeerEndpoint",
+				"ClprRegisterConnector",
+				"ClprCompleteConnector",
+				"ClprDeregisterConnector",
+				"ClprGetLedgerConfiguration",
+				"ClprGetEndpointManifest"
 		  ]
 		},
 		{
@@ -153,7 +213,6 @@
 		{
 		  "opsPerSec": 1000000,
 		  "operations": [
-			"CryptoGetAccountBalance",
 			"TransactionGetReceipt"
 		  ]
 		}

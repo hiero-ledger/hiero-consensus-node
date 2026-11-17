@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
@@ -129,14 +130,31 @@ public class DispatchProcessor {
      */
     public void processDispatch(
             @NonNull final Dispatch dispatch, @Nullable final Details hollowAccountCompletionsDetails) {
+        processDispatch(dispatch, hollowAccountCompletionsDetails, false);
+    }
+
+    /**
+     * Processes a submitted or scheduled transaction using normal fee charging, with an optional block-capacity
+     * rejection.
+     */
+    public void processDispatch(
+            @NonNull final Dispatch dispatch,
+            @Nullable final Details hollowAccountCompletionsDetails,
+            final boolean blockFull) {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.debug(
+                        "[CLPR-DISPATCH] creator due diligence failed; charging creator txId={} status={}",
+                        dispatch.txnInfo().transactionID(),
+                        validation.errorStatusOrThrow());
+            }
             chargeCreator(dispatch, validation);
         } else {
             final var fees = chargePayer(dispatch, validation, false);
             if (!alreadyFailed(dispatch, validation)) {
-                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails);
+                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails, blockFull);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -159,10 +177,14 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final Fees fees,
-            @Nullable final HollowAccountCompletions.Details details) {
+            @Nullable final HollowAccountCompletions.Details details,
+            final boolean blockFull) {
         final var functionality = dispatch.txnInfo().functionality();
         boolean success = false;
         try {
+            if (blockFull) {
+                throw ThrottleException.newNativeThrottleException();
+            }
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
             dispatch.streamBuilder().status(SUCCESS);
@@ -176,18 +198,40 @@ public class DispatchProcessor {
             handleSystemUpdates(dispatch);
             success = true;
         } catch (HandleException e) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.debug(
+                        "[CLPR-DISPATCH] HandleException txId={} status={} message={}",
+                        dispatch.txnInfo().transactionID(),
+                        e.getStatus(),
+                        e.getMessage());
+            }
             final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
             feeCharging.rollback();
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
             chargePayer(dispatch, validation, false);
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.debug(
+                        "[CLPR-DISPATCH] throttled txId={} status={} message={}",
+                        dispatch.txnInfo().transactionID(),
+                        e.getStatus(),
+                        e.getMessage());
+            }
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
             if (functionality == ETHEREUM_TRANSACTION) {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
         } catch (Exception e) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.error(
+                        "[CLPR-DISPATCH] unexpected exception txId={} category={} payer={}",
+                        dispatch.txnInfo().transactionID(),
+                        dispatch.txnCategory(),
+                        dispatch.payerId(),
+                        e);
+            }
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
         }
@@ -247,6 +291,14 @@ public class DispatchProcessor {
      */
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         dispatch.streamBuilder().status(validation.errorStatusOrThrow());
+        if (isClprSubmitBundle(dispatch)) {
+            logger.debug(
+                    "[CLPR-DISPATCH] charge creator txId={} creator={} networkFee={} status={}",
+                    dispatch.txnInfo().transactionID(),
+                    dispatch.creatorInfo().accountId(),
+                    dispatch.fees().networkFee(),
+                    validation.errorStatusOrThrow());
+        }
         // If the transaction is a batch inner transaction, we don't charge the creator
         if (dispatch.category() == BATCH_INNER) {
             return;
@@ -297,6 +349,11 @@ public class DispatchProcessor {
             @NonNull final FeeAccumulator feeAccumulator) {
         builder.status(status);
         stack.rollbackFullStack();
+        // The full-stack rollback reverts the ledger effects of the discarded charge (payer debit and
+        // fee collection credit) and the savepoint's node-fee reward counter, but it cannot reach the
+        // block-scoped node-payments accumulator. Reverse that accumulation here, before the tracked
+        // amounts are cleared, so the payer re-charge that follows does not double-count the node fee.
+        feeAccumulator.reverseAccumulatedNodeFees();
         feeAccumulator.resetRefundableFees();
     }
 
@@ -311,19 +368,47 @@ public class DispatchProcessor {
      */
     private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         if (validation.maybeErrorStatus() != null) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.debug(
+                        "[CLPR-DISPATCH] skipping handler due to validation error txId={} status={}",
+                        dispatch.txnInfo().transactionID(),
+                        validation.errorStatusOrThrow());
+            }
             dispatch.streamBuilder().status(validation.errorStatusOrThrow());
             return true;
         }
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);
         if (authorizationFailure != null) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.debug(
+                        "[CLPR-DISPATCH] skipping handler due to authorization failure txId={} status={} "
+                                + "category={} payer={}",
+                        dispatch.txnInfo().transactionID(),
+                        authorizationFailure,
+                        dispatch.txnCategory(),
+                        dispatch.payerId());
+            }
             dispatch.streamBuilder().status(authorizationFailure);
             return true;
         }
         if (failsSignatureVerification(dispatch)) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.debug(
+                        "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
+                                + "requiredKeyRequirements={} hollowAccounts={}",
+                        dispatch.txnInfo().transactionID(),
+                        dispatch.requiredKeyRequirements().size(),
+                        dispatch.hollowAccounts().size());
+            }
             dispatch.streamBuilder().status(INVALID_SIGNATURE);
             return true;
         }
         return false;
+    }
+
+    private static boolean isClprSubmitBundle(@NonNull final Dispatch dispatch) {
+        final var txnInfo = dispatch.txnInfo();
+        return txnInfo != null && txnInfo.functionality() == CLPR_SUBMIT_BUNDLE;
     }
 
     /**
@@ -366,8 +451,8 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private boolean failsSignatureVerification(@NonNull final Dispatch dispatch) {
-        for (final var key : dispatch.requiredKeys()) {
-            final var verification = dispatch.keyVerifier().verificationFor(key);
+        for (final var requirement : dispatch.requiredKeyRequirements()) {
+            final var verification = dispatch.keyVerifier().verificationFor(requirement);
             if (verification.failed()) {
                 return true;
             }

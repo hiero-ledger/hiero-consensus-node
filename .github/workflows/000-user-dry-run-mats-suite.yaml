@@ -32,8 +32,8 @@ on:
         type: boolean
         required: false
         default: true
-      enable-snyk-scan:
-        description: "Snyk Scan Enabled"
+      enable-falcon-tests:
+        description: "Falcon Tests Enabled"
         type: boolean
         required: false
         default: true
@@ -47,6 +47,11 @@ on:
         type: boolean
         required: false
         default: true
+      enable-evm-functional-tests:
+        description: "EVM Functional Tests Enabled (one solo deployment per shard; PR checks enable them only for smart-contract changes)"
+        type: boolean
+        required: false
+        default: false
       custom-job-label:
         description: "Custom Job Label"
         type: string
@@ -86,16 +91,11 @@ jobs:
       enable-unit-tests: "${{ inputs.enable-unit-tests || 'false' }}"
       enable-integration-tests: "${{ inputs.enable-integration-tests || 'false' }}"
       enable-hapi-tests: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-simple-fees-and-nd-reconnect: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests || 'false' }}"
-      enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests || 'false' }}"
       enable-otter-tests: "${{ inputs.enable-otter-tests || 'false' }}"
-      enable-snyk-scan: "${{ inputs.enable-snyk-scan || 'false' }}"
+      enable-falcon-tests: "${{ inputs.enable-falcon-tests || 'false' }}"
       enable-gradle-determinism: "${{ inputs.enable-gradle-determinism || 'false' }}"
       enable-docker-determinism: "${{ inputs.enable-docker-determinism || 'false' }}"
+      enable-evm-functional-tests: "${{ inputs.enable-evm-functional-tests || 'false' }}"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       java-distribution: "temurin"
       custom-job-label: "${{ inputs.custom-job-label || 'MATS (dry-run):' }}"
@@ -105,4 +105,16 @@ jobs:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
+
+  # Never gates the run: nothing depends on it and a failure inside it does not fail this run. See docs/ci-metrics.md.
+  publish-run-metrics:
+    name: Publish Run Metrics
+    needs:
+      - extract-jdk-version
+      - mats-tests
+    if: ${{ always() && github.event.repository.visibility == 'public' }}
+    uses: ./.github/workflows/865-call-publish-run-metrics.yaml
+    with:
+      context: >-
+        ${{ format('{{"ref_name":{0},"head_sha":{1},"failure_mode":{2}}}',
+        toJSON(github.ref_name), toJSON(github.sha), toJSON(needs.mats-tests.outputs.failure-mode)) }}

@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.network;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.otter.fixtures.InstrumentedNode;
+import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
 
 /**
@@ -52,6 +53,31 @@ public interface GeoMeshTopology extends MeshTopology {
     InstrumentedNode addInstrumentedNode(@NonNull final String continent, @NonNull final String region);
 
     /**
+     * Adds a single mini-node to the network in the specified geographic location.
+     *
+     * @param continent the continent for the new mini-node
+     * @param region the region within the continent for the new mini-node
+     * @return the created mini-node
+     * @throws NullPointerException if {@code continent} or {@code region} is {@code null}
+     */
+    @NonNull
+    default MiniNode addMiniNode(@NonNull final String continent, @NonNull final String region) {
+        return addMiniNodes(1, continent, region).getFirst();
+    }
+
+    /**
+     * Adds multiple mini-nodes to the network in the specified geographic location.
+     *
+     * @param count the number of mini-nodes to add
+     * @param continent the continent for the new mini-nodes
+     * @param region the region within the continent for the new mini-nodes
+     * @return list of created mini-nodes
+     * @throws NullPointerException if {@code continent} or {@code region} is {@code null}
+     */
+    @NonNull
+    List<MiniNode> addMiniNodes(int count, @NonNull String continent, @NonNull String region);
+
+    /**
      * Gets the continent of the specified node.
      *
      * @param node the node to query
@@ -60,7 +86,7 @@ public interface GeoMeshTopology extends MeshTopology {
      * @throws IllegalArgumentException if the node is not part of this topology
      */
     @NonNull
-    String getContinent(@NonNull Node node);
+    String getContinent(@NonNull MiniNode node);
 
     /**
      * Gets the region of the specified node.
@@ -71,5 +97,5 @@ public interface GeoMeshTopology extends MeshTopology {
      * @throws IllegalArgumentException if the node is not part of this topology
      */
     @NonNull
-    String getRegion(@NonNull Node node);
+    String getRegion(@NonNull MiniNode node);
 }

@@ -1,0 +1,264 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.otter.fixtures.junit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.lang.reflect.Method;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import org.hiero.otter.fixtures.FalconTest;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ConditionEvaluationResult;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
+import org.junit.jupiter.params.provider.ValueSource;
+
+/**
+ * Tests the {@link FalconTest#failureThreshold()} support of {@link FalconTestExtension}.
+ */
+@DisplayName("Falcon failure threshold Test")
+class FalconFailureThresholdTest {
+
+    private final FalconTestExtension extension = new FalconTestExtension();
+
+    @Test
+    @DisplayName("By default a sweep stops after the first failed repetition")
+    void sweepStopsAfterFirstFailureByDefault() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("defaultThreshold");
+        assertThat(repetitions).hasSize(3);
+
+        // The first repetition runs and fails, which already reaches the default threshold of one.
+        assertThat(isDisabled(repetitions.get(0))).isFalse();
+        fail(repetitions.get(0));
+
+        assertThat(isDisabled(repetitions.get(1))).isTrue();
+        assertThat(isDisabled(repetitions.get(2))).isTrue();
+    }
+
+    @Test
+    @DisplayName("A threshold of Integer.MAX_VALUE runs every repetition, no matter how many fail")
+    void maxValueThresholdRunsEveryRepetition() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("noEarlyStop");
+        assertThat(repetitions).hasSize(3);
+
+        for (final FalconFailureThresholdExtension repetition : repetitions) {
+            assertThat(isDisabled(repetition)).isFalse();
+            fail(repetition);
+        }
+    }
+
+    @Test
+    @DisplayName("A sweep skips the remaining repetitions once the threshold is reached")
+    void sweepStopsOnceThresholdIsReached() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("thresholdOfTwo");
+        assertThat(repetitions).hasSize(5);
+
+        // The first repetition runs and fails, which leaves the sweep one failure short of the threshold.
+        assertThat(isDisabled(repetitions.get(0))).isFalse();
+        fail(repetitions.get(0));
+
+        // The second repetition still runs, and its failure reaches the threshold.
+        assertThat(isDisabled(repetitions.get(1))).isFalse();
+        fail(repetitions.get(1));
+
+        // All remaining repetitions are skipped.
+        assertThat(isDisabled(repetitions.get(2))).isTrue();
+        assertThat(isDisabled(repetitions.get(3))).isTrue();
+        assertThat(isDisabled(repetitions.get(4))).isTrue();
+    }
+
+    @Test
+    @DisplayName("Repetitions that pass do not count towards the threshold")
+    void passingRepetitionsDoNotCountTowardsTheThreshold() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("thresholdOfTwo");
+
+        // The first repetition fails, the next two pass, so the sweep keeps going.
+        assertThat(isDisabled(repetitions.get(0))).isFalse();
+        fail(repetitions.get(0));
+        assertThat(isDisabled(repetitions.get(1))).isFalse();
+        assertThat(isDisabled(repetitions.get(2))).isFalse();
+
+        // Only the failure of the fourth repetition reaches the threshold.
+        assertThat(isDisabled(repetitions.get(3))).isFalse();
+        fail(repetitions.get(3));
+        assertThat(isDisabled(repetitions.get(4))).isTrue();
+    }
+
+    @Test
+    @DisplayName("A replay of a pinned seed has no failure threshold")
+    void replayHasNoFailureThreshold() {
+        final List<TestTemplateInvocationContext> contexts = extension
+                .provideTestTemplateInvocationContexts(contextFor("replayWithThreshold"))
+                .toList();
+
+        assertThat(contexts).hasSize(1);
+        assertThat(contexts.getFirst().getAdditionalExtensions())
+                .noneMatch(FalconFailureThresholdExtension.class::isInstance);
+    }
+
+    @Test
+    @DisplayName("Every argument set runs a sweep of its own, one argument set after the other")
+    void everyArgumentSetRunsItsOwnSweep() {
+        final List<TestTemplateInvocationContext> contexts = extension
+                .provideTestTemplateInvocationContexts(contextFor("twoArgumentSets"))
+                .toList();
+
+        assertThat(contexts).hasSize(6);
+        assertThat(contexts.subList(0, 3))
+                .allMatch(context -> context.getDisplayName(0).startsWith("twoArgumentSets [1] "));
+        assertThat(contexts.subList(3, 6))
+                .allMatch(context -> context.getDisplayName(0).startsWith("twoArgumentSets [2] "));
+    }
+
+    @Test
+    @DisplayName("A failing argument set does not skip the sweeps of the other argument sets")
+    void failingArgumentSetDoesNotSkipOtherArgumentSets() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("twoArgumentSets");
+
+        // The first repetition of the first argument set fails, which reaches the default threshold of one.
+        assertThat(isDisabled(repetitions.get(0))).isFalse();
+        fail(repetitions.get(0));
+        assertThat(isDisabled(repetitions.get(1))).isTrue();
+        assertThat(isDisabled(repetitions.get(2))).isTrue();
+
+        // The sweep of the second argument set runs in full.
+        assertThat(isDisabled(repetitions.get(3))).isFalse();
+        assertThat(isDisabled(repetitions.get(4))).isFalse();
+        assertThat(isDisabled(repetitions.get(5))).isFalse();
+    }
+
+    @Test
+    @DisplayName("The failure threshold is counted per argument set")
+    void thresholdIsCountedPerArgumentSet() {
+        final List<FalconFailureThresholdExtension> repetitions = repetitionsOf("twoArgumentSetsWithThresholdOfTwo");
+        assertThat(repetitions).hasSize(10);
+
+        // One repetition fails in each argument set. Together they would reach the threshold of two.
+        fail(repetitions.get(0));
+        fail(repetitions.get(5));
+
+        assertThat(repetitions.subList(1, 5)).noneMatch(FalconFailureThresholdTest::isDisabled);
+        assertThat(repetitions.subList(6, 10)).noneMatch(FalconFailureThresholdTest::isDisabled);
+    }
+
+    @Test
+    @DisplayName("A replay of a pinned seed runs once per argument set, without a failure threshold")
+    void replayRunsOncePerArgumentSet() {
+        final List<TestTemplateInvocationContext> contexts = extension
+                .provideTestTemplateInvocationContexts(contextFor("replayWithArguments"))
+                .toList();
+
+        assertThat(contexts)
+                .extracting(context -> context.getDisplayName(0))
+                .containsExactly(
+                        "replayWithArguments [1] [replay] seed=42L", "replayWithArguments [2] [replay] seed=42L");
+        assertThat(contexts)
+                .flatExtracting(TestTemplateInvocationContext::getAdditionalExtensions)
+                .noneMatch(FalconFailureThresholdExtension.class::isInstance);
+    }
+
+    @Test
+    @DisplayName("A threshold outside of the valid range is rejected")
+    void invalidThresholdIsRejected() {
+        for (final String testMethod : List.of("thresholdOfZero", "thresholdEqualToRepetitions", "negativeThreshold")) {
+            assertThatThrownBy(() -> extension
+                            .provideTestTemplateInvocationContexts(contextFor(testMethod))
+                            .toList())
+                    .as("threshold declared by %s", testMethod)
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("failure threshold");
+        }
+    }
+
+    /**
+     * Provides the invocation contexts of the given sample method and extracts the failure-threshold extension of every
+     * repetition, in sweep order.
+     */
+    private List<FalconFailureThresholdExtension> repetitionsOf(final String testMethod) {
+        return extension
+                .provideTestTemplateInvocationContexts(contextFor(testMethod))
+                .map(TestTemplateInvocationContext::getAdditionalExtensions)
+                .map(extensions -> extensions.stream()
+                        .filter(FalconFailureThresholdExtension.class::isInstance)
+                        .map(FalconFailureThresholdExtension.class::cast)
+                        .findFirst()
+                        .orElseThrow())
+                .toList();
+    }
+
+    /**
+     * Creates an extension context that reports the given sample method as the test method.
+     */
+    private static ExtensionContext contextFor(final String testMethod) {
+        final Method method = Arrays.stream(Samples.class.getDeclaredMethods())
+                .filter(candidate -> candidate.getName().equals(testMethod))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("No sample method named " + testMethod));
+        final ExtensionContext context = mock(ExtensionContext.class);
+        when(context.getElement()).thenReturn(Optional.of(method));
+        when(context.getRequiredTestMethod()).thenReturn(method);
+        doReturn(Samples.class).when(context).getRequiredTestClass();
+        return context;
+    }
+
+    /**
+     * Reports the failure of the repetition that the given extension belongs to.
+     */
+    private static void fail(final FalconFailureThresholdExtension repetition) {
+        repetition.testFailed(mock(ExtensionContext.class), new AssertionError("simulated failure"));
+    }
+
+    /**
+     * Evaluates whether the repetition that the given extension belongs to would be skipped.
+     */
+    private static boolean isDisabled(final FalconFailureThresholdExtension repetition) {
+        final ConditionEvaluationResult result = repetition.evaluateExecutionCondition(mock(ExtensionContext.class));
+        return result.isDisabled();
+    }
+
+    /**
+     * Holds the annotation declarations under test. This class is deliberately not a nested test class, so that JUnit
+     * does not discover the methods below as tests; they exist only as carriers of {@link FalconTest} declarations.
+     */
+    private static final class Samples {
+
+        @FalconTest(repetitions = 3)
+        void defaultThreshold() {}
+
+        @FalconTest(repetitions = 3, failureThreshold = Integer.MAX_VALUE)
+        void noEarlyStop() {}
+
+        @FalconTest(repetitions = 5, failureThreshold = 2)
+        void thresholdOfTwo() {}
+
+        @FalconTest(repetitions = 5, failureThreshold = 2, randomSeed = 42L)
+        void replayWithThreshold() {}
+
+        @FalconTest(repetitions = 5, failureThreshold = 0)
+        void thresholdOfZero() {}
+
+        @FalconTest(repetitions = 5, failureThreshold = 5)
+        void thresholdEqualToRepetitions() {}
+
+        @FalconTest(repetitions = 5, failureThreshold = -1)
+        void negativeThreshold() {}
+
+        @FalconTest(repetitions = 3)
+        @ValueSource(ints = {1, 2})
+        void twoArgumentSets(final int value) {}
+
+        @FalconTest(repetitions = 5, failureThreshold = 2)
+        @ValueSource(ints = {1, 2})
+        void twoArgumentSetsWithThresholdOfTwo(final int value) {}
+
+        @FalconTest(repetitions = 5, failureThreshold = 2, randomSeed = 42L)
+        @ValueSource(ints = {1, 2})
+        void replayWithArguments(final int value) {}
+    }
+}

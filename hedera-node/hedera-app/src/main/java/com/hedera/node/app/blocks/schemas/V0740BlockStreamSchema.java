@@ -2,17 +2,18 @@
 package com.hedera.node.app.blocks.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -113,24 +114,39 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         final var blockStreamInfoState = ctx.newStates().<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID);
         final var lastBlockStreamInfo = requireNonNull(blockStreamInfoState.get());
 
+        // Log the genuine pre-cutover (final preview-stream) trailing windows in a decoded, human-readable form
+        // before we overwrite them below. This is the only place the pre-cutover window is available: once
+        // overwritten, the restarted BlockStreamManager cannot reconstruct it.
+        final int activeDigestLength = config.digestType().digestLength();
+        log.info(
+                "{}",
+                BlockImplUtils.describeTrailingWindows(
+                        "BEFORE block-stream cutover (final pre-cutover window)",
+                        lastBlockStreamInfo.trailingBlockHashes(),
+                        lastBlockStreamInfo.trailingOutputHashes(),
+                        lastBlockStreamInfo.blockNumber(),
+                        activeDigestLength));
+
         // Step 2: Reshape hashes into the expected block stream format
         // 2.1. Record block hashes (excluding the last hash); BlockHashManager.startBlock() will append
         // prevBlockHash to trailingBlockHashes, so write all but the final record hash to avoid an off-by-one
         final var fullBlockHashes = blockInfo.blockHashes().toByteArray();
-        if (fullBlockHashes.length < HASH_SIZE) {
+        if (fullBlockHashes.length < RECORD_HASH_SIZE) {
             throw new IllegalStateException(
                     "Cutover requires at least one record block hash in BlockInfo.blockHashes, but found "
-                            + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
+                            + fullBlockHashes.length + " bytes (need >= " + RECORD_HASH_SIZE + ")");
         }
-        final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
-        // 2.2. Running hashes
+        final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - RECORD_HASH_SIZE);
+        // Zero-fill any empty predecessor running hashes so the reseeded window always holds four entries; this
+        // keeps the post-cutover length-decode unambiguous even when the first post-cutover block has <4 results.
         Bytes lastFourHashes =
-                appendHash(Bytes.wrap(runningHashes.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
+                appendHash(BlockImplUtils.fullRecordRunningHash(runningHashes.nMinus3RunningHash()), Bytes.EMPTY, 4);
         lastFourHashes =
-                appendHash(Bytes.wrap(runningHashes.nMinus2RunningHash().toByteArray()), lastFourHashes, 4);
+                appendHash(BlockImplUtils.fullRecordRunningHash(runningHashes.nMinus2RunningHash()), lastFourHashes, 4);
         lastFourHashes =
-                appendHash(Bytes.wrap(runningHashes.nMinus1RunningHash().toByteArray()), lastFourHashes, 4);
-        lastFourHashes = appendHash(Bytes.wrap(runningHashes.runningHash().toByteArray()), lastFourHashes, 4);
+                appendHash(BlockImplUtils.fullRecordRunningHash(runningHashes.nMinus1RunningHash()), lastFourHashes, 4);
+        lastFourHashes =
+                appendHash(BlockImplUtils.fullRecordRunningHash(runningHashes.runningHash()), lastFourHashes, 4);
         // 2.3. Wrapped prev record block root hashes
         final List<Bytes> wrappedPrevRecordBlockRootHashes = blockInfo.wrappedIntermediatePreviousBlockRootHashes();
 
@@ -181,20 +197,24 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         log.info(
                 "Using current preview stream state hash {} as the starting state hash for first block after cutover",
                 lastBlockStreamInfo.startOfBlockStateHash());
+        final var emptySubtreeRoot = BlockStreamManager.hashOfZero(config.digestType());
         final var cutoverBlockStreamInfo = lastBlockStreamInfo
                 .copyBuilder()
                 .blockNumber(blockInfo.lastBlockNumber())
                 .blockTime(blockInfo.firstConsTimeOfCurrentBlock())
                 .trailingOutputHashes(lastFourHashes)
                 .trailingBlockHashes(lastBlockHashes)
-                .inputTreeRootHash(HASH_OF_ZERO)
+                // The window is seeded with genuine 48-byte SHA2-384 record block hashes, i.e. padded (uncompacted)
+                // mode; it stays this way until no genuine hash remains and the post-cutover producer compacts it.
+                .trailingBlockHashesCompacted(false)
+                .inputTreeRootHash(emptySubtreeRoot)
                 .numPrecedingStateChangesItems(0)
                 .rightmostPrecedingStateChangesTreeHashes(List.of())
                 .blockEndTime(blockInfo.lastUsedConsTime())
                 .lastIntervalProcessTime(blockInfo.lastIntervalProcessTime())
                 .lastHandleTime(blockInfo.consTimeOfLastHandledTxn())
-                .consensusHeaderRootHash(HASH_OF_ZERO)
-                .traceDataRootHash(HASH_OF_ZERO)
+                .consensusHeaderRootHash(emptySubtreeRoot)
+                .traceDataRootHash(emptySubtreeRoot)
                 .intermediatePreviousBlockRootHashes(wrappedPrevRecordBlockRootHashes)
                 .intermediateBlockRootsLeafCount(blockInfo.wrappedIntermediateBlockRootsLeafCount())
                 .build();
@@ -223,6 +243,17 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                 cutoverBlockStreamInfo.lastHandleTime(),
                 cutoverBlockStreamInfo.intermediatePreviousBlockRootHashes(),
                 cutoverBlockStreamInfo.intermediateBlockRootsLeafCount());
+
+        // Decoded, human-readable view of the reseeded (post-cutover) trailing windows, to compare against the
+        // pre-cutover dump above. (The raw-hex dump above remains for exact machine verification.)
+        log.info(
+                "{}",
+                BlockImplUtils.describeTrailingWindows(
+                        "AFTER block-stream cutover (reseed window)",
+                        cutoverBlockStreamInfo.trailingBlockHashes(),
+                        cutoverBlockStreamInfo.trailingOutputHashes(),
+                        cutoverBlockStreamInfo.blockNumber(),
+                        activeDigestLength));
 
         // Signal that cutover was executed
         previewStreamOverwrittenMarker.run();

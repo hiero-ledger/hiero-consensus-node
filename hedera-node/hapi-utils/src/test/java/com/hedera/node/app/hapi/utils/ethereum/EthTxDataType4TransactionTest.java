@@ -40,7 +40,18 @@ class EthTxDataType4TransactionTest {
 
         final byte[] expectedAccessListBytes = RLPEncoder.sequence(accessListList);
 
-        final byte[] authorizationList = fillBytes(5, 0x40);
+        final byte[] authChainId = {0x01, 0x2A};
+        final byte[] authAddress = fillBytes(20, 0x99);
+        final int authNonce = 3;
+        final int authYParity = 1;
+        final byte[] authR = fillBytes(32, 0xB0);
+        final byte[] authS = fillBytes(32, 0xC0);
+        final Object[] authorizationEntry = {
+            authChainId, authAddress, Integers.toBytes(authNonce), Integers.toBytes(authYParity), authR, authS
+        };
+        final Object[] authorizationList = {authorizationEntry};
+        final byte[] expectedAuthorizationListBytes = RLPEncoder.sequence(authorizationList);
+
         final int recId = 27;
         final byte[] r = fillBytes(32, 0x90);
         final byte[] s = fillBytes(32, 0xA0);
@@ -55,7 +66,7 @@ class EthTxDataType4TransactionTest {
             Integers.toBytesUnsigned(BigInteger.valueOf(value)), // 6
             callData, // 7
             accessListList, // 8 (list)
-            authorizationList, // 9
+            authorizationList, // 9 (list)
             new byte[] {(byte) recId}, // 10
             r, // 11
             s // 12
@@ -88,14 +99,15 @@ class EthTxDataType4TransactionTest {
         assertArrayEquals(key1, (byte[]) firstKeys[0]);
         assertArrayEquals(key2, (byte[]) firstKeys[1]);
 
-        assertArrayEquals(authorizationList, tx.authorizationList());
+        assertArrayEquals(expectedAuthorizationListBytes, tx.authorizationList());
         assertEquals(recId, tx.recId());
         assertArrayEquals(r, tx.r());
         assertArrayEquals(s, tx.s());
     }
 
     @Test
-    void returnsEmptyWhenAuthorizationTopLevelNotList() {
+    void rejectsAuthorizationListThatIsNotAList() {
+        // Encodes to a plain RLP byte-string, not a list - malformed regardless of content.
         final byte[] auth = {0x01};
 
         final byte[] raw = buildType4Raw(
@@ -113,16 +125,43 @@ class EthTxDataType4TransactionTest {
                 fillBytes(32, 0x05),
                 fillBytes(32, 0x06));
 
+        // The transaction should be rejected at parse time rather than silently accepted with a
+        // malformed authorization list.
         final EthTxData tx = EthTxData.populateEthTxData(raw);
-        assertNotNull(tx);
+        assertNull(tx);
+    }
 
-        final var thrown = assertThrows(IllegalArgumentException.class, tx::extractCodeDelegations);
-        assertEquals("Authorization list item should be a list", thrown.getMessage());
+    @Test
+    void rejectsAuthorizationListThatIsEmptyButNotACanonicalList() {
+        // Encodes to the RLP empty byte-string token 0x80, not the canonical empty list token 0xc0.
+        final byte[] authorizationListIsEmptyByteString = new byte[0];
+
+        final byte[] raw = buildType4Raw(
+                fillBytes(2, 0x01),
+                1,
+                fillBytes(3, 0x02),
+                fillBytes(3, 0x03),
+                100,
+                fillBytes(20, 0x04),
+                0L,
+                new byte[] {},
+                new Object[] {}, // canonical empty access list
+                authorizationListIsEmptyByteString,
+                27,
+                fillBytes(32, 0x05),
+                fillBytes(32, 0x06));
+
+        // The transaction should be rejected at parse time rather than silently accepted with an
+        // empty authorization list.
+        final EthTxData tx = EthTxData.populateEthTxData(raw);
+        assertNull(tx);
     }
 
     @Test
     void extractCodeDelegationsThrowsWhenInnerItemNotList() {
-        final byte[] auth = {(byte) 0xC1, 0x01};
+        // Authorization list has one entry, and that entry is a single-element list (wrong element
+        // count - a genuine authorization entry must have exactly 6 elements).
+        final Object[] authorizationList = {new Object[] {new byte[] {0x01}}};
 
         final byte[] raw = buildType4Raw(
                 fillBytes(2, 0x0A),
@@ -134,7 +173,7 @@ class EthTxDataType4TransactionTest {
                 0L,
                 new byte[] {},
                 new Object[] {},
-                auth,
+                authorizationList,
                 28,
                 fillBytes(32, 0x0E),
                 fillBytes(32, 0x0F));
@@ -148,7 +187,9 @@ class EthTxDataType4TransactionTest {
 
     @Test
     void extractCodeDelegationsThrowsWhenTopLevelListSizeNotSix() {
-        final byte[] auth = {(byte) 0xC1, (byte) 0xC0};
+        // Authorization list has one entry, and that entry is a single-element list (wrong element
+        // count - a genuine authorization entry must have exactly 6 elements).
+        final Object[] authorizationList = {new Object[] {new Object[] {}}};
 
         final byte[] raw = buildType4Raw(
                 fillBytes(2, 0x1A),
@@ -160,7 +201,7 @@ class EthTxDataType4TransactionTest {
                 0L,
                 new byte[] {},
                 new Object[] {},
-                auth,
+                authorizationList,
                 29,
                 fillBytes(32, 0x1E),
                 fillBytes(32, 0x1F));
@@ -182,7 +223,7 @@ class EthTxDataType4TransactionTest {
             final long value,
             final byte[] callData,
             final Object[] accessListList,
-            final byte[] authorizationList,
+            final Object authorizationList,
             final int recId,
             final byte[] r,
             final byte[] s) {
@@ -218,8 +259,9 @@ class EthTxDataType4TransactionTest {
         final byte[] r = repeat((byte) 0x22, 32);
         final byte[] s = repeat((byte) 0x33, 32);
 
-        final byte[] authorizationList = rlpList(
-                rlpBytes(chainId), rlpBytes(address), rlpUInt(nonce), rlpUInt(yParity), rlpBytes(r), rlpBytes(s));
+        final Object[] authorizationList = {
+            new Object[] {chainId, address, Integers.toBytes(nonce), Integers.toBytes(yParity), r, s}
+        };
 
         final byte[] raw = buildType4Raw(
                 fillBytes(2, 0x01),
@@ -252,8 +294,9 @@ class EthTxDataType4TransactionTest {
         final byte[] r = repeat((byte) 0x22, 32);
         final byte[] s = repeat((byte) 0x33, 32);
 
-        final byte[] authorizationList = rlpList(
-                rlpBytes(chainId), rlpBytes(address), rlpUInt(nonce), rlpUInt(yParity), rlpBytes(r), rlpBytes(s));
+        final Object[] authorizationList = {
+            new Object[] {chainId, address, Integers.toBytes(nonce), Integers.toBytes(yParity), r, s}
+        };
 
         final byte[] raw = buildType4Raw(
                 fillBytes(2, 0x01),
@@ -313,13 +356,16 @@ class EthTxDataType4TransactionTest {
     /// for the legacy, type-1 and type-2 equivalents.
     @Test
     void populateEip7702EthTxDataReturnsNullWhenTrailingBytesFollowEnvelope() {
-        final byte[] authorizationList = rlpList(
-                rlpBytes(new byte[] {0x01}),
-                rlpBytes(repeat((byte) 0x11, 20)),
-                rlpUInt(5),
-                rlpUInt(1),
-                rlpBytes(repeat((byte) 0x22, 32)),
-                rlpBytes(repeat((byte) 0x33, 32)));
+        final Object[] authorizationList = {
+            new Object[] {
+                new byte[] {0x01},
+                repeat((byte) 0x11, 20),
+                Integers.toBytes(5),
+                Integers.toBytes(1),
+                repeat((byte) 0x22, 32),
+                repeat((byte) 0x33, 32)
+            }
+        };
         final byte[] canonical = buildType4Raw(
                 fillBytes(2, 0x01),
                 1,
@@ -342,81 +388,6 @@ class EthTxDataType4TransactionTest {
             System.arraycopy(suffix, 0, suffixed, canonical.length, suffix.length);
             assertNull(EthTxData.populateEthTxData(suffixed), "trailing byte must be rejected");
         }
-    }
-
-    private static byte[] rlpBytes(byte[] bytes) {
-        if (bytes.length == 1 && (bytes[0] & 0xFF) < 0x80) {
-            return new byte[] {bytes[0]};
-        }
-        if (bytes.length <= 55) {
-            byte[] out = new byte[1 + bytes.length];
-            out[0] = (byte) (0x80 + bytes.length);
-            System.arraycopy(bytes, 0, out, 1, bytes.length);
-            return out;
-        }
-        // length > 55
-        byte[] lenEnc = encodeLen(bytes.length);
-        byte[] out = new byte[1 + lenEnc.length + bytes.length];
-        out[0] = (byte) (0xB7 + lenEnc.length);
-        System.arraycopy(lenEnc, 0, out, 1, lenEnc.length);
-        System.arraycopy(bytes, 0, out, 1 + lenEnc.length, bytes.length);
-        return out;
-    }
-
-    private static byte[] rlpUInt(int value) {
-        if (value == 0) {
-            return new byte[] {(byte) 0x80}; // empty (zero)
-        }
-        // minimal big-endian
-        int v = value;
-        int size = 0;
-        byte[] tmp = new byte[8];
-        while (v != 0) {
-            tmp[7 - size] = (byte) (v & 0xFF);
-            v >>>= 8;
-            size++;
-        }
-        byte[] be = new byte[size];
-        System.arraycopy(tmp, 8 - size, be, 0, size);
-        return rlpBytes(be);
-    }
-
-    private static byte[] rlpList(byte[]... items) {
-        int payloadLen = 0;
-        for (byte[] it : items) payloadLen += it.length;
-        byte[] payload = new byte[payloadLen];
-        int off = 0;
-        for (byte[] it : items) {
-            System.arraycopy(it, 0, payload, off, it.length);
-            off += it.length;
-        }
-        if (payloadLen <= 55) {
-            byte[] out = new byte[1 + payloadLen];
-            out[0] = (byte) (0xC0 + payloadLen);
-            System.arraycopy(payload, 0, out, 1, payloadLen);
-            return out;
-        }
-        byte[] lenEnc = encodeLen(payloadLen);
-        byte[] out = new byte[1 + lenEnc.length + payloadLen];
-        out[0] = (byte) (0xF7 + lenEnc.length);
-        System.arraycopy(lenEnc, 0, out, 1, lenEnc.length);
-        System.arraycopy(payload, 0, out, 1 + lenEnc.length, payloadLen);
-        return out;
-    }
-
-    private static byte[] encodeLen(int len) {
-        // big-endian, minimal
-        int n = len;
-        int size = 0;
-        byte[] tmp = new byte[8];
-        while (n != 0) {
-            tmp[7 - size] = (byte) (n & 0xFF);
-            n >>>= 8;
-            size++;
-        }
-        byte[] out = new byte[size];
-        System.arraycopy(tmp, 8 - size, out, 0, size);
-        return out;
     }
 
     private static byte[] repeat(byte b, int n) {

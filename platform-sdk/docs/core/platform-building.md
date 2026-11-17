@@ -67,7 +67,7 @@ Other examples are:
         blocks.platformContext(),
         AdHocThreadManager.getStaticThreadManager(),
         blocks.keysAndCerts(),
-        blocks.rosterHistory().getCurrentRoster(),
+        blocks.rosterHistory().getActiveRoster(),
         blocks.selfId(),
         blocks.appVersion(),
         blocks.swirldStateManager(),

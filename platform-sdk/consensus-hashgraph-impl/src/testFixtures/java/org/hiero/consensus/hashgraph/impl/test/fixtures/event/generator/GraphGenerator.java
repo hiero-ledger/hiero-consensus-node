@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -10,6 +9,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.DynamicValue;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Generates a hashgraph of events.
@@ -99,7 +99,7 @@ public interface GraphGenerator {
      * Get the roster that represents the collection of nodes that are generating the events.
      */
     @NonNull
-    Roster getRoster();
+    RosterWrapper getRoster();
 
     /**
      * Returns the maximum birth round of this event generator.

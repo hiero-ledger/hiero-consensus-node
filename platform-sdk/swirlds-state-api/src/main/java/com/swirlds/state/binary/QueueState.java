@@ -72,7 +72,7 @@ public record QueueState(long head, long tail) {
      * <p>This codec is similar to QueueStateProtoCodec generated from HAPI sources. See
      * virtual_map_state.proto for details.
      */
-    public static class QueueStateCodec implements Codec<QueueState> {
+    public static class QueueStateCodec extends Codec<QueueState> {
 
         public static final Codec<QueueState> INSTANCE = new QueueStateCodec();
 
@@ -96,7 +96,7 @@ public record QueueState(long head, long tail) {
         }
 
         @Override
-        public void write(@NonNull final QueueState value, @NonNull final WritableSequentialData out)
+        protected void writeImpl(@NonNull final QueueState value, @NonNull final WritableSequentialData out)
                 throws IOException {
             final long pos = out.position();
             if (value.head() != 0) {
@@ -112,7 +112,7 @@ public record QueueState(long head, long tail) {
 
         @NonNull
         @Override
-        public QueueState parse(
+        protected QueueState parseImpl(
                 @NonNull final ReadableSequentialData in,
                 final boolean strictMode,
                 final boolean parseUnknownFields,
@@ -144,19 +144,6 @@ public record QueueState(long head, long tail) {
             }
 
             return new QueueState(head, tail);
-        }
-
-        @Override
-        public boolean fastEquals(@NonNull final QueueState value, @NonNull final ReadableSequentialData in)
-                throws ParseException {
-            return value.equals(parse(in));
-        }
-
-        @Override
-        public int measure(@NonNull final ReadableSequentialData in) throws ParseException {
-            final long pos = in.position();
-            parse(in);
-            return (int) (in.position() - pos);
         }
     }
 }

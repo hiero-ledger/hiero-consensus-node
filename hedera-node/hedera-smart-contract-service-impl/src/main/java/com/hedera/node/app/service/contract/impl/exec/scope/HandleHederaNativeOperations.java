@@ -19,6 +19,8 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -30,6 +32,8 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.spi.key.KeyRequirement;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -103,6 +107,22 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public @NonNull ReadableScheduleStore readableScheduleStore() {
         return context.storeFactory().readableStore(ReadableScheduleStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableChannelStore readableChannelStore() {
+        return context.storeFactory().readableStore(ReadableChannelStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableEndpointManifestStore readableEndpointManifestStore() {
+        return context.storeFactory().readableStore(ReadableEndpointManifestStore.class);
     }
 
     /**
@@ -217,8 +237,9 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
             final AccountID toEntityId,
             @NonNull final VerificationStrategy strategy) {
         final var to = requireNonNull(getAccount(toEntityId));
-        final var signatureTest = strategy.asSignatureTestIn(context, maybeEthSenderKey);
-        if (to.receiverSigRequired() && !signatureTest.test(to.keyOrThrow())) {
+        final var signatureTest = strategy.asRequirementTestIn(context, maybeEthSenderKey);
+        if (to.receiverSigRequired()
+                && !signatureTest.test(KeyRequirement.forAccount(to.accountIdOrThrow(), to.keyOrThrow()))) {
             return INVALID_SIGNATURE;
         }
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
@@ -264,6 +285,11 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public Configuration configuration() {
         return context.configuration();
+    }
+
+    @Override
+    public @NonNull StoreFactory storeFactory() {
+        return context.storeFactory();
     }
 
     @NonNull

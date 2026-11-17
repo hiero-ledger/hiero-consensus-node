@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.iss.detection.internal;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.utility.Threshold.MAJORITY;
 import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
@@ -96,12 +97,12 @@ class RoundHashValidatorTests {
         final long totalWeight = RosterUtils.computeTotalWeight(roster);
 
         // This is the hash we want to be chosen for the consensus hash.
-        final Hash consensusHash = randomHash(random);
+        final Hash consensusHash = randomHash(random, DEFAULT_DIGEST_TYPE);
         final List<NodeId> correctHashNodes = new LinkedList<>();
         long correctHashWeight = 0;
 
         // A large group of nodes may decide to use this hash. But it won't become the consensus hash.
-        final Hash otherHash = randomHash(random);
+        final Hash otherHash = randomHash(random, DEFAULT_DIGEST_TYPE);
         long otherHashWeight = 0;
         final List<NodeId> otherHashNodes = new LinkedList<>();
 
@@ -168,7 +169,7 @@ class RoundHashValidatorTests {
                 // The random hashes will never reach a majority, so they can go in whenever
                 if (!randomHashNodes.isEmpty()) {
                     final NodeId nodeId = randomHashNodes.remove(0);
-                    nodes.add(new NodeHashInfo(nodeId, randomHash(random), round));
+                    nodes.add(new NodeHashInfo(nodeId, randomHash(random, DEFAULT_DIGEST_TYPE), round));
                 }
             }
         }
@@ -193,7 +194,7 @@ class RoundHashValidatorTests {
         Collections.shuffle(randomNodeOrder, random);
 
         // A large group of nodes may decide to use this hash. But it won't become the consensus hash.
-        final Hash otherHash = randomHash(random);
+        final Hash otherHash = randomHash(random, DEFAULT_DIGEST_TYPE);
         long otherHashWeight = 0;
 
         final Map<Long, RosterEntry> nodesById = RosterUtils.toMap(roster);
@@ -205,7 +206,7 @@ class RoundHashValidatorTests {
                 nodes.add(new NodeHashInfo(nodeId, otherHash, round));
                 otherHashWeight += weight;
             } else {
-                nodes.add(new NodeHashInfo(nodeId, randomHash(random), round));
+                nodes.add(new NodeHashInfo(nodeId, randomHash(random, DEFAULT_DIGEST_TYPE), round));
             }
         }
 

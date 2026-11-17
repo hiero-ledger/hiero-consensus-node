@@ -19,6 +19,8 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -27,6 +29,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -82,6 +85,25 @@ public interface HederaNativeOperations {
      */
     @NonNull
     ReadableScheduleStore readableScheduleStore();
+
+    /**
+     * Returns the {@link ReadableChannelStore} for this {@link HederaNativeOperations}.
+     * Available in both query and handle contexts.
+     *
+     * @return the {@link ReadableChannelStore}
+     */
+    @NonNull
+    ReadableChannelStore readableChannelStore();
+
+    /**
+     * Returns the {@link ReadableEndpointManifestStore} for this {@link HederaNativeOperations}.
+     * Available in both query and handle contexts.
+     *
+     * @return the {@link ReadableEndpointManifestStore}
+     */
+    @NonNull
+    ReadableEndpointManifestStore readableEndpointManifestStore();
+
     /**
      * Returns the {@link WritableEvmHookStore} for this {@link HederaNativeOperations}.
      *
@@ -291,6 +313,14 @@ public interface HederaNativeOperations {
      * @return the {@link Configuration}
      */
     Configuration configuration();
+
+    /**
+     * Gets the {@link StoreFactory} for accessing service stores and APIs.
+     *
+     * @return the store factory
+     */
+    @NonNull
+    StoreFactory storeFactory();
 
     /**
      * Returns the ledger id to use when encoding system contract responses. By default this is the configured ledger

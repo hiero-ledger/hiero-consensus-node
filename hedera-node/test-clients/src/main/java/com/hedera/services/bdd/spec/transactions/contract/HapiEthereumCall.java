@@ -87,10 +87,14 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private byte[] explicitTo = null;
     private Integer chainId = CHAIN_ID;
     private boolean wrongRecId;
+    private boolean malformedSignature = false;
     private boolean isJumboTxn = false;
     private byte[] signedBytes = null;
     private final List<AuthorizationListItem> authorizationListItems = new ArrayList<>();
     private final List<AccessListItem> accessListItems = new ArrayList<>();
+    private byte[] accessList = null;
+    private Object[] accessListRlp = null;
+    private Function<EthTxData, byte[]> ethTxDataEncodeFunction = EthTxData::encodeTx;
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -110,6 +114,17 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
 
     public HapiEthereumCall withWrongParityRecId() {
         wrongRecId = true;
+        return this;
+    }
+
+    /**
+     * Zeroes out the {@code s} value of the signature after signing, so signature recovery fails the
+     * {@link com.hedera.node.app.hapi.utils.ethereum.EthTxSigs} bounds check and the transaction is
+     * rejected with {@code INVALID_ETHEREUM_TRANSACTION} at consensus pre-handle — but only after any
+     * file-referenced callData has been fully hydrated. For tests that exercise the pre-handle-failure path.
+     */
+    public HapiEthereumCall withMalformedSignature() {
+        malformedSignature = true;
         return this;
     }
 
@@ -296,12 +311,22 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     }
 
     public HapiEthereumCall markAsJumboTxn() {
-        isJumboTxn = true;
+        this.isJumboTxn = true;
         return this;
     }
 
     public HapiEthereumCall withAccessList(final List<AccessListItem> items) {
         accessListItems.addAll(items);
+        return this;
+    }
+
+    public HapiEthereumCall withAccessList(final byte[] accessList) {
+        this.accessList = accessList;
+        return this;
+    }
+
+    public HapiEthereumCall withEthTxDataEncodeFunction(final Function<EthTxData, byte[]> ethTxDataEncodeFunction) {
+        this.ethTxDataEncodeFunction = ethTxDataEncodeFunction;
         return this;
     }
 
@@ -377,16 +402,18 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         }
 
         // encode accessList
-        byte[] accessList = null;
-        Object[] accessListRlp = null;
-        if (type != EthTransactionType.LEGACY_ETHEREUM && !accessListItems.isEmpty()) {
-            accessListRlp = accessListItems.stream()
-                    .map(e -> new Object[] {
-                        e.address().toArray(),
-                        e.storageKeys().stream().map(Bytes::toArray).toArray()
-                    })
-                    .toArray();
-            accessList = RLPEncoder.sequence(accessListRlp);
+        if (type != EthTransactionType.LEGACY_ETHEREUM) {
+            if (!accessListItems.isEmpty()) {
+                accessListRlp = accessListItems.stream()
+                        .map(e -> new Object[] {
+                            e.address().toArray(),
+                            e.storageKeys().stream().map(Bytes::toArray).toArray()
+                        })
+                        .toArray();
+                accessList = RLPEncoder.sequence(accessListRlp);
+            } else if (accessListRlp != null) {
+                accessList = RLPEncoder.sequence(accessListRlp);
+            }
         }
 
         // encode codeDelegation/authorizationList
@@ -429,6 +456,12 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
 
         byte[] privateKeyByteArray = getEcdsaPrivateKeyFromSpec(spec, privateKeyRef);
         var signedEthTxData = Signing.signMessage(ethTxData, privateKeyByteArray, wrongRecId);
+        if (malformedSignature) {
+            // Zeroed s -> fails EthTxSigs.checkInBounds at signature recovery in pre-handle, yielding
+            // INVALID_ETHEREUM_TRANSACTION *after* any file-referenced callData has been fully hydrated.
+            // replaceCallData below preserves r/s, so this composes with createCallDataFile().
+            signedEthTxData = signedEthTxData.replaceS(new byte[32]);
+        }
         spec.registry().saveBytes(ETH_HASH_KEY, ByteString.copyFrom((signedEthTxData.getEthereumHash())));
 
         if (createCallDataFile || (!isJumboTxn && callData.length > MAX_CALL_DATA_SIZE)) {
@@ -447,7 +480,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         final EthereumTransactionBody ethOpBody = spec.txns()
                 .<EthereumTransactionBody, EthereumTransactionBody.Builder>body(
                         EthereumTransactionBody.class, builder -> {
-                            builder.setEthereumData(ByteString.copyFrom(finalEthTxData.encodeTx()));
+                            builder.setEthereumData(ByteString.copyFrom(ethTxDataEncodeFunction.apply(finalEthTxData)));
                             maxGasAllowance.ifPresent(builder::setMaxGasAllowance);
                             ethFileID.ifPresent(builder::setCallData);
                         });
@@ -484,9 +517,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
             });
         }
         if (rawResultObserver != null) {
-            doObservedLookup(spec, txnSubmitted, rcd -> {
-                rawResultObserver.accept(rcd.getContractCallResult());
-            });
+            doObservedLookup(spec, txnSubmitted, rcd -> rawResultObserver.accept(rcd.getContractCallResult()));
         }
         if (eventDataObserver != null) {
             doObservedLookup(

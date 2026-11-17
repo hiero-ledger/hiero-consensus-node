@@ -54,7 +54,7 @@ public interface RosterTransplantSchema {
      * @param ctx the migration context
      * @param onAdopt a callback to invoke with an outgoing roster being replaced by a new roster hash
      * @param rosterStoreFactory the factory to use to create the writable roster store
-     * @param onOverrideNetwork a callback to invoke with the adopted override network
+     * @param onOverrideNetwork a callback to invoke with the override network before roster adoption
      */
     default boolean restart(
             @NonNull final HederaMigrationContext ctx,
@@ -66,6 +66,14 @@ public interface RosterTransplantSchema {
         requireNonNull(rosterStoreFactory);
         requireNonNull(onOverrideNetwork);
         final long roundNumber = ctx.roundNumber();
+        if (ctx.isReconnect()) {
+            // A reconnected node's state already reflects whatever roster the network is running; adopting an
+            // override network here would be a unilateral change to the active roster, the transplant flag, and
+            // the TSS constructions, putting this node into an ISS within a few rounds. A transplant is only
+            // ever applied when the whole network restarts onto it.
+            log.info("Skipping any override network on reconnect in round {}", roundNumber + 1);
+            return false;
+        }
         final StartupNetworks startupNetworks = ctx.startupNetworks();
         final var overrideNetwork = startupNetworks.overrideNetworkFor(roundNumber, ctx.platformConfig());
         overrideNetwork.ifPresent(network -> {
@@ -78,10 +86,12 @@ public interface RosterTransplantSchema {
             final var roster = networkAdminConfig.preserveStateWeightsDuringOverride()
                     ? withExtantNodeWeights(overrideRoster, rosterStore.getActiveRoster())
                     : overrideRoster;
-            rosterStore.putActiveRoster(roster, activeRoundNumber);
-            rosterStore.updateTransplantInProgress(true);
+            // Adoption checks need the persisted outgoing and candidate rosters. putActiveRoster
+            // purges the candidate, so validate/import the override before changing roster state.
             onOverrideNetwork.accept(network);
             onAdopt.accept(outgoingRoster, roster);
+            rosterStore.putActiveRoster(roster, activeRoundNumber);
+            rosterStore.updateTransplantInProgress(true);
             startupNetworks.setOverrideRound(roundNumber);
         });
         return overrideNetwork.isPresent();

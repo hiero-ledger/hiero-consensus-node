@@ -149,7 +149,6 @@ class TransactionModuleTest {
         final var gasCalculator = mock(SystemContractGasCalculator.class);
         final var blocks = mock(HederaEvmBlocks.class);
         final var stack = mock(HandleContext.SavepointStack.class);
-        final var metadata = mock(HandleContext.DispatchMetadata.class);
         given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
@@ -170,6 +169,7 @@ class TransactionModuleTest {
         assertSame(123L, result.gasPrice());
         assertSame(recordBuilder, result.streamBuilder());
         assertSame(pendingCreationBuilder, result.pendingCreationRecordBuilderReference());
+        assertThat(result.staticCall()).isFalse();
     }
 
     @Test

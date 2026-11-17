@@ -23,6 +23,7 @@ import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.transaction.handling.config.TransactionHandlingConfig;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionHandler;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionPrehandler;
@@ -45,11 +46,15 @@ public class TransactionHandlingModule {
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
             prehanderWiring;
     private final ComponentWiring<TransactionHandler, TransactionHandlerResult> handlerWiring;
-    private final ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring;
 
     private final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> handleSignaturesOutputWire;
     private final OutputWire<ReservedSignedState> stateOutputWire;
     private final OutputWire<StateWithHashComplexity> stateWithHashComplexityOutputWire;
+
+    private final InputWire<PlatformEvent> preHandleEventInputWire;
+    private final InputWire<ConsensusRound> handleConsensusRoundInputWire;
+    private final InputWire<RunningEventHashOverride> hashOverrideInputWire;
+    private final InputWire<ReservedSignedState> latestImmutableStateInputWire;
 
     /**
      * Constructor for {@code TransactionHandlingModule}
@@ -79,7 +84,9 @@ public class TransactionHandlingModule {
             @NonNull final NodeId selfId,
             final long transactionOffsetNanos) {
 
-        // Set up wiring
+        // Set up wired components
+        final double lowTpsTargetRounds =
+                configuration.getConfigData(TransactionHandlingConfig.class).lowTpsTargetRounds();
         final TransactionHandlingWiringConfig wiringConfig =
                 configuration.getConfigData(TransactionHandlingWiringConfig.class);
         this.prehanderWiring = new ComponentWiring<>(model, TransactionPrehandler.class, wiringConfig.prehandler());
@@ -87,9 +94,15 @@ public class TransactionHandlingModule {
                 model,
                 TransactionHandler.class,
                 wiringConfig.handler(),
-                TransactionHandlerDataCounter.create(wiringConfig.handler()));
-        this.latestImmutableStateNexusWiring =
+                TransactionHandlerDataCounter.create(wiringConfig.handler(), lowTpsTargetRounds));
+        final ComponentWiring<SignedStateNexus, Void> latestImmutableStateNexusWiring =
                 new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
+
+        // Set up input wires
+        preHandleEventInputWire = prehanderWiring.getInputWire(TransactionPrehandler::prehandleApplicationTransactions);
+        handleConsensusRoundInputWire = handlerWiring.getInputWire(TransactionHandler::handleConsensusRound);
+        hashOverrideInputWire = handlerWiring.getInputWire(TransactionHandler::updateLegacyRunningEventHash);
+        latestImmutableStateInputWire = latestImmutableStateNexusWiring.getInputWire(SignedStateNexus::setState);
 
         // The TransactionHandler output is split into two types: system transactions, and state with complexity.
         this.handleSignaturesOutputWire = handlerWiring
@@ -108,7 +121,7 @@ public class TransactionHandlingModule {
                         new StateWithHashComplexityReserver("postHandler_stateWithHashComplexityReserver"));
         this.stateOutputWire = stateWithHashComplexityOutputWire.buildAdvancedTransformer(
                 new StateWithHashComplexityToStateReserver("postHandler_stateWithHashComplexityToStateReserver"));
-        this.stateOutputWire.solderTo(latestImmutableStateInputWire());
+        this.stateOutputWire.solderTo(latestImmutableStateInputWire);
 
         // Create and bind components
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
@@ -136,7 +149,7 @@ public class TransactionHandlingModule {
     @InputWireLabel("preconsensus event")
     @NonNull
     public InputWire<PlatformEvent> preHandleEventInputWire() {
-        return prehanderWiring.getInputWire(TransactionPrehandler::prehandleApplicationTransactions);
+        return preHandleEventInputWire;
     }
 
     /**
@@ -147,7 +160,7 @@ public class TransactionHandlingModule {
     @InputWireLabel("consensus round")
     @NonNull
     public InputWire<ConsensusRound> handleConsensusRoundInputWire() {
-        return handlerWiring.getInputWire(TransactionHandler::handleConsensusRound);
+        return handleConsensusRoundInputWire;
     }
 
     /**
@@ -158,7 +171,7 @@ public class TransactionHandlingModule {
     @InputWireLabel("hash override")
     @NonNull
     public InputWire<RunningEventHashOverride> hashOverrideInputWire() {
-        return handlerWiring.getInputWire(TransactionHandler::updateLegacyRunningEventHash);
+        return hashOverrideInputWire;
     }
 
     /**
@@ -168,7 +181,7 @@ public class TransactionHandlingModule {
      */
     @NonNull
     public InputWire<ReservedSignedState> latestImmutableStateInputWire() {
-        return latestImmutableStateNexusWiring.getInputWire(SignedStateNexus::setState);
+        return latestImmutableStateInputWire;
     }
 
     /**

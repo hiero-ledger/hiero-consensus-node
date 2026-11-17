@@ -95,8 +95,23 @@ on:
         description: "*solo-sd*t-n14 (AdHoc Tests)"
 
 jobs:
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
+    if: ${{ github.event.repository.visibility == 'public' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
+        run: |
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
   delete-selected-namespaces:
     runs-on: hl-cn-default-lin-sm
+    if: ${{ github.event.repository.visibility == 'public' }}
     env:
       Dallas_n1: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n1 }}
       Dallas_n2: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.Dallas_n2 }}
@@ -123,7 +138,19 @@ jobs:
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3.6.0
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
+        with:
+          version: v1.35.0
+
+      # support/citr/kubectlt resolves the real binary as "kubectl.orig", so without this rename the
+      # namespace listings below come back empty and the delete loops silently do nothing.
+      - name: kubectl wrapper
+        run: |
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
+          which kubectl
 
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6

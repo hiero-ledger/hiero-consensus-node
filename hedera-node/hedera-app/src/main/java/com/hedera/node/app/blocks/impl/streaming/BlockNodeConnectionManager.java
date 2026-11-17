@@ -41,6 +41,7 @@ import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
 
 /**
  * Manages connections to block nodes in a Hedera network, handling connection lifecycle, node selection,
@@ -104,6 +105,10 @@ public class BlockNodeConnectionManager {
      */
     private final AtomicInteger globalActiveStreamingConnectionCount = new AtomicInteger();
     /**
+     * Counter for tracking the total number of active block node observing connections across all block nodes.
+     */
+    private final AtomicInteger globalActiveObservingConnectionCount = new AtomicInteger();
+    /**
      * The most recent configuration used. This configuration is used to compare against newer configs to know if a
      * configuration change has occurred.
      */
@@ -113,10 +118,10 @@ public class BlockNodeConnectionManager {
      */
     private final AtomicReference<Instant> globalCoolDownTimestampRef = new AtomicReference<>();
     /**
-     * Most recent block buffer status.
+     * Most recent block buffer saturation status.
      */
-    private final AtomicReference<BlockBufferStatus> bufferStatusRef =
-            new AtomicReference<>(new BlockBufferStatus(Instant.MIN, 0.0D, false));
+    private final AtomicReference<BlockBufferSaturationInfo> bufferSaturationRef =
+            new AtomicReference<>(BlockBufferSaturationInfo.NIL);
     /**
      * Reference to the connection monitor thread.
      */
@@ -257,7 +262,8 @@ public class BlockNodeConnectionManager {
             logger.info("Attempted to start block node connection manager, but it is already started");
             return;
         }
-        logger.info("Starting block node connection manager...");
+        final String jvmId = ConnectionId.jvmId();
+        logger.info("Starting block node connection manager (jvmId: {})...", jvmId.isEmpty() ? "unavailable" : jvmId);
 
         if (blockingIoExecutorRef.get() == null) {
             /*
@@ -430,53 +436,52 @@ public class BlockNodeConnectionManager {
             final BlockNode node = nodes.get(i);
             final BlockNodeEndpoint serviceEndpoint = node.configuration().serviceEndpoint();
             final Future<BlockNodeStatus> future = futures.get(i);
-            final BlockNodeStatus status =
-                    switch (future.state()) {
-                        case SUCCESS -> {
-                            final BlockNodeStatus bns = future.resultNow();
-                            if (bns == null) {
-                                logger.warn(
-                                        "[{}:{}] Retrieving block node status was successful, but null returned",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port());
-                                // we don't have any information so mark it unreachable... hopefully this never happens
-                                yield BlockNodeStatus.notReachable();
-                            } else {
-                                logger.debug(
-                                        "[{}:{}] Successfully retrieved block node status",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port());
-                                yield bns;
-                            }
-                        }
-                        case FAILED -> {
-                            final Throwable error = future.exceptionNow();
-                            final FailureType failureType = FailureType.findFailureType(error);
-                            if (failureType.isCommonFailure()) {
-                                logger.warn(
-                                        "[{}:{}] Failed to retrieve block node status (error: {})",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port(),
-                                        failureType);
-                            } else {
-                                logger.warn(
-                                        "[{}:{}] Failed to retrieve block node status",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port(),
-                                        error);
-                            }
+            final BlockNodeStatus status = switch (future.state()) {
+                case SUCCESS -> {
+                    final BlockNodeStatus bns = future.resultNow();
+                    if (bns == null) {
+                        logger.warn(
+                                "[{}:{}] Retrieving block node status was successful, but null returned",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port());
+                        // we don't have any information so mark it unreachable... hopefully this never happens
+                        yield BlockNodeStatus.notReachable();
+                    } else {
+                        logger.debug(
+                                "[{}:{}] Successfully retrieved block node status",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port());
+                        yield bns;
+                    }
+                }
+                case FAILED -> {
+                    final Throwable error = future.exceptionNow();
+                    final FailureType failureType = FailureType.findFailureType(error);
+                    if (failureType.isCommonFailure()) {
+                        logger.warn(
+                                "[{}:{}] Failed to retrieve block node status (error: {})",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port(),
+                                failureType);
+                    } else {
+                        logger.warn(
+                                "[{}:{}] Failed to retrieve block node status",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port(),
+                                error);
+                    }
 
-                            yield BlockNodeStatus.notReachable();
-                        }
-                        case CANCELLED, RUNNING -> {
-                            logger.warn(
-                                    "[{}:{}] Timed out waiting for block node status",
-                                    serviceEndpoint.host(),
-                                    serviceEndpoint.port());
-                            future.cancel(true);
-                            yield BlockNodeStatus.notReachable();
-                        }
-                    };
+                    yield BlockNodeStatus.notReachable();
+                }
+                case CANCELLED, RUNNING -> {
+                    logger.warn(
+                            "[{}:{}] Timed out waiting for block node status",
+                            serviceEndpoint.host(),
+                            serviceEndpoint.port());
+                    future.cancel(true);
+                    yield BlockNodeStatus.notReachable();
+                }
+            };
 
             node.onServerStatusCheck(status);
 
@@ -578,12 +583,17 @@ public class BlockNodeConnectionManager {
      *
      * @param connection the connection that has been closed
      */
-    public void notifyConnectionClosed(@NonNull final BlockNodeStreamingConnection connection) {
+    public void notifyConnectionClosed(@NonNull final BlockNodePublisherConnection connection) {
         // Remove from active connection if it is the current active
-        activeConnectionRef.compareAndSet(connection, null);
+        if (connection instanceof final BlockNodeStreamingConnection streamingConnection) {
+            activeConnectionRef.compareAndSet(streamingConnection, null);
+        }
 
-        final BlockNodeConfiguration config = connection.configuration();
-        final BlockNode node = nodes.get(config.streamingEndpoint());
+        final BlockNodeEndpoint streamingEndpoint = connection.configuration().streamingEndpoint();
+        final BlockNode node = nodes.get(streamingEndpoint);
+
+        // regardless of whether the node is in the local node map, always notify the block buffer of the disconnect
+        blockBufferService.notifyBlockNodeDisconnected(streamingEndpoint);
 
         if (node == null) {
             logger.warn(
@@ -598,7 +608,7 @@ public class BlockNodeConnectionManager {
      *
      * @param connection the connection that has been activated
      */
-    public void notifyConnectionActive(@NonNull final BlockNodeStreamingConnection connection) {
+    public void notifyConnectionActive(@NonNull final BlockNodePublisherConnection connection) {
         final BlockNodeConfiguration config = connection.configuration();
         final BlockNode node = nodes.get(config.streamingEndpoint());
 
@@ -606,7 +616,7 @@ public class BlockNodeConnectionManager {
             logger.warn(
                     "{} Connection is not associated with a known block node; ignoring open notification and closing connection",
                     connection);
-            connection.close(CloseReason.INTERNAL_ERROR, true);
+            connection.close(CloseReason.INTERNAL_ERROR, true, EndStream.Code.ERROR);
         } else {
             node.onActive(connection);
         }
@@ -622,13 +632,19 @@ public class BlockNodeConnectionManager {
             while (isConnectionManagerActive.get()) {
                 try {
                     updateConnectionIfNeeded();
+                } catch (final Exception e) {
+                    logger.warn("Error caught in connection monitor loop; continuing", e);
+                }
 
+                // The wait is deliberately outside the block above: if the connectivity check throws, the
+                // loop must still back off rather than spin and flood the log.
+                try {
                     Thread.sleep(bncConfig().connectionMonitorCheckIntervalMillis());
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
                     logger.warn("Connection monitor loop was interrupted; continuing", e);
                 } catch (final Exception e) {
-                    logger.warn("Error caught in connection monitor loop; continuing", e);
+                    logger.warn("Error caught while backing off in connection monitor loop; continuing", e);
                 }
             }
         }
@@ -656,7 +672,8 @@ public class BlockNodeConnectionManager {
      */
     private void updateConnectionIfNeeded() {
         // record the latest number of active connections
-        blockStreamMetrics.recordActiveConnectionCount(globalActiveStreamingConnectionCount.get());
+        blockStreamMetrics.recordActiveStreamingConnectionCount(globalActiveStreamingConnectionCount.get());
+        blockStreamMetrics.recordActiveObservingConnectionCount(globalActiveObservingConnectionCount.get());
 
         final Instant now = Instant.now();
         final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
@@ -807,6 +824,7 @@ public class BlockNodeConnectionManager {
                                     configProvider,
                                     newNodeConfig,
                                     globalActiveStreamingConnectionCount,
+                                    globalActiveObservingConnectionCount,
                                     new BlockNodeStats()));
                     changesDetected = true;
                 } else if (!existingNode.configuration().equals(newNodeConfig)) {
@@ -847,21 +865,44 @@ public class BlockNodeConnectionManager {
      * @return true if the buffer is unhealthy, else false
      */
     private boolean isBufferUnhealthy() {
-        final BlockBufferStatus latestBufferStatus = blockBufferService.latestBufferStatus();
-        final BlockBufferStatus previousBufferStatus = bufferStatusRef.getAndSet(latestBufferStatus);
+        final BlockBufferSaturationInfo latestSaturationInfo = blockBufferService.latestBufferSaturationInfo();
+        final BlockBufferSaturationInfo previousSaturationInfo = bufferSaturationRef.getAndSet(latestSaturationInfo);
 
-        if (latestBufferStatus != null && latestBufferStatus.isActionStage()) {
-            // the latest status indicates we are above the action stage and thus should take some action
-            // but, if the saturation is decreasing since the last check, don't switch connections yet and
-            // hope we are able to recover
-            if (previousBufferStatus == null
-                    || latestBufferStatus.saturationPercent() >= previousBufferStatus.saturationPercent()) {
-                // saturation has stayed the same or increased, we need to attempt switching connections
+        /*
+        There are multiple facets that can influence whether the block buffer is unhealthy, but not all of those facets
+        can be aided in switching connections. For example, if saturation is high due to in-progress blocks, switching
+        to another block node will have no impact since the issue is local to the consensus node and is not the result
+        of a block node. So, we need to check the cause of the saturation to know if we need to take action or not.
+         */
+
+        if (latestSaturationInfo == null) {
+            return false;
+        }
+
+        /*
+        If the most recent saturation information indicates that we are currently at or above the action stage, it will
+        typically imply that we want to take some sort of action such as switching to a different block node. However,
+        we only want to take action if the saturation action is steady or growing. If the saturation is going down, it
+        likely means we are recovering, and therefore we don't want to take action such as switching block nodes.
+         */
+
+        if (latestSaturationInfo.unackedBlocksSaturation().isAtActionStage()) {
+            if (previousSaturationInfo == null
+                    || latestSaturationInfo.unackedBlocksSaturation().percentage()
+                            >= previousSaturationInfo.unackedBlocksSaturation().percentage()) {
                 return true;
             }
         }
 
-        return false;
+        if (latestSaturationInfo.unackedBytesSaturation().isAtActionStage()) {
+            if (previousSaturationInfo == null
+                    || latestSaturationInfo.unackedBytesSaturation().percentage()
+                            >= previousSaturationInfo.unackedBytesSaturation().percentage()) {
+                return true;
+            }
+        }
+
+        return false; // no action needed at this time
     }
 
     /**
@@ -1056,7 +1097,7 @@ public class BlockNodeConnectionManager {
             connection.initialize();
         } catch (final Exception e) {
             logger.warn("{} Failed to initialize connection", connection, e);
-            connection.close(CloseReason.INTERNAL_ERROR, true);
+            connection.close(CloseReason.INTERNAL_ERROR, true, null);
             return false; // exit, let the monitor try again at the next invocation
         }
 

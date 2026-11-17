@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
+import com.swirlds.virtualmap.internal.HashLeafFlusher;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -13,7 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * the dirty leaves are sent from the teacher to the learner. Then the learner sends the leaves to a
  * {@link com.swirlds.virtualmap.internal.hash.VirtualHasher} to rehash the whole tree received from
  * the teacher. The hasher notifies this listener, which flushes the hashes to disk using {@link
- * ReconnectHashLeafFlusher} mechanism, which completely bypasses the {@link
+ * HashLeafFlusher} mechanism, which completely bypasses the {@link
  * com.swirlds.virtualmap.internal.cache.VirtualNodeCache} and the
  * {@link com.swirlds.virtualmap.internal.pipeline.VirtualPipeline} This is essential for performance
  * and memory reasons, since during reconnect we may need to process the entire data set, which is too
@@ -22,7 +23,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  */
 public class ReconnectHashListener implements VirtualHashListener {
 
-    private final ReconnectHashLeafFlusher flusher;
+    private final HashLeafFlusher flusher;
     private final DataSourceHashChunkPreloader hashChunkPreloader;
 
     /**
@@ -31,8 +32,7 @@ public class ReconnectHashListener implements VirtualHashListener {
      * @param flusher Hash / leaf flusher to use to flush data to disk
      */
     public ReconnectHashListener(
-            @NonNull final ReconnectHashLeafFlusher flusher,
-            @NonNull final DataSourceHashChunkPreloader hashChunkPreloader) {
+            @NonNull final HashLeafFlusher flusher, @NonNull final DataSourceHashChunkPreloader hashChunkPreloader) {
         this.flusher = requireNonNull(flusher);
         this.hashChunkPreloader = requireNonNull(hashChunkPreloader);
     }

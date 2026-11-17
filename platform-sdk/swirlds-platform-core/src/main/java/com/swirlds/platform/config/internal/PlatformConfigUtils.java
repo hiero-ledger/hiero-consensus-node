@@ -8,7 +8,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
 import com.swirlds.config.extensions.sources.ConfigMapping;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -81,14 +80,8 @@ public class PlatformConfigUtils {
      */
     @NonNull
     private static Set<String> getConfigNames(@NonNull final Configuration configuration) {
-        return configuration.getConfigDataTypes().stream()
-                .flatMap(configDataType -> {
-                    final String propertyNamePrefix =
-                            ConfigReflectionUtils.getNamePrefixForConfigDataRecord(configDataType);
-                    return Arrays.stream(configDataType.getRecordComponents())
-                            .map(component -> ConfigReflectionUtils.getPropertyNameForConfigDataProperty(
-                                    propertyNamePrefix, component));
-                })
+        return ConfigReflectionUtils.getAllProperties(configuration)
+                .map(ConfigReflectionUtils.ConfigDataProperty::propertyName)
                 .collect(Collectors.toSet());
     }
 }

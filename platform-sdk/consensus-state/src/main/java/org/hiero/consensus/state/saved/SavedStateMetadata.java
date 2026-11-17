@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.model.node.NodeId;
@@ -133,11 +134,13 @@ public record SavedStateMetadata(
         final Map<SavedStateMetadataField, String> data = parseStringMap(metadataFile);
         return new SavedStateMetadata(
                 parsePrimitiveLong(data, ROUND),
+                // The state root hash digest type is determined by the hash byte array length
                 parseNonNullHash(data, HASH),
                 parseNonNullString(data, HASH_MNEMONIC),
                 parsePrimitiveLong(data, NUMBER_OF_CONSENSUS_EVENTS),
                 parseNonNullInstant(data, CONSENSUS_TIMESTAMP),
-                parseHash(data, LEGACY_RUNNING_EVENT_HASH),
+                // The consensus event stream (legacy) running hash always uses SHA-384
+                parseHash(data, LEGACY_RUNNING_EVENT_HASH, DigestType.SHA_384),
                 parseString(data, LEGACY_RUNNING_EVENT_HASH_MNEMONIC),
                 parsePrimitiveLong(data, MINIMUM_BIRTH_ROUND_NON_ANCIENT),
                 parseNonNullString(data, SOFTWARE_VERSION),
@@ -513,7 +516,9 @@ public record SavedStateMetadata(
      */
     @Nullable
     private static Hash parseHash(
-            @NonNull final Map<SavedStateMetadataField, String> data, @NonNull final SavedStateMetadataField field) {
+            @NonNull final Map<SavedStateMetadataField, String> data,
+            @NonNull final SavedStateMetadataField field,
+            @NonNull final DigestType digestType) {
 
         if (!data.containsKey(field)) {
             logMissingField(field);
@@ -527,7 +532,7 @@ public record SavedStateMetadata(
         }
 
         try {
-            return new Hash(unhex(value));
+            return new Hash(unhex(value), digestType);
         } catch (final IllegalArgumentException e) {
             logInvalidField(field, value, e);
             return null;
@@ -555,7 +560,8 @@ public record SavedStateMetadata(
         final String value = data.get(field);
 
         try {
-            return new Hash(unhex(value));
+            final byte[] hashBytes = unhex(value);
+            return new Hash(hashBytes, DigestType.digestLengthToDigestType(hashBytes.length));
         } catch (final IllegalArgumentException e) {
             throwInvalidRequiredField(field, value, e);
             return null;

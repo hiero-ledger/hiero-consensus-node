@@ -12,8 +12,11 @@ import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.EnumSet;
+import java.util.Set;
 import org.hiero.hapi.fees.FeeKeyUtils;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
@@ -33,9 +36,11 @@ public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
                             HederaFunctionality.FILE_UPDATE,
                             feeContext.body());
 
-            // Even if the privilege is UNAUTHORIZED or IMPERMISSIBLE continue with a free fee
-            // The appropriate error is thrown at a later stage of the workflow
-            if (privilege != SystemPrivilege.UNNECESSARY) {
+            // Waive fees only when the payer actually holds the privilege (AUTHORIZED). An
+            // UNAUTHORIZED (or IMPERMISSIBLE) attempt falls through to the normal fee so the failed
+            // transaction still pays the standard deterrent; its authorization error is thrown at a
+            // later stage of the workflow.
+            if (privilege == SystemPrivilege.AUTHORIZED) {
                 feeResult.clearFees();
                 return;
             }
@@ -57,5 +62,10 @@ public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
         return TransactionBody.DataOneOfType.FILE_UPDATE;
+    }
+
+    @Override
+    public Set<Extra> requiredExtras() {
+        return EnumSet.of(Extra.KEYS, Extra.STATE_BYTES);
     }
 }

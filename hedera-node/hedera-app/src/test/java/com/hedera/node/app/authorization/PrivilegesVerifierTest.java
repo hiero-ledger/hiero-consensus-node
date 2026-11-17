@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.authorization;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.CommonUtils.functionOf;
@@ -18,6 +19,9 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprEvictPeerEndpointTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ContractUpdateTransactionBody;
@@ -37,13 +41,26 @@ import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 // This test may look a little weird without context. The original test in mono is very extensive. To ensure that
 // we don't break anything, I copied the test from mono and hacked it a little to run it with the new code.
 // (It was a good thing. I discovered two bugs...) :)
 class PrivilegesVerifierTest {
+    // System account numbers — must match AccountsConfig defaults.
+    private static final long TREASURY = 2L;
+    private static final long SYSTEM_ADMIN = 50L;
+    private static final long EXCHANGE_RATES_ADMIN = 57L;
+    private static final long FREEZE_ADMIN = 58L;
+    private static final long CIVILIAN = 75231L;
+
     private static final AccountID EVM_ACCOUNT_ID = AccountID.newBuilder()
             .setAlias(ByteString.fromHex("abcd1234abcd1234abcd1234abcd1234abcd1234"))
             .build();
@@ -632,6 +649,98 @@ class PrivilegesVerifierTest {
         assertEquals(
                 SystemOpAuthorization.AUTHORIZED,
                 subject.authForTestCase(accessorWithPayer(otherUpdateTxn, account(2))));
+    }
+
+    @ParameterizedTest(name = "{0} with payer {1} -> {2}")
+    @MethodSource("clprAuthorizationCases")
+    void defaultClprAuthorization(HederaFunctionality operation, long payerNum, SystemOpAuthorization expected)
+            throws InvalidProtocolBufferException {
+        final var txn = txnWithPayer(payerNum);
+        switch (operation) {
+            case CLPR_UPDATE_LEDGER_CONFIGURATION ->
+                txn.setClprUpdateLedgerConfiguration(ClprUpdateLedgerConfigurationTransactionBody.getDefaultInstance());
+            case CLPR_CLOSE_CHANNEL -> txn.setClprCloseChannel(ClprCloseChannelTransactionBody.getDefaultInstance());
+            case CLPR_EVICT_PEER_ENDPOINT ->
+                txn.setClprEvictPeerEndpoint(ClprEvictPeerEndpointTransactionBody.getDefaultInstance());
+            default -> throw new IllegalArgumentException("Unexpected CLPR operation: " + operation);
+        }
+
+        assertEquals(expected, subject.authForTestCase(accessor(txn)));
+    }
+
+    static Stream<Arguments> clprAuthorizationCases() {
+        // Treasury and system admin are authorized. Other system roles and civilians are rejected.
+        return Stream.of(
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        TREASURY,
+                        SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        SYSTEM_ADMIN,
+                        SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        FREEZE_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        CIVILIAN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_CLOSE_CHANNEL,
+                        EXCHANGE_RATES_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
+                        EXCHANGE_RATES_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
+    }
+
+    @ParameterizedTest
+    @EnumSource(names = {"CLPR_UPDATE_LEDGER_CONFIGURATION", "CLPR_CLOSE_CHANNEL", "CLPR_EVICT_PEER_ENDPOINT"})
+    void clprAdminOperationsUseCurrentConfiguration(final HederaFunctionality operation) {
+        final var defaultConfig = new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1L);
+        final var config = new AtomicReference<>(defaultConfig);
+        final var verifier = new PrivilegesVerifier(config::get);
+        final var payer = toPbj(account(601));
+        final var alternatePayer = toPbj(account(602));
+        final var body = com.hedera.hapi.node.transaction.TransactionBody.DEFAULT;
+
+        assertEquals(SystemPrivilege.AUTHORIZED, verifier.hasPrivileges(payer, operation, body));
+        assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(payer, FREEZE, body));
+        assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(alternatePayer, operation, body));
+        assertEquals(
+                SystemPrivilege.UNAUTHORIZED,
+                verifier.hasPrivileges(payer.copyBuilder().shardNum(1).build(), operation, body));
+        assertEquals(
+                SystemPrivilege.UNAUTHORIZED,
+                verifier.hasPrivileges(payer.copyBuilder().realmNum(1).build(), operation, body));
+
+        config.set(new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("accounts.clprAdmin", 602L)
+                        .getOrCreateConfig(),
+                2L));
+
+        assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(payer, operation, body));
+        assertEquals(SystemPrivilege.AUTHORIZED, verifier.hasPrivileges(alternatePayer, operation, body));
+
+        config.set(new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("accounts.clprAdmin", -1L)
+                        .getOrCreateConfig(),
+                3L));
+
+        assertEquals(SystemPrivilege.UNAUTHORIZED, verifier.hasPrivileges(alternatePayer, operation, body));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {

@@ -925,6 +925,30 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
   --adminKey adminKey.pem
 ```
 
+# Key files and backups (CLPR identities)
+
+`clpr generate-channel-identity` and `clpr generate-connector-identity` write two files:
+
+- `<out>` — the public identity bundle (safe to share; it never contains the private key).
+- `<out>.key` — the private key as `0x<64 hex>` plus a newline, mode `0600`.
+
+**Nothing is ever overwritten or deleted.** If `<out>` or `<out>.key` already exists, it is first moved to
+`<name>.<epochMillis>.bak` (mode `0600`), so re-running a generator can never lose a key. Symlinked targets are
+refused. Backups are intentionally **never pruned**, so a key can always be recovered in an emergency:
+
+```
+find . -name '*.bak'            # list every backup, newest epoch last when sorted by name
+ls -l channel.json.key*.bak     # backups of one key file
+```
+
+Backups and `.key` files hold live private keys: protect them like keys, and keep them out of version control
+(`*.bak` is already in `.gitignore`; `*.key` is not yet — see `scripts/clpre2e/KEY-HYGIENE-KNOWN-GAPS.md`).
+
+The Python signers (`hedera-node/tools/sign-clpr-*-identity.py`) and `scripts/clpre2e/gen-channel-identity.sh` read the
+key only from `--key-file <path>`. They refuse a key file that is a symlink, or (unless `--allow-loose-key-file` /
+`ALLOW_LOOSE_KEY_FILE=1`) one that group/others can read or that you do not own, and they reject bundles that contain an
+inline `privateKey`.
+
 # Running `ivy` acceptance tests
 
 The `ivy` subcommand runs HAPI acceptance tests.
@@ -969,3 +993,76 @@ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG} -p 2 -n lo
 **Important:** Note the one important _difference_ between the original `ValidationScenarios` _config.yml_ and the
 `ivy scenarios` _scenarios/config.yml_ is that the target network is **not** specified in the latter. The yahcli
 configuration now specifies the target network(s), and the yahcli command line controls the choice of target.
+
+## Cross-Ledger Protocol (CLPR)
+
+The `clpr` subcommand family drives the full CLPR lifecycle from an operator machine.
+All subcommands inherit the standard yahcli targeting flags (`-n` network, `-i` node-account,
+`-a` operator-account), so the same binary can be pointed at two different ledgers when
+exercising a cross-ledger flow.
+
+### Channel lifecycle (two-phase commit/reveal)
+
+| Phase  |         Command         |                         Description                         |
+|--------|-------------------------|-------------------------------------------------------------|
+| Commit | `clpr register-channel` | Submits `ClprRegisterChannel` with an ownership commitment. |
+| Reveal | `clpr complete-channel` | Submits `ClprCompleteChannel` opening the commitment.       |
+| Close  | `clpr close-channel`    | Terminates the channel.                                     |
+
+`generate-channel-identity` produces a JSON identity bundle (random id, keypair,
+ownership commitment, reveal signature). Pass it back to `complete-channel` with
+`--identity <path>` and skip the per-flag arguments. The commit/reveal design is in
+[`docs/superpowers/specs/2026-04-29-connector-registration-redesign.md`](../../docs/superpowers/specs/2026-04-29-connector-registration-redesign.md).
+
+`complete-channel` also takes the peer ledger's state proofs: `--config-proof` (written by the
+peer's `get-ledger-configuration --proof-path`) and `--endpoint-manifest-proof` (written by the
+peer's `get-endpoint-manifest --proof-path`). The Hiero TSS verifier (`0.0.366`) requires both;
+the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
+
+### Connector lifecycle
+
+|   Phase    |           Command           |                Description                 |
+|------------|-----------------------------|--------------------------------------------|
+| Commit     | `clpr register-connector`   | Submits `ClprRegisterConnector` (Phase 1). |
+| Reveal     | `clpr complete-connector`   | Submits `ClprCompleteConnector` (Phase 2). |
+| Deregister | `clpr deregister-connector` | Removes the connector and unlocks stake.   |
+
+`generate-connector-identity` produces the matching JSON bundle for `complete-connector`.
+
+`register-connector` requires `--channel-id <hex>` and `--commitment <hex>`, both 32 bytes.
+The channel must already exist. The connector identity remains hidden until `complete-connector`.
+
+### Bundles and messages
+
+|       Command        |                                                        Description                                                         |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `clpr submit-bundle` | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
+| `clpr send-message`  | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
+
+### Ledger configuration and endpoint manifest
+
+|              Command               |                                                                                                      Description                                                                                                      |
+|------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `clpr get-ledger-configuration`    | Runs `ClprGetLedgerConfiguration` and prints the configuration as proto3 JSON (the base64 state-proof is always included as `configurationStateProof`); pass `--proof-path <file>` to also write the raw proof bytes. |
+| `clpr update-ledger-configuration` | Reads a JSON `ClprLedgerConfiguration` (`bytes` fields base64-encoded per proto3 JSON) and submits `ClprUpdateLedgerConfiguration`.                                                                                   |
+| `clpr get-endpoint-manifest`       | Runs `ClprGetEndpointManifest` and prints the endpoint manifest (the endpoints peers dial) as proto3 JSON with its base64 state-proof and a `finalized` flag; `--proof-path <file>` also writes the raw proof bytes.  |
+
+### Verifier deploy
+
+`contracts deploy-clpr-verifier` deploys the bundled `ClprLedgerVerifier.sol`, a thin
+Solidity wrapper around the CLPR system precompile (`0x16e`) that pins a specific peer
+ledgerId. The returned contract id is what you supply as `verifier_contract` when you
+register a channel.
+
+### End-to-end demo
+
+Two helper scripts under `hedera-node/yahcli/` drive the full happy path against a pair of
+local networks:
+
+```bash
+# Spin both networks up with the configured ledger ids, then drive
+# register → complete → message-send → bundle-sync.
+LEDGER_ID_A=<64-byte-hex> LEDGER_ID_B=<64-byte-hex> ./run-clpr-end-to-end.sh
+```
+
+`run-clpr-demo.sh` is the short variant that exercises a single happy-path bundle.

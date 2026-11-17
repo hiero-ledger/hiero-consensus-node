@@ -58,8 +58,8 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
-import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -218,8 +218,9 @@ public class AddressBookTestBase {
                         c -> {}));
         given(readableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
-                                .build()));
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build()));
         given(readableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
                         HIGHEST_NODE_ID_STATE_ID,
@@ -390,23 +391,23 @@ public class AddressBookTestBase {
     }
 
     protected void mockAccountLookup(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
-        final var account = mock(Account.class);
-        given(account.key()).willReturn(key);
+        final var account =
+                Account.newBuilder().accountId(contextPayerId).key(key).build();
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
     }
 
     protected void mockAccountKeyOrThrow(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
-        final var account = mock(Account.class);
-        given(account.keyOrThrow()).willReturn(key);
+        final var account =
+                Account.newBuilder().accountId(contextPayerId).key(key).build();
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
     }
 
     public static List<X509Certificate> generateX509Certificates(final int n) {
-        final var roster =
-                RosterFactory.randomRosterWithKeys(new Random(), n, GAUSSIAN).getRoster();
+        final var roster = RosterWrapperFactory.randomRosterWithKeys(new Random(), n, GAUSSIAN)
+                .roster();
 
         return roster.rosterEntries().stream()
-                .map(RosterUtils::fetchGossipCaCertificate)
+                .map(RosterEntryWrapper::gossipCaCertificate)
                 .toList();
     }
 }

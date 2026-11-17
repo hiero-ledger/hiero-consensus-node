@@ -6,12 +6,10 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Map;
 
@@ -29,18 +27,9 @@ public interface WritableHintsStore extends ReadableHintsStore {
     HintsConstruction getOrCreateConstruction(
             @NonNull ActiveRosters activeRosters, @NonNull Instant now, @NonNull TssConfig tssConfig);
 
-    /**
-     * Includes the given hints key for the given node and party IDs relative to a party size, assigning
-     * the given adoption time if the key is immediately in use.
-     *
-     * @param nodeId     the node ID
-     * @param partyId    the party ID
-     * @param numParties the number of parties
-     * @param hintsKey   the hints key to include
-     * @param now        the adoption time
-     * @return whether the key was immediately in use
-     */
-    boolean setHintsKey(long nodeId, int partyId, int numParties, @NonNull Bytes hintsKey, @NonNull Instant now);
+    /** Stores a key in the namespace of the CRS generation that produced it. */
+    boolean setHintsKey(
+            long nodeId, int partyId, int numParties, long crsId, @NonNull Bytes hintsKey, @NonNull Instant now);
 
     /**
      * Adds a preprocessing vote for the given node and construction.
@@ -69,16 +58,22 @@ public interface WritableHintsStore extends ReadableHintsStore {
     HintsConstruction setPreprocessingStartTime(long constructionId, @NonNull Instant now);
 
     /**
-     * Updates state for a handoff to the given roster hash.
+     * Updates state for a handoff to the given roster hash only when its CRS and hinTS scheme
+     * are complete and meet the adopted roster's capacity requirements.
      *
      * @param fromRoster the previous roster
      * @param toRoster the adopted roster
      * @param toRosterHash the adopted roster hash
-     * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
      * @return whether the handoff changed the hinTS scheme
      */
-    boolean handoff(
-            @NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash, boolean forceHandoff);
+    boolean handoff(@NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash);
+
+    /**
+     * Rebinds a completed active construction after the caller verifies that the adopted roster has
+     * exactly the same node IDs and weights as its prepared target. Changes no cryptographic material
+     * or CRS provenance. Returns false without mutation if the expected active target is not complete.
+     */
+    boolean rebindActiveTargetRosterHash(@NonNull Bytes expectedOldHash, @NonNull Bytes newHash);
 
     /**
      * Sets the {@link CRSState} for the network.
@@ -87,19 +82,24 @@ public interface WritableHintsStore extends ReadableHintsStore {
      */
     void setCrsState(@NonNull CRSState crsState);
 
-    /**
-     * Moves the CRS contribution to be done by the next node in the roster. This is called when the
-     * current node did not contribute the CRS in time.
-     *
-     * @param nextNodeIdFromRoster    the ID of the next node in the roster
-     * @param nextContributionTimeEnd the end of the time window for the next contribution
-     */
-    void moveToNextNode(@Nullable Long nextNodeIdFromRoster, @NonNull Instant nextContributionTimeEnd);
+    /** Replaces the next CRS envelope without changing the active signing CRS. */
+    void setNextCrsState(@NonNull CRSState crsState);
 
-    /**
-     * Adds a CRS publication to the store.
-     * @param nodeId the node ID
-     * @param crsPublication the CRS publication
-     */
-    void addCrsPublication(long nodeId, @NonNull CrsPublicationTransactionBody crsPublication);
+    /** Abandons candidate work without reusing its construction or ceremony identifiers. */
+    void abandonNextConstruction();
+
+    /** Updates only the CRS generation bound to the given construction. */
+    void setCrsStateFor(@NonNull HintsConstruction construction, @NonNull CRSState crsState);
+
+    /** Allocates a never-reused ceremony ID, persisting the high-water mark in the active envelope. */
+    long allocateCrsId();
+
+    /** Binds an unstarted construction to its effective party capacity and CRS generation. */
+    HintsConstruction bindConstructionToCrs(long constructionId, long crsId, int numParties);
+
+    /** Opens key collection after the construction's bound CRS completes. */
+    HintsConstruction startHintsKeyGracePeriod(long constructionId, @NonNull Instant end);
+
+    /** Opens collection and rotates queued keys at the given consensus time. */
+    HintsConstruction startHintsKeyGracePeriod(long constructionId, @NonNull Instant now, @NonNull Instant end);
 }

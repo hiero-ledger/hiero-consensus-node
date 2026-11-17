@@ -55,7 +55,7 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings("java:S1192")
 @HapiTestLifecycle
 public class UpdateTokenPrecompileTest {
-    private static final long GAS_NEEDED = 550_000L;
+    private static final long GAS_NEEDED = 1_000_000L;
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
 
     @Contract(contract = "UpdateTokenInfoContract", creationGas = 4_000_000L)

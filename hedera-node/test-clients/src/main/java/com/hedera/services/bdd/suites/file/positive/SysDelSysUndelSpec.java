@@ -53,9 +53,9 @@ public class SysDelSysUndelSpec {
 
         return hapiTest(
                 fileCreate("misc").lifetime(lifetime).contents(ORIG_FILE),
-                systemFileDelete("misc").payingWith(SYSTEM_UNDELETE_ADMIN).hasPrecheck(NOT_SUPPORTED),
-                systemFileUndelete("misc").payingWith(SYSTEM_DELETE_ADMIN).hasPrecheck(AUTHORIZATION_FAILED),
-                systemFileDelete(ADDRESS_BOOK).payingWith(GENESIS).hasPrecheck(ENTITY_NOT_ALLOWED_TO_DELETE));
+                systemFileDelete("misc").payingWith(SYSTEM_UNDELETE_ADMIN).hasKnownStatus(NOT_SUPPORTED),
+                systemFileUndelete("misc").payingWith(SYSTEM_DELETE_ADMIN).hasKnownStatus(AUTHORIZATION_FAILED),
+                systemFileDelete(ADDRESS_BOOK).payingWith(GENESIS).hasKnownStatus(ENTITY_NOT_ALLOWED_TO_DELETE));
     }
 
     @HapiTest

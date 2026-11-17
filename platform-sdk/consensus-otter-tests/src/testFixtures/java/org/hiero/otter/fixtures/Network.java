@@ -42,17 +42,31 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
 public interface Network extends Configurable<Network> {
 
     /**
-     * Get the list of nodes in the network.
+     * Get the list of regular nodes in the network excluding mini-nodes.
      *
      * <p>The {@link List} cannot be modified directly. However, if a node is added or removed from the network, the
      * list is automatically updated. That means, if it is necessary to have a constant list, it is recommended to
      * create a copy.
      *
-     * @return a list of nodes in the network
+     * @return a list of regular nodes in the network
      */
     @NonNull
     default List<Node> nodes() {
         return topology().nodes();
+    }
+
+    /**
+     * Get the list of all nodes in the network. This includes both regular nodes and mini-nodes.
+     *
+     * <p>The {@link List} cannot be modified directly. However, if a mini-node is added or removed from the network, the
+     * list is automatically updated. That means, if it is necessary to have a constant list, it is recommended to
+     * create a copy.
+     *
+     * @return a list of all nodes in the network
+     */
+    @NonNull
+    default List<MiniNode> allNodes() {
+        return topology().allNodes();
     }
 
     /**
@@ -130,8 +144,35 @@ public interface Network extends Configurable<Network> {
     }
 
     /**
+     * Adds a single mini-node to the network.
+     *
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current
+     * topology.
+     *
+     * @return the created mini-node
+     */
+    @NonNull
+    default MiniNode addMiniNode() {
+        return topology().addMiniNode();
+    }
+
+    /**
+     * Adds multiple mini-nodes to the network.
+     *
+     * <p>How the node is connected to existing nodes and its latency, jitter, and bandwidth depend on the current
+     * topology.
+     *
+     * @param count the number of mini-nodes to add
+     * @return list of created mini-nodes
+     */
+    @NonNull
+    default List<MiniNode> addMiniNodes(final int count) {
+        return topology().addMiniNodes(count);
+    }
+
+    /**
      * Sets the weight generator for the network. The weight generator is used to assign weights to nodes if no nodes in
-     * the network have their weight set explicitly via {@link Node#weight(long)}.
+     * the network have their weight set explicitly via {@link MiniNode#weight(long)}.
      *
      * <p>If no weight generator is set, the default {@link WeightGenerators#GAUSSIAN} is used.
      *
@@ -156,7 +197,7 @@ public interface Network extends Configurable<Network> {
      * @return the network weight
      */
     default long totalWeight() {
-        return nodes().stream().mapToLong(Node::weight).sum();
+        return allNodes().stream().mapToLong(MiniNode::weight).sum();
     }
 
     /**
@@ -198,7 +239,7 @@ public interface Network extends Configurable<Network> {
      * @return the bidirectional connection between the two nodes
      */
     @NonNull
-    BidirectionalConnection bidirectionalConnection(@NonNull Node node1, @NonNull Node node2);
+    BidirectionalConnection bidirectionalConnection(@NonNull MiniNode node1, @NonNull MiniNode node2);
 
     /**
      * Returns a {@link UnidirectionalConnection} from one node to another in the network which can be used to modify
@@ -210,7 +251,7 @@ public interface Network extends Configurable<Network> {
      * @return the unidirectional connection from {@code sender} to {@code receiver}
      */
     @NonNull
-    UnidirectionalConnection unidirectionalConnection(@NonNull Node sender, @NonNull Node receiver);
+    UnidirectionalConnection unidirectionalConnection(@NonNull MiniNode sender, @NonNull MiniNode receiver);
 
     /**
      * Returns the current connection state between two nodes in the network after all modifications (partitions,
@@ -220,7 +261,7 @@ public interface Network extends Configurable<Network> {
      * @param receiver the destination node
      * @return the current {@link ConnectionState}
      */
-    ConnectionState connectionState(@NonNull Node sender, @NonNull Node receiver);
+    ConnectionState connectionState(@NonNull MiniNode sender, @NonNull MiniNode receiver);
 
     /**
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
@@ -236,7 +277,7 @@ public interface Network extends Configurable<Network> {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    Partition createNetworkPartition(@NonNull Collection<Node> nodes);
+    Partition createNetworkPartition(@NonNull Collection<? extends MiniNode> nodes);
 
     /**
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
@@ -251,7 +292,7 @@ public interface Network extends Configurable<Network> {
      * @throws IllegalArgumentException if {@code nodes} is empty or contains all nodes in the network
      */
     @NonNull
-    default Partition createNetworkPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
+    default Partition createNetworkPartition(@NonNull final MiniNode node0, @NonNull final MiniNode... nodes) {
         return createNetworkPartition(Utils.toSet(node0, nodes));
     }
 
@@ -278,7 +319,7 @@ public interface Network extends Configurable<Network> {
      * @return the partition containing the node, or {@code null} if not in any partition
      */
     @Nullable
-    Partition getNetworkPartitionContaining(@NonNull Node node);
+    Partition getNetworkPartitionContaining(@NonNull MiniNode node);
 
     /**
      * Isolates a node from the network. Disconnects all connections to and from this node.
@@ -290,14 +331,14 @@ public interface Network extends Configurable<Network> {
      * @return the created partition containing only the isolated node
      * @throws IllegalArgumentException if the node is already part of a partition
      */
-    Partition isolate(@NonNull Node node);
+    Partition isolate(@NonNull MiniNode node);
 
     /**
      * Rejoins a node with the network. Restores connections that were active before isolation.
      *
      * @param node the node to rejoin
      */
-    void rejoin(@NonNull Node node);
+    void rejoin(@NonNull MiniNode node);
 
     /**
      * Checks if a node is currently isolated from the network.
@@ -305,7 +346,7 @@ public interface Network extends Configurable<Network> {
      * @param node the node to check
      * @return true if the node is isolated, false otherwise
      */
-    boolean isIsolated(@NonNull Node node);
+    boolean isIsolated(@NonNull MiniNode node);
 
     /**
      * Sets the latency range for all connections from and to this node.
@@ -316,14 +357,14 @@ public interface Network extends Configurable<Network> {
      * @param node         the node for which to set the latency
      * @param latencyRange the latency range to apply to all connections
      */
-    void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
+    void setLatencyForAllConnections(@NonNull MiniNode node, @NonNull LatencyRange latencyRange);
 
     /**
      * Restores the default latency for all connections from this node. The default is determined by the topology.
      *
      * @param node the node for which to remove custom latencies
      */
-    void restoreLatencyForAllConnections(@NonNull Node node);
+    void restoreLatencyForAllConnections(@NonNull MiniNode node);
 
     /**
      * Sets the bandwidth limit for all connections from and to this node.
@@ -331,7 +372,7 @@ public interface Network extends Configurable<Network> {
      * @param node           the node for which to set the bandwidth limit
      * @param bandwidthLimit the bandwidth limit to apply to all connections
      */
-    void setBandwidthForAllConnections(@NonNull Node node, @NonNull BandwidthLimit bandwidthLimit);
+    void setBandwidthForAllConnections(@NonNull MiniNode node, @NonNull BandwidthLimit bandwidthLimit);
 
     /**
      * Restores the default bandwidth limit for all connections from this node. The default is determined by the
@@ -339,7 +380,7 @@ public interface Network extends Configurable<Network> {
      *
      * @param node the node for which to remove bandwidth limits
      */
-    void restoreBandwidthLimitsForAllConnections(@NonNull Node node);
+    void restoreBandwidthLimitsForAllConnections(@NonNull MiniNode node);
 
     /**
      * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom
@@ -421,7 +462,8 @@ public interface Network extends Configurable<Network> {
     void bumpConfigVersion();
 
     /**
-     * Creates a new result with all the consensus rounds of all nodes that are currently in the network.
+     * Creates a new result with all the consensus rounds of all regular nodes that are currently in the network.
+     * Mini-nodes are not considered for this result.
      *
      * @return the consensus rounds of the filtered nodes
      */
@@ -429,7 +471,8 @@ public interface Network extends Configurable<Network> {
     MultipleNodeConsensusResults newConsensusResults();
 
     /**
-     * Creates a new result with all the log results of all nodes that are currently in the network.
+     * Creates a new result with all the log results of all regular nodes that are currently in the network.
+     * Mini-nodes are not considered for this result.
      *
      * @return the log results of the nodes
      */
@@ -437,7 +480,8 @@ public interface Network extends Configurable<Network> {
     MultipleNodeLogResults newLogResults();
 
     /**
-     * Creates a new result with all the status progression results of all nodes that are currently in the network.
+     * Creates a new result with all the status progression results of all regular nodes that are currently in the network.
+     * Mini-nodes are not considered for this result.
      *
      * @return the status progression results of the nodes
      */
@@ -445,7 +489,8 @@ public interface Network extends Configurable<Network> {
     MultipleNodePlatformStatusResults newPlatformStatusResults();
 
     /**
-     * Creates a new result with all the PCES file results of all nodes that are currently in the network.
+     * Creates a new result with all the PCES file results of all regular nodes that are currently in the network.
+     * Mini-nodes are not considered for this result.
      *
      * @return the PCES files created by the nodes
      */
@@ -453,7 +498,8 @@ public interface Network extends Configurable<Network> {
     MultipleNodePcesResults newPcesResults();
 
     /**
-     * Creates a new result with all node reconnect results of all nodes that are currently in the network.
+     * Creates a new result with all regular node reconnect results of all nodes that are currently in the network.
+     * Mini-nodes are not considered for this result.
      *
      * @return the results of node reconnects
      */
@@ -461,7 +507,8 @@ public interface Network extends Configurable<Network> {
     MultipleNodeReconnectResults newReconnectResults();
 
     /**
-     * Creates a new result with event streams from all nodes that are currently in the network.
+     * Creates a new result with event streams from all regular nodes that are currently in the network.
+     * Mini-nodes are not considered for this result.
      *
      * @return the event streams results of the nodes
      */
@@ -475,7 +522,7 @@ public interface Network extends Configurable<Network> {
      * @return {@code true} if the node is behind by node weight, {@code false} otherwise
      * @see FallenBehindStatus
      */
-    boolean nodeIsBehindByNodeWeight(@NonNull Node maybeBehindNode);
+    boolean nodeIsBehindByNodeWeight(@NonNull MiniNode maybeBehindNode);
 
     /**
      * Checks if a node is behind compared to a fraction of peers in the network. A node is considered behind a peer
@@ -484,9 +531,9 @@ public interface Network extends Configurable<Network> {
      * @param maybeBehindNode the node to check behind status for
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
      * @see FallenBehindStatus
-     * @see Network#nodesAreBehindByNodeCount(Node, Node...)
+     * @see Network#nodesAreBehindByNodeCount(MiniNode, MiniNode...)
      */
-    default boolean nodeIsBehindByNodeCount(@NonNull final Node maybeBehindNode) {
+    default boolean nodeIsBehindByNodeCount(@NonNull final MiniNode maybeBehindNode) {
         return nodesAreBehindByNodeCount(maybeBehindNode);
     }
 
@@ -500,10 +547,11 @@ public interface Network extends Configurable<Network> {
      * @return {@code true} if the node is behind by the specified fraction of peers, {@code false} otherwise
      * @see FallenBehindStatus
      */
-    boolean nodesAreBehindByNodeCount(@NonNull Node maybeBehindNode, @Nullable Node... otherNodes);
+    boolean nodesAreBehindByNodeCount(@NonNull MiniNode maybeBehindNode, @Nullable MiniNode... otherNodes);
 
     /**
-     * Checks if all nodes in the network are in the specified {@link PlatformStatus}.
+     * Checks if all regular nodes in the network are in the specified {@link PlatformStatus}.
+     * Mini-nodes are not considered for this check.
      *
      * @param status the status to check against
      * @return {@code true} if all nodes are in the specified status, {@code false} otherwise

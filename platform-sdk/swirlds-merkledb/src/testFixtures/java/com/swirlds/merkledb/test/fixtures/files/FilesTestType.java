@@ -2,15 +2,14 @@
 package com.swirlds.merkledb.test.fixtures.files;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.merkledb.test.fixtures.ExampleVariableKey;
 
 /**
- * Supports parameterized testing of {@link MerkleDbDataSource} with both fixed- and variable-size
+ * Supports parameterized testing of {@code MerkleDbDataSource} with both fixed- and variable-size
  * data.
  *
- * <p>Used with JUnit's {@link org.junit.jupiter.params.provider.EnumSource} annotation.
+ * <p>Used with JUnit's {@code @EnumSource} annotation.
  */
 public enum FilesTestType {
 

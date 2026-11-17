@@ -1,0 +1,16 @@
+# Local overrides. The committed file is the one nobody edits; these hold only
+# your overrides. See README.md.
+local.env
+
+# The repository root .gitignore ignores any directory named "logs" ([Ll]ogs/)
+# and every *.log file. Re-include the placeholder so the default LOGS_DIR
+# exists on a fresh clone, while the log files themselves stay ignored.
+!logs/
+logs/*
+!logs/.gitkeep
+
+# Default GRAFANA_DASHBOARDS_DIR - drop dashboard JSON files straight in
+# here, or point GRAFANA_DASHBOARDS_DIR elsewhere in local.env. Contents
+# are gitignored; only the placeholder is committed.
+services/grafana/dashboards/*
+!services/grafana/dashboards/.gitkeep

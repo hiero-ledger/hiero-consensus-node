@@ -109,7 +109,15 @@ public abstract class VirtualMapReconnectTestBase {
         reconnectMultipleTimes(1);
     }
 
+    protected void reconnectWith(final Configuration configuration) {
+        reconnectMultipleTimes(1, configuration);
+    }
+
     protected void reconnectMultipleTimes(int attempts) {
+        reconnectMultipleTimes(attempts, configuration);
+    }
+
+    protected void reconnectMultipleTimes(int attempts, final Configuration configuration) {
         final VirtualMap copy = teacherMap.copy();
         teacherMap.reserve();
         learnerMap.reserve();
@@ -154,11 +162,15 @@ public abstract class VirtualMapReconnectTestBase {
         @NonNull
         @Override
         public BreakableDataSource build(
-                final String label,
-                @Nullable final Path sourceDir,
-                final boolean compactionEnabled,
-                final boolean offlineUse) {
-            return new BreakableDataSource(this, delegate.build(label, sourceDir, compactionEnabled, offlineUse));
+                final String label, @Nullable final Path sourceDir, final boolean compactionEnabled) {
+            return new BreakableDataSource(this, delegate.build(label, sourceDir, compactionEnabled));
+        }
+
+        @NonNull
+        @Override
+        public BreakableDataSource copy(@NonNull final VirtualDataSource dataSource, final boolean compactionEnabled) {
+            final BreakableDataSource breakableDataSource = (BreakableDataSource) dataSource;
+            return new BreakableDataSource(this, delegate.copy(breakableDataSource.getDelegate(), compactionEnabled));
         }
 
         @NonNull

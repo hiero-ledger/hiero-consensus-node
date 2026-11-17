@@ -16,6 +16,7 @@ import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.getIfUsable;
 import static com.hedera.node.app.service.token.impl.util.TokenKey.METADATA_KEY;
 import static com.hedera.node.app.spi.validation.AttributeValidator.isKeyRemoval;
+import static com.hedera.node.app.spi.validation.AttributeValidator.isWithinNestedKeyLimit;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -83,7 +84,7 @@ public class TokenUpdateHandler extends BaseTokenHandler implements TransactionH
             if (tokenKey.isPresentInUpdate(op)) {
                 final var key = tokenKey.getFromUpdate(op);
                 if (!isKeyRemoval(key)) {
-                    validateTruePreCheck(isValid(key), tokenKey.invalidKeyStatus());
+                    validateTruePreCheck(isValid(key) && isWithinNestedKeyLimit(key), tokenKey.invalidKeyStatus());
                 }
             }
         }

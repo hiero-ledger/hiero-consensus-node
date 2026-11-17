@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.bonneville;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
@@ -146,6 +147,10 @@ class BEVM {
             _top.isWarm(parentContract);
         _top.isWarm(frame.getSenderAddress());
         _top.isWarm(frame.getContractAddress());
+        // As in Besu, the originator is warm even when this starts from a child frame (e.g. a CLPR authorization)
+        _top.isWarm(frame.getOriginatorAddress());
+        // EIP-3651: the coinbase is warm from the start of the transaction
+        _top.isWarm(frame.getMiningBeneficiary());
 
         assert _lastSKey == null && _lastSVal == null;
         return this;
@@ -1002,9 +1007,9 @@ class BEVM {
         if( halt != null) return halt;
 
         Bytes bytes = _mem.asBytes(adr, len);
-        Bytes keccak = org.hyperledger.besu.crypto.Hash.keccak256(bytes);
-        assert keccak.size() == 32; // Base implementation has changed?
-        return push32(keccak.toArrayUnsafe());
+        byte[] keccak = MiscCryptoUtils.keccak256DigestOf(bytes.toArrayUnsafe());
+        assert keccak.length == 32; // Base implementation has changed?
+        return push32(keccak);
     }
 
     // ---------------------
@@ -1020,8 +1025,9 @@ class BEVM {
         var address = popAddress();
         AddressChecks adrChk = _top._bonneville._adrChk;
         boolean isSystem = adrChk!=null && adrChk.isSystemAccount(address);
+        // Every address, system accounts included, is priced warm or cold as per EIP-2929
         long gas = _gasCalc.getBalanceOperationGasCost() +
-            ((!isSystem && _top.isWarm(address))
+            (_top.isWarm(address)
              ? _gasCalc.getWarmStorageReadCost()
              : _gasCalc.getColdAccountAccessCost());
         var halt = useGas(gas);

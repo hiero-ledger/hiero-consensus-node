@@ -25,13 +25,16 @@ import com.hedera.hapi.block.internal.EndStreamBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
 import com.hedera.hapi.block.internal.PublishStreamRequestBytes.RequestOneOfType;
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection.SendRequestResult;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherBlockItemsRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.PublisherRequest;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodePublisherConnection.SendRequestResult;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.grpc.GrpcCall;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -91,19 +94,20 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     static {
         try {
             final Lookup lookup = MethodHandles.lookup();
-            final Class<?> cls = BlockNodeStreamingConnection.class;
+            final Class<?> streamingCls = BlockNodeStreamingConnection.class;
+            final Class<?> publisherCls = BlockNodePublisherConnection.class;
 
-            streamingBlockNumberHandle = MethodHandles.privateLookupIn(cls, lookup)
-                    .findVarHandle(cls, "streamingBlockNumber", AtomicLong.class);
-            workerThreadRefHandle = MethodHandles.privateLookupIn(cls, lookup)
-                    .findVarHandle(cls, "workerThreadRef", AtomicReference.class);
+            streamingBlockNumberHandle = MethodHandles.privateLookupIn(streamingCls, lookup)
+                    .findVarHandle(streamingCls, "streamingBlockNumber", AtomicLong.class);
+            workerThreadRefHandle = MethodHandles.privateLookupIn(streamingCls, lookup)
+                    .findVarHandle(streamingCls, "workerThreadRef", AtomicReference.class);
 
-            final Method sendRequest =
-                    cls.getDeclaredMethod("sendRequest", BlockNodeStreamingConnection.StreamRequest.class);
+            final Method sendRequest = publisherCls.getDeclaredMethod("sendRequest", PublisherRequest.class);
             sendRequest.setAccessible(true);
             sendRequestHandle = lookup.unreflect(sendRequest);
 
-            final Method calculateRequestTimeout = cls.getDeclaredMethod("calculateRequestTimeout", long.class);
+            final Method calculateRequestTimeout =
+                    publisherCls.getDeclaredMethod("calculateRequestTimeout", long.class);
             calculateRequestTimeout.setAccessible(true);
             calculateRequestTimeoutHandle = lookup.unreflect(calculateRequestTimeout);
         } catch (final Exception e) {
@@ -122,6 +126,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     private ExecutorService pipelineExecutor;
     private BlockNodeClientFactory clientFactory;
     private AtomicInteger globalActiveStreamingConnectionCount;
+    private AtomicInteger globalActiveObservingConnectionCount;
     private ExecutorService realExecutor;
     private BlockNodeStats stats;
     private BlockStreamingObs streamingObs;
@@ -130,6 +135,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     @SuppressWarnings("unchecked")
     void beforeEach() throws Exception {
         globalActiveStreamingConnectionCount = new AtomicInteger();
+        globalActiveObservingConnectionCount = new AtomicInteger();
         stats = mock(BlockNodeStats.class);
         configProvider = createConfigProvider(createDefaultConfigProvider());
         nodeConfig = newBlockNodeConfig(8080, 1);
@@ -172,10 +178,19 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
+                .createStreamingClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, stats),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        stats),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -251,7 +266,11 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(localFactory)
-                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
+                .createStreamingClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
 
         final BlockNodeConfiguration cfgWithMax = BlockNodeConfiguration.newBuilder()
                 .address(nodeConfig.address())
@@ -266,7 +285,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, cfgWithMax, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        cfgWithMax,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -290,7 +314,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Feed one item just over configuredMax to force fatal branch if limit not respected
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(5);
-        final BlockState block = new BlockState(5);
+        final BlockState block = new BlockState(5, 2_000L);
         final BlockItem header = newBlockHeaderItem(5);
         block.addItem(header);
         // Slightly over configuredMax to ensure split/end if not honored
@@ -330,7 +354,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -353,7 +382,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
         /*
         Items 1, 2, and 3 are sized such that, given a request padding of 0 and an item padding of 0, during the pending
@@ -433,7 +462,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -456,7 +490,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
         /*
         The item is sized such that, given a request padding of 0 and an item padding of 0, during the pending request
@@ -559,7 +593,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final StringBuilder blockSummary =
                 new StringBuilder("\n=== Blocks (seed=").append(seed).append(") ===\n");
         for (int i = 1; i <= numBlocks; i++) {
-            final BlockState block = new BlockState(i);
+            final BlockState block = new BlockState(i, 2_000L);
             doReturn(block).when(bufferService).getBlockState(i);
 
             // Add header
@@ -695,7 +729,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -718,7 +757,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
 
         final Map<Integer, BlockItem> items = new TreeMap<>();
@@ -828,7 +867,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -851,7 +895,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
 
         final Map<Integer, BlockItem> items = new TreeMap<>();
@@ -965,7 +1009,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(10);
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         final BlockItem header = newBlockHeaderItem(10);
         block.addItem(header);
         block.closeBlock(); // Close the block to force sending
@@ -1011,7 +1055,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -1073,12 +1122,17 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     void testCloseAtBlockBoundary_activeBlock() throws Exception {
         // re-create the connection so we get the worker thread to run
         final long blockNumber = 10;
-        final BlockState block = new BlockState(blockNumber);
+        final BlockState block = new BlockState(blockNumber, 2_000L);
         lenient().when(bufferService.getBlockState(blockNumber)).thenReturn(block);
 
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -1228,8 +1282,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                sendRequest(new BlockNodeStreamingConnection.BlockItemsStreamRequest(
-                        request, 1L, 1, 1, false, false, 3_000, 1));
+                sendRequest(new PublisherBlockItemsRequest(request, 1L, 1, 1, false, false, 3_000, 1));
             } catch (final RuntimeException e) {
                 exceptionRef.set(e);
             }
@@ -1284,7 +1337,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final CountDownLatch latch = new CountDownLatch(1);
         Thread.ofVirtual().start(() -> {
             try {
-                connection.close(CloseReason.CONNECTION_ERROR, true);
+                connection.close(CloseReason.CONNECTION_ERROR, true, EndStream.Code.RESET);
             } finally {
                 isInterrupted.set(Thread.currentThread().isInterrupted());
                 latch.countDown();
@@ -1315,7 +1368,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         streamingBlockNumber.set(10);
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
 
         doReturn(block).when(bufferService).getBlockState(10);
 
@@ -1443,7 +1496,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -1465,7 +1523,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -1524,7 +1582,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         verify(metrics, times(3)).recordRequestBlockItemCount(2);
         verify(metrics, times(3)).recordRequestBytes(anyLong());
         verify(metrics, times(4)).recordRequestLatency(anyLong());
-        verify(metrics).recordRequestEndStreamSent(PublishStreamRequest.EndStream.Code.RESET);
+        verify(metrics).recordRequestEndStreamSent(PublishStreamRequest.EndStream.Code.ERROR);
         verify(requestCall, times(7)).sendRequest(any(PublishStreamRequestBytes.class), anyBoolean());
         verify(requestCall).completeRequests();
         verifyNoMoreInteractions(requestCall);
@@ -1544,7 +1602,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -1561,9 +1624,9 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(10);
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
-        doReturn(new BlockState(11)).when(bufferService).getBlockState(11);
+        doReturn(new BlockState(11, 2_000L)).when(bufferService).getBlockState(11);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
@@ -1677,7 +1740,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         configProvider = createConfigProvider(cfgBuilder);
         connection = new BlockNodeStreamingConnection(
                 configProvider,
-                new BlockNode(configProvider, nodeConfig, globalActiveStreamingConnectionCount, new BlockNodeStats()),
+                new BlockNode(
+                        configProvider,
+                        nodeConfig,
+                        globalActiveStreamingConnectionCount,
+                        globalActiveObservingConnectionCount,
+                        new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 metrics,
@@ -1741,12 +1809,12 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         return (long) calculateRequestTimeoutHandle.invoke(connection, payloadSizeInBytes);
     }
 
-    private SendRequestResult sendRequest(final BlockNodeStreamingConnection.StreamRequest request) {
+    private SendRequestResult sendRequest(final PublisherRequest request) {
         return sendRequest(connection, request);
     }
 
     private SendRequestResult sendRequest(
-            final BlockNodeStreamingConnection connection, final BlockNodeStreamingConnection.StreamRequest request) {
+            final BlockNodeStreamingConnection connection, final PublisherRequest request) {
         try {
             return (SendRequestResult) sendRequestHandle.invoke(connection, request);
         } catch (final Throwable e) {

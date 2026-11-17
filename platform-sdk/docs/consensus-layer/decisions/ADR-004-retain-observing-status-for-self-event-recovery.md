@@ -67,7 +67,7 @@ justification no longer applies:
 
 - The state machine continues to enter `OBSERVING` after event replay, gossip but not create events while there, and
   exit after `platformStatus.observingStatusDelay` (default `10s`)
-  (`ObservingStatusLogic.java:176-187`).
+  (`ObservingStatusLogic.java#onTimeElapsed`).
 - The event-creation gate continues to withhold creation in `OBSERVING`
   (`PlatformStatusRule.java#isEventCreationPermitted`).
 - The default delay stays at `10s` (`PlatformStatusConfig.java#observingStatusDelay`); it remains operator-tunable.
@@ -147,9 +147,9 @@ See **Decision** above.
 - [`../architecture/topics/restart-and-pces.md`](../architecture/topics/restart-and-pces.md) — the PCES write/replay
   path and the guarantee that all gossiped events are on disk after shutdown, which is what made `OBSERVING` redundant
   for the ordinary-crash case.
-- `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java:38-41` — the
+- `platform-sdk/consensus-model/src/main/java/org/hiero/consensus/model/status/PlatformStatus.java#OBSERVING` — the
   `OBSERVING` status definition.
-- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ObservingStatusLogic.java:176-187`
+- `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/logic/ObservingStatusLogic.java#onTimeElapsed`
   — the exit transition driven by `observingStatusDelay`.
 - `platform-sdk/consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/PlatformStatusConfig.java#observingStatusDelay` —
   the `observingStatusDelay` config field (default `10s`).

@@ -234,7 +234,8 @@ public class SequentialTaskDesignBenchmark {
 
             @Override
             protected boolean onExecute() {
-                final byte[] precomputedHash = hashInParallelStage ? BlockImplUtils.hashLeaf(item) : null;
+                final byte[] precomputedHash =
+                        hashInParallelStage ? BlockImplUtils.hashLeaf(sha384DigestOrThrow(), item) : null;
                 out.deliver(item, precomputedHash);
                 return true;
             }
@@ -262,7 +263,8 @@ public class SequentialTaskDesignBenchmark {
 
             @Override
             protected boolean onExecute() {
-                final byte[] hash = hashInParallelStage ? precomputedHash : BlockImplUtils.hashLeaf(item);
+                final byte[] hash =
+                        hashInParallelStage ? precomputedHash : BlockImplUtils.hashLeaf(sha384DigestOrThrow(), item);
                 hasher.addNodeByHash(hash);
 
                 // Simulate the writer's buffered append (no real disk I/O, matching NoOpBlockItemWriter).

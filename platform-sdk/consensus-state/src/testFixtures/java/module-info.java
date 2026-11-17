@@ -21,6 +21,5 @@ open module org.hiero.consensus.state.test.fixtures {
     requires org.hiero.consensus.platformstate;
     requires org.hiero.consensus.roster.test.fixtures;
     requires org.hiero.consensus.utility.test.fixtures;
-    requires org.mockito;
     requires static transitive com.github.spotbugs.annotations;
 }

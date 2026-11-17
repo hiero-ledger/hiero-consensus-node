@@ -107,8 +107,8 @@ import org.junit.jupiter.api.Order;
  * and tests if they needed to ensure a transaction was handled before issuing any {@code FileGetContents} queries
  * or submitting {@code FileUpdate} transactions.)
  */
-// Run just before stream validation to avoid state pollution
-@Order(Integer.MAX_VALUE - 1)
+// Genesis tests build their own network, so they must run before any shared network exists
+@Order(Integer.MIN_VALUE)
 public class SystemFileExportsTest {
     private static final String DESCRIPTION_PREFIX = "Revision #";
 
@@ -128,11 +128,14 @@ public class SystemFileExportsTest {
                 // This is the genesis transaction
                 cryptoCreate("firstUser"),
                 overriding("nodes.updateAccountIdAllowed", "true"),
-                sourcing(() -> blockingOrder(nOps(CLASSIC_HAPI_TEST_NETWORK_SIZE, i -> nodeUpdate("" + i)
-                        .description(DESCRIPTION_PREFIX + i)
-                        .serviceEndpoint(endpointsFor(i))
-                        .grpcCertificateHash(grpcCertHashes[i])
-                        .gossipCaCertificate(derEncoded(gossipCertificates.get().get((long) i)))))),
+                sourcing(() -> blockingOrder(nOps(
+                        CLASSIC_HAPI_TEST_NETWORK_SIZE,
+                        i -> nodeUpdate("" + i)
+                                .description(DESCRIPTION_PREFIX + i)
+                                .serviceEndpoint(endpointsFor(i))
+                                .grpcCertificateHash(grpcCertHashes[i])
+                                .gossipCaCertificate(
+                                        derEncoded(gossipCertificates.get().get((long) i)))))),
                 waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
@@ -154,11 +157,14 @@ public class SystemFileExportsTest {
                 // This is the genesis transaction
                 cryptoCreate("firstUser"),
                 overriding("nodes.updateAccountIdAllowed", "true"),
-                sourcing(() -> blockingOrder(nOps(CLASSIC_HAPI_TEST_NETWORK_SIZE, i -> nodeUpdate("" + i)
-                        .description(DESCRIPTION_PREFIX + i)
-                        .serviceEndpoint(endpointsFor(i))
-                        .grpcCertificateHash(grpcCertHashes[i])
-                        .gossipCaCertificate(derEncoded(gossipCertificates.get().get((long) i)))))),
+                sourcing(() -> blockingOrder(nOps(
+                        CLASSIC_HAPI_TEST_NETWORK_SIZE,
+                        i -> nodeUpdate("" + i)
+                                .description(DESCRIPTION_PREFIX + i)
+                                .serviceEndpoint(endpointsFor(i))
+                                .grpcCertificateHash(grpcCertHashes[i])
+                                .gossipCaCertificate(
+                                        derEncoded(gossipCertificates.get().get((long) i)))))),
                 waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),

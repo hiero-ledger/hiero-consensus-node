@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.hedera.node.app.blocks.impl.streaming.BlockBufferSaturationInfo.SaturationDetail;
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.AnyCriteria;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.GroupSelectionOutcome;
@@ -38,6 +39,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -58,6 +60,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.block.api.PublishStreamRequest.EndStream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -101,7 +105,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
             activeConfigRefHandle = lookup.findVarHandle(cls, "activeConfigRef", AtomicReference.class);
             globalCoolDownTimestampRefHandle =
                     lookup.findVarHandle(cls, "globalCoolDownTimestampRef", AtomicReference.class);
-            bufferStatusRefHandle = lookup.findVarHandle(cls, "bufferStatusRef", AtomicReference.class);
+            bufferStatusRefHandle = lookup.findVarHandle(cls, "bufferSaturationRef", AtomicReference.class);
             connectionMonitorThreadRefHandle =
                     lookup.findVarHandle(cls, "connectionMonitorThreadRef", AtomicReference.class);
 
@@ -211,6 +215,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         resetMocks();
     }
 
+    @AfterEach
+    void afterEach() throws InterruptedException {
+        // Tests that start the manager spawn a real 'bn-conn-monitor' thread; if it outlives this class
+        // it keeps calling disabled mocks and floods the logger, breaking LogCaptor assertions elsewhere.
+        isConnectionManagerActive().set(false);
+        final Thread monitorThread = connectionMonitorThreadRef().getAndSet(null);
+        if (monitorThread != null) {
+            monitorThread.interrupt();
+            monitorThread.join(5_000);
+        }
+    }
+
     @Test
     void testIsActiveConnectionAutoReset_nullConnection() throws Throwable {
         final boolean isAutoReset = invoke_isActiveConnectionAutoReset(Instant.now(), null);
@@ -262,12 +278,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(activeConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         when(activeConnection.createTimestamp()).thenReturn(Instant.now());
         when(activeConnection.activeTimestamp()).thenReturn(Instant.now());
+        when(activeConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         blockNodes().clear();
         final BlockNode priority2Node = new BlockNode(
-                configProvider, newBlockNodeConfig("localhost", 1234, 2), new AtomicInteger(), new BlockNodeStats());
-        final BlockNode activeNode =
-                new BlockNode(configProvider, activeConfig, new AtomicInteger(), new BlockNodeStats());
+                configProvider,
+                newBlockNodeConfig("localhost", 1234, 2),
+                new AtomicInteger(),
+                new AtomicInteger(),
+                new BlockNodeStats());
+        final BlockNode activeNode = new BlockNode(
+                configProvider, activeConfig, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
         activeNode.onActive(activeConnection);
         blockNodes().put(new BlockNodeEndpoint("localhost", 1234), priority2Node);
         blockNodes().put(activeConfig.streamingEndpoint(), activeNode);
@@ -281,6 +302,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection).createTimestamp();
         verify(activeConnection).activeTimestamp();
         verify(activeConnection).connectionStatistics();
+        verify(activeConnection).currentState();
         verifyNoMoreInteractions(activeConnection);
     }
 
@@ -292,12 +314,17 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(activeConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         when(activeConnection.createTimestamp()).thenReturn(Instant.now());
         when(activeConnection.activeTimestamp()).thenReturn(Instant.now());
+        when(activeConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         blockNodes().clear();
         final BlockNode priority1Node = new BlockNode(
-                configProvider, newBlockNodeConfig("localhost", 1234, 1), new AtomicInteger(), new BlockNodeStats());
-        final BlockNode activeNode =
-                new BlockNode(configProvider, activeConfig, new AtomicInteger(), new BlockNodeStats());
+                configProvider,
+                newBlockNodeConfig("localhost", 1234, 1),
+                new AtomicInteger(),
+                new AtomicInteger(),
+                new BlockNodeStats());
+        final BlockNode activeNode = new BlockNode(
+                configProvider, activeConfig, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
         activeNode.onActive(activeConnection);
         blockNodes().put(priority1Node.configuration().streamingEndpoint(), priority1Node);
         blockNodes().put(activeConfig.streamingEndpoint(), activeNode);
@@ -311,65 +338,195 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection, times(2)).connectionId();
         verify(activeConnection).createTimestamp();
         verify(activeConnection).activeTimestamp();
+        verify(activeConnection).currentState();
         verifyNoMoreInteractions(activeConnection);
     }
 
     @Test
     void testIsBufferUnhealthy_latestStatusNull() throws Throwable {
-        when(bufferService.latestBufferStatus()).thenReturn(null);
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(null);
 
         final boolean isBufferUnhealthy = invoke_isBufferUnhealthy();
 
         assertThat(isBufferUnhealthy).isFalse();
 
-        verify(bufferService).latestBufferStatus();
+        verify(bufferService).latestBufferSaturationInfo();
         verifyNoMoreInteractions(bufferService);
     }
 
     @Test
     void testIsBufferUnhealthy_sameStatus() throws Throwable {
-        final BlockBufferStatus status = new BlockBufferStatus(Instant.now(), 5.00D, false);
-        when(bufferService.latestBufferStatus()).thenReturn(status);
+        final BlockBufferSaturationInfo status = buildSaturationInfo(Instant.now(), 5.00D, false);
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(status);
         bufferStatusRef().set(status);
 
         final boolean isUnhealthy = invoke_isBufferUnhealthy();
 
         assertThat(isUnhealthy).isFalse();
 
-        verify(bufferService).latestBufferStatus();
+        verify(bufferService).latestBufferSaturationInfo();
         verifyNoMoreInteractions(bufferService);
     }
 
     @Test
     void testIsBufferUnhealthy_false() throws Throwable {
         final Instant now = Instant.now();
-        final BlockBufferStatus latestStatus = new BlockBufferStatus(now, 5.00D, false);
-        when(bufferService.latestBufferStatus()).thenReturn(latestStatus);
-        bufferStatusRef().set(new BlockBufferStatus(now.minusSeconds(1), 0.0D, false));
+        final BlockBufferSaturationInfo latestStatus = buildSaturationInfo(now, 5.00D, false);
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(latestStatus);
+        bufferStatusRef().set(buildSaturationInfo(now.minusSeconds(1), 0.0D, false));
 
         final boolean isUnhealthy = invoke_isBufferUnhealthy();
 
         assertThat(isUnhealthy).isFalse();
         assertThat(bufferStatusRef()).hasValue(latestStatus);
 
-        verify(bufferService).latestBufferStatus();
+        verify(bufferService).latestBufferSaturationInfo();
         verifyNoMoreInteractions(bufferService);
     }
 
     @Test
     void testIsBufferUnhealthy_true() throws Throwable {
         final Instant now = Instant.now();
-        final BlockBufferStatus latestStatus = new BlockBufferStatus(now, 80.00D, true);
-        when(bufferService.latestBufferStatus()).thenReturn(latestStatus);
-        bufferStatusRef().set(new BlockBufferStatus(now.minusSeconds(1), 0.0D, false));
+        final BlockBufferSaturationInfo latestStatus = buildSaturationInfo(now, 80.00D, true);
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(latestStatus);
+        bufferStatusRef().set(buildSaturationInfo(now.minusSeconds(1), 0.0D, false));
 
         final boolean isUnhealthy = invoke_isBufferUnhealthy();
 
         assertThat(isUnhealthy).isTrue();
         assertThat(bufferStatusRef()).hasValue(latestStatus);
 
-        verify(bufferService).latestBufferStatus();
+        verify(bufferService).latestBufferSaturationInfo();
         verifyNoMoreInteractions(bufferService);
+    }
+
+    @Test
+    void testIsBufferUnhealthy_unackedBlocks() throws Throwable {
+        final BlockBufferSaturationInfo saturationInfoA = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(25.0D, false, 25, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoA);
+        bufferStatusRef().set(BlockBufferSaturationInfo.NIL);
+
+        final boolean isUnhealthyA = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyA).isFalse();
+
+        // transition from healthy to action stage
+        final BlockBufferSaturationInfo saturationInfoB = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(80.0D, true, 80, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoB);
+
+        final boolean isUnhealthyB = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyB).isTrue();
+
+        // transition to higher saturation
+        final BlockBufferSaturationInfo saturationInfoC = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(85.0D, true, 85, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoC);
+
+        final boolean isUnhealthyC = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyC).isTrue();
+
+        // transition from action stage to below action stage
+        final BlockBufferSaturationInfo saturationInfoD = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(10.0D, false, 10, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoD);
+
+        final boolean isUnhealthyD = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyD).isFalse();
+
+        // transition to higher saturation but still below action stage
+        final BlockBufferSaturationInfo saturationInfoE = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(20.0D, false, 20, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoE);
+
+        final boolean isUnhealthyE = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyE).isFalse();
+    }
+
+    @Test
+    void testIsBufferUnhealthy_unackedBytes() throws Throwable {
+        final BlockBufferSaturationInfo saturationInfoA = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(25.0D, false, 25, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoA);
+        bufferStatusRef().set(BlockBufferSaturationInfo.NIL);
+
+        final boolean isUnhealthyA = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyA).isFalse();
+
+        // transition from healthy to action stage
+        final BlockBufferSaturationInfo saturationInfoB = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(80.0D, true, 80, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoB);
+
+        final boolean isUnhealthyB = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyB).isTrue();
+
+        // transition to higher saturation
+        final BlockBufferSaturationInfo saturationInfoC = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(85.0D, true, 85, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoC);
+
+        final boolean isUnhealthyC = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyC).isTrue();
+
+        // transition from action stage to below action stage
+        final BlockBufferSaturationInfo saturationInfoD = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(10.0D, false, 10, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoD);
+
+        final boolean isUnhealthyD = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyD).isFalse();
+
+        // transition to higher saturation but still below action stage
+        final BlockBufferSaturationInfo saturationInfoE = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(20.0D, false, 20, 100),
+                new SaturationDetail(0.0D, false, 0, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfoE);
+
+        final boolean isUnhealthyE = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthyE).isFalse();
+    }
+
+    @Test
+    void testIsBufferUnhealthy_inProgressBlocksDoesNothing() throws Throwable {
+        final BlockBufferSaturationInfo saturationInfo = new BlockBufferSaturationInfo(
+                Instant.now(),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(0.0D, false, 0, 100),
+                new SaturationDetail(100.0D, true, 5, 5));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(saturationInfo);
+
+        final boolean isUnhealthy = invoke_isBufferUnhealthy();
+        assertThat(isUnhealthy).isFalse();
     }
 
     @Test
@@ -444,7 +601,12 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         blockNodes()
                 .put(
                         config.streamingEndpoint(),
-                        new BlockNode(configProvider, config, new AtomicInteger(), new BlockNodeStats()));
+                        new BlockNode(
+                                configProvider,
+                                config,
+                                new AtomicInteger(),
+                                new AtomicInteger(),
+                                new BlockNodeStats()));
 
         final boolean isUpdated = invoke_isConfigUpdated();
 
@@ -486,7 +648,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         connectionManager.notifyConnectionActive(connection);
 
         verify(connection).configuration();
-        verify(connection).close(CloseReason.INTERNAL_ERROR, true);
+        verify(connection).close(CloseReason.INTERNAL_ERROR, true, EndStream.Code.ERROR);
         verifyNoMoreInteractions(connection);
     }
 
@@ -509,13 +671,16 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     @Test
     void testNotifyConnectionClosed_untrackedNode() {
         final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
-        when(connection.configuration()).thenReturn(newBlockNodeConfig("localhost", 1234, 1));
+        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 1234, 1);
+        when(connection.configuration()).thenReturn(config);
         blockNodes().clear();
 
         connectionManager.notifyConnectionClosed(connection);
 
         verify(connection).configuration();
+        verify(bufferService).notifyBlockNodeDisconnected(config.streamingEndpoint());
         verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
@@ -523,7 +688,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeStreamingConnection activeConnection = mock(BlockNodeStreamingConnection.class);
         activeConnectionRef().set(activeConnection);
         final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
-        when(connection.configuration()).thenReturn(newBlockNodeConfig("localhost", 1234, 1));
+        final BlockNodeConfiguration config = newBlockNodeConfig("localhost", 1234, 1);
+        when(connection.configuration()).thenReturn(config);
         blockNodes().clear();
 
         connectionManager.notifyConnectionClosed(connection);
@@ -531,7 +697,9 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef()).hasValue(activeConnection);
 
         verify(connection).configuration();
+        verify(bufferService).notifyBlockNodeDisconnected(config.streamingEndpoint());
         verifyNoMoreInteractions(connection);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
@@ -549,8 +717,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(activeConnection).configuration();
         verify(blockNode).onClose(activeConnection);
+        verify(bufferService).notifyBlockNodeDisconnected(config.streamingEndpoint());
         verifyNoMoreInteractions(activeConnection);
         verifyNoMoreInteractions(blockNode);
+        verifyNoMoreInteractions(bufferService);
     }
 
     @Test
@@ -1245,6 +1415,76 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testSelectNewBlockNode_initializeFailureFailsOverToLowerPriorityNode() throws Throwable {
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
+        when(bufferService.getLastBlockNumberProduced()).thenReturn(20L);
+        // Node 1 is the highest priority; its status check passes but its stream can never be opened
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig("localhost", 1234, 1);
+        final BlockNode node1 = new BlockNode(
+                configProvider, node1Config, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
+        final Future<Object> node1Future = mock(Future.class);
+        when(node1Future.state()).thenReturn(State.SUCCESS);
+        when(node1Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 12));
+        // Node 2 is a healthy, lower priority node
+        final BlockNodeConfiguration node2Config = newBlockNodeConfig("localhost", 2345, 2);
+        final BlockNode node2 = new BlockNode(
+                configProvider, node2Config, new AtomicInteger(), new AtomicInteger(), new BlockNodeStats());
+        final Future<Object> node2Future = mock(Future.class);
+        when(node2Future.state()).thenReturn(State.SUCCESS);
+        when(node2Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 12));
+        // the first selection only checks the priority 1 group; the second only has Node 2 as a candidate
+        when(blockingIoExecutor.invokeAll(anyCollection(), anyLong(), any(TimeUnit.class)))
+                .thenReturn(List.of(node1Future), List.of(node2Future));
+
+        blockNodes().put(node1Config.streamingEndpoint(), node1);
+        blockNodes().put(node2Config.streamingEndpoint(), node2);
+
+        try (final MockedConstruction<BlockNodeStreamingConnection> mockConnection =
+                mockConstruction(BlockNodeStreamingConnection.class, (connection, context) -> {
+                    final BlockNode selectedNode =
+                            (BlockNode) context.arguments().get(1);
+                    final BlockNodeConfiguration config = selectedNode.configuration();
+                    lenient().when(connection.configuration()).thenReturn(config);
+                    lenient()
+                            .when(connection.connectionId())
+                            .thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, context.getCount()));
+                    if (selectedNode == node1) {
+                        doThrow(new RuntimeException("Pipeline creation timed out"))
+                                .when(connection)
+                                .initialize();
+                        // mirror the real close(): record the reason and notify the manager
+                        doAnswer(invocation -> {
+                                    when(connection.closeReason()).thenReturn(invocation.getArgument(0));
+                                    connectionManager.notifyConnectionClosed(connection);
+                                    return null;
+                                })
+                                .when(connection)
+                                .close(any(CloseReason.class), any(Boolean.class), any());
+                    }
+                })) {
+            // first attempt: Node 1 is selected, but its connection fails to initialize
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.UNKNOWN, null);
+
+            assertThat(mockConnection.constructed()).hasSize(1);
+            assertThat(activeConnectionRef()).hasNullValue();
+            assertThat(node1.isStreamingCandidate()).isFalse();
+            assertThat(node2.isStreamingCandidate()).isTrue();
+
+            // second attempt: Node 1 is cooling down, so the lower priority Node 2 is selected
+            invoke_selectNewBlockNode(true, new AnyCriteria(), CloseReason.UNKNOWN, null);
+
+            final List<BlockNodeStreamingConnection> createdConnections = mockConnection.constructed();
+            assertThat(createdConnections).hasSize(2);
+            final BlockNodeStreamingConnection node2Connection = createdConnections.get(1);
+            assertThat(node2Connection.configuration()).isEqualTo(node2Config);
+            assertThat(activeConnectionRef()).hasValue(node2Connection);
+            verify(node2Connection).updateConnectionState(ConnectionState.ACTIVE);
+        }
+
+        verify(blockingIoExecutor, times(2)).invokeAll(anyCollection(), anyLong(), any(TimeUnit.class));
+    }
+
+    @Test
     void testSelectNewBockNode_higherPriorityRequiredAndAvailable() throws Throwable {
         // create multiple block nodes with different priorities (1-3) but have the active connection be priority 2
         // this should trigger a node reselection where only nodes with higher priorities (i.e. priority 1) are selected
@@ -1409,7 +1649,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConfigRef().set(config);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(config);
         // indicate the buffer is healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
         // higher priority connection, stalled connection, and auto reset checks will be false since no active
         // connection exists
 
@@ -1441,7 +1681,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(newActiveConnection);
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1458,7 +1699,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(activeConnection.ipV4AddressAsInt()).thenReturn(3232235777L);
         activeConnectionRef().set(activeConnection);
         // healthy buffer and no configuration changes so the active connection is left in place
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         invoke_updateConnectionIfNeeded();
 
@@ -1471,7 +1712,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // no active connection exists
         activeConnectionRef().set(null);
         // healthy buffer and no configured block nodes so no new connection is selected
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         invoke_updateConnectionIfNeeded();
 
@@ -1507,7 +1748,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         blockNodes().put(nodeConfig.streamingEndpoint(), node);
         // the active configuration currently has a single block node
         activeConfigRef().set(new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig)));
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
         // the whole block-nodes.json is removed -> the config service publishes an empty, version-bumped set
         when(blockNodeConfigService.latestConfiguration())
                 .thenReturn(new VersionedBlockNodeConfigurationSet(2, List.of()));
@@ -1549,7 +1790,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig));
         activeConfigRef().set(configSet);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(configSet);
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         // tick 1: the connection is still active and healthy, so the gauge reports its IP address
         invoke_updateConnectionIfNeeded();
@@ -1597,7 +1838,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 new VersionedBlockNodeConfigurationSet(1, List.of(nodeConfig, lowerPriorityConfig));
         activeConfigRef().set(currentConfigSet);
         // mark buffer healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
         // create new config that removes everything
         when(blockNodeConfigService.latestConfiguration())
                 .thenReturn(new VersionedBlockNodeConfigurationSet(2, List.of()));
@@ -1611,7 +1852,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(lowerPriorityNode).onTerminate(CloseReason.CONFIG_UPDATE);
         // in the real world, when BlockNode#onTerminate(CloseReason) is called, it will close the connection
         // associated with the node, but since this is using mocks, those side effects aren't verifiable here
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1636,7 +1878,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConfigRef().set(configSet);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(configSet);
         // mark the buffer as unhealthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 80.0D, true));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 80.0D, true));
 
         blockNodes().put(nodeConfig.streamingEndpoint(), node);
 
@@ -1645,7 +1887,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         // because there is only one block node, even though we are experiencing an unhealthy buffer we will not close
         // the active connection - having some sort of connection is better than nothing in this scenario
         verify(activeConnection, never()).closeAtBlockBoundary(any(CloseReason.class));
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1674,7 +1917,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConfigRef().set(config);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(config);
         // indicate the buffer is healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         // the following setup is to allow for the following node to be selected as the new active connection
         final BlockNode node = mock(BlockNode.class);
@@ -1707,7 +1950,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(lowerPriorityConnection).closeAtBlockBoundary(CloseReason.HIGHER_PRIORITY_FOUND);
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1729,7 +1973,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(node.isStreamingCandidate()).thenReturn(true); // an auto reset does not make a node non-streamable
         activeConnectionRef().set(existingActiveConnection);
         // mark the buffer as healthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
         // we will attempt to re-connect to the same node, so make sure the setup accounts for this
         final Future<Object> nodeFuture = mock(Future.class);
         when(nodeFuture.state()).thenReturn(State.SUCCESS);
@@ -1763,7 +2007,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(newActiveConnection).initialize();
         verify(newActiveConnection).updateConnectionState(ConnectionState.ACTIVE);
         verify(existingActiveConnection, times(2)).closeAtBlockBoundary(CloseReason.PERIODIC_RESET);
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1786,7 +2031,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         activeConfigRef().set(configSet);
         when(blockNodeConfigService.latestConfiguration()).thenReturn(configSet);
         // mark the buffer as unhealthy
-        when(bufferService.latestBufferStatus()).thenReturn(new BlockBufferStatus(Instant.now(), 0.0D, false));
+        when(bufferService.latestBufferSaturationInfo()).thenReturn(buildSaturationInfo(Instant.now(), 0.0D, false));
 
         blockNodes().put(nodeConfig.streamingEndpoint(), node);
 
@@ -1794,7 +2039,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // the active connection should not be changed
         assertThat(activeConnectionRef()).doesNotHaveNullValue().hasValue(activeConnection);
-        verify(metrics).recordActiveConnectionCount(anyLong());
+        verify(metrics).recordActiveStreamingConnectionCount(anyLong());
+        verify(metrics).recordActiveObservingConnectionCount(anyLong());
         verify(metrics).recordActiveConnectionIp(anyLong());
     }
 
@@ -1918,7 +2164,43 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(blockNodeConfigService).shutdown();
     }
 
+    @Test
+    void testConnectionMonitor_failedCheckStillBacksOff() {
+        final long intervalNanos = TimeUnit.MILLISECONDS.toNanos(configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .connectionMonitorCheckIntervalMillis());
+        final List<Long> checkTimes = new ArrayList<>();
+        // every connectivity check fails; the second also stops the manager so the loop exits
+        doAnswer(invocation -> {
+                    checkTimes.add(System.nanoTime());
+                    if (checkTimes.size() == 2) {
+                        isConnectionManagerActive().set(false);
+                    }
+                    throw new IllegalStateException("connectivity check failed");
+                })
+                .when(metrics)
+                .recordActiveStreamingConnectionCount(anyLong());
+        isConnectionManagerActive().set(true);
+
+        connectionManager.new ConnectionMonitorTask().run();
+
+        // a failed check must still wait out the interval, not retry at once and spin
+        assertThat(checkTimes).hasSize(2);
+        assertThat(checkTimes.get(1) - checkTimes.get(0)).isGreaterThanOrEqualTo(intervalNanos);
+    }
+
     // Utilities
+
+    BlockBufferSaturationInfo buildSaturationInfo(
+            final Instant timestamp, final double saturationPercent, final boolean isAtActionStage) {
+        final int count = (int) saturationPercent;
+        return new BlockBufferSaturationInfo(
+                timestamp,
+                new SaturationDetail(saturationPercent, isAtActionStage, count, 100),
+                new SaturationDetail(0.0D, false, 5, 100_000),
+                new SaturationDetail(0.0D, false, 0, 5));
+    }
 
     void invoke_updateConnectionIfNeeded() throws Throwable {
         updateConnectionIfNeededHandle.invoke(connectionManager);
@@ -1982,8 +2264,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @SuppressWarnings("unchecked")
-    AtomicReference<BlockBufferStatus> bufferStatusRef() {
-        return (AtomicReference<BlockBufferStatus>) bufferStatusRefHandle.get(connectionManager);
+    AtomicReference<BlockBufferSaturationInfo> bufferStatusRef() {
+        return (AtomicReference<BlockBufferSaturationInfo>) bufferStatusRefHandle.get(connectionManager);
     }
 
     @SuppressWarnings("unchecked")

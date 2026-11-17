@@ -72,6 +72,34 @@ public class NodeUpdateTest {
         gossipCertificates = generateX509Certificates(2);
     }
 
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"nodes.updateAccountIdAllowed"})
+    final Stream<DynamicTest> accountOnlyUpdateRequiresExistingAccountOrAdmin() throws CertificateEncodingException {
+        return hapiTest(
+                overriding("nodes.updateAccountIdAllowed", "true"),
+                newKeyNamed("nodeAdmin"),
+                cryptoCreate("oldAccount"),
+                cryptoCreate("newAccount"),
+                cryptoCreate("attacker").balance(100 * ONE_HBAR),
+                nodeCreate("testNode", "oldAccount")
+                        .adminKey("nodeAdmin")
+                        .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith("attacker")
+                        .signedBy("attacker", "newAccount")
+                        .hasKnownStatus(INVALID_SIGNATURE),
+                nodeUpdate("testNode")
+                        .accountId("newAccount")
+                        .payingWith("attacker")
+                        .signedBy("attacker", "newAccount", "oldAccount"),
+                nodeUpdate("testNode")
+                        .accountId("oldAccount")
+                        .payingWith("attacker")
+                        .signedBy("attacker", "oldAccount", "nodeAdmin"));
+    }
+
     @HapiTest
     @DisplayName("cannot update a negative nodeid")
     final Stream<DynamicTest> cannotUpdateNegativeNodeId() {
@@ -81,7 +109,7 @@ public class NodeUpdateTest {
     @HapiTest
     @DisplayName("cannot update a missing nodeid")
     final Stream<DynamicTest> updateMissingNodeFail() {
-        return hapiTest(nodeUpdate("100").hasPrecheck(INVALID_NODE_ID));
+        return hapiTest(nodeUpdate("100").hasKnownStatus(INVALID_NODE_ID));
     }
 
     @HapiTest
@@ -95,7 +123,7 @@ public class NodeUpdateTest {
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeDelete("testNode"),
-                nodeUpdate("testNode").hasPrecheck(INVALID_NODE_ID));
+                nodeUpdate("testNode").hasKnownStatus(INVALID_NODE_ID));
     }
 
     @HapiTest
@@ -138,7 +166,7 @@ public class NodeUpdateTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").accountId("0.0.100").hasPrecheck(UPDATE_NODE_ACCOUNT_NOT_ALLOWED));
+                nodeUpdate("testNode").accountId("0.0.100").hasKnownStatus(UPDATE_NODE_ACCOUNT_NOT_ALLOWED));
     }
 
     @HapiTest
@@ -329,7 +357,7 @@ public class NodeUpdateTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> failsAtIngestForUnAuthorizedTxns() throws CertificateEncodingException {
+    final Stream<DynamicTest> failsAtHandleForUnauthorizedTxns() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
         final var nodeAccount = "nodeAccount";
         return hapiTest(
@@ -345,7 +373,7 @@ public class NodeUpdateTest {
                 nodeUpdate("ntb")
                         .payingWith("payer")
                         .accountId("0.0.1000")
-                        .hasPrecheck(INVALID_SIGNATURE)
+                        .hasKnownStatus(INVALID_SIGNATURE)
                         .fee(ONE_HBAR)
                         .via("updateNode"));
     }
@@ -475,7 +503,7 @@ public class NodeUpdateTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").signedBy(ADDRESS_BOOK_CONTROL).hasPrecheck(INVALID_SIGNATURE));
+                nodeUpdate("testNode").signedBy(ADDRESS_BOOK_CONTROL).hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest

@@ -110,7 +110,7 @@ A **data location** is a 64-bit long that encodes both the file index and the by
 ```
 
 The file index is stored with a +1 offset so that data location `0` can serve as `NON_EXISTENT_DATA_LOCATION` (a sentinel).
-This encoding allows up to 16 million files and 1 TB per file. The in-memory index (`LongList` or `LongListOffHeap`)
+This encoding allows up to 16 million files and 1 TB per file. The in-memory index (a `LongList`)
 maps data item keys to data locations. When compaction copies a data item to a new file, it atomically updates the
 index entry via `putIfEqual()` to point to the new data location (new file index + new byte offset).
 

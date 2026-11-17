@@ -1182,6 +1182,7 @@ public final class VirtualNodeCache {
      *     <li>Only the latest mutation with version less than or equal to the
      *     {@code fastCopyVersion} is added</li>
      *     <li>Null mutations are not copied</li>
+     *     <li>Copied mutations are new objects, they are not shared with {@code src}</li>
      * </ul>
      *
      * @param src Map that contains the original mutations
@@ -1206,8 +1207,15 @@ public final class VirtualNodeCache {
                 continue;
             }
 
-            dst.put(entry.getKey(), mutation);
-            array.add(mutation);
+            // Mutations are not shared with the original cache. When the original cache family is
+            // merged and flushed, some mutations are marked as filtered. The snapshot must not be
+            // affected by that, otherwise such mutations would be skipped, when the snapshot is
+            // flushed
+            final Mutation<K, L> snapshotMutation =
+                    new Mutation<>(null, mutation.key, mutation.value, mutation.version);
+            snapshotMutation.setDeleted(mutation.isDeleted());
+            dst.put(entry.getKey(), snapshotMutation);
+            array.add(snapshotMutation);
             // Estimated size is not updated, which is hopefully fine
         }
     }

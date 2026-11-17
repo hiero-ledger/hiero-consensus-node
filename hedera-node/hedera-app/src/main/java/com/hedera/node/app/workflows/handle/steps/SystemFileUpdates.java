@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.steps;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FEE_FILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.util.FileUtilities.observePropertiesAndPermissions;
 import static java.util.Objects.requireNonNull;
@@ -14,6 +16,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.util.FileUtilities;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -25,6 +28,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.BufferUnderflowException;
 import java.util.concurrent.CompletableFuture;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -36,6 +40,13 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>This is a temporary solution. In the future we want to have specific transactions
  * to update the data that is currently transmitted in these files.
+ *
+ * <p>On unparseable contents, chunk-uploaded files return a status (fee schedules, network properties, HAPI
+ * permissions) while single-transaction files throw (exchange rates, throttles). Only throwing rolls the
+ * committed bytes back. The simple fee schedule is a partial exception: a status that could still be an
+ * in-progress chunk upload is returned, but one the registered calculators cannot evaluate
+ * ({@code INVALID_FEE_FILE}) throws instead — see {@link FeeManager#updateSimpleFees(Bytes, boolean)} for why this
+ * depends on every schedule actually shipped fitting in a single transaction, so chunking is not in play today.
  */
 @Singleton
 public class SystemFileUpdates {
@@ -101,21 +112,49 @@ public class SystemFileUpdates {
         final var filesConfig = configuration.getConfigData(FilesConfig.class);
 
         if (fileNum == filesConfig.simpleFeesSchedules()) {
-            return feeManager.updateSimpleFees(FileUtilities.getFileContent(state, fileID));
+            // Strict, regardless of what the 1-arg overload defaults to: a schedule the registered calculators
+            // cannot evaluate must never reach committed state, so a hard rejection here throws to roll the file
+            // write itself back, instead of leaving the bytes in 0.0.113 for a later restart to pick up.
+            final var status = feeManager.updateSimpleFees(FileUtilities.getFileContent(state, fileID), true);
+            if (status == INVALID_FEE_FILE) {
+                throw new HandleException(status);
+            }
+            return status;
         } else if (fileNum == filesConfig.exchangeRates()) {
             exchangeRateManager.update(FileUtilities.getFileContent(state, fileID), payer);
         } else if (fileNum == filesConfig.networkProperties()) {
+            final var status = configListParseStatus(FileUtilities.getFileContent(state, fileID));
             BlockStreamWriterMode currentWriterMode =
                     configuration.getConfigData(BlockStreamConfig.class).writerMode();
             updateConfig(configuration, ConfigType.NETWORK_PROPERTIES, state);
             checkForBlockNodeStreamingChange(currentWriterMode, configProvider);
             throttleServiceManager.refreshThrottleConfiguration();
+            return status;
         } else if (fileNum == filesConfig.hapiPermissions()) {
+            final var status = configListParseStatus(FileUtilities.getFileContent(state, fileID));
             updateConfig(configuration, ConfigType.API_PERMISSIONS, state);
+            return status;
         } else if (fileNum == filesConfig.throttleDefinitions()) {
             return throttleServiceManager.recreateThrottles(FileUtilities.getFileContent(state, fileID));
         }
         return SUCCESS;
+    }
+
+    /**
+     * Returns whether the given contents parse as a {@link ServicesConfigurationList}; if not, no
+     * configuration change was applied.
+     *
+     * @param contents the assembled contents of the file
+     * @return the status to report
+     */
+    private ResponseCodeEnum configListParseStatus(@NonNull final Bytes contents) {
+        try {
+            ServicesConfigurationList.PROTOBUF.parseStrict(contents.toReadableSequentialData());
+            return SUCCESS;
+        } catch (ParseException | BufferUnderflowException | NullPointerException ignore) {
+            // The failures that make ConfigProviderImpl.addByteSource() drop this source
+            return CONFIG_FILE_PART_UPLOADED;
+        }
     }
 
     private void checkForBlockNodeStreamingChange(

@@ -104,7 +104,11 @@ public record SystemContractMethod(
         HAS,
         HSS,
         PNRG,
-        EXCHANGE
+        EXCHANGE,
+        CLPR,
+        BESU_QBFT_VERIFIER,
+        SEI_VERIFIER,
+        ETHEREUM_VERIFIER
     }
 
     public interface AsSuffix {
@@ -175,7 +179,11 @@ public record SystemContractMethod(
         REJECT("REJECT_TOKEN"),
         TRANSFER("TRANSFER_TOKEN", "(any token transfer transaction"),
         UPDATE("UPDATE_TOKEN", "(any token field update)"),
-        WIPE("WIPE_TOKEN");
+        WIPE("WIPE_TOKEN"),
+        CLPR("CLPR", "(Cross-Ledger Protocol Router)"),
+        BESU_QBFT("BESU_QBFT", "(Besu QBFT Verifier)"),
+        SEI("SEI", "(Sei CometBFT Verifier)"),
+        ETHEREUM("ETHEREUM", "(Ethereum Sync Committee Verifier)");
 
         private final String asSuffix;
         private final String clarification;

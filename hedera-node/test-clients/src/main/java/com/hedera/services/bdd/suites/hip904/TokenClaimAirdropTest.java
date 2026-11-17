@@ -614,7 +614,7 @@ public class TokenClaimAirdropTest extends TokenAirdropBase {
                                 pendingAirdrop(ALICE, CAROL, FUNGIBLE_TOKEN_1))
                         .signedBy(CAROL, BOB)
                         .payingWith(CAROL)
-                        .hasPrecheck(ACCOUNT_DELETED));
+                        .hasKnownStatus(ACCOUNT_DELETED));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

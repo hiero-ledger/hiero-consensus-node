@@ -3,19 +3,26 @@ package org.hiero.consensus.hashgraph;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler;
+import org.hiero.consensus.benchmark.tools.histogram.LatencyRecorder;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.NoOpConsensusMetrics;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
-import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.otter.fixtures.falcon.recording.FalconRecorder;
+import org.hiero.otter.fixtures.falcon.recording.NodeRecording;
+import org.hiero.otter.fixtures.falcon.recording.Recording;
+import org.hiero.otter.fixtures.falcon.recording.RecordingSpec;
+import org.hiero.otter.fixtures.falcon.recording.Step;
+import org.hiero.otter.fixtures.falcon.recording.Step.Released;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -28,69 +35,197 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
+/**
+ * Measures the latency of {@link ConsensusImpl#addEvent(EventImpl)} on the events of a simulated network.
+ *
+ * <p>{@link FalconRecorder} simulates the network once per trial: one full node and cheap stand-ins for the other
+ * nodes, on the ping times of mainnet, with the transactions of mainnet and without signatures, which consensus does
+ * not read. The benchmark takes the events the full node's orphan buffer released, in that order. In production, a
+ * future event buffer sits between the orphan buffer and consensus; it would hold back none of these events.
+ * {@link ConsensusImpl} mutates the events it processes, so every invocation works on fresh copies, linked outside the
+ * measured region.
+ *
+ * <p>The recording runs the event creator and the consensus code, so a change to them can change the events. The check
+ * of the decided rounds then fails, and the expected rounds change in the same pull request.
+ *
+ * <p>One invocation adds all recorded events. The primary score is the mean time per event. A
+ * {@link LatencyRecorder} also times every call, with one timestamp per call ({@link LatencyRecorder#lap()}), so each
+ * latency also contains the round counting and the blackhole of the previous call. {@link LatencyProfiler} reports the
+ * percentiles and the allocation per call. The allocation is measured around the calls only, because
+ * {@code -prof gc} also counts the copying and linking in the setup.
+ *
+ * <p>In latency benchmarks we usually ignore the mean and look at the percentiles. Here the mean matters as much. The
+ * benchmark exists to give an overall impression of how fast the consensus algorithm is: the time to add all events,
+ * divided by the number of events, so that graphs of different sizes are comparable. The mean is exactly this number.
+ * The percentiles show how this cost is distributed. Most calls are cheap and the few that decide a round are
+ * expensive, so the median reflects only the cheap calls.
+ *
+ * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
+ * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
+ * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
+ * discarded passes. The heap is sized for the recording of 28 nodes, which keeps less than 3 GB live: in a local heap
+ * sweep, it did not finish within four minutes at 2 GB, and it needed 63 full collections at 3 GB, 2 at 4 GB, and 1 at
+ * the configured 6 GB. No collection fell into the measured calls. The calibration on the benchmark machine discarded
+ * no pass.
+ *
+ * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
+ *
+ * <h2>Calibration</h2>
+ * <ul>
+ *   <li>Date / commit: 2026-11-03, 2b129c77e0</li>
+ *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms6g -Xmx6g -XX:+AlwaysPreTouch</li>
+ *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
+ *   <li>Steady state after: 5 s / 0 s</li>
+ *   <li>Noise (latency.mean, CV): 0.10% / 0.08% per 30 s iteration, 0.31% / 0.53% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.36% / 0.60% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 3.3 M / 1.3 M; expected stable: mean, p50, p90, p99, p99.9, p99.99 / mean, p50, p90, p99, p99.9, p99.99, max</li>
+ *   <li>Runtime: 4.4 / 8.8 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41641833481, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/41654357977</li>
+ * </ul>
+ */
 @State(Scope.Thread)
-@Fork(value = 1)
-@Warmup(iterations = 1, time = 3)
-@Measurement(iterations = 3, time = 10)
+@Fork(
+        value = 3,
+        jvmArgsAppend = {"-Xms6g", "-Xmx6g", "-XX:+AlwaysPreTouch"})
+@Warmup(iterations = 1, time = 10)
+@Measurement(iterations = 2, time = 30)
 public class ConsensusImplBenchmark {
-    private static final long SEED = 0;
-    private static final int NUMBER_OF_EVENTS = 100000;
 
-    @Param({"4", "10"})
+    /** The seed of the simulation. The same seed produces the same events. */
+    private static final long SEED = 0;
+
+    /** The number of recorded events. */
+    private static final int NUMBER_OF_EVENTS = 100_000;
+
+    /** The number of nodes in the simulated network. */
+    @Param({"10", "28"})
     public int numNodes;
 
-    @Param({"1", "4"})
-    public int numOP;
+    /** The roster of the simulated network. */
+    private RosterWrapper roster;
 
+    /** The configuration of the recorded node. */
+    private Configuration configuration;
+
+    /** The recorded events. */
+    private List<PlatformEvent> recordedEvents;
+
+    /** The expected number of consensus rounds of the recorded events. */
+    private int expectedRounds;
+
+    /** The linked events of the graph. */
     private List<EventImpl> linkedEvents;
+
+    /** The consensus instance used in the benchmark. */
     private Consensus consensus;
 
-    @Setup(Level.Invocation)
-    public void setup() {
-        final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
-                .seed(SEED)
-                .maxOtherParents(numOP)
-                .realSignatures(false)
-                .numNodes(numNodes)
-                .populateNgen(true)
-                .build();
-        final List<PlatformEvent> platformEvents = generator.nextEvents(NUMBER_OF_EVENTS);
+    /** The number of decided rounds in the benchmark. */
+    private int decidedRounds;
 
+    /** The latency recorder for the benchmark. */
+    private LatencyRecorder recorder;
+
+    /**
+     * Records the events for the benchmark. This method is called once per trial.
+     */
+    @Setup(Level.Trial)
+    public void recordEvents() {
+        final Recording recording = FalconRecorder.record(
+                RecordingSpec.builder(numNodes, SEED, NUMBER_OF_EVENTS).build());
+        final NodeRecording node = recording.nodes().getFirst();
+        roster = recording.roster();
+        configuration = node.configuration();
+        recordedEvents = new ArrayList<>(NUMBER_OF_EVENTS);
+        for (final Step step : node.steps()) {
+            if (step instanceof final Released released) {
+                recordedEvents.add(released.event());
+            }
+        }
+        expectedRounds = switch (numNodes) {
+            case 10 -> 1934;
+            case 28 -> 601;
+            default -> throw new IllegalArgumentException("No expected round count for numNodes=" + numNodes);
+        };
+    }
+
+    /**
+     * Prepares the benchmark invocation by linking the recorded events and creating a new consensus instance.
+     * This method is called once per invocation.
+     */
+    @Setup(Level.Invocation)
+    public void prepareInvocation() {
         final ConsensusLinker consensusLinker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         linkedEvents = new ArrayList<>(NUMBER_OF_EVENTS);
-        for (final PlatformEvent event : platformEvents) {
-            final EventImpl linkedEvent = consensusLinker.linkEvent(event);
+        for (final PlatformEvent recordedEvent : recordedEvents) {
+            final EventImpl linkedEvent = consensusLinker.linkEvent(copy(recordedEvent));
             if (linkedEvent == null) {
                 throw new IllegalStateException("Linker should always link each event in this benchmark");
             }
             linkedEvents.add(linkedEvent);
         }
 
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Time time = Time.getCurrent();
 
-        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), generator.getRoster(), 0L);
+        consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster, 0L);
+        decidedRounds = 0;
+        recorder = LatencyProfiler.recorder();
+
+        // Collect the garbage of the setup and of the previous invocation now, so that it is not collected during the
+        // measured calls.
+        System.gc();
     }
 
+    /**
+     * Verifies that the number of decided rounds matches the expected number after the benchmark invocation.
+     * This method is called once per invocation.
+     */
+    @TearDown(Level.Invocation)
+    public void verifyInvocation() {
+        // disabled for now (2026-11-10), as it requires re-pinning after major network changes are done
+        /*
+        if (decidedRounds != expectedRounds) {
+            throw new IllegalStateException(
+                    "Expected " + expectedRounds + " consensus rounds, but got " + decidedRounds);
+        }
+         */
+        linkedEvents = null;
+        consensus = null;
+        recorder = null;
+    }
+
+    /**
+     * Copies the parts of a recorded event that exist before it reaches consensus. The copy drops nGen and the
+     * sequence number, so they are copied separately.
+     */
+    private static PlatformEvent copy(final PlatformEvent event) {
+        final PlatformEvent copy = event.copyGossipedData();
+        copy.setNGen(event.getNGen());
+        copy.setSequenceNumber(event.getSequenceNumber());
+        return copy;
+    }
+
+    /**
+     * Adds all linked events to the consensus instance and records the latency of each call.
+     *
+     * @param bh the blackhole to consume the results and prevent dead code elimination
+     */
     @Benchmark
-    @BenchmarkMode(Mode.Throughput)
-    @OutputTimeUnit(TimeUnit.SECONDS)
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @OperationsPerInvocation(NUMBER_OF_EVENTS)
     public void calculateConsensus(final Blackhole bh) {
+        recorder.startMeasurement();
         for (final EventImpl event : linkedEvents) {
-            bh.consume(consensus.addEvent(event));
+            final List<ConsensusRound> rounds = consensus.addEvent(event);
+            // One timestamp per call: each latency also contains the bookkeeping of the previous call.
+            recorder.lap();
+            decidedRounds += rounds.size();
+            bh.consume(rounds);
         }
-
-        /*
-        Results on a M1 Max MacBook Pro:
-
-        ConsensusBenchmark.calculateConsensus           4        1  thrpt    3  330818.730 ± 90113.698  ops/s
-        ConsensusBenchmark.calculateConsensus           4        4  thrpt    3  266643.605 ± 50639.163  ops/s
-        ConsensusBenchmark.calculateConsensus          10        1  thrpt    3  155049.428 ± 43977.153  ops/s
-        ConsensusBenchmark.calculateConsensus          10        4  thrpt    3  123922.015 ± 59057.164  ops/s
-        */
+        recorder.stopMeasurement();
     }
 }

@@ -1,0 +1,440 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.node.app.service.contract.impl.exec.systemcontracts.ethereum.verify;
+
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.verify;
+
+import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.node.state.clpr.ClprBundleContent;
+import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
+import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
+import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
+import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.VerifiedBundle;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.math.BigInteger;
+import java.util.Arrays;
+import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
+
+class EthereumVerifyBundleCallTest extends CallTestBase {
+    private static final String VERIFIER_NAME = "EthereumSyncCommitteeProofVerifier";
+    private static final byte[] BUNDLE_PAYLOAD = {1, 2, 3};
+    // The trust anchor is opaque to the call (the verifier is mocked), so any bytes will do.
+    private static final byte[] TRUST_ANCHOR = {4, 5, 6};
+    private static final byte[] NEXT_ANCHOR = {9, 9, 9};
+    private static final byte[] NEXT_ANCHOR_ID = {7, 7, 7};
+    private static final byte[] BEACON_ROOT = filled(32, 0x01);
+    private static final byte[] SENT_HASH = filled(32, 0x02);
+    private static final byte[] RECEIVED_HASH = filled(32, 0x03);
+    private static final byte[] LAST_HASH = filled(32, 0x04);
+    private static final byte[] CHANNEL_CONTEXT = {0x0A, 0x0B};
+    private static final byte[] SERVICE_ADDR = filled(20, 0x55);
+    private static final long PROVEN_MANIFEST_VERSION = 5L;
+
+    @Test
+    void allowsStaticFrame() {
+        assertThat(subject().allowsStaticFrame()).isTrue();
+    }
+
+    @Test
+    void returnsVerifiedBundleContentWithoutRotation() {
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+
+        try (final var ignored = mockVerifier(verified(content, null, null))) {
+            final var result = subject().execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
+            final var out = decodedTuple(result.fullResult().output().toArray());
+            assertThat((Tuple) out.get(0))
+                    .isEqualTo(Tuple.of(
+                            BigInteger.valueOf(42),
+                            SENT_HASH,
+                            BigInteger.valueOf(17),
+                            RECEIVED_HASH,
+                            ClprChannelStatus.ACTIVE.protoOrdinal(),
+                            // endpointManifestVersion comes from the PROVEN queue metadata, not relayed content
+                            BigInteger.valueOf(PROVEN_MANIFEST_VERSION)));
+            assertThat((byte[][]) out.get(1)).isEmpty();
+            assertThat((byte[]) out.get(2)).isEmpty();
+            assertThat((byte[]) out.get(3)).isEmpty();
+        }
+    }
+
+    @Test
+    void injectsVerifiedRotationWhenContentOmitsIt() {
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+
+        try (final var ignored = mockVerifier(verified(content, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
+            final var out =
+                    decodedTuple(subject().execute(frame).fullResult().output().toArray());
+
+            assertThat((byte[]) out.get(2)).isEqualTo(NEXT_ANCHOR);
+            assertThat((byte[]) out.get(3)).isEqualTo(NEXT_ANCHOR_ID);
+        }
+    }
+
+    @Test
+    void acceptsMatchingClaimedRotationAndRewritesId() {
+        // Content claims a different ID — the verifier's ID must win.
+        final var content = content(metadata(), Bytes.wrap(NEXT_ANCHOR), Bytes.wrap(new byte[] {3, 3, 3}));
+
+        try (final var ignored = mockVerifier(verified(content, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
+            final var out =
+                    decodedTuple(subject().execute(frame).fullResult().output().toArray());
+
+            assertThat((byte[]) out.get(2)).isEqualTo(NEXT_ANCHOR);
+            assertThat((byte[]) out.get(3)).isEqualTo(NEXT_ANCHOR_ID);
+        }
+    }
+
+    @Test
+    void rejectsVerifierProofException() {
+        try (final var ignored = mockVerifierThrowing(new ProofException(VERIFIER_NAME, "bad proof"))) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void rejectsUnexpectedVerifierException() {
+        try (final var ignored = mockVerifierThrowing(new IllegalStateException("boom"))) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void rejectsInvalidInnerBundleContentBytes() {
+        final var verified = VerifiedBundle.builder()
+                .beaconBlockRoot32(BEACON_ROOT)
+                .bundleContentBytes(new byte[] {(byte) 0xff})
+                .queueMetadata(proven())
+                .build();
+
+        try (final var ignored = mockVerifier(verified)) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void rejectsMissingMetadata() {
+        final var content = ClprBundleContent.newBuilder().build();
+
+        try (final var ignored = mockVerifier(verified(content, null, null))) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void rejectsMetadataMismatch() {
+        final var mismatched = metadata().copyBuilder().nextMessageId(43).build();
+
+        try (final var ignored = mockVerifier(verified(content(mismatched, Bytes.EMPTY, Bytes.EMPTY), null, null))) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void rejectsClaimedRotationWithoutProof() {
+        final var content = content(metadata(), Bytes.wrap(new byte[] {1}), Bytes.wrap(new byte[] {2}));
+
+        try (final var ignored = mockVerifier(verified(content, null, null))) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void rejectsClaimedRotationThatDiffersFromProof() {
+        final var content = content(metadata(), Bytes.wrap(new byte[] {1}), Bytes.wrap(new byte[] {2}));
+
+        try (final var ignored = mockVerifier(verified(content, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void returnAppendsManifest() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(5L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+
+        try (final var ignored = mockVerifier(verifiedWithManifest(content, manifest))) {
+            final var out = subject().execute(frame).fullResult().output().toArray();
+
+            // 5-member manifest-aware return; the trailing member is the manifest struct.
+            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(out);
+            assertThat(tuple.size()).isEqualTo(5);
+            final Tuple manifestTuple = tuple.get(4);
+            assertThat(((BigInteger) manifestTuple.get(0)).longValueExact()).isEqualTo(5L);
+        }
+    }
+
+    @Test
+    void discardsUnprovenRelayManifest() {
+        // The relayed content claims a manifest advance but the proof carries none: the claim must not be returned.
+        final var relayClaim = ClprEndpointManifest.newBuilder()
+                .version(6L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY)
+                .copyBuilder()
+                .newEndpointManifest(relayClaim)
+                .build();
+
+        try (final var ignored = mockVerifier(verified(content, null, null))) {
+            final var result = subject().execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple manifestTuple =
+                    decodedTuple(result.fullResult().output().toArray()).get(4);
+            assertThat(((BigInteger) manifestTuple.get(0)).longValueExact()).isZero();
+        }
+    }
+
+    @Test
+    void returnsProvenManifestVersionIgnoringRelayedContent() {
+        // The relayed content claims an inflated endpoint-manifest version; the sixth metadata member must carry the
+        // PROVEN Channel value (offset 16), not the relay's claim — otherwise a relay could suppress our manifest
+        // re-pushes (spec §4.5, liveness).
+        final var content =
+                content(metadata().copyBuilder().endpointManifestVersion(999L).build(), Bytes.EMPTY, Bytes.EMPTY);
+
+        try (final var ignored = mockVerifier(verified(content, null, null))) {
+            final Tuple metaTuple = decodedTuple(
+                            subject().execute(frame).fullResult().output().toArray())
+                    .get(0);
+
+            assertThat(((BigInteger) metaTuple.get(5)).longValueExact()).isEqualTo(PROVEN_MANIFEST_VERSION);
+        }
+    }
+
+    @Test
+    void rejectsEndpointManifestVersionBeyondSignedRange() {
+        // A proven uint64 >= 2^63 parses to a negative long; it must fail the call rather than escape the encoder.
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+        final var verified = VerifiedBundle.builder()
+                .beaconBlockRoot32(BEACON_ROOT)
+                .bundleContentBytes(ClprBundleContent.PROTOBUF.toBytes(content).toByteArray())
+                .queueMetadata(proven(-1L))
+                .build();
+
+        try (final var ignored = mockVerifier(verified)) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void manifestOnlyReturnsManifest() {
+        // Manifest-only recovery bundle (spec §8.1.4): the verifier returns empty content + a manifest.
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(9L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+
+        try (final var ignored = mockVerifier(manifestOnly(manifest, null, null))) {
+            final var out = subject().execute(frame).fullResult().output().toArray();
+
+            // Flag on => 5-member manifest-aware return; metadata absent (nextMessageId == 0 sentinel); trailing
+            // manifest.
+            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(out);
+            assertThat(tuple.size()).isEqualTo(5);
+            final Tuple metaTuple = tuple.get(0);
+            assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isZero();
+            final Tuple manifestTuple = tuple.get(4);
+            assertThat(((BigInteger) manifestTuple.get(0)).longValueExact()).isEqualTo(9L);
+        }
+    }
+
+    @Test
+    @DisplayName("given a manifest-only bundle with a verified rotation, then execute returns absent metadata, the"
+            + " proven manifest and the proven successor anchor and id")
+    void givenManifestOnlyBundleWithRotation_thenReturnsManifestAndProvenSuccessorAnchor() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(9L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+
+        try (final var ignored = mockVerifier(manifestOnly(manifest, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
+            final var result = subject().execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple out = decodedTuple(result.fullResult().output().toArray());
+            assertThat(out.<Tuple>get(0)).isEqualTo(ClprVerifierAbi.absentMetadataTuple());
+            assertThat(out.<byte[][]>get(1)).isEmpty();
+            assertThat(out.<byte[]>get(2)).isEqualTo(NEXT_ANCHOR);
+            assertThat(out.<byte[]>get(3)).isEqualTo(NEXT_ANCHOR_ID);
+            assertThat(out.<Tuple>get(4)).isEqualTo(ClprVerifierAbi.manifestStructTuple(manifest));
+        }
+    }
+
+    @Test
+    @DisplayName("given a manifest-only bundle without a rotation, then execute returns empty anchor fields")
+    void givenManifestOnlyBundleWithoutRotation_thenReturnsEmptyAnchorFields() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(9L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+
+        try (final var ignored = mockVerifier(manifestOnly(manifest, null, null))) {
+            final Tuple out =
+                    decodedTuple(subject().execute(frame).fullResult().output().toArray());
+
+            assertThat(out.<byte[]>get(2)).isEmpty();
+            assertThat(out.<byte[]>get(3)).isEmpty();
+            assertThat(out.<Tuple>get(4)).isEqualTo(ClprVerifierAbi.manifestStructTuple(manifest));
+        }
+    }
+
+    private EthereumVerifyBundleCall subject() {
+        return new EthereumVerifyBundleCall(
+                mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
+    }
+
+    @Test
+    @DisplayName("given a call, then execute passes the payload, the trust anchor and the channel context to the"
+            + " verifier")
+    void givenCall_thenExecutePassesPayloadAnchorAndChannelContextToVerifier() {
+        try (var verifiers = mockVerifier(verified(content(metadata(), Bytes.EMPTY, Bytes.EMPTY), null, null))) {
+            subject().execute(frame);
+
+            verify(verifiers.constructed().getFirst()).verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
+        }
+    }
+
+    @Test
+    void auditUnprovenRelayManifestIsIgnored() {
+        // A relay-supplied manifest must not escape when the proof authenticates no manifest.
+        final var injectedManifest = ClprEndpointManifest.newBuilder()
+                .version(999L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+        final var relayed = content(metadata(), Bytes.EMPTY, Bytes.EMPTY)
+                .copyBuilder()
+                .newEndpointManifest(injectedManifest)
+                .build();
+        final var proofResult = verified(relayed, null, null);
+        assertThat(proofResult.newEndpointManifest()).isNull();
+
+        try (final var ignored = mockVerifier(proofResult)) {
+            final var result = subject().execute(frame);
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple output = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
+                    result.fullResult().output().toArray());
+            final Tuple returnedManifest = output.get(4);
+            assertThat(returnedManifest).isEqualTo(ClprVerifierAbi.manifestStructTuple(ClprEndpointManifest.DEFAULT));
+        }
+    }
+
+    private static VerifiedBundle verifiedWithManifest(
+            final ClprBundleContent content, final ClprEndpointManifest manifest) {
+        return VerifiedBundle.builder()
+                .beaconBlockRoot32(BEACON_ROOT)
+                .bundleContentBytes(ClprBundleContent.PROTOBUF.toBytes(content).toByteArray())
+                .queueMetadata(proven())
+                .newEndpointManifest(manifest)
+                .build();
+    }
+
+    private static VerifiedBundle manifestOnly(
+            final ClprEndpointManifest manifest, final byte[] nextTrustAnchor, final byte[] nextTrustAnchorId) {
+        // Empty content + a proven manifest is the manifest-only recovery signal the Call detects; the payload's
+        // rotations sit beside the delivery, so the verifier may still return a successor anchor.
+        return VerifiedBundle.builder()
+                .beaconBlockRoot32(BEACON_ROOT)
+                .bundleContentBytes(new byte[0])
+                .queueMetadata(
+                        new ProvenQueueMetadata(0, filled(32, 0x00), 0, filled(32, 0x00), 0, filled(32, 0x00), 0L))
+                .nextTrustAnchor(nextTrustAnchor)
+                .nextTrustAnchorId(nextTrustAnchorId)
+                .newEndpointManifest(manifest)
+                .build();
+    }
+
+    private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifier(final VerifiedBundle verified) {
+        return mockConstruction(
+                EthereumSyncCommitteeProofVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willReturn(verified));
+    }
+
+    private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifierThrowing(
+            final RuntimeException toThrow) {
+        return mockConstruction(
+                EthereumSyncCommitteeProofVerifier.class,
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willThrow(toThrow));
+    }
+
+    private static VerifiedBundle verified(
+            final ClprBundleContent content, final byte[] nextTrustAnchor, final byte[] nextTrustAnchorId) {
+        return VerifiedBundle.builder()
+                .beaconBlockRoot32(BEACON_ROOT)
+                .bundleContentBytes(ClprBundleContent.PROTOBUF.toBytes(content).toByteArray())
+                .queueMetadata(proven())
+                .nextTrustAnchor(nextTrustAnchor)
+                .nextTrustAnchorId(nextTrustAnchorId)
+                .build();
+    }
+
+    private static ProvenQueueMetadata proven() {
+        return proven(PROVEN_MANIFEST_VERSION);
+    }
+
+    private static ProvenQueueMetadata proven(final long endpointManifestVersion) {
+        return new ProvenQueueMetadata(
+                42,
+                SENT_HASH,
+                17,
+                RECEIVED_HASH,
+                ClprChannelStatus.ACTIVE.protoOrdinal(),
+                LAST_HASH,
+                endpointManifestVersion);
+    }
+
+    private static ClprQueueMetadata metadata() {
+        return ClprQueueMetadata.newBuilder()
+                .nextMessageId(42)
+                .sentRunningHash(Bytes.wrap(SENT_HASH))
+                .receivedMessageId(17)
+                .receivedRunningHash(Bytes.wrap(RECEIVED_HASH))
+                .status(ClprChannelStatus.ACTIVE)
+                .trustAnchorId(Bytes.wrap(new byte[] {7}))
+                .build();
+    }
+
+    private static ClprBundleContent content(
+            final ClprQueueMetadata metadata, final Bytes newTrustAnchor, final Bytes newTrustAnchorId) {
+        return ClprBundleContent.newBuilder()
+                .metadata(metadata)
+                .newTrustAnchor(newTrustAnchor)
+                .newTrustAnchorId(newTrustAnchorId)
+                .build();
+    }
+
+    private static Tuple decodedTuple(final byte[] output) {
+        return ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(output);
+    }
+
+    private static void assertFailed(final PricedResult result) {
+        assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+    }
+
+    private static byte[] filled(final int length, final int value) {
+        final byte[] bytes = new byte[length];
+        Arrays.fill(bytes, (byte) value);
+        return bytes;
+    }
+}

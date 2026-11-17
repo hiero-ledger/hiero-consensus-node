@@ -62,6 +62,24 @@ public interface BlockStreamValidator {
     }
 
     /**
+     * Validate the given {@link Block}s independent of any record stream, returning a {@link Stream} of
+     * {@link Throwable}s for any validation errors. Used under {@code streamMode=BLOCKS}, where no record
+     * stream exists: validators that override {@link #validateBlocks} run their full checks, while parity
+     * validators that only override {@link #validateBlockVsRecords} are inert here (their
+     * {@link #validateBlocks} is the no-op default).
+     * @param blocks the blocks to validate
+     * @return a stream of validation errors
+     */
+    default Stream<Throwable> validationErrorsIn(@NonNull final List<Block> blocks) {
+        try {
+            validateBlocks(blocks);
+        } catch (final Throwable t) {
+            return Stream.of(t);
+        }
+        return Stream.empty();
+    }
+
+    /**
      * Validate the given {@link Block}s in the context of the given {@link StreamFileAccess.RecordStreamData}.
      * @param blocks the blocks to validate
      * @param data the record stream data

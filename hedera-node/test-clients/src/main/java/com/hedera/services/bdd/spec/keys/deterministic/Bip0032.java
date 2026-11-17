@@ -9,15 +9,16 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 import javax.crypto.Mac;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.ShortBufferException;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
-import org.bouncycastle.crypto.digests.SHA512Digest;
-import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator;
-import org.bouncycastle.crypto.params.KeyParameter;
 
 public class Bip0032 {
     private static final int KEY_SIZE = 512;
@@ -43,10 +44,14 @@ public class Bip0032 {
     }
 
     public static byte[] seedFrom(String mnemonic) {
-        var salt = "mnemonic";
-        var gen = new PKCS5S2ParametersGenerator(new SHA512Digest());
-        gen.init(mnemonic.getBytes(UTF_8), salt.getBytes(UTF_8), ITERATIONS);
-        return ((KeyParameter) gen.generateDerivedParameters(KEY_SIZE)).getKey();
+        final String salt = "mnemonic";
+        final KeySpec spec = new PBEKeySpec(mnemonic.toCharArray(), salt.getBytes(UTF_8), ITERATIONS, KEY_SIZE);
+        try {
+            final SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+            return factory.generateSecret(spec).getEncoded();
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static byte[] privateKeyFrom(byte[] seed)

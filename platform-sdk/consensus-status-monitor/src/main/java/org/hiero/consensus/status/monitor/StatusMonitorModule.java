@@ -33,6 +33,11 @@ import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 public class StatusMonitorModule {
 
     final ComponentWiring<PlatformMonitor, PlatformStatus> platformMonitorWiring;
+    private final InputWire<StateSavingResult> stateWrittenToDiskInputWire;
+    private final InputWire<IssNotification> issNotificationInputWire;
+    private final InputWire<ConsensusRound> consensusRoundInputWire;
+    private final InputWire<PlatformStatusAction> platformStatusActionInputWire;
+    private final InputWire<QuiescenceCommand> quiescenceCommandInputWire;
 
     /**
      * Create a new StatusMonitorModule.
@@ -49,17 +54,22 @@ public class StatusMonitorModule {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final NodeId selfId) {
+        // Set up wired components
         final StatusMonitorWiringConfig wiringConfig = configuration.getConfigData(StatusMonitorWiringConfig.class);
         platformMonitorWiring = new ComponentWiring<>(model, PlatformMonitor.class, wiringConfig.statusMonitor());
 
+        // Set up input wires
+        stateWrittenToDiskInputWire = platformMonitorWiring.getInputWire(PlatformMonitor::stateWrittenToDisk);
+        issNotificationInputWire = platformMonitorWiring.getInputWire(PlatformMonitor::issNotification);
+        consensusRoundInputWire = platformMonitorWiring.getInputWire(PlatformMonitor::consensusRound);
+        platformStatusActionInputWire = platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction);
+        quiescenceCommandInputWire = platformMonitorWiring.getInputWire(PlatformMonitor::quiescenceCommand);
+
+        // Wire components
         final Duration heartbeatPeriod =
                 configuration.getConfigData(PlatformStatusConfig.class).statusStateMachineHeartbeatPeriod();
         model.buildHeartbeatWire(heartbeatPeriod)
                 .solderTo(platformMonitorWiring.getInputWire(PlatformMonitor::heartbeat), OFFER);
-
-        // Create unbound wires
-        platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction);
-        platformMonitorWiring.getInputWire(PlatformMonitor::quiescenceCommand);
 
         final PlatformMonitor platformMonitor = new DefaultPlatformMonitor(configuration, metrics, time, selfId);
         platformMonitorWiring.bind(platformMonitor);
@@ -73,7 +83,7 @@ public class StatusMonitorModule {
     @NonNull
     @InputWireLabel("state saving monitoring")
     public InputWire<StateSavingResult> stateWrittenToDiskInputWire() {
-        return platformMonitorWiring.getInputWire(PlatformMonitor::stateWrittenToDisk);
+        return stateWrittenToDiskInputWire;
     }
 
     /**
@@ -84,7 +94,7 @@ public class StatusMonitorModule {
     @InputWireLabel("ISS notification monitoring")
     @NonNull
     public InputWire<IssNotification> issNotificationInputWire() {
-        return platformMonitorWiring.getInputWire(PlatformMonitor::issNotification);
+        return issNotificationInputWire;
     }
 
     /**
@@ -95,7 +105,7 @@ public class StatusMonitorModule {
     @InputWireLabel("monitor consensus round")
     @NonNull
     public InputWire<ConsensusRound> consensusRoundInputWire() {
-        return platformMonitorWiring.getInputWire(PlatformMonitor::consensusRound);
+        return consensusRoundInputWire;
     }
 
     /**
@@ -106,7 +116,7 @@ public class StatusMonitorModule {
     @InputWireLabel("platform status action")
     @NonNull
     public InputWire<PlatformStatusAction> platformStatusActionInputWire() {
-        return platformMonitorWiring.getInputWire(PlatformMonitor::submitStatusAction);
+        return platformStatusActionInputWire;
     }
 
     /**
@@ -116,7 +126,7 @@ public class StatusMonitorModule {
      */
     @NonNull
     public InputWire<QuiescenceCommand> quiescenceCommandInputWire() {
-        return platformMonitorWiring.getInputWire(PlatformMonitor::quiescenceCommand);
+        return quiescenceCommandInputWire;
     }
 
     /**

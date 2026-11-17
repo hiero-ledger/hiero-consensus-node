@@ -4,8 +4,10 @@ package com.hedera.node.app.hints;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
@@ -13,7 +15,6 @@ import com.hedera.node.app.hints.impl.HintsController;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.TssConfig;
@@ -56,6 +57,9 @@ import java.util.concurrent.CompletableFuture;
  * work.
  */
 public interface HintsService extends Service {
+    /** Current allocation uses parties 1 through n-2; the native library reserves party n-1. */
+    int MAX_ROSTER_SIZE = HintsLibrary.MAX_PARTIES - 2;
+
     String NAME = "HintsService";
 
     /**
@@ -95,11 +99,30 @@ public interface HintsService extends Service {
     HintsConstruction activeConstruction();
 
     /**
+     * Captures the persisted active scheme and its CRS for certifying a successor verification key. Returns null
+     * before the first scheme is complete; the returned signer is independent of the block-signing context.
+     */
+    @Nullable
+    KeyProvenanceSigner keyProvenanceFor(@NonNull ReadableHintsStore hintsStore);
+
+    /** Whether real hinTS signing and preprocessing require canonical history generation weights. */
+    boolean requiresHistoryWeights();
+
+    /** Activates a completed scheme without history only in history-disabled or mock-signature mode. */
+    default void setActiveConstruction(
+            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
+        setActiveConstruction(construction, crsState, null);
+    }
+
+    /**
      * Sets a completed active construction into the signing context during startup.
      *
      * @param construction the active construction to use for signing
      */
-    void setActiveConstruction(@NonNull HintsConstruction construction);
+    void setActiveConstruction(
+            @NonNull HintsConstruction construction,
+            @NonNull CRSState crsState,
+            @Nullable HistoryProofConstruction historyConstruction);
 
     /**
      * Whether the signer is ready.
@@ -131,14 +154,23 @@ public interface HintsService extends Service {
      */
     void onFinishedConstruction(@Nullable OnHintsFinished cb);
 
+    /** Hands off without history only in history-disabled or mock-signature mode. */
+    default boolean handoff(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash) {
+        return handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, null);
+    }
+
     /**
-     * Initializes hinTS signing from the next construction in the given {@link WritableHintsStore}.
+     * Initializes hinTS signing from a completed next construction bound to the adopted roster
+     * in the given {@link WritableHintsStore}.
      *
      * @param hintsStore the hints store
      * @param previousRoster the previous roster
      * @param adoptedRoster the adopted roster
      * @param adoptedRosterHash the adopted roster hash
-     * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
      * @return whether the handoff happened
      */
     boolean handoff(
@@ -146,7 +178,7 @@ public interface HintsService extends Service {
             @NonNull Roster previousRoster,
             @NonNull Roster adoptedRoster,
             @NonNull Bytes adoptedRosterHash,
-            boolean forceHandoff);
+            @Nullable HistoryProofConstruction historyConstruction);
 
     /**
      * Takes any actions needed to advance the state of the {@link HintsService} toward
@@ -181,19 +213,33 @@ public interface HintsService extends Service {
             @NonNull TssConfig tssConfig,
             boolean isActive);
 
-    /**
-     * Executes the work needed to set the CRS for the network and start the preprocessing vote.
-     *
-     * @param hintsStore the hints store
-     * @param now the current consensus time
-     * @param isActive if the platform is active
-     * @param networkInfo the network information
-     */
-    void executeCrsWork(
+    /** Advances construction work while using block consensus time for CRS deadlines. */
+    void reconcile(
+            @NonNull ActiveRosters activeRosters,
             @NonNull WritableHintsStore hintsStore,
             @NonNull Instant now,
+            @NonNull Instant crsWorkTime,
+            @NonNull TssConfig tssConfig,
+            boolean isActive);
+
+    /**
+     * Installs the active construction for signing once its scheme, and any history weights it requires,
+     * are complete. Does nothing while they are not, or if that generation is already installed.
+     */
+    void activateSigning(
+            @NonNull ReadableHintsStore hintsStore,
+            @NonNull TssConfig tssConfig,
+            @Nullable HistoryProofConstruction activeHistoryConstruction);
+
+    /** Advances construction work with the matching complete source-generation history snapshot. */
+    void reconcile(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull WritableHintsStore hintsStore,
+            @NonNull Instant now,
+            @NonNull Instant crsWorkTime,
+            @NonNull TssConfig tssConfig,
             boolean isActive,
-            @NonNull NetworkInfo networkInfo);
+            @Nullable HistoryProofConstruction activeHistoryConstruction);
 
     /**
      * Stops the hinTS service, causing it to abandon any in-progress work.

@@ -1,25 +1,35 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto;
 
+import com.hedera.cryptography.security.der.model.AVA;
+import com.hedera.cryptography.security.der.model.BasicConstraints;
+import com.hedera.cryptography.security.der.model.DN;
+import com.hedera.cryptography.security.der.model.DerString;
+import com.hedera.cryptography.security.der.model.Extensions;
+import com.hedera.cryptography.security.der.model.Interval;
+import com.hedera.cryptography.security.der.model.OID;
+import com.hedera.cryptography.security.der.model.RDN;
+import com.hedera.cryptography.security.der.model.SignatureAlgorithm;
+import com.hedera.cryptography.security.der.model.X509CertificateInfo;
+import com.hedera.cryptography.security.x509.X509CertificateSigner;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.SecureRandom;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.Date;
-import javax.security.auth.x500.X500Principal;
-import org.bouncycastle.cert.X509v3CertificateBuilder;
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Utility methods for generating X.509 certificates and distinguished names.
  */
 public final class CertificateUtils {
     private static final int SERIAL_NUMBER_BITS = 64;
+    private static final OID OID_CN = new OID("2.5.4.3");
+
+    /// That's all we support for now.
+    private static final Pattern DN_PATTERN =
+            Pattern.compile("^CN=([\\w\\h\\.\\\\!\"#$%&'\\(\\)\\*\\+\\,\\-\\/:;<>?@\\[\\]\\^_`\\{\\|\\}\\~]*)$");
 
     private CertificateUtils() {}
 
@@ -30,14 +40,7 @@ public final class CertificateUtils {
      * @return the distinguished name, suitable for passing to {@link #generateCertificate}
      */
     public static String distinguishedName(final String commonName) {
-        final String[] commaSeparator = new String[] {""};
-        return rdn(commaSeparator, "CN", commonName)
-                + rdn(commaSeparator, "O", null)
-                + rdn(commaSeparator, "STREET", null)
-                + rdn(commaSeparator, "L", null)
-                + rdn(commaSeparator, "ST", null)
-                + rdn(commaSeparator, "C", null)
-                + rdn(commaSeparator, "UID", null);
+        return "CN=" + escapeValue(commonName);
     }
 
     /**
@@ -60,29 +63,49 @@ public final class CertificateUtils {
             final SecureRandom secureRandom,
             final String signatureAlgorithm)
             throws KeyGeneratingException {
-        try {
-            final X509v3CertificateBuilder v3CertBldr = new JcaX509v3CertificateBuilder(
-                    new X500Principal(caDistinguishedName),
-                    new BigInteger(SERIAL_NUMBER_BITS, secureRandom),
-                    Date.from(CryptoConstants.DEFAULT_VALID_FROM),
-                    Date.from(CryptoConstants.DEFAULT_VALID_TO),
-                    new X500Principal(distinguishedName),
-                    pair.getPublic());
+        return generateCertificate(
+                distinguishedName, pair, caDistinguishedName, caPair, secureRandom, signatureAlgorithm, false);
+    }
 
-            final JcaContentSignerBuilder signerBuilder =
-                    new JcaContentSignerBuilder(signatureAlgorithm).setProvider(BouncyCastleProvider.PROVIDER_NAME);
-            return new JcaX509CertificateConverter()
-                    .setProvider(BouncyCastleProvider.PROVIDER_NAME)
-                    .getCertificate(v3CertBldr.build(signerBuilder.build(caPair.getPrivate())));
-        } catch (final CertificateException | OperatorCreationException e) {
+    public static X509Certificate generateCertificate(
+            final String distinguishedName,
+            final KeyPair pair,
+            final String caDistinguishedName,
+            final KeyPair caPair,
+            final SecureRandom secureRandom,
+            final String signatureAlgorithm,
+            final boolean withBasicConstraintsAsCA)
+            throws KeyGeneratingException {
+        try {
+            final X509CertificateInfo info = new X509CertificateInfo(
+                    buildDN(distinguishedName),
+                    pair.getPublic(),
+                    buildDN(caDistinguishedName),
+                    new BigInteger(SERIAL_NUMBER_BITS, secureRandom),
+                    new Interval(CryptoConstants.DEFAULT_VALID_FROM, CryptoConstants.DEFAULT_VALID_TO),
+                    new SignatureAlgorithm(signatureAlgorithm),
+                    withBasicConstraintsAsCA
+                            ? new Extensions(List.of(new BasicConstraints(true, null).newExtension(true)))
+                            : null);
+
+            return X509CertificateSigner.sign(info, caPair.getPrivate());
+        } catch (final Exception e) {
             throw new KeyGeneratingException("Could not generate certificate!", e);
         }
     }
 
-    private static String rdn(final String[] commaSeparator, final String attributeType, String attributeValue) {
-        if (attributeValue == null || attributeValue.isEmpty()) {
-            return "";
+    /// All attribute values must be escaped already. Use CertificateUtils.escapeValue() for that.
+    static DN buildDN(final String distinguishedName) {
+        final Matcher matcher = DN_PATTERN.matcher(distinguishedName);
+        if (!matcher.matches()) {
+            throw new IllegalArgumentException("distinguishedName must match `" + DN_PATTERN.pattern()
+                    + "`, instead got `" + distinguishedName + "`");
         }
+        return new DN(List.of(new RDN(List.of(new AVA(OID_CN, new DerString(matcher.group(1)))))));
+    }
+
+    /// Escape a value string in a distinguished name.
+    public static String escapeValue(String attributeValue) {
         attributeValue = attributeValue.replace("\\", "\\\\");
         attributeValue = attributeValue.replace("\"", "\\\"");
         attributeValue = attributeValue.replace(",", "\\,");
@@ -92,8 +115,6 @@ public final class CertificateUtils {
         attributeValue = attributeValue.replaceAll(" $", "\\ ");
         attributeValue = attributeValue.replaceAll("^ ", "\\ ");
         attributeValue = attributeValue.replaceAll("^#", "\\#");
-        final String s = commaSeparator[0] + attributeType + "=" + attributeValue;
-        commaSeparator[0] = ",";
-        return s;
+        return attributeValue;
     }
 }

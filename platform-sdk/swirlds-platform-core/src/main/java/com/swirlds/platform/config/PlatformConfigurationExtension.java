@@ -6,7 +6,6 @@ import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
-import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.BasicConfig;
@@ -36,7 +35,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 ModulesConfig.class,
                 FallenBehindConfig.class,
                 OSHealthCheckConfig.class,
-                PlatformMetricsConfig.class,
                 WiringConfig.class,
                 InternalLoggingConfig.class);
     }

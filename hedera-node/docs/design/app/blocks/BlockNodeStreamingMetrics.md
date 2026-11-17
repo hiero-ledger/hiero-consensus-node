@@ -8,24 +8,27 @@ configuration is required to access them.
 
 These metrics relate to the block buffer and are identified by the prefix "buffer".
 
-|               Metric Name                |      Type       |                                     Description                                      |
-|------------------------------------------|-----------------|--------------------------------------------------------------------------------------|
-| `blockStream_buffer_saturation`          | Gauge (double)  | Latest saturation of the block buffer as a percent (0.0 to 100.0)                    |
-| `blockStream_buffer_latestBlockOpened`   | Gauge (long)    | The block number that was most recently opened                                       |
-| `blockStream_buffer_latestBlockAcked`    | Gauge (long)    | The block number that was most recently acknowledged                                 |
-| `blockStream_buffer_numBlocksPruned`     | Counter         | Number of blocks pruned in the latest buffer pruning cycle                           |
-| `blockStream_buffer_numBlocksOpened`     | Counter         | Number of blocks opened/created in the block buffer                                  |
-| `blockStream_buffer_numBlocksClosed`     | Counter         | Number of blocks closed in the block buffer                                          |
-| `blockStream_buffer_numBlocksMissing`    | Counter         | Number of attempts to retrieve a block from the block buffer but it was missing      |
-| `blockStream_buffer_backPressureState`   | Gauge (long)    | Current state of back pressure (0=disabled, 1=action-stage, 2=recovering, 3=active)  |
-| `blockStream_buffer_oldestBlock`         | Gauge (long)    | After pruning, the oldest block in the buffer                                        |
-| `blockStream_buffer_newestBlock`         | Gauge (long)    | After pruning, the newest block in the buffer                                        |
-| `blockStream_buffer_blockItemsPerBlock`  | Running average | Average number of BlockItems per block                                               |
-| `blockStream_buffer_blockItemBytes`      | Running average | Average size in bytes of a BlockItem                                                 |
-| `blockStream_buffer_blockBytes`          | Running average | Average size in bytes of a Block                                                     |
-| `blockStream_buffer_totalBytes`          | Gauge (long)    | The total size of the serialized data held by the block buffer in memory.            |
-| `blockStream_buffer_numBlocks`           | Gauge (long)    | The number of blocks held by the block buffer in memory.                             |
-| `blockStream_buffer_numBlocksPendingAck` | Gauge (long)    | The number of buffered blocks that are awaiting an acknowledgement from a block node |
+|                   Metric Name                   |      Type       |                                         Description                                          |
+|-------------------------------------------------|-----------------|----------------------------------------------------------------------------------------------|
+| `blockStream_buffer_saturation`                 | Gauge (double)  | Latest maximum saturation of the block buffer as a percent (0.0 to 100.0)                    |
+| `blockStream_buffer_latestBlockOpened`          | Gauge (long)    | The block number that was most recently opened                                               |
+| `blockStream_buffer_latestBlockAcked`           | Gauge (long)    | The block number that was most recently acknowledged                                         |
+| `blockStream_buffer_numBlocksPruned`            | Counter         | Number of blocks pruned in the latest buffer pruning cycle                                   |
+| `blockStream_buffer_numBlocksOpened`            | Counter         | Number of blocks opened/created in the block buffer                                          |
+| `blockStream_buffer_numBlocksClosed`            | Counter         | Number of blocks closed in the block buffer                                                  |
+| `blockStream_buffer_numBlocksMissing`           | Counter         | Number of attempts to retrieve a block from the block buffer but it was missing              |
+| `blockStream_buffer_backPressureState`          | Gauge (long)    | Current state of back pressure (0=disabled, 1=action-stage, 2=recovering, 3=active)          |
+| `blockStream_buffer_oldestBlock`                | Gauge (long)    | After pruning, the oldest block in the buffer                                                |
+| `blockStream_buffer_newestBlock`                | Gauge (long)    | After pruning, the newest block in the buffer                                                |
+| `blockStream_buffer_blockItemsPerBlock`         | Running average | Average number of BlockItems per block                                                       |
+| `blockStream_buffer_blockItemBytes`             | Running average | Average size in bytes of a BlockItem                                                         |
+| `blockStream_buffer_blockBytes`                 | Running average | Average size in bytes of a Block                                                             |
+| `blockStream_buffer_totalBytes`                 | Gauge (long)    | The total size of the serialized data held by the block buffer in memory.                    |
+| `blockStream_buffer_numBlocks`                  | Gauge (long)    | The number of blocks held by the block buffer in memory.                                     |
+| `blockStream_buffer_numBlocksPendingAck`        | Gauge (long)    | The number of buffered blocks that are awaiting an acknowledgement from a block node         |
+| `blockStream_buffer_unackedBlocksSaturation`    | Gauge (double)  | Buffer saturation as a measure of unacknowledged blocks (0.0 to 100.0)                       |
+| `blockStream_buffer_unackedBytesSaturation`     | Gauge (double)  | Buffer saturation as a measure of unacknowledged bytes consumed by the blocks (0.0 to 100.0) |
+| `blockStream_buffer_inProgressBlocksSaturation` | Gauge (double)  | Buffer saturation as a measure of in-progress blocks buffered (0.0 to 100.0)                 |
 
 ## Connectivity Metrics
 
@@ -48,7 +51,8 @@ with "conn" for identification.
 | `blockStream_conn_blockClosedToAckLatency`              | Running average | Average latency (µs) between the block closing (Proof produced) and receiving its BlockAcknowledgement      |
 | `blockStream_conn_headerSentToBlockEndSentLatency`      | Running average | Average latency (µs) between streaming a BlockHeader and streaming the corresponding BlockEnd               |
 | `blockStream_conn_pipelineOperationTimeoutCounter`      | Counter         | Number of times a pipeline operation has occured                                                            |
-| `blockStream_conn_activeConnectionCount`                | Gauge (long)    | Current number of streaming connections that are active                                                     |
+| `blockStream_conn_activeStreamingConnectionCount`       | Gauge (long)    | Current number of streaming connections that are active                                                     |
+| `blockStream_conn_activeObservingConnectionCount`       | Gauge (long)    | Current number of observing connections that are active                                                     |
 | `blockStream_conn_connClose_blockNodeBehind`            | Counter         | Number of connections closed because the block node was behind when streaming was attempted                 |
 | `blockStream_conn_connClose_blockNodeHighLatency`       | Counter         | Number of connections closed because there was elevated latency while streaming                             |
 | `blockStream_conn_connClose_bufferSaturation`           | Counter         | Number of connections closed because block buffer saturation is growing and a forceful switch was triggered |
@@ -69,24 +73,25 @@ with "conn" for identification.
 
 These metrics relate to responses received from a block node. They are identified using the "connRecv" prefix.
 
-|                    Metric Name                     |     Type     |                          Description                           |
-|----------------------------------------------------|--------------|----------------------------------------------------------------|
-| `blockStream_connRecv_unknown`                     | Counter      | Number of responses received that are of unknown types         |
-| `blockStream_connRecv_acknowledgement`             | Counter      | Number of Acknowledgement responses received                   |
-| `blockStream_connRecv_skipBlock`                   | Counter      | Number of SkipBlock responses received                         |
-| `blockStream_connRecv_resendBlock`                 | Counter      | Number of ResendBlock responses received                       |
-| `blockStream_connRecv_nodeBehindPublisher`         | Counter      | Number of BehindPublisher responses received                   |
-| `blockStream_connRecv_latestBlockEndOfStream`      | Gauge (long) | The latest block number received in an EndOfStream response    |
-| `blockStream_connRecv_latestBlockSkipBlock`        | Gauge (long) | The latest block number received in a SkipBlock response       |
-| `blockStream_connRecv_latestBlockResendBlock`      | Gauge (long) | The latest block number received in a ResendBlock response     |
-| `blockStream_connRecv_latestBlockBehindPublisher`  | Gauge (long) | The latest block number received in a BehindPublisher response |
-| `blockStream_connRecv_endStream_success`           | Counter      | Number of EndStream.Success responses received                 |
-| `blockStream_connRecv_endStream_invalidRequest`    | Counter      | Number of EndStream.InvalidRequest responses received          |
-| `blockStream_connRecv_endStream_error`             | Counter      | Number of EndStream.Error responses received                   |
-| `blockStream_connRecv_endStream_timeout`           | Counter      | Number of EndStream.Timeout responses received                 |
-| `blockStream_connRecv_endStream_duplicateBlock`    | Counter      | Number of EndStream.DuplicateBlock responses received          |
-| `blockStream_connRecv_endStream_badBlockProof`     | Counter      | Number of EndStream.BadBlockProof responses received           |
-| `blockStream_connRecv_endStream_persistenceFailed` | Counter      | Number of EndStream.PersistenceFailed responses received       |
+|                    Metric Name                     |     Type     |                            Description                             |
+|----------------------------------------------------|--------------|--------------------------------------------------------------------|
+| `blockStream_connRecv_unknown`                     | Counter      | Number of responses received that are of unknown types             |
+| `blockStream_connRecv_acknowledgement`             | Counter      | Number of Acknowledgement responses received                       |
+| `blockStream_connRecv_skipBlock`                   | Counter      | Number of SkipBlock responses received                             |
+| `blockStream_connRecv_resendBlock`                 | Counter      | Number of ResendBlock responses received                           |
+| `blockStream_connRecv_nodeBehindPublisher`         | Counter      | Number of BehindPublisher responses received                       |
+| `blockStream_connRecv_latestBlockEndOfStream`      | Gauge (long) | The latest block number received in an EndOfStream response        |
+| `blockStream_connRecv_latestBlockSkipBlock`        | Gauge (long) | The latest block number received in a SkipBlock response           |
+| `blockStream_connRecv_latestBlockResendBlock`      | Gauge (long) | The latest block number received in a ResendBlock response         |
+| `blockStream_connRecv_latestBlockBehindPublisher`  | Gauge (long) | The latest block number received in a BehindPublisher response     |
+| `blockStream_connRecv_endStream_success`           | Counter      | Number of EndStream.Success responses received                     |
+| `blockStream_connRecv_endStream_invalidRequest`    | Counter      | Number of EndStream.InvalidRequest responses received              |
+| `blockStream_connRecv_endStream_error`             | Counter      | Number of EndStream.Error responses received                       |
+| `blockStream_connRecv_endStream_timeout`           | Counter      | Number of EndStream.Timeout responses received                     |
+| `blockStream_connRecv_endStream_duplicateBlock`    | Counter      | Number of EndStream.DuplicateBlock responses received              |
+| `blockStream_connRecv_endStream_badBlockProof`     | Counter      | Number of EndStream.BadBlockProof responses received               |
+| `blockStream_connRecv_endStream_persistenceFailed` | Counter      | Number of EndStream.PersistenceFailed responses received           |
+| `blockStream_connRecv_responsesIgnoredAsObserving` | Counter      | Number of unaccepted responses received over observing connections |
 
 ## Connection Send Metrics
 

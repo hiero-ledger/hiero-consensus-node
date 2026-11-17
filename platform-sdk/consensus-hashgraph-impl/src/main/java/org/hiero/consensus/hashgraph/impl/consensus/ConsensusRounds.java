@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.logging.legacy.LogMarker;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.LongStream;
 import org.apache.logging.log4j.LogManager;
@@ -18,7 +17,7 @@ import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.round.RoundCalculationUtils;
 
 /**
@@ -32,8 +31,8 @@ public class ConsensusRounds {
     private final ConsensusConfig config;
     /** stores the minimum judge ancient identifier for all decided and non-expired rounds */
     private final SequentialRingBuffer<MinimumJudgeInfo> minimumJudgeStorage;
-    /** a derivative of the only roster currently in use, until roster changes are implemented */
-    private final Map<Long, RosterEntry> rosterEntryMap;
+    /** the global roster (has to be replaced for dynamic address book) */
+    private final RosterWrapper roster;
     /** The maximum round created of all the known witnesses */
     private long maxRoundCreated = ConsensusConstants.ROUND_UNDEFINED;
     /** The round we are currently voting on */
@@ -48,11 +47,11 @@ public class ConsensusRounds {
     private long consensusRelevantNGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /** Constructs an empty object */
-    public ConsensusRounds(@NonNull final ConsensusConfig config, @NonNull final Roster roster) {
-        this.config = Objects.requireNonNull(config);
+    public ConsensusRounds(@NonNull final ConsensusConfig config, @NonNull final RosterWrapper roster) {
+        this.config = requireNonNull(config);
+        this.roster = requireNonNull(roster);
         this.minimumJudgeStorage =
                 new SequentialRingBuffer<>(ConsensusConstants.ROUND_FIRST, config.roundsExpired() * 2);
-        this.rosterEntryMap = RosterUtils.toMap(Objects.requireNonNull(roster));
         reset();
     }
 
@@ -89,8 +88,7 @@ public class ConsensusRounds {
         // theorem says this witness can't be famous if round R+2 exists
         // if this is true, we immediately mark this witness as not famous without any elections
         // also, if the witness is not in the roster, we decide that it's not famous
-        if (maxRoundCreated >= witness.getRoundCreated() + 2
-                || !rosterEntryMap.containsKey(witness.getCreatorId().id())) {
+        if (maxRoundCreated >= witness.getRoundCreated() + 2 || !roster.contains(witness.getCreatorId())) {
             witness.setFamous(false);
             witness.setFameDecided(true);
             return;

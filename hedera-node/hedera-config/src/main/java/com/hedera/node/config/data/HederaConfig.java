@@ -6,6 +6,7 @@ import com.hedera.node.config.NodeProperty;
 import com.hedera.node.config.types.Profile;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
@@ -14,6 +15,14 @@ import java.time.Duration;
  * @param maxTransactionBytesPerEvent  the maximum number of bytes that a single event may contain, not including the
  *                                     event headers. if a single transaction exceeds this limit, then the event will
  *                                     contain the single transaction only
+ * @param pendingTransactionsPersistenceEnabled whether user transactions still in the pool at a freeze are saved and
+ *                                              resubmitted after the restart
+ * @param pendingTransactionsDirectory          where those transactions are saved
+ * @param transactionDropExpiredFromPool        whether a user transaction still in the transaction pool after its
+ *                                              expiry plus {@code transactionExpiredPoolDropMarginSecs} is dropped
+ *                                              instead of being put in an event, where it could only fail
+ * @param transactionExpiredPoolDropMarginSecs  how many seconds past its expiry a user transaction is kept in the
+ *                                              pool; covers this node's clock running ahead of consensus time
  */
 @ConfigData("hedera")
 public record HederaConfig(
@@ -34,6 +43,12 @@ public record HederaConfig(
         // 6KB limit for user txs
         @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty
         int transactionMaxBytes,
+
+        // Max protobuf message-nesting depth accepted when strictly parsing a transaction at ingest (guards against
+        // deeply nested keys that stricter downstream parsers reject); over-depth is rejected as
+        // TRANSACTION_TOO_MANY_LAYERS
+        @ConfigProperty(value = "transaction.maxProtoMessageDepth", defaultValue = "50") @NetworkProperty
+        int transactionMaxProtoMessageDepth,
 
         @ConfigProperty(value = "transaction.maxMemoUtf8Bytes", defaultValue = "100") @NetworkProperty
         int transactionMaxMemoUtf8Bytes,
@@ -81,4 +96,18 @@ public record HederaConfig(
         Duration nowFrozenWriteTimeout,
 
         @ConfigProperty(value = "transaction.maximumPermissibleUnhealthySeconds", defaultValue = "1") @NodeProperty
-        long maximumPermissibleUnhealthySeconds) {}
+        long maximumPermissibleUnhealthySeconds,
+
+        @ConfigProperty(value = "transaction.pendingTransactionsPersistenceEnabled", defaultValue = "false")
+        @NodeProperty
+        boolean pendingTransactionsPersistenceEnabled,
+
+        @ConfigProperty(value = "transaction.pendingTransactionsDirectory", defaultValue = "data/pendingTransactions")
+        @NodeProperty
+        String pendingTransactionsDirectory,
+
+        @ConfigProperty(value = "transaction.dropExpiredFromPool", defaultValue = "true") @NodeProperty
+        boolean transactionDropExpiredFromPool,
+
+        @ConfigProperty(value = "transaction.expiredPoolDropMarginSecs", defaultValue = "30") @Min(0) @NodeProperty
+        long transactionExpiredPoolDropMarginSecs) {}

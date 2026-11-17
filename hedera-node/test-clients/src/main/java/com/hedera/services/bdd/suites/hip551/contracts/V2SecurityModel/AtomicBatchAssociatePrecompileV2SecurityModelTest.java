@@ -379,33 +379,32 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                                 asHeadlongAddress(getNestedContractAddress(ASSOCIATE_CONTRACT, spec))),
                         newKeyNamed(CONTRACT_KEY).shape(THRESHOLD_KEY_SHAPE.signedWith(sigs(ON, ASSOCIATE_CONTRACT))),
                         cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                        atomicBatchDefaultOperator(
-                                // Test Case 1: Account paying and signing a nested fungible TOKEN ASSOCIATE
-                                // TRANSACTION,
-                                // when we associate the token to the signer
-                                // SIGNER → call → CONTRACT A → call → CONTRACT B → call → PRECOMPILE(HTS)
-                                contractCall(
-                                                NESTED_ASSOCIATE_CONTRACT,
-                                                "associateInternalContractCall",
-                                                accountAddress.get(),
-                                                fungibleAddress.get())
-                                        .signedBy(ACCOUNT)
-                                        .payingWith(ACCOUNT)
-                                        .via("nestedAssociateFungibleTxn")
-                                        .gas(GAS_TO_OFFER),
-                                // Test Case 2: Account paying and signing a nested non fungible TOKEN ASSOCIATE
-                                // TRANSACTION,
-                                // when we associate the token to the signer
-                                // SIGNER → call → CONTRACT A → call → CONTRACT B → call → PRECOMPILE(HTS)
-                                contractCall(
-                                                NESTED_ASSOCIATE_CONTRACT,
-                                                "associateInternalContractCall",
-                                                accountAddress.get(),
-                                                nftAddress.get())
-                                        .signedBy(ACCOUNT)
-                                        .payingWith(ACCOUNT)
-                                        .via("nestedAssociateNonFungibleTxn")
-                                        .gas(GAS_TO_OFFER)))),
+                        // Test Case 1: Account paying and signing a nested fungible TOKEN ASSOCIATE
+                        // TRANSACTION,
+                        // when we associate the token to the signer
+                        // SIGNER → call → CONTRACT A → call → CONTRACT B → call → PRECOMPILE(HTS)
+                        atomicBatchDefaultOperator(contractCall(
+                                        NESTED_ASSOCIATE_CONTRACT,
+                                        "associateInternalContractCall",
+                                        accountAddress.get(),
+                                        fungibleAddress.get())
+                                .signedBy(ACCOUNT)
+                                .payingWith(ACCOUNT)
+                                .via("nestedAssociateFungibleTxn")
+                                .gas(GAS_TO_OFFER)),
+                        // Test Case 2: Account paying and signing a nested non fungible TOKEN ASSOCIATE
+                        // TRANSACTION,
+                        // when we associate the token to the signer
+                        // SIGNER → call → CONTRACT A → call → CONTRACT B → call → PRECOMPILE(HTS)
+                        atomicBatchDefaultOperator(contractCall(
+                                        NESTED_ASSOCIATE_CONTRACT,
+                                        "associateInternalContractCall",
+                                        accountAddress.get(),
+                                        nftAddress.get())
+                                .signedBy(ACCOUNT)
+                                .payingWith(ACCOUNT)
+                                .via("nestedAssociateNonFungibleTxn")
+                                .gas(GAS_TO_OFFER)))),
                 getAccountInfo(ACCOUNT)
                         .hasToken(relationshipWith(FUNGIBLE_TOKEN)
                                 .kyc(KycNotApplicable)
@@ -447,27 +446,26 @@ class AtomicBatchAssociatePrecompileV2SecurityModelTest {
                         newKeyNamed(CONTRACT_KEY)
                                 .shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, NESTED_ASSOCIATE_CONTRACT))),
                         cryptoUpdate(ACCOUNT).key(CONTRACT_KEY),
-                        atomicBatchDefaultOperator(
-                                contractCall(
-                                                NESTED_ASSOCIATE_CONTRACT,
-                                                "associateDelegateCall",
-                                                accountAddress.get(),
-                                                fungibleAddress.get())
-                                        .payingWith(ACCOUNT)
-                                        .via("nestedAssociateFungibleTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS),
+                        atomicBatchDefaultOperator(contractCall(
+                                        NESTED_ASSOCIATE_CONTRACT,
+                                        "associateDelegateCall",
+                                        accountAddress.get(),
+                                        fungibleAddress.get())
+                                .payingWith(ACCOUNT)
+                                .via("nestedAssociateFungibleTxn")
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS)),
 
-                                // non fungible token
-                                contractCall(
-                                                NESTED_ASSOCIATE_CONTRACT,
-                                                "associateDelegateCall",
-                                                accountAddress.get(),
-                                                nftAddress.get())
-                                        .payingWith(ACCOUNT)
-                                        .via("nestedAssociateNonFungibleTxn")
-                                        .gas(GAS_TO_OFFER)
-                                        .hasKnownStatus(SUCCESS)),
+                        // non fungible token
+                        atomicBatchDefaultOperator(contractCall(
+                                        NESTED_ASSOCIATE_CONTRACT,
+                                        "associateDelegateCall",
+                                        accountAddress.get(),
+                                        nftAddress.get())
+                                .payingWith(ACCOUNT)
+                                .via("nestedAssociateNonFungibleTxn")
+                                .gas(GAS_TO_OFFER)
+                                .hasKnownStatus(SUCCESS)),
                         getAccountInfo(ACCOUNT)
                                 .hasToken(relationshipWith(FUNGIBLE_TOKEN)
                                         .kyc(KycNotApplicable)

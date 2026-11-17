@@ -116,7 +116,7 @@ public class ContractKeysStillWorkAsExpectedSuite {
                                 WELL_KNOWN_FUNGIBLE_TOKEN,
                                 WELL_KNOWN_TREASURY_CONTRACT,
                                 Long.MAX_VALUE)
-                        .fee(ONE_HBAR),
+                        .fee(2 * ONE_HBAR),
                 cryptoApproveAllowance()
                         .payingWith(B_WELL_KNOWN_SENDER)
                         .addNftAllowance(
@@ -130,7 +130,7 @@ public class ContractKeysStillWorkAsExpectedSuite {
                                 WELL_KNOWN_FUNGIBLE_TOKEN,
                                 WELL_KNOWN_TREASURY_CONTRACT,
                                 Long.MAX_VALUE)
-                        .fee(ONE_HBAR),
+                        .fee(2 * ONE_HBAR),
                 // Everything should have the needed approvals
                 someWellKnownOperationsWithAllNeededSigsInSigMap(
                         fungibleTokenMirrorAddr,

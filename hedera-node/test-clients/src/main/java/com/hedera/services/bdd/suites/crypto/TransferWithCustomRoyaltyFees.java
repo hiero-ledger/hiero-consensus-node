@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.SigControl.SECP256K1_ON;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -20,6 +21,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.evmAddressFromSecp256k1Key;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFeeInheritingRoyaltyCollector;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
@@ -47,15 +49,19 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TOKEN_BALANCE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ROYALTY_FRACTION_CANNOT_EXCEED_ONE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NftTransfer;
@@ -63,7 +69,9 @@ import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransferList;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -170,8 +178,8 @@ public class TransferWithCustomRoyaltyFees {
                         .initialSupply(0)
                         .supplyKey(NFT_KEY)
                         .supplyType(TokenSupplyType.INFINITE)
-                        .withCustom(royaltyFeeNoFallback(6, 10, htsCollector))
-                        .withCustom(royaltyFeeNoFallback(7, 10, alice)),
+                        .withCustom(royaltyFeeNoFallback(5, 10, htsCollector))
+                        .withCustom(royaltyFeeNoFallback(4, 10, alice)),
                 tokenAssociate(tokenReceiver, nonFungibleToken),
                 tokenAssociate(tokenOwner, nonFungibleToken),
                 mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
@@ -181,12 +189,12 @@ public class TransferWithCustomRoyaltyFees {
                         moving(4, feeDenom).between(tokenReceiver, tokenOwner)),
                 getAccountBalance(tokenOwner)
                         .hasTokenBalance(nonFungibleToken, 0)
-                        .hasTokenBalance(feeDenom, 0),
+                        .hasTokenBalance(feeDenom, 1),
                 getAccountBalance(tokenReceiver)
                         .hasTokenBalance(nonFungibleToken, 1)
                         .hasTokenBalance(feeDenom, 6),
                 getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 2),
-                getAccountBalance(alice).hasTokenBalance(feeDenom, 2));
+                getAccountBalance(alice).hasTokenBalance(feeDenom, 1));
     }
 
     @HapiTest
@@ -207,8 +215,8 @@ public class TransferWithCustomRoyaltyFees {
                         .initialSupply(0)
                         .supplyKey(NFT_KEY)
                         .supplyType(TokenSupplyType.INFINITE)
-                        .withCustom(royaltyFeeNoFallback(6, 10, htsCollector))
-                        .withCustom(royaltyFeeNoFallback(7, 10, alice)),
+                        .withCustom(royaltyFeeNoFallback(5, 10, htsCollector))
+                        .withCustom(royaltyFeeNoFallback(4, 10, alice)),
                 tokenAssociate(tokenReceiver, nonFungibleToken),
                 tokenAssociate(tokenOwner, nonFungibleToken),
                 tokenAssociate(alice, nonFungibleToken),
@@ -219,8 +227,8 @@ public class TransferWithCustomRoyaltyFees {
                         moving(4, feeDenom).between(alice, tokenOwner)),
                 getAccountBalance(tokenOwner)
                         .hasTokenBalance(nonFungibleToken, 0)
-                        .hasTokenBalance(feeDenom, 0),
-                getAccountBalance(alice).hasTokenBalance(nonFungibleToken, 1).hasTokenBalance(feeDenom, 8),
+                        .hasTokenBalance(feeDenom, 1),
+                getAccountBalance(alice).hasTokenBalance(nonFungibleToken, 1).hasTokenBalance(feeDenom, 7),
                 getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 2));
     }
 
@@ -230,13 +238,8 @@ public class TransferWithCustomRoyaltyFees {
                 newKeyNamed(NFT_KEY),
                 cryptoCreate(htsCollector),
                 cryptoCreate(alice),
-                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
                 cryptoCreate(tokenTreasury),
-                cryptoCreate(tokenOwner),
-                tokenCreate(feeDenom).treasury(tokenReceiver).initialSupply(10),
-                tokenAssociate(tokenOwner, feeDenom),
-                tokenAssociate(htsCollector, feeDenom),
-                tokenAssociate(alice, feeDenom),
+                // 60% + 90%: each fraction is valid on its own, but together they exceed the sale price
                 tokenCreate(nonFungibleToken)
                         .treasury(tokenTreasury)
                         .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
@@ -244,23 +247,8 @@ public class TransferWithCustomRoyaltyFees {
                         .supplyKey(NFT_KEY)
                         .supplyType(TokenSupplyType.INFINITE)
                         .withCustom(royaltyFeeNoFallback(6, 10, htsCollector))
-                        .withCustom(royaltyFeeNoFallback(9, 10, alice)),
-                tokenAssociate(tokenReceiver, nonFungibleToken),
-                tokenAssociate(tokenOwner, nonFungibleToken),
-                mintToken(nonFungibleToken, List.of(ByteStringUtils.wrapUnsafely("meta1".getBytes()))),
-                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
-                cryptoTransfer(
-                                movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver),
-                                moving(4, feeDenom).between(tokenReceiver, tokenOwner))
-                        .hasKnownStatus(INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE),
-                getAccountBalance(tokenOwner)
-                        .hasTokenBalance(nonFungibleToken, 1)
-                        .hasTokenBalance(feeDenom, 0),
-                getAccountBalance(tokenReceiver)
-                        .hasTokenBalance(nonFungibleToken, 0)
-                        .hasTokenBalance(feeDenom, 10),
-                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0),
-                getAccountBalance(alice).hasTokenBalance(feeDenom, 0));
+                        .withCustom(royaltyFeeNoFallback(9, 10, alice))
+                        .hasKnownStatus(ROYALTY_FRACTION_CANNOT_EXCEED_ONE));
     }
 
     @HapiTest
@@ -1632,10 +1620,193 @@ public class TransferWithCustomRoyaltyFees {
                                 movingUnique(nonFungibleToken, 2L).between(tokenTreasury, tokenReceiver),
                                 moving(1000, feeDenom).between(tokenReceiver, tokenTreasury))
                         .signedByPayerAnd(tokenTreasury, tokenReceiver),
-                // And even the non-sender can still airdrop without receiving a bidirectional airdrop
+                // And even the non-exempt sender can still airdrop without receiving a bidirectional airdrop
                 tokenAirdrop(movingUnique(nonFungibleToken, 1L).between(tokenOwner, tokenReceiver))
                         .signedByPayerAnd(tokenOwner),
                 getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
+    }
+
+    /**
+     * Verifies that bidirectional airdrops cannot trigger NFT royalty fee payments <b>even in the presence of
+     * a fallback-fee-exempt receiver</b>.
+     * <p>
+     * That is, checks that if an NFT is airdropped by a sender that also <i>receives</i> a fungible airdrop in
+     * the same transaction, that can only succeed if the sender is exempt from the non-fungible token type's
+     * fees; and it does not matter whether the NFT receiver is exempt from a potentially applicable fallback fee
+     * or not.
+     */
+    @HapiTest
+    final Stream<DynamicTest> biDirectionalAirdropsCannotTriggerRoyaltyPaymentsEvenIfReceiverIsFallbackFeeExempt() {
+        return hapiTest(
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenTreasury),
+                cryptoCreate(tokenOwner),
+                tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(2000),
+                tokenAssociate(tokenOwner, feeDenom),
+                tokenAssociate(tokenReceiver, feeDenom),
+                tokenAssociate(htsCollector, feeDenom),
+                cryptoTransfer(
+                        moving(1000, feeDenom).between(tokenTreasury, tokenReceiver),
+                        moving(1000, feeDenom).between(tokenTreasury, htsCollector)),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(royaltyFeeWithFallback(
+                                1, 1, fixedHbarFeeInheritingRoyaltyCollector(ONE_HBAR), htsCollector)),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                mintToken(
+                        nonFungibleToken,
+                        List.of(
+                                ByteStringUtils.wrapUnsafely("meta1".getBytes()),
+                                ByteStringUtils.wrapUnsafely("meta2".getBytes()))),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+
+                // If the sender in a bidirectional airdrop would pay a royalty fee for the NFT it is sending, we fail
+                // even if the receiver is exempt from a potentially applicable fallback fee
+                tokenAirdrop(
+                                movingUnique(nonFungibleToken, 1L).between(tokenOwner, htsCollector),
+                                moving(1000, feeDenom).between(htsCollector, tokenOwner))
+                        .signedByPayerAnd(tokenOwner, htsCollector)
+                        .hasKnownStatus(TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY),
+                // But an exempt sender in the exact situation is fine (no royalty charged)---this debits
+                // the collector's balance of 1000 tokens without diverting any royalty from the exempt sender
+                tokenAirdrop(
+                                movingUnique(nonFungibleToken, 2L).between(tokenTreasury, htsCollector),
+                                moving(1000, feeDenom).between(htsCollector, tokenTreasury))
+                        .signedByPayerAnd(tokenTreasury, htsCollector),
+                // And even a non-exempt sender can airdrop when the receiver is exempt from the fallback fee that
+                // would have otherwise been triggered
+                tokenAirdrop(movingUnique(nonFungibleToken, 1L).between(tokenOwner, htsCollector))
+                        .signedByPayerAnd(tokenOwner, htsCollector),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
+    }
+
+    /**
+     * Verifies that bidirectional airdrops cannot trigger NFT royalty fee payments <b>even in the presence of
+     * a fallback-fee-exempt receiver</b>, where the sender is an aliased account.
+     * <p>
+     * That is, checks that if an NFT is airdropped by an aliased sender that also <i>receives</i> a fungible airdrop
+     * in the same transaction, that can only succeed if the sender is exempt from the non-fungible token type's fees;
+     * and it does not matter whether the NFT receiver is exempt from a potentially applicable fallback fee or not.
+     */
+    @HapiTest
+    final Stream<DynamicTest>
+            aliasedSenderBiDirectionalAirdropsCannotTriggerRoyaltyPaymentsEvenIfReceiverIsFallbackFeeExempt() {
+        return hapiTest(
+                newKeyNamed("ecKey").shape(SECP256K1_ON),
+                newKeyNamed("treasuryKey").shape(SECP256K1_ON),
+                newKeyNamed(NFT_KEY),
+                cryptoCreate(htsCollector),
+                cryptoCreate(tokenReceiver).balance(ONE_MILLION_HBARS),
+                cryptoCreate(tokenTreasury).key("treasuryKey").withMatchingEvmAddress(),
+                cryptoCreate(tokenOwner).key("ecKey").withMatchingEvmAddress(),
+                tokenCreate(feeDenom).treasury(tokenTreasury).initialSupply(2000),
+                tokenAssociate(tokenOwner, feeDenom),
+                tokenAssociate(tokenReceiver, feeDenom),
+                tokenAssociate(htsCollector, feeDenom),
+                cryptoTransfer(
+                        moving(1000, feeDenom).between(tokenTreasury, tokenReceiver),
+                        moving(1000, feeDenom).between(tokenTreasury, htsCollector)),
+                tokenCreate(nonFungibleToken)
+                        .treasury(tokenTreasury)
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .supplyKey(NFT_KEY)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(royaltyFeeWithFallback(
+                                1, 1, fixedHbarFeeInheritingRoyaltyCollector(ONE_HBAR), htsCollector)),
+                tokenAssociate(tokenReceiver, nonFungibleToken),
+                tokenAssociate(tokenOwner, nonFungibleToken),
+                mintToken(
+                        nonFungibleToken,
+                        List.of(
+                                ByteStringUtils.wrapUnsafely("meta1".getBytes()),
+                                ByteStringUtils.wrapUnsafely("meta2".getBytes()))),
+                cryptoTransfer(movingUnique(nonFungibleToken, 1L).between(tokenTreasury, tokenOwner)),
+
+                // If the sender in a bidirectional airdrop would pay a royalty fee for the NFT it is sending, we fail
+                // even if the receiver is exempt from a potentially applicable fallback fee
+                tokenAirdrop((spec, b) -> {
+                            final var aliasedSenderId = aliasedEvmAddressAccountId(spec, "ecKey");
+                            final var htsCollectorId = asId(htsCollector, spec);
+                            b.addAllTokenTransfers(List.of(
+                                    ttl(
+                                            spec,
+                                            nonFungibleToken,
+                                            ttlB -> ttlB.addNftTransfers(NftTransfer.newBuilder()
+                                                    .setSenderAccountID(aliasedSenderId)
+                                                    .setReceiverAccountID(htsCollectorId)
+                                                    .setSerialNumber(1))),
+                                    ttl(spec, feeDenom, ttlB -> ttlB.addTransfers(AccountAmount.newBuilder()
+                                                    .setAccountID(htsCollectorId)
+                                                    .setAmount(-1000))
+                                            .addTransfers(AccountAmount.newBuilder()
+                                                    .setAccountID(
+                                                            spec.registry().getAccountID(tokenOwner))
+                                                    .setAmount(+1000)))));
+                        })
+                        .signedByPayerAnd(tokenOwner, htsCollector)
+                        .hasKnownStatus(TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY),
+                // But an exempt sender in the exact situation is fine (no royalty charged)---this debits
+                // the collector's balance of 1000 tokens without diverting any royalty from the exempt sender
+                tokenAirdrop((spec, b) -> {
+                            final var aliasedSenderId = aliasedEvmAddressAccountId(spec, "treasuryKey");
+                            final var htsCollectorId = asId(htsCollector, spec);
+                            b.addAllTokenTransfers(List.of(
+                                    ttl(
+                                            spec,
+                                            nonFungibleToken,
+                                            ttlB -> ttlB.addNftTransfers(NftTransfer.newBuilder()
+                                                    .setSenderAccountID(aliasedSenderId)
+                                                    .setReceiverAccountID(htsCollectorId)
+                                                    .setSerialNumber(2))),
+                                    ttl(spec, feeDenom, ttlB -> ttlB.addTransfers(AccountAmount.newBuilder()
+                                                    .setAccountID(htsCollectorId)
+                                                    .setAmount(-1000))
+                                            .addTransfers(AccountAmount.newBuilder()
+                                                    .setAccountID(
+                                                            spec.registry().getAccountID(tokenTreasury))
+                                                    .setAmount(+1000)))));
+                        })
+                        .signedByPayerAnd(tokenTreasury, htsCollector),
+                // And even a non-exempt sender can airdrop when the receiver is exempt from the fallback fee that
+                // would have otherwise been triggered
+                tokenAirdrop((spec, b) -> {
+                            final var aliasedSenderId = aliasedEvmAddressAccountId(spec, "ecKey");
+                            final var htsCollectorId = asId(htsCollector, spec);
+                            b.addAllTokenTransfers(List.of(ttl(
+                                    spec,
+                                    nonFungibleToken,
+                                    ttlB -> ttlB.addNftTransfers(NftTransfer.newBuilder()
+                                            .setSenderAccountID(aliasedSenderId)
+                                            .setReceiverAccountID(htsCollectorId)
+                                            .setSerialNumber(1)))));
+                        })
+                        .signedByPayerAnd(tokenOwner, htsCollector),
+                getAccountBalance(htsCollector).hasTokenBalance(feeDenom, 0));
+    }
+
+    private static TokenTransferList ttl(
+            @NonNull final HapiSpec spec,
+            @NonNull final String token,
+            @NonNull final Consumer<TokenTransferList.Builder> consumer) {
+        final var builder = TokenTransferList.newBuilder().setToken(asTokenId(token, spec));
+        consumer.accept(builder);
+        return builder.build();
+    }
+
+    private static AccountID aliasedEvmAddressAccountId(@NonNull final HapiSpec spec, @NonNull final String key) {
+        final var senderEvmAddress = evmAddressFromSecp256k1Key(spec.registry().getKey(key));
+        return Utils.accountIdWithHexedEvmAddress(
+                spec.shard(),
+                spec.realm(),
+                Address.toChecksumAddress(senderEvmAddress.value()).substring(2));
     }
 
     /**

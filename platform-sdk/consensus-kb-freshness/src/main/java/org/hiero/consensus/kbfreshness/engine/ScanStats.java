@@ -11,22 +11,19 @@ import org.hiero.consensus.kbfreshness.model.Lane;
  * as checked-and-clean, not never-scanned. All counts are pure functions of the checkout, so the stats
  * are as deterministic as the findings.
  *
- * @param entriesByType        scanned KB entries per document type.
- * @param anchorsByKind        extracted anchors per kind (every citation seen, checked or clean).
- * @param checkGroups          distinct {@code (entry, target, kind)} checks resolved by the per-anchor
- *                             pipeline (Tier-2 diff assemblers are counted separately below).
- * @param findingsByLane       all emitted findings per lane (per-anchor and diff-assembler findings).
- * @param interfaceDocsOptedIn interface docs carrying {@code interface:}/{@code methods:} frontmatter,
- *                             i.e. covered by the Tier-2 method-set diff.
- * @param tunableSections      tunables-catalog sections parsed for the config-record checks.
- * @param tunableRows          tunables-catalog rows parsed for the key/default checks.
+ * @param entriesByType   scanned KB entries per document type.
+ * @param anchorsByKind   extracted anchors per kind (every citation seen, checked or clean).
+ * @param checkGroups     distinct {@code (entry, target, kind)} checks resolved by the per-anchor
+ *                        pipeline (the Tier-2 diff assembler is counted separately below).
+ * @param findingsByLane  all emitted findings per lane (per-anchor and diff-assembler findings).
+ * @param tunableSections tunables-catalog sections parsed for the config-record checks.
+ * @param tunableRows     tunables-catalog rows parsed for the key/default checks.
  */
 public record ScanStats(
         Map<EntryType, Integer> entriesByType,
         Map<AnchorKind, Integer> anchorsByKind,
         int checkGroups,
         Map<Lane, Integer> findingsByLane,
-        int interfaceDocsOptedIn,
         int tunableSections,
         int tunableRows) {
 

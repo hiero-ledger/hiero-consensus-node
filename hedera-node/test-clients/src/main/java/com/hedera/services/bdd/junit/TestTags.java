@@ -16,10 +16,11 @@ public class TestTags {
     public static final String ND_RECONNECT = "ND_RECONNECT";
     public static final String UPGRADE = "UPGRADE";
     public static final String ISS = "ISS";
+    public static final String ISS_GRPC = "ISS_GRPC";
     public static final String BLOCK_NODE = "BLOCK_NODE";
     /**
      * Tags a test that needs a real multi-node subprocess network started at genesis (e.g. to
-     * complete a TSS ceremony), but no block nodes. Carried by the {@code @GenesisSubProcessTest}
+     * complete a TSS ceremony), but no block nodes. Carried by the {@code @GenesisSubprocessTest}
      * annotation and routed through the block-node XTS job.
      */
     public static final String GENESIS_SUBPROCESS = "GENESIS_SUBPROCESS";
@@ -27,8 +28,17 @@ public class TestTags {
     public static final String SIMPLE_FEES = "SIMPLE_FEES";
     public static final String ATOMIC_BATCH = "ATOMIC_BATCH";
     public static final String WRAPS = "WRAPS";
-    public static final String WRAPS_DOWNLOAD = "WRAPS_DOWNLOAD";
     public static final String CUTOVER = "CUTOVER";
+    /** Tags tests that need the pre-cutover block stream world (BOTH with wrapped record blocks) from genesis. */
+    public static final String PRE_CUTOVER = "PRE_CUTOVER";
+    /** Tags tests of block hashing under the configured {@code blockStream.digestType}. */
+    public static final String BLOCK_HASHING = "BLOCK_HASHING";
+    /**
+     * Tests that stake a weight-changing amount to a node (directly or via a funded staked account),
+     * which forces a TSS roster handoff at a stake-period boundary. A real block node cannot verify
+     * block proofs across such a handoff, so these run on a {@code writerMode=FILE} task off the BN.
+     */
+    public static final String NODE_STAKING = "NODE_STAKING";
     /**
      * Tags a embedded tests run as part of the default {@code Test} to provide efficient
      * integration tests of the app workflows (e.g., ingest, pre-handle, handle) and services.
@@ -60,6 +70,10 @@ public class TestTags {
     /**
      * Tags a test that can be run alone, without any other tests.
      */
+    public static final String CLPR = "CLPR";
+
+    public static final String MULTINETWORK = "MULTINETWORK";
+
     public static final String ADHOC = "ADHOC";
     /**
      * Tags a test that must run serially (not concurrently) in subprocess mode,

@@ -3,11 +3,13 @@ package com.hedera.node.app.service.contract.impl.test.exec.utils;
 
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.accessTrackerFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isClprDispatch;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONTRACT_CODE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_COINBASE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_CALCULATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
@@ -32,6 +34,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
@@ -44,6 +48,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
+import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
 import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
@@ -110,8 +115,44 @@ class FrameBuilderTest {
     @Mock
     private Account contract;
 
+    private static final long DEFAULT_BLOCK_GAS_LIMIT = DEFAULT_CONTRACTS_CONFIG.blockGasLimit();
+
     private final ContractCodeCache codeCache = new ContractCodeCache();
     private final FrameBuilder subject = new FrameBuilder(codeCache);
+
+    @Test
+    void blockValuesUseConfiguredBlockGasLimitNotTransactionGasLimit() {
+        final var blockGasLimit = 123_456_789L;
+        final var transaction = wellKnownHapiCall();
+        givenContractExists();
+        given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
+        given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(blocks.blockValuesOf(blockGasLimit)).willReturn(blockValues);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.blockGasLimit", blockGasLimit)
+                .getOrCreateConfig();
+
+        final var frame = subject.buildInitialFrameWith(
+                transaction,
+                worldUpdater,
+                wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
+                config,
+                OpsDurationCounter.disabled(),
+                featureFlags,
+                EIP_1014_ADDRESS,
+                NON_SYSTEM_LONG_ZERO_ADDRESS,
+                INTRINSIC_GAS,
+                GAS_CALCULATOR,
+                List.of());
+
+        // GASLIMIT is block-scoped, so the frame's block values come from the network property...
+        assertSame(blockValues, frame.getBlockValues());
+        verify(blocks).blockValuesOf(blockGasLimit);
+        // ...and never from the transaction's own gas limit
+        assertEquals(GAS_LIMIT, transaction.gasLimit());
+        verify(blocks, never()).blockValuesOf(GAS_LIMIT);
+    }
 
     @Test
     void constructsExpectedFrameForCallToExtantContractIncludingOptionalContextVariables() {
@@ -121,7 +162,7 @@ class FrameBuilderTest {
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
         given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
                 .getOrCreateConfig();
@@ -167,11 +208,57 @@ class FrameBuilderTest {
     }
 
     @Test
+    void marksInitialFrameForClprDispatch() {
+        final var call = wellKnownHapiCall();
+        final var transaction = new HederaEvmTransaction(
+                call.senderId(),
+                call.relayerId(),
+                call.contractId(),
+                call.nonce(),
+                call.payload(),
+                call.chainId(),
+                call.value(),
+                call.gasLimit(),
+                call.offeredGasPrice(),
+                call.maxGasAllowance(),
+                call.hapiCreation(),
+                call.accessLists(),
+                call.codeDelegations(),
+                call.exception(),
+                call.hookDispatch(),
+                call.senderAddress(),
+                true);
+        givenContractExists();
+        given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
+        given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
+                .getOrCreateConfig();
+
+        final var frame = subject.buildInitialFrameWith(
+                transaction,
+                worldUpdater,
+                wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
+                config,
+                OpsDurationCounter.disabled(),
+                featureFlags,
+                EIP_1014_ADDRESS,
+                NON_SYSTEM_LONG_ZERO_ADDRESS,
+                INTRINSIC_GAS,
+                GAS_CALCULATOR,
+                List.of());
+
+        assertTrue(isClprDispatch(frame));
+    }
+
+    @Test
     void constructsExpectedFrameForCallToExtantContractNotIncludingAccessTrackerWithSidecarDisabled() {
         final var transaction = wellKnownHapiCall();
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
         given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         final var config = HederaTestConfigBuilder.create()
@@ -223,7 +310,7 @@ class FrameBuilderTest {
         final var transaction = wellKnownHapiCall();
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(null);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("contracts.evm.allowCallsToNonContractAccounts", "false")
@@ -281,7 +368,7 @@ class FrameBuilderTest {
         final var transaction = wellKnownHapiCall(accessLists, codeDelegations);
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
         given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         // when:
@@ -289,7 +376,9 @@ class FrameBuilderTest {
                 transaction,
                 worldUpdater,
                 wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
-                HederaTestConfigBuilder.create().getOrCreateConfig(),
+                HederaTestConfigBuilder.create()
+                        .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
+                        .getOrCreateConfig(),
                 OpsDurationCounter.disabled(),
                 featureFlags,
                 EIP_1014_ADDRESS,
@@ -298,6 +387,8 @@ class FrameBuilderTest {
                 GAS_CALCULATOR,
                 authorities);
         // then:
+        // check the coinbase is warm alongside the accessLists and codeDelegation authorities
+        assertTrue(frame.isAddressWarm(asLongZeroAddress(DEFAULT_COINBASE)));
         final var warmUpStorage = frame.getWarmedUpStorage();
         assertEquals(keysCount.stream().mapToInt(e -> e).sum(), warmUpStorage.size());
         // check accessLIsts are warm
@@ -315,11 +406,40 @@ class FrameBuilderTest {
     }
 
     @Test
+    void coinbaseIsWarmAtStartOfExecution() {
+        final var transaction = wellKnownHapiCall();
+        givenContractExists();
+        given(worldUpdater.updater()).willReturn(stackedUpdater);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
+        given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
+                .getOrCreateConfig();
+
+        final var frame = subject.buildInitialFrameWith(
+                transaction,
+                worldUpdater,
+                wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator),
+                config,
+                OpsDurationCounter.disabled(),
+                featureFlags,
+                EIP_1014_ADDRESS,
+                NON_SYSTEM_LONG_ZERO_ADDRESS,
+                INTRINSIC_GAS,
+                GAS_CALCULATOR,
+                List.of());
+
+        assertTrue(frame.isAddressWarm(asLongZeroAddress(DEFAULT_COINBASE)));
+        assertTrue(frame.getWarmedUpStorage().isEmpty());
+    }
+
+    @Test
     void callSucceedsWhenContractNotFoundIfPermitted() {
         final var transaction = wellKnownRelayedHapiCall(VALUE);
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
         given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
@@ -363,7 +483,7 @@ class FrameBuilderTest {
         final var transaction = wellKnownRelayedHapiCall(VALUE);
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         given(contract.deleted()).willReturn(true);
         final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
 
@@ -405,7 +525,7 @@ class FrameBuilderTest {
         final var transaction = wellKnownRelayedHapiCall(VALUE);
         givenContractExists();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
                 .withValue("contracts.sidecarValidationEnabled", true)
@@ -453,7 +573,7 @@ class FrameBuilderTest {
     void constructsExpectedFrameForCreate() {
         final var transaction = wellKnownHapiCreate();
         given(worldUpdater.updater()).willReturn(stackedUpdater);
-        given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
+        given(blocks.blockValuesOf(DEFAULT_BLOCK_GAS_LIMIT)).willReturn(blockValues);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
                 .getOrCreateConfig();

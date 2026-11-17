@@ -532,6 +532,18 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     }
 
     @Override
+    public void reverseNodeFee(@NonNull final AccountID nodeAccountId, final long amount) {
+        requireNonNull(nodeAccountId);
+        // Mirror the accumulate guard in chargeFees(): the in-memory node-payments map is only written
+        // when the fee collection account is enabled. When it is disabled, the node fee is credited
+        // directly to the node account in state and is already reverted by the savepoint rollback, so
+        // there is nothing to reverse here.
+        if (amount > 0 && nodesConfig.feeCollectionAccountEnabled()) {
+            nodeFeeAccumulator.dissipate(nodeAccountId, amount);
+        }
+    }
+
+    @Override
     public long originalKvUsageFor(@NonNull final ContractID id) {
         final var account = accountStore.getContractById(id);
         final var oldAccount = account == null ? null : accountStore.getOriginalValue(account.accountIdOrThrow());

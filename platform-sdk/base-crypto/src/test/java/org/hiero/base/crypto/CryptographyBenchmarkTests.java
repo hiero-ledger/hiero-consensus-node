@@ -128,7 +128,7 @@ class CryptographyBenchmarkTests {
             final byte[] payload = messages[i].getPayloadDirect();
 
             final long startTime = System.nanoTime();
-            CRYPTOGRAPHY.digestSync(payload);
+            CRYPTOGRAPHY.digestSync(payload, Cryptography.DEFAULT_DIGEST_TYPE);
             final long endTime = System.nanoTime();
 
             // discard first values, since they take a long time and aren't indicative of actual performance

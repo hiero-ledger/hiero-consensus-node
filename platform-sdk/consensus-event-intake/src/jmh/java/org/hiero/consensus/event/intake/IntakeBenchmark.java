@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake;
 
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperHistoryFactory.createRosterWrapperHistory;
+
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -11,7 +11,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.ServiceLoader;
 import java.util.concurrent.ForkJoinPool;
@@ -23,12 +22,13 @@ import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
+import org.hiero.consensus.metrics.config.ConsensusLayerMetricsConfig_;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.model.test.fixtures.event.EventCounter;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
-import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.wiring.framework.WiringConfig;
@@ -112,10 +112,12 @@ public class IntakeBenchmark {
 
     @Setup(Level.Invocation)
     public void beforeInvocation() {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(ConsensusLayerMetricsConfig_.LATENCY_ENABLED, false)
+                .getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final RosterWithKeys rosterWithKeys = RosterFactory.randomRosterWithKeys(
+        final RosterWithKeys rosterWithKeys = RosterWrapperFactory.randomRosterWithKeys(
                 new Random(SEED), numNodes, WeightGenerators.GAUSSIAN, signingSchema);
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .rosterWithKeys(rosterWithKeys)
@@ -131,8 +133,7 @@ public class IntakeBenchmark {
                 .withDefaultPool(threadPool)
                 .withWiringConfig(configuration.getConfigData(WiringConfig.class))
                 .build();
-        final RosterHistory rosterHistory = new RosterHistory(
-                List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, rosterWithKeys.getRoster()));
+        final RosterWrapperHistory rosterHistory = createRosterWrapperHistory(0L, rosterWithKeys.roster());
 
         intake = createIntakeModule(intakeModule);
         intake.initialize(
@@ -143,7 +144,7 @@ public class IntakeBenchmark {
                 rosterHistory,
                 new NoOpIntakeEventCounter(),
                 new TransactionLimits(1000, 1000),
-                new EventPipelineTracker(metrics));
+                EventPipelineTracker.create(metrics, configuration, time));
         counter = new EventCounter(NUMBER_OF_EVENTS);
         intake.validatedEventsOutputWire().solderForMonitoring(counter);
         intake.unhashedEventsInputWire();

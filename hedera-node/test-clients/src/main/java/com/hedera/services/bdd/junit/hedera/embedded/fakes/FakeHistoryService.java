@@ -3,8 +3,11 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
@@ -48,6 +51,22 @@ public class FakeHistoryService implements HistoryService {
     }
 
     @Override
+    public void recoverActiveBook(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeConstruction) {
+        delegate.recoverActiveBook(activeRosters, historyStore, activeConstruction);
+    }
+
+    @Override
+    public void recoverNextBook(
+            @NonNull final WritableHistoryStore historyStore,
+            @Nullable final Roster targetRoster,
+            @Nullable final HintsConstruction nextConstruction) {
+        delegate.recoverNextBook(historyStore, targetRoster, nextConstruction);
+    }
+
+    @Override
     public void reconcile(
             @NonNull final ActiveRosters activeRosters,
             @Nullable final Bytes currentMetadata,
@@ -55,8 +74,21 @@ public class FakeHistoryService implements HistoryService {
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
-            @Nullable final HintsConstruction activeConstruction) {
-        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive, activeConstruction);
+            @Nullable final HintsConstruction activeConstruction,
+            final boolean freshGenesisRequested,
+            @Nullable final KeyProvenanceSigner sourceSigner,
+            final long targetHintsConstructionId) {
+        delegate.reconcile(
+                activeRosters,
+                currentMetadata,
+                historyStore,
+                now,
+                tssConfig,
+                isActive,
+                activeConstruction,
+                freshGenesisRequested,
+                sourceSigner,
+                targetHintsConstructionId);
     }
 
     @NonNull
@@ -92,6 +124,11 @@ public class FakeHistoryService implements HistoryService {
     }
 
     @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        delegate.publishKeyWitness(verificationKey, witness);
+    }
+
+    @Override
     public void stop() {
         delegate.stop();
     }
@@ -105,7 +142,7 @@ public class FakeHistoryService implements HistoryService {
     }
 
     @Override
-    public Bytes historyProofVerificationKey() {
-        return delegate.historyProofVerificationKey();
+    public @NonNull Bytes ledgerIdOf(@NonNull final HistoryProof proof) {
+        return delegate.ledgerIdOf(proof);
     }
 }

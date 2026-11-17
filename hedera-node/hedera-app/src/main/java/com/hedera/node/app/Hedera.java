@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
@@ -19,20 +19,24 @@ import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.model.status.PlatformStatus.STARTING_UP;
 import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_ROUND;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTimeOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
+import static org.hiero.consensus.system.SystemExitCode.UPGRADE_FROM_NON_FREEZE_STATE;
+import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
-import com.hedera.cryptography.hints.HintsLibraryBridge;
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
@@ -62,12 +66,12 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.HttpWrapsProvingKeyDownloader;
-import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
@@ -78,6 +82,7 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -88,6 +93,7 @@ import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
@@ -101,6 +107,7 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
@@ -110,14 +117,19 @@ import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.tss.TssHandoffCoordinator;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
+import com.hedera.node.app.workflows.ingest.pending.DiskPendingTransactionsStore;
+import com.hedera.node.app.workflows.ingest.pending.PendingTransactionsRestorer;
+import com.hedera.node.app.workflows.ingest.pending.PendingTransactionsSaver;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
@@ -151,13 +163,13 @@ import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.File;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -166,6 +178,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
@@ -188,6 +201,7 @@ import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
@@ -226,6 +240,10 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
     private static final java.time.Duration SHUTDOWN_TIMEOUT = java.time.Duration.ofSeconds(10);
+
+    private static final java.time.Duration PENDING_TXNS_RETRY_BACKOFF = java.time.Duration.ofMillis(100);
+
+    private static final java.time.Duration DROPPED_TXNS_LOG_PERIOD = java.time.Duration.ofMinutes(1);
 
     /**
      * The application name from the platform's perspective. This is currently locked in at the old main class name and
@@ -304,6 +322,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
 
     private final ConsensusServiceImpl consensusServiceImpl;
 
+    private final ClprServiceImpl clprServiceImpl;
+
     private final NetworkServiceImpl networkServiceImpl;
 
     /**
@@ -344,6 +364,18 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private final TransactionLimits transactionLimits;
     /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
+    /** Expired user transactions dropped from the transaction pool since they were last logged */
+    private long droppedTxnsToLog = 0;
+    /** The earliest time dropped user transactions may be logged again */
+    private Instant nextDroppedTxnsLog = Instant.MIN;
+
+    /** Saves pending user transactions at a freeze; null if disabled. */
+    @Nullable
+    private final PendingTransactionsSaver pendingTransactionsSaver;
+
+    /** Resubmits pending user transactions after a restart; null if disabled. */
+    @Nullable
+    private final PendingTransactionsRestorer pendingTransactionsRestorer;
 
     /**
      * The wrapped record block hash migration instance, shared between ServicesMain (compute) and
@@ -351,12 +383,6 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      */
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration =
             new WrappedRecordBlockHashMigration();
-
-    /**
-     * The WRAPS proving key verification instance. Verification and state persistence
-     * both happen during {@link #onStateInitialized}.
-     */
-    private final WrapsProvingKeyVerification wrapsProvingKeyVerification = new WrapsProvingKeyVerification();
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -580,12 +606,15 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         hintsService =
                 hintsServiceFactory.apply(appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig, genesisNetworkSupplier);
-        utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> requireNonNull(daggerApp)
-                .transactionChecker()
-                .parseSignedAndCheck(txnBytes)
-                .txBody());
+        utilServiceImpl = new UtilServiceImpl(
+                appContext,
+                (txnBytes, config) -> requireNonNull(daggerApp)
+                        .transactionChecker()
+                        .parseSignedAndCheck(txnBytes)
+                        .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
+        clprServiceImpl = new ClprServiceImpl();
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
@@ -602,7 +631,21 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 java.time.Duration.ofSeconds(
                         bootstrapConfig.getConfigData(HederaConfig.class).maximumPermissibleUnhealthySeconds()),
                 metrics,
-                instantSource);
+                instantSource,
+                dropped -> onExpiredTransactionsDropped(dropped, instantSource.instant()));
+
+        final var hederaConfig = bootstrapConfig.getConfigData(HederaConfig.class);
+        if (hederaConfig.pendingTransactionsPersistenceEnabled()) {
+            final var store = new DiskPendingTransactionsStore(Path.of(hederaConfig.pendingTransactionsDirectory()));
+            final var executor = Executors.newThreadPerTaskExecutor(
+                    Thread.ofVirtual().name("pending-txns-", 0).factory());
+            pendingTransactionsSaver = new PendingTransactionsSaver(transactionPool, store, executor);
+            pendingTransactionsRestorer =
+                    new PendingTransactionsRestorer(store, executor, instantSource, PENDING_TXNS_RETRY_BACKOFF);
+        } else {
+            pendingTransactionsSaver = null;
+            pendingTransactionsRestorer = null;
+        }
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
@@ -624,7 +667,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                         networkServiceImpl,
                         addressBookServiceImpl,
                         rosterServiceImpl,
-                        platformStateService)
+                        platformStateService,
+                        clprServiceImpl)
                 .forEach(servicesRegistry::register);
         onSealConsensusRound = this::sealConsensusRound;
         stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
@@ -706,10 +750,23 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 .getConfigData(BlockStreamConfig.class)
                 .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> startGrpcServer();
+            case ACTIVE -> {
+                startGrpcServer();
+                daggerApp.clprRuntime().start();
+                if (pendingTransactionsRestorer != null) {
+                    final long maxValidSecs = configProvider
+                            .getConfiguration()
+                            .getConfigData(HederaConfig.class)
+                            .transactionMaxValidDuration();
+                    pendingTransactionsRestorer.restoreAsync(
+                            bytes -> ingestWorkflow().submitRestoredTransaction(bytes),
+                            java.time.Duration.ofSeconds(maxValidSecs));
+                }
+            }
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
+                daggerApp.clprRuntime().stop();
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
@@ -719,6 +776,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             case CATASTROPHIC_FAILURE -> {
                 logger.error("Platform status is now CATASTROPHIC_FAILURE");
                 shutdownGrpcServer();
+                daggerApp.clprRuntime().stop();
 
                 // Stop the block stream and schedule a handler-thread flush of any open/pending blocks (we may need
                 // them for triage), then wait (bounded) for that flush to complete. This MUST run before the block
@@ -727,13 +785,32 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 blockStreamManager().notifyFatalEvent();
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
 
+                // Capture and stage the exact ISS-round block for the halting ISS (no-op unless
+                // failureBlockStaging.issBlockStagingEnabled, or if the detection path already staged it).
+                // This MUST run before the block node connections are shut down: in gRPC mode a closed ISS block lives
+                // only in the in-memory buffer that their shutdown clears, so resolving it afterwards would find
+                // nothing. It only WRITES the artifact to failureBlockStaging.issBlockDir; a separate uploader ships it
+                // (see FailureBlockStagingConfig for the DevOps deployment prerequisites).
+                app.issDetectionStagingCoordinator().stageDetectedIssOnFailure();
+
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }
+                // The open/pending blocks flushed above are on disk; stage them for the deployment's uploader (no-op
+                // unless failureBlockStaging.triageStagingEnabled), grouped under the SAME per-incident folder as the
+                // exact ISS block so one incident is one directory.
+                app.triageBlockStagingCoordinator()
+                        .stageFlushedTriageBlocks(
+                                app.issDetectionStagingCoordinator().currentIncidentFolder());
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
-            case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {
+            case FREEZING -> {
+                if (pendingTransactionsSaver != null) {
+                    pendingTransactionsSaver.drain();
+                }
+            }
+            case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING -> {
                 // Nothing to do here, just enumerate for completeness
             }
         }
@@ -784,6 +861,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     version);
             throw new IllegalStateException("Cannot downgrade from " + deserializedVersion + " to " + version);
         }
+        assertFreezeStateOnUpgrade(state, trigger, deserializedVersion, version);
         try {
             migrateSchemas(state, deserializedVersion, trigger, platformConfig);
             logConfiguration();
@@ -797,6 +875,49 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     freezeTimeOf(state),
                     lastFrozenTimeOf(state));
         }
+    }
+
+    /**
+     * Fails fast if the node is attempting a software upgrade while resuming from a state that is not a freeze state.
+     * A coordinated upgrade always resumes from the freeze state written at the freeze boundary; every node migrates
+     * from that identical state, which is what keeps the post-migration root hash consistent across the network.
+     * Migrating from any other saved state produces a divergent hash, i.e. an ISS.
+     *
+     * @param state the loaded state
+     * @param trigger the startup trigger
+     * @param deserializedVersion the software version of the loaded state, or null at genesis
+     * @param currentVersion the current node software version
+     */
+    @VisibleForTesting
+    static void assertFreezeStateOnUpgrade(
+            @NonNull final State state,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion deserializedVersion,
+            @NonNull final SemanticVersion currentVersion) {
+        final var isUpgrade = SEMANTIC_VERSION_COMPARATOR.compare(currentVersion, deserializedVersion) > 0;
+        if (isUpgrade && trigger == RESTART && !isFreezeState(state)) {
+            final var message = "Cannot upgrade from " + deserializedVersion + " to " + currentVersion
+                    + " while resuming from a non-freeze state at round " + roundOf(state)
+                    + "; an upgrade must resume from the network freeze state."
+                    + " Restore state from a healthy node before upgrading.";
+            logger.fatal(message);
+            exitSystem(UPGRADE_FROM_NON_FREEZE_STATE, message);
+            // Not reachable in production, where the JVM exits above; reachable in tests that mock the system exit
+            throw new IllegalStateException(message);
+        }
+    }
+
+    /**
+     * Returns whether the given state is a freeze state, i.e. the last state saved before a network freeze. Only a
+     * freeze state has a non-null {@code freezeTime} equal to its {@code lastFrozenTime}, since that equality is
+     * committed to disk atomically with the freeze-state save.
+     *
+     * @param state the state to check
+     * @return true if the state is a freeze state
+     */
+    private static boolean isFreezeState(@NonNull final State state) {
+        final var freezeTime = freezeTimeOf(state);
+        return freezeTime != null && freezeTime.equals(lastFrozenTimeOf(state));
     }
 
     /**
@@ -830,10 +951,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
-        // Verify the WRAPS proving key hash (if configured)
-        if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
-            ensureWrapsProvingKey();
+        // Genesis TSS singletons are populated by HandleWorkflow.doGenesisSetup in the first round.
+        if (trigger != GENESIS) {
+            initializeHintsSigning(state);
         }
+
+        initializePendingTransactions(state, trigger);
 
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
@@ -861,31 +984,77 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
 
         // It is possible a network interrupt could make a node reconnect in a window where
         // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
-        HintsLibraryBridge.getInstance().resetCache();
+        new HintsLibraryImpl().resetCache();
+    }
+
+    private void initializeHintsSigning(@NonNull final State state) {
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        if (!tssConfig.hintsEnabled()) {
+            return;
+        }
+        final var hintsStore = new ReadableHintsStoreImpl(
+                state.getReadableStates(HintsService.NAME),
+                new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME)));
+        final var active = hintsStore.getActiveConstruction();
+        if (active.hasHintsScheme()) {
+            if (!HintsGenerationWeights.requiresHistory(tssConfig)) {
+                hintsService.setActiveConstruction(active, hintsStore.getCrsStateFor(active));
+                return;
+            }
+            final var historyStore = new ReadableHistoryStoreImpl(state.getReadableStates(HistoryService.NAME));
+            final var history = historyStore.getActiveConstruction();
+            // Legacy books are recovered and persisted in consensus before thresholds or signing use them.
+            if (history.hasTargetProof()
+                    && history.targetProofOrThrow().targetNodeWeights().isEmpty()
+                    && history.targetRosterHash().equals(active.targetRosterHash())
+                    && history.targetProofOrThrow().hasTargetHistory()
+                    && history.targetProofOrThrow()
+                            .targetHistoryOrThrow()
+                            .metadata()
+                            .equals(active.hintsSchemeOrThrow()
+                                    .preprocessedKeysOrThrow()
+                                    .verificationKey())) {
+                if (!isWrapsExtensible(history.targetProofOrThrow())) {
+                    throw new IllegalStateException("Cannot recover history snapshot #" + history.constructionId()
+                            + " for hinTS #" + active.constructionId() + " (target " + active.targetRosterHash()
+                            + "): legacy proof is not WRAPS-extensible; restore a verified snapshot or reset TSS");
+                }
+                logger.info(
+                        "Deferring hinTS signing for construction #{} until legacy history #{} book recovery",
+                        active.constructionId(),
+                        history.constructionId());
+                return;
+            }
+            if (!history.hasTargetProof()) {
+                logger.info(
+                        "Deferring hinTS signing for construction #{} (target {}) until history #{} completes",
+                        active.constructionId(),
+                        active.targetRosterHash(),
+                        history.constructionId());
+                return;
+            }
+            hintsService.setActiveConstruction(active, hintsStore.getCrsStateFor(active), history);
+        }
     }
 
     /**
-     * Ensures the WRAPS proving key is set up — persists the hash to state,
-     * verifies the on-disk file, and downloads if needed.
+     * Keeps or discards pending user transactions saved at a freeze, based on the round the state just initialized
+     * from. Uses the null-safe {@link org.hiero.consensus.platformstate.PlatformStateUtils#roundOf}, since at
+     * {@code GENESIS} the platform state singleton is still empty.
      */
-    private void ensureWrapsProvingKey() {
-        final var config = configProvider.getConfiguration();
-        final var tssConfig = config.getConfigData(TssConfig.class);
-        final var downloader = new HttpWrapsProvingKeyDownloader(
-                tssConfig.wrapsProvingKeyConnectTimeout(),
-                tssConfig.wrapsProvingKeyResponseHeadersTimeout(),
-                tssConfig.wrapsProvingKeyStallTimeout());
-        wrapsProvingKeyVerification.ensureProvingKey(config, downloader);
+    void initializePendingTransactions(@NonNull final State state, @NonNull final InitTrigger trigger) {
+        if (pendingTransactionsRestorer != null) {
+            pendingTransactionsRestorer.onStateInitialized(trigger, roundOf(state));
+        }
     }
 
     /**
-     * Called by this class when we detect it is time to do migration. The {@code deserializedVersion} must not be newer
-     * than the current software version. If it is prior to the current version, then each migration between the
-     * {@code deserializedVersion} and the current version, including the current version, will be executed, thus
-     * bringing the state up to date.
+     * Called by this class when we detect it is time to initialize the state's services. The {@code deserializedVersion}
+     * must not be newer than the current software version. Every service's registered schemas are applied in order no
+     * matter what the two versions are; the versions only determine whether this is an upgrade (and hence whether
+     * post-upgrade work is pending) and are made available to each latest schema's restart hook.
      *
-     * <p>If the {@code deserializedVersion} is {@code null}, then this is the first time the node has been started,
-     * and thus all schemas will be executed.
+     * <p>If the {@code deserializedVersion} is {@code null}, then this is the first time the node has been started.
      *
      * @param state current state
      * @param deserializedVersion version deserialized
@@ -1008,6 +1177,18 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     }
 
     /**
+     * Test-only accessor for the {@link ClprSyncWorkflow}
+     * singleton, used by embedded tests to invoke the inbound sync handler directly
+     * without going through the gRPC transport.
+     *
+     * @return the {@code ClprSyncWorkflow} from the current dagger graph, or
+     *         {@code null} if the application has not been started yet
+     */
+    public ClprSyncWorkflow clprSyncWorkflow() {
+        return daggerApp == null ? null : daggerApp.clprSyncWorkflow();
+    }
+
+    /**
      * Called to perform orderly close record streams.
      */
     private void closeRecordStreams() {
@@ -1065,6 +1246,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
 
         if (daggerApp != null) {
             final var app = daggerApp;
+            logger.debug("Stopping CLPR sync orchestrator");
+            app.clprRuntime().stop();
             logger.debug("Shutting down the Block Node Connection Manager");
             app.blockNodeConnectionManager().shutdown();
 
@@ -1297,7 +1480,42 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
+        // Logs drops held back by the once-a-minute limit even if no more come; done before taking any transactions
+        // out of the pool, so it can never lose them
+        logDroppedTransactions(0, appContext.instantSource().instant());
         return transactionPool.getTransactionsForEvent();
+    }
+
+    /**
+     * Called by the transaction pool, while it holds its lock, with the number of user transactions it dropped because
+     * they had expired before an event was built for them. They will never land in an event, so quiescence must stop
+     * waiting for them. Logs the drops at most once per {@link #DROPPED_TXNS_LOG_PERIOD}.
+     * <p>
+     * Never throws: the pool calls this after taking the event's transactions out of its queue, so an exception would
+     * lose them.
+     *
+     * @param count the number of dropped transactions
+     * @param now the current time
+     */
+    void onExpiredTransactionsDropped(final int count, @NonNull final Instant now) {
+        try {
+            final var app = daggerApp;
+            if (app != null) {
+                app.txPipelineTracker().countDropped(count);
+            }
+            logDroppedTransactions(count, now);
+        } catch (RuntimeException e) {
+            logger.error("Failed to account for {} expired transactions dropped from the transaction pool", count, e);
+        }
+    }
+
+    private synchronized void logDroppedTransactions(final int newlyDropped, @NonNull final Instant now) {
+        droppedTxnsToLog += newlyDropped;
+        if (droppedTxnsToLog > 0 && !now.isBefore(nextDroppedTxnsLog)) {
+            logger.info("Dropped {} expired user transactions from the transaction pool", droppedTxnsToLog);
+            droppedTxnsToLog = 0;
+            nextDroppedTxnsLog = now.plus(DROPPED_TXNS_LOG_PERIOD);
+        }
     }
 
     /**
@@ -1344,6 +1562,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         if (daggerApp != null) {
             final var app = daggerApp;
             shutdownGrpcServer();
+            app.clprRuntime().stop();
             notifications.unregister(ReconnectCompleteListener.class, app.reconnectListener());
             notifications.unregister(StateWriteToDiskCompleteListener.class, app.stateWriteToDiskListener());
             notifications.unregister(AsyncFatalIssListener.class, app.fatalIssListener());
@@ -1386,6 +1605,11 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         final var succinctSignatureDelegate = new TssBlockHashSigner(hintsService, historyService, configProvider);
         final var blockHashSigner = blockHashSignerFactory.apply(
                 rsaContext, rsaSignings, hintsService.submissions(), succinctSignatureDelegate);
+        final var clprEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(ClprConfig.class)
+                .enabled();
+        final var blockProvenStateAccessor = clprEnabled ? new BlockProvenStateAccessor(stateLifecycleManager) : null;
         // Fully qualified so as to not confuse javadoc
         daggerApp = DaggerHederaInjectionComponent.builder()
                 .configProviderImpl(configProvider)
@@ -1395,6 +1619,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 .utilServiceImpl(utilServiceImpl)
                 .networkServiceImpl(networkServiceImpl)
                 .tokenServiceImpl(tokenServiceImpl)
+                .clprServiceImpl(clprServiceImpl)
                 .consensusServiceImpl(consensusServiceImpl)
                 .scheduleService(scheduleServiceImpl)
                 .addressBookService(addressBookServiceImpl)
@@ -1421,6 +1646,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 .appContext(appContext)
                 .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
                 .transactionOffsetNanos(txnOffsetNanos)
+                .blockProvenStateAccessor(blockProvenStateAccessor)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
@@ -1428,9 +1654,16 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         notifications.register(ReconnectCompleteListener.class, daggerApp.reconnectListener());
         notifications.register(StateWriteToDiskCompleteListener.class, daggerApp.stateWriteToDiskListener());
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
+        if (blockProvenStateAccessor != null) {
+            notifications.register(StateHashedListener.class, blockProvenStateAccessor);
+        }
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
-            final var lastBlockHash = (trigger == GENESIS) ? HASH_OF_ZERO : null;
+            final var digestType = configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .digestType();
+            final var lastBlockHash = (trigger == GENESIS) ? BlockStreamManager.hashOfZero(digestType) : null;
             daggerApp
                     .blockStreamManager()
                     .init(state, lastBlockHash, blockStreamService.consumeBsiSchemaOverwriteExecuted());
@@ -1497,41 +1730,27 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             System.exit(1);
         }
 
-        final var config = configProvider.getConfiguration();
-        if (config.getConfigData(TssConfig.class).wrapsEnabled() && !WRAPSLibraryBridge.isProofSupported()) {
-            final var wrapsArtifactPath = Optional.ofNullable(System.getenv("TSS_LIB_WRAPS_ARTIFACTS_PATH"))
-                    .orElse("");
-            if (wrapsArtifactPath.isBlank()) {
-                logger.error(
-                        "WRAPS enabled but this node cannot build recursive proofs (TSS_LIB_WRAPS_ARTIFACTS_PATH='{}')",
-                        wrapsArtifactPath);
-            } else {
-                logger.error(
-                        "WRAPS enabled but this node cannot build recursive proofs "
-                                + "(TSS_LIB_WRAPS_ARTIFACTS_PATH='{}', contents={})",
-                        wrapsArtifactPath,
-                        wrapsArtifactPathContents(wrapsArtifactPath));
-            }
-        }
+        initializeWrapsLibraries(configProvider.getConfiguration());
     }
 
-    private static String wrapsArtifactPathContents(@NonNull final String wrapsArtifactPath) {
-        if (wrapsArtifactPath.contains("..")) {
-            return "<not listed because path contains '..'>";
+    /**
+     * Loads the independent WRAPS verification and proving material before handling transactions. CLPR verifies
+     * other ledgers' proofs even when this node does not construct history proofs, so it only needs the verifier.
+     */
+    static void initializeWrapsLibraries(@NonNull final Configuration config) {
+        requireNonNull(config);
+        final boolean historyEnabled = config.getConfigData(TssConfig.class).historyEnabled();
+        if (!historyEnabled && !config.getConfigData(ClprConfig.class).enabled()) {
+            return;
         }
-        final File wrapsArtifactDir = new File(wrapsArtifactPath);
-        if (!wrapsArtifactDir.exists()) {
-            return "<path does not exist>";
+        // The bridge instance must load its native library before either readiness check initializes native state.
+        WRAPSLibraryBridge.getInstance();
+        if (!WRAPSLibraryBridge.isVerificationSupported()) {
+            logger.error("WRAPS proof verification enabled but this node cannot load the compressed verification key");
         }
-        if (!wrapsArtifactDir.isDirectory()) {
-            return "<path is not a directory>";
+        if (historyEnabled && !WRAPSLibraryBridge.isProofSupported()) {
+            logger.error("History proofs enabled but this node cannot load the WRAPS library public parameters");
         }
-        final var contents = wrapsArtifactDir.list();
-        if (contents == null) {
-            return "<directory contents unavailable>";
-        }
-        Arrays.sort(contents);
-        return Arrays.toString(contents);
     }
 
     private <T extends State> T withListeners(@NonNull final T state) {
@@ -1559,7 +1778,10 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             }
         }
         if (isLatestFreezeRound(round, state)) {
-            awaitFreezeRoundBlockProofsAndAcks(round);
+            final CompletableFuture<Void> pendingTransactionsSaved = pendingTransactionsSaver == null
+                    ? completedFuture(null)
+                    : pendingTransactionsSaver.drainAndSaveAsync(round.getRoundNum());
+            awaitFreezeRoundBlockProofsAndAcks(round, pendingTransactionsSaved);
         }
         return sealClosedBoundary;
     }
@@ -1570,7 +1792,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         return platformStateStore.getLatestFreezeRound() == round.getRoundNum();
     }
 
-    private void awaitFreezeRoundBlockProofsAndAcks(@NonNull final Round round) {
+    void awaitFreezeRoundBlockProofsAndAcks(
+            @NonNull final Round round, @NonNull final CompletableFuture<Void> pendingTransactionsSaved) {
         final var config = configProvider.getConfiguration();
         final var nowFrozenWriteTimeout =
                 config.getConfigData(HederaConfig.class).nowFrozenWriteTimeout();
@@ -1593,37 +1816,45 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     "Freeze round {} sealed; waiting up to {} for pending block proofs, WRB writers, "
                             + "and block node acknowledgements if enabled "
                             + "before returning the freeze state to the platform; "
-                            + "blockStreamFutureDone={}, wrbWritersFutureDone={}, waitForBlockNodeAck={}",
+                            + "blockStreamFutureDone={}, wrbWritersFutureDone={}, waitForBlockNodeAck={}, "
+                            + "pendingTxnsSavedDone={}",
                     round.getRoundNum(),
                     nowFrozenWriteTimeout,
                     blockStreamFuture.isDone(),
                     wrbWritersFuture.isDone(),
-                    waitsForBlockNodeAcknowledgements(blockStreamConfig));
-            freezeStateReadyFuture.get(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
+                    waitsForBlockNodeAcknowledgements(blockStreamConfig),
+                    pendingTransactionsSaved.isDone());
+            // The save runs in parallel with the signing and acknowledgement waits
+            CompletableFuture.allOf(freezeStateReadyFuture, pendingTransactionsSaved)
+                    .get(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
         } catch (final TimeoutException e) {
             logger.warn(
-                    "Timed out waiting for pending block proofs, WRB writers, or block node acknowledgements "
+                    "Timed out waiting for pending block proofs, WRB writers, block node acknowledgements, "
+                            + "or the pending transactions save "
                             + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum());
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn(
-                    "Interrupted while waiting for pending block proofs, WRB writers, or block node acknowledgements "
+                    "Interrupted while waiting for pending block proofs, WRB writers, block node acknowledgements, "
+                            + "or the pending transactions save "
                             + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),
                     e);
         } catch (final ExecutionException e) {
             logger.warn(
-                    "Pending block proof, WRB writer, or block node acknowledgement future completed exceptionally "
+                    "Pending block proof, WRB writer, block node acknowledgement, or pending transactions save "
+                            + "future completed exceptionally "
                             + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),
                     e.getCause());
         } catch (final RuntimeException e) {
             logger.warn(
-                    "Unable to get pending block proof, WRB writer, or block node acknowledgement future "
+                    "Unable to get pending block proof, WRB writer, block node acknowledgement, "
+                            + "or pending transactions save future "
                             + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),
@@ -1690,80 +1921,162 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var entityCounters = new ReadableEntityIdStoreImpl(initState.getWritableStates(EntityIdService.NAME));
         final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
-        if (readableHistoryStore.getLedgerId() == null) {
-            // If the ledger id is not set, we should not put any TSS preconditions on adopting a roster,
-            // **even if** the hinTS or history feature flags are enabled (at a cutover upgrade)
+        final var hintsStore =
+                new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters);
+        if (readableHistoryStore.getLedgerId() == null
+                && (!tssConfig.hintsEnabled()
+                        || !hintsStore.getActiveConstruction().hasHintsScheme())) {
+            // Initial TSS cutover has no prepared construction. Once hinTS exists, its CRS prerequisites apply
+            // even while history bootstrap is incomplete, or when history is disabled.
             return true;
         }
-        return (!tssConfig.hintsEnabled()
-                        || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters)
-                                .isReadyToAdopt(rosterHash))
-                && (!tssConfig.historyEnabled()
-                        || readableHistoryStore.isReadyToAdopt(rosterHash, tssConfig.wrapsEnabled()));
+        if (!tssConfig.hintsEnabled()) {
+            return !tssConfig.historyEnabled() || readableHistoryStore.isReadyToAdopt(rosterHash);
+        }
+        final var rosterStore = new ReadableRosterStoreImpl(initState.getReadableStates(RosterService.NAME));
+        final var next = hintsStore.getNextConstruction();
+        final var preparedRosterHash = TssHandoffCoordinator.preparedRosterHashForAdoption(
+                        next.targetRosterHash(), roster, rosterHash, rosterStore.get(next.targetRosterHash()))
+                .orElse(rosterHash);
+        if (next.numParties() >= HintsService.partySizeForRoster(roster)
+                && TssHandoffCoordinator.isReadyForHandoff(
+                        hintsStore, readableHistoryStore, preparedRosterHash, tssConfig.historyEnabled())) {
+            return true;
+        }
+        // Weight-only transitions can promote their TSS constructions before the platform adopts
+        // the candidate roster at restart. Recognize the already prepared active generation too.
+        final var previousRoster = rosterStore.getActiveRoster();
+        return previousRoster != null
+                && TssHandoffCoordinator.canRetainActiveConstruction(
+                        hintsStore,
+                        readableHistoryStore,
+                        previousRoster,
+                        roster,
+                        rosterHash,
+                        tssConfig.historyEnabled(),
+                        rosterStore.get(hintsStore.getActiveConstruction().targetRosterHash()));
     }
 
     private void onOverrideNetwork(@NonNull final Network network) {
         requireNonNull(initState);
         requireNonNull(network);
-        if (!TssStartupNetworks.hasTssMetadata(network)) {
+        final var config = configProvider.getConfiguration();
+        if (!TssStartupNetworks.shouldImportTssMetadata(network, config)) {
             return;
         }
         logger.warn("Initializing dev-only TSS state, runtime, and local private keys from override network JSON");
         final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
-        final var activeHintsConstruction = TssStartupNetworks.initializeHintsState(writableHintsStates, network);
+        final var activeHintsConstruction =
+                TssStartupNetworks.initializeHintsState(writableHintsStates, network, config);
         ((CommittableWritableStates) writableHintsStates).commit();
         final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
-        final var activeProofConstruction = TssStartupNetworks.initializeHistoryState(writableHistoryStates, network);
+        final var activeProofConstruction =
+                TssStartupNetworks.initializeHistoryState(writableHistoryStates, network, config);
         ((CommittableWritableStates) writableHistoryStates).commit();
         TssStartupNetworks.initializeRuntime(
-                activeHintsConstruction, activeProofConstruction, hintsService, historyService);
-        TssStartupNetworks.writePrivateKeys(network, configProvider.getConfiguration(), selfId.id());
+                activeHintsConstruction,
+                new ReadableHintsStoreImpl(
+                                initState.getReadableStates(HintsService.NAME),
+                                new ReadableEntityIdStoreImpl(initState.getReadableStates(EntityIdService.NAME)))
+                        .getCrsState(),
+                activeProofConstruction,
+                hintsService,
+                historyService);
+        TssStartupNetworks.writePrivateKeys(network, config, selfId.id());
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
         requireNonNull(initState);
         final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
-        if (readableHistoryStore.getLedgerId() == null) {
-            // If the ledger id is not set, this is the cutover upgrade, and TSS machinery won't have prepared
-            // the "normal" preconditions for roster adoption during the previous release; so skip everything
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final var hintsStore = new ReadableHintsStoreImpl(
+                initState.getReadableStates(HintsService.NAME),
+                new ReadableEntityIdStoreImpl(initState.getReadableStates(EntityIdService.NAME)));
+        if (readableHistoryStore.getLedgerId() == null
+                && (!tssConfig.hintsEnabled()
+                        || !hintsStore.getActiveConstruction().hasHintsScheme())) {
+            // Initial cutover bootstraps TSS for the adopted roster after startup.
             return;
         }
-        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
-        if (TssHandoffCoordinator.usesJointForcedHandoff(tssConfig)) {
-            final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
-            final var writableHistoryStore = new WritableHistoryStoreImpl(writableHistoryStates);
-            final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
-            final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
-            final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
-            final var writableHintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-            if (TssHandoffCoordinator.tryForcedJointHandoff(
+        final var rosterStore = new ReadableRosterStoreImpl(initState.getReadableStates(RosterService.NAME));
+        final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
+        final var writableHistoryStore = new WritableHistoryStoreImpl(writableHistoryStates);
+        final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
+        final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
+        final var writableHintsStore =
+                new WritableHintsStoreImpl(writableHintsStates, new WritableEntityIdStoreImpl(writableEntityStates));
+        final var next = hintsStore.getNextConstruction();
+        // Override networks may change transport details after a candidate's cryptographic work completes.
+        // Resolve to that prepared target only with its full persisted weighted membership as evidence.
+        final var preparedRosterHash = tssConfig.hintsEnabled()
+                ? TssHandoffCoordinator.preparedRosterHashForAdoption(
+                                next.targetRosterHash(),
+                                adoptedRoster,
+                                adoptedRosterHash,
+                                rosterStore.get(next.targetRosterHash()))
+                        .orElse(adoptedRosterHash)
+                : adoptedRosterHash;
+        if (tssConfig.hintsEnabled()
+                && (next.numParties() < HintsService.partySizeForRoster(adoptedRoster)
+                        || !TssHandoffCoordinator.isReadyForHandoff(
+                                hintsStore, readableHistoryStore, preparedRosterHash, tssConfig.historyEnabled()))) {
+            // Override networks bypass canAdoptRoster(). They may keep an existing signing scheme only for
+            // transport changes, or when the override explicitly supplied a completed, matching TSS snapshot.
+            if (TssHandoffCoordinator.rebindActiveTargetsForAdoption(
+                    writableHintsStore,
+                    writableHistoryStore,
+                    previousRoster,
+                    adoptedRoster,
+                    adoptedRosterHash,
+                    tssConfig.historyEnabled(),
+                    rosterStore.get(hintsStore.getActiveConstruction().targetRosterHash()))) {
+                ((CommittableWritableStates) writableHintsStates).commit();
+                if (tssConfig.historyEnabled()) {
+                    ((CommittableWritableStates) writableHistoryStates).commit();
+                }
+                return;
+            }
+            throw new IllegalStateException(
+                    "Cannot adopt roster before its CRS, hinTS and history prerequisites complete");
+        }
+        if (tssConfig.hintsEnabled() && tssConfig.historyEnabled()) {
+            if (!TssHandoffCoordinator.tryJointHandoff(
                     writableHistoryStore,
                     writableHintsStore,
                     historyService,
                     hintsService,
                     previousRoster,
                     adoptedRoster,
-                    adoptedRosterHash,
-                    tssConfig)) {
-                ((CommittableWritableStates) writableHistoryStates).commit();
-                ((CommittableWritableStates) writableHintsStates).commit();
+                    preparedRosterHash,
+                    requireNonNull(
+                            consensusTimestampOf(initState), "Roster adoption requires a consensus timestamp"))) {
+                throw new IllegalStateException("Prepared TSS constructions failed to promote with the adopted roster");
             }
-            return;
-        }
-        if (tssConfig.historyEnabled()) {
-            final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
-            final var store = new WritableHistoryStoreImpl(writableHistoryStates);
-            store.handoff(previousRoster, adoptedRoster, adoptedRosterHash);
-            ((CommittableWritableStates) writableHistoryStates).commit();
+        } else if (tssConfig.historyEnabled()) {
+            writableHistoryStore.handoff(
+                    previousRoster, adoptedRoster, adoptedRosterHash, consensusTimestampOf(initState));
+        } else if (tssConfig.hintsEnabled()
+                && !hintsService.handoff(writableHintsStore, previousRoster, adoptedRoster, preparedRosterHash)) {
+            throw new IllegalStateException("Prepared hinTS construction failed to promote with the adopted roster");
         }
         if (tssConfig.hintsEnabled()) {
-            final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
-            final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
-            final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
-            final var store = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-            hintsService.handoff(store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
+            // Keep the complete weighted-membership evidence reachable through the active platform roster,
+            // even after the roster store prunes the prepared candidate or older transport configurations.
+            if (!TssHandoffCoordinator.rebindActiveTargetsForAdoption(
+                    writableHintsStore,
+                    writableHistoryStore,
+                    previousRoster,
+                    adoptedRoster,
+                    adoptedRosterHash,
+                    tssConfig.historyEnabled(),
+                    rosterStore.get(writableHintsStore.getActiveConstruction().targetRosterHash()))) {
+                throw new IllegalStateException("Prepared TSS target does not match the adopted weighted roster");
+            }
             ((CommittableWritableStates) writableHintsStates).commit();
+        }
+        if (tssConfig.historyEnabled()) {
+            ((CommittableWritableStates) writableHistoryStates).commit();
         }
     }
 }

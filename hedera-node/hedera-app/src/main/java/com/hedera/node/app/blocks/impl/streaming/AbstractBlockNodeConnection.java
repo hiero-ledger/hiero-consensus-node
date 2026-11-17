@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -25,7 +24,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Base implementation for a connection to a block node.
  */
-public abstract class AbstractBlockNodeConnection implements AutoCloseable {
+public abstract class AbstractBlockNodeConnection extends BlockStreamingBase implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
     /**
@@ -40,10 +39,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * The unique (for the life of the JVM) connection identifier.
      */
     private final ConnectionId connectionId;
-    /**
-     * Mechanism to retrieve configuration data.
-     */
-    private final ConfigProvider configProvider;
     /**
      * The current state of this connection.
      */
@@ -92,20 +87,13 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
             @NonNull final BlockNodeConfiguration configuration,
             @NonNull final ConfigProvider configProvider,
             final long nodeId) {
+        super(configProvider);
         this.configuration = requireNonNull(configuration, "configuration is required");
-        this.configProvider = requireNonNull(configProvider, "configProvider is required");
         this.type = requireNonNull(type, "type is required");
 
         connectionId = ConnectionId.newConnectionId(nodeId, type);
         stateRef = new AtomicReference<>(ConnectionState.UNINITIALIZED);
         createTimestamp = Instant.now();
-    }
-
-    /**
-     * @return the current {@link BlockNodeConnectionConfig} instance
-     */
-    final @NonNull BlockNodeConnectionConfig bncConfig() {
-        return configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
     }
 
     /**
@@ -178,23 +166,27 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     }
 
     /**
-     * Builds a correlation ID for the specified connection request.
+     * Builds a correlation ID for the specified connection request. The ID starts with the connection-level correlation
+     * ID so that searching logs for a connection also finds its requests. Request-level correlation IDs are only used
+     * in logs; the correlation ID header sent to block nodes is always the connection-level correlation ID.
      *
      * @param connectionRequestNumber the connection-level request number
-     * @return correlation ID in the format of N#-[STR|SVC]#-CRN#
+     * @return correlation ID in the format of {@code N#-[STR|SVC]#-JVM<token>-CRN#}
      */
     final @NonNull String buildRequestCorrelationId(final long connectionRequestNumber) {
         return connectionId + "-CRN" + connectionRequestNumber;
     }
 
     /**
-     * Builds a correlation ID for the specified block-level request.
+     * Builds a correlation ID for the specified block-level request. The ID starts with the connection-level correlation
+     * ID so that searching logs for a connection also finds its requests. Request-level correlation IDs are only used
+     * in logs; the correlation ID header sent to block nodes is always the connection-level correlation ID.
      *
      * @param connectionRequestNumber the connection-level request number
      * @param blockNumber the block number
      * @param blockRequestNumber the block-level request number
      * @param blockAttemptNumber number of times this block has been attempted on this connection
-     * @return correlation ID in the format of N#-[STR|SVC]#-BLK#-BAN#-REQ#-CRN#
+     * @return correlation ID in the format of {@code N#-[STR|SVC]#-JVM<token>-BLK#-BAN#-REQ#-CRN#}
      */
     final @NonNull String buildRequestCorrelationId(
             final long connectionRequestNumber,
@@ -208,15 +200,14 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     /**
      * Formats a connection context string using either a supplied correlation ID or this connection's base ID.
      *
-     * @param correlationId correlation ID to display in the context, or null to use base connection ID
+     * @param correlationId correlation ID to display in the context, or null to use the connection-level correlation ID
      * @return formatted context string in the form {@code [ID/host:port/STATE]}
      */
     final @NonNull String connectionContext(@Nullable final String correlationId) {
-        final int port =
-                switch (type) {
-                    case BLOCK_STREAMING -> configuration.streamingPort();
-                    case SERVER_STATUS -> configuration.servicePort();
-                };
+        final int port = switch (type) {
+            case BLOCK_STREAMING, ACK_OBSERVING -> configuration.streamingPort();
+            case SERVER_STATUS -> configuration.servicePort();
+        };
         final String idToDisplay =
                 (correlationId == null || correlationId.isBlank()) ? connectionId.toString() : correlationId;
         return "[" + idToDisplay + "/" + configuration.address() + ":" + port + "/" + stateRef.get() + "]";
@@ -360,13 +351,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     public abstract void close();
 
     /**
-     * @return the configuration provider used by this connection
-     */
-    final @NonNull ConfigProvider configProvider() {
-        return configProvider;
-    }
-
-    /**
      * @return the current state of this connection
      */
     public final @NonNull ConnectionState currentState() {
@@ -386,7 +370,7 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @param t the throwable to search
      * @return the {@link GrpcException} associated with this throwable, or null if one is not found
      */
-    protected GrpcException findGrpcException(final Throwable t) {
+    protected final GrpcException findGrpcException(final Throwable t) {
         Throwable th = t;
 
         while (th != null) {

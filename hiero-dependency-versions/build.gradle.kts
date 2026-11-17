@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.16.Final"))
+    api(platform("io.netty:netty-bom:4.2.17.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -8,26 +8,40 @@ dependencies {
     }
 }
 
-val besu = "26.2.0"
+val besu = "26.7.1"
 val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-val hederaCryptography = "3.15.0"
-val helidon = "4.5.0"
-val jackson = "2.22.1"
-val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
+val hederaCryptography = "3.28.0"
+val helidon = "4.5.4"
+val jackson = "2.22.2"
+val junit5 = "6.1.3"
 val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
+val protobuf = "4.34.1"
 val prometheusSimpleclient = "0.16.0"
-val protobuf = "4.34.0"
-val blockNodeProtobufSources = "0.39.0"
-val testContainers = "2.0.3"
+// The one Block Node pin is block-node-version in .citr-env; Maven versions lack its v
+val blockNodeProtobufSources =
+    providers
+        .fileContents(layout.settingsDirectory.file(".github/workflows/support/citr/.citr-env"))
+        .asText
+        .get()
+        .lines()
+        .firstOrNull { it.startsWith("block-node-version=") }
+        ?.substringAfter("=")
+        ?.trim()
+        ?.removePrefix("v")
+        ?.takeIf { it.isNotEmpty() }
+        ?: throw GradleException("block-node-version is missing from .citr-env")
+val testContainers = "2.0.5"
 val tuweni = "2.7.2"
+val vertx = "4.5.30"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
+    api("io.netty:netty-codec-http:4.2.17.Final") { because("io.netty.codec.http") }
     api("io.helidon.common:helidon-common:$helidon") { because("io.helidon.common") }
     api("io.helidon.webclient:helidon-webclient:$helidon") { because("io.helidon.webclient") }
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
@@ -45,6 +59,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.4") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.1") { because("com.github.dockerjava.api") }
+    api("com.github.luben:zstd-jni:1.5.7-22") { because("com.github.luben.zstd_jni") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
@@ -76,6 +91,7 @@ dependencies.constraints {
     api("io.prometheus:simpleclient_tracer_common:$prometheusSimpleclient") {
         because("simpleclient.tracer.common")
     }
+    api("io.vertx:vertx-core:$vertx") { because("io.vertx.core") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
@@ -100,9 +116,9 @@ dependencies.constraints {
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
     api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:gnark:1.4.2")
-    api("org.hyperledger.besu:secp256r1:1.4.2")
-    api("org.hyperledger.besu:arithmetic:1.4.2")
+    api("org.hyperledger.besu:gnark:2.0.0")
+    api("org.hyperledger.besu:secp256r1:2.0.0")
+    api("org.hyperledger.besu:arithmetic:2.0.0")
     api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
@@ -135,6 +151,9 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:libxkcp:$hederaCryptography") {
         because("com.hedera.cryptography.libxkcp")
+    }
+    api("com.hedera.cryptography:security:$hederaCryptography") {
+        because("com.hedera.cryptography.security")
     }
 
     // Versions of additional tools that are not part of the product or test module paths

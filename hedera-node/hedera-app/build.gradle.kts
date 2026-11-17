@@ -13,12 +13,15 @@ mainModuleInfo {
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
     runtimeOnly("org.hiero.consensus.pcli")
+    runtimeOnly("com.sun.jna")
     runtimeOnly("io.helidon.webclient")
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("io.netty.transport.epoll.linux.aarch_64")
     runtimeOnly("io.netty.transport.epoll.linux.x86_64")
+    runtimeOnly("org.hyperledger.besu.nativelib.secp256k1")
 
+    // Loaded reflectively at runtime; not referenced from compiled code
     // This is needed to pick up and include the native libraries for the netty epoll transport
 }
 
@@ -35,10 +38,12 @@ testModuleInfo {
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.state.test.fixtures")
+    requires("awaitility")
     requires("com.esaulpaugh.headlong")
     requires("com.fasterxml.jackson.databind")
     requires("com.google.common.jimfs")
     requires("com.google.protobuf")
+    requires("io.helidon.builder.api")
     requires("org.assertj.core")
     requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")
@@ -52,6 +57,18 @@ testModuleInfo {
     exportsTo("org.hiero.base.utility") // access package "utils" (maybe rename to "util")
     opensTo("com.hedera.node.app.spi.test.fixtures") // log captor injection
     opensTo("com.swirlds.common") // instantiation via reflection
+}
+
+tasks.test {
+    // HtsAutoCreationIngestThrottleTest reads the network throttle files
+    inputs
+        .files(
+            listOf("mainnet", "testnet", "previewnet").map {
+                "../configuration/$it/upgrade/throttles.json"
+            },
+        )
+        .withPropertyName("networkThrottles")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 
 jmhModuleInfo {
@@ -104,7 +121,7 @@ tasks.jar {
                     .filter { it.extension == "jar" }
                     .map { "../../data/lib/" + it.name }
                     .sorted()
-                    .joinToString(separator = " ")
+                    .joinToString(separator = " "),
         )
     }
 }
@@ -137,6 +154,7 @@ val copyNodeData =
         into("data/apps") { from(copyApp) }
         into("data/onboard") { from(layout.projectDirectory.dir("../data/onboard")) }
         into("data/keys") { from(layout.projectDirectory.dir("../data/keys")) }
+        into("data/clpr") { from(layout.projectDirectory.dir("../configuration/dev/keys/")) }
 
         // Copy hedera-node/configuration/dev as hedera-node/hedera-app/build/node/data/config  }
         from(layout.projectDirectory.dir("../configuration/dev")) { into("data/config") }
@@ -179,6 +197,8 @@ tasks.register<JavaExec>("run") {
 
     // Add arguments for the application to run a local node
     args = listOf("-local", "0")
+    // The local node has no block node to stream to, so it only writes block files
+    systemProperty("blockStream.writerMode", "FILE")
 }
 
 val cleanRun =

@@ -101,16 +101,14 @@ public final class AntlrConfigRecordParser {
                     ConfigProperty.UNDEFINED_DEFAULT_VALUE);
             final String type = Optional.ofNullable(ctx.typeType().classOrInterfaceType())
                     .map(RuleContext::getText)
-                    .map(typeText -> imports.stream()
-                            .filter(importText -> importText.endsWith(typeText))
-                            .findAny()
-                            .orElse(typeText))
-                    .map(AntlrConfigRecordParser::getTypeForJavaLang)
+                    .map(typeText -> resolveTypeName(typeText, imports))
                     .orElseGet(() -> ctx.typeType().primitiveType().getText());
             final String description =
                     Optional.ofNullable(javadocParams.get(componentName)).orElse("");
 
-            return new ConfigDataPropertyDefinition(componentName, name, type, defaultValue, description);
+            // the config data record that is being processed declares the property itself, so there is no separate
+            // declaring component to record
+            return new ConfigDataPropertyDefinition(componentName, name, type, defaultValue, description, null);
         } catch (Exception e) {
             throw new IllegalArgumentException(ConfigProperty.class.getTypeName() + " is not correctly defined for "
                     + componentName + " property");
@@ -127,12 +125,61 @@ public final class AntlrConfigRecordParser {
         }
     }
 
+    /**
+     * Resolves the name of a type as it is written in the source into the qualified name that is reported for the
+     * property.
+     * <p>
+     * The type arguments of a generic type are left as they are written, since only the raw type decides what the
+     * property is. They are split off first so that the raw type is resolved at all: the text of a component of type
+     * {@code List<String>} is {@code "List<String>"}, which matches no import.
+     *
+     * @param typeText the type as it is written in the source
+     * @param imports  the imports of the compilation unit
+     * @return the resolved name of the type
+     */
     @NonNull
-    private static String getTypeForJavaLang(@NonNull final String type) {
-        if (!type.contains(".")) {
-            return String.class.getPackageName() + "." + type;
+    private static String resolveTypeName(@NonNull final String typeText, @NonNull final List<String> imports) {
+        final int genericStart = typeText.indexOf('<');
+        if (genericStart < 0) {
+            return resolveRawTypeName(typeText, imports);
         }
-        return type;
+        return resolveRawTypeName(typeText.substring(0, genericStart), imports) + typeText.substring(genericStart);
+    }
+
+    /**
+     * Resolves the name of a non generic type through the imports of the compilation unit, falling back to
+     * {@code java.lang} for a type that needs no import. An unqualified name that is neither imported nor a
+     * {@code java.lang} type, like a record that is declared in the same package, is left as it is.
+     *
+     * @param rawType the type as it is written in the source, without any type arguments
+     * @param imports the imports of the compilation unit
+     * @return the resolved name of the type
+     */
+    @NonNull
+    private static String resolveRawTypeName(@NonNull final String rawType, @NonNull final List<String> imports) {
+        if (rawType.contains(".")) {
+            return rawType;
+        }
+        return imports.stream()
+                .filter(importText -> importText.endsWith("." + rawType))
+                .findAny()
+                .orElseGet(() -> isJavaLangType(rawType) ? String.class.getPackageName() + "." + rawType : rawType);
+    }
+
+    /**
+     * Checks if the given simple name is the name of a type in {@code java.lang}. Such a type needs no import, so it
+     * can not be resolved through the imports of the compilation unit.
+     *
+     * @param type the simple name of the type
+     * @return true if the type is a type of {@code java.lang}
+     */
+    private static boolean isJavaLangType(@NonNull final String type) {
+        try {
+            Class.forName(String.class.getPackageName() + "." + type);
+            return true;
+        } catch (final ClassNotFoundException e) {
+            return false;
+        }
     }
 
     @NonNull

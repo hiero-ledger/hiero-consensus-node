@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;
+import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_256;
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -9,22 +10,23 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
+import static com.hedera.node.config.types.StreamMode.BOTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.StateProof;
@@ -33,11 +35,13 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -48,16 +52,19 @@ import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendi
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -67,6 +74,7 @@ import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -75,11 +83,13 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -92,11 +102,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -106,6 +118,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -121,12 +134,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final long NO_BLOCK_SIGNING_REQUESTED = -1L;
 
     // Leaf hashing is computed in ParallelTask (concurrently per item, no ordering dependency); each worker thread
-    // gets its own MessageDigest since MessageDigest is not safe for concurrent use.
-    private static final ThreadLocal<MessageDigest> LEAF_HASH_DIGESTS =
-            ThreadLocal.withInitial(CommonUtils::sha384DigestOrThrow);
+    // gets its own MessageDigest per DigestType since MessageDigest is not safe for concurrent use, and the block
+    // digest is configurable (blockStream.digestType) so a worker may see more than one over the node's lifetime.
+    private static final ThreadLocal<EnumMap<DigestType, MessageDigest>> LEAF_HASH_DIGESTS =
+            ThreadLocal.withInitial(() -> new EnumMap<>(DigestType.class));
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
+    private final boolean blockSizeCircuitBreakerApplicable;
+    private final boolean maxBlockSizeThrottleApplicable;
     private final BlockHashSigner blockHashSigner;
     private final SemanticVersion version;
     private final SemanticVersion hapiVersion;
@@ -137,6 +153,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
+
+    @Nullable
+    private final BlockProvenStateAccessor blockProvenStateAccessor;
 
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
@@ -169,6 +188,36 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant consensusTimeCurrentRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
+    // The circuit-breaker size configuration snapshot for the current block.
+    private boolean blockSizeCircuitBreakerEnabled;
+    private long maxBlockSizeBytes;
+    private long maxBlockExecutionSizeBytes;
+    // The canonical serialized size of all items accepted into the current block, excluding its asynchronous proof.
+    private long currentBlockSizeBytes;
+    // Once open, no more output from savepoint stacks is accepted until the next block starts. Only ever engages
+    // in StreamMode.BOTH (preview block stream); see blockSizeCircuitBreakerApplicable.
+    private boolean savepointOutputSuppressed;
+    // Independent of the circuit breaker above: in StreamMode.BLOCKS (canonical), tracks the same running size
+    // against the maxBlockExecutionSizeBytes limit, but never suppresses output — HandleWorkflow consults
+    // hasReachedMaxBlockSize() to reject further submitted and scheduled transactions with normal consensus throttle
+    // fees instead.
+    // Separate state from the circuit breaker so other consumers of isSavepointOutputSuppressed()
+    // (e.g. trace-data serialization)
+    // are unaffected by this StreamMode.BLOCKS-only mechanism.
+    private boolean maxBlockSizeThrottleEnabled;
+    private long currentThrottleBlockSizeBytes;
+    private boolean maxBlockSizeReached;
+
+    // Trailing-hash transition logging. We emit a decoded, human-readable dump of both trailing windows
+    // (trailingBlockHashes and trailingOutputHashes) at the two moments their layout changes: the block digest
+    // transition (e.g. SHA-384 -> SHA-256) and the block-stream cutover. Each moment is logged twice — a BEFORE
+    // snapshot (the window entering the transition block) and an AFTER snapshot (the window entering the next
+    // block, i.e. after the transition block committed) — so operators and tests can verify the exact values on
+    // both sides. The digest length of the previous block, seeded from state on the first block so a transition
+    // that coincides with a restart is still detected; -1 until seeded.
+    private int previousDigestLength = -1;
+    // When non-null, the next block start emits the AFTER snapshot for this transition label.
+    private String pendingTransitionLabel;
 
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
@@ -190,6 +239,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * The number of blocks awaiting proof via ledger signature on their block hash (or a subsequent block hash).
      */
     private final AtomicInteger pendingBlockProofCount = new AtomicInteger(0);
+
+    /**
+     * One-shot transition flag: flips {@code false → true} the first time
+     * {@link #finishProofWithSignature} embeds a WRAPS recursive proof into a block signature.
+     * After that block, captured cross-network state proofs reference WRAPS-carrying state and
+     * peer ledgers' {@code NativeTssVerifier.verifyTss} accepts them. Logged exactly once for
+     * test-harness use (see {@code MultiNetworkExtension.awaitWrapsSyncPoint}).
+     */
+    private final AtomicBoolean wrapsProofMaterialized = new AtomicBoolean(false);
     /**
      * Guards the future returned to callers waiting for all pending block proofs to complete.
      */
@@ -240,6 +298,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * exactly once across the handler thread and the status-thread fallback.
      */
     private final Object fatalShutdownLock = new Object();
+    /**
+     * Contents files ({@code .pnd.gz}/{@code .open.gz}) written by the triage flush, for staging by the ISS-block
+     * capture pipeline. Written under the flush locks; read after {@link #awaitFatalShutdown}. Thread-safe for the
+     * lock-free read.
+     */
+    private final List<Path> flushedTriageBlockFiles = new CopyOnWriteArrayList<>();
 
     /**
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
@@ -251,6 +315,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Counter indirectProofCounter;
 
     private final BlockStreamingObs streamingObs;
+
+    private final Counter blockSizeCircuitBreakerTripsCounter;
+    private final Counter maxBlockSizeThrottleTripsCounter;
+    private final Counter maxBlockSizeThrottleRejectionsCounter;
+    private final Counter maxBlockSizeThrottleRejectedBytesCounter;
+    private final Counter maxBlockSizeThrottleScheduledRejectionsCounter;
+    private final Counter maxBlockSizeThrottleScheduledRejectedBytesCounter;
+    private final Counter signedTxnsInSizeLimitedBlocksCounter;
+    private final LongGauge bytesAtMaxBlockSizeCutoffGauge;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -266,6 +339,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics,
+            @Nullable final BlockProvenStateAccessor blockProvenStateAccessor,
             @NonNull final BlockStreamingObs streamingObs) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
@@ -277,6 +351,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
+        this.blockProvenStateAccessor = blockProvenStateAccessor;
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
@@ -284,12 +359,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
+        final var streamMode = blockStreamConfig.streamMode();
+        this.blockSizeCircuitBreakerApplicable = streamMode == BOTH;
+        this.maxBlockSizeThrottleApplicable = streamMode == BLOCKS;
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
         this.diskNetworkExportTss = networkAdminConfig.diskNetworkExportTss();
         this.blockHashManager = new BlockHashManager(config);
-        this.runningHashManager = new RunningHashManager();
+        this.runningHashManager = new RunningHashManager(this::digestOrThrow);
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
         this.streamingObs = requireNonNull(streamingObs);
         final var hashFuture = initialStateHash.hashFuture();
@@ -297,6 +375,37 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         indirectProofCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("block", "numIndirectProofs")
                         .withDescription("Number of blocks closed with indirect proofs"));
+        blockSizeCircuitBreakerTripsCounter = metrics.getOrCreate(new Counter.Config(
+                        "block", "numBlockSizeCircuitBreakerTrips")
+                .withDescription("Number of preview blocks whose savepoint output was suppressed by the size limit"));
+        maxBlockSizeThrottleTripsCounter = metrics.getOrCreate(new Counter.Config(
+                        "block", "numMaxBlockSizeThrottleTrips")
+                .withDescription("Number of canonical blocks that reached the max block size limit, rejecting further"
+                        + " dispatches with THROTTLED_AT_CONSENSUS for the rest of the block"));
+        maxBlockSizeThrottleRejectionsCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numMaxBlockSizeThrottleRejections")
+                        .withDescription("Number of submitted transactions rejected with THROTTLED_AT_CONSENSUS because"
+                                + " the canonical block had reached the max block size limit"));
+        maxBlockSizeThrottleRejectedBytesCounter =
+                metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleRejectedBytes")
+                        .withDescription("Serialized bytes of block items written for submitted transactions rejected"
+                                + " because the canonical block had reached the max block size limit"));
+        maxBlockSizeThrottleScheduledRejectionsCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numMaxBlockSizeThrottleScheduledRejections")
+                        .withDescription("Number of due scheduled transactions rejected with THROTTLED_AT_CONSENSUS"
+                                + " because the canonical block had reached the max block size limit; each rejected"
+                                + " schedule is consumed and never retried"));
+        maxBlockSizeThrottleScheduledRejectedBytesCounter =
+                metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleScheduledRejectedBytes")
+                        .withDescription("Serialized bytes of block items written for due scheduled transactions"
+                                + " rejected because the canonical block had reached the max block size limit"));
+        signedTxnsInSizeLimitedBlocksCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numSignedTxnsInSizeLimitedBlocks")
+                        .withDescription("Number of signed transactions written to canonical blocks with the max block"
+                                + " size limit enabled, both before and after the limit is reached"));
+        bytesAtMaxBlockSizeCutoffGauge = metrics.getOrCreate(new LongGauge.Config("block", "bytesAtMaxBlockSizeCutoff")
+                .withDescription("Serialized size in bytes of the most recent canonical block when it reached the"
+                        + " max block size limit"));
         if (!quiescenceEnabled) {
             log.info("Quiescence is disabled");
             quiescedHeartbeat.shutdown();
@@ -335,19 +444,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                     .get();
             final var fullBlockHashes = lastBlockInfoEver.blockHashes().toByteArray();
-            if (fullBlockHashes.length < HASH_SIZE) {
+            if (fullBlockHashes.length < RECORD_HASH_SIZE) {
                 throw new IllegalStateException(
                         "Cutover requires at least one record block hash in BlockInfo.blockHashes, but found "
-                                + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
+                                + fullBlockHashes.length + " bytes (need >= " + RECORD_HASH_SIZE + ")");
             }
             final List<Bytes> wrappedPrevRecordBlockRootHashes =
                     lastBlockInfoEver.wrappedIntermediatePreviousBlockRootHashes();
             effectiveLastBlockHash = lastBlockInfoEver.previousWrappedRecordBlockRootHash();
 
             // Update in-memory vars
-            this.cutoverTrailingBlockHash = Bytes.wrap(fullBlockHashes, fullBlockHashes.length - HASH_SIZE, HASH_SIZE);
+            this.cutoverTrailingBlockHash =
+                    Bytes.wrap(fullBlockHashes, fullBlockHashes.length - RECORD_HASH_SIZE, RECORD_HASH_SIZE);
             this.previousBlockHashes = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(),
+                    digestOrThrow(),
                     wrappedPrevRecordBlockRootHashes.stream()
                             .map(Bytes::toByteArray)
                             .toList(),
@@ -355,11 +465,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             this.previousBlockHashes.addNodeByHash(
                     lastBlockInfoEver.previousWrappedRecordBlockRootHash().toByteArray());
             previousBlockHashesUpdated = true;
-        } else if (Objects.equals(HASH_OF_ZERO, lastBlockHash)) {
+        } else if (Objects.equals(hashOfZero(), lastBlockHash)) {
             // Genesis case
             effectiveLastBlockHash = lastBlockHash;
-            this.previousBlockHashes =
-                    new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), new ArrayList<>(), 0);
+            this.previousBlockHashes = new IncrementalStreamingHasher(digestOrThrow(), new ArrayList<>(), 0);
         } else {
             final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
                     .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
@@ -371,46 +480,89 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // previous-block-hashes hasher as live state for ongoing production; reconstructLastBlockHash()
             // re-derives the same all-previous-blocks root internally.
             this.previousBlockHashes = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(),
+                    digestOrThrow(),
                     blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                             .map(Bytes::toByteArray)
                             .toList(),
                     blockStreamInfo.intermediateBlockRootsLeafCount());
-            effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo);
+            // For the first post-cutover block the window holds the record hash, not the wrapped parent production
+            // used; provide the wrapped parent from BlockInfo so reconstruction links to the correct parent.
+            effectiveLastBlockHash = reconstructLastBlockHash(
+                    blockStreamInfo, digestType(), firstPostCutoverParentHash(state, blockStreamInfo));
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
+        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, hashOfZero())) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
     }
 
+    public static Bytes reconstructLastBlockHash(
+            @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final DigestType digestType) {
+        return reconstructLastBlockHash(blockStreamInfo, digestType, null);
+    }
+
     /**
-     * Reconstructs the block root hash of the last completed block (block {@code blockStreamInfo.blockNumber()})
-     * from the given {@link BlockStreamInfo} singleton.
+     * Reconstructs the root hash of the last completed block from its persisted {@link BlockStreamInfo}.
      *
-     * <p>A block's own hash is never stored in its own committed state — the hash commits over the state change
-     * that writes this very singleton — so it must be re-derived from the persisted subtree roots. This is the
-     * same derivation {@link #init} performs on startup; it is shared here so the query path
-     * ({@code BlockStreamInfoImpl}) can resolve {@code blockhash(block.number - 1)} for the most recent block
-     * exactly as {@code BlockRecordInfoImpl} does, since {@link BlockStreamInfo#trailingBlockHashes()} only
-     * covers blocks up to {@code blockNumber - 1}.
+     * <p>The parent (block N-1) is normally recovered from the trailing-block-hash window. For the first post-cutover
+     * block the window holds the original 48-byte record hash (kept for the EVM BLOCKHASH history), but the block's
+     * actual parent was the <b>wrapped</b> record block root. Since the wrapped root cannot be derived from the record
+     * hash, callers that have it (reading {@code BlockInfo.previousWrappedRecordBlockRootHash}) pass it in via
+     * {@code providedParentHash}; it then overrides the window-derived parent. All other callers pass {@code null}.
      *
-     * @param blockStreamInfo the block stream info singleton
-     * @return the block root hash of {@code blockStreamInfo.blockNumber()}, or {@link #HASH_OF_ZERO} if no block has completed
+     * @param blockStreamInfo the persisted block stream info of the last completed block
+     * @param digestType the active digest type
+     * @param providedParentHash the parent (block N-1) root hash to use instead of the window, or {@code null} to
+     *                           derive the parent from the trailing-block-hash window as usual
      */
-    public static Bytes reconstructLastBlockHash(@NonNull final BlockStreamInfo blockStreamInfo) {
+    public static Bytes reconstructLastBlockHash(
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final DigestType digestType,
+            @Nullable final Bytes providedParentHash) {
         requireNonNull(blockStreamInfo);
+        requireNonNull(digestType);
         if (blockStreamInfo.blockNumber() < 0L) {
-            return HASH_OF_ZERO;
+            return BlockRootTreeHasher.emptySubtreeFor(digestType);
         }
-        final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
-                ? HASH_OF_ZERO
-                : BlockImplUtils.blockHashByBlockNumber(
-                        blockStreamInfo.trailingBlockHashes(),
-                        blockStreamInfo.blockNumber() - 1,
-                        blockStreamInfo.blockNumber() - 1);
+        // Block N's subtree roots were persisted with the digest N was built with, which may differ from the active
+        // digest after a SHA-384 -> SHA-256 switch (the switch happens at a restart, after which init() runs this).
+        // Recompute N's root hash with N's OWN digest, inferred from the persisted consensus-header-root length, so
+        // the reconstructed value equals the real hash of block N and the first block under the new digest links to
+        // the correct parent (rather than a hash recomputed under the wrong digest). When that length is not a
+        // recognized digest size (e.g. an empty/absent root), fall back to the passed digest.
+        final long consensusHeaderRootLen =
+                blockStreamInfo.consensusHeaderRootHash().length();
+        final DigestType blockDigest;
+        if (consensusHeaderRootLen == DigestType.SHA_256.digestLength()) {
+            blockDigest = DigestType.SHA_256;
+        } else if (consensusHeaderRootLen == DigestType.SHA_384.digestLength()) {
+            blockDigest = DigestType.SHA_384;
+        } else {
+            blockDigest = digestType;
+        }
+        final int hashSize = blockDigest.digestLength();
+        final Bytes prevBlockHash;
+        if (providedParentHash != null) {
+            // The caller supplied the real parent (block N-1) root hash. This is the first post-cutover block: its
+            // parent was the wrapped record block root, but the trailing window holds the original record hash (kept
+            // for the EVM BLOCKHASH history), which cannot be turned into the wrapped root. Use the provided value.
+            prevBlockHash = providedParentHash;
+        } else if (blockStreamInfo.blockNumber() == 0L) {
+            prevBlockHash = BlockRootTreeHasher.emptySubtreeFor(blockDigest);
+        } else {
+            // The trailing window may be in 48-byte padded mode (mixed era) or compacted 32-byte native mode; the
+            // persisted trailing_block_hashes_compacted flag gives the stride directly, so realBlockHashByBlockNumber
+            // strips any left-padding and recovers the true (unpadded) hash of block N-1, which feeds
+            // computeBlockRootHash.
+            prevBlockHash = BlockImplUtils.realBlockHashByBlockNumber(
+                    blockStreamInfo.trailingBlockHashes(),
+                    blockStreamInfo.blockNumber() - 1,
+                    blockStreamInfo.blockNumber() - 1,
+                    hashSize,
+                    blockStreamInfo.trailingBlockHashesCompacted());
+        }
         final var prevBlocksHasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                blockDigest.buildDigest(),
                 blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -420,7 +572,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // The final state-changes subtree root isn't persisted directly (only the penultimate roots are), so
         // reconstruct the final state-change block item that wrote this very singleton and complete the subtree.
         final var stateChangesHasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                blockDigest.buildDigest(),
                 blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -441,6 +593,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Straight to BlockRootTree rather than through combine(), which also derives the sibling hashes
         // that only a pending proof needs
         return BlockRootTree.computeBlockRootHash(
+                blockDigest,
                 blockStreamInfo.blockTimeOrThrow(),
                 prevBlockHash,
                 allPrevBlocksHash,
@@ -450,6 +603,62 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 blockStreamInfo.outputItemRootHash(),
                 lastBlockFinalStateChangesHash,
                 blockStreamInfo.traceDataRootHash());
+    }
+
+    /**
+     * Returns the wrapped record block root to use as the parent when reconstructing the given {@link BlockStreamInfo},
+     * or {@code null} when the normal trailing-window parent should be used.
+     *
+     * <p>Only the first post-cutover block needs this: its parent was the wrapped record block root, but the trailing
+     * window holds the original record hash (kept for the EVM BLOCKHASH history), which cannot be turned into the
+     * wrapped root. The wrapped root is already persisted in {@code BlockInfo.previousWrappedRecordBlockRootHash}; this
+     * reads it rather than storing a redundant copy in {@link BlockStreamInfo}. See
+     * {@link #firstPostCutoverParentHash(BlockInfo, BlockStreamInfo)} for how the first post-cutover block is identified.
+     *
+     * @param state the current state
+     * @param blockStreamInfo the block stream info being reconstructed
+     * @return the wrapped parent root hash, or {@code null} if the trailing window should be used
+     */
+    @Nullable
+    public static Bytes firstPostCutoverParentHash(
+            @NonNull final State state, @NonNull final BlockStreamInfo blockStreamInfo) {
+        final var blockRecordStates = state.getReadableStates(BlockRecordService.NAME);
+        if (blockRecordStates == null) {
+            return null;
+        }
+        final var blockInfo =
+                blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID).get();
+        return firstPostCutoverParentHash(blockInfo, blockStreamInfo);
+    }
+
+    /**
+     * Returns the wrapped record block root to use as the parent when reconstructing the given {@link BlockStreamInfo},
+     * or {@code null} when the normal trailing-window parent should be used. This is the pure predicate behind
+     * {@link #firstPostCutoverParentHash(State, BlockStreamInfo)}; it is also used by offline callers that already hold
+     * the {@link BlockInfo} (e.g. read from a block's own state-change updates) rather than a live {@link State}.
+     *
+     * <p>The first post-cutover block is identified by its previous-blocks tree: the cutover seeds that tree with the
+     * wrapped record history ({@code BlockInfo.wrappedIntermediateBlockRootsLeafCount} leaves) and adds the wrapped
+     * parent, so only the first post-cutover block persists one more leaf than the wrapped history. Block numbers
+     * can't be used: after cutover {@code BlockInfo.lastBlockNumber} stays at the last record block in BLOCKS mode,
+     * but keeps advancing with the record stream in BOTH mode, while the wrapped fields stay frozen in both.
+     *
+     * @param blockInfo the post-cutover block info, or {@code null} if none is available
+     * @param blockStreamInfo the block stream info being reconstructed
+     * @return the wrapped parent root hash, or {@code null} if the trailing window should be used
+     */
+    @Nullable
+    public static Bytes firstPostCutoverParentHash(
+            @Nullable final BlockInfo blockInfo, @NonNull final BlockStreamInfo blockStreamInfo) {
+        if (blockInfo == null || !blockInfo.previewStreamOverwritten()) {
+            return null;
+        }
+        if (blockStreamInfo.intermediateBlockRootsLeafCount()
+                != blockInfo.wrappedIntermediateBlockRootsLeafCount() + 1) {
+            return null;
+        }
+        final var wrappedParent = blockInfo.previousWrappedRecordBlockRootHash();
+        return wrappedParent.length() == 0 ? null : wrappedParent;
     }
 
     @Override
@@ -482,20 +691,37 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         // Writer will be null when beginning a new block
         if (writer == null) {
+            final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+            maxBlockSizeBytes = blockStreamConfig.maxBlockSizeBytes();
+            blockSizeCircuitBreakerEnabled = blockSizeCircuitBreakerApplicable && maxBlockSizeBytes > 0;
+            currentBlockSizeBytes = 0;
+            savepointOutputSuppressed = false;
+            maxBlockExecutionSizeBytes = blockStreamConfig.maxBlockExecutionSizeBytes();
+            maxBlockSizeThrottleEnabled = maxBlockSizeThrottleApplicable
+                    && blockStreamConfig.maxBlockSizeLimitEnabled()
+                    && maxBlockExecutionSizeBytes > 0;
+            currentThrottleBlockSizeBytes = 0;
+            maxBlockSizeReached = false;
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
-            final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO.equals(lastBlockHash));
+            final var blockStreamInfo = blockStreamInfoFrom(state, hashOfZero().equals(lastBlockHash));
             lastUsedTime = blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
             lastIntervalProcessTime = asInstant(blockStreamInfo.lastIntervalProcessTimeOrElse(EPOCH));
             // During cutover, the trailing block hashes use the original record hash
             // (not the wrapped record root hash stored in lastBlockHash).
-            final var trailingHash = cutoverTrailingBlockHash != null ? cutoverTrailingBlockHash : lastBlockHash;
+            final boolean isCutoverBlock = cutoverTrailingBlockHash != null;
+            final var trailingHash = isCutoverBlock ? cutoverTrailingBlockHash : lastBlockHash;
             cutoverTrailingBlockHash = null;
-            blockHashManager.startBlock(blockStreamInfo, trailingHash);
-            runningHashManager.startBlock(blockStreamInfo);
+            final var blockInfo = state.getReadableStates(BlockRecordService.NAME)
+                    .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
+                    .get();
+            final boolean postCutover = blockInfo != null && blockInfo.previewStreamOverwritten();
+            logTrailingHashTransitions(blockStreamInfo);
+            blockHashManager.startBlock(blockStreamInfo, trailingHash, postCutover);
+            runningHashManager.startBlock(blockStreamInfo, isCutoverBlock);
 
             lifecycle.onOpenBlock(state);
 
@@ -514,15 +740,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
             // No-op if quiescence is disabled
             quiescenceController.startingBlock(blockNumber);
-            worker = new BlockStreamManagerTask();
+            worker = new BlockStreamManagerTask(digestType());
             final var header = BlockHeader.newBuilder()
                     .number(blockNumber)
-                    .hashAlgorithm(SHA2_384)
+                    .hashAlgorithm(blockHashAlgorithm())
                     .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
             streamingObs.onBlockInit(blockNumber);
-            worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
+            writeItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeCurrentRound = round.getConsensusTimestamp();
     }
@@ -530,7 +756,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hash of the last block
      * incorporated in the state used in the restart or reconnect. (At genesis, this hash should be the
-     * {@link #HASH_OF_ZERO}.)
+     * {@link #HASH_OF_ZERO_384}.)
      *
      * @param blockHash the hash of the last block
      */
@@ -595,6 +821,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         block.proofBuilder(),
                         pendingWriter,
                         block.pendingProof().blockTimestamp(),
+                        // Recovered blocks do not retain the state roots CLPR needs for snapshot registration.
+                        Bytes.EMPTY,
+                        Bytes.EMPTY,
                         block.siblingHashesIfUseful()));
             } catch (Exception e) {
                 log.warn(
@@ -710,6 +939,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Always clear the in-progress flag, even if endRoundInternal threw, so a concurrent fatal-shutdown
             // waiter does not block on a round boundary that will never arrive.
             roundInProgress = false;
+            // A fatal shutdown can be signalled AFTER endRoundInternal's own fatalShutdownRequested check (so it took
+            // the normal path and did not flush). Capture the open/pending blocks now, on the handler thread that owns
+            // the writer: this completes fatalShutdownFuture so awaitFatalShutdown's waiter is released immediately
+            // (rather than stalling the whole timeout) and the open block is not lost. Idempotent, and a no-op on the
+            // normal, non-fatal path.
+            if (fatalShutdownRequested) {
+                flushOpenAndPendingBlocksForTriage();
+            }
         }
     }
 
@@ -731,7 +968,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             quiescenceController.finishHandlingInProgressBlock();
             state.commitSingletons();
             // Flush all boundary state changes besides the BlockStreamInfo
-            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
+            writeItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             // This block's starting state hash is the end state hash of the last non-empty round
@@ -781,12 +1018,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     outputsHash,
                     traceDataHash,
                     previousBlockHashes.intermediateHashingState(),
-                    previousBlockHashes.leafCount());
+                    previousBlockHashes.leafCount(),
+                    blockHashManager.compacted());
             blockStreamInfoState.put(newBlockStreamInfo);
             ((CommittableWritableStates) writableState).commit();
 
             // Produce one more state change item (i.e. putting the block stream info just constructed into state)
-            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
+            writeItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
@@ -804,6 +1042,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     traceDataHash,
                     newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
+            final var signedPreviousBlockHash = lastBlockHash;
+            final var signedBlockTimestamp = blockTimestamp;
+            final var signedDigestType = digestType();
 
             // Create BlockFooter with the three essential hashes:
             final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
@@ -819,7 +1060,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var footerItem =
                     BlockItem.newBuilder().blockFooter(blockFooter).build();
             streamingObs.onBlockFooterCreate(blockNumber);
-            worker.addItem(footerItem);
+            writeItem(footerItem);
             worker.sync();
 
             // Create a pending block, waiting to be signed
@@ -832,6 +1073,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockProofBuilder,
                     writer,
                     blockTimestamp,
+                    blockStartStateHash,
+                    consensusHeaderHash,
                     rootAndSiblingHashes.siblingHashes()));
 
             // Update in-memory state to prepare for the next block
@@ -850,11 +1093,41 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     signedBlockNumber,
                                     finalBlockRootHash);
                         } else {
+                            // Complete the block before best-effort publication can contend with reconciliation.
                             finishProofWithSignature(
                                     finalBlockRootHash,
                                     signature,
                                     attempt.verificationKey(),
                                     attempt.chainOfTrustProof());
+                            if (attempt.constructionId() > 0 && attempt.verificationKey() != null) {
+                                try {
+                                    final var witness = HintsKeyWitness.newBuilder()
+                                            .targetHintsConstructionId(attempt.constructionId())
+                                            .timestamp(signedBlockTimestamp)
+                                            .siblingHash(BlockRootTree.timestampSiblingHash(
+                                                    signedDigestType,
+                                                    signedPreviousBlockHash,
+                                                    rootAndSiblingHashes.siblingHashes()))
+                                            .signature(signature)
+                                            .hashAlgorithm(signedDigestType == DigestType.SHA_256 ? SHA2_256 : SHA2_384)
+                                            .build();
+                                    // Publish even if this block has already been closed with an indirect proof.
+                                    // The callback is tied to the original signing attempt and only submits work.
+                                    if (HintsKeyWitnessVerifier.rootHash(witness)
+                                            .equals(finalBlockRootHash)) {
+                                        blockHashSigner.publishKeyWitness(attempt.verificationKey(), witness);
+                                    } else {
+                                        log.error(
+                                                "Witness root differs from signed block root for block #{}; skipping publication",
+                                                signedBlockNumber);
+                                    }
+                                } catch (RuntimeException e) {
+                                    log.warn(
+                                            "Failed to offer key witness for directly signed block #{}",
+                                            signedBlockNumber,
+                                            e);
+                                }
+                            }
                         }
                         if (quiescenceEnabled) {
                             final var lastCommand = lastQuiescenceCommand.get();
@@ -910,12 +1183,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         return null;
                     });
 
-            final var exportNetworkToDisk =
-                    switch (diskNetworkExport) {
-                        case NEVER -> false;
-                        case EVERY_BLOCK -> true;
-                        case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
-                    };
+            final var exportNetworkToDisk = switch (diskNetworkExport) {
+                case NEVER -> false;
+                case EVERY_BLOCK -> true;
+                case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
+            };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
@@ -952,11 +1224,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (fatalShutdownRequested) {
             return;
         }
-        lastUsedTime = switch (item.item().kind()) {
-            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
-            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
-            default -> lastUsedTime;
-        };
+        requireNonNull(item);
+        accountForWrittenItems(List.of(item));
+        updateLastUsedTimeFrom(item);
         worker.addItem(item);
     }
 
@@ -967,6 +1237,160 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return;
         }
         writeItem(itemSpec.apply(lastUsedTime));
+    }
+
+    @Override
+    public void writeSavepointItems(
+            @NonNull final List<BlockItem> items, @NonNull final Instant lastUsedConsensusTime) {
+        requireNonNull(items);
+        requireNonNull(lastUsedConsensusTime);
+
+        if (blockSizeCircuitBreakerEnabled) {
+            if (savepointOutputSuppressed) {
+                advanceLastUsedTimeTo(lastUsedConsensusTime);
+                return;
+            }
+            final long candidateSize = serializedBlockSize(items);
+            final long projectedSize = saturatedAdd(currentBlockSizeBytes, candidateSize);
+            if (projectedSize > maxBlockSizeBytes) {
+                tripBlockSizeCircuitBreaker(projectedSize, candidateSize);
+                advanceLastUsedTimeTo(lastUsedConsensusTime);
+                return;
+            }
+            currentBlockSizeBytes = projectedSize;
+            items.forEach(item -> {
+                updateLastUsedTimeFrom(item);
+                worker.addItem(item);
+            });
+        } else {
+            items.forEach(this::writeItem);
+        }
+        advanceLastUsedTimeTo(lastUsedConsensusTime);
+    }
+
+    @Override
+    public boolean isSavepointOutputSuppressed() {
+        return savepointOutputSuppressed;
+    }
+
+    @Override
+    public boolean hasReachedMaxBlockSize() {
+        return maxBlockSizeReached;
+    }
+
+    private void accountForWrittenItems(@NonNull final List<BlockItem> items) {
+        if (blockSizeCircuitBreakerEnabled) {
+            final long addedSize = serializedBlockSize(items);
+            currentBlockSizeBytes = saturatedAdd(currentBlockSizeBytes, addedSize);
+            if (!savepointOutputSuppressed && currentBlockSizeBytes > maxBlockSizeBytes) {
+                tripBlockSizeCircuitBreaker(currentBlockSizeBytes, addedSize);
+            }
+        }
+        trackMaxBlockSizeThrottle(items);
+    }
+
+    private void tripBlockSizeCircuitBreaker(final long projectedSize, final long addedSize) {
+        savepointOutputSuppressed = true;
+        blockSizeCircuitBreakerTripsCounter.increment();
+        log.error(
+                "Preview block #{} reached a projected serialized size of {} bytes after adding {} bytes, "
+                        + "exceeding the {}-byte limit; suppressing savepoint output for the rest of the block",
+                blockNumber,
+                projectedSize,
+                addedSize,
+                maxBlockSizeBytes);
+    }
+
+    @Override
+    public void recordSubmittedTransaction(@NonNull final List<BlockItem> items, final boolean rejectedForBlockSize) {
+        recordBlockSizeRejection(
+                items,
+                rejectedForBlockSize,
+                maxBlockSizeThrottleRejectionsCounter,
+                maxBlockSizeThrottleRejectedBytesCounter);
+    }
+
+    @Override
+    public void recordScheduledTransaction(@NonNull final List<BlockItem> items, final boolean rejectedForBlockSize) {
+        recordBlockSizeRejection(
+                items,
+                rejectedForBlockSize,
+                maxBlockSizeThrottleScheduledRejectionsCounter,
+                maxBlockSizeThrottleScheduledRejectedBytesCounter);
+    }
+
+    private void recordBlockSizeRejection(
+            @NonNull final List<BlockItem> items,
+            final boolean rejectedForBlockSize,
+            @NonNull final Counter rejectionsCounter,
+            @NonNull final Counter rejectedBytesCounter) {
+        if (!maxBlockSizeThrottleEnabled || !rejectedForBlockSize) {
+            return;
+        }
+        rejectionsCounter.increment();
+        final long rejectedBytes = serializedBlockSize(items);
+        if (rejectedBytes > 0) {
+            rejectedBytesCounter.add(rejectedBytes);
+        }
+    }
+
+    /**
+     * Independent of the circuit breaker above: in {@code StreamMode.BLOCKS}, tracks the running size against
+     * the {@code maxBlockExecutionSizeBytes} limit, but never suppresses output. Once tripped, {@link
+     * #hasReachedMaxBlockSize()} reports {@code true} for the rest of the block, and {@code HandleWorkflow}
+     * is expected to reject further non-exempt submitted transactions and scheduled executions with {@code
+     * THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging rather than let them run. Scheduled
+     * executions with a throttle-exempt payer keep running (their output still counts toward the running size);
+     * block signatures remain eligible to run.
+     */
+    private void trackMaxBlockSizeThrottle(@NonNull final List<BlockItem> items) {
+        if (!maxBlockSizeThrottleEnabled) {
+            return;
+        }
+        final long addedSize = serializedBlockSize(items);
+        currentThrottleBlockSizeBytes = saturatedAdd(currentThrottleBlockSizeBytes, addedSize);
+        final long signedTxns =
+                items.stream().filter(BlockItem::hasSignedTransaction).count();
+        if (signedTxns > 0) {
+            signedTxnsInSizeLimitedBlocksCounter.add(signedTxns);
+        }
+        if (!maxBlockSizeReached && currentThrottleBlockSizeBytes > maxBlockExecutionSizeBytes) {
+            bytesAtMaxBlockSizeCutoffGauge.set(currentThrottleBlockSizeBytes);
+            maxBlockSizeReached = true;
+            maxBlockSizeThrottleTripsCounter.increment();
+            log.warn(
+                    "Block #{} reached a serialized size of {} bytes after adding {} bytes, exceeding the "
+                            + "{}-byte max-block-size-throttle limit; rejecting further dispatches in this block"
+                            + " with THROTTLED_AT_CONSENSUS",
+                    blockNumber,
+                    currentThrottleBlockSizeBytes,
+                    addedSize,
+                    maxBlockExecutionSizeBytes);
+        }
+    }
+
+    private static long serializedBlockSize(@NonNull final List<BlockItem> items) {
+        // A Block is only a repeated BlockItem field, so measuring a Block containing this batch gives its exact
+        // contribution to the canonical, uncompressed protobuf representation.
+        return Block.PROTOBUF.measureRecord(new Block(items));
+    }
+
+    private static long saturatedAdd(final long a, final long b) {
+        return a > Long.MAX_VALUE - b ? Long.MAX_VALUE : a + b;
+    }
+
+    private void updateLastUsedTimeFrom(@NonNull final BlockItem item) {
+        lastUsedTime = switch (item.item().kind()) {
+            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
+            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
+            default -> lastUsedTime;
+        };
+    }
+
+    private void advanceLastUsedTimeTo(@NonNull final Instant consensusTime) {
+        if (lastUsedTime == null || consensusTime.isAfter(asInstant(lastUsedTime))) {
+            lastUsedTime = asTimestamp(consensusTime);
+        }
     }
 
     @Override
@@ -1014,8 +1438,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private synchronized void finishProofWithSignature(
             @NonNull final Bytes blockHash,
             @NonNull final Bytes blockSignature,
-            @SuppressWarnings("unused") @Nullable final Bytes verificationKey,
-            @SuppressWarnings("unused") @Nullable final ChainOfTrustProof chainOfTrustProof) {
+            @Nullable final Bytes verificationKey,
+            @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message
         PendingBlock signedBlock = null;
         for (final var block : pendingBlocks) {
@@ -1032,16 +1456,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         final Bytes effectiveSignature;
         if (verificationKey != null && chainOfTrustProof != null) {
-            if (chainOfTrustProof.hasWrapsProof()) {
-                effectiveSignature =
-                        verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
-            } else {
-                effectiveSignature = verificationKey
-                        .append(blockSignature)
-                        .append(chainOfTrustProof
-                                .aggregatedNodeSignaturesOrThrow()
-                                .aggregatedSignature());
+            if (wrapsProofMaterialized.compareAndSet(false, true)) {
+                log.info(
+                        "[CLPR-SYNC-POINT] block #{} is the first to embed the WRAPS recursive proof — "
+                                + "cross-network state-proof verification is now enabled",
+                        blockNumber);
             }
+            effectiveSignature = verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
         } else if (verificationKey != null) {
             effectiveSignature = verificationKey.append(blockSignature);
         } else {
@@ -1068,7 +1489,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             effectiveSignature,
                             signedBlock.blockTimestamp(),
                             // Pass the remaining pending blocks, but don't remove them from the queue
-                            pendingBlocks.stream());
+                            pendingBlocks.stream(),
+                            configProvider
+                                    .getConfiguration()
+                                    .getConfigData(BlockStreamConfig.class)
+                                    .digestType());
                 } catch (final IllegalStateException e) {
                     // This block can't be proven (e.g. a gap in the pending queue) and has already been polled from
                     // pendingBlocks, so release its writer and drop any on-disk pending files here — no later path
@@ -1106,7 +1531,42 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (currentPendingBlock.contentsPath() != null) {
                 cleanUpPendingBlock(currentPendingBlock.contentsPath());
             }
+
             markPendingBlockProofComplete(currentPendingBlock);
+
+            // Register CLPR block metadata so ClprStateProofManager can build state proofs.
+            // Only do this for in-memory blocks (startingStateHash non-empty) when CLPR is enabled,
+            // and ONLY for the directly-signed block: `effectiveSignature` signs block N's root, but
+            // an indirectly-proven pending block M < N has a Merkle path terminating at M's own root,
+            // so pairing M's path with N's signature would register a snapshot that can never verify.
+            if (blockProvenStateAccessor != null
+                    && currentPendingBlock.number() == blockNumber
+                    && !currentPendingBlock.startingStateHash().equals(Bytes.EMPTY)
+                    && configProvider
+                            .getConfiguration()
+                            .getConfigData(ClprConfig.class)
+                            .enabled()) {
+                try {
+                    final var path = PartialPathBuilder.startingStateToBlockRoot(
+                            digestOrThrow(),
+                            currentPendingBlock.previousBlockHash(),
+                            currentPendingBlock.siblingHashes()[0].siblingHash(),
+                            currentPendingBlock.startingStateHash(),
+                            currentPendingBlock.consensusHeaderRootHash(),
+                            currentPendingBlock.siblingHashes());
+                    blockProvenStateAccessor.registerBlockMetadata(
+                            currentPendingBlock.startingStateHash(),
+                            currentPendingBlock.blockHash(),
+                            effectiveSignature,
+                            currentPendingBlock.blockTimestamp(),
+                            path);
+                } catch (final Exception e) {
+                    log.warn(
+                            "Failed to register CLPR block metadata for block #{}: {}",
+                            currentPendingBlock.number(),
+                            e.getMessage());
+                }
+            }
         }
     }
 
@@ -1183,17 +1643,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // First failure seen in this block's hashing pipeline; sync() rethrows it so the handler thread fails fast
         // instead of deadlocking on join() when a task never completes.
         final AtomicReference<Throwable> pipelineFailure = new AtomicReference<>();
+        // The digest the block's subtree hashers were created with (see resetSubtrees()); leaf hashes computed in
+        // ParallelTask must use the same one.
+        final DigestType leafDigestType;
         SequentialTask prevTask;
         SequentialTask currentTask;
 
-        BlockStreamManagerTask() {
+        BlockStreamManagerTask(@NonNull final DigestType leafDigestType) {
+            this.leafDigestType = requireNonNull(leafDigestType);
             prevTask = null;
             currentTask = new SequentialTask(pipelineFailure);
             currentTask.send();
         }
 
         void addItem(BlockItem item) {
-            new ParallelTask(item, currentTask, pipelineFailure).send();
+            new ParallelTask(item, currentTask, pipelineFailure, leafDigestType).send();
             SequentialTask nextTask = new SequentialTask(pipelineFailure);
             currentTask.send(nextTask);
             prevTask = currentTask;
@@ -1214,14 +1678,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     class ParallelTask extends AbstractTask {
 
         final AtomicReference<Throwable> pipelineFailure;
+        final DigestType leafDigestType;
         BlockItem item;
         SequentialTask out;
 
-        ParallelTask(BlockItem item, SequentialTask out, AtomicReference<Throwable> pipelineFailure) {
+        ParallelTask(
+                BlockItem item,
+                SequentialTask out,
+                AtomicReference<Throwable> pipelineFailure,
+                DigestType leafDigestType) {
             super(executor, 1);
             this.item = item;
             this.out = out;
             this.pipelineFailure = pipelineFailure;
+            this.leafDigestType = leafDigestType;
         }
 
         @Override
@@ -1235,8 +1705,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 // BlockFooter/BlockProof are metadata, never part of a hashed tree, so skip hashing them.
                 final var kind = item.item().kind();
                 if (kind != BlockItem.ItemOneOfType.BLOCK_FOOTER && kind != BlockItem.ItemOneOfType.BLOCK_PROOF) {
-                    leafHash = BlockImplUtils.hashLeaf(LEAF_HASH_DIGESTS.get(), serialized)
-                            .toByteArray();
+                    final var digest = LEAF_HASH_DIGESTS.get().computeIfAbsent(leafDigestType, DigestType::buildDigest);
+                    leafHash = BlockImplUtils.hashLeaf(digest, serialized).toByteArray();
                 }
             } catch (final Exception e) {
                 log.error("{} - error serializing block item {}", ALERT_MESSAGE, item, e);
@@ -1342,14 +1812,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private static class RunningHashManager {
-        private static final ThreadLocal<byte[]> HASHES = ThreadLocal.withInitial(() -> new byte[HASH_SIZE]);
-        private static final ThreadLocal<MessageDigest> DIGESTS =
-                ThreadLocal.withInitial(CommonUtils::sha384DigestOrThrow);
+        private final int hashSize;
+        private final ThreadLocal<MessageDigest> digests;
+        private final ThreadLocal<byte[]> hashes;
 
         byte[] nMinus3Hash;
         byte[] nMinus2Hash;
         byte[] nMinus1Hash;
         byte[] hash;
+
+        RunningHashManager(@NonNull final Supplier<MessageDigest> digestSupplier) {
+            requireNonNull(digestSupplier);
+            this.hashSize = digestSupplier.get().getDigestLength();
+            this.digests = ThreadLocal.withInitial(digestSupplier);
+            this.hashes = ThreadLocal.withInitial(() -> new byte[hashSize]);
+        }
 
         Bytes latestHashes() {
             final var all = new byte[][] {nMinus3Hash, nMinus2Hash, nMinus1Hash, hash};
@@ -1357,25 +1834,77 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             while (numMissing < all.length && all[numMissing] == null) {
                 numMissing++;
             }
-            final byte[] hashes = new byte[(all.length - numMissing) * HASH_SIZE];
+            // Emit each present slot at its NATIVE length. Normally every slot is in {@link #hashSize} units,
+            // but across a block-stream cutover the window transiently mixes full 48-byte SHA-384 seeds (not
+            // yet rolled off) with 32-byte SHA-256 hashes; truncating them to hashSize would corrupt the seeds.
+            int total = 0;
             for (int i = numMissing; i < all.length; i++) {
-                System.arraycopy(all[i], 0, hashes, (i - numMissing) * HASH_SIZE, HASH_SIZE);
+                total += all[i].length;
             }
-            return Bytes.wrap(hashes);
+            final byte[] result = new byte[total];
+            int offset = 0;
+            for (int i = numMissing; i < all.length; i++) {
+                System.arraycopy(all[i], 0, result, offset, all[i].length);
+                offset += all[i].length;
+            }
+            return Bytes.wrap(result);
         }
 
         /**
          * Starts managing running hashes for a new round, with the given trailing block hashes.
          *
+         * <p>Normally the stored {@code trailingOutputHashes} are already in the active digest's units
+         * ({@link #hashSize}). The one exception is the first block after a block-stream cutover: those seed
+         * hashes are the pre-cutover block-stream running hashes, which are always SHA-384 (48 bytes). We seed
+         * the chain from the full SHA-384 value so the running hash remains mathematically continuous across the
+         * SHA-384 &rarr; SHA-256 transition (the first post-cutover {@code nextResultHash} digests the full
+         * 48-byte seed; every subsequent hash is in {@link #hashSize} units).
+         *
+         * <p>For the blocks immediately following the cutover block, the stored window may still hold some of
+         * the full 48-byte SHA-384 seed hashes that have not yet rolled off. Those blocks are not themselves
+         * cutover blocks ({@code isCutoverBlock == false}), so we decode the per-entry sizes from the blob
+         * length: the output window is at most four entries, and since there are always at least four
+         * pre-cutover running hashes a mixed window is always exactly four entries. A length beyond
+         * {@code 4 * hashSize} therefore encodes a leading run of {@code a = (len - 4*hashSize) / (48 - hashSize)}
+         * SHA-384 (48-byte) entries followed by {@code 4 - a} {@link #hashSize}-byte entries; any shorter length
+         * is a uniform {@link #hashSize} window.
+         *
          * @param blockStreamInfo the trailing block hashes at the start of the round
+         * @param isCutoverBlock whether this is the first block after a block-stream cutover
          */
-        void startBlock(@NonNull final BlockStreamInfo blockStreamInfo) {
-            final var hashes = blockStreamInfo.trailingOutputHashes();
-            final var n = (int) (hashes.length() / HASH_SIZE);
-            nMinus3Hash = n < 4 ? null : hashes.toByteArray(0, HASH_SIZE);
-            nMinus2Hash = n < 3 ? null : hashes.toByteArray((n - 3) * HASH_SIZE, HASH_SIZE);
-            nMinus1Hash = n < 2 ? null : hashes.toByteArray((n - 2) * HASH_SIZE, HASH_SIZE);
-            hash = n < 1 ? new byte[HASH_SIZE] : hashes.toByteArray((n - 1) * HASH_SIZE, HASH_SIZE);
+        void startBlock(@NonNull final BlockStreamInfo blockStreamInfo, final boolean isCutoverBlock) {
+            final var stored = blockStreamInfo.trailingOutputHashes();
+            final long len = stored.length();
+            final int sha384 = DigestType.SHA_384.digestLength();
+            if (isCutoverBlock) {
+                // The cutover block's seed is the four pre-cutover block-stream running hashes, all SHA-384.
+                final var n = (int) (len / sha384);
+                nMinus3Hash = n < 4 ? null : stored.toByteArray(0, sha384);
+                nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * sha384, sha384);
+                nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * sha384, sha384);
+                hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * sha384, sha384);
+            } else if (len > 4L * hashSize) {
+                // Mixed post-cutover window: exactly four entries, the leading `a` still 48-byte SHA-384 seeds.
+                final int a = (int) ((len - 4L * hashSize) / (sha384 - hashSize));
+                final byte[][] slots = new byte[4][];
+                int offset = 0;
+                for (int i = 0; i < 4; i++) {
+                    final int size = i < a ? sha384 : hashSize;
+                    slots[i] = stored.toByteArray(offset, size);
+                    offset += size;
+                }
+                nMinus3Hash = slots[0];
+                nMinus2Hash = slots[1];
+                nMinus1Hash = slots[2];
+                hash = slots[3];
+            } else {
+                // Uniform window in the active digest's units.
+                final var n = (int) (len / hashSize);
+                nMinus3Hash = n < 4 ? null : stored.toByteArray(0, hashSize);
+                nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * hashSize, hashSize);
+                nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * hashSize, hashSize);
+                hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * hashSize, hashSize);
+            }
         }
 
         /**
@@ -1388,9 +1917,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             nMinus3Hash = nMinus2Hash;
             nMinus2Hash = nMinus1Hash;
             nMinus1Hash = this.hash;
-            final var digest = DIGESTS.get();
+            final var digest = digests.get();
             digest.update(this.hash);
-            final var resultHash = HASHES.get();
+            final var resultHash = hashes.get();
             hash.get(resultHash);
             digest.update(resultHash);
             this.hash = digest.digest();
@@ -1402,6 +1931,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         private Bytes blockHashes;
 
+        /**
+         * Whether {@link #blockHashes} is stored at the active digest's native entry size (vs. 48-byte padded) — the
+         * window's {@code trailing_block_hashes_compacted} flag, carried forward from the previous block's
+         * {@link BlockStreamInfo} and flipped true once the window compacts.
+         */
+        private boolean compacted;
+
         BlockHashManager(@NonNull final Configuration config) {
             this.numTrailingBlocks =
                     config.getConfigData(BlockRecordStreamConfig.class).numOfBlockHashesInState();
@@ -1411,9 +1947,27 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          * Starts managing running hashes for a new round, with the given trailing block hashes.
          *
          * @param blockStreamInfo the trailing block hashes at the start of the round
+         * @param prevBlockHash the hash of the previous block, to append to the trailing block hashes
+         * @param postCutover whether the preview stream has been overwritten (from {@code BlockInfo}); only then may
+         * the trailing window be compacted to the active digest length
          */
-        void startBlock(@NonNull final BlockStreamInfo blockStreamInfo, @NonNull Bytes prevBlockHash) {
-            blockHashes = appendHash(prevBlockHash, blockStreamInfo.trailingBlockHashes(), numTrailingBlocks);
+        void startBlock(
+                @NonNull final BlockStreamInfo blockStreamInfo,
+                @NonNull Bytes prevBlockHash,
+                final boolean postCutover) {
+            // Keep all entries a uniform size: pad to RECORD_HASH_SIZE while any genuine pre-cutover hash remains,
+            // then compact the window to the active digest length once none do and the stream has cut over (i.e.
+            // the state's previewStreamOverwritten flag is set); before cutover the window is never compacted.
+            final var appended = BlockImplUtils.appendTrailingBlockHash(
+                    prevBlockHash,
+                    blockStreamInfo.trailingBlockHashes(),
+                    numTrailingBlocks,
+                    RECORD_HASH_SIZE,
+                    digestOrThrow().getDigestLength(),
+                    postCutover,
+                    blockStreamInfo.trailingBlockHashesCompacted());
+            blockHashes = appended.window();
+            compacted = appended.compacted();
         }
 
         /**
@@ -1429,7 +1983,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          */
         @Nullable
         Bytes hashOfBlock(final long blockNo) {
-            return BlockImplUtils.blockHashByBlockNumber(blockHashes, blockNumber - 1, blockNo);
+            // The window may be in 48-byte padded mode or compacted 32-byte native mode; the compacted flag gives the
+            // stride directly, and realBlockHashByBlockNumber strips any left-padding to recover the real hash.
+            return BlockImplUtils.realBlockHashByBlockNumber(
+                    blockHashes, blockNumber - 1, blockNo, digestOrThrow().getDigestLength(), compacted);
+        }
+
+        /**
+         * Returns whether the current trailing window is stored at the active digest's native entry size (its
+         * {@code trailing_block_hashes_compacted} flag), to persist into the block's {@link BlockStreamInfo}.
+         */
+        boolean compacted() {
+            return compacted;
         }
 
         /**
@@ -1519,7 +2084,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 if (writer != null) {
                     log.fatal("Flushing in-progress block {} to disk for triage", blockNumber);
                     try {
-                        writer.flushIncompleteBlock();
+                        final Path flushed = writer.flushIncompleteBlock();
+                        if (flushed != null) {
+                            flushedTriageBlockFiles.add(flushed);
+                        }
                     } catch (final Exception e) {
                         log.fatal("Failed to flush in-progress block {}", blockNumber, e);
                     }
@@ -1554,12 +2122,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         while ((block = pendingBlocks.poll()) != null) {
             log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
             try {
-                block.writer().flushPendingBlock(block.asPendingProof());
+                final Path flushed = block.writer().flushPendingBlock(block.asPendingProof());
+                if (flushed != null) {
+                    flushedTriageBlockFiles.add(flushed);
+                }
             } catch (final Exception e) {
                 log.fatal("Failed to flush pending block #{}", block.number(), e);
             }
             markPendingBlockProofComplete(block);
         }
+    }
+
+    @Override
+    @NonNull
+    public List<Path> flushedTriageBlockFiles() {
+        return List.copyOf(flushedTriageBlockFiles);
     }
 
     @Override
@@ -1636,15 +2213,93 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private void resetSubtrees() {
         // Branch 4
-        consensusHeaderHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        consensusHeaderHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 5
-        inputTreeHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        inputTreeHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 6
-        outputTreeHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        outputTreeHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 7
-        stateChangesHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        stateChangesHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 8
-        traceDataHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        traceDataHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
+    }
+
+    /**
+     * Emits a decoded dump of the trailing-hash windows at the block digest transition (e.g. SHA-384 -> SHA-256).
+     * Logs a BEFORE snapshot (the window entering the transition block) now, and an AFTER snapshot (the window
+     * entering the following block) on the next call. The previous block's digest length is seeded from the
+     * incoming consensus header root on the first block so a transition that coincides with a restart is still
+     * detected.
+     *
+     * <p>The block-stream cutover is logged separately, by {@code V0740BlockStreamSchema.restart}, which can see
+     * the genuine pre-cutover window before it overwrites it (this restarted node cannot).
+     *
+     * @param blockStreamInfo the trailing hashes as of the end of the previous block (i.e. entering this block)
+     */
+    private void logTrailingHashTransitions(@NonNull final BlockStreamInfo blockStreamInfo) {
+        final int activeDigestLength = digestOrThrow().getDigestLength();
+        if (pendingTransitionLabel != null) {
+            log.info(
+                    "{}",
+                    BlockImplUtils.describeTrailingWindows(
+                            pendingTransitionLabel,
+                            blockStreamInfo.trailingBlockHashes(),
+                            blockStreamInfo.trailingOutputHashes(),
+                            blockStreamInfo.blockNumber(),
+                            activeDigestLength));
+            pendingTransitionLabel = null;
+        }
+        if (previousDigestLength == -1) {
+            // The stored consensus header root was hashed with the previous block's digest (empty at genesis); the
+            // output window can't tell, since a cutover seed holds 48-byte record hashes on any digest
+            final int storedLength =
+                    (int) blockStreamInfo.consensusHeaderRootHash().length();
+            previousDigestLength = storedLength == 0 ? activeDigestLength : storedLength;
+        }
+        if (previousDigestLength != activeDigestLength) {
+            final String t =
+                    "SHA-" + (previousDigestLength * 8) + " -> SHA-" + (activeDigestLength * 8) + " transition";
+            // Decode the BEFORE snapshot in the prior era's digest length so it reads truthfully (e.g. a native
+            // 48-byte SHA-384 window), rather than as a "pre-compaction" window of the new, shorter digest.
+            log.info(
+                    "{}",
+                    BlockImplUtils.describeTrailingWindows(
+                            "BEFORE " + t,
+                            blockStreamInfo.trailingBlockHashes(),
+                            blockStreamInfo.trailingOutputHashes(),
+                            blockStreamInfo.blockNumber(),
+                            previousDigestLength));
+            pendingTransitionLabel = "AFTER " + t;
+        }
+        previousDigestLength = activeDigestLength;
+    }
+
+    private DigestType digestType() {
+        return configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .digestType();
+    }
+
+    private MessageDigest digestOrThrow() {
+        return CommonUtils.digestOrThrow(digestType());
+    }
+
+    private Bytes hashOfZero() {
+        return BlockStreamManager.hashOfZero(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .digestType());
+    }
+
+    private BlockHashAlgorithm blockHashAlgorithm() {
+        return configProvider
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .digestType()
+                        == DigestType.SHA_256
+                ? SHA2_256
+                : SHA2_384;
     }
 
     /**
@@ -1657,12 +2312,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * {@link BlockImplUtils#INTERNAL_NODE_PREFIX}), so they are not hashed again until combined with
      * another hash.
      * <p>
-     * At the genesis block {@code prevBlockHash} is {@link BlockStreamManager#HASH_OF_ZERO}; for all other
+     * At the genesis block {@code prevBlockHash} is {@link BlockStreamManager#HASH_OF_ZERO_384}; for all other
      * blocks it is the previous block's root hash.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * branch level) to top (the root)
      */
-    private static BlockRootTreeHasher.RootAndSiblingHashes combine(
+    private BlockRootTreeHasher.RootAndSiblingHashes combine(
             @NonNull final Bytes prevBlockHash,
             @NonNull final Bytes prevBlockRootsHash,
             @NonNull final Bytes startingStateHash,
@@ -1673,8 +2328,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Bytes traceDataHash,
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
         requireNonNull(prevBlockHash);
+        final var timestampLeafHash =
+                BlockImplUtils.hashLeaf(digestOrThrow(), Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock));
         return BlockRootTree.computeRootAndSiblings(
-                BlockRootTree.hashTimestampLeaf(firstConsensusTimeOfCurrentBlock),
+                digestType(),
+                timestampLeafHash,
                 prevBlockHash,
                 prevBlockRootsHash,
                 startingStateHash,

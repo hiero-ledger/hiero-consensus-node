@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal.hashgraph;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Provides the {@code HashgraphGui} information it needs to render an image of the hashgraph
@@ -28,7 +28,7 @@ public interface HashgraphGuiSource {
     List<EventImpl> getEvents(final long startGeneration, final int numGenerations);
 
     @NonNull
-    Roster getRoster();
+    RosterWrapper getRoster();
 
     /**
      * @return true if the source is ready to return data

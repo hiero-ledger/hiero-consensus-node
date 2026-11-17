@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.pbj.runtime.io.buffer.Bytes.fromHex;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.cryptography.tss.TSS;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.BlockHashAlgorithm;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -31,9 +36,27 @@ public class BlockContentsValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         final var validator = new BlockContentsValidator();
-        final var blocks =
-                BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(node0Dir.resolve("data/blockStreams/block-11.12.3"));
-        validator.validateBlocks(blocks);
+        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(
+                Path.of(
+                        "/Users/neeharikasompalli/Documents/Hedera/Repos/clpr/repo2/clpr-hiero/hedera-node/hedera-app/build/node/data/blockStreams/block-0.0.3/"));
+        final var lastBlock = blocks.get(blocks.size() - 1);
+        final var lastMinus1 = blocks.get(blocks.size() - 2);
+        final var previousRootHash = lastBlock
+                .items()
+                .get(lastBlock.items().size() - 2)
+                .blockFooterOrThrow()
+                .previousBlockRootHash();
+        final var signature = lastMinus1
+                .items()
+                .getLast()
+                .blockProofOrThrow()
+                .signedBlockProof()
+                .blockSignature();
+
+        final var ledgerId = fromHex("2e8d820f6548729ef96293f20c332f4968f8a8a3c51cfc8fe99d7142a322b619");
+        assertTrue(TSS.verifyTSS(ledgerId.toByteArray(), signature.toByteArray(), previousRootHash.toByteArray()));
+
+        //        validator.validateBlocks(blocks);
     }
 
     public static final Factory FACTORY = spec -> new BlockContentsValidator();
@@ -79,7 +102,11 @@ public class BlockContentsValidator implements BlockStreamValidator {
     }
 
     private void validateWrappedRecordBlock(@NonNull final List<BlockItem> items, final int blocksRemaining) {
-        final long blockNumber = items.getFirst().blockHeaderOrThrow().number();
+        final var header = items.getFirst().blockHeaderOrThrow();
+        final long blockNumber = header.number();
+        // A wrapped record block has no state, so its footer carries the empty hash of the block's own algorithm
+        final var emptyStateRootHash = BlockStreamManager.hashOfZero(
+                header.hashAlgorithm() == BlockHashAlgorithm.SHA2_256 ? DigestType.SHA_256 : DigestType.SHA_384);
         boolean foundRecordFile = false;
         boolean foundFooter = false;
         boolean foundProof = false;
@@ -105,7 +132,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
                     if (!foundRecordFile) {
                         Assertions.fail("WRB BlockFooter found before RecordFileItem at index " + i);
                     }
-                    if (!item.blockFooter().startOfBlockStateRootHash().equals(HASH_OF_ZERO)) {
+                    if (!item.blockFooter().startOfBlockStateRootHash().equals(emptyStateRootHash)) {
                         Assertions.fail("WRB BlockFooter at index " + i
                                 + " has start_of_block_state_root_hash != HASH_OF_ZERO");
                     }

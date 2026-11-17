@@ -12,10 +12,7 @@ import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerCon
  * Gives a value that represents each round work load
  */
 public class TransactionHandlerDataCounter implements ToLongFunction<Object> {
-    // Assuming 1 round/sec it would require LOW_TPS_TARGET_ROUNDS seconds
-    // for the backpressure mechanism to engage at low tps
-    private static final int LOW_TPS_TARGET_ROUNDS =
-            25; // target a capacity of 25 rounds require an approx of 4000 minimum weight
+
     private final double minimumEffort;
 
     public TransactionHandlerDataCounter(final long roundMaxTransactionCapacity, final double targetMaxRounds) {
@@ -42,12 +39,12 @@ public class TransactionHandlerDataCounter implements ToLongFunction<Object> {
      */
     @NonNull
     public static TransactionHandlerDataCounter create(
-            final @NonNull TaskSchedulerConfiguration schedulerConfiguration) {
+            final @NonNull TaskSchedulerConfiguration schedulerConfiguration, final double lowTpsTargetRounds) {
 
         final long capacity = requireNonNull(schedulerConfiguration).unhandledTaskCapacity() == null
                 ? 0L
                 : schedulerConfiguration.unhandledTaskCapacity();
 
-        return new TransactionHandlerDataCounter(capacity, LOW_TPS_TARGET_ROUNDS);
+        return new TransactionHandlerDataCounter(capacity, lowTpsTargetRounds);
     }
 }
