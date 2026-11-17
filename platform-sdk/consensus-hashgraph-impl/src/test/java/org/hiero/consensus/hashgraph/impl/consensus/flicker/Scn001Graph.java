@@ -71,13 +71,13 @@ final class Scn001Graph {
      */
     @NonNull
     static RosterWrapper rosterOld() {
-        return GRAPH.roster("old").toRosterWrapper();
+        return GRAPH.roster("old").roster();
     }
 
     /** @return the file's {@code new} block: the same nodes, reweighted so that {@link #MID} is promoted */
     @NonNull
     static RosterWrapper rosterNew() {
-        return GRAPH.roster("new").toRosterWrapper();
+        return GRAPH.roster("new").roster();
     }
 
     /**
