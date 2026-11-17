@@ -101,6 +101,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -239,6 +240,7 @@ public class ClprEnabledSuite {
         final var crypto = new ClprChannelCrypto();
         final long executionCost = 1_000_000L;
         final long endpointMargin = executionCost / 10;
+        final var callbackGasFee = new AtomicLong();
         final var operations = contractSetup();
         operations.add(overridingAllOf(Map.of(
                 "clpr.messageExecutionCost", Long.toString(executionCost),
@@ -302,7 +304,12 @@ public class ClprEnabledSuite {
                         assertEquals(1, callbacks.size());
                         assertEquals(SUCCESS, callbacks.getFirst().getReceipt().getStatus());
                         assertEquals(0L, callbacks.getFirst().getTransactionFee(), "Callback gas is prepaid");
-                        assertTrue(callbacks.getFirst().getContractCallResult().getGasUsed() > 0);
+                        final var gasUsed =
+                                callbacks.getFirst().getContractCallResult().getGasUsed();
+                        assertTrue(gasUsed > 0);
+                        callbackGasFee.set(
+                                Math.multiplyExact(gasUsed, spec.ratesProvider().currentTinybarGasPrice()));
+                        assertTrue(callbackGasFee.get() > 0, "The connector reimburses the callback's network gas fee");
                         spec.registry().saveContractId("deletedClprChild", deletedId);
                     }),
                     getContractInfo("deletedClprChild").has(contractWith().isDeleted()));
@@ -310,8 +317,10 @@ public class ClprEnabledSuite {
         operations.add(contractCallLocal(application, "deliveries")
                 .exposingTypedResultsTo(results -> assertEquals(BigInteger.ONE, results[0])));
         operations.add(getContractInfo(application).has(contractWith().isNotDeleted()));
-        operations.add(
-                getAccountBalance(CONNECTOR_CONTRACT).hasTinyBars(ONE_HUNDRED_HBARS - executionCost - endpointMargin));
+        operations.add(withOpContext((spec, log) -> allRunFor(
+                spec,
+                getAccountBalance(CONNECTOR_CONTRACT)
+                        .hasTinyBars(ONE_HUNDRED_HBARS - executionCost - endpointMargin - callbackGasFee.get()))));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 

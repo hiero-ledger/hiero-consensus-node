@@ -27,7 +27,7 @@ import org.hiero.base.file.FileSystemManager;
  *
  * <p>When a data source snapshot is taken, or a data source is restored from a snapshot, the
  * builder uses certain sub-folder under snapshot dir as described in {@link #snapshot(Path, VirtualDataSource)}
- * and {@link VirtualDataSourceBuilder#build(String, Path, boolean, boolean)} methods.
+ * and {@link VirtualDataSourceBuilder#build(String, Path, boolean)} methods.
  */
 public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
@@ -118,20 +118,16 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
     @NonNull
     @Override
     public VirtualDataSource build(
-            final String label,
-            @Nullable final Path sourceDir,
-            final boolean compactionEnabled,
-            final boolean offlineUse) {
+            final String label, @Nullable final Path sourceDir, final boolean compactionEnabled) {
         if (sourceDir == null) {
-            return buildNewDataSource(label, compactionEnabled, offlineUse);
+            return buildNewDataSource(label, compactionEnabled);
         } else {
-            return restoreDataSource(label, sourceDir, compactionEnabled, offlineUse);
+            return restoreDataSource(label, sourceDir, compactionEnabled);
         }
     }
 
     @NonNull
-    private MerkleDbDataSource buildNewDataSource(
-            final String label, final boolean compactionEnabled, final boolean offlineUse) {
+    private MerkleDbDataSource buildNewDataSource(final String label, final boolean compactionEnabled) {
         if (initialCapacity <= 0) {
             throw new IllegalArgumentException("Initial map capacity not set");
         }
@@ -147,13 +143,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                 dataSourceDir = newTempDataSourceDir(label);
             }
             return new MerkleDbDataSource(
-                    dataSourceDir,
-                    configuration,
-                    fileSystemManager,
-                    label,
-                    initialCapacity,
-                    compactionEnabled,
-                    offlineUse);
+                    dataSourceDir, configuration, fileSystemManager, label, initialCapacity, compactionEnabled);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -172,7 +162,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      *
      * <p>Data source snapshot is placed under "data/label" sub-folder in the provided
      * {@code snapshotDir}. If {@code snapshotDir} is null, a new temp folder is created and
-     * returned. The resulting layout is what {@link #build(String, Path, boolean, boolean)}
+     * returned. The resulting layout is what {@link #build(String, Path, boolean)}
      * expects as its source dir.
      *
      * <p><b>The caller owns the returned directory and is responsible for deleting it when it is
@@ -208,10 +198,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
      */
     @NonNull
     private MerkleDbDataSource restoreDataSource(
-            final String label,
-            @NonNull final Path snapshotDir,
-            final boolean compactionEnabled,
-            final boolean offlineUse) {
+            final String label, @NonNull final Path snapshotDir, final boolean compactionEnabled) {
         try {
             Path dataSourceDir = null;
             if (defaultDbFolderName != null) {
@@ -227,12 +214,29 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             if (Files.isDirectory(snapshotDataSourceDir)) {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
                 return new MerkleDbDataSource(
-                        dataSourceDir, configuration, fileSystemManager, label, compactionEnabled, offlineUse);
+                        dataSourceDir, configuration, fileSystemManager, label, compactionEnabled);
             }
             throw new IOException(
                     "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);
         } catch (final IOException z) {
             throw new UncheckedIOException(z);
+        }
+    }
+
+    /// {@inheritDoc}
+    ///
+    /// The copy is created in a new temp dir, it doesn't use the default DB folder. See
+    /// [MerkleDbDataSource#copy(Path, boolean)] for how the copy is made.
+    @NonNull
+    @Override
+    public VirtualDataSource copy(@NonNull final VirtualDataSource dataSource, final boolean compactionEnabled) {
+        if (!(dataSource instanceof MerkleDbDataSource merkleDbDataSource)) {
+            throw new IllegalArgumentException("The data source must be compatible with the MerkleDb");
+        }
+        try {
+            return merkleDbDataSource.copy(newTempDataSourceDir(merkleDbDataSource.getTableName()), compactionEnabled);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

@@ -1001,7 +1001,10 @@ public class CreatePrecompileSuite {
                                 .via(FIRST_CREATE_TXN)
                                 .gas(CONTRACT_CREATE_GAS_TO_OFFER)
                                 .sending(DEFAULT_AMOUNT_TO_SEND)
+                                // The token inherits this contract's cryptographic admin key.
                                 .payingWith(ACCOUNT)
+                                .alsoSigningWithFullPrefix(TOKEN_MISC_OPERATIONS_CONTRACT)
+                                .refusingEthConversion()
                                 .exposingResultTo(result -> {
                                     log.info(EXPLICIT_CREATE_RESULT, result[0]);
                                     final var res = (Address) result[0];

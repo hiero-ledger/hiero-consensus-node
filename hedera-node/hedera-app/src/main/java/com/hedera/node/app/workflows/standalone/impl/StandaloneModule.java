@@ -10,6 +10,7 @@ import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
+import com.hedera.node.app.service.clpr.impl.ClprHieroProofSupport;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
@@ -69,6 +70,13 @@ public interface StandaloneModule {
     @Singleton
     static TssVerifier provideTssVerifier() {
         return new NativeTssVerifier();
+    }
+
+    /** Standalone execution never serves outbound CLPR proofs. */
+    @Provides
+    @Singleton
+    static ClprHieroProofSupport provideUnavailableHieroProofSupport() {
+        return (envelope, anchorId) -> false;
     }
 
     @Binds

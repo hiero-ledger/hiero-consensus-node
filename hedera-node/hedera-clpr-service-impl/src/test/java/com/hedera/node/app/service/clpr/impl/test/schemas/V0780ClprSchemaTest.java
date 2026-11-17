@@ -96,6 +96,7 @@ class V0780ClprSchemaTest {
             assertThat(throttles.maxQueueDepth()).isEqualTo(10_000);
             assertThat(throttles.maxMessagePayloadBytes()).isEqualTo(65_536);
             assertThat(throttles.maxSyncBytes()).isEqualTo(4_194_304L);
+            assertThat(throttles.maxPeerEndpoints()).isEqualTo(100);
         }));
         verify(manifestState).put(org.mockito.ArgumentMatchers.any(ClprEndpointManifest.class));
         verify(constructionState).put(ClprEndpointManifestConstruction.DEFAULT);

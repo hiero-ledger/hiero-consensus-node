@@ -136,6 +136,21 @@ public class LongCounterTest extends SettableMetricBaseTest<LongCounter, LongCou
             assertThat(metric.getOrCreateLabeled("label", "2").get()).isEqualTo(100);
         }
 
+        @Test
+        void testRemovedMeasurementCreatedAgainStartsFromInitializer() {
+            LongCounter metric = emptyMetricBuilder()
+                    .addDynamicLabelNames("label")
+                    .setDefaultInitValue(10)
+                    .build();
+            metric.getOrCreateLabeled("label", "1").increment(2); // 10 + 2 = 12
+            metric.getOrCreateLabeled(() -> 100, "label", "2").increment(3); // 100 + 3 = 103
+
+            assertThat(metric.removeIf(_ -> true)).isEqualTo(2);
+
+            assertThat(metric.getOrCreateLabeled("label", "1").get()).isEqualTo(10);
+            assertThat(metric.getOrCreateLabeled(() -> 200, "label", "2").get()).isEqualTo(200);
+        }
+
         @ParameterizedTest
         @ValueSource(longs = {0, 123456789, Long.MAX_VALUE})
         void testCustomInitializerNoLabels(long initialValue) {
@@ -290,20 +305,20 @@ public class LongCounterTest extends SettableMetricBaseTest<LongCounter, LongCou
             metric.getOrCreateLabeled(() -> 100, "label1", "2").increment(); // 100 + 1 = 101
 
             new MetricSnapshotVerifier(metric)
-                    .add(101, "label1", "2")
                     .add(12, "label1", "1")
+                    .add(101, "label1", "2")
                     .verify();
             new MetricSnapshotVerifier(metric)
-                    .add(101, "label1", "2")
                     .add(12, "label1", "1")
+                    .add(101, "label1", "2")
                     .verify();
 
             metric.getOrCreateLabeled("label1", "2").increment(3); // 101 + 3 = 104
             metric.getOrCreateLabeled("label1", "3").increment(42); // 10 + 42 = 52
 
             new MetricSnapshotVerifier(metric)
-                    .add(104, "label1", "2")
                     .add(12, "label1", "1") // unchanged
+                    .add(104, "label1", "2")
                     .add(52, "label1", "3")
                     .verify();
         }

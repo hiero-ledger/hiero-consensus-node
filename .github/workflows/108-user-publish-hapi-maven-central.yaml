@@ -1,0 +1,284 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "108: [USER] Publish HAPI to Maven Central"
+# Publishes only com.hedera.hashgraph:hedera-protobuf-java-api for an existing release tag, independently of the
+# full release aggregation in 301/850. Dry-run first, then validate, before publish: Maven Central releases are immutable.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish (e.g. v0.80.0)"
+        type: string
+        required: true
+      mode:
+        description: "validate: upload to Central Portal without releasing | publish: upload and release to Maven Central"
+        type: choice
+        options:
+          - validate
+          - publish
+        default: validate
+      dry-run-enabled:
+        description: "Perform Dry Run (build, sign and verify the bundle, but do not upload it to Central Portal)"
+        type: boolean
+        required: false
+        default: true
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-hapi-maven-central-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  LC_ALL: C.UTF-8
+  GROUP_PATH: com/hedera/hashgraph
+  ARTIFACT_ID: hedera-protobuf-java-api
+  # The POM derives its GitHub URLs from the root project (checkout directory) name and GITHUB_REPOSITORY_OWNER.
+  # Pin both so the published POM always points to hiero-ledger/hiero-consensus-node.
+  CHECKOUT_DIR: hiero-consensus-node
+  POM_REPOSITORY_OWNER: hiero-ledger
+  CENTRAL_API: https://central.sonatype.com/api/v1/publisher
+
+jobs:
+  validate-input:
+    name: Validate Input
+    runs-on: hl-cn-default-lin-sm
+    if: ${{ !github.event.repository.fork }}
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - name: Resolve Tag and Version
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          MODE: ${{ inputs.mode }}
+          DRY_RUN: ${{ inputs.dry-run-enabled }}
+        run: |
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error title=Invalid Tag::'${TAG}' is not a release tag name (expected vX.Y.Z or vX.Y.Z-suffix)."
+            exit 1
+          fi
+
+          if ! gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" >/dev/null; then
+            echo "::error title=Tag Not Found::Tag '${TAG}' does not exist in ${GITHUB_REPOSITORY}."
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+          POM_URL="https://repo1.maven.org/maven2/${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}/${ARTIFACT_ID}-${VERSION}.pom"
+          HTTP_CODE="$(curl -sS -o /dev/null -w '%{http_code}' "${POM_URL}")"
+          if [[ "${HTTP_CODE}" == "200" ]]; then
+            if [[ "${DRY_RUN}" != "true" ]]; then
+              echo "::error title=Already Published::${ARTIFACT_ID} ${VERSION} is already on Maven Central (${POM_URL})."
+              exit 1
+            fi
+            echo "::warning title=Already Published::${ARTIFACT_ID} ${VERSION} is already on Maven Central."
+          fi
+
+          echo "version=${VERSION}" >>"${GITHUB_OUTPUT}"
+          {
+            echo "### Publish ${ARTIFACT_ID}"
+            echo "- Tag: \`${TAG}\`"
+            echo "- Version: \`${VERSION}\`"
+            echo "- Mode: \`${MODE}\`"
+            echo "- Dry run: \`${DRY_RUN}\`"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+  extract-jdk-version:
+    name: Extract Java Version
+    needs:
+      - validate-input
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: refs/tags/${{ inputs.tag }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: Publish ${{ inputs.tag }} (${{ inputs.mode }}${{ inputs.dry-run-enabled && ', dry run' || '' }})
+    runs-on: hl-cn-default-lin-lg
+    timeout-minutes: 120
+    needs:
+      - validate-input
+      - extract-jdk-version
+    defaults:
+      run:
+        # must match env.CHECKOUT_DIR
+        working-directory: hiero-consensus-node
+    env:
+      VERSION: ${{ needs.validate-input.outputs.version }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-ref: refs/tags/${{ inputs.tag }}
+          checkout-token: ${{ secrets.GITHUB_TOKEN }}
+          checkout-path: ${{ env.CHECKOUT_DIR }}
+          checkout-fetch-depth: "0"
+          checkout-persist: "false"
+          setup-java: "true"
+          java-distribution: temurin
+          java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+          setup-gradle: "true"
+          gradle-version: wrapper
+          setup-jq: "true"
+
+      - name: Install GnuPG Tools
+        run: |
+          if ! command -v gpg2 >/dev/null 2>&1; then
+            sudo apt update
+            sudo apt install -y gnupg2
+          fi
+
+      - name: Import GPG Key
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
+        with:
+          gpg_private_key: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}
+
+      - name: Gradle Update Version (As Specified)
+        run: ./gradlew versionAsSpecified -PnewVersion="${VERSION}"
+
+      # Javadoc is only enabled when the generated protobuf sources already exist at configuration time,
+      # so generate them in a separate Gradle invocation (the release flow does the same with 'assemble').
+      - name: Generate Sources
+        run: ./gradlew ":${ARTIFACT_ID}:compileJava"
+
+      - name: Build and Sign Publication
+        # The flags that disable parallelism are used on purpose to avoid parallel signing which may cause 'gpg: signing failed: Inappropriate ioctl for device'
+        run: |
+          GITHUB_REPOSITORY_OWNER="${POM_REPOSITORY_OWNER}" ./gradlew ":${ARTIFACT_ID}:publishAllPublicationsToNmcpRepository" \
+            -PpublishSigningEnabled=true --no-configuration-cache -Dorg.gradle.unsafe.isolated-projects=false --no-parallel
+
+      - name: Verify and Bundle Publication
+        id: bundle
+        run: |
+          ARTIFACT_DIR_REL="${GROUP_PATH}/${ARTIFACT_ID}/${VERSION}"
+          mapfile -t POMS < <(find . -path "*/${ARTIFACT_DIR_REL}/${ARTIFACT_ID}-${VERSION}.pom" -not -path "./.gradle/*")
+          if [[ "${#POMS[@]}" -ne 1 ]]; then
+            echo "::error title=Publication Not Found::Expected exactly one staged POM for ${ARTIFACT_ID} ${VERSION}, found ${#POMS[@]}: ${POMS[*]}"
+            exit 1
+          fi
+          REPO_ROOT="${POMS[0]%/"${ARTIFACT_DIR_REL}"/*}"
+          ARTIFACT_DIR="${REPO_ROOT}/${ARTIFACT_DIR_REL}"
+          echo "Staged publication: ${ARTIFACT_DIR}"
+          ls -l "${ARTIFACT_DIR}"
+
+          # Maven Central requires jar, sources, javadoc and pom, each signed and checksummed
+          for SUFFIX in ".jar" "-sources.jar" "-javadoc.jar" ".pom"; do
+            FILE="${ARTIFACT_DIR}/${ARTIFACT_ID}-${VERSION}${SUFFIX}"
+            for EXT in "" ".asc" ".md5" ".sha1"; do
+              if [[ ! -s "${FILE}${EXT}" ]]; then
+                echo "::error title=Missing File::${FILE}${EXT} is missing or empty."
+                exit 1
+              fi
+            done
+            gpg --verify "${FILE}.asc" "${FILE}"
+          done
+
+          if ! jar -t -f "${ARTIFACT_DIR}/${ARTIFACT_ID}-${VERSION}-javadoc.jar" | grep -q '\.html$'; then
+            echo "::error title=Empty Javadoc::The javadoc jar contains no documentation."
+            exit 1
+          fi
+
+          POM_FILE="${ARTIFACT_DIR}/${ARTIFACT_ID}-${VERSION}.pom"
+          if ! grep -q "<version>${VERSION}</version>" "${POM_FILE}"; then
+            echo "::error title=Version Mismatch::POM does not declare version ${VERSION}."
+            exit 1
+          fi
+          if ! grep -q "<url>https://github.com/${POM_REPOSITORY_OWNER}/${CHECKOUT_DIR}</url>" "${POM_FILE}"; then
+            echo "::error title=Unexpected POM URL::POM SCM URL does not point to github.com/${POM_REPOSITORY_OWNER}/${CHECKOUT_DIR}."
+            exit 1
+          fi
+
+          BUNDLE="${RUNNER_TEMP}/${ARTIFACT_ID}-${VERSION}-bundle.zip"
+          jar -c -M -f "${BUNDLE}" -C "${REPO_ROOT}" "${ARTIFACT_DIR_REL}"
+          jar -t -f "${BUNDLE}"
+          BUNDLE_SHA256="$(sha256sum "${BUNDLE}" | cut -d' ' -f1)"
+
+          echo "file=${BUNDLE}" >>"${GITHUB_OUTPUT}"
+          {
+            echo "- Bundle SHA-256: \`${BUNDLE_SHA256}\`"
+            echo "- Signing key: \`$(gpg --list-packets "${ARTIFACT_DIR}/${ARTIFACT_ID}-${VERSION}.jar.asc" | grep -oE 'keyid [0-9A-F]+' | head -1)\`"
+          } >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload Bundle (Workflow Artifact)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ env.ARTIFACT_ID }}-${{ env.VERSION }}-bundle
+          path: ${{ steps.bundle.outputs.file }}
+          if-no-files-found: error
+
+      - name: Dry Run Summary
+        if: ${{ inputs.dry-run-enabled }}
+        env:
+          MODE: ${{ inputs.mode }}
+          PUBLISHING_TYPE: ${{ inputs.mode == 'publish' && 'AUTOMATIC' || 'USER_MANAGED' }}
+        run: |
+          echo "Dry run: the bundle was built, signed and verified but not uploaded."
+          echo "A real '${MODE}' run would upload it to Central Portal as ${PUBLISHING_TYPE}."
+          echo "- Dry run: bundle not uploaded (a real \`${MODE}\` run uploads it as \`${PUBLISHING_TYPE}\`)" >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload to Central Portal
+        id: upload
+        if: ${{ !inputs.dry-run-enabled }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
+          BUNDLE: ${{ steps.bundle.outputs.file }}
+          PUBLISHING_TYPE: ${{ inputs.mode == 'publish' && 'AUTOMATIC' || 'USER_MANAGED' }}
+        run: |
+          TOKEN="$(printf '%s:%s' "${NEXUS_USERNAME}" "${NEXUS_PASSWORD}" | base64 -w0)"
+          echo "::add-mask::${TOKEN}"
+
+          DEPLOYMENT_ID="$(curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -F "bundle=@${BUNDLE}" \
+            "${CENTRAL_API}/upload?name=${ARTIFACT_ID}-${VERSION}&publishingType=${PUBLISHING_TYPE}")"
+
+          echo "Central Portal deployment: ${DEPLOYMENT_ID} (${PUBLISHING_TYPE})"
+          echo "deployment-id=${DEPLOYMENT_ID}" >>"${GITHUB_OUTPUT}"
+          echo "- Central Portal deployment: \`${DEPLOYMENT_ID}\` (\`${PUBLISHING_TYPE}\`)" >>"${GITHUB_STEP_SUMMARY}"
+
+      - name: Wait for Central Portal
+        if: ${{ !inputs.dry-run-enabled }}
+        env:
+          NEXUS_USERNAME: ${{ secrets.CENTRAL_PUBLISHING_USERNAME }}
+          NEXUS_PASSWORD: ${{ secrets.CENTRAL_PUBLISHING_PASSWORD }}
+          DEPLOYMENT_ID: ${{ steps.upload.outputs.deployment-id }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          TOKEN="$(printf '%s:%s' "${NEXUS_USERNAME}" "${NEXUS_PASSWORD}" | base64 -w0)"
+          echo "::add-mask::${TOKEN}"
+
+          # 'validate' stops once the deployment is validated; 'publish' waits until it is released
+          TARGET_STATE="PUBLISHED"
+          [[ "${MODE}" == "validate" ]] && TARGET_STATE="VALIDATED"
+
+          DEADLINE=$(( $(date +%s) + 90 * 60 ))
+          while (( $(date +%s) < DEADLINE )); do
+            STATUS="$(curl --fail-with-body -sS -X POST -H "Authorization: Bearer ${TOKEN}" "${CENTRAL_API}/status?id=${DEPLOYMENT_ID}")"
+            STATE="$(jq -r '.deploymentState' <<<"${STATUS}")"
+            echo "$(date -u +%H:%M:%S) deployment ${DEPLOYMENT_ID}: ${STATE}"
+
+            if [[ "${STATE}" == "FAILED" ]]; then
+              echo "::error title=Central Portal Validation Failed::$(jq -c '.errors' <<<"${STATUS}")"
+              exit 1
+            fi
+            if [[ "${STATE}" == "${TARGET_STATE}" ]]; then
+              echo "- Final state: \`${STATE}\`" >>"${GITHUB_STEP_SUMMARY}"
+              [[ "${STATE}" == "VALIDATED" ]] && \
+                echo "- Not released: publish or drop deployment \`${DEPLOYMENT_ID}\` at https://central.sonatype.com/publishing/deployments" >>"${GITHUB_STEP_SUMMARY}"
+              exit 0
+            fi
+            sleep 30
+          done
+
+          echo "::error title=Central Portal Timeout::Deployment ${DEPLOYMENT_ID} did not reach ${TARGET_STATE} within 90 minutes (last state: ${STATE})."
+          exit 1

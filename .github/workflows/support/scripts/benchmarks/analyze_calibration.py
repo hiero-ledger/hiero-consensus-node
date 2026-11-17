@@ -46,9 +46,9 @@ Method:
     by less than --gain, whichever is fewer; times --fork-buffer, at least 2. In quiet slots the unit component is
     small, so the target usually decides: it is the trade between noise and CI time.
   - warmup check: the first measured iteration of every fork against its second.
-  - alloc.norm modes, over the forks of both parts: forks whose allocation per operation differs by more than 3% fall
-    into separate modes, usually because the JIT compiled the code differently. The mode effect is the latency
-    difference between modes within units.
+  - alloc.norm modes, over the forks of both parts: forks whose allocation per operation differs by more than 1% and by
+    at least 1 B fall into separate modes, usually because the JIT compiled the code differently. The mode effect is
+    the latency difference between modes within units.
 """
 import argparse
 import glob
@@ -65,7 +65,11 @@ from benchmark_runs import (bench_key, monitor_mean, read_environment, read_iter
 
 DEFAULT_METRICS = ["latency.mean", "latency.p50", "latency.p90", "latency.p99", "latency.p99.9", "latency.p99.99",
                    "latency.max"]
-ALLOC_MODE_GAP = 0.03
+# In the calibration runs up to November 2026, forks of one mode differed by under 0.25%, and modes by about 31 B or
+# more. Splitting noise into modes would hide real variance between forks, so both limits stay well above the noise;
+# the byte limit keeps a benchmark that allocates almost nothing in one mode.
+ALLOC_MODE_GAP = 0.01
+ALLOC_MODE_MIN_BYTES = 1.0
 # a result without warmup iterations and with at least this many measurement iterations is a probe
 PROBE_ITERATIONS = 4
 CONFIGURATION_FORKS = 10
@@ -272,7 +276,7 @@ def alloc_modes(units):
     if not per_fork:
         return {}, []
     values = sorted(per_fork.values())
-    bounds = [b for a, b in zip(values, values[1:]) if b > a * (1 + ALLOC_MODE_GAP)]
+    bounds = [b for a, b in zip(values, values[1:]) if b > a * (1 + ALLOC_MODE_GAP) and b - a >= ALLOC_MODE_MIN_BYTES]
     mode_of = {k: sum(v >= b for b in bounds) for k, v in per_fork.items()}
     centers = [st.median([v for k, v in per_fork.items() if mode_of[k] == m]) for m in range(len(bounds) + 1)]
     return mode_of, centers
@@ -480,6 +484,8 @@ def print_units(all_units, mode_of, centers):
     for unit in all_units:
         samples = [s for f in iterations(unit, "latency.samples").values() for i, s in f if i >= unit.first]
         discarded = sum(s for f in iterations(unit, "measured.gc.discardedPasses").values() for _, s in f)
+        # reported by pipeline benchmarks only
+        saturated = iterations(unit, "measured.saturation.discardedPasses")
         modes = defaultdict(int)
         for (label, _), m in mode_of.items():
             if label == unit.label:
@@ -491,11 +497,12 @@ def print_units(all_units, mode_of, centers):
             fmt(throttled_s / 1e6, 1) if throttled_s is not None else "-",
             fmt(unit.others, 2), "yes" if unit.quiet else "no",
             fmt(st.mean(samples) / 1e3 if samples else None) + "k", fmt(discarded),
+            fmt(sum(s for f in saturated.values() for _, s in f)) if saturated else "-",
             "/".join(str(modes[m]) for m in range(len(centers))) if unit.quiet else "-",
             fmt(unit.b["primaryMetric"]["score"], 3),
         ])
     print_table(["unit", "started", "node", "CPU", "throttled", "throttled s", "others' CPUs", "quiet",
-                 "samples/iter", "discarded", "alloc modes", "primary"], rows)
+                 "samples/iter", "GC discards", "saturated", "alloc modes", "primary"], rows)
     if centers:
         print("alloc.norm modes (B/op): " + ", ".join(f"{m}: {c:,.0f}" for m, c in enumerate(centers)) + "\n")
 

@@ -209,7 +209,7 @@ jobs:
           echo "grafana-url=${grafana_url}" >> "${GITHUB_OUTPUT}"
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -358,7 +358,7 @@ jobs:
 
       # Set up kind; needed for configuring the solo environment
       - name: Setup Kind
-        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
         with:
           install_only: true
           node_image: kindest/node:v1.31.4@sha256:2cb39f7295fe7eafee0842b1052a599a4fb0f8bcf3f83d96c7f4864c357c6c30
@@ -934,7 +934,7 @@ jobs:
 
   performance-NftTransferLoadTest-watch1:
     name: NFT Transfer Load Test
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -960,7 +960,7 @@ jobs:
           echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -1126,7 +1126,7 @@ jobs:
 
   performance-NftTransferLoadTest-report:
     name: NFT Transfer Load Test Report
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
     needs:
       - acquire-kubernetes-resources
@@ -1157,7 +1157,7 @@ jobs:
           echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -1483,7 +1483,7 @@ jobs:
   performance-post-test-validation:
     name: Consensus Node State Validator
     if: ${{ !cancelled() && needs.acquire-kubernetes-resources.result == 'success' }}
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     needs:
       - acquire-kubernetes-resources
       - performance-tests-start
@@ -1507,7 +1507,7 @@ jobs:
           echo "namespace=${{ needs.acquire-kubernetes-resources.outputs.namespace }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
 
       - name: Install KubeCtl
-        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        uses: step-security/setup-kubectl@fdd30c5ae990e05271b3bde363e8b9cdeb1eb400 # v5.2.0
         with:
           version: v1.35.0
 
@@ -1606,7 +1606,7 @@ jobs:
   # Send this output back to the caller workflow
   single-day-performance-test-result:
     name: Calculate Result
-    runs-on: hl-cn-sdpt-lin-lg
+    runs-on: hl-cn-sdpt-lin-sm
     if: ${{ !cancelled() }}
     needs:
       - performance-NftTransferLoadTest-report

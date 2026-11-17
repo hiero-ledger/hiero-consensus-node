@@ -280,7 +280,7 @@ public class RecordAccessorTest {
         boolean throwExceptionOnLoadHashChunk = false;
 
         public BreakableDataSource() {
-            super(new InMemoryBuilder().build("delegate", null, true, false));
+            super(new InMemoryBuilder().build("delegate", null, true));
         }
 
         @Override

@@ -13,10 +13,18 @@ import java.util.Objects;
  * <p>The implementation intentionally exposes only the operations needed by this repository:
  * byte strings, unsigned integers, lists of already-encoded items, trie storage values, and decoded
  * item accessors.</p>
+ *
+ * <p>Decoding is bounded for untrusted input: lists may nest at most {@value #MAX_DEPTH} levels deep, and
+ * decoded items are views into one copy of the input (an offset and a length each), so decoding costs time
+ * and memory linear in the input size whatever its shape.</p>
  */
 public final class Rlp {
-    // CLPR proof envelopes and embedded trie nodes use shallow nesting. The root item has depth zero.
-    static final int MAX_NESTING_DEPTH = 8;
+    /**
+     * Maximum list nesting depth accepted by {@link #decodeOne}. The payloads decoded in this repository
+     * (block headers, Merkle Patricia proofs, bundle and config payloads) nest only a few levels deep; the cap
+     * turns a deeply nested input into an ordinary decoding error instead of a stack overflow.
+     */
+    public static final int MAX_DEPTH = 8;
 
     private static final int MIN_LONG_PAYLOAD_LENGTH = 56;
 
@@ -70,6 +78,12 @@ public final class Rlp {
         return out;
     }
 
+    /**
+     * Decodes exactly one RLP item spanning all of {@code encoded}.
+     *
+     * @throws IllegalArgumentException if the input is malformed, has trailing bytes, or nests lists more than
+     *     {@link #MAX_DEPTH} levels deep
+     */
     public static Item decodeOne(byte[] encoded) {
         // All items share this private snapshot and copy their bytes on access.
         final byte[] input = Objects.requireNonNull(encoded, "encoded").clone();
@@ -122,13 +136,10 @@ public final class Rlp {
     }
 
     private static Item decode(byte[] input, int offset, int limit, int depth) {
-        if (depth > MAX_NESTING_DEPTH) {
-            throw new IllegalArgumentException("RLP nesting exceeds maximum depth " + MAX_NESTING_DEPTH);
-        }
         if (offset >= limit) throw new IllegalArgumentException("RLP offset out of bounds");
         int prefix = input[offset] & 0xff;
         if (prefix < 0x80) {
-            return new Item(false, input, offset, offset, offset + 1, List.of());
+            return Item.string(input, offset, offset, offset + 1);
         }
         if (prefix <= 0xb7) {
             int len = prefix - 0x80;
@@ -137,14 +148,14 @@ public final class Rlp {
             if (len == 1 && (input[start] & 0xff) < 0x80) {
                 throw new IllegalArgumentException("non-canonical RLP single byte");
             }
-            return new Item(false, input, offset, start, start + len, List.of());
+            return Item.string(input, offset, start, start + len);
         }
         if (prefix <= 0xbf) {
             int lenOfLen = prefix - 0xb7;
             int len = readRlpLength(input, offset + 1, lenOfLen, limit);
             int start = offset + 1 + lenOfLen;
             checkRange(start, len, limit, "RLP long string");
-            return new Item(false, input, offset, start, start + len, List.of());
+            return Item.string(input, offset, start, start + len);
         }
         if (prefix <= 0xf7) {
             int len = prefix - 0xc0;
@@ -157,6 +168,9 @@ public final class Rlp {
     }
 
     private static Item decodeList(byte[] input, int rawStart, int payloadStart, int payloadLen, int limit, int depth) {
+        if (depth >= MAX_DEPTH) {
+            throw new IllegalArgumentException("RLP lists nested more than " + MAX_DEPTH + " levels deep");
+        }
         checkRange(payloadStart, payloadLen, limit, "RLP list");
         int end = payloadStart + payloadLen;
         List<Item> children = new ArrayList<>();
@@ -166,7 +180,7 @@ public final class Rlp {
             children.add(child);
             p = child.rawEnd;
         }
-        return new Item(true, input, rawStart, payloadStart, end, children);
+        return Item.list(input, rawStart, end, children);
     }
 
     private static int readRlpLength(byte[] input, int offset, int lenOfLen, int limit) {
@@ -186,61 +200,69 @@ public final class Rlp {
         }
     }
 
+    /**
+     * A decoded RLP item: a byte string or a list of items. It is a view into the decoded input (which
+     * {@link #decodeOne} copies once), so creating it copies nothing; the accessors return fresh copies.
+     */
     public static final class Item {
+        private final byte[] input;
         private final boolean isList;
-        private final byte[] raw;
-        private final byte[] bytes;
         private final int rawStart;
         private final int rawEnd;
+        /** Start of a string's content; unused for lists. */
         private final int bytesStart;
-        private final int bytesEnd;
+
         private final List<Item> children;
 
-        public Item(boolean isList, byte[] raw, byte[] bytes, List<Item> children) {
+        private Item(
+                final byte[] input,
+                final boolean isList,
+                final int rawStart,
+                final int rawEnd,
+                final int bytesStart,
+                final List<Item> children) {
+            this.input = input;
             this.isList = isList;
-            this.raw = Objects.requireNonNull(raw, "raw").clone();
-            this.bytes = bytes == null ? null : bytes.clone();
-            this.rawStart = 0;
-            this.rawEnd = raw.length;
-            this.bytesStart = 0;
-            this.bytesEnd = bytes == null ? 0 : bytes.length;
-            this.children = List.copyOf(Objects.requireNonNull(children, "children"));
+            this.rawStart = rawStart;
+            this.rawEnd = rawEnd;
+            this.bytesStart = bytesStart;
+            this.children = children;
         }
 
-        private Item(boolean isList, byte[] input, int rawStart, int payloadStart, int end, List<Item> children) {
-            this.isList = isList;
-            this.raw = input;
-            this.bytes = isList ? null : input;
-            this.rawStart = rawStart;
-            this.rawEnd = end;
-            this.bytesStart = payloadStart;
-            this.bytesEnd = end;
-            this.children = List.copyOf(children);
+        private static Item string(final byte[] input, final int rawStart, final int bytesStart, final int end) {
+            return new Item(input, false, rawStart, end, bytesStart, List.of());
+        }
+
+        private static Item list(final byte[] input, final int rawStart, final int end, final List<Item> children) {
+            return new Item(input, true, rawStart, end, end, List.copyOf(children));
         }
 
         public boolean isList() {
             return isList;
         }
 
-        public byte[] raw() {
-            return Arrays.copyOfRange(raw, rawStart, rawEnd);
-        }
-
-        public byte[] bytes() {
-            return bytes == null ? null : Arrays.copyOfRange(bytes, bytesStart, bytesEnd);
-        }
-
+        /** The item's children; empty for a byte string. */
         public List<Item> children() {
             return children;
         }
 
+        /** The item's full encoding, prefix included. */
+        public byte[] raw() {
+            return Arrays.copyOfRange(input, rawStart, rawEnd);
+        }
+
+        /** A byte string's content, or {@code null} for a list. */
+        public byte[] bytes() {
+            return isList ? null : Arrays.copyOfRange(input, bytesStart, rawEnd);
+        }
+
         public boolean isEmptyString() {
-            return !isList && bytes != null && bytesStart == bytesEnd;
+            return !isList && bytesStart == rawEnd;
         }
 
         public byte[] asBytes() {
             if (isList) throw new IllegalArgumentException("expected RLP string, got list");
-            return Arrays.copyOfRange(bytes, bytesStart, bytesEnd);
+            return Arrays.copyOfRange(input, bytesStart, rawEnd);
         }
 
         public byte[] asNodeReference() {
@@ -249,6 +271,12 @@ public final class Rlp {
 
         public byte[] rawBytes() {
             return raw();
+        }
+
+        @Override
+        public String toString() {
+            return "Rlp.Item["
+                    + (isList ? "list, children=" + children.size() : "string, length=" + (rawEnd - bytesStart)) + "]";
         }
     }
 }

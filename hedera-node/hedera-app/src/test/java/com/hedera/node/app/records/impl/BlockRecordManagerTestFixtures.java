@@ -3,6 +3,7 @@ package com.hedera.node.app.records.impl;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -10,6 +11,9 @@ import java.util.concurrent.CompletableFuture;
 
 public final class BlockRecordManagerTestFixtures {
     public static final BlockHashSigner NO_OP_BLOCK_HASH_SIGNER = new BlockHashSigner() {
+        @Override
+        public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {}
+
         @Override
         public boolean isReady() {
             return true;

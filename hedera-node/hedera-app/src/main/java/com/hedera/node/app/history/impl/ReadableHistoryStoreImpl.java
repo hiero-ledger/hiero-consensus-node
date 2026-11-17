@@ -10,15 +10,18 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SE
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID;
+import static com.hedera.node.app.history.schemas.V0800HistorySchema.HINTS_KEY_WITNESSES_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
+import com.hedera.hapi.node.state.history.HintsKeyWitnessRecord;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -42,6 +45,7 @@ import java.util.Set;
 public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
 
     private final ReadableQueueState<HintsKeyProvenance> keyProvenance;
+    private final ReadableKVState<ProtoLong, HintsKeyWitnessRecord> keyWitnesses;
     private final ReadableSingletonState<ProtoBytes> ledgerId;
     private final ReadableSingletonState<HistoryProofConstruction> nextConstruction;
     private final ReadableSingletonState<HistoryProofConstruction> activeConstruction;
@@ -52,6 +56,7 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     public ReadableHistoryStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
         this.keyProvenance = states.getQueue(HINTS_KEY_PROVENANCE_STATE_ID);
+        this.keyWitnesses = states.get(HINTS_KEY_WITNESSES_STATE_ID);
         this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
@@ -63,6 +68,35 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     @Override
     public @NonNull Iterator<HintsKeyProvenance> keyProvenance() {
         return keyProvenance.iterator();
+    }
+
+    @Override
+    public @Nullable HintsKeyWitnessRecord getKeyWitnessRecord(final long targetHintsConstructionId) {
+        return keyWitnesses.get(new ProtoLong(targetHintsConstructionId));
+    }
+
+    @Override
+    public @NonNull Iterator<HintsKeyWitnessRecord> keyProvenanceWithWitnesses() {
+        final var links = keyProvenance.iterator();
+        return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return links.hasNext();
+            }
+
+            @Override
+            public HintsKeyWitnessRecord next() {
+                final var provenance = links.next();
+                final var record = getKeyWitnessRecord(provenance.targetHintsConstructionId());
+                // A pending representation also supports reading an imported historical
+                // queue before its companion map has been backfilled at startup.
+                return record == null
+                        ? HintsKeyWitnessRecord.newBuilder()
+                                .provenance(provenance)
+                                .build()
+                        : record;
+            }
+        };
     }
 
     @Override

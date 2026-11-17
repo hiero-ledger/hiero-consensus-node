@@ -87,14 +87,23 @@ Its Javadoc shows the pattern: `startMeasurement()`, `lap()` after each call, `s
 
 ### A pipeline
 
-For code that passes items between threads, record the time of each item on entry and on exit, and add the difference
-to a
-[`LatencyHistogram`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/histogram/LatencyHistogram.java),
-one per thread.
+For code that hands its inputs on between threads, such as the event intake, use
+[`PipelineTimer`](../../../consensus-benchmark-tools/src/main/java/org/hiero/consensus/benchmark/tools/pipeline/PipelineTimer.java).
+It replays timed inputs, such as the steps Falcon records, at their recorded times and records each input's latency
+until it reaches the pipeline's output. Its Javadoc shows the pattern.
 
-- **Submit the items at a fixed rate, whether or not earlier items are done.** A benchmark that submits N items and
-  waits for them stops submitting while the code is slow, which hides the time items wait in queues (an error known as
-  coordinated omission).
+- **Hand on every input at its due time, whether or not earlier inputs are done.** Waiting for them would hide the time
+  inputs wait in queues (an error known as coordinated omission).
+- **Check the arrivals after every invocation** against their exact expected value, and fail the benchmark when a
+  pipeline thread throws, with an `UncaughtExceptionCollector`.
+- **One exit point per timer:** the percentiles of a pipeline's parts do not add up to those of the whole.
+- **Replay at the recorded rate.** The latency can depend on the rate. Use a speedup only after measuring that it does
+  not change the latency, or for a one-time measurement of the pipeline's capacity.
+- **A pass in which the pipeline does not keep up is discarded:** if the latency grows by more than 1% of the elapsed
+  time, the pass counts in `measured.saturation.discardedPasses` instead. At the recorded rate, such passes mean that
+  the pipeline no longer keeps up with production.
+- **One benchmark thread:** `alloc.norm` counts what all threads of the JVM allocate during a pass, so passes must not
+  overlap.
 
 ### Reporting
 
@@ -116,11 +125,11 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
   - `LatencyProfiler` skips a percentile in an iteration with fewer than 100 calls above it, and `latency.skipped`
     names the percentile and the calls it needs.
 - **Track `latency.mean`, not the primary score.** The primary score also includes the passes discarded because a
-  garbage collection ran in them (see below).
+  garbage collection ran in them (see below), or because a pipeline did not keep up.
   - The median (p50) does not replace the mean: when most calls are fast and a few are slow, the median shows only the
     fast ones. The mean is the total cost divided by the number of calls.
 - **Report a metric only if someone acts on it.** Each metric is either tracked (`latency.*`, `alloc.norm`) or helps to
-  find a problem (`measured.gc.discardedPasses`). JMH's `-prof gc` shows more about garbage collection when needed.
+  find a problem (`measured.*.discardedPasses`). JMH's `-prof gc` shows more about garbage collection when needed.
 
 ## Allocation and garbage collection
 
@@ -133,8 +142,8 @@ turns the recorded times into JMH results. Its Javadoc lists them and how JMH co
   collection will make the slow calls slower.
 - **A garbage collection during the measured calls discards the pass; it never fails the run.** Whether a collection
   falls into the calls varies from run to run, because the G1 collector adjusts the size of its young generation while
-  the program runs. `LatencyRecorder` drops the pass's times, counts the pass in `measured.gc.discardedPasses`, and the
-  next invocation replaces it.
+  the program runs. `LatencyRecorder` and `PipelineRecorder` drop the pass's times, count the pass in
+  `measured.gc.discardedPasses`, and the next invocation replaces it.
   - A GC log cannot do this check: it does not show whether a collection fell into the setup or into the measured
     calls.
   - The price is the time of the `System.gc()` and the setup of every pass, which calibration includes.
@@ -182,6 +191,10 @@ A profiled run proves that the benchmark measures the code under test.
    is right to measure them. In the example, the metric timing in
    [`ConsensusImpl#timedStronglySeeP`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java#timedStronglySeeP)
    is such a cost.
+
+**A pipeline benchmark runs on several threads:** profile it with JMH's `-prof jfr` and split the recording with
+[`jfr-components.sh`](../../../consensus-benchmark-tools/scripts/jfr-components.sh), whose bucket "timer: output" stays
+well under a percent.
 
 If `alloc.norm` takes a few distinct values that differ between forks, the JIT compiler compiled the code differently
 in different forks; [calibration.md](calibration.md#fork-modes) explains how to find out why.

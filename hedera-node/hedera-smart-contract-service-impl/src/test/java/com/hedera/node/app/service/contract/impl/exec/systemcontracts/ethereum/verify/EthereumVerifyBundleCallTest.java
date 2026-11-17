@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
@@ -15,8 +16,8 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
+import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
-import com.hedera.node.app.service.clpr.impl.verifier.ethereum.QueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.VerifiedBundle;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
@@ -24,6 +25,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import java.util.Arrays;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedConstruction;
 
@@ -243,7 +245,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .serviceAddress(Bytes.wrap(SERVICE_ADDR))
                 .build();
 
-        try (final var ignored = mockVerifier(manifestOnly(manifest))) {
+        try (final var ignored = mockVerifier(manifestOnly(manifest, null, null))) {
             final var out = subject().execute(frame).fullResult().output().toArray();
 
             // Flag on => 5-member manifest-aware return; metadata absent (nextMessageId == 0 sentinel); trailing
@@ -257,8 +259,60 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
         }
     }
 
+    @Test
+    @DisplayName("given a manifest-only bundle with a verified rotation, then execute returns absent metadata, the"
+            + " proven manifest and the proven successor anchor and id")
+    void givenManifestOnlyBundleWithRotation_thenReturnsManifestAndProvenSuccessorAnchor() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(9L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+
+        try (final var ignored = mockVerifier(manifestOnly(manifest, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
+            final var result = subject().execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple out = decodedTuple(result.fullResult().output().toArray());
+            assertThat(out.<Tuple>get(0)).isEqualTo(ClprVerifierAbi.absentMetadataTuple());
+            assertThat(out.<byte[][]>get(1)).isEmpty();
+            assertThat(out.<byte[]>get(2)).isEqualTo(NEXT_ANCHOR);
+            assertThat(out.<byte[]>get(3)).isEqualTo(NEXT_ANCHOR_ID);
+            assertThat(out.<Tuple>get(4)).isEqualTo(ClprVerifierAbi.manifestStructTuple(manifest));
+        }
+    }
+
+    @Test
+    @DisplayName("given a manifest-only bundle without a rotation, then execute returns empty anchor fields")
+    void givenManifestOnlyBundleWithoutRotation_thenReturnsEmptyAnchorFields() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(9L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+
+        try (final var ignored = mockVerifier(manifestOnly(manifest, null, null))) {
+            final Tuple out =
+                    decodedTuple(subject().execute(frame).fullResult().output().toArray());
+
+            assertThat(out.<byte[]>get(2)).isEmpty();
+            assertThat(out.<byte[]>get(3)).isEmpty();
+            assertThat(out.<Tuple>get(4)).isEqualTo(ClprVerifierAbi.manifestStructTuple(manifest));
+        }
+    }
+
     private EthereumVerifyBundleCall subject() {
-        return new EthereumVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
+        return new EthereumVerifyBundleCall(
+                mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
+    }
+
+    @Test
+    @DisplayName("given a call, then execute passes the payload, the trust anchor and the channel context to the"
+            + " verifier")
+    void givenCall_thenExecutePassesPayloadAnchorAndChannelContextToVerifier() {
+        try (var verifiers = mockVerifier(verified(content(metadata(), Bytes.EMPTY, Bytes.EMPTY), null, null))) {
+            subject().execute(frame);
+
+            verify(verifiers.constructed().getFirst()).verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
+        }
     }
 
     @Test
@@ -295,12 +349,17 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .build();
     }
 
-    private static VerifiedBundle manifestOnly(final ClprEndpointManifest manifest) {
-        // Empty content + a proven manifest is the manifest-only recovery signal the Call detects.
+    private static VerifiedBundle manifestOnly(
+            final ClprEndpointManifest manifest, final byte[] nextTrustAnchor, final byte[] nextTrustAnchorId) {
+        // Empty content + a proven manifest is the manifest-only recovery signal the Call detects; the payload's
+        // rotations sit beside the delivery, so the verifier may still return a successor anchor.
         return VerifiedBundle.builder()
                 .beaconBlockRoot32(BEACON_ROOT)
                 .bundleContentBytes(new byte[0])
-                .queueMetadata(new QueueMetadata(0, filled(32, 0x00), 0, filled(32, 0x00), 0, filled(32, 0x00), 0L))
+                .queueMetadata(
+                        new ProvenQueueMetadata(0, filled(32, 0x00), 0, filled(32, 0x00), 0, filled(32, 0x00), 0L))
+                .nextTrustAnchor(nextTrustAnchor)
+                .nextTrustAnchorId(nextTrustAnchorId)
                 .newEndpointManifest(manifest)
                 .build();
     }
@@ -308,14 +367,14 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifier(final VerifiedBundle verified) {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
-                (mock, ctx) -> given(mock.verifyBundle(any(), any())).willReturn(verified));
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willReturn(verified));
     }
 
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifierThrowing(
             final RuntimeException toThrow) {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
-                (mock, ctx) -> given(mock.verifyBundle(any(), any())).willThrow(toThrow));
+                (mock, ctx) -> given(mock.verifyBundle(any(), any(), any())).willThrow(toThrow));
     }
 
     private static VerifiedBundle verified(
@@ -329,12 +388,12 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .build();
     }
 
-    private static QueueMetadata proven() {
+    private static ProvenQueueMetadata proven() {
         return proven(PROVEN_MANIFEST_VERSION);
     }
 
-    private static QueueMetadata proven(final long endpointManifestVersion) {
-        return new QueueMetadata(
+    private static ProvenQueueMetadata proven(final long endpointManifestVersion) {
+        return new ProvenQueueMetadata(
                 42,
                 SENT_HASH,
                 17,

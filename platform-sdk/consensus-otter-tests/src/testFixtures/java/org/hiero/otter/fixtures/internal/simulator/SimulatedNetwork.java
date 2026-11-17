@@ -14,6 +14,7 @@ import java.util.Random;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
@@ -115,12 +116,13 @@ public abstract class SimulatedNetwork extends AbstractNetwork implements TimeTi
     /**
      * {@inheritDoc}
      *
-     * <p>Creates the simulated network with every node that has been created. Its connections are set right after
+     * <p>Creates the simulated network with every node of the roster. Its connections are set right after
      * this hook, before any node starts.
      */
     @Override
     protected void preStartHook(@NonNull final Roster roster) {
-        simulatedNetworkConnectivity = new SimulatedNetworkConnectivity(random, timeManager.now(), eventReceivers);
+        simulatedNetworkConnectivity =
+                new SimulatedNetworkConnectivity(random, timeManager.now(), RosterWrapper.of(roster), eventReceivers);
     }
 
     /**

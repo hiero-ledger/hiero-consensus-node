@@ -46,7 +46,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
     /**
      * Logged for each block the block node acknowledges, which it only does once the block's proof verifies.
      */
-    private static final String BLOCK_ACK = "BlockAcknowledgement received for block";
+    private static final String BLOCK_ACK = "Acknowledgement received for block";
 
     @HapiTest
     @HapiBlockNode(
