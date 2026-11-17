@@ -16,53 +16,81 @@ import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.virtualmap.MerklePathUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Objects;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
 /**
  * Used during the synchronization protocol to send data needed to reconstruct a single virtual node.
  *
- * <p>On the learner side, a request is created with a path and a hash in the old learner
- * tree (if exists), then sent to the teacher. On the teacher side, requests are deserialized
+ * <p>On the learner side, a request is created with a path and the hash of the node at that path in the
+ * old learner tree (if exists), then sent to the teacher. On the teacher side, requests are deserialized
  * from the stream, and for every request a response is sent back to the learner.
+ *
+ * <p>The request carries only the first {@link #HASH_PREFIX_LENGTH} bytes of the learner's hash. The
+ * teacher uses the hash only to decide whether the node differs, and a prefix of this length is enough
+ * for that. If a prefix ever matched for different hashes, the learner would keep a stale subtree, and
+ * the reconnected state would fail validation against the teacher's signed root hash, so a wrong state is never accepted.
  *
  * <p>Protobuf schema:
  *
  * <pre>
  * message PullVirtualTreeRequest {
  *     fixed64 path = 1;
- *     bytes hash = 2;
+ *     bytes hash_prefix = 2;
  * }
  * </pre>
+ *
+ * @param path virtual node path
+ * @param hashPrefix the first {@link #HASH_PREFIX_LENGTH} bytes of the virtual node hash on the learner. If a
+ *     node with the given path does not exist on the learner (path is outside of range), the prefix of
+ *     {@link Cryptography#NULL_HASH} is used
  */
-public record PullVirtualTreeRequest(
-        // Virtual node path. If the path is Path.INVALID_PATH, it indicates that the learner will
-        // not send any more node requests to the teacher
-        long path,
-        // Virtual node hash. If a node with the given path does not exist on the learner (path is
-        // outside of range), NULL_HASH is used. If the path is Path.INVALID_PATH, the hash is null
-        Hash hash) {
-
-    static final FieldDefinition FIELD_PULLREQUEST_PATH = new FieldDefinition("path", FieldType.FIXED64, false, 1);
-    static final FieldDefinition FIELD_PULLREQUEST_HASH = new FieldDefinition("hash", FieldType.BYTES, false, 2);
+public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
 
     /**
-     * This constructor is used by the learner to send requests to the teacher.
+     * The number of leading hash bytes sent in a request.
+     */
+    public static final int HASH_PREFIX_LENGTH = 16;
+
+    static final FieldDefinition FIELD_PULLREQUEST_PATH = new FieldDefinition("path", FieldType.FIXED64, false, 1);
+    static final FieldDefinition FIELD_PULLREQUEST_HASH_PREFIX =
+            new FieldDefinition("hash_prefix", FieldType.BYTES, false, 2);
+
+    /**
+     * Creates a request with a hash prefix.
      *
      * @param path the virtual node path
-     * @param hash the virtual node hash, or null for the terminating request
+     * @param hashPrefix the hash prefix
      */
-    public PullVirtualTreeRequest(final long path, @Nullable final Hash hash) {
-        // Null hash for the terminating requests, non-null otherwise
-        assert path == MerklePathUtils.INVALID_PATH || (path >= 0 && hash != null);
-        assert hash == null || hash.getDigestType() == Cryptography.DEFAULT_DIGEST_TYPE;
-        this.path = path;
-        this.hash = hash;
+    public PullVirtualTreeRequest {
+        Objects.requireNonNull(hashPrefix, "hashPrefix");
+        assert hashPrefix.length() == HASH_PREFIX_LENGTH;
+    }
+
+    /**
+     * This constructor is used by the learner to send requests to the teacher. Only the first
+     * {@link #HASH_PREFIX_LENGTH} bytes of the hash are kept.
+     *
+     * @param path the virtual node path
+     * @param hash the virtual node hash on the learner
+     */
+    public PullVirtualTreeRequest(final long path, @NonNull final Hash hash) {
+        this(path, hash.getBytes().slice(0, HASH_PREFIX_LENGTH));
+    }
+
+    /**
+     * Checks whether the hash prefix in this request matches the given hash.
+     *
+     * @param hash the hash to compare with, usually the teacher's hash of the node at this request's path
+     * @return true if the hash prefix in this request is equal to the first {@link #HASH_PREFIX_LENGTH} bytes of
+     *     the given hash
+     */
+    public boolean matches(@NonNull final Hash hash) {
+        return hash.getBytes().matchesPrefix(hashPrefix);
     }
 
     /**
@@ -75,10 +103,7 @@ public record PullVirtualTreeRequest(
         if (path != 0) {
             size += sizeOfTag(FIELD_PULLREQUEST_PATH) + Long.BYTES;
         }
-        if (hash != null) {
-            final int hashLen = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-            size += sizeOfDelimited(FIELD_PULLREQUEST_HASH, hashLen);
-        }
+        size += sizeOfDelimited(FIELD_PULLREQUEST_HASH_PREFIX, HASH_PREFIX_LENGTH);
         return size;
     }
 
@@ -91,12 +116,10 @@ public record PullVirtualTreeRequest(
         if (path != 0) {
             writeLong(out, FIELD_PULLREQUEST_PATH, path);
         }
-        if (hash != null) {
-            try {
-                writeBytes(out, FIELD_PULLREQUEST_HASH, hash.getBytes(), false);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+        try {
+            writeBytes(out, FIELD_PULLREQUEST_HASH_PREFIX, hashPrefix, false);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -105,11 +128,12 @@ public record PullVirtualTreeRequest(
      *
      * @param in sequential data to read from
      * @return the parsed request
+     * @throws IllegalArgumentException if the data isn't a valid request
      */
     @NonNull
     public static PullVirtualTreeRequest parseFrom(@NonNull final ReadableSequentialData in) {
         long path = 0;
-        Bytes hashBytes = null;
+        Bytes hashPrefix = null;
 
         while (in.hasRemaining()) {
             final int field = readInt32(in);
@@ -119,17 +143,22 @@ public record PullVirtualTreeRequest(
                     throw new IllegalArgumentException("Wrong wire type for path field: " + field);
                 }
                 path = readFixed64(in);
-            } else if (tag == FIELD_PULLREQUEST_HASH.number()) {
+            } else if (tag == FIELD_PULLREQUEST_HASH_PREFIX.number()) {
                 if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
-                    throw new IllegalArgumentException("Wrong wire type for hash field: " + field);
+                    throw new IllegalArgumentException("Wrong wire type for hash prefix field: " + field);
                 }
-                hashBytes = readBytes(in);
+                hashPrefix = readBytes(in);
+                if (hashPrefix.length() != HASH_PREFIX_LENGTH) {
+                    throw new IllegalArgumentException("Wrong hash prefix length: " + hashPrefix.length());
+                }
             } else {
                 throw new IllegalArgumentException("Unknown field: " + field);
             }
         }
 
-        final Hash hash = (hashBytes != null) ? new Hash(hashBytes, Cryptography.DEFAULT_DIGEST_TYPE) : null;
-        return new PullVirtualTreeRequest(path, hash);
+        if (hashPrefix == null) {
+            throw new IllegalArgumentException("Missing hash prefix, path=" + path);
+        }
+        return new PullVirtualTreeRequest(path, hashPrefix);
     }
 }

@@ -185,7 +185,7 @@ public class TeachingSynchronizer {
         }
 
         final Hash teacherRootHash = teacherView.findHash(MerklePathUtils.ROOT_PATH);
-        final boolean isClean = (teacherRootHash == null) || teacherRootHash.equals(rootRequest.hash());
+        final boolean isClean = (teacherRootHash == null) || rootRequest.matches(teacherRootHash);
         final long firstLeafPath = teacherView.getMetadata().getFirstLeafPath();
         final long lastLeafPath = teacherView.getMetadata().getLastLeafPath();
         final PullVirtualTreeResponse rootResponse =
