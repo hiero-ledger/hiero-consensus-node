@@ -431,6 +431,92 @@ class CantonProofVerifierBundleTest {
                 .isInstanceOf(HandleException.class);
     }
 
+    @Test
+    void clprVerifierMapsAMessageQueueThatCannotBeOpenedToBundleVerificationFailed() {
+        final var storeFactory = mock(StoreFactory.class);
+        when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenThrow(new IllegalStateException("gone"));
+        final var context = mock(HandleContext.class);
+        when(context.storeFactory()).thenReturn(storeFactory);
+        // Only a REPLY consults the queue.
+        final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
+        assertBundleVerificationFailed(b, context);
+    }
+
+    @Test
+    void clprVerifierMapsAnUnexpectedRuntimeExceptionToBundleVerificationFailed() {
+        final var queue = mock(ReadableMessageQueueStore.class);
+        when(queue.getMessage(any(), anyLong())).thenThrow(new IllegalStateException("boom"));
+        final var storeFactory = mock(StoreFactory.class);
+        when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
+        final var context = mock(HandleContext.class);
+        when(context.storeFactory()).thenReturn(storeFactory);
+        final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
+        assertBundleVerificationFailed(b, context);
+    }
+
+    @Test
+    void clprVerifierTreatsAStoredMessageWithoutPayloadAsAbsent() {
+        final var queue = mock(ReadableMessageQueueStore.class);
+        when(queue.getMessage(any(), anyLong()))
+                .thenReturn(ClprMessageValue.newBuilder().build());
+        final var storeFactory = mock(StoreFactory.class);
+        when(storeFactory.readableStore(ReadableMessageQueueStore.class)).thenReturn(queue);
+        final var context = mock(HandleContext.class);
+        when(context.storeFactory()).thenReturn(storeFactory);
+        final var b = new Bundle().payload(reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1}));
+        assertThat(new CantonProofVerifier()
+                        .verifyBundle(
+                                Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context)
+                        .messages())
+                .hasSize(1);
+    }
+
+    private static void assertBundleVerificationFailed(final Bundle b, final HandleContext context) {
+        assertThatThrownBy(() -> new CantonProofVerifier()
+                        .verifyBundle(
+                                Bytes.wrap(b.proof()), Bytes.wrap(b.anchor()), Bytes.wrap(CHANNEL_CONTEXT), context))
+                .isInstanceOf(HandleException.class)
+                .satisfies(e -> assertThat(((HandleException) e).getStatus())
+                        .isEqualTo(ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED));
+    }
+
+    // ── payload framing ──────────────────────────────────────────────────────
+
+    @Test
+    void payloadThatDoesNotParseIsCantonProtoMalformed() {
+        // A DATA frame (field 1, length 2) whose message is cut off inside its first field.
+        assertRejectsPayload("CantonProtoMalformed", new byte[] {0x0a, 0x02, 0x0a, (byte) 0xff});
+    }
+
+    @Test
+    void dataMessageWithAnUnknownFieldIsCantonProtoMalformed() {
+        // The strict parse rejects it, so the connector-id scan never sees a varint or fixed-width field.
+        assertRejectsPayload("CantonProtoMalformed", new byte[] {0x0a, 0x02, 0x28, 0x01});
+        assertRejectsPayload("CantonProtoMalformed", new byte[] {0x0a, 0x05, 0x29, 0, 0, 0, 0});
+    }
+
+    @Test
+    void payloadMustBeOneLengthDelimitedFieldOneOrTwoSpanningIt() {
+        // Empty, and a tag that never ends.
+        assertRejectsPayload("CantonProtoMalformed", new byte[0]);
+        assertRejectsPayload("CantonProtoMalformed", repeat((byte) 0x80, 12));
+        // A multi-byte tag (field 16), a tag alone, and a field number above the oneof's DATA and REPLY.
+        assertRejectsPayload("WrongMessageType", new byte[] {(byte) 0x82, 0x01, 0x00});
+        assertRejectsPayload("WrongMessageType", new byte[] {0x0a});
+        assertRejectsPayload("WrongMessageType", new byte[] {0x1a, 0x00});
+        // Not wire type LEN, and field number 0.
+        assertRejectsPayload("WrongMessageType", new byte[] {0x08, 0x01});
+        assertRejectsPayload("WrongMessageType", new byte[] {0x02, 0x00});
+        // A length that never ends, one that is negative, and one that does not span the payload.
+        assertRejectsPayload("WrongMessageType", concat(new byte[] {0x0a}, repeat((byte) 0x80, 12)));
+        assertRejectsPayload("WrongMessageType", concat(new byte[] {0x0a}, repeat((byte) 0x80, 9), new byte[] {0x01}));
+        assertRejectsPayload("WrongMessageType", new byte[] {0x0a, 0x05, 0x00});
+    }
+
+    private static void assertRejectsPayload(final String errorName, final byte[] payload) {
+        assertRejects(errorName, () -> CantonProofVerifier.checkPayload(payload, CHANNEL_ID, utf8(APP), NO_LOOKUP));
+    }
+
     // ── bundle assembly ─────────────────────
 
     private static ClprBundleContent verify(final Bundle b) {

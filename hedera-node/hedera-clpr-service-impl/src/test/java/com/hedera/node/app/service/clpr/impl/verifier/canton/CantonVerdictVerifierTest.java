@@ -3,11 +3,14 @@ package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.Test;
@@ -337,6 +340,192 @@ class CantonVerdictVerifierTest {
         // Set truncated by one byte.
         final byte[] set = Arrays.copyOf(REAL_SET, REAL_SET.length - 1);
         assertError("InvalidMediatorSet", () -> verify(sigs(realEntry()), set));
+    }
+
+    // ------------------------------------------------------- bundle verdict
+
+    private static final String LSU_SYNCHRONIZER =
+            "probe::122042b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0::35-0";
+    private static final String LSU_SUCCESSOR =
+            "probe::122042b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0::35-1";
+    private static final byte[] LSU_NAMESPACE =
+            HexFormat.of().parseHex("42b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0");
+    private static final long LSU_UPGRADE_TIME = 1_893_456_000_000_000L;
+    private static final String APP = "app::1220" + "ff".repeat(32);
+    private static final byte[] NO_ROTATIONS = new byte[0];
+    private static final String VERDICT_SYNC = new String(SYNC, StandardCharsets.UTF_8);
+
+    private static byte[] anchorOf(
+            final String synchronizerId,
+            final byte[] ownerSet,
+            final byte[] mediatorSet,
+            final String successor,
+            final long upgradeTime) {
+        return new CantonAnchor.Anchor(
+                        synchronizerId,
+                        0L,
+                        0,
+                        LSU_NAMESPACE,
+                        MiscCryptoUtils.keccak256DigestOf(ownerSet),
+                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
+                        successor,
+                        upgradeTime,
+                        successor.isEmpty() ? 0 : 1,
+                        APP)
+                .encode();
+    }
+
+    private static byte[] varint(final int v) {
+        final var out = new ByteArrayOutputStream();
+        int x = v;
+        while (x >= 0x80) {
+            out.write((x & 0x7f) | 0x80);
+            x >>>= 7;
+        }
+        out.write(x);
+        return out.toByteArray();
+    }
+
+    /**
+     * CONSTRUCTED: the REAL typed content re-framed with another synchronizer id. The three enclosing
+     * length-delimited fields (message, content, verdict) are re-encoded; the trailing two bytes of each of the
+     * outer two levels and everything after the id are the REAL ones.
+     */
+    private static byte[] withSynchronizer(final String synchronizerId) {
+        final byte[] id = synchronizerId.getBytes(StandardCharsets.UTF_8);
+        final int idStart = indexOf(TYPED, SYNC);
+        final byte[] verdictRest = Arrays.copyOfRange(TYPED, idStart + SYNC.length, 9 + 142);
+        final var verdict = new ByteArrayOutputStream();
+        verdict.write(0x0a);
+        verdict.writeBytes(varint(id.length));
+        verdict.writeBytes(id);
+        verdict.writeBytes(verdictRest);
+        final var content = new ByteArrayOutputStream();
+        content.write(0x0a);
+        content.writeBytes(varint(verdict.size()));
+        content.writeBytes(verdict.toByteArray());
+        content.writeBytes(new byte[] {0x10, 0x1e});
+        final var message = new ByteArrayOutputStream();
+        message.write(0x1a);
+        message.writeBytes(varint(content.size()));
+        message.writeBytes(content.toByteArray());
+        message.writeBytes(new byte[] {0x10, 0x1e});
+        final var out = new ByteArrayOutputStream();
+        out.write(0x0a);
+        out.writeBytes(varint(message.size()));
+        out.writeBytes(message.toByteArray());
+        out.writeBytes(new byte[] {0x10, 0x1e});
+        final byte[] typed = out.toByteArray();
+        final CantonProto.Verdict parsed = CantonProto.parseVerdict(typed);
+        assertThat(parsed.synchronizerId()).isEqualTo(id);
+        assertThat(parsed.requestId()).isEqualTo(VERDICT.requestId());
+        assertThat(parsed.rootHash()).isEqualTo(VERDICT.rootHash());
+        return typed;
+    }
+
+    private static int indexOf(final byte[] src, final byte[] part) {
+        for (int i = 0; i + part.length <= src.length; i++) {
+            if (Arrays.equals(Arrays.copyOfRange(src, i, i + part.length), part)) {
+                return i;
+            }
+        }
+        throw new AssertionError("not found");
+    }
+
+    @Test
+    void bundleVerdictWithoutRotationsOrUpgradeLeavesTheAnchorUnchanged() {
+        // REAL typed content, signature and key; CONSTRUCTED anchor naming the verdict's synchronizer.
+        final byte[] anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, "", 0L);
+        final var result =
+                CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
+        assertThat(result.requestId()).isEqualTo(VERDICT.requestId());
+        assertThat(result.rootHash()).isEqualTo(VERDICT.rootHash());
+        assertThat(result.anchor().synchronizerId()).isEqualTo(VERDICT_SYNC);
+        assertThat(result.newTrustAnchor()).isEmpty();
+    }
+
+    @Test
+    void bundleVerdictBeforeTheUpgradeTimeStillNamesTheCurrentSynchronizer() {
+        // CONSTRUCTED: pending upgrade whose time equals the request id (not strictly later): no upgrade yet.
+        final byte[] anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, LSU_SUCCESSOR, VERDICT.requestId());
+        final var result =
+                CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
+        assertThat(result.anchor().synchronizerId()).isEqualTo(VERDICT_SYNC);
+        assertThat(result.anchor().successorSynchronizerId()).isEqualTo(LSU_SUCCESSOR);
+        assertThat(result.newTrustAnchor()).isEmpty();
+    }
+
+    @Test
+    void bundleVerdictAfterTheUpgradeTimeCompletesTheUpgrade() {
+        // CONSTRUCTED: the verdict's synchronizer is the pending successor and the request id is past the upgrade
+        // time, so the verdict is checked against the successor and the new anchor completes the upgrade.
+        final byte[] anchor =
+                anchorOf(LSU_SYNCHRONIZER, new byte[] {1}, REAL_SET, VERDICT_SYNC, VERDICT.requestId() - 1);
+        final var result =
+                CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
+        assertThat(result.anchor().synchronizerId()).isEqualTo(VERDICT_SYNC);
+        assertThat(result.anchor().successorSynchronizerId()).isEmpty();
+
+        final CantonAnchor.Anchor next = CantonAnchor.Anchor.decode(result.newTrustAnchor());
+        assertThat(next.synchronizerId()).isEqualTo(VERDICT_SYNC);
+        assertThat(next.lastRequestId()).isEqualTo(VERDICT.requestId());
+        assertThat(next.successorSynchronizerId()).isEmpty();
+        assertThat(next.upgradeTime()).isZero();
+        assertThat(next.lsuSerial()).isZero();
+        assertThat(next.app()).isEqualTo(APP);
+    }
+
+    @Test
+    void bundleVerdictAfterTheUpgradeTimeStillNeedsTheSuccessorSynchronizer() {
+        // The request id is past the upgrade time, so the verdict must name the successor, not the old id.
+        final byte[] anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, LSU_SUCCESSOR, VERDICT.requestId() - 1);
+        assertError(
+                "SynchronizerMismatch",
+                () -> CantonVerdictVerifier.verifyBundleVerdict(
+                        TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS));
+    }
+
+    @Test
+    void bundleVerdictAppliesRotationsAndReturnsTheRotatedAnchor() {
+        // REAL LSU announcement (signed by the REAL owner set) as the only rotation; the verdict is the REAL one
+        // re-framed for the LSU synchronizer and signed by a CONSTRUCTED mediator of the (unchanged) set.
+        final byte[] ownerSet = CantonFixtures.lsuOwnerSet();
+        final var mediator = Mediator.of(5);
+        final byte[] mediatorSet = setOf(1, mediator);
+        final byte[] rotations = Rlp.encodeList(List.of(
+                Rlp.encodeBytes(ownerSet),
+                Rlp.encodeList(List.of(Rlp.encodeList(List.of(
+                        Rlp.encodeBytes(CantonFixtures.lsuAnnouncement()),
+                        Rlp.encodeBytes(new byte[0]),
+                        Rlp.encodeBytes(new byte[0])))))));
+        final byte[] typed = withSynchronizer(LSU_SYNCHRONIZER);
+        assertThat(VERDICT.requestId()).isLessThan(LSU_UPGRADE_TIME);
+        final byte[] sigs =
+                sigs(entry(mediator.fp(), mediator.sign(CantonMerkle.verdictSigningInput(typed)), EMPTY_DELEGATION));
+        final byte[] anchor = anchorOf(LSU_SYNCHRONIZER, ownerSet, mediatorSet, "", 0L);
+
+        final var result = CantonVerdictVerifier.verifyBundleVerdict(typed, sigs, mediatorSet, anchor, rotations);
+
+        assertThat(result.requestId()).isEqualTo(VERDICT.requestId());
+        assertThat(result.anchor().synchronizerId()).isEqualTo(LSU_SYNCHRONIZER);
+        assertThat(result.anchor().successorSynchronizerId()).isEqualTo(LSU_SUCCESSOR);
+        final CantonAnchor.Anchor next = CantonAnchor.Anchor.decode(result.newTrustAnchor());
+        assertThat(next.synchronizerId()).isEqualTo(LSU_SYNCHRONIZER);
+        assertThat(next.lastRequestId()).isEqualTo(VERDICT.requestId());
+        assertThat(next.successorSynchronizerId()).isEqualTo(LSU_SUCCESSOR);
+        assertThat(next.upgradeTime()).isEqualTo(LSU_UPGRADE_TIME);
+        assertThat(next.lsuSerial()).isEqualTo(1);
+    }
+
+    @Test
+    void bundleVerdictRotationsNotMatchingTheAnchorAreRejected() {
+        // The mediator set does not hash to the anchor's commitment, so the rotations are rejected before any check.
+        final byte[] ownerSet = CantonFixtures.lsuOwnerSet();
+        final byte[] anchor = anchorOf(LSU_SYNCHRONIZER, ownerSet, new byte[] {9}, "", 0L);
+        final byte[] rotations = Rlp.encodeList(List.of(Rlp.encodeBytes(ownerSet), Rlp.encodeList(List.of())));
+        assertError(
+                "TrustSetMismatch",
+                () -> CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, rotations));
     }
 
     private static byte[] mutate(final byte[] src, final byte[] from, final byte[] to) {
