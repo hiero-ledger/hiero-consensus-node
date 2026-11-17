@@ -276,9 +276,9 @@ class HintsControllerImplTest {
     }
 
     @Test
-    void doesNotStartPreprocessingEarlyBeforeRunningTargetNodeOutsideSourcePublishes() {
-        // Node 2 is running but not yet a party in the source scheme, e.g. it was added at the last upgrade
-        setupWithRunningTargetNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
+    void doesNotStartPreprocessingEarlyBeforeCurrentRosterNodeOutsideSourcePublishes() {
+        // Node 2 is in the current roster but not a party in the source scheme, e.g. it was added at the last upgrade
+        setupWithCurrentRosterNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
         given(weights.numTargetNodesInSource()).willReturn(1);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
 
@@ -292,25 +292,8 @@ class HintsControllerImplTest {
     }
 
     @Test
-    void doesNotStartPreprocessingEarlyWhenKeysComeFromOtherThanTheRunningTargetNode() {
-        // Node 3 is running but not yet a party; nodes 1 and 2 publish, making up the count without node 3
-        setupWithRunningTargetNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(3L));
-        given(weights.numTargetNodesInSource()).willReturn(1);
-        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
-
-        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
-        subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION, INITIAL_CRS);
-        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
-        runScheduledTasks();
-
-        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
-
-        verify(store, never()).setPreprocessingStartTime(anyLong(), any());
-    }
-
-    @Test
-    void startsPreprocessingEarlyOnceRunningTargetNodeOutsideSourcePublishes() {
-        setupWithRunningTargetNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
+    void startsPreprocessingEarlyOnceCurrentRosterNodeOutsideSourcePublishes() {
+        setupWithCurrentRosterNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
         given(weights.numTargetNodesInSource()).willReturn(1);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
         given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
@@ -613,6 +596,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, node0CongruentVote),
@@ -816,6 +800,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, PreprocessingVote.newBuilder().congruentNodeId(1L).build()),
@@ -868,6 +853,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, PreprocessingVote.newBuilder().congruentNodeId(2L).build()),
@@ -922,6 +908,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 construction,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 votes,
@@ -989,8 +976,8 @@ class HintsControllerImplTest {
                 CRSState.newBuilder().stage(CRSStage.COMPLETED).crs(INITIAL_CRS).build());
     }
 
-    private void setupWithRunningTargetNodesOutsideSource(
-            @NonNull final HintsConstruction construction, @NonNull final Set<Long> runningTargetNodesOutsideSource) {
+    private void setupWithCurrentRosterNodesOutsideSource(
+            @NonNull final HintsConstruction construction, @NonNull final Set<Long> currentRosterNodesOutsideSource) {
         lenient()
                 .when(store.getCrsStateFor(any()))
                 .thenReturn(CRSState.newBuilder()
@@ -1002,7 +989,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 construction,
                 weights,
-                runningTargetNodesOutsideSource,
+                currentRosterNodesOutsideSource,
                 scheduledTasks::offer,
                 library,
                 Map.of(),
@@ -1032,6 +1019,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 construction,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(),

@@ -56,7 +56,8 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     private static final int HAPI_TLS_PORT_B = 24450;
 
     // Node ids the tests can use in total, whatever order they run in: A starts with 2 nodes; partial
-    // rotation replaces 1, and each complete turnover replaces all 2. B starts with 2; only the
+    // rotation replaces 1, and each complete turnover replaces all 2 (one of them is the disabled 8.1.2, kept
+    // reserved so it can be re-enabled). B starts with 2; only the
     // simultaneous turnover replaces them. Both ledgers start with 2 nodes because a node added at an
     // upgrade joins with zero weight, and a ledger whose only weighted node has nothing but zero-weight
     // peers creates no events (TipsetEventCreator finds no eligible other parents) and never reaches

@@ -239,25 +239,17 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * isolated networks may coexist in the same launcher session. Used by
      * {@link com.hedera.services.bdd.junit.extensions.MultiNetworkExtension}.
      *
+     * <p>Lays ports out for node ids {@code [0, nodeIdSlots)} while starting only nodes {@code [0, size)}, so nodes
+     * added later (e.g. via {@link #addNode(long)}) get ports that collide neither with this network's other nodes
+     * nor with another network's window.
+     *
      * @param name         unique network name (used for working directory isolation)
      * @param size         number of nodes
+     * @param nodeIdSlots  number of node ids to lay ports out for; must be at least {@code size}
      * @param shard        shard number
      * @param realm        realm number
      * @param firstGrpcPort starting gRPC port; pass -1 to auto-allocate
      * @return the new (not yet started) network
-     */
-    public static synchronized SubProcessNetwork newIsolatedNetwork(
-            @NonNull final String name, final int size, final long shard, final long realm, final int firstGrpcPort) {
-        return newIsolatedNetwork(name, size, size, shard, realm, firstGrpcPort);
-    }
-
-    /**
-     * As {@link #newIsolatedNetwork(String, int, long, long, int)}, but lays ports out for node ids
-     * {@code [0, nodeIdSlots)} while starting only nodes {@code [0, size)}, so nodes added later (e.g. via
-     * {@link #addNode(long)}) get ports that collide neither with this network's other nodes nor with
-     * another network's window.
-     *
-     * @param nodeIdSlots number of node ids to lay ports out for; must be at least {@code size}
      */
     public static synchronized SubProcessNetwork newIsolatedNetwork(
             @NonNull final String name,

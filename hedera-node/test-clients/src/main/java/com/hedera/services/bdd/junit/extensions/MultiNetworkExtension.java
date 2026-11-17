@@ -775,11 +775,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                         })
                         .toList())
                 .build();
-        try {
-            Files.writeString(genesisNetworkPath, com.hedera.node.internal.network.Network.JSON.toJSON(aligned));
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        DiskStartupNetworks.tryToExport(aligned, genesisNetworkPath);
     }
 
     /**

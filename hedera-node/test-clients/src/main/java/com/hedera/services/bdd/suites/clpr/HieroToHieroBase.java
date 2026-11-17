@@ -423,28 +423,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Polls {@code clprGetEndpointManifest} on {@code network} until the version has advanced to at
-     * least {@code baseline.get() + 1} — proving the manifest was rebuilt in response to an endpoint
-     * change.
-     */
-    static DynamicTest awaitManifestVersionAtLeast(final SubProcessNetwork network, final AtomicLong baseline) {
-        return networkHapiTest(
-                        "Await advanced manifest version on " + network.name(),
-                        network,
-                        withOpContext((spec, opLog) -> {
-                            final long target = baseline.get() + 1;
-                            final var manifest = pollManifest(spec, m -> m.getVersion() >= target);
-                            opLog.info(
-                                    "Manifest on {} advanced to version {} (>= {})",
-                                    network.name(),
-                                    manifest.getVersion(),
-                                    target);
-                        }))
-                .findFirst()
-                .orElseThrow();
-    }
-
-    /**
      * Polls {@code clprGetEndpointManifest} on {@code network} until its manifest has advanced past
      * {@code baseline} and advertises exactly the network's current nodes — one endpoint per node, on that
      * node's HAPI TLS port ({@code tlsPortBase + nodeId}) — then records that version into {@code sink}.
@@ -682,10 +660,10 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      *   <li>waits for the rotation's hinTS scheme and WRAPS history proof, after which the network hands off to
      *       the rotation at once.</li>
      * </ol>
-     * The new nodes are targets of the first rotation, so they publish their hinTS keys during it, but its scheme
-     * is assembled as soon as the nodes already signing have published. A later rotation of the same party count
-     * then finds their keys published from the start and includes them; this repeats until a rotation's scheme
-     * started with every new node's key, or fails after {@link #MAX_ENROLLMENT_ROTATIONS}.
+     * The new nodes are targets of the first rotation, and its hinTS construction waits for their keys before it
+     * preprocesses, so one rotation normally enrolls them. A new node that publishes only after the (short, in these
+     * tests) key grace period misses that rotation; a later one then finds its key published from the start. This
+     * repeats until a rotation's scheme has every new node's key, or fails after {@link #MAX_ENROLLMENT_ROTATIONS}.
      */
     private static DynamicTest enrollInHintsScheme(final SubProcessNetwork network, final List<Long> addedNodeIds) {
         return networkHapiTest(
@@ -1010,7 +988,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                     // still being written; retry
                 }
             }
-            sleepFor(POLL_INTERVAL);
+            if (candidate.isEmpty()) {
+                sleepFor(POLL_INTERVAL);
+            }
         }
         final var targetHash = RosterUtils.hash(RosterUtils.rosterFrom(candidate.get()))
                 .getBytes()
@@ -1055,10 +1035,9 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                 "Freeze and shut down " + network.name(),
                                 network,
                                 // As the restart suite does: keep the ledger busy until the freeze completes, so the
-                                // events
-                                // the freeze round's consensus rests on are persisted before the nodes are killed (a
-                                // 1-node
-                                // ledger cannot recover lost events from peers, and would never reach consensus again)
+                                // events the freeze round's consensus rests on are persisted before the nodes are
+                                // killed; with every node down, none can recover lost events from a peer, and the
+                                // ledger would never reach consensus again
                                 runBackgroundTrafficUntilFreezeComplete(),
                                 freezeOnly().startingIn(2).seconds(),
                                 waitForFrozenNetwork(FREEZE_TIMEOUT),
@@ -1385,18 +1364,6 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     private static boolean isNullOrEmpty(final AtomicReference<ByteString> proof) {
         final var captured = proof.get();
         return captured == null || captured.isEmpty();
-    }
-
-    /**
-     * Wraps a {@link DynamicTest} (a HapiSpec built by e.g. {@link #deployAndConnect}) as a
-     * {@link SpecOperation} so it can be a child of {@link ParallelSpecOps}. The wrapped op runs
-     * on the calling thread — under {@code ParallelSpecOps} that's a distinct
-     * {@link HapiSpec#getCommonThreadPool()} worker, so both children execute concurrently
-     * against their respective target networks.
-     */
-    private static SpecOperation asSubOp(final DynamicTest dynamicTest) {
-        return withOpContext(
-                (ignoredSpec, ignoredLog) -> dynamicTest.getExecutable().execute());
     }
 
     /**
