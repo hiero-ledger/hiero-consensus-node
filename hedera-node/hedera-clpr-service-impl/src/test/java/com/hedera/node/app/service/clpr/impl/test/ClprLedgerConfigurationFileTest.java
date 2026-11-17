@@ -185,7 +185,9 @@ class ClprLedgerConfigurationFileTest {
         assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(
                         existing, CUSTOM_THROTTLES, configWithFile(tempDir, 15_000_000L)))
                 .contains(ClprLedgerConfiguration.newBuilder()
-                        .throttles(CUSTOM_THROTTLES)
+                        .throttles(CUSTOM_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(BUNDLED_THROTTLES.maxMessagesPerBundle()))
                         .build());
     }
 
@@ -240,13 +242,51 @@ class ClprLedgerConfigurationFileTest {
     }
 
     @Test
-    void upgradeAppliesOtherThrottleChangesWhileRetainingQueueCredit() {
-        final var requested = CUSTOM_THROTTLES.copyBuilder().maxQueueDepth(5).build();
+    void upgradeRetainsAdvertisedLimitsWhileApplyingIndependentChanges() {
+        final var requested = CUSTOM_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(1024)
+                .maxSyncBytes(1_048_576L)
+                .maxQueueDepth(5)
+                .maxGasPerMessage(3_000_000L)
+                .build();
         final var result = ClprLedgerConfigurationFile.upgradeConfiguration(
                 existingWith(BUNDLED_THROTTLES), requested, configWithFile(tempDir, 15_000_000L, 100));
         assertThat(result)
                 .contains(ClprLedgerConfiguration.newBuilder()
-                        .throttles(requested.copyBuilder().maxQueueDepth(BUNDLED_THROTTLES.maxQueueDepth()))
+                        .throttles(BUNDLED_THROTTLES
+                                .copyBuilder()
+                                .maxGasPerMessage(requested.maxGasPerMessage())
+                                .maxPeerEndpoints(requested.maxPeerEndpoints()))
+                        .build());
+    }
+
+    @Test
+    void upgradeWithOnlyReductionsDoesNotPublishANewConfiguration() {
+        final var smaller = BUNDLED_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(1024)
+                .maxSyncBytes(1_048_576L)
+                .maxMessagesPerBundle(2)
+                .build();
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(
+                        existingWith(BUNDLED_THROTTLES), smaller, configWithFile(tempDir, 15_000_000L)))
+                .isEmpty();
+    }
+
+    @Test
+    void upgradeAppliesGrowthPerFieldWhileRetainingAnEarlierBundleSize() {
+        final var requested = BUNDLED_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(131_072)
+                .maxSyncBytes(8_388_608L)
+                .maxMessagesPerBundle(2)
+                .build();
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(
+                        existingWith(BUNDLED_THROTTLES), requested, configWithFile(tempDir, 15_000_000L)))
+                .contains(ClprLedgerConfiguration.newBuilder()
+                        .throttles(
+                                requested.copyBuilder().maxMessagesPerBundle(BUNDLED_THROTTLES.maxMessagesPerBundle()))
                         .build());
     }
 

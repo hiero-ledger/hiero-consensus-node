@@ -40,6 +40,21 @@ public final class ClprThrottlesValidator {
     private ClprThrottlesValidator() {}
 
     /**
+     * Preserves the local limits that peers may already have used to enqueue DATA or build a bundle.
+     * Gas and endpoint limits follow the requested configuration.
+     */
+    public static ClprThrottles preserveAdvertisedLimits(
+            @NonNull final ClprThrottles requested, @NonNull final ClprThrottles current) {
+        return requested
+                .copyBuilder()
+                .maxMessagePayloadBytes(Math.max(requested.maxMessagePayloadBytes(), current.maxMessagePayloadBytes()))
+                .maxSyncBytes(Math.max(requested.maxSyncBytes(), current.maxSyncBytes()))
+                .maxMessagesPerBundle(Math.max(requested.maxMessagesPerBundle(), current.maxMessagesPerBundle()))
+                .maxQueueDepth(Math.max(requested.maxQueueDepth(), current.maxQueueDepth()))
+                .build();
+    }
+
+    /**
      * Returns whether the given throttles are valid: all fields positive, the payload limit can carry
      * any empty error reply, and max_sync_bytes leaves room for one max-sized message plus its proof overhead.
      *

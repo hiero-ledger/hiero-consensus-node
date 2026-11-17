@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Tag;
 @Order(Integer.MIN_VALUE)
 public class ClprLedgerConfigurationUpgradeTest {
     private static final ClprThrottles UPGRADE_THROTTLES = ClprThrottles.newBuilder()
-            .setMaxMessagesPerBundle(500)
+            .setMaxMessagesPerBundle(1_000)
             .setMaxMessagePayloadBytes(65_536)
             .setMaxGasPerMessage(15_000_000L)
             .setMaxQueueDepth(20_000)
@@ -53,10 +53,10 @@ public class ClprLedgerConfigurationUpgradeTest {
             {
               "throttles": {
                 "maxMessagesPerBundle": 500,
-                "maxMessagePayloadBytes": 65536,
+                "maxMessagePayloadBytes": 1024,
                 "maxGasPerMessage": 15000000,
                 "maxQueueDepth": 20000,
-                "maxSyncBytes": 4194304
+                "maxSyncBytes": 1048576
               }
             }
             """;
@@ -86,8 +86,8 @@ public class ClprLedgerConfigurationUpgradeTest {
                 simulatePostUpgradeTransaction(),
                 // The post-upgrade setup runs when the next transaction is handled
                 cryptoCreate("postUpgradeAccount"),
-                // Then verify the new throttles are in effect
-                clprGetLedgerConfiguration().maxMessagesPerBundle(500).maxQueueDepth(20_000),
+                // Only queue depth grows. The three smaller delivery limits retain their advertised values.
+                clprGetLedgerConfiguration().maxMessagesPerBundle(1_000).maxQueueDepth(20_000),
                 // Trigger block closure to ensure block is closed
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }

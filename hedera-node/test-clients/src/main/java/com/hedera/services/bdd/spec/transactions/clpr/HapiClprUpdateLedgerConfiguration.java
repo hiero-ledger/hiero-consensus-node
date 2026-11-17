@@ -88,11 +88,11 @@ public class HapiClprUpdateLedgerConfiguration extends HapiTxnOp<HapiClprUpdateL
      */
     public static ClprThrottles defaultThrottles() {
         return ClprThrottles.newBuilder()
-                .setMaxMessagesPerBundle(100)
+                .setMaxMessagesPerBundle(1_000)
                 .setMaxMessagePayloadBytes(65536)
                 .setMaxGasPerMessage(1_000_000L)
                 .setMaxQueueDepth(10_000)
-                .setMaxSyncBytes(1_048_576L)
+                .setMaxSyncBytes(4_194_304L)
                 .build();
     }
 }

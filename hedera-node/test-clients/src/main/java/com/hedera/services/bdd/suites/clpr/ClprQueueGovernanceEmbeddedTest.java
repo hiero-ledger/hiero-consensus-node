@@ -108,14 +108,14 @@ public class ClprQueueGovernanceEmbeddedTest {
         return clprGetLedgerConfiguration().exposingConfigTo(actual -> assertEquals(expected, actual.getThrottles()));
     }
 
-    private static ClprLedgerConfiguration readConfig(final HapiSpec spec) {
+    static ClprLedgerConfiguration readConfig(final HapiSpec spec) {
         return spec.embeddedStateOrThrow()
                 .getReadableStates(ClprService.NAME)
                 .<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
                 .get();
     }
 
-    private static void writeConfig(final HapiSpec spec, final ClprLedgerConfiguration config) {
+    static void writeConfig(final HapiSpec spec, final ClprLedgerConfiguration config) {
         spec.mutateEmbeddedState(state -> state.getWritableStates(ClprService.NAME)
                 .<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
                 .put(config));

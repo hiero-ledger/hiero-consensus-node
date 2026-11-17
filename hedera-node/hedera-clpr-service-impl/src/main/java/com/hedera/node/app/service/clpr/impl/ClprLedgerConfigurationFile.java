@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.preserveAdvertisedLimits;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
@@ -111,8 +112,8 @@ public final class ClprLedgerConfigurationFile {
      * Returns the configuration to dispatch in a {@code ClprUpdateLedgerConfiguration} to apply the given
      * throttles from an upgrade file, or empty if they match the existing throttles. Applying unchanged
      * throttles would still set a new timestamp, which queues a config update on every channel.
-     * Gas is capped at {@code contracts.maxGasPerTransaction}. Queue credit cannot decrease:
-     * its new value is {@code max(existing, min(file, clpr.maxQueueDepthCeiling))}.
+     * Gas is capped at {@code contracts.maxGasPerTransaction}. Queue depth is capped at its growth ceiling
+     * before retaining the existing floor for each advertised payload, sync, bundle count and queue limit.
      *
      * @param existing the existing ledger configuration
      * @param throttles the validated throttles from the upgrade file
@@ -126,24 +127,20 @@ public final class ClprLedgerConfigurationFile {
         requireNonNull(existing);
         requireNonNull(throttles);
         requireNonNull(configuration);
-        final int currentQueueDepth =
-                existing.throttlesOrElse(ClprThrottles.DEFAULT).maxQueueDepth();
-        if (throttles.maxQueueDepth() < currentQueueDepth) {
+        final var current = existing.throttlesOrElse(ClprThrottles.DEFAULT);
+        final var bounded = capped(throttles, configuration);
+        final var effective = preserveAdvertisedLimits(bounded, current);
+        if (!effective.equals(bounded)) {
             log.warn(
-                    "Ignoring CLPR upgrade-file queue depth reduction from {} to {}; advertised credit is expand-only",
-                    currentQueueDepth,
-                    throttles.maxQueueDepth());
+                    "Retaining previously advertised CLPR limits for upgrade file: requested={}, effective={}",
+                    throttles,
+                    effective);
         }
-        final var boundedThrottles = capped(throttles, configuration);
-        final var cappedThrottles = boundedThrottles
-                .copyBuilder()
-                .maxQueueDepth(Math.max(currentQueueDepth, boundedThrottles.maxQueueDepth()))
-                .build();
-        if (cappedThrottles.equals(existing.throttles())) {
+        if (effective.equals(current)) {
             return Optional.empty();
         }
         return Optional.of(
-                ClprLedgerConfiguration.newBuilder().throttles(cappedThrottles).build());
+                ClprLedgerConfiguration.newBuilder().throttles(effective).build());
     }
 
     private static ClprThrottles bundledThrottles() {

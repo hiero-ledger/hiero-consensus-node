@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundl
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration.defaultThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -39,7 +40,6 @@ import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprMessage;
 import com.hederahashgraph.api.proto.java.ClprMessagePayload;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
-import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.swirlds.state.spi.ReadableKVState;
 import java.util.ArrayList;
@@ -472,13 +472,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
                 .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
-                .setThrottles(ClprThrottles.newBuilder()
-                        .setMaxMessagesPerBundle(100)
-                        .setMaxMessagePayloadBytes(65536)
-                        .setMaxGasPerMessage(1_000_000L)
-                        .setMaxQueueDepth(10_000)
-                        .setMaxSyncBytes(1_048_576L)
-                        .build())
+                .setThrottles(defaultThrottles())
                 .build();
     }
 }

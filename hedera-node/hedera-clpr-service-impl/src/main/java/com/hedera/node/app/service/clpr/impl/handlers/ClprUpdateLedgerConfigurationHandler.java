@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.areValidThrottles;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.preserveAdvertisedLimits;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -78,16 +79,14 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
         final var configStore = storeFactory.writableStore(WritableLedgerConfigurationStore.class);
         final var existing = configStore.getConfiguration();
 
-        // A peer may still send against previously advertised credit. Never revoke it.
-        // A lowered network ceiling limits future growth without invalidating the current limit.
-        final int currentQueueDepth =
-                existing.throttlesOrElse(ClprThrottles.DEFAULT).maxQueueDepth();
-        final int requestedQueueDepth = supplied.throttlesOrThrow().maxQueueDepth();
+        final var current = existing.throttlesOrElse(ClprThrottles.DEFAULT);
+        final var requested = supplied.throttlesOrThrow();
         final int queueDepthCeiling =
                 context.configuration().getConfigData(ClprConfig.class).maxQueueDepthCeiling();
         HandleException.validateTrue(
-                requestedQueueDepth >= currentQueueDepth
-                        && (requestedQueueDepth == currentQueueDepth || requestedQueueDepth <= queueDepthCeiling),
+                preserveAdvertisedLimits(requested, current).equals(requested)
+                        && (requested.maxQueueDepth() == current.maxQueueDepth()
+                                || requested.maxQueueDepth() <= queueDepthCeiling),
                 INVALID_CLPR_CONFIGURATION);
 
         // Build the updated configuration, preserving immutable fields from genesis.

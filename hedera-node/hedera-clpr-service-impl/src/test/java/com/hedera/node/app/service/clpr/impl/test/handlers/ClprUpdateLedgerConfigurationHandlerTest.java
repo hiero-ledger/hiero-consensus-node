@@ -9,8 +9,10 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDG
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody;
@@ -367,7 +369,7 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         verify(configStore).put(captor.capture());
         assertThat(captor.getValue().initialTrustAnchor()).isEqualTo(Bytes.EMPTY);
         assertThat(captor.getValue().initialTrustAnchorId()).isEqualTo(Bytes.EMPTY);
-        org.mockito.Mockito.verify(handleContext, org.mockito.Mockito.never()).ledgerId();
+        verify(handleContext, never()).ledgerId();
     }
 
     @ParameterizedTest
@@ -419,6 +421,43 @@ class ClprUpdateLedgerConfigurationHandlerTest {
             // Rejection must precede changes to timestamp, anchors, or any configuration field.
             assertThat(realStore.getConfiguration()).isEqualTo(oldConfig);
             assertThat(configState.isModified()).isFalse();
+        }
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "65535,1048576,100,false",
+        "65536,1048575,100,false",
+        "65536,1048576,99,false",
+        "65537,1048577,99,false",
+        "65537,1048577,101,true"
+    })
+    void adminProtectsPreviouslyAdvertisedDeliveryLimits(
+            final int payload, final long sync, final int count, final boolean accepted) {
+        setupHandleContext(
+                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
+        final var current = validConfigBuilder().build();
+        given(configStore.getConfiguration()).willReturn(current);
+        final var requested = current.throttlesOrThrow()
+                .copyBuilder()
+                .maxMessagePayloadBytes(payload)
+                .maxSyncBytes(sync)
+                .maxMessagesPerBundle(count)
+                .build();
+        given(handleContext.body())
+                .willReturn(
+                        txnBodyWith(current.copyBuilder().throttles(requested).build()));
+        if (accepted) {
+            subject.handle(handleContext);
+            final var saved = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
+            verify(configStore).put(saved.capture());
+            assertThat(saved.getValue().throttles()).isEqualTo(requested);
+        } else {
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOfSatisfying(
+                            HandleException.class,
+                            e -> assertThat(e.getStatus()).isEqualTo(INVALID_CLPR_CONFIGURATION));
+            verify(configStore, never()).put(any());
         }
     }
 

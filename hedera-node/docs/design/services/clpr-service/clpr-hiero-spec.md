@@ -300,17 +300,19 @@ ordinary budget `Q = throttles.max_queue_depth`. Another `Q` slots remain reserv
 application replies, bounding total outbound depth by `2 * Q`. A full ordinary budget can
 defer the update until traffic drains; it cannot revoke the reply credit needed for progress.
 
-The local `max_queue_depth` is expand-only. An administrator's update that lowers it fails
-at consensus with `INVALID_CLPR_CONFIGURATION`, without changing the configuration or its
-timestamp. An unchanged value is allowed. An increase must not exceed the positive network
+The local `max_queue_depth`, `max_message_payload_bytes`, `max_sync_bytes` and
+`max_messages_per_bundle` are expand-only. Peers may have queued DATA or assembled a bundle
+using an earlier advertisement. Lowering any one of these limits fails the entire administrator
+update at consensus with `INVALID_CLPR_CONFIGURATION` and preserves its timestamp.
+An increase in queue depth must not exceed the positive network
 property `clpr.maxQueueDepthCeiling` (default 10,000). If the ceiling is later configured below
 the persisted limit, that existing credit remains valid, but further increases are rejected.
 
-Genesis file values are capped at this ceiling. An upgrade file uses
-`max(existingDepth, min(fileDepth, ceiling))`; a lower requested value logs a warning and
-retains existing credit instead of failing the upgrade. If the normalized throttles are
-unchanged, no update transaction or timestamp change is needed. Other limits, including
-payload size, bundle size and sync size, remain adjustable in either direction.
+Genesis caps queue depth at this ceiling. An upgrade file uses
+`max(existingDepth, min(fileDepth, ceiling))` for queue depth and the greater of the existing
+and requested values for each of the other three expand-only limits. The node logs retained
+limits and applies independent changes, including gas or endpoint reductions. If the effective
+throttles are unchanged, it skips the update and preserves the timestamp.
 
 Because local queue credit never decreases, the current limit also covers all credit
 advertised since this rule took effect. No additional singleton, migration schema, or

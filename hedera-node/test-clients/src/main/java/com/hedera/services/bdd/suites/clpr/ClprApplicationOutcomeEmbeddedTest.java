@@ -22,10 +22,13 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.clpr.ClprQueueGovernanceEmbeddedTest.readConfig;
+import static com.hedera.services.bdd.suites.clpr.ClprQueueGovernanceEmbeddedTest.writeConfig;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.runningHashAfter;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hederahashgraph.api.proto.java.ClprChannelStatus.ACTIVE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -90,7 +93,7 @@ public class ClprApplicationOutcomeEmbeddedTest {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"clpr.enabled", "clpr.messageExecutionCost", "clpr.endpointMarginPercent"})
-    final Stream<DynamicTest> incomingSuccessAfterLimitReductionUsesUnavailableHookWithoutCompensation() {
+    final Stream<DynamicTest> oversizedIncomingSuccessUsesUnavailableHookWithoutCompensation() {
         final var channelId = Bytes.wrap(new ClprChannelCrypto().channelId());
         final var largeReply = reply(1, new byte[512]);
         final var emptyReply = reply(2, new byte[0]);
@@ -101,68 +104,124 @@ public class ClprApplicationOutcomeEmbeddedTest {
                     seedChannel(spec, channelId, 1024, List.of(original, original));
                     assertTrue(largeReply.getSerializedSize() <= 1024);
                 }),
-                // The local payload cap falls while the sync cap still easily fits the attested reply.
-                updatePayloadLimit(256),
                 withOpContext((spec, log) -> {
-                    final var original = data(spec, new byte[0]);
-                    allRunFor(
+                    // Model a channel with a legacy or external peer returning an oversized reply.
+                    final var config = readConfig(spec);
+                    writeConfig(
                             spec,
-                            submit(
-                                    channelId,
-                                    0,
-                                    1,
-                                    runningHashAfter(ZERO_HASH, List.of(original)),
-                                    largeReply,
-                                    ZERO_HASH),
-                            snapshot(0, 0, 1, 0, 0, 0));
-                    assertReceived(spec, channelId, 1, runningHashAfter(ZERO_HASH, List.of(largeReply)));
-                    assertNull(queueValue(spec, channelId, 1));
-                    assertNotNull(queueValue(spec, channelId, 2));
-                    allRunFor(
-                            spec,
-                            submit(
-                                    channelId,
-                                    1,
-                                    2,
-                                    runningHashAfter(ZERO_HASH, List.of(original, original)),
-                                    emptyReply,
-                                    runningHashAfter(ZERO_HASH, List.of(largeReply))),
-                            // A valid empty result uses the ordinary callback, distinct from unavailable data.
-                            snapshot(0, 1, 1, 0, 0, 0));
-                    assertReceived(spec, channelId, 2, runningHashAfter(ZERO_HASH, List.of(largeReply, emptyReply)));
-                    assertNull(queueValue(spec, channelId, 2));
+                            config.copyBuilder()
+                                    .throttles(config.throttlesOrThrow()
+                                            .copyBuilder()
+                                            .maxMessagePayloadBytes(256))
+                                    .build());
+                    try {
+                        final var original = data(spec, new byte[0]);
+                        allRunFor(
+                                spec,
+                                submit(
+                                        channelId,
+                                        0,
+                                        1,
+                                        runningHashAfter(ZERO_HASH, List.of(original)),
+                                        largeReply,
+                                        ZERO_HASH),
+                                snapshot(0, 0, 1, 0, 0, 0));
+                        assertReceived(spec, channelId, 1, runningHashAfter(ZERO_HASH, List.of(largeReply)));
+                        assertNull(queueValue(spec, channelId, 1));
+                        assertNotNull(queueValue(spec, channelId, 2));
+                        allRunFor(
+                                spec,
+                                submit(
+                                        channelId,
+                                        1,
+                                        2,
+                                        runningHashAfter(ZERO_HASH, List.of(original, original)),
+                                        emptyReply,
+                                        runningHashAfter(ZERO_HASH, List.of(largeReply))),
+                                // A valid empty result uses the ordinary callback, distinct from unavailable data.
+                                snapshot(0, 1, 1, 0, 0, 0));
+                        assertReceived(
+                                spec, channelId, 2, runningHashAfter(ZERO_HASH, List.of(largeReply, emptyReply)));
+                        assertNull(queueValue(spec, channelId, 2));
+                    } finally {
+                        writeConfig(spec, config);
+                    }
                 }));
     }
 
-    private static SpecOperation setup() {
-        return withOpContext((spec, log) -> allRunFor(
-                spec,
-                overriding("clpr.enabled", "true"),
-                // No flat compensation: a connector balance debit proves execution gas was charged.
-                overriding("clpr.messageExecutionCost", "0"),
-                overriding("clpr.endpointMarginPercent", "0"),
-                updatePayloadLimit(1024),
-                uploadInitCode(APPLICATION, CONNECTOR, VERIFIER),
-                contractCreate(APPLICATION, CONNECTOR_ID.toByteArray()).gas(2_000_000L),
-                contractCreate(CONNECTOR).balance(ONE_HUNDRED_HBARS),
-                contractCreate(VERIFIER).gas(2_000_000L)));
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"clpr.enabled", "clpr.messageExecutionCost", "clpr.endpointMarginPercent"})
+    final Stream<DynamicTest> queuedDataAndItsSuccessorAreDeliveredAfterRejectedLimitReductions() {
+        return hapiTest(setup(), withOpContext((spec, log) -> {
+            final var channelId = Bytes.wrap(new ClprChannelCrypto().channelId());
+            seedChannel(spec, channelId, 1024, List.of());
+            // Both DATA payloads encode a successful call with an empty return. The head also carries trailing bytes.
+            final var messages = List.of(data(spec, new byte[512]), data(spec, new byte[96]));
+            final var queuedBundle = toBundleProofBytes(ACTIVE, 0, 0, ZERO_HASH, messages, ZERO_HASH);
+            final var before = readConfig(spec);
+            final var limits = pbjToProto(
+                    before.throttlesOrThrow(),
+                    com.hedera.hapi.node.state.clpr.ClprThrottles.class,
+                    ClprThrottles.class);
+            assertTrue(messages.getFirst().getSerializedSize() > 256);
+            assertTrue(messages.getFirst().getSerializedSize() <= limits.getMaxMessagePayloadBytes());
+            assertTrue(messages.getLast().getSerializedSize() <= 256);
+            for (final var reduced : List.of(
+                    limits.toBuilder().setMaxMessagePayloadBytes(256).build(),
+                    limits.toBuilder()
+                            .setMaxSyncBytes(limits.getMaxSyncBytes() - 1)
+                            .build(),
+                    limits.toBuilder().setMaxMessagesPerBundle(1).build())) {
+                allRunFor(
+                        spec,
+                        clprUpdateLedgerConfiguration()
+                                .throttles(reduced)
+                                .payingWith(GENESIS)
+                                .hasKnownStatus(INVALID_CLPR_CONFIGURATION));
+                assertEquals(before, readConfig(spec));
+            }
+            allRunFor(
+                    spec,
+                    clprSubmitBundle()
+                            .channelId(channelId.toByteArray())
+                            .bundlePayload(queuedBundle)
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS),
+                    snapshot(2, 0, 0, 0, 0, 0));
+            assertReceived(spec, channelId, 2, runningHashAfter(ZERO_HASH, messages));
+            for (long id = 1; id <= 2; id++) {
+                final var reply =
+                        queueValue(spec, channelId, id).payloadOrThrow().messageReplyOrThrow();
+                assertEquals(id, reply.messageId());
+                assertEquals(com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus.SUCCESS, reply.status());
+            }
+        }));
     }
 
-    private static SpecOperation updatePayloadLimit(final int payloadLimit) {
+    private static SpecOperation setup() {
         return withOpContext((spec, log) -> {
-            final var current = spec.embeddedStateOrThrow()
-                    .getReadableStates(ClprService.NAME)
-                    .<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
-                    .get();
-            final var updated = pbjToProto(
-                            current.throttlesOrThrow(),
-                            com.hedera.hapi.node.state.clpr.ClprThrottles.class,
-                            ClprThrottles.class)
-                    .toBuilder()
-                    .setMaxMessagePayloadBytes(payloadLimit)
-                    .setMaxGasPerMessage(3_000_000L)
-                    .build();
-            allRunFor(spec, clprUpdateLedgerConfiguration().throttles(updated).payingWith(GENESIS));
+            allRunFor(
+                    spec,
+                    overriding("clpr.enabled", "true"),
+                    // No flat compensation: a connector balance debit proves execution gas was charged.
+                    overriding("clpr.messageExecutionCost", "0"),
+                    overriding("clpr.endpointMarginPercent", "0"));
+            allRunFor(
+                    spec,
+                    clprUpdateLedgerConfiguration()
+                            .throttles(pbjToProto(
+                                            readConfig(spec).throttlesOrThrow(),
+                                            com.hedera.hapi.node.state.clpr.ClprThrottles.class,
+                                            ClprThrottles.class)
+                                    .toBuilder()
+                                    .setMaxGasPerMessage(3_000_000L)
+                                    .build())
+                            .payingWith(GENESIS),
+                    uploadInitCode(APPLICATION, CONNECTOR, VERIFIER),
+                    contractCreate(APPLICATION, CONNECTOR_ID.toByteArray()).gas(2_000_000L),
+                    contractCreate(CONNECTOR).balance(ONE_HUNDRED_HBARS),
+                    contractCreate(VERIFIER).gas(2_000_000L));
         });
     }
 

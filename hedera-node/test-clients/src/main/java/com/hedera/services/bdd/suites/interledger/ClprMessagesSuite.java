@@ -134,7 +134,7 @@ public class ClprMessagesSuite {
     /** Queue depth limit installed on both networks; also checked by the config-proof freshness gate. */
     private static final int MAX_QUEUE_DEPTH = 10_000;
 
-    @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
+    @MultiNetworkHapiTest({@Network("threeMessageLedgerA"), @Network("threeMessageLedgerB")})
     @DisplayName("Multi-message CLPR: 3×7 messages with EchoApplication auto-sync round-trip")
     Stream<DynamicTest> multiMessageRoundTrip(final SubProcessNetwork netA, final SubProcessNetwork netB) {
         // ── Channel keypair ────────────────────────────────────────────────────────────────────

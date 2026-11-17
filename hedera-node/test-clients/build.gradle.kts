@@ -306,8 +306,11 @@ val prCheckDefaultOverrides =
             "clpr.enabled=true,accounts.clprAdmin=601,contracts.maxGasPerTransaction=15000000",
         "hapiTestClprEmbedded" to
             "clpr.enabled=true,accounts.clprAdmin=601,contracts.maxGasPerTransaction=15000000",
+        // Multinetwork cases install different bundle caps. Start below the smallest one at
+        // genesis.
         "hapiTestClprMultinetwork" to
-            "clpr.enabled=true,accounts.clprAdmin=601,contracts.maxGasPerTransaction=15000000",
+            "clpr.enabled=true,accounts.clprAdmin=601,contracts.maxGasPerTransaction=15000000," +
+                "clpr.ledgerConfigurationFile=${layout.projectDirectory.file("src/main/resources/testSystemFiles/clprMultinetworkGenesis.json").asFile.absolutePath}",
     )
 // -PhapiTestConfigProfile=pre-cutover (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks in the
 // pre-cutover world MATS ran before the defaults switched (used by XTS 829)

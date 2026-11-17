@@ -810,7 +810,7 @@ When a Response Message arrives on the source ledger:
 3. If the sender is an EOA (externally owned account), the response is recorded in the transaction record but
    no callback is made. The sender polls via mirror node or subscribes to transaction records.
 
-If a reply was queued before the source lowered its payload limit, the source may accept an
+If a legacy or external peer returns a reply above the source's payload limit, the source may accept an
 authenticated reply that no longer fits that limit. Its destination effects cannot be undone.
 Hiero preserves the attested status and instead calls this application hook without copying the
 oversized data into EVM calldata:

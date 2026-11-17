@@ -6,11 +6,11 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
+import static com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration.defaultThrottles;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
@@ -45,13 +45,8 @@ public class ClprLedgerConfigurationInitSuite {
         // Capture the genesis configuration before the update so we can verify immutable fields.
         final var genesisConfig = new AtomicReference<ClprLedgerConfiguration>();
 
-        final var updatedThrottles = ClprThrottles.newBuilder()
-                .setMaxMessagesPerBundle(200)
-                .setMaxMessagePayloadBytes(131_072) // 128 KB
-                .setMaxGasPerMessage(5_000_000L)
-                .setMaxQueueDepth(10_000)
-                .setMaxSyncBytes(2_097_152L) // 2 MB
-                .build();
+        final var updatedThrottles =
+                defaultThrottles().toBuilder().setMaxGasPerMessage(5_000_000L).build();
 
         return hapiTest(
 
@@ -67,7 +62,7 @@ public class ClprLedgerConfigurationInitSuite {
                 // Step 3: Query again and verify mutable fields persisted while immutable fields
                 //         (chain_id, protocol_version) were preserved from genesis.
                 clprGetLedgerConfiguration()
-                        .maxMessagesPerBundle(200)
+                        .maxMessagesPerBundle(updatedThrottles.getMaxMessagesPerBundle())
                         .maxQueueDepth(10_000)
                         .maxGasPerMessage(5_000_000L)
                         .exposingConfigTo(updatedConfig -> {

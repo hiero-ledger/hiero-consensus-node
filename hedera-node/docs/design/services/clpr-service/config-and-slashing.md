@@ -139,13 +139,15 @@ of them is rejected:
   and when `LEDGER_CONFIGURATION` does not exist yet (it is then seeded from the same file).
 - `max_gas_per_message` is capped at `contracts.maxGasPerTransaction` in both cases, and the
   throttles are validated like `CLPR_UPDATE_LEDGER_CONFIGURATION` validates them.
-- Local `max_queue_depth` is expand-only. Administrator transactions reject decreases with
-  `INVALID_CLPR_CONFIGURATION`; equal values are allowed, and increases must fit the positive
+- Local `max_queue_depth`, `max_message_payload_bytes`, `max_sync_bytes` and `max_messages_per_bundle`
+  are expand-only. Lowering any one rejects the entire admin transaction with
+  `INVALID_CLPR_CONFIGURATION`. Queue depth increases must also fit the positive
   `clpr.maxQueueDepthCeiling` (default 10,000). Lowering this ceiling does not shrink an existing
-  larger limit, but prevents further increases. Other throttle fields remain adjustable.
+  larger limit, but prevents further increases. Gas and endpoint limits remain adjustable.
 - Genesis caps `max_queue_depth` at the ceiling. Upgrade files use
   `max(existingDepth, min(fileDepth, ceiling))`, logging a warning if the requested value is lower
-  than existing credit. Such a request does not fail an upgrade. Comparison for a no-op uses these
+  than existing credit. For payload bytes, sync bytes and messages per bundle, an upgrade file
+  retains the greater of the existing and requested values independently. Comparison for a no-op uses these
   normalized throttles, so a file requesting only a decrease does not change the timestamp.
 - The file is node-local. As with `throttles.json`, every node must have an identical file, or
   nodes seed different state and ISS.

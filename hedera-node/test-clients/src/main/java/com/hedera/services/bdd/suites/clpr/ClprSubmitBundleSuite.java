@@ -15,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration.defaultThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -404,13 +405,7 @@ public class ClprSubmitBundleSuite {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
                 .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
-                .setThrottles(ClprThrottles.newBuilder()
-                        .setMaxMessagesPerBundle(100)
-                        .setMaxMessagePayloadBytes(65536)
-                        .setMaxGasPerMessage(1_000_000L)
-                        .setMaxQueueDepth(10_000)
-                        .setMaxSyncBytes(1_048_576L)
-                        .build())
+                .setThrottles(defaultThrottles())
                 .build();
     }
 }

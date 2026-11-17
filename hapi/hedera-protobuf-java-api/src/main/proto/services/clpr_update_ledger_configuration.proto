@@ -16,9 +16,10 @@ import "services/state/clpr/clpr_ledger_configuration.proto";
  * The handler auto-sets timestamp. The chain_id and protocol_version
  * fields are immutable (set at genesis from configuration properties)
  * and cannot be changed via this transaction.
- * The local max_queue_depth is non-decreasing. A decrease, or an increase above
- * clpr.maxQueueDepthCeiling, fails with INVALID_CLPR_CONFIGURATION at consensus.
- * An existing value above a subsequently lowered ceiling may remain unchanged.
+ * The local max_queue_depth, max_message_payload_bytes, max_sync_bytes and
+ * max_messages_per_bundle are non-decreasing. Lowering any one of them fails
+ * with INVALID_CLPR_CONFIGURATION at consensus. Queue depth increases must
+ * also fit clpr.maxQueueDepthCeiling. Existing credit survives a lower ceiling.
  */
 message ClprUpdateLedgerConfigurationTransactionBody {
     /**

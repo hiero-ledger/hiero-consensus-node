@@ -402,13 +402,16 @@ DRAINED as part of initiating the close.
   response callbacks. Repeated sends must reread current state and preserve connector quotas.
 - Each channel reserves replies using the current local limit `Q = max_queue_depth`.
   Total outbound depth must remain at most `2 * Q`.
-- The local queue limit is non-decreasing. Administrator decreases fail with
-  `INVALID_CLPR_CONFIGURATION` without changing any configuration field or timestamp; unchanged
-  values and increases up to `clpr.maxQueueDepthCeiling` succeed. Cover the ceiling boundary and
+- Local queue depth, payload bytes, sync bytes and messages per bundle are non-decreasing.
+  Lower each limit individually and expect `INVALID_CLPR_CONFIGURATION` with the full configuration
+  and timestamp preserved. Deliver an already assembled bundle containing a larger DATA head and
+  its smaller successor, and verify both executions, replies and the received running hash.
+  Unchanged values and increases succeed subject to the queue depth ceiling. Cover the ceiling boundary and
   an existing limit above a subsequently lowered ceiling: retain that credit but reject growth.
 - Genesis caps queue depth at the configured ceiling. Upgrade files retain existing queue credit
   when a smaller value is requested, cap new growth, and do not fail because of a requested decrease.
-  A normalized no-op must not change the timestamp; payload and other throttle changes still apply.
+  Retain payload bytes, sync bytes and messages per bundle independently. A normalized no-op must
+  preserve the timestamp. Apply increases and unrelated gas or endpoint changes.
 - Exercise saturated queues and raise-only governance changes with independently delayed config
   publication. With four local DATA outstanding at limit 5 and peer traffic
   `[DATA, DATA, DATA, REPLY1, REPLY2, REPLY3, REPLY4]`, bundle sizes 1–7 must progress and drain.
@@ -582,8 +585,7 @@ DRAINED as part of initiating the close.
   serialized reply budget. Its effects (including nested sends) roll back before an empty
   `APPLICATION_ERROR` is queued, while compensation and executed-gas charges remain. A fitting
   successful result commits; a genuine application revert also rolls back.
-- A peer queues a valid `SUCCESS` reply under the old limit, then the source lowers its payload
-  limit before receiving it. Acceptance preserves the attested hash, removes the original DATA
+- A legacy or external peer returns an attested `SUCCESS` reply above the source's payload limit. Acceptance preserves the attested hash, removes the original DATA
   and advances ACK. The application receives `onClprResponseUnavailable` with `SUCCESS`, and must
   not compensate for failed destination execution.
 - A fitting empty success uses the ordinary `onClprResponse` callback and is distinguishable from

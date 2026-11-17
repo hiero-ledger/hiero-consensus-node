@@ -78,6 +78,9 @@ message ClprLedgerConfiguration {
 
 /**
  * Capacity limits published in the ledger's configuration.
+ * On Hiero, max_message_payload_bytes, max_sync_bytes, max_messages_per_bundle
+ * and max_queue_depth can only grow. Peers can continue to deliver messages
+ * and bundles admitted under any configuration published since this rule took effect.
  */
 message ClprThrottles {
     /**

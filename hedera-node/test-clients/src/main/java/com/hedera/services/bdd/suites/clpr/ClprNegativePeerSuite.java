@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration.defaultThrottles;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -47,7 +48,6 @@ import com.hederahashgraph.api.proto.java.ClprMessageReply;
 import com.hederahashgraph.api.proto.java.ClprMessageReplyStatus;
 import com.hederahashgraph.api.proto.java.ClprQueueMetadata;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
-import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
@@ -347,12 +347,8 @@ public class ClprNegativePeerSuite {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
                 .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
-                .setThrottles(ClprThrottles.newBuilder()
-                        .setMaxMessagesPerBundle(100)
-                        .setMaxMessagePayloadBytes(65536)
-                        .setMaxGasPerMessage(1_000_000L)
+                .setThrottles(defaultThrottles().toBuilder()
                         .setMaxQueueDepth(maxQueueDepth)
-                        .setMaxSyncBytes(1_048_576L)
                         .build())
                 .build();
     }

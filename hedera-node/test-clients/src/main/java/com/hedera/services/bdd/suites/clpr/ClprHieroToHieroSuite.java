@@ -398,7 +398,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
     }
 
     @MultiNetworkLeakyHapiTest
-    @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
+    @MultiNetworkHapiTest({@Network("prefixLedgerA"), @Network("prefixLedgerB")})
     @DisplayName(
             "given both ledgers with a backlog larger than one bundle, then traffic both ways is delivered and acked")
     Stream<DynamicTest> givenBacklogsLargerThanOneBundleOnBothLedgers_thenTrafficBothWaysIsDeliveredAndAcked(
@@ -542,7 +542,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
     }
 
     @MultiNetworkLeakyHapiTest
-    @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
+    @MultiNetworkHapiTest({@Network("fourMessageLedgerA"), @Network("fourMessageLedgerB")})
     @DisplayName("Bundle at exactly maxMessagesPerBundle: 9 messages across multiple capped bundles all delivered")
     Stream<DynamicTest> bundleAtMaxMessagesPerBundle(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         // Probes the boundary check at ClprSubmitBundleHandler step 4:
@@ -713,7 +713,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
     }
 
     @MultiNetworkLeakyHapiTest
-    @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
+    @MultiNetworkHapiTest({@Network("growingCapLedgerA"), @Network("growingCapLedgerB")})
     @DisplayName("Config update mid-stream: bump maxMessagesPerBundle; bundles after the update ship larger")
     Stream<DynamicTest> configUpdateMidStreamBumpsBundleCap(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
