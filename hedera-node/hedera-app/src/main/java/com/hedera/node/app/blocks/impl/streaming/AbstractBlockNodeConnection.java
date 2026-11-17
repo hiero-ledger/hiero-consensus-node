@@ -13,10 +13,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,10 +25,6 @@ import org.apache.logging.log4j.Logger;
 public abstract class AbstractBlockNodeConnection extends BlockStreamingBase implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
-    /**
-     * Default timeout for connection management operations (e.g. connection create).
-     */
-    private static final long DEFAULT_CONNECTION_MANAGEMENT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(3);
     /**
      * The block node configuration.
      */
@@ -97,15 +91,10 @@ public abstract class AbstractBlockNodeConnection extends BlockStreamingBase imp
     }
 
     /**
-     * @return the connection management timeout in milliseconds
+     * @return the connection type
      */
-    final long connectionManagementTimeoutMillis() {
-        final Duration configValue = bncConfig().connectionManagementTimeout();
-        if (configValue == null || !configValue.isPositive()) {
-            return DEFAULT_CONNECTION_MANAGEMENT_TIMEOUT_MILLIS;
-        } else {
-            return configValue.toMillis();
-        }
+    final @NonNull ConnectionType connectionType() {
+        return type;
     }
 
     /**
