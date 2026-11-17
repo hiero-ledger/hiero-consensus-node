@@ -104,6 +104,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -625,6 +626,89 @@ class SystemTransactionsTest {
     }
 
     @Test
+    void genesisSetupDropsDuplicateAssociationsAndThosePastTheMaximum() {
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(NodeMetadata.newBuilder()
+                        .node(Node.newBuilder()
+                                .nodeId(0L)
+                                .associatedRegisteredNode(List.of(101L, 100L, 101L, 102L))
+                                .build())
+                        .build()))
+                .registeredNodes(List.of(registeredNode(100L), registeredNode(101L), registeredNode(102L)))
+                .build();
+
+        final var dispatches = doGenesisSetupWith(
+                network, HederaTestConfigBuilder.create().withValue("nodes.maxAssociatedRegisteredNodes", 2));
+
+        assertEquals(
+                3,
+                dispatches.stream()
+                        .filter(d -> d.body().hasRegisteredNodeCreate())
+                        .count());
+        final var nodeCreate = dispatches.stream()
+                .filter(d -> d.body().hasNodeCreate())
+                .findFirst()
+                .orElseThrow()
+                .body()
+                .nodeCreateOrThrow();
+        // The duplicate of 101 is dropped, and then 102 is past the maximum of two associations
+        assertEquals(List.of(101L, 100L), nodeCreate.associatedRegisteredNode());
+    }
+
+    @Test
+    void transplantDropsDuplicateAssociationsAndThosePastTheMaximum() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("nodes.maxAssociatedRegisteredNodes", 2)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(
+                        NodeMetadata.newBuilder()
+                                .rosterEntry(RosterEntry.newBuilder().nodeId(0L).build())
+                                .node(Node.newBuilder()
+                                        .nodeId(0L)
+                                        .associatedRegisteredNode(List.of(101L, 100L, 101L, 102L))
+                                        .build())
+                                .build(),
+                        NodeMetadata.newBuilder()
+                                .rosterEntry(RosterEntry.newBuilder().nodeId(1L).build())
+                                .node(Node.newBuilder()
+                                        .nodeId(1L)
+                                        .associatedRegisteredNode(List.of(102L, 102L))
+                                        .build())
+                                .build()))
+                .registeredNodes(List.of(registeredNode(100L), registeredNode(101L), registeredNode(102L)))
+                .build();
+        final Map<Long, RegisteredNode> registeredNodesInState = new HashMap<>();
+        registeredNodesInState.put(100L, registeredNode(100L));
+        registeredNodesInState.put(101L, registeredNode(101L));
+        registeredNodesInState.put(102L, registeredNode(102L));
+
+        final var dispatches = doTransplantWith(
+                network, Map.of(0L, Node.newBuilder().nodeId(0L).build()), registeredNodesInState, 102L);
+
+        // Existing node 0 is updated with its duplicate of 101 dropped, and then with 102 past the maximum dropped
+        final var nodeUpdate = dispatches.stream()
+                .filter(d -> d.body().hasNodeUpdate())
+                .findFirst()
+                .orElseThrow()
+                .body()
+                .nodeUpdateOrThrow();
+        assertEquals(0L, nodeUpdate.nodeId());
+        assertEquals(
+                List.of(101L, 100L),
+                nodeUpdate.associatedRegisteredNodeListOrThrow().associatedRegisteredNode());
+        // New node 1 is created with its duplicate of 102 dropped
+        final var nodeCreation = dispatches.stream()
+                .filter(d -> d.body().hasNodeCreate())
+                .findFirst()
+                .orElseThrow();
+        assertEquals(1L, nodeCreation.entityNum());
+        assertEquals(List.of(102L), nodeCreation.body().nodeCreateOrThrow().associatedRegisteredNode());
+    }
+
+    @Test
     void transplantReconcilesRegisteredNodesAroundConsensusNodeChanges() {
         final var updatedRegisteredNode100 =
                 registeredNode(100L).copyBuilder().description("updated").build();
@@ -685,7 +769,7 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void transplantLeavesRegisteredNodesAndAssociationsAloneIfOverrideListsNoRegisteredNodes() {
+    void transplantDeletesAllRegisteredNodesIfOverrideListsNoRegisteredNodes() {
         final var network = Network.newBuilder()
                 .nodeMetadata(List.of(NodeMetadata.newBuilder()
                         .rosterEntry(RosterEntry.newBuilder().nodeId(0L).build())
@@ -694,6 +778,42 @@ class SystemTransactionsTest {
                                 .associatedRegisteredNode(List.of(100L))
                                 .build())
                         .build()))
+                .build();
+        final Map<Long, RegisteredNode> registeredNodesInState = new HashMap<>();
+        registeredNodesInState.put(100L, registeredNode(100L));
+        registeredNodesInState.put(101L, registeredNode(101L));
+
+        final var dispatches = doTransplantWith(
+                network, Map.of(0L, Node.newBuilder().nodeId(0L).build()), registeredNodesInState, 101L);
+
+        assertEquals(3, dispatches.size());
+        // The consensus node's associations are cleared first, since none of its registered nodes will remain...
+        final var nodeUpdate = dispatches.getFirst().body().nodeUpdateOrThrow();
+        assertEquals(0L, nodeUpdate.nodeId());
+        assertEquals(List.of(), nodeUpdate.associatedRegisteredNodeListOrThrow().associatedRegisteredNode());
+        // ...and then every registered node in state is deleted
+        assertEquals(
+                100L, dispatches.get(1).body().registeredNodeDeleteOrThrow().registeredNodeId());
+        assertEquals(
+                101L, dispatches.get(2).body().registeredNodeDeleteOrThrow().registeredNodeId());
+    }
+
+    @Test
+    void transplantLeavesRegisteredNodesAndAssociationsAloneWhileDisabled() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("nodes.registeredNodesEnabled", false)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        final var network = Network.newBuilder()
+                .nodeMetadata(List.of(NodeMetadata.newBuilder()
+                        .rosterEntry(RosterEntry.newBuilder().nodeId(0L).build())
+                        .node(Node.newBuilder()
+                                .nodeId(0L)
+                                .associatedRegisteredNode(List.of(100L))
+                                .build())
+                        .build()))
+                .registeredNodes(List.of(registeredNode(101L)))
                 .build();
         final Map<Long, RegisteredNode> registeredNodesInState = new HashMap<>();
         registeredNodesInState.put(100L, registeredNode(100L));
@@ -1339,10 +1459,15 @@ class SystemTransactionsTest {
     }
 
     private List<Dispatched> doGenesisSetupWith(@NonNull final Network network, final boolean registeredNodesEnabled) {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
-                .withValue("nodes.registeredNodesEnabled", registeredNodesEnabled)
-                .getOrCreateConfig();
+        return doGenesisSetupWith(
+                network,
+                HederaTestConfigBuilder.create().withValue("nodes.registeredNodesEnabled", registeredNodesEnabled));
+    }
+
+    private List<Dispatched> doGenesisSetupWith(
+            @NonNull final Network network, @NonNull final TestConfigBuilder configBuilder) {
+        final var config =
+                configBuilder.withValue("blockStream.streamMode", "BLOCKS").getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(startupNetworks.genesisNetworkOrThrow(any())).willReturn(network);
         given(state.getReadableStates(any())).willReturn(mock(ReadableStates.class));

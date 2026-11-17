@@ -413,6 +413,8 @@ public class SystemTransactions {
             genesisRegisteredNodeIds.add(registeredNode.registeredNodeId());
         }
         final var registeredNodeIdsInState = registeredNodeIdsInState(state, genesisRegisteredNodeIds);
+        final var maxAssociatedRegisteredNodes =
+                config.getConfigData(NodesConfig.class).maxAssociatedRegisteredNodes();
         final Map<Long, List<Long>> genesisAssociations = genesisNetwork
                 .map(network -> network.nodeMetadata().stream()
                         .filter(NodeMetadata::hasNode)
@@ -436,7 +438,8 @@ public class SystemTransactions {
             final var associatedRegisteredNodes = associationsIn(
                     registeredNodeIdsInState,
                     nodeInfo.nodeId(),
-                    genesisAssociations.getOrDefault(nodeInfo.nodeId(), List.of()));
+                    genesisAssociations.getOrDefault(nodeInfo.nodeId(), List.of()),
+                    maxAssociatedRegisteredNodes);
             onSuccess.set(dispatch -> {
                 final var stack = dispatch.stack();
                 final var writableStakingInfoStore = new WritableStakingInfoStore(
@@ -813,11 +816,12 @@ public class SystemTransactions {
                     .map(RosterEntry::nodeId)
                     .toList();
             // Create or update the override network's registered nodes before any consensus node that may
-            // associate them; if the override network lists no registered nodes, leave those in state as is
+            // associate them; while registered nodes are enabled, the override network's list is authoritative,
+            // so an empty list means every registered node in state will be deleted
             final var config = configProvider.getConfiguration();
             final var overrideRegisteredNodes = network.get().registeredNodes();
-            final var reconcileRegisteredNodes = !overrideRegisteredNodes.isEmpty()
-                    && config.getConfigData(NodesConfig.class).registeredNodesEnabled();
+            final var reconcileRegisteredNodes =
+                    config.getConfigData(NodesConfig.class).registeredNodesEnabled();
             final Set<Long> consensusNodeIds = new HashSet<>(overrideNodes);
             network.get().nodeMetadata().stream()
                     .filter(NodeMetadata::hasNode)
@@ -856,13 +860,18 @@ public class SystemTransactions {
             final var associableRegisteredNodeIds = reconcileRegisteredNodes
                     ? registeredNodeIdsInState(state, overrideRegisteredNodeIds)
                     : registeredNodeIdsInState(state, nodeIdsUpToNext(state));
+            final var maxAssociatedRegisteredNodes =
+                    config.getConfigData(NodesConfig.class).maxAssociatedRegisteredNodes();
             for (final var meta : network.get().nodeMetadata()) {
                 final var node = meta.node();
                 if (node == null) {
                     continue;
                 }
-                final var associatedRegisteredNodes =
-                        associationsIn(associableRegisteredNodeIds, node.nodeId(), node.associatedRegisteredNode());
+                final var associatedRegisteredNodes = associationsIn(
+                        associableRegisteredNodeIds,
+                        node.nodeId(),
+                        node.associatedRegisteredNode(),
+                        maxAssociatedRegisteredNodes);
                 final var currentNode = nodeStore.get(node.nodeId());
                 if (currentNode == null || currentNode.deleted()) {
                     // Node is new in the override roster, dispatch a node creation transaction
@@ -1047,16 +1056,22 @@ public class SystemTransactions {
 
     /**
      * Returns the given consensus node's associations with registered nodes, dropping (with a warning) any
-     * association with a registered node not in the given set; so a consensus node is never left uncreated or
-     * un-updated just because its startup network entry references a missing registered node.
+     * association with a registered node not in the given set, any duplicate association, and any association
+     * past the given maximum; so a consensus node is never left uncreated or un-updated just because its startup
+     * network entry has an association the node create and update handlers would reject.
      *
      * @param registeredNodeIds the ids of the registered nodes that may be associated
      * @param nodeId the consensus node id
      * @param associations the consensus node's associations from the startup network
-     * @return the associations with registered nodes in the given set, in their original order
+     * @param maxAssociations the maximum number of associations a consensus node may have
+     * @return the first {@code maxAssociations} distinct associations with registered nodes in the given set,
+     * in their original order
      */
     private static List<Long> associationsIn(
-            @NonNull final Set<Long> registeredNodeIds, final long nodeId, @NonNull final List<Long> associations) {
+            @NonNull final Set<Long> registeredNodeIds,
+            final long nodeId,
+            @NonNull final List<Long> associations,
+            final int maxAssociations) {
         final var present =
                 associations.stream().filter(registeredNodeIds::contains).toList();
         if (present.size() < associations.size()) {
@@ -1067,7 +1082,19 @@ public class SystemTransactions {
                             .filter(id -> !registeredNodeIds.contains(id))
                             .toList());
         }
-        return present;
+        final var distinct = present.stream().distinct().toList();
+        if (distinct.size() < present.size()) {
+            log.warn("Dropping duplicate association(s) of node{} in {}", nodeId, present);
+        }
+        if (distinct.size() > maxAssociations) {
+            log.warn(
+                    "Dropping association(s) of node{} with registered node(s) {} past the maximum of {}",
+                    nodeId,
+                    distinct.subList(maxAssociations, distinct.size()),
+                    maxAssociations);
+            return distinct.subList(0, maxAssociations);
+        }
+        return distinct;
     }
 
     private void maybeWriteGenesisTssPrivateKeys(@NonNull final Configuration config) {

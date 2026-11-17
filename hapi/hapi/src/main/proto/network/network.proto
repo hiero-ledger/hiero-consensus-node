@@ -87,10 +87,11 @@ message Network {
    * that a consensus node's `associated_registered_node` list MAY reference it.
    * <p>
    * On a network transplant, each listed registered node SHALL be created if
-   * absent from state, or updated to match if present. If this list is not
-   * empty, each registered node in state but not in this list SHALL be deleted.
-   * If this list is empty, registered nodes and consensus node associations
-   * already in state SHALL be left unchanged.
+   * absent from state, or updated to match if present; and each registered
+   * node in state but not in this list SHALL be deleted. So if this list is
+   * empty, every registered node in state SHALL be deleted. Each consensus
+   * node updated by the transplant SHALL have its associations set to those
+   * of its `associated_registered_node` list that are in this list.
    * <p>
    * Registered node identifiers share an identifier space with consensus
    * nodes, so a `registered_node_id` MUST NOT match the node id of any
