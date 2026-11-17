@@ -43,6 +43,8 @@ public final class ProofBytes {
     /**
      * Left-pads {@code value} to 32 bytes with leading zeros.
      *
+     * @param value the value to left-pad
+     * @param name the name of the value to use in error messages
      * @throws ProofException if {@code value} is longer than 32 bytes
      */
     public static byte[] leftPad32(final byte[] value, final String name) {

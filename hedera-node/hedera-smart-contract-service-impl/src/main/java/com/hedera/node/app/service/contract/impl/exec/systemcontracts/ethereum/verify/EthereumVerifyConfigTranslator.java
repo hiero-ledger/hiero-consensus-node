@@ -25,8 +25,8 @@ import org.apache.logging.log4j.Logger;
  * <p>One selector, mirroring the Hiero verifier (spec §4.8):
  * <ul>
  *   <li>{@code VERIFY_CONFIG} (context + manifest): {@code verifyConfig(bytes,bytes32,bytes)} ->
- *       config fields + {@code ClprEndpointManifest}. For Ethereum the third argument is the manifest
- *       <b>raw bytes</b> (self-described at bootstrap), not a state proof.</li>
+ *       config fields + {@code ClprEndpointManifest}. For Ethereum, the third argument is a sync-committee
+ *       proof of the manifest commitment in the peer's CLPR service storage, or empty.</li>
  * </ul>
  */
 @Singleton
@@ -35,7 +35,7 @@ public class EthereumVerifyConfigTranslator extends AbstractCallTranslator<Ether
 
     // Endpoint manifest with channel context: verifyConfig(bytes,bytes32,bytes) -> config fields +
     // ClprEndpointManifest.
-    // For Ethereum the third argument is the manifest raw bytes (self-described), not a state proof.
+    // For Ethereum the third argument is a sync-committee proof of the manifest, or empty.
     public static final SystemContractMethod VERIFY_CONFIG = SystemContractMethod.declare(
                     "verifyConfig(bytes,bytes32,bytes)", ClprVerifierAbi.VERIFY_CONFIG_OUTPUTS)
             .withCategories(Category.ETHEREUM);

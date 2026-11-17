@@ -260,10 +260,10 @@ public class ClprEthSyncCommitteeVerifierSuite {
     }
 
     /**
-     * completeChannel with the peer endpoint manifest supplied as
-     * the config path's {@code endpoint_manifest_proof_bytes} (raw {@code ClprEndpointManifest} bytes, spec §4.8).
+     * completeChannel with a proof of the peer endpoint manifest supplied as the config path's
+     * {@code endpoint_manifest_proof_bytes} (a sync-committee proof of the manifest commitment, spec §4.8).
      * Exercises 0, 1, and N (3) manifest endpoints — each on a fresh channel — and asserts the resulting
-     * Channel's {@code endpoint_manifest_version >= 1} and that its stored endpoints match the supplied manifest.
+     * Channel's {@code endpoint_manifest_version >= 1} and that its stored endpoints match the proven manifest.
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
@@ -290,12 +290,13 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     .signatureScheme(ClprSignatureScheme.ED25519)
                     .verifierContractId(ETH_VERIFIER)
                     .configProofBytes(SyncCommitteeProofs.configPayload())
-                    .endpointManifestProofBytes(SyncCommitteeProofs.manifestBytes(1L, count))
+                    .endpointManifestProofBytes(
+                            SyncCommitteeProofs.configManifestProof(SyncCommitteeProofs.manifestBytes(1L, count)))
                     .payingWith(GENESIS));
             ops.add(withOpContext((spec, opLog) -> {
                 final var conn = readChannelFromState(spec, crypto);
                 assertEquals(ClprChannelStatus.ACTIVE, conn.status(), "channel should be ACTIVE");
-                assertEquals(1L, conn.endpointManifestVersion(), "endpoint_manifest_version should be the supplied 1");
+                assertEquals(1L, conn.endpointManifestVersion(), "endpoint_manifest_version should be the proven 1");
                 assertTrue(conn.endpointManifestVersion() >= 1L, "endpoint_manifest_version should be >= 1");
                 assertManifestEndpoints(conn, count);
             }));
@@ -342,8 +343,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
     }
 
     /**
-     * A manifest whose {@code service_address} does not match the config's service address violates spec §4.8, so the
-     * Ethereum verifier rejects it inside {@code verifyConfig} and completeChannel reverts with
+     * A proven manifest whose {@code service_address} does not match the config's service address violates spec §4.8,
+     * so the Ethereum verifier rejects it inside {@code verifyConfig} and completeChannel reverts with
      * {@code CLPR_VERIFIER_CONFIG_FAILED}.
      */
     @LeakyEmbeddedHapiTest(
@@ -365,7 +366,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
                         .signatureScheme(ClprSignatureScheme.ED25519)
                         .verifierContractId(ETH_VERIFIER)
                         .configProofBytes(SyncCommitteeProofs.configPayload())
-                        .endpointManifestProofBytes(SyncCommitteeProofs.manifestBytesBadServiceAddress())
+                        .endpointManifestProofBytes(SyncCommitteeProofs.configManifestProof(
+                                SyncCommitteeProofs.manifestBytesBadServiceAddress()))
                         .payingWith(GENESIS)
                         .hasKnownStatus(CLPR_VERIFIER_CONFIG_FAILED));
     }
