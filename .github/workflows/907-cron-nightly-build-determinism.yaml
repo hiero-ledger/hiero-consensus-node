@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "907: [CRON] Nightly Build Determinism"
+# Verifies that the Gradle and Docker builds of main are reproducible, once a day. These checks used to run on every
+# push to main (about 12 verify jobs per push, about 130 runner hours a week); a determinism break rarely comes from a
+# single commit, so a daily run finds it within a day at a fraction of the cost. Release branches still run them on
+# every push through 300. A failure is reported to the detailed CITR reports Slack channel.
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to verify (default: the selected branch)."
+        type: string
+        required: false
+        default: ""
+
+defaults:
+  run:
+    shell: bash
+
+# Same permissions as the called 822 and 823 workflows require
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: nightly-build-determinism-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    if: ${{ github.event.repository.visibility == 'public' }}
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  gradle-determinism:
+    name: Gradle Determinism
+    needs:
+      - extract-jdk-version
+    uses: ./.github/workflows/823-call-verify-gradle-determinism.yaml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      java-distribution: "temurin"
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  docker-determinism:
+    name: Docker Determinism
+    needs:
+      - extract-jdk-version
+    uses: ./.github/workflows/822-call-verify-docker-determinism.yaml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+      java-distribution: "temurin"
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+  report-failure:
+    name: Report Failure to Slack
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - gradle-determinism
+      - docker-determinism
+    if: >-
+      ${{ always() && github.event_name == 'schedule' &&
+      (needs.gradle-determinism.result == 'failure' || needs.docker-determinism.result == 'failure') }}
+    steps:
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "false"
+
+      - name: Report to Detailed Test Reports Channel
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload: |
+            {"text": ":x: Nightly build determinism failed on `${{ github.ref_name }}` (Gradle: ${{ needs.gradle-determinism.result }}, Docker: ${{ needs.docker-determinism.result }})\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View run>"}
