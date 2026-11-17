@@ -313,6 +313,7 @@ final class ReconnectTest {
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                false);
     }
 }

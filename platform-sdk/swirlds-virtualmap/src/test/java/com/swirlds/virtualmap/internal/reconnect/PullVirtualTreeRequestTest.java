@@ -135,10 +135,43 @@ class PullVirtualTreeRequestTest {
         final byte[] bytes = new byte[64];
         final BufferedData out = BufferedData.wrap(bytes);
         ProtoWriterTools.writeLong(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_PATH, 3);
-        ProtoWriterTools.writeBytes(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_HASH_PREFIX, hash.getBytes());
+        // neither a prefix nor a full hash
+        ProtoWriterTools.writeBytes(
+                out,
+                PullVirtualTreeRequest.FIELD_PULLREQUEST_HASH_PREFIX,
+                hash.getBytes().slice(0, PullVirtualTreeRequest.HASH_PREFIX_LENGTH + 4));
         final BufferedData in = BufferedData.wrap(bytes, 0, (int) out.position());
 
         assertThrows(IllegalArgumentException.class, () -> PullVirtualTreeRequest.parseFrom(in));
+    }
+
+    @Test
+    @DisplayName("Round-trip serialization with a full hash")
+    void roundTripFullHash() {
+        final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
+        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(42, hash, true);
+
+        final byte[] bytes = new byte[original.getSizeInBytes()];
+        original.writeTo(BufferedData.wrap(bytes));
+        final PullVirtualTreeRequest deserialized = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(bytes));
+
+        assertEquals(42, deserialized.path());
+        assertArrayEquals(hash.copyToByteArray(), deserialized.hashPrefix().toByteArray());
+        // path: tag + fixed64; hash: tag + length + hash bytes
+        assertEquals(1 + Long.BYTES + 1 + 1 + PullVirtualTreeRequest.FULL_HASH_LENGTH, original.getSizeInBytes());
+    }
+
+    @Test
+    @DisplayName("A full hash matches only the same hash, even if only the last byte differs")
+    void fullHashMatches() {
+        final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
+        final PullVirtualTreeRequest request = new PullVirtualTreeRequest(5, hash, true);
+
+        assertTrue(request.matches(new Hash(hash.copyToByteArray(), Cryptography.DEFAULT_DIGEST_TYPE)));
+
+        final byte[] lastByteChanged = hash.copyToByteArray();
+        lastByteChanged[lastByteChanged.length - 1] ^= 1;
+        assertFalse(request.matches(new Hash(lastByteChanged, Cryptography.DEFAULT_DIGEST_TYPE)));
     }
 
     @Test

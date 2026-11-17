@@ -35,6 +35,9 @@ import org.hiero.base.crypto.Hash;
  * for that. If a prefix ever matched for different hashes, the learner would keep a stale subtree, and
  * the reconnected state would fail validation against the teacher's signed root hash, so a wrong state is never accepted.
  *
+ * <p>A request may also carry the full hash. The learner sends full hashes when an earlier reconnect from the same
+ * state wasn't accepted, so a crafted prefix collision can make at most one reconnect attempt fail.
+ *
  * <p>Protobuf schema:
  *
  * <pre>
@@ -45,9 +48,9 @@ import org.hiero.base.crypto.Hash;
  * </pre>
  *
  * @param path virtual node path
- * @param hashPrefix the first {@link #HASH_PREFIX_LENGTH} bytes of the virtual node hash on the learner. If a
- *     node with the given path does not exist on the learner (path is outside of range), the prefix of
- *     {@link Cryptography#NULL_HASH} is used
+ * @param hashPrefix the first {@link #HASH_PREFIX_LENGTH} bytes of the virtual node hash on the learner, or the
+ *     full hash. If a node with the given path does not exist on the learner (path is outside of range), the
+ *     prefix of {@link Cryptography#NULL_HASH} is used
  */
 public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
 
@@ -55,6 +58,11 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
      * The number of leading hash bytes sent in a request.
      */
     public static final int HASH_PREFIX_LENGTH = 16;
+
+    /**
+     * The length of a full hash.
+     */
+    public static final int FULL_HASH_LENGTH = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
 
     static final FieldDefinition FIELD_PULLREQUEST_PATH = new FieldDefinition("path", FieldType.FIXED64, false, 1);
     static final FieldDefinition FIELD_PULLREQUEST_HASH_PREFIX =
@@ -64,30 +72,39 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
      * Creates a request with a hash prefix.
      *
      * @param path the virtual node path
-     * @param hashPrefix the hash prefix
+     * @param hashPrefix the hash prefix, or the full hash
      */
     public PullVirtualTreeRequest {
         Objects.requireNonNull(hashPrefix, "hashPrefix");
-        assert hashPrefix.length() == HASH_PREFIX_LENGTH;
+        assert isValidLength(hashPrefix.length());
     }
 
     /**
-     * This constructor is used by the learner to send requests to the teacher. Only the first
-     * {@link #HASH_PREFIX_LENGTH} bytes of the hash are kept.
+     * Creates a request with the first {@link #HASH_PREFIX_LENGTH} bytes of the given hash.
      *
      * @param path the virtual node path
      * @param hash the virtual node hash on the learner
      */
     public PullVirtualTreeRequest(final long path, @NonNull final Hash hash) {
-        this(path, hash.getBytes().slice(0, HASH_PREFIX_LENGTH));
+        this(path, hash, false);
+    }
+
+    /**
+     * This constructor is used by the learner to send requests to the teacher.
+     *
+     * @param path the virtual node path
+     * @param hash the virtual node hash on the learner
+     * @param fullHash whether to send the full hash rather than its first {@link #HASH_PREFIX_LENGTH} bytes
+     */
+    public PullVirtualTreeRequest(final long path, @NonNull final Hash hash, final boolean fullHash) {
+        this(path, fullHash ? hash.getBytes() : hash.getBytes().slice(0, HASH_PREFIX_LENGTH));
     }
 
     /**
      * Checks whether the hash prefix in this request matches the given hash.
      *
      * @param hash the hash to compare with, usually the teacher's hash of the node at this request's path
-     * @return true if the hash prefix in this request is equal to the first {@link #HASH_PREFIX_LENGTH} bytes of
-     *     the given hash
+     * @return true if the hash prefix in this request is equal to the given hash's bytes of the same length
      */
     public boolean matches(@NonNull final Hash hash) {
         return hash.getBytes().matchesPrefix(hashPrefix);
@@ -103,7 +120,7 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
         if (path != 0) {
             size += sizeOfTag(FIELD_PULLREQUEST_PATH) + Long.BYTES;
         }
-        size += sizeOfDelimited(FIELD_PULLREQUEST_HASH_PREFIX, HASH_PREFIX_LENGTH);
+        size += sizeOfDelimited(FIELD_PULLREQUEST_HASH_PREFIX, (int) hashPrefix.length());
         return size;
     }
 
@@ -148,7 +165,7 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
                     throw new IllegalArgumentException("Wrong wire type for hash prefix field: " + field);
                 }
                 hashPrefix = readBytes(in);
-                if (hashPrefix.length() != HASH_PREFIX_LENGTH) {
+                if (!isValidLength(hashPrefix.length())) {
                     throw new IllegalArgumentException("Wrong hash prefix length: " + hashPrefix.length());
                 }
             } else {
@@ -160,5 +177,9 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
             throw new IllegalArgumentException("Missing hash prefix, path=" + path);
         }
         return new PullVirtualTreeRequest(path, hashPrefix);
+    }
+
+    private static boolean isValidLength(final long length) {
+        return (length == HASH_PREFIX_LENGTH) || (length == FULL_HASH_LENGTH);
     }
 }

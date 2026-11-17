@@ -19,6 +19,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -86,6 +87,12 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
     /**
+     * The round of the learner state from which the last reconnect as the learner received a state, or -1. Shared
+     * by the protocol instances of all peers.
+     */
+    private final AtomicLong lastReceivedFromRound;
+
+    /**
      * Creates a new reconnect protocol instance.
      *
      * @param configuration the platform configuration
@@ -101,6 +108,8 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param platformStatusSupplier provides the platform status
      * @param reservedSignedStateResultProvider a mechanism to get a SignedState or block while it is not available
      * @param stateLifecycleManager the state lifecycle manager
+     * @param lastReceivedFromRound the round of the learner state from which the last reconnect as the learner
+     *     received a state, or -1
      */
     public ReconnectStatePeerProtocol(
             @NonNull final Configuration configuration,
@@ -115,7 +124,8 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider,
-            @NonNull final StateLifecycleManager stateLifecycleManager) {
+            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final AtomicLong lastReceivedFromRound) {
 
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
@@ -129,6 +139,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         this.platformStatusSupplier = requireNonNull(platformStatusSupplier);
         this.reservedSignedStateResultProvider = requireNonNull(reservedSignedStateResultProvider);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
+        this.lastReceivedFromRound = requireNonNull(lastReceivedFromRound);
 
         final Duration minimumTimeBetweenReconnects =
                 configuration.getConfigData(ReconnectConfig.class).minimumTimeBetweenReconnects();
@@ -289,6 +300,18 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private void learner(final Connection connection) {
         try {
             final VirtualMapState consensusState = stateLifecycleManager.getMutableState();
+            final long round = roundOf(consensusState);
+            // A received state that is accepted replaces the learner's state with a newer round. So if an earlier
+            // reconnect from this same round received a state, that state wasn't accepted. Requests carry hash
+            // prefixes, and someone who controls a leaf's contents could craft two values whose hashes share a
+            // prefix, which would make every reconnect from this state fail. Send full hashes instead.
+            final boolean fullHashes = lastReceivedFromRound.get() == round;
+            if (fullHashes) {
+                logger.warn(
+                        RECONNECT.getMarker(),
+                        "A state received earlier by a reconnect from round {} wasn't accepted, sending full hashes",
+                        round);
+            }
             final ReconnectStateLearner learner = new ReconnectStateLearner(
                     configuration,
                     metrics,
@@ -297,25 +320,31 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     consensusState,
                     reconnectSocketTimeout,
                     reconnectMetrics,
-                    stateLifecycleManager);
+                    stateLifecycleManager,
+                    fullHashes);
 
-            logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
-                            "Starting reconnect in the role of the receiver",
-                            true,
-                            connection.getSelfId().id(),
-                            connection.getOtherId().id(),
-                            roundOf(consensusState))
-                    .toString());
+            logger.info(
+                    RECONNECT.getMarker(),
+                    () -> new ReconnectStartPayload(
+                                    "Starting reconnect in the role of the receiver",
+                                    true,
+                                    connection.getSelfId().id(),
+                                    connection.getOtherId().id(),
+                                    roundOf(consensusState))
+                            .toString());
 
             final ReservedSignedState reservedSignedState = learner.execute();
+            lastReceivedFromRound.set(round);
 
-            logger.info(RECONNECT.getMarker(), () -> new ReconnectFinishPayload(
-                            "Finished reconnect in the role of the receiver",
-                            true,
-                            connection.getSelfId().id(),
-                            connection.getOtherId().id(),
-                            reservedSignedState.get().getRound())
-                    .toString());
+            logger.info(
+                    RECONNECT.getMarker(),
+                    () -> new ReconnectFinishPayload(
+                                    "Finished reconnect in the role of the receiver",
+                                    true,
+                                    connection.getSelfId().id(),
+                                    connection.getOtherId().id(),
+                                    reservedSignedState.get().getRound())
+                            .toString());
             final var debugHashDepth =
                     configuration.getConfigData(StateConfig.class).debugHashDepth();
             logger.info(

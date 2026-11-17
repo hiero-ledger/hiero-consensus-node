@@ -305,6 +305,45 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
     }
 
     @Test
+    @Tags({@Tag("VirtualMerkle"), @Tag("Reconnect")})
+    @DisplayName("Reconnect with full hashes instead of hash prefixes")
+    void reconnectWithFullHashes() throws Exception {
+        for (int i = 0; i < 200; i++) {
+            final Bytes key = TestKey.longToKey(i);
+            teacherMap.put(key, new TestValue("value" + i), TestValueCodec.INSTANCE);
+            learnerMap.put(key, new TestValue("value" + i), TestValueCodec.INSTANCE);
+        }
+        // Most of the tree stays clean. Change, remove and add a few leaves on the teacher
+        for (int i = 0; i < 200; i += 20) {
+            teacherMap.put(TestKey.longToKey(i), new TestValue("changed" + i), TestValueCodec.INSTANCE);
+        }
+        teacherMap.remove(TestKey.longToKey(7));
+        teacherMap.put(TestKey.longToKey(1000), new TestValue("value1000"), TestValueCodec.INSTANCE);
+
+        final VirtualMap copy = teacherMap.copy();
+        teacherMap.reserve();
+        learnerMap.reserve();
+
+        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, configuration, true);
+
+        assertEquals(
+                "changed20",
+                afterMap.get(TestKey.longToKey(20), TestValueCodec.INSTANCE).getValue());
+        assertEquals(
+                "value21",
+                afterMap.get(TestKey.longToKey(21), TestValueCodec.INSTANCE).getValue());
+        assertNull(afterMap.get(TestKey.longToKey(7), TestValueCodec.INSTANCE));
+        assertEquals(
+                "value1000",
+                afterMap.get(TestKey.longToKey(1000), TestValueCodec.INSTANCE).getValue());
+
+        afterMap.release();
+        teacherMap.release();
+        learnerMap.release();
+        copy.release();
+    }
+
+    @Test
     void metricsAfterReconnect() throws Exception {
         final MetricsConfig metricsConfig = DEFAULT_CONFIGURATION.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);

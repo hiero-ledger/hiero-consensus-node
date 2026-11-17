@@ -9,6 +9,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
@@ -38,6 +39,8 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise;
     private final StateLifecycleManager stateLifecycleManager;
+    /** See {@link ReconnectStatePeerProtocol} */
+    private final AtomicLong lastReceivedFromRound = new AtomicLong(-1);
 
     public ReconnectStateSyncProtocol(
             @NonNull final Configuration configuration,
@@ -81,7 +84,8 @@ public class ReconnectStateSyncProtocol implements Protocol {
                 fallenBehindManager,
                 platformStatus::get,
                 reservedSignedStateResultPromise,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                lastReceivedFromRound);
     }
 
     @Override

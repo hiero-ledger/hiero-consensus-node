@@ -82,6 +82,7 @@ public class ReconnectStateLearner {
      * @param reconnectSocketTimeout the amount of time that should be used for the socket timeout
      * @param statistics reconnect metrics
      * @param stateLifecycleManager the state lifecycle manager
+     * @param fullHashes whether to send full node hashes to the teacher rather than hash prefixes
      */
     public ReconnectStateLearner(
             @NonNull final Configuration configuration,
@@ -91,7 +92,8 @@ public class ReconnectStateLearner {
             @NonNull final VirtualMapState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager) {
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            final boolean fullHashes) {
         this(
                 configuration,
                 threadManager,
@@ -100,7 +102,7 @@ public class ReconnectStateLearner {
                 reconnectSocketTimeout,
                 statistics,
                 stateLifecycleManager,
-                new LearningSynchronizer(threadManager, configuration, requireNonNull(metrics)));
+                new LearningSynchronizer(threadManager, configuration, requireNonNull(metrics), fullHashes));
     }
 
     /**
@@ -339,9 +341,11 @@ public class ReconnectStateLearner {
         }
 
         final long synchronizationTimeMilliseconds = System.currentTimeMillis() - syncStartTime;
-        logger.info(RECONNECT.getMarker(), () -> new SynchronizationCompletePayload("Finished synchronization")
-                .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
-                .toString());
+        logger.info(
+                RECONNECT.getMarker(),
+                () -> new SynchronizationCompletePayload("Finished synchronization")
+                        .setTimeInSeconds(synchronizationTimeMilliseconds * MILLISECONDS_TO_SECONDS)
+                        .toString());
 
         final VirtualMapState receivedState = stateLifecycleManager.createStateFrom(syncedVirtualMap);
         final SignedState newSignedState = new SignedState(
