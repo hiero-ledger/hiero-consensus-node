@@ -74,6 +74,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     // A hinTS construction whose target includes a node that is not yet a hinTS party (one added at an upgrade) waits
     // tss.transitionHintsKeyGracePeriod (300s by default) for that node to publish its hinTS key; keep the wait short.
     private static final String HINTS_KEY_GRACE_PERIOD = "2s";
+    // A ledger's nodes keep trying to sync to the peer while it is shut down for a partition, which opens their
+    // circuit breakers for that peer; shorten the cooldown (120s by default) so they sync again soon after it is back.
+    private static final String CIRCUIT_BREAKER_COOLDOWN_SECONDS = "5";
 
     @MultiNetworkHapiTest({
         @Network(
@@ -87,6 +90,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                     // Let the circuit breaker exclude peers it can't reach so a rotation doesn't
                     // spam sync failures against departed endpoints (see ClprSynchronizerImpl.selectPeer).
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true"),
+                    @ConfigOverride(
+                            key = "clpr.circuitBreakerCooldownSeconds",
+                            value = CIRCUIT_BREAKER_COOLDOWN_SECONDS),
                     @ConfigOverride(key = "tss.transitionProofKeyGracePeriod", value = PROOF_KEY_GRACE_PERIOD),
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 }),
@@ -99,6 +105,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 firstHapiTlsPort = HAPI_TLS_PORT_B,
                 setupOverrides = {
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true"),
+                    @ConfigOverride(
+                            key = "clpr.circuitBreakerCooldownSeconds",
+                            value = CIRCUIT_BREAKER_COOLDOWN_SECONDS),
                     @ConfigOverride(key = "tss.transitionProofKeyGracePeriod", value = PROOF_KEY_GRACE_PERIOD),
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 })
@@ -130,6 +139,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 firstHapiTlsPort = HAPI_TLS_PORT_A,
                 setupOverrides = {
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true"),
+                    @ConfigOverride(
+                            key = "clpr.circuitBreakerCooldownSeconds",
+                            value = CIRCUIT_BREAKER_COOLDOWN_SECONDS),
                     @ConfigOverride(key = "tss.transitionProofKeyGracePeriod", value = PROOF_KEY_GRACE_PERIOD),
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 }),
@@ -142,6 +154,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 firstHapiTlsPort = HAPI_TLS_PORT_B,
                 setupOverrides = {
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true"),
+                    @ConfigOverride(
+                            key = "clpr.circuitBreakerCooldownSeconds",
+                            value = CIRCUIT_BREAKER_COOLDOWN_SECONDS),
                     @ConfigOverride(key = "tss.transitionProofKeyGracePeriod", value = PROOF_KEY_GRACE_PERIOD),
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 })
@@ -194,6 +209,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 firstHapiTlsPort = HAPI_TLS_PORT_A,
                 setupOverrides = {
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true"),
+                    @ConfigOverride(
+                            key = "clpr.circuitBreakerCooldownSeconds",
+                            value = CIRCUIT_BREAKER_COOLDOWN_SECONDS),
                     @ConfigOverride(key = "tss.transitionProofKeyGracePeriod", value = PROOF_KEY_GRACE_PERIOD),
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 }),
@@ -206,6 +224,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 firstHapiTlsPort = HAPI_TLS_PORT_B,
                 setupOverrides = {
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true"),
+                    @ConfigOverride(
+                            key = "clpr.circuitBreakerCooldownSeconds",
+                            value = CIRCUIT_BREAKER_COOLDOWN_SECONDS),
                     @ConfigOverride(key = "tss.transitionProofKeyGracePeriod", value = PROOF_KEY_GRACE_PERIOD),
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 })
@@ -276,6 +297,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 firstHapiTlsPort = HAPI_TLS_PORT_A,
                 setupOverrides = {
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true"),
+                    @ConfigOverride(
+                            key = "clpr.circuitBreakerCooldownSeconds",
+                            value = CIRCUIT_BREAKER_COOLDOWN_SECONDS),
                     @ConfigOverride(key = "tss.transitionProofKeyGracePeriod", value = PROOF_KEY_GRACE_PERIOD),
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 }),
@@ -288,6 +312,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 firstHapiTlsPort = HAPI_TLS_PORT_B,
                 setupOverrides = {
                     @ConfigOverride(key = "clpr.syncPeerExclusionEnabled", value = "true"),
+                    @ConfigOverride(
+                            key = "clpr.circuitBreakerCooldownSeconds",
+                            value = CIRCUIT_BREAKER_COOLDOWN_SECONDS),
                     @ConfigOverride(key = "tss.transitionProofKeyGracePeriod", value = PROOF_KEY_GRACE_PERIOD),
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 })
