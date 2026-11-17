@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
 import static org.mockito.Mockito.lenient;
 
@@ -22,7 +23,7 @@ final class ChannelIndexStubs {
     private ChannelIndexStubs() {}
 
     /**
-     * Makes the given mocked writable states return an empty channel index singleton and index entries.
+     * Makes the given mocked writable states return an empty channel index singleton, entries and sequence numbers.
      *
      * @param writableStates the mocked CLPR writable states
      */
@@ -39,6 +40,11 @@ final class ChannelIndexStubs {
                 .when(writableStates.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID))
                 .thenReturn(MapWritableKVState.<ProtoLong, ProtoBytes>builder(
                                 CHANNEL_INDEX_ENTRIES_STATE_ID, "ClprService:CHANNEL_INDEX_ENTRIES")
+                        .build());
+        lenient()
+                .when(writableStates.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID))
+                .thenReturn(MapWritableKVState.<ProtoBytes, ProtoLong>builder(
+                                CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID, "ClprService:CHANNEL_INDEX_SEQUENCE_NUMBERS")
                         .build());
     }
 }

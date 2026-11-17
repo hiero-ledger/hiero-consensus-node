@@ -4,6 +4,8 @@ package com.hedera.node.app.service.clpr.impl.test.schemas;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_KEY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_KEY;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_KEY;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,10 +30,14 @@ class V0800ClprSchemaTest {
     }
 
     @Test
-    void createsTheChannelIndexSingletonAndEntries() {
+    void createsTheChannelIndexSingletonEntriesAndSequenceNumbers() {
         final var definitions = subject.statesToCreate().stream()
                 .collect(Collectors.toMap(StateDefinition::stateId, Function.identity()));
-        assertThat(definitions).containsOnlyKeys(CHANNEL_INDEX_STATE_ID, CHANNEL_INDEX_ENTRIES_STATE_ID);
+        assertThat(definitions)
+                .containsOnlyKeys(
+                        CHANNEL_INDEX_STATE_ID,
+                        CHANNEL_INDEX_ENTRIES_STATE_ID,
+                        CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID);
 
         final var index = definitions.get(CHANNEL_INDEX_STATE_ID);
         assertThat(index.stateKey()).isEqualTo(CHANNEL_INDEX_KEY);
@@ -43,5 +49,11 @@ class V0800ClprSchemaTest {
         assertThat(entries.keyValue()).isTrue();
         assertThat(entries.keyCodec()).isEqualTo(ProtoLong.PROTOBUF);
         assertThat(entries.valueCodec()).isEqualTo(ProtoBytes.PROTOBUF);
+
+        final var sequenceNumbers = definitions.get(CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID);
+        assertThat(sequenceNumbers.stateKey()).isEqualTo(CHANNEL_INDEX_SEQUENCE_NUMBERS_KEY);
+        assertThat(sequenceNumbers.keyValue()).isTrue();
+        assertThat(sequenceNumbers.keyCodec()).isEqualTo(ProtoBytes.PROTOBUF);
+        assertThat(sequenceNumbers.valueCodec()).isEqualTo(ProtoLong.PROTOBUF);
     }
 }

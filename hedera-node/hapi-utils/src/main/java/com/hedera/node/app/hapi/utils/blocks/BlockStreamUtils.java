@@ -120,6 +120,7 @@ public final class BlockStreamUtils {
             case STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION -> "ClprService.ENDPOINT_MANIFEST_CONSTRUCTION";
             case STATE_ID_CLPR_CHANNEL_INDEX -> "ClprService.CHANNEL_INDEX";
             case STATE_ID_CLPR_CHANNEL_INDEX_ENTRIES -> "ClprService.CHANNEL_INDEX_ENTRIES";
+            case STATE_ID_CLPR_CHANNEL_INDEX_SEQUENCE_NUMBERS -> "ClprService.CHANNEL_INDEX_SEQUENCE_NUMBERS";
         };
     }
 

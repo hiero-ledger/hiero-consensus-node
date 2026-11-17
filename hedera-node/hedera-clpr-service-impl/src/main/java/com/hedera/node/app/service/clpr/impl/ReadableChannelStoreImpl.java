@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl;
 
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
@@ -86,6 +87,10 @@ public class ReadableChannelStoreImpl implements ReadableChannelStore {
 
     protected <T extends ReadableKVState<ProtoLong, ProtoBytes>> T channelIndexEntriesState() {
         return (T) states.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID);
+    }
+
+    protected <T extends ReadableKVState<ProtoBytes, ProtoLong>> T channelIndexSequenceNumbersState() {
+        return (T) states.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID);
     }
 
     protected <T extends ReadableKVState<ProtoBytes, ClprChannel>> T channelState() {

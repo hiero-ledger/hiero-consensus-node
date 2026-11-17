@@ -3,6 +3,7 @@ package com.hedera.node.app.service.clpr.impl.test;
 
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -53,6 +54,8 @@ class ChannelStoreTest {
 
     private MapWritableKVState<ProtoLong, ProtoBytes> entries;
 
+    private MapWritableKVState<ProtoBytes, ProtoLong> sequenceNumbers;
+
     private WritableChannelStore subject;
 
     @BeforeEach
@@ -73,6 +76,12 @@ class ChannelStoreTest {
         lenient()
                 .when(writableStates.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID))
                 .thenReturn(entries);
+        sequenceNumbers = MapWritableKVState.<ProtoBytes, ProtoLong>builder(
+                        CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID, "ClprService:CHANNEL_INDEX_SEQUENCE_NUMBERS")
+                .build();
+        lenient()
+                .when(writableStates.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID))
+                .thenReturn(sequenceNumbers);
         subject = new WritableChannelStore(writableStates);
     }
 
@@ -115,14 +124,15 @@ class ChannelStoreTest {
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
         indexState.commit();
         entries.commit();
+        sequenceNumbers.commit();
 
-        // A handler may write a channel it built without the sequence number
         subject.put(channel(CHANNEL_ID_1, status));
 
         assertThat(sequenceNumberOf(CHANNEL_ID_1)).isEqualTo(1L);
         assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_1);
         assertThat(indexState.isModified()).isFalse();
         assertThat(entries.modifiedKeys()).isEmpty();
+        assertThat(sequenceNumbers.modifiedKeys()).isEmpty();
     }
 
     @Test
@@ -152,6 +162,7 @@ class ChannelStoreTest {
         subject.remove(CHANNEL_ID_1);
 
         assertThat(subject.syncableChannelIds()).isEmpty();
+        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isZero();
         assertThat(subject.getChannel(CHANNEL_ID_1)).isNull();
     }
 
@@ -165,24 +176,13 @@ class ChannelStoreTest {
         assertThat(subject.getChannel(CHANNEL_ID_1)).isNull();
         assertThat(indexState.isModified()).isFalse();
         assertThat(entries.modifiedKeys()).isEmpty();
-    }
-
-    @Test
-    @DisplayName("a sequence number set on the written channel is replaced by the one the store issues")
-    void writtenSequenceNumberIsReplaced() {
-        subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE)
-                .copyBuilder()
-                .indexSequenceNumber(99L)
-                .build());
-
-        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isEqualTo(1L);
-        assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_1);
+        assertThat(sequenceNumbers.modifiedKeys()).isEmpty();
     }
 
     @Test
     @DisplayName("a syncable channel that predates the index is indexed on its next write")
     void preexistingSyncableChannelIsIndexedOnNextWrite() {
-        // As written before the index existed: syncable, with no sequence number
+        // As written before the index existed: syncable, with no index entries
         channels.put(new ProtoBytes(CHANNEL_ID_1), channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
 
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
@@ -217,7 +217,8 @@ class ChannelStoreTest {
     }
 
     private long sequenceNumberOf(final Bytes channelId) {
-        return subject.getChannel(channelId).indexSequenceNumber();
+        final var sequenceNumber = sequenceNumbers.get(new ProtoBytes(channelId));
+        return sequenceNumber == null ? 0L : sequenceNumber.value();
     }
 
     private static ClprChannel channel(final Bytes channelId, final ClprChannelStatus status) {

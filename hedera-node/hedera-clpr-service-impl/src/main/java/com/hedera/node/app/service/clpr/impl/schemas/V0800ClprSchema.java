@@ -16,8 +16,8 @@ import java.util.Set;
 
 /**
  * Adds the CLPR channel index: every Channel that is neither {@code PENDING} nor {@code CLOSED} gets a sequence
- * number, mapped to its id in the channel index entries; and the channel index singleton holds the last sequence
- * number issued. The {@code CHANNELS} key/value state cannot be enumerated, so a node reads the entries up to that
+ * number, mapped to its id in the channel index entries and back from its id in the channel index sequence numbers;
+ * and the channel index singleton holds the last sequence number issued. The {@code CHANNELS} key/value state cannot be enumerated, so a node reads the entries up to that
  * sequence number when it starts to know which Channels to sync.
  *
  * <p>The singleton is left unset until the first Channel becomes syncable, and readers treat an unset singleton as
@@ -39,6 +39,13 @@ public class V0800ClprSchema extends Schema<SemanticVersion> {
     /** Channel index entries state key */
     public static final String CHANNEL_INDEX_ENTRIES_KEY = "CHANNEL_INDEX_ENTRIES";
 
+    /** Channel index sequence numbers state ID */
+    public static final int CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID =
+            StateKey.KeyOneOfType.CLPRSERVICE_I_CHANNEL_INDEX_SEQUENCE_NUMBERS.protoOrdinal();
+
+    /** Channel index sequence numbers state key */
+    public static final String CHANNEL_INDEX_SEQUENCE_NUMBERS_KEY = "CHANNEL_INDEX_SEQUENCE_NUMBERS";
+
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(80).patch(0).build();
 
@@ -58,6 +65,11 @@ public class V0800ClprSchema extends Schema<SemanticVersion> {
                         CHANNEL_INDEX_ENTRIES_STATE_ID,
                         CHANNEL_INDEX_ENTRIES_KEY,
                         ProtoLong.PROTOBUF,
-                        ProtoBytes.PROTOBUF));
+                        ProtoBytes.PROTOBUF),
+                StateDefinition.keyValue(
+                        CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID,
+                        CHANNEL_INDEX_SEQUENCE_NUMBERS_KEY,
+                        ProtoBytes.PROTOBUF,
+                        ProtoLong.PROTOBUF));
     }
 }

@@ -3,8 +3,9 @@
  *
  * Hiero-internal singleton for the index of the Channels this ledger syncs. The CHANNELS
  * key/value state cannot be enumerated, so each syncable Channel also gets a sequence number,
- * mapped to its id in the CHANNEL_INDEX_ENTRIES key/value state; a node that starts reads the
- * entries for every sequence number up to the last one issued to know which Channels to sync.
+ * mapped to its id in the CHANNEL_INDEX_ENTRIES key/value state, and mapped back from its id in
+ * the CHANNEL_INDEX_SEQUENCE_NUMBERS key/value state; a node that starts reads the entries for
+ * every sequence number up to the last one issued to know which Channels to sync.
  *
  * ### Cross-ledger note
  *
