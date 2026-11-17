@@ -104,11 +104,10 @@ class GraphWriterTest {
     @Test
     @DisplayName("both roster blocks survive, in declaration order")
     void bothRostersSurvive() {
-        final FlickerGraph reparsed = GraphParser.parse(GraphWriter.write(GraphParser.parse(GRAPH)));
+        final FlickerGraph parsed = GraphParser.parse(GRAPH);
+        final FlickerGraph reparsed = GraphParser.parse(GraphWriter.write(parsed));
 
-        assertThat(reparsed.rosters().stream().map(NamedRoster::name)).containsExactly("initial", "after");
-        assertThat(reparsed.roster("after").weightsByLetter())
-                .containsExactly(Map.entry("a", 4L), Map.entry("b", 1L), Map.entry("c", 1L), Map.entry("d", 4L));
+        assertThat(reparsed.rosters()).isEqualTo(parsed.rosters());
     }
 
     @Test
@@ -171,7 +170,7 @@ class GraphWriterTest {
         weights.put("b", b);
         weights.put("c", c);
         weights.put("d", d);
-        return new NamedRoster(name, weights);
+        return NamedRoster.of(name, weights);
     }
 
     private static List<Hash> hashes(final List<NamedEvent> events) {

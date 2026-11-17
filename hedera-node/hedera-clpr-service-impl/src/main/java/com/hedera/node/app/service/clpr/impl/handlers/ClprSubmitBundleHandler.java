@@ -45,6 +45,7 @@ import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
+import com.hedera.node.app.service.clpr.impl.ClprThrottlesUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
@@ -1381,10 +1382,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     private static long maxSerializedReplyBytes(
             @NonNull final ClprThrottles localThrottles, @Nullable final ClprThrottles peerThrottles) {
         final var destination = peerThrottles == null ? localThrottles : peerThrottles;
-        final long localLimit = localThrottles.maxMessagePayloadBytes();
-        final long peerLimit = destination.maxMessagePayloadBytes();
         // A peer can advertise a higher cap, but it cannot raise the local state limit.
-        final long payloadLimit = peerLimit > 0 ? Math.min(localLimit, peerLimit) : localLimit;
+        final long payloadLimit = Math.min(
+                localThrottles.maxMessagePayloadBytes(),
+                ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, localThrottles));
         final long syncLimit = Math.max(destination.maxSyncBytes(), MIN_PROOF_OVERHEAD_BYTES);
         return Math.max(0, Math.min(payloadLimit, syncLimit - MIN_PROOF_OVERHEAD_BYTES));
     }

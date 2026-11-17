@@ -302,9 +302,12 @@ val prCheckPropOverrides =
 // much larger transaction gas allowance used by general HAPI contract tests.
 val prCheckDefaultOverrides =
     mapOf(
-        "hapiTestClpr" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
-        "hapiTestClprEmbedded" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
-        "hapiTestClprMultinetwork" to "clpr.enabled=true,contracts.maxGasPerTransaction=15000000",
+        "hapiTestClpr" to
+            "clpr.enabled=true,accounts.clprAdmin=601,contracts.maxGasPerTransaction=15000000",
+        "hapiTestClprEmbedded" to
+            "clpr.enabled=true,accounts.clprAdmin=601,contracts.maxGasPerTransaction=15000000",
+        "hapiTestClprMultinetwork" to
+            "clpr.enabled=true,accounts.clprAdmin=601,contracts.maxGasPerTransaction=15000000",
     )
 // -PhapiTestConfigProfile=pre-cutover (or env HAPI_TEST_CONFIG_PROFILE) runs the HAPI tasks in the
 // pre-cutover world MATS ran before the defaults switched (used by XTS 829)

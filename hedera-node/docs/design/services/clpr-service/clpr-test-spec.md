@@ -1,8 +1,11 @@
 # CLPR Test Specification
 
 This document defines the testing strategy for the CLPR protocol. It enumerates test types, specific test
-scenarios, and testable assertions derived from the [CLPR Design Document](clpr-service.md) and the
-[Cross-Platform Specification](clpr-service-spec.md). It is organized by test level — from single-ledger
+scenarios, and testable assertions derived from the canonical [CLPR Design Document](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service.md) and
+[Cross-Platform Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md). The canonical
+specification takes precedence over this test plan; channel lifecycle expectations follow its
+[§2.1.1](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions).
+It is organized by test level — from single-ledger
 handler tests through multi-ledger integration, adversarial scenarios, application workflows, performance,
 and recovery. A cross-reference table at the end maps each CLPR specification section to the test IDs that
 cover it, enabling gap analysis and coverage tracking.
@@ -239,6 +242,10 @@ require multi-network infrastructure.
 
 ### 3.2.2 Channel Status Transitions
 
+For tests that assert a persisted CLOSING state after `closeChannel`, keep at least one outbound
+Data Message unacknowledged. Also cover an already acknowledged outbound queue, which can reach
+DRAINED as part of initiating the close.
+
 - ACTIVE → PAUSED automatically when a response ordering violation is detected during `submitBundle`
   processing. No admin action triggers this transition.
 - ACTIVE → CLOSING via `closeChannel` (admin key required).
@@ -246,8 +253,11 @@ require multi-network infrastructure.
   hasn't closed). No admin action triggers this transition.
 - PAUSED → CLOSING via `closeChannel` (admin key required). The Channel drains once the peer
   fixes the response ordering.
-- CLOSING → DRAINED automatically when the peer acknowledges all outbound messages.
-- DRAINED → CLOSED automatically when both sides are DRAINED.
+- ACTIVE/PAUSED → CLOSING when verified peer metadata reports CLOSING, DRAINED, or CLOSED.
+- CLOSING → DRAINED automatically when the peer acknowledges all outbound Data Messages.
+  Generated Response Messages may still be unacknowledged at DRAINED entry.
+- DRAINED → CLOSED automatically when peer metadata reports DRAINED or CLOSED and the peer has
+  acknowledged the entire local outbound queue, including generated Response Messages.
 - CLOSED is terminal; no further transitions are accepted.
 
 ### 3.2.3 PAUSED Behavior
@@ -259,19 +269,33 @@ require multi-network infrastructure.
 - `nextResponseExpectedId` does not advance.
 - Auto-resumes when the next bundle has correctly ordered responses — no admin intervention required.
 - Admin MAY close a PAUSED Channel (`closeChannel` transitions to CLOSING). The Channel cannot
-  drain until the peer fixes the ordering; once fixed, bundles process with `CHANNEL_CLOSED` responses
-  and queues drain normally.
+  drain until the peer fixes the ordering; once fixed, inbound messages are dispatched normally
+  and queues drain without returning to ACTIVE or accepting new local `sendMessage` calls.
 
 ### 3.2.4 CLOSING Behavior
 
-- No new outbound messages are accepted (`sendMessage` is rejected).
-- In-flight Data Messages receive `CHANNEL_CLOSED` responses without dispatch. No slashing occurs.
+- No new locally originated Data Messages are accepted (`sendMessage` is rejected, including from
+  nested application callbacks). Generating responses to inbound Data Messages remains allowed.
+- Inbound Data Messages are dispatched to the target application under the normal Connector
+  charging and response rules. Successful application calls produce `SUCCESS` with their return data;
+  closing does not introduce a special response status or a charging/slashing exemption.
+- Inbound Response Messages continue to be delivered to the originating application.
 - Acknowledgements continue flowing. Queues drain.
-- The `ClprQueueMetadata.state` reflects the Channel status and is propagated to the peer via the next sync.
+- The `ClprQueueMetadata.status` reflects the Channel status and is propagated to the peer via the next sync.
   The peer transitions its side to CLOSING as well.
-- When the peer has acknowledged all outbound messages, the Channel transitions to `DRAINED`.
-- Transitions to CLOSED automatically when both sides are `DRAINED`.
+- When the peer has acknowledged all outbound Data Messages, the Channel transitions to `DRAINED`.
+  Verify this transition can occur while generated Response Messages remain unacknowledged.
 - Closing is irreversible — there is no resume from CLOSING or DRAINED.
+
+### 3.2.4a DRAINED Behavior
+
+- New local `sendMessage` calls remain rejected.
+- Inbound bundles continue to be accepted while the peer drains. Data Messages are dispatched normally,
+  charge the Connector, and generate responses; Response Messages reach the originating application.
+- Generated responses may make the outbound queue temporarily non-empty. Verify the Channel stays
+  DRAINED until the peer reports DRAINED or CLOSED and acknowledges the full outbound queue.
+- A final close-notification bundle reporting peer CLOSED can complete the transition to CLOSED.
+  See canonical [§3.4](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#34-endpoint-close-notification-obligation).
 
 ### 3.2.5 CLOSED Behavior
 
@@ -281,9 +305,18 @@ require multi-network infrastructure.
 
 ### 3.2.6 Invalid Transition Rejection
 
-- Graceful `closeChannel` on a CLOSING or CLOSED channel is rejected; on DRAINED it
-  provides administrative recovery by transitioning to CLOSED.
-- `closeChannel` on an ACTIVE or PAUSED channel succeeds (transitions to CLOSING).
+- Graceful `closeChannel` on a CLOSING or CLOSED channel is rejected.
+- `closeChannel` on an ACTIVE or PAUSED channel succeeds (use an unacknowledged outbound Data
+  Message to assert a persisted CLOSING state).
+- **Current Hiero behavior:** `closeChannel` on a DRAINED Channel succeeds and transitions it to
+  CLOSED without checking acknowledgements. Cover both a fully acknowledged outbound queue and one with
+  unacknowledged Response Messages, including recovery when the peer's close-notification cannot be delivered.
+  **Canonical inconsistency:** [§2.1.1](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#211-channel-status-transitions),
+  [§3.4](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#34-endpoint-close-notification-obligation),
+  and the [§6.2 pseudo-API explanation](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md#62-channel-management)
+  assume the recovery queue is fully acknowledged and nothing is abandoned, but the pseudo-API lists no
+  explicit acknowledgement guard for DRAINED → CLOSED. The unacknowledged-response case documents current
+  Hiero behavior rather than a settled canonical conformance requirement.
 - No admin halt or resume transactions exist.
 
 ### 3.2.7 Administrative Force-close (Hiero)
@@ -655,10 +688,16 @@ rejected, inbound bundles with out-of-order responses are rejected, outbound syn
 queued messages continue syncing.
 - Auto-resume: submit a bundle with correctly ordered responses. Verify the Channel transitions back
 to ACTIVE and normal operation resumes.
-- Close the Channel via `closeChannel`. Verify the Channel transitions to CLOSING, the
-`ClprQueueMetadata.state` carries the Channel status and propagates to the peer, in-flight messages
-receive `CHANNEL_CLOSED` responses without dispatch, the Channel transitions to DRAINED when the
-peer acks all outbound messages, and the Channel reaches CLOSED when both sides are DRAINED.
+- With at least one outbound Data Message still unacknowledged, close the Channel via `closeChannel`.
+Verify the Channel transitions to CLOSING, the
+`ClprQueueMetadata.status` carries the Channel status and propagates to the peer, and new local
+`sendMessage` calls are rejected on each side after it starts closing. Inbound Data Messages still
+execute, charge the Connector, and generate normal replies. The Channel transitions to DRAINED when the
+peer acknowledges all outbound Data Messages, even if generated responses remain in flight. It reaches
+CLOSED when the peer reports DRAINED or CLOSED and acknowledges the entire local outbound queue.
+Verify that both sides reach CLOSED, including when one side moves from CLOSING to CLOSED in a single
+bundle. This depends on the close-notification bundle, which Hiero does not yet send
+([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
 
 ### 4.1.4 Config Propagation Across Ledgers
 
@@ -889,24 +928,32 @@ enqueued, bundles can be submitted, and responses are correctly ordered. No admi
 
 ### 5.4.4 Admin Closes a PAUSED Channel
 
-While a Channel is PAUSED, call `closeChannel`. Verify the Channel transitions to CLOSING. Submit
-a bundle with out-of-order responses and verify it is still rejected (the ordering violation persists even in
-CLOSING). Then submit a bundle with correctly ordered responses: verify the bundle is processed with
-`CHANNEL_CLOSED` responses (since the Channel is CLOSING), and the Channel drains through
-DRAINED → CLOSED normally.
+While a Channel is PAUSED and has an unacknowledged outbound Data Message, call `closeChannel`.
+Verify the Channel transitions to CLOSING. Submit a bundle with out-of-order responses and verify it is
+not processed: no dispatch, no acknowledgement update, and no running-hash advance (the ordering violation
+persists even in CLOSING). Then submit a bundle with correctly ordered responses and valid Data Messages:
+verify normal application dispatch, Connector charging, and replies. The Channel must not resume to ACTIVE or accept
+new local `sendMessage` calls; it drains through DRAINED → CLOSED normally.
 
 ### 5.4.5 CLOSING Propagation via Metadata
 
-Call `closeChannel` on an ACTIVE Channel. Verify: the Channel transitions to CLOSING, the
-`ClprQueueMetadata.state` carries the Channel status, the peer sees the state during the next sync and
-transitions its side to CLOSING as well. When the peer acknowledges all outbound messages, the Channel
-transitions to DRAINED. When both sides are DRAINED, the Channel transitions to CLOSED.
+Call `closeChannel` on an ACTIVE Channel with an unacknowledged outbound Data Message.
+Verify: the Channel transitions to CLOSING, the
+`ClprQueueMetadata.status` carries the Channel status, the peer sees the status during the next sync and
+transitions its side to CLOSING as well. Verify new local sends are rejected on both sides after each
+observes the close. A `SUCCESS` application reply must not hide the closing status in metadata.
+When the peer acknowledges all outbound Data Messages, the Channel transitions to DRAINED. It remains
+DRAINED while generated replies are unacknowledged and reaches CLOSED only when peer metadata reports
+DRAINED or CLOSED and the entire local outbound queue is acknowledged.
 
-### 5.4.6 In-Flight Message Resolution During CLOSING
+### 5.4.6 In-Flight Message Resolution During CLOSING and DRAINED
 
 While a Channel is CLOSING, Data Messages that arrive from the peer (sent before the peer knew about the
-close) receive `CHANNEL_CLOSED` responses without dispatch. Verify: no Connector is charged, no slashing
-occurs, and the response is returned to the source.
+close) are dispatched normally. With a funded Connector and a successful target application, verify the
+application executes, the normal execution charge is applied, and a `SUCCESS` reply carries its return
+data back to the source. Repeat while the local Channel is DRAINED and the peer is still draining.
+Verify generated replies are delivered and acknowledged before CLOSED, and that response callbacks
+cannot use `sendMessage` to originate new Data Messages on either closing or drained side.
 
 ### 5.4.7 Connector Deregistration After Close
 
@@ -1216,9 +1263,13 @@ verifier and new endpoints is operational.
 
 ### 8.3.1 Close Affected Channel
 
-Admin closes a Channel whose verifier is suspected of being compromised via `closeChannel`. Verify
-the Channel transitions to CLOSING, in-flight messages receive `CHANNEL_CLOSED` responses, queues
-drain through DRAINED, and the Channel reaches CLOSED.
+Admin closes a Channel whose verifier is suspected of being compromised via `closeChannel`.
+Keep an outbound Data Message unacknowledged to exercise CLOSING. Verify
+the Channel transitions to CLOSING and rejects new local sends. Inbound messages continue normal
+dispatch, charging, and response processing during CLOSING and DRAINED; graceful close does not provide
+an immediate inbound execution halt. With a peer that stops originating messages after learning of the
+close and supplies valid proofs, verify queues drain and the Channel reaches CLOSED only after final
+responses are acknowledged.
 
 ### 8.3.2 Migrate to Patched Verifier
 
