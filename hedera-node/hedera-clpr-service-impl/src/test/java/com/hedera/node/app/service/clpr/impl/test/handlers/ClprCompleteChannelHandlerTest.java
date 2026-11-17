@@ -75,14 +75,13 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import net.i2p.crypto.eddsa.EdDSAEngine;
+import org.hiero.base.crypto.Ed25519;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -758,18 +757,17 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void handleSuccessfullyCreatesChannelWithEd25519() {
-        final var privateKey = keyFrom(SECRET_KEY);
-        final var publicKey = privateKey.getAbyte();
+        final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
+        Ed25519.newKeypair(publicKey, secretKey, SECRET_KEY);
+
         final var commitment = computeCommitment(CHANNEL_ID, Bytes.wrap(publicKey));
         commitmentStore.put(commitment);
 
         final var messageHash = MiscCryptoUtils.keccak256DigestOf(CHANNEL_ID.toByteArray());
         final byte[] sig;
         try {
-            final var engine = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));
-            engine.initSign(privateKey);
-            engine.update(messageHash);
-            sig = engine.sign();
+            sig = Ed25519.sign(messageHash, secretKey);
         } catch (final Exception e) {
             throw new IllegalStateException("Failed to sign with Ed25519", e);
         }
