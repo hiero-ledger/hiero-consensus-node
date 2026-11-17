@@ -2,6 +2,11 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
+import static com.hedera.node.config.types.StreamMode.BOTH;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
@@ -31,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -55,15 +61,24 @@ import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 import com.esaulpaugh.headlong.abi.Single;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.TraceData;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.junit.support.translators.RoleFreeBlockUnitSplit;
+import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
@@ -71,6 +86,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.EvmHookCall;
 import com.hederahashgraph.api.proto.java.HookCall;
@@ -78,6 +94,7 @@ import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongFunction;
@@ -231,6 +248,46 @@ public class Hip1195StreamParityTest {
                 sourcing(() -> attempt.apply(2L)),
                 sourcing(() -> attempt.apply(3L)),
                 sourcing(() -> attempt.apply(4L).hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)));
+    }
+
+    /**
+     * One pre-only and one pre-post hook invocation execute two different hooks that both write slot zero of their
+     * own storage. The implicit list of written keys does not distinguish hooks, so all three executions must trace
+     * their writes explicitly.
+     */
+    @HapiTest
+    final Stream<DynamicTest> preOnlyAndPrePostHookExecutionsTraceExplicitWrites() {
+        // Storage traces only go to the block stream
+        assumeFalse(targetStreamMode() == RECORDS, "No block stream to check when streamMode=RECORDS");
+        final var transfer = "preOnlyAndPrePostTransfer";
+        final var args = TupleType.parse("(uint32)");
+        return hapiTest(
+                cryptoCreate("party").withHooks(accountAllowanceHook(1L, THREE_PASSES_HOOK.name())),
+                cryptoCreate("counterparty").withHooks(accountAllowanceHook(2L, SET_AND_PASS_HOOK.name())),
+                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("party"))
+                                        .setAmount(-123L)
+                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                .setHookId(1L)
+                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                        .setGasLimit(42_000L)
+                                                        .setData(ByteString.copyFrom(args.encode(Single.of(1L)))))))
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("counterparty"))
+                                        .setAmount(+123L)
+                                        .setPrePostTxAllowanceHook(HookCall.newBuilder()
+                                                .setHookId(2L)
+                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                        .setGasLimit(64_000L)
+                                                        .setData(ByteString.copyFrom(SET_AND_PASS_ARGS.encode(Tuple.of(
+                                                                2L,
+                                                                MULTIPURPOSE.addressOn(
+                                                                        spec.targetNetworkOrThrow()))))))))))
+                        .signedBy(DEFAULT_PAYER)
+                        .via(transfer),
+                streamMustIncludePassWithReplayFrom(
+                        spec -> hookExecutionsTraceExplicitWrites(spec, transfer, 3), Duration.ofSeconds(30)));
     }
 
     @HapiTest
@@ -528,5 +585,50 @@ public class Hip1195StreamParityTest {
                         .signedBy(DEFAULT_PAYER)
                         .via("aliasTransfer"),
                 getTxnRecord("aliasTransfer").andAllChildRecords().logged());
+    }
+
+    /**
+     * Returns the stream mode of the network under test, defaulting to {@link StreamMode#BOTH} if it is not yet
+     * targeted.
+     */
+    private static StreamMode targetStreamMode() {
+        final var network = SHARED_NETWORK.get();
+        return network == null ? BOTH : network.startupProperties().getStreamMode("blockStream.streamMode");
+    }
+
+    /**
+     * Returns an assertion that the unit of the given transfer has the given number of hook executions, each tracing
+     * the writes to its hook storage (and any other contract's storage) with an explicit list of written keys.
+     */
+    private static BlockStreamAssertion hookExecutionsTraceExplicitWrites(
+            @NonNull final HapiSpec spec, @NonNull final String transfer, final int numExecutions) {
+        final var transferId = protoToPbj(spec.registry().getTxnId(transfer), TransactionID.class);
+        return block -> {
+            for (final var rawUnit : new RoleFreeBlockUnitSplit().split(block)) {
+                final var parts = rawUnit.withBatchTransactionParts().blockTransactionParts();
+                if (parts.stream().noneMatch(part -> part.transactionIdOrThrow().equals(transferId))) {
+                    continue;
+                }
+                final var executions =
+                        parts.stream().filter(BlockTransactionParts::isHookCall).toList();
+                assertEquals(numExecutions, executions.size());
+                for (final var execution : executions) {
+                    final var usages = execution.tracesOrThrow().stream()
+                            .filter(TraceData::hasEvmTraceData)
+                            .flatMap(trace -> trace.evmTraceDataOrThrow().contractSlotUsages().stream())
+                            .toList();
+                    assertTrue(
+                            usages.stream()
+                                    .anyMatch(usage ->
+                                            usage.contractIdOrThrow().contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM),
+                            "Each hook execution writes its own storage");
+                    assertTrue(
+                            usages.stream().allMatch(ContractSlotUsage::hasWrittenSlotKeys),
+                            "Each hook execution must trace its writes explicitly");
+                }
+                return true;
+            }
+            return false;
+        };
     }
 }

@@ -199,6 +199,11 @@ public class TransferExecutor extends BaseTokenHandler {
         } else {
             hookCalls = null;
         }
+        // The implicit list of written keys for a hook execution is all the transaction's hook storage changes,
+        // without distinguishing hooks; so only the transaction's single hook invocation (perhaps executed both
+        // pre- and post-transaction) can trace its storage writes implicitly
+        final boolean isolated = hasHooks
+                && hookCalls.preOnlyHooks().size() + hookCalls.prePostHooks().size() == 1;
         final var numAttemptedHookCalls = new Counter();
         if (hasHooks) {
             try {
@@ -207,13 +212,15 @@ public class TransferExecutor extends BaseTokenHandler {
                         hookCalls.preOnlyHooks(),
                         transferContext.getHandleContext(),
                         HooksABI.FN_ALLOW,
-                        numAttemptedHookCalls);
+                        numAttemptedHookCalls,
+                        isolated);
                 dispatchHookCalls(
                         hookCalls.context(),
                         hookCalls.prePostHooks(),
                         transferContext.getHandleContext(),
                         HooksABI.FN_ALLOW_PRE,
-                        numAttemptedHookCalls);
+                        numAttemptedHookCalls,
+                        isolated);
             } catch (HandleException e) {
                 final var config = context.configuration();
                 // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
@@ -244,7 +251,8 @@ public class TransferExecutor extends BaseTokenHandler {
                         hookCalls.prePostHooks(),
                         transferContext.getHandleContext(),
                         HooksABI.FN_ALLOW_POST,
-                        numAttemptedHookCalls);
+                        numAttemptedHookCalls,
+                        isolated);
             } catch (HandleException e) {
                 final var config = context.configuration();
                 // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
@@ -480,14 +488,15 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param handleContext the handle context to use for dispatching
      * @param function the ABI function to use for encoding
      * @param numAttemptedHookCalls the number of successful hook calls
+     * @param isolated whether these calls execute the transaction's only hook invocation
      */
     private void dispatchHookCalls(
             @NonNull final HookContext hookContext,
             @NonNull final List<HookInvocation> hookInvocations,
             @NonNull final HandleContext handleContext,
             @NonNull final Function function,
-            @NonNull final Counter numAttemptedHookCalls) {
-        final boolean isolated = hookInvocations.size() == 1;
+            @NonNull final Counter numAttemptedHookCalls,
+            final boolean isolated) {
         for (final var hookInvocation : hookInvocations) {
             byte[] calldata;
             try {
