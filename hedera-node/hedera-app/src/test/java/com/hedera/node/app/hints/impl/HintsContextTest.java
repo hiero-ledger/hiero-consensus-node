@@ -40,6 +40,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -326,11 +327,11 @@ class HintsContextTest {
         verify(signingMetrics, times(1)).recordSubmitToFirstPeerSignature(anyLong());
         verify(signingMetrics, times(1)).recordSubmitToProofReady(longThat(nanos -> nanos >= 0));
         verify(signingMetrics, never()).recordPeerSignatureBeforeSubmit(anyLong());
-        verify(signingMetrics, never()).recordThresholdBeforeSubmit();
+        verify(signingMetrics, never()).recordThresholdBeforeSubmit(anyLong());
     }
 
     @Test
-    void countsSignaturesReadyBeforeLocalSubmissionWithoutAveragingThem() {
+    void recordsLeadsOfSignaturesReadyBeforeLocalSubmissionInsteadOfLatencies() {
         given(library.aggregateSignatures(any(), any(), any(), any())).willReturn(Bytes.wrap("AS"));
         setConstruction(CONSTRUCTION, CRS_STATE);
         // As when a slow node pre-handles its peers' partial signatures before it has produced the block
@@ -342,13 +343,20 @@ class HintsContextTest {
         assertTrue(signing.future().isDone());
         verify(signingMetrics).recordSignatureProduced(anyLong());
         verify(signingMetrics, never()).recordPeerSignatureBeforeSubmit(anyLong());
-        verify(signingMetrics, never()).recordThresholdBeforeSubmit();
+        verify(signingMetrics, never()).recordThresholdBeforeSubmit(anyLong());
         awaitNanoTimeTick();
         signing.markLocalSubmission();
         signing.markLocalSubmission();
 
-        verify(signingMetrics, times(1)).recordPeerSignatureBeforeSubmit(longThat(nanos -> nanos >= 0));
-        verify(signingMetrics, times(1)).recordThresholdBeforeSubmit();
+        final var peerLeadNanos = ArgumentCaptor.forClass(Long.class);
+        final var thresholdLeadNanos = ArgumentCaptor.forClass(Long.class);
+        verify(signingMetrics, times(1)).recordPeerSignatureBeforeSubmit(peerLeadNanos.capture());
+        verify(signingMetrics, times(1)).recordThresholdBeforeSubmit(thresholdLeadNanos.capture());
+        // The signature was aggregated after the first peer signature arrived, and before this node submitted
+        assertTrue(thresholdLeadNanos.getValue() > 0, "threshold lead should be positive");
+        assertTrue(
+                thresholdLeadNanos.getValue() <= peerLeadNanos.getValue(),
+                "threshold lead should not exceed the first peer signature's lead");
         verify(signingMetrics, never()).recordSubmitToFirstPeerSignature(anyLong());
         verify(signingMetrics, never()).recordSubmitToProofReady(anyLong());
     }
@@ -367,7 +375,7 @@ class HintsContextTest {
         signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
 
         verify(signingMetrics).recordSubmitToProofReady(longThat(nanos -> nanos >= 0));
-        verify(signingMetrics, never()).recordThresholdBeforeSubmit();
+        verify(signingMetrics, never()).recordThresholdBeforeSubmit(anyLong());
         verify(signingMetrics, never()).recordSubmitToFirstPeerSignature(anyLong());
     }
 
@@ -385,7 +393,7 @@ class HintsContextTest {
         verify(signingMetrics, never()).recordSubmitToFirstPeerSignature(anyLong());
         verify(signingMetrics, never()).recordSubmitToProofReady(anyLong());
         verify(signingMetrics, never()).recordPeerSignatureBeforeSubmit(anyLong());
-        verify(signingMetrics, never()).recordThresholdBeforeSubmit();
+        verify(signingMetrics, never()).recordThresholdBeforeSubmit(anyLong());
     }
 
     @Test

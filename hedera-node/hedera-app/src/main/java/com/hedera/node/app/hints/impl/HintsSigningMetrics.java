@@ -24,9 +24,10 @@ import org.hiero.consensus.metrics.extensions.LatencyGauges;
  * <p>
  * The latency metrics measured from this node's own partial signature submission only include signing attempts where
  * the measured event happened <i>after</i> the submission. When a slow node receives enough signatures before it has
- * produced the block (or just a peer's signature), the event is instead counted by
- * {@link #recordThresholdBeforeSubmit()} or {@link #recordPeerSignatureBeforeSubmit(long)}, so that these cases do not
- * drag the averages towards zero.
+ * produced the block (or just a peer's signature), the event is instead recorded by
+ * {@link #recordThresholdBeforeSubmit(long)} or {@link #recordPeerSignatureBeforeSubmit(long)}, which count it and
+ * average how long before the submission it happened, so that these cases do not drag the latency averages towards
+ * zero.
  */
 @Singleton
 public class HintsSigningMetrics {
@@ -43,6 +44,7 @@ public class HintsSigningMetrics {
     private final RunningAverageMetric submitToProofReadyMicrosAvg;
     private final RunningAverageMetric submitToFirstPeerSignatureMicrosAvg;
     private final RunningAverageMetric peerLeadMicrosAvg;
+    private final RunningAverageMetric thresholdLeadMicrosAvg;
     private final Counter thresholdBeforeSubmit;
     private final Counter peerSignatureBeforeSubmit;
 
@@ -92,6 +94,12 @@ public class HintsSigningMetrics {
         peerLeadMicrosAvg = metrics.getOrCreate(new RunningAverageMetric.Config(CATEGORY, "hintsPeerLeadUsAvg")
                 .withDescription("Average time (µs) by which another node's hinTS partial signature for a block "
                         + "arrived before this node submitted its own (i.e., how far this node lags its peers)")
+                .withUnit(MICROS_UNIT)
+                .withFormat(MICROS_FORMAT));
+        thresholdLeadMicrosAvg = metrics.getOrCreate(new RunningAverageMetric.Config(
+                        CATEGORY, "hintsThresholdLeadUsAvg")
+                .withDescription("Average time (µs) by which a block's hinTS signature was aggregated from other "
+                        + "nodes' partial signatures before this node submitted its own")
                 .withUnit(MICROS_UNIT)
                 .withFormat(MICROS_FORMAT));
         thresholdBeforeSubmit = metrics.getOrCreate(new Counter.Config(CATEGORY, "hintsThresholdBeforeSubmit")
@@ -159,10 +167,14 @@ public class HintsSigningMetrics {
     }
 
     /**
-     * Records that the aggregated signature was ready before this node submitted its own partial signature.
+     * Records that the aggregated signature was ready before this node submitted its own partial signature, and by
+     * how much.
+     *
+     * @param leadNanos how long before this node's submission the aggregated signature was ready, in nanoseconds
      */
-    public void recordThresholdBeforeSubmit() {
+    public void recordThresholdBeforeSubmit(final long leadNanos) {
         thresholdBeforeSubmit.increment();
+        thresholdLeadMicrosAvg.update(Math.max(0L, leadNanos) / NANOS_PER_MICRO);
     }
 
     /**

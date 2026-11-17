@@ -772,7 +772,7 @@ public class HintsContext {
 
         /**
          * Once both this node's submission and the aggregated signature are known, records either the latency
-         * between them or, if the signature was aggregated from peer signatures first, that it was ready early.
+         * between them or, if the signature was aggregated from peer signatures first, by how much it led this node.
          */
         private void maybeRecordSignatureReadyLatency() {
             final long submittedAt = localSubmissionNanos.get();
@@ -786,7 +786,7 @@ public class HintsContext {
             if (deltaNanos >= 0) {
                 signingMetrics.recordSubmitToProofReady(deltaNanos);
             } else {
-                signingMetrics.recordThresholdBeforeSubmit();
+                signingMetrics.recordThresholdBeforeSubmit(-deltaNanos);
             }
         }
     }

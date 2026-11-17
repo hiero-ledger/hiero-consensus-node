@@ -12864,7 +12864,7 @@
         "spec": {
           "id": 204,
           "title": "hinTS Submit → Aggregated Signature (µs)",
-          "description": "Running average time from this node submitting its hinTS partial signature for a block to having the aggregated signature needed for the block proof. Excludes blocks whose signature was already aggregated from other nodes' partial signatures before this node submitted its own (see \"hinTS Signatures Before Local Submit\").",
+          "description": "Running average time from this node submitting its hinTS partial signature for a block to having the aggregated signature needed for the block proof. Excludes blocks whose signature was already aggregated from other nodes' partial signatures before this node submitted its own (see \"hinTS Aggregated Signature Lead\").",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -21305,6 +21305,127 @@
             }
           }
         }
+      },
+      "panel-212": {
+        "kind": "Panel",
+        "spec": {
+          "id": 212,
+          "title": "hinTS Aggregated Signature Lead (µs)",
+          "description": "Running average of how long before this node submitted its own hinTS partial signature for a block that enough peer partial signatures had arrived to aggregate the block signature; i.e., how long the network already had the signature for the block proof before this node produced the block. Never more than \"hinTS Peer Signature Lead\". Only updates when the signature is aggregated first, so check \"hinTS Signatures Before Local Submit\" to see whether this is still happening.",
+          "links": [],
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "prometheus",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "${datasource}"
+                      },
+                      "spec": {
+                        "disableTextWrap": false,
+                        "editorMode": "builder",
+                        "expr": "app_hintsThresholdLeadUsAvg_microseconds{node=~\"$NodeId\", environment=\"$environment\", type=\"mean\"}",
+                        "fullMetaSearch": false,
+                        "includeNullMetadata": true,
+                        "legendFormat": "node {{node}}",
+                        "range": true,
+                        "useBackend": false
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                }
+              ],
+              "transformations": [],
+              "queryOptions": {}
+            }
+          },
+          "vizConfig": {
+            "kind": "VizConfig",
+            "group": "timeseries",
+            "version": "13.2.1",
+            "spec": {
+              "options": {
+                "legend": {
+                  "calcs": [
+                    "last"
+                  ],
+                  "displayMode": "table",
+                  "placement": "right",
+                  "showLegend": true
+                },
+                "tooltip": {
+                  "hideZeros": false,
+                  "mode": "multi",
+                  "sort": "none"
+                }
+              },
+              "fieldConfig": {
+                "defaults": {
+                  "unit": "µs",
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "value": 0,
+                        "color": "green"
+                      },
+                      {
+                        "value": 80,
+                        "color": "red"
+                      }
+                    ]
+                  },
+                  "color": {
+                    "mode": "palette-classic"
+                  },
+                  "custom": {
+                    "axisBorderShow": false,
+                    "axisCenteredZero": false,
+                    "axisColorMode": "text",
+                    "axisLabel": "",
+                    "axisPlacement": "auto",
+                    "barAlignment": 0,
+                    "barWidthFactor": 0.6,
+                    "drawStyle": "line",
+                    "fillOpacity": 0,
+                    "gradientMode": "none",
+                    "hideFrom": {
+                      "legend": false,
+                      "tooltip": false,
+                      "viz": false
+                    },
+                    "insertNulls": false,
+                    "lineInterpolation": "linear",
+                    "lineWidth": 1,
+                    "pointSize": 5,
+                    "scaleDistribution": {
+                      "type": "linear"
+                    },
+                    "showPoints": "never",
+                    "showValues": false,
+                    "spanNulls": false,
+                    "stacking": {
+                      "group": "A",
+                      "mode": "none"
+                    },
+                    "thresholdsStyle": {
+                      "mode": "off"
+                    }
+                  }
+                },
+                "overrides": []
+              }
+            }
+          }
+        }
       }
     },
     "layout": {
@@ -23473,7 +23594,7 @@
                         "height": 8,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-210"
+                          "name": "panel-212"
                         }
                       }
                     },
@@ -23500,6 +23621,19 @@
                         "element": {
                           "kind": "ElementReference",
                           "name": "panel-209"
+                        }
+                      }
+                    },
+                    {
+                      "kind": "GridLayoutItem",
+                      "spec": {
+                        "x": 0,
+                        "y": 32,
+                        "width": 24,
+                        "height": 8,
+                        "element": {
+                          "kind": "ElementReference",
+                          "name": "panel-210"
                         }
                       }
                     }

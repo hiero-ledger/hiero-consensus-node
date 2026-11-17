@@ -97,10 +97,11 @@ class HintsSigningMetricsTest {
 
         subject.recordSubmitToFirstPeerSignature(1_500_000L);
         subject.recordPeerSignatureBeforeSubmit(3_000_000L);
-        subject.recordThresholdBeforeSubmit();
+        subject.recordThresholdBeforeSubmit(2_500_000L);
 
         assertEquals(1_500.0, valueOf("hintsSubmitToFirstPeerSigUsAvg"), 1e-9);
         assertEquals(3_000.0, valueOf("hintsPeerLeadUsAvg"), 1e-9);
+        assertEquals(2_500.0, valueOf("hintsThresholdLeadUsAvg"), 1e-9);
         assertEquals(1L, metrics.getMetric(CATEGORY, "hintsPeerSigBeforeSubmit").get(ValueType.VALUE));
         assertEquals(
                 1L, metrics.getMetric(CATEGORY, "hintsThresholdBeforeSubmit").get(ValueType.VALUE));
