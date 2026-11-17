@@ -707,11 +707,20 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                 final var hintsConstruction = awaitLogLineAfter(
                                         network,
                                         mark,
-                                        Pattern.compile("Construction #(\\d+) already has \\d+ relevant keys "
-                                                + "published \\[(.*)\\]"),
+                                        Pattern.compile("Creating controller for construction #(\\d+) from nodes "
+                                                + "\\[[^]]*\\] to \\[([^]]*)\\]"),
                                         ROTATION_TSS_TIMEOUT);
                                 final var constructionId = hintsConstruction.group(1);
-                                final var signers = hintsConstruction.group(2);
+                                final int numTargetNodes = countListed(hintsConstruction.group(2));
+                                // The keys the construction preprocessed, which can include keys published after it
+                                // started; with every target node's key among them, the added nodes are parties
+                                final int numPreprocessedKeys = countListed(awaitLogLineAfter(
+                                                network,
+                                                mark,
+                                                Pattern.compile("Calling preprocess for construction #" + constructionId
+                                                        + " with crsHash=\\w+, hintKeyHashes=\\{([^}]*)\\}"),
+                                                ROTATION_TSS_TIMEOUT)
+                                        .group(1));
                                 awaitLogLineAfter(
                                         network,
                                         mark,
@@ -730,14 +739,15 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                         Pattern.compile("History proof constructed \\(#" + historyConstructionId
                                                 + ", WRAPS-extensible\\? true\\)"),
                                         ROTATION_TSS_TIMEOUT);
-                                final boolean enrolled = addedNodeIds.stream()
-                                        .allMatch(nodeId -> signers.contains("(" + nodeId + " -> "));
+                                final boolean enrolled = numPreprocessedKeys == numTargetNodes;
                                 opLog.info(
-                                        "Rotation {} of {}: hinTS construction #{} started with keys [{}]{}",
+                                        "Rotation {} of {}: hinTS construction #{} preprocessed {} of {} target nodes' "
+                                                + "keys{}",
                                         rotation,
                                         network.name(),
                                         constructionId,
-                                        signers,
+                                        numPreprocessedKeys,
+                                        numTargetNodes,
                                         enrolled ? " — all of " + addedNodeIds + " enrolled" : "");
                                 if (enrolled) {
                                     return;
@@ -791,6 +801,16 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 }))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /**
+     * Counts the entries of a comma-separated list as logged, e.g. {@code 0, 1, 2} or {@code 1=ab, 2=cd}.
+     *
+     * @param listed the list without its brackets
+     * @return the number of entries
+     */
+    private static int countListed(final String listed) {
+        return listed.isBlank() ? 0 : listed.split(",").length;
     }
 
     /** Stakes {@code amount} to node {@code nodeId} from a new account that declines rewards, so it stays put. */

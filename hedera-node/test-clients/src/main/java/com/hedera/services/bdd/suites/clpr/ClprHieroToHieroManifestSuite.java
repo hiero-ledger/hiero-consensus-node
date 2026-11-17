@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -231,19 +232,20 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                     @ConfigOverride(key = "tss.transitionHintsKeyGracePeriod", value = HINTS_KEY_GRACE_PERIOD)
                 })
     })
+    @Disabled("Covered by 8.1.3, where B recovers A's new manifest automatically from A's bundle after A has "
+            + "replaced all its nodes, the same recovery as here; disabled to keep the CLPR multinetwork tests fast")
     @DisplayName("8.1.2 complete turnover (one side): A replaces all its nodes while partitioned from B; B "
-            + "recovers A's manifest via clprGetEndpointManifest + clprSubmitBundle, with no gRPC to A's old nodes")
-    Stream<DynamicTest> completeTurnoverOneSideRecoversViaSubmitBundle(
+            + "recovers A's manifest automatically from A's next bundle, with no gRPC to A's old nodes")
+    Stream<DynamicTest> completeTurnoverOneSideRecoversAutomatically(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
         // A's manifest version B cached at connection time; the recovery is expressed relative to it
         final AtomicLong aVersionBaseline = new AtomicLong();
         final AtomicLong aVersionTurnedOver = new AtomicLong();
-        final AtomicReference<ByteString> aManifestProof = new AtomicReference<>();
         final List<Long> addedNodeIds = new ArrayList<>();
 
         return multiNetworkHapiTest(
-                "completeTurnoverOneSideRecoversViaSubmitBundle",
+                "completeTurnoverOneSideRecoversAutomatically",
                 Stream.of(
                                 setupBothNetworksWithManifestProof(
                                         ledgerA, ledgerB, HAPI_TLS_PORT_A, HAPI_TLS_PORT_B, crypto),
@@ -258,21 +260,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                         awaitManifestMatchesRoster(
                                                 ledgerA, HAPI_TLS_PORT_A, aVersionBaseline, aVersionTurnedOver),
                                         restartLedger(ledgerB),
-                                        // Out-of-band recovery: read-only query of A's manifest + its state proof...
-                                        deferred(
-                                                "Capture manifest proof of " + ledgerA.name(),
-                                                () -> captureManifestProof(ledgerA, aManifestProof)),
-                                        // ...submitted on B via clprSubmitBundle. B's endpoints did not change, so A
-                                        // can still reach B and may push its manifest first: accept SUCCESS (this
-                                        // submit applied it) or CLPR_BUNDLE_VERIFICATION_FAILED (already applied).
-                                        // No gRPC to any A endpoint is used by this submit (spec §8.1.4).
-                                        submitManifestRecoveryBundle(
-                                                ledgerB,
-                                                crypto.channelId,
-                                                aManifestProof,
-                                                ResponseCodeEnum.SUCCESS,
-                                                ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED),
-                                        // Deterministic outcome: B's cached peer manifest is A's new one
+                                        // Automatic recovery: B's endpoints did not change, so A's new nodes still
+                                        // reach B; B's view of A's manifest is stale, so A's next bundle carries a
+                                        // proof of it, and B applies it. B never reaches A's old nodes, all gone.
                                         awaitManifestAppliedOnPeer(
                                                 ledgerB,
                                                 aVersionTurnedOver,
@@ -320,7 +310,8 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                 })
     })
     @DisplayName("8.1.3 simultaneous turnover (both sides): A and B each replace all their nodes while partitioned; "
-            + "each side independently recovers the other's manifest via clprGetEndpointManifest + clprSubmitBundle")
+            + "A recovers B's manifest manually via clprGetEndpointManifest + clprSubmitBundle, then B recovers A's "
+            + "automatically from A's next bundle")
     Stream<DynamicTest> simultaneousTurnoverBothSidesRecoverIndependently(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
@@ -328,7 +319,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         final AtomicLong bVersionBaseline = new AtomicLong();
         final AtomicLong aVersionTurnedOver = new AtomicLong();
         final AtomicLong bVersionTurnedOver = new AtomicLong();
-        final AtomicReference<ByteString> aManifestProof = new AtomicReference<>();
         final AtomicReference<ByteString> bManifestProof = new AtomicReference<>();
         final List<Long> addedNodeIdsA = new ArrayList<>();
         final List<Long> addedNodeIdsB = new ArrayList<>();
@@ -357,26 +347,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                 ledgerB, HAPI_TLS_PORT_B, bVersionBaseline, bVersionTurnedOver),
                                         // Every endpoint each side cached for the other is gone
                                         restartLedger(ledgerA),
-                                        // With all connectivity broken the manual submitBundle is the only way to
-                                        // apply either manifest, so each awaitManifestAppliedOnPeer proves the
-                                        // manifest-only recovery bundle was accepted. Order does not matter.
-                                        // B recovers A...
-                                        deferred(
-                                                "Capture manifest proof of " + ledgerA.name(),
-                                                () -> captureManifestProof(ledgerA, aManifestProof)),
-                                        deferred(
-                                                "Submit A's manifest on " + ledgerB.name(),
-                                                () -> submitManifestRecoveryBundle(
-                                                        ledgerB,
-                                                        crypto.channelId,
-                                                        aManifestProof,
-                                                        ResponseCodeEnum.SUCCESS,
-                                                        ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED)),
-                                        awaitManifestAppliedOnPeer(
-                                                ledgerB,
-                                                aVersionTurnedOver,
-                                                () -> tlsPorts(HAPI_TLS_PORT_A, addedNodeIdsA)),
-                                        // ...and A recovers B
+                                        // Manual recovery (spec §8.1.3): with every endpoint either side cached
+                                        // for the other gone, neither can reach the other, so the manifest-only
+                                        // submitBundle is the only way A can learn B's new manifest; it must apply
                                         deferred(
                                                 "Capture manifest proof of " + ledgerB.name(),
                                                 () -> captureManifestProof(ledgerB, bManifestProof)),
@@ -386,14 +359,19 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                         ledgerA,
                                                         crypto.channelId,
                                                         bManifestProof,
-                                                        ResponseCodeEnum.SUCCESS,
-                                                        ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED)),
+                                                        ResponseCodeEnum.SUCCESS)),
                                         awaitManifestAppliedOnPeer(
                                                 ledgerA,
                                                 bVersionTurnedOver,
                                                 () -> tlsPorts(HAPI_TLS_PORT_B, addedNodeIdsB)),
-                                        // Normal sync resumes both ways over the recovered manifests
+                                        // Automatic recovery (spec §8.1.2): A now reaches B's new nodes, and B's view
+                                        // of A's manifest is stale, so A's bundle carries a proof of A's new manifest
+                                        // and B applies it; B could not reach any of A's nodes to learn it otherwise
                                         sendMessages(ledgerA, crypto, "callerA2", "post-turnover"),
+                                        awaitManifestAppliedOnPeer(
+                                                ledgerB,
+                                                aVersionTurnedOver,
+                                                () -> tlsPorts(HAPI_TLS_PORT_A, addedNodeIdsA)),
                                         deferredAwaitReceivedMessage(ledgerB, crypto, 1),
                                         deferredAwaitAckedMessage(ledgerA, crypto, 1),
                                         sendMessages(ledgerB, crypto, "callerB2", "post-turnover-reply"),
