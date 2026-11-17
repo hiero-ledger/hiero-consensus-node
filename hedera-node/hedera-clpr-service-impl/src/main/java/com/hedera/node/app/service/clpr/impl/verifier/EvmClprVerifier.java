@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
@@ -16,6 +17,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCus
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
@@ -31,14 +33,18 @@ import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
+import com.hedera.node.app.service.clpr.impl.ClprProofTimestamp;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -223,13 +229,48 @@ public class EvmClprVerifier implements ClprVerifier {
         if (rawReturn == null || rawReturn.length() == 0) {
             throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
         }
-        final var content = decodeVerifyBundleWithManifestReturn(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED);
+        var content = decodeVerifyBundleWithManifestReturn(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED);
+        if (content.hasNewEndpointManifest() && isHieroVerifier()) {
+            final var timestamp = authenticatedManifestTimestamp(bundlePayload);
+            if (timestamp != null) {
+                content =
+                        content.copyBuilder().manifestProofTimestamp(timestamp).build();
+            }
+        }
         log.debug(
                 "[EvmClprVerifier] verifyBundle EXIT: messages={} newTrustAnchorBytes={} newTrustAnchorId={}",
                 content.messages().size(),
                 content.newTrustAnchor().length(),
                 shortHex(content.newTrustAnchorId()));
         return content;
+    }
+
+    private boolean isHieroVerifier() {
+        return verifierContract.contractNumOrElse(0L) == CLPR_SERVICE_ACCOUNT_NUM
+                || CLPR_EVM_ADDRESS_BYTES.equals(verifierContract.evmAddress());
+    }
+
+    @Nullable
+    private static Timestamp authenticatedManifestTimestamp(@NonNull final Bytes bundlePayload) {
+        try {
+            final var proof = StateProof.PROTOBUF.parseStrict(bundlePayload);
+            final var digestType = StateProofVerifier.inferDigestType(proof);
+            if (digestType == null) {
+                return null;
+            }
+            final var digest = digestType.buildDigest();
+            // The native verifier authenticated the root of the first state-item path against the
+            // channel's trust anchor, then checked the manifest path against that same root.
+            for (final var path : proof.paths()) {
+                if (path.hasStateItemLeaf()) {
+                    final var root = StateProofVerifier.computeBlockRootHashFromPath(path, digest);
+                    return ClprProofTimestamp.verifiedTimestamp(proof, root, digest);
+                }
+            }
+        } catch (final ParseException | IllegalStateException e) {
+            log.debug("Bundle lacks a usable manifest proof timestamp", e);
+        }
+        return null;
     }
 
     /**

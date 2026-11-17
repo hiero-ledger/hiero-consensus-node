@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BOD
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
+import static com.hedera.node.app.service.clpr.impl.ClprBundleValidator.hasNewerManifestProof;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.AUTHORIZED;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
@@ -277,6 +278,12 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());
+                if (hasNewerManifestProof(channel, bundleContent)) {
+                    updatedBuilder.endpointManifestProofTimestamp(bundleContent.manifestProofTimestamp());
+                }
+                if (expectedManifestVersion != null) {
+                    updatedBuilder.peerManifestRecovered(true);
+                }
                 // Refresh the orchestrator's node-local peer endpoint cache — deferred until the bundle is
                 // handled without an exception (see doHandle).
                 deferredPeerEndpoints.set(channelId, truncatedEndpoints);
@@ -1335,7 +1342,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 && content.messages().isEmpty()
                                 && manifest != null
                                 && manifest.version() > 0
-                                && Long.compareUnsigned(manifest.version(), channel.endpointManifestVersion()) < 0,
+                                && Long.compareUnsigned(manifest.version(), channel.endpointManifestVersion()) < 0
+                                && hasNewerManifestProof(channel, content),
                         CLPR_BUNDLE_VERIFICATION_FAILED);
                 return new ValidatedBundle(content, List.of(), channel.receivedRunningHash(), true, true);
             }

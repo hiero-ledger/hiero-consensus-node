@@ -126,8 +126,11 @@ side-effects.
 - State writes: channel's `received_running_hash`, `last_received_message_id`; per-data-
   message replies stored back into the queue (replies on the source-side queue).
 - An authorized CLPR admin can use `yahcli clpr submit-bundle --expected-cached-manifest-version`
-  to replace that exact cached version with a verified lower manifest. Supply a proof without queue
-  metadata or messages. Use recovery when the peer is trusted again.
+  to replace that exact cached version with a verified lower manifest. For a Hiero TSS channel, fetch
+  a fresh proof from the repaired peer with `yahcli clpr get-endpoint-manifest --for-manifest-recovery --proof-path <path>`.
+  Recovery requires an authenticated source block timestamp and a proof without queue metadata or messages.
+  After recovery, a higher manifest version can advance the channel only with a proof from a strictly
+  later source block. Verifiers that do not authenticate source ordering cannot downgrade a manifest.
 - Slashing/reimbursement: on misbehaviour, calls `ClprSlashingUtils.slashConnector(...)`
   and credits the submitting endpoint per `ClprConfig.endpointMarginPercent`. See
   [`config-and-slashing.md`](config-and-slashing.md).

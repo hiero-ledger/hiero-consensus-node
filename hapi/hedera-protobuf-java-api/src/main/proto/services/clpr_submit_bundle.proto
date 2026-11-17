@@ -57,7 +57,9 @@ message ClprSubmitBundleTransactionBody {
      * If present, requests admin recovery from this exact cached peer manifest
      * version. The verifier MUST return a positive, strictly lower manifest
      * version without queue metadata or messages. The Channel's cached version
-     * MUST still equal this value when the transaction is handled.
+     * MUST still equal this value when the transaction is handled. Recovery
+     * requires an authenticated source block timestamp later than any already
+     * recorded for a manifest on this channel.
      */
     google.protobuf.UInt64Value expected_cached_manifest_version = 5;
 }

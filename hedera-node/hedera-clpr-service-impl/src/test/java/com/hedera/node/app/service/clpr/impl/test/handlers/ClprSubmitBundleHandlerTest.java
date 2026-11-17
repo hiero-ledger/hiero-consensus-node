@@ -1979,8 +1979,11 @@ class ClprSubmitBundleHandlerTest {
     void recoveryReplacesExpectedManifestWithoutAdvancingQueue() {
         putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
         final var replacement = buildManifest(3L, "10.0.0.5");
-        final var content =
-                ClprBundleContent.newBuilder().newEndpointManifest(replacement).build();
+        final var proofTimestamp = new Timestamp(100L, 0);
+        final var content = ClprBundleContent.newBuilder()
+                .newEndpointManifest(replacement)
+                .manifestProofTimestamp(proofTimestamp)
+                .build();
         final var txn = bundleTxn(content);
         setupHandleContext(
                 txn.copyBuilder()
@@ -1995,9 +1998,99 @@ class ClprSubmitBundleHandlerTest {
         final var channel = channelStore.getChannel(CHANNEL_ID);
         assertThat(channel.endpointManifestOrThrow()).isEqualTo(replacement);
         assertThat(channel.endpointManifestVersion()).isEqualTo(3L);
+        assertThat(channel.endpointManifestProofTimestamp()).isEqualTo(proofTimestamp);
+        assertThat(channel.peerManifestRecovered()).isTrue();
         assertThat(channel.receivedMessageId()).isZero();
         assertThat(channel.ackedMessageId()).isZero();
         verify(channelLifecycle).seedPeerEndpoints(CHANNEL_ID, replacement.endpoints());
+    }
+
+    @Test
+    void recoveredManifestAcceptsOnlyHigherVersionsFromLaterSourceBlocks() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var historical = ClprBundleContent.newBuilder()
+                .newEndpointManifest(buildManifest(5L, "10.0.0.5"))
+                .manifestProofTimestamp(new Timestamp(99L, 999_999_999))
+                .build();
+        setupHandleContext(bundleTxn(historical), true);
+        subject.handle(handleContext);
+        assertThat(channelStore.getChannel(CHANNEL_ID).endpointManifestVersion())
+                .isEqualTo(5L);
+
+        final var cutoff = new Timestamp(100L, 50);
+        final var recovery = bundleTxn(ClprBundleContent.newBuilder()
+                .newEndpointManifest(buildManifest(3L, "10.0.0.6"))
+                .manifestProofTimestamp(cutoff)
+                .build());
+        setupHandleContext(
+                recovery.copyBuilder()
+                        .clprSubmitBundle(
+                                recovery.clprSubmitBundleOrThrow().copyBuilder().expectedCachedManifestVersion(5L))
+                        .build(),
+                true);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(AUTHORIZED);
+        subject.handle(handleContext);
+        final var recovered = channelStore.getChannel(CHANNEL_ID);
+        assertThat(recovered.endpointManifestVersion()).isEqualTo(3L);
+
+        final var ordinaryUpdate = ClprBundleContent.newBuilder()
+                .newEndpointManifest(buildManifest(4L, "10.0.0.8"))
+                .build();
+        for (final var content : List.of(
+                historical,
+                ordinaryUpdate,
+                ordinaryUpdate.copyBuilder().manifestProofTimestamp(cutoff).build())) {
+            setupHandleContext(bundleTxn(content), true);
+            assertThatThrownBy(() -> subject.handle(handleContext))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+            assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(recovered);
+        }
+        verify(channelLifecycle, times(2)).seedPeerEndpoints(eq(CHANNEL_ID), any());
+
+        final var later = new Timestamp(100L, 51);
+        setupHandleContext(
+                bundleTxn(ordinaryUpdate
+                        .copyBuilder()
+                        .manifestProofTimestamp(later)
+                        .build()),
+                true);
+        subject.handle(handleContext);
+
+        final var channel = channelStore.getChannel(CHANNEL_ID);
+        assertThat(channel.endpointManifestOrThrow()).isEqualTo(ordinaryUpdate.newEndpointManifestOrThrow());
+        assertThat(channel.endpointManifestProofTimestamp()).isEqualTo(later);
+        verify(channelLifecycle)
+                .seedPeerEndpoints(CHANNEL_ID, channel.endpointManifestOrThrow().endpoints());
+    }
+
+    @Test
+    void recoveryRequiresProofNewerThanPreviouslyInstalledManifest() {
+        putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
+        final var cutoff = new Timestamp(100L, 50);
+        final var before = channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .endpointManifestProofTimestamp(cutoff)
+                .build();
+        channelStore.put(before);
+        final var txn = bundleTxn(ClprBundleContent.newBuilder()
+                .newEndpointManifest(buildManifest(3L, "10.0.0.5"))
+                .manifestProofTimestamp(cutoff)
+                .build());
+        setupHandleContext(
+                txn.copyBuilder()
+                        .clprSubmitBundle(
+                                txn.clprSubmitBundleOrThrow().copyBuilder().expectedCachedManifestVersion(5L))
+                        .build(),
+                true);
+        given(handleContext.hasPrivilegedAuthorization()).willReturn(AUTHORIZED);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isEqualTo(before);
+        verify(channelLifecycle, never()).seedPeerEndpoints(eq(CHANNEL_ID), any());
     }
 
     @Test

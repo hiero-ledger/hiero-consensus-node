@@ -20,8 +20,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.blocks.HashUtils;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -32,11 +37,13 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -128,6 +135,39 @@ class EvmClprVerifierTest {
         assertThat(content.newEndpointManifest()).isNotNull();
         assertThat(content.newEndpointManifest().version()).isEqualTo(7L);
         assertThat(content.newEndpointManifest().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void returnsTimestampOnlyWhenItAuthenticatesAgainstTheVerifiedBlock(final boolean matchingTimestamp) {
+        givenConfig();
+        givenDispatchReturns(bundleWithManifestReturn(0L, 7L, SERVICE_ADDR));
+        final var digest = DigestType.SHA_384.buildDigest();
+        final var timestamp = new Timestamp(100L, 50);
+        final var serializedTimestamp = Timestamp.PROTOBUF.toBytes(timestamp);
+        final var stateLeaf = Bytes.wrap(new byte[] {1, 2, 3});
+        final var statePath = MerklePath.newBuilder()
+                .stateItemLeaf(stateLeaf)
+                .siblings(SiblingNode.newBuilder()
+                        .isLeft(true)
+                        .hash(Bytes.wrap(HashUtils.computeRawLeafHash(digest, serializedTimestamp)))
+                        .build())
+                .nextPathIndex(-1)
+                .build();
+        final var timestampPath = MerklePath.newBuilder()
+                .timestampLeaf(
+                        matchingTimestamp ? serializedTimestamp : Timestamp.PROTOBUF.toBytes(new Timestamp(101L, 0)))
+                .siblings(SiblingNode.newBuilder()
+                        .hash(Bytes.wrap(HashUtils.computeVirtualMapStateLeafHash(digest, stateLeaf)))
+                        .build())
+                .nextPathIndex(-1)
+                .build();
+        final var payload = StateProof.PROTOBUF.toBytes(
+                StateProof.newBuilder().paths(statePath, timestampPath).build());
+
+        final var content = subject.verifyBundle(payload, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        assertThat(content.manifestProofTimestamp()).isEqualTo(matchingTimestamp ? timestamp : null);
     }
 
     @Test
