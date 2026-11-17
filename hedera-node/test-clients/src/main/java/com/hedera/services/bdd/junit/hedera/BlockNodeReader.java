@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
+import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeSubscribeClient;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -13,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
@@ -89,8 +91,13 @@ public final class BlockNodeReader {
                     .orElse(-1L);
         } else if (mode == BlockNodeMode.REAL) {
             long best = -1L;
-            for (final var entry : network.getBlockNodeContainerById().entrySet()) {
+            for (final Map.Entry<Long, BlockNodeContainer> entry :
+                    network.getBlockNodeContainerById().entrySet()) {
                 final var container = entry.getValue();
+                if (!container.isRunning()) {
+                    log.info("Unable to get latest block for block node {} because it is not running", entry.getKey());
+                    continue;
+                }
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
                     final long nextExpected = client.getNextExpectedBlock();
                     best = Math.max(best, nextExpected == -1L ? -1L : nextExpected - 1L);
@@ -143,8 +150,15 @@ public final class BlockNodeReader {
      */
     public long lastStoredBlock() {
         long best = -1L;
-        for (final var entry : network.getBlockNodeContainerById().entrySet()) {
+        for (final Map.Entry<Long, BlockNodeContainer> entry :
+                network.getBlockNodeContainerById().entrySet()) {
             final var container = entry.getValue();
+
+            if (!container.isRunning()) {
+                log.info("Unable to get last stored block on block node {} because it is not running", entry.getKey());
+                continue;
+            }
+
             try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
                 best = Math.max(best, client.getLastAvailableBlock());
             } catch (final Exception e) {
@@ -202,8 +216,15 @@ public final class BlockNodeReader {
         if (mode == BlockNodeMode.SIMULATOR) {
             return network.getSimulatedBlockNodeById().values().stream().anyMatch(sim -> sim.hasReceivedBlock(number));
         } else if (mode == BlockNodeMode.REAL) {
-            for (final var entry : network.getBlockNodeContainerById().entrySet()) {
+            for (final Map.Entry<Long, BlockNodeContainer> entry :
+                    network.getBlockNodeContainerById().entrySet()) {
                 final var container = entry.getValue();
+
+                if (!container.isRunning()) {
+                    log.info("Cannot query block node {} for block because it is not running", entry.getKey());
+                    continue;
+                }
+
                 try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
                     if (client.getNextExpectedBlock() > number) {
                         return true;
@@ -257,8 +278,18 @@ public final class BlockNodeReader {
 
     @NonNull
     private List<Block> realContainerBlocks(final long start, final long end) {
-        for (final var entry : network.getBlockNodeContainerById().entrySet()) {
+        for (final Map.Entry<Long, BlockNodeContainer> entry :
+                network.getBlockNodeContainerById().entrySet()) {
             final var container = entry.getValue();
+            if (!container.isRunning()) {
+                log.info(
+                        "Unable to read block {}-{} from block node {} because it is not running",
+                        start,
+                        end,
+                        entry.getKey());
+                continue;
+            }
+            log.info("Attempting to read block {}-{} from real block node {}", start, end, entry.getKey());
             try (final var client = new BlockNodeSubscribeClient(container.getHost(), container.getPort())) {
                 final var blocks = new ArrayList<>(client.subscribeBlocks(start, end));
                 blocks.sort(Comparator.comparingLong(BlockNodeReader::blockNumberOf));
