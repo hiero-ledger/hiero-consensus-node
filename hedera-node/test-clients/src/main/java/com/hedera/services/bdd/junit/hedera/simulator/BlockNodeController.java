@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -334,8 +335,11 @@ public class BlockNodeController {
             final long lastVerifiedBlockNumber = persistentStateBlockNodes.contains(nodeId)
                     ? lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L)
                     : -1L;
+            final Supplier<Long> lastVerifiedBlockNumberSupplier = blockNodeNetwork.catchesUpFromPeers(nodeId)
+                    ? () -> Math.max(lastVerifiedBlockNumber, blockNodeNetwork.highestPeerVerifiedBlock(nodeId))
+                    : () -> lastVerifiedBlockNumber;
             final SimulatedBlockNodeServer newServer =
-                    new SimulatedBlockNodeServer(spec, () -> lastVerifiedBlockNumber);
+                    new SimulatedBlockNodeServer(spec, lastVerifiedBlockNumberSupplier);
             newServer.start();
 
             // Replace the old server in the list

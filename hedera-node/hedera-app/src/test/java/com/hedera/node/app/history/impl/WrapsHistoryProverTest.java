@@ -13,16 +13,21 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -30,10 +35,14 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
+import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.HistoryLibrary.AddressBook;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -41,13 +50,16 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -62,12 +74,22 @@ class WrapsHistoryProverTest {
     private static final long THIRD_NODE_ID = 3L;
     private static final long OFFLINE_NODE_ID = 0L;
     private static final long CONSTRUCTION_ID = 123L;
+    private static final long SOURCE_HINTS_ID = 41L;
+    private static final long TARGET_HINTS_ID = 42L;
+    private static final Bytes SOURCE_VERIFICATION_KEY = Bytes.wrap("source-vk");
+    private static final Bytes KEY_PROVENANCE_SIGNATURE = Bytes.wrap("key-provenance-signature");
+    private static final Bytes SELF_PARTIAL = Bytes.wrap("self-partial");
+    private static final Bytes OTHER_PARTIAL = Bytes.wrap("other-partial");
     private static final Bytes LEDGER_ID =
             Bytes.wrap("0123456789abcdef0123456789abcdef".getBytes(UTF_8)).append(Bytes.wrap(new byte[32]));
     private static final Bytes TARGET_METADATA = Bytes.wrap("meta");
     private static final Bytes MESSAGE_BYTES = Bytes.wrap("msg");
     private static final Bytes R1_MESSAGE = Bytes.wrap("r1");
+    private static final Bytes OTHER_R1_MESSAGE = Bytes.wrap("other-r1");
+    private static final Bytes CHECK_R1_MESSAGE = Bytes.wrap("check-r1");
+    private static final Bytes CHECK_R2_MESSAGE = Bytes.wrap("check-r2");
     private static final Bytes R2_MESSAGE = Bytes.wrap("r2");
+    private static final Bytes STALE_R2_MESSAGE = Bytes.wrap("stale-r2");
     private static final Bytes R3_MESSAGE = Bytes.wrap("r3");
     private static final Bytes TARGET_BOOK_HASH = Bytes.wrap("HASH");
     private static final Bytes AGG_SIG = Bytes.wrap("aggSig");
@@ -77,8 +99,9 @@ class WrapsHistoryProverTest {
     private static final Duration GRACE_PERIOD = Duration.ofSeconds(5);
     private static final Duration JITTER_PER_RANK = Duration.ofSeconds(5);
 
+    // This node signs with the key the source proof has for it
     private static final ProofKeysAccessorImpl.SchnorrKeyPair KEY_PAIR =
-            new ProofKeysAccessorImpl.SchnorrKeyPair(Bytes.wrap("priv"), Bytes.wrap("pub"));
+            new ProofKeysAccessorImpl.SchnorrKeyPair(Bytes.wrap("priv"), Bytes.wrap("pk1"));
 
     @Mock
     private Executor executor;
@@ -96,6 +119,9 @@ class WrapsHistoryProverTest {
 
     @Mock
     private TssConfig tssConfig;
+
+    @Mock
+    private KeyProvenanceSigner provenanceSigner;
 
     private final SortedMap<Long, Long> sourceWeights = new TreeMap<>();
     private final SortedMap<Long, Long> targetWeights = new TreeMap<>();
@@ -118,6 +144,22 @@ class WrapsHistoryProverTest {
         targetProofKeys.putAll(proofKeys);
 
         weights = new RosterTransitionWeights(sourceWeights, targetWeights);
+        // Canonical-book checks also run on inactive nodes, before local publication is considered.
+        lenient().when(historyLibrary.hashAddressBook(any())).thenReturn(TARGET_BOOK_HASH.toByteArray());
+        lenient().when(historyLibrary.computeWrapsMessage(any(), any())).thenReturn("MSG".getBytes(UTF_8));
+
+        // No node is excluded, and checks of other nodes' R1 and R2 messages pass, unless a test says otherwise
+        lenient()
+                .when(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID))
+                .thenReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .build());
+        lenient()
+                .when(historyLibrary.runWrapsPhaseR2(any(), any(), any(), checkKey(), any(), any()))
+                .thenReturn(CHECK_R2_MESSAGE.toByteArray());
+        lenient()
+                .when(historyLibrary.runWrapsPhaseR3(any(), any(), any(), any(), checkKey(), any(), any()))
+                .thenReturn(R3_MESSAGE.toByteArray());
 
         subject = newSubject(null, executor, delayer);
     }
@@ -163,7 +205,8 @@ class WrapsHistoryProverTest {
         assertTrue(failed.reason().startsWith(WrapsHistoryProver.ADDRESS_BOOK_TOO_LARGE_FAILURE_PREFIX));
         assertTrue(failed.reason().contains("(" + (HistoryLibrary.MAX_ADDRESS_BOOK_SIZE + 1) + " nodes"));
         assertFalse(WrapsHistoryProver.isRecoverableFailure(failed.reason()));
-        verifyNoInteractions(historyLibrary, submissions);
+        verifyNoInteractions(submissions);
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
     }
 
     @Test
@@ -173,6 +216,14 @@ class WrapsHistoryProverTest {
         final var construction = groundingConstruction(R1, graceEnd);
         // A construction grounding a chain of trust needs no WRAPS-extensible source proof
         subject = newSubject(HistoryProof.DEFAULT, executor, delayer);
+        subject.advance(
+                EPOCH,
+                groundingConstruction(R1, graceEnd),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                false);
 
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
@@ -180,8 +231,10 @@ class WrapsHistoryProverTest {
         final var outcome =
                 subject.advance(now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
+        // Only a restart with excluded nodes gives R1 a grace period, and its end lets every node sign again
         final var failed = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
-        assertTrue(failed.reason().contains("Still missing messages"));
+        assertEquals(WrapsHistoryProver.R1_TIMEOUT_FAILURE_PREFIX + "[" + SELF_ID + "]", failed.reason());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failed.reason()));
     }
 
     @Test
@@ -220,6 +273,7 @@ class WrapsHistoryProverTest {
         final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
         assertEquals(
                 "Still missing messages from R1 nodes [2] after end of grace period for phase R2", failure.reason());
+        assertEquals(Set.of(OTHER_NODE_ID), failure.missingNodeIds());
         assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
         verify(writableHistoryStore, never()).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R3), any());
         verifyNoInteractions(submissions);
@@ -251,7 +305,8 @@ class WrapsHistoryProverTest {
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, false);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, inactiveOutcome);
-        verifyNoInteractions(historyLibrary, submissions);
+        verifyNoInteractions(submissions);
+        assertNull(getField("r1Future"));
 
         givenWrapsMessage();
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
@@ -273,16 +328,13 @@ class WrapsHistoryProverTest {
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.hashAddressBook(any())).willThrow(new IllegalArgumentException("boom"));
 
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> subject.advance(
-                        EPOCH,
-                        groundingConstruction(R1, null),
-                        TARGET_METADATA,
-                        targetProofKeys,
-                        tssConfig,
-                        null,
-                        true));
+        final var outcome = subject.advance(
+                EPOCH, groundingConstruction(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+        final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        // The target side of the construction failed, so the reason must not blame the source book
+        assertTrue(failure.reason().startsWith(WrapsHistoryProver.INVALID_TARGET_BOOK_FAILURE_PREFIX));
+        assertTrue(failure.reason().contains("boom"));
+        assertFalse(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
 
         assertNull(getField("targetAddressBook"));
         assertNull(getField("wrapsMessage"));
@@ -368,6 +420,266 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void rejectsR1MessageTheNextRoundCannotReadAndIgnoresItsSender() {
+        // Without node 2, nodes 1 and 3 still have the weight to complete R1
+        givenThreeNodeNetwork(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L));
+        subject = newSubject(null, executor, delayer);
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(CHECK_R1_MESSAGE.toByteArray());
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        // Only the round run with the sender's key and message in one seat, and the check's own R1 in the other, fails
+        given(historyLibrary.runWrapsPhaseR2(
+                        any(),
+                        any(),
+                        argThat(r1s -> r1s.length == 2
+                                && Arrays.equals(r1s[0], OTHER_R1_MESSAGE.toByteArray())
+                                && Arrays.equals(r1s[1], CHECK_R1_MESSAGE.toByteArray())),
+                        checkKey(),
+                        argThat(book -> hasSenderSeat(book, OTHER_NODE_ID)),
+                        eq(Set.of(0L, 1L))))
+                .willReturn(null);
+
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, OTHER_R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+
+        // Without the rejected R1, the accepted one does not have enough weight to start R2
+        verify(writableHistoryStore, never()).advanceWrapsSigningPhase(anyLong(), any(), any());
+        verify(writableHistoryStore).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(OTHER_NODE_ID));
+    }
+
+    @Test
+    void rejectsR2MessageThatDoesNotOpenItsSendersR1AndIgnoresItsSender() {
+        givenThreeNodeNetwork(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L));
+        subject = newSubject(null, executor, delayer);
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(CHECK_R1_MESSAGE.toByteArray());
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, OTHER_R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+        // Only the round run with the sender's key, R1 and R2 in one seat, and the check's own in the other, fails
+        given(historyLibrary.runWrapsPhaseR3(
+                        any(),
+                        any(),
+                        argThat(r1s -> r1s.length == 2
+                                && Arrays.equals(r1s[0], OTHER_R1_MESSAGE.toByteArray())
+                                && Arrays.equals(r1s[1], CHECK_R1_MESSAGE.toByteArray())),
+                        argThat(r2s -> r2s.length == 2
+                                && Arrays.equals(r2s[0], R2_MESSAGE.toByteArray())
+                                && Arrays.equals(r2s[1], CHECK_R2_MESSAGE.toByteArray())),
+                        checkKey(),
+                        argThat(book -> hasSenderSeat(book, OTHER_NODE_ID)),
+                        eq(Set.of(0L, 1L))))
+                .willReturn(null);
+
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore));
+        verify(writableHistoryStore).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(OTHER_NODE_ID));
+    }
+
+    @Test
+    void keepsTheSenderOfAnUnusableMessageWhenTheRestCouldNotCompleteR1() {
+        givenThreeNodeNetwork(Map.of(SELF_ID, 2L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L));
+        subject = newSubject(null, executor, delayer);
+        // With node 3 already excluded, nodes 1 and 2 are needed to complete R1
+        given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID))
+                .willReturn(HistoryProofConstruction.newBuilder()
+                        .constructionId(CONSTRUCTION_ID)
+                        .wrapsExcludedNodeIds(List.of(THIRD_NODE_ID))
+                        .build());
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, OTHER_R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+        // For example, a copy of node 2's R2 from an earlier attempt, which does not open its new R1 commitment
+        given(historyLibrary.runWrapsPhaseR3(
+                        any(),
+                        any(),
+                        any(),
+                        argThat(r2s -> Arrays.equals(r2s[0], STALE_R2_MESSAGE.toByteArray())),
+                        checkKey(),
+                        any(),
+                        any()))
+                .willReturn(null);
+
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, STALE_R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore));
+
+        verify(writableHistoryStore, never()).excludeFromWrapsSigning(anyLong(), any());
+        // So its usable R2 still counts
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore));
+    }
+
+    @Test
+    void r2FromANodeWithoutAnR1IsRejectedWithoutExcludingIt() {
+        givenThreeNodeNetwork(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 1L, THIRD_NODE_ID, 1L));
+        subject = newSubject(null, executor, delayer);
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+
+        // There is no R1 to check it against, and it will be rejected anyway
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(THIRD_NODE_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore));
+        verify(writableHistoryStore, never()).excludeFromWrapsSigning(anyLong(), any());
+    }
+
+    @Test
+    void checksAcceptHonestMessagesAndRejectUnusableOnesWithTheRealLibrary() {
+        final var library = new HistoryLibraryImpl();
+        givenThreeNodeNetwork(Map.of(OFFLINE_NODE_ID, 1L, SELF_ID, 1L, OTHER_NODE_ID, 2L, THIRD_NODE_ID, 2L));
+        final Map<Long, SchnorrKeys> keys = new TreeMap<>();
+        List.of(SELF_ID, OTHER_NODE_ID, THIRD_NODE_ID).forEach(nodeId -> {
+            keys.put(nodeId, library.newSchnorrKeyPair());
+            proofKeys.put(nodeId, Bytes.wrap(keys.get(nodeId).publicKey()));
+        });
+        // Native identity semantics depend on the public point, independently of its proof of knowledge.
+        // This historical encoding is permitted in a book, but remains ineligible for signing.
+        final var identityKey = HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray();
+        identityKey[identityKey.length - 1] = 1;
+        proofKeys.put(OFFLINE_NODE_ID, Bytes.wrap(identityKey));
+        final var book =
+                AddressBook.from(sourceWeights, nodeId -> proofKeys.get(nodeId).toByteArray());
+        final var message = library.computeWrapsMessage(book, new byte[] {1});
+        // Honest messages from nodes 2 and 3, signing together
+        final var signers = List.of(OTHER_NODE_ID, THIRD_NODE_ID);
+        final Map<Long, byte[]> r1s = new TreeMap<>();
+        final Map<Long, byte[]> r2s = new TreeMap<>();
+        signers.forEach(nodeId ->
+                r1s.put(nodeId, library.runWrapsPhaseR1(entropyOf(nodeId), message, privateKeyOf(keys, nodeId))));
+        signers.forEach(nodeId -> r2s.put(
+                nodeId,
+                library.runWrapsPhaseR2(
+                        entropyOf(nodeId),
+                        message,
+                        r1s.values().toArray(byte[][]::new),
+                        privateKeyOf(keys, nodeId),
+                        book,
+                        Set.copyOf(signers))));
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                library,
+                submissions,
+                new WrapsMpcStateMachine());
+
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, Bytes.wrap(r1s.get(OTHER_NODE_ID)), R1, EPOCH),
+                writableHistoryStore));
+        // The identity point is rejected as ineligible before checking its R1 or recording any exclusion.
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OFFLINE_NODE_ID, Bytes.wrap(r1s.get(THIRD_NODE_ID)), R1, EPOCH),
+                writableHistoryStore));
+        // No honest node can read an R2 message in place of an R1 message
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, Bytes.wrap(r2s.get(OTHER_NODE_ID)), R1, EPOCH),
+                writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(THIRD_NODE_ID, Bytes.wrap(r1s.get(THIRD_NODE_ID)), R1, EPOCH),
+                writableHistoryStore));
+        verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R2), any());
+        // Every honest node's R3 fails on an R2 message that does not open its sender's R1 commitment
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, Bytes.wrap(r2s.get(THIRD_NODE_ID)), R2, EPOCH),
+                writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(THIRD_NODE_ID, Bytes.wrap(r2s.get(THIRD_NODE_ID)), R2, EPOCH),
+                writableHistoryStore));
+        verify(writableHistoryStore, never()).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(OFFLINE_NODE_ID));
+        verify(writableHistoryStore).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(SELF_ID));
+        verify(writableHistoryStore).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(OTHER_NODE_ID));
+    }
+
+    @Test
+    void ignoresMessagesFromNodesWithoutSourceWeight() {
+        // This node has a key in the source proof, but no source weight (e.g., it missed the hinTS key window)
+        proofKeys.put(THIRD_NODE_ID, Bytes.wrap("pk3"));
+
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(THIRD_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+
+        verifyNoInteractions(writableHistoryStore);
+        verify(historyLibrary, never()).runWrapsPhaseR2(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void replayedMessagesAreNotCheckedAgain() {
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH));
+
+        // The replayed R1 was incorporated, so the same message arriving live is a duplicate
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+        verify(historyLibrary, never()).runWrapsPhaseR2(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void doesNotSignWithAKeyOtherThanItsKeyInTheSourceProof() {
+        // For example, after this node lost its key file and created a new key
+        proofKeys.put(SELF_ID, Bytes.wrap("its-key-before"));
+        targetProofKeys.put(SELF_ID, Bytes.wrap("its-key-before"));
+        subject = newSubject(null, Runnable::run, delayer);
+        givenWrapsMessage();
+
+        final var outcome = subject.advance(
+                EPOCH, groundingConstruction(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void r1GracePeriodEndingWithoutAnyMessagesFailsRecoverably() {
+        final var outcome = subject.advance(
+                EPOCH.plusSeconds(10),
+                groundingConstruction(R1, EPOCH.plusSeconds(5)),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                null,
+                true);
+
+        final var failed = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(WrapsHistoryProver.R1_TIMEOUT_FAILURE_PREFIX + "[]", failed.reason());
+        assertTrue(failed.missingNodeIds().isEmpty());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failed.reason()));
+    }
+
+    @Test
     void r1PhaseAdvancesToR2WhenEnoughWeight() {
         final var first = new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH);
         final var second = new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH.plusSeconds(1));
@@ -391,6 +703,216 @@ class WrapsHistoryProverTest {
 
         assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, first, writableHistoryStore));
         assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, duplicate, writableHistoryStore));
+    }
+
+    @Test
+    void incrementalR1WaitsForCanonicalMajorityBeyondSparseHintsMajority() {
+        final var canonicalWeights = new TreeMap<Long, Long>();
+        for (long nodeId = 0; nodeId < 7; nodeId++) {
+            canonicalWeights.put(nodeId, 1L);
+        }
+        givenThreeNodeNetwork(canonicalWeights);
+        sourceWeights.remove(5L);
+        sourceWeights.remove(6L);
+        subject = newSubject(canonicalSourceProof(targetWeights), executor, delayer);
+
+        for (long nodeId = 0; nodeId < 3; nodeId++) {
+            assertTrue(subject.addWrapsSigningMessage(
+                    CONSTRUCTION_ID, new WrapsMessagePublication(nodeId, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        }
+        verify(writableHistoryStore, never()).advanceWrapsSigningPhase(anyLong(), any(), any());
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(5L, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(3L, R1_MESSAGE, R1, EPOCH.plusSeconds(1)),
+                writableHistoryStore));
+        verify(writableHistoryStore)
+                .advanceWrapsSigningPhase(
+                        CONSTRUCTION_ID, R2, EPOCH.plusSeconds(1).plus(GRACE_PERIOD));
+    }
+
+    @Test
+    void incrementalSourceHashMismatchFailsIdenticallyOnActiveAndInactiveNodes() {
+        final var mismatched = wrapsExtensibleProof()
+                .copyBuilder()
+                .targetHistory(new History(Bytes.wrap("different-commitment"), SOURCE_VERIFICATION_KEY))
+                .build();
+        String reason = null;
+        for (final boolean canSubmit : List.of(false, true)) {
+            subject = newSubject(mismatched, Runnable::run, delayer);
+            final var outcome = subject.advance(
+                    EPOCH,
+                    transitionConstruction(R1, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    LEDGER_ID,
+                    canSubmit);
+            final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+            assertTrue(failure.reason().startsWith(WrapsHistoryProver.INVALID_SOURCE_BOOK_FAILURE_PREFIX));
+            assertFalse(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+            if (reason != null) {
+                assertEquals(reason, failure.reason());
+            }
+            reason = failure.reason();
+        }
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void incrementalMissingCanonicalSnapshotFailsBeforeAnyLocalWork() {
+        final var incomplete = wrapsExtensibleProof()
+                .copyBuilder()
+                .targetNodeWeights(List.of())
+                .build();
+        for (final boolean canSubmit : List.of(false, true)) {
+            subject = newSubject(incomplete, Runnable::run, delayer);
+            final var outcome = subject.advance(
+                    EPOCH,
+                    transitionConstruction(R1, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    LEDGER_ID,
+                    canSubmit);
+            final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+            assertTrue(failure.reason().startsWith(WrapsHistoryProver.INVALID_SOURCE_BOOK_FAILURE_PREFIX));
+            assertFalse(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+        }
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void legacyFrozenSparseMajorityFailsRecoverablyBeforeAggregation() {
+        final var canonicalWeights = new TreeMap<Long, Long>();
+        for (long nodeId = 0; nodeId < 7; nodeId++) {
+            canonicalWeights.put(nodeId, 1L);
+        }
+        givenThreeNodeNetwork(canonicalWeights);
+        sourceWeights.remove(5L);
+        sourceWeights.remove(6L);
+        final var sourceProof = canonicalSourceProof(targetWeights);
+        for (final boolean canSubmit : List.of(false, true)) {
+            subject = newSubject(sourceProof, Runnable::run, delayer);
+            for (long nodeId = 0; nodeId < 3; nodeId++) {
+                subject.replayWrapsSigningMessage(
+                        CONSTRUCTION_ID, new WrapsMessagePublication(nodeId, R1_MESSAGE, R1, EPOCH));
+            }
+            final var outcome = subject.advance(
+                    EPOCH,
+                    transitionConstruction(AGGREGATE, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    LEDGER_ID,
+                    canSubmit);
+            final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+            assertEquals(WrapsHistoryProver.INVALID_FROZEN_SIGNERS_FAILURE_PREFIX, failure.reason());
+            // Only state persisted under the older R1 rule can get here; a fresh attempt can still complete
+            assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+            assertTrue(WrapsHistoryProver.clearsExclusionsOnRetry(failure.reason()));
+        }
+        verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void freshGenesisUsesNewTargetKeysInsteadOfExistingPredecessorKeys() {
+        final var sourceProof = wrapsExtensibleProof();
+        final var newOtherKey = Bytes.wrap("rotated-pk2");
+        targetProofKeys.put(OTHER_NODE_ID, newOtherKey);
+        subject = newSubject(sourceProof, Runnable::run, delayer);
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
+                .willReturn(new Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        assertSame(
+                HistoryProver.Outcome.InProgress.INSTANCE,
+                subject.advance(
+                        EPOCH,
+                        groundingConstruction(R1, null),
+                        TARGET_METADATA,
+                        targetProofKeys,
+                        tssConfig,
+                        LEDGER_ID,
+                        false));
+        replaySigningRounds();
+
+        subject.advance(
+                EPOCH,
+                groundingConstruction(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        final var signedBook = ArgumentCaptor.forClass(AddressBook.class);
+        verify(historyLibrary).runAggregationPhase(any(), any(), any(), any(), signedBook.capture(), any());
+        final var provedBook = ArgumentCaptor.forClass(AddressBook.class);
+        verify(historyLibrary).constructGenesisWrapsProof(any(), any(), any(), any(), provedBook.capture());
+        assertArrayEquals(newOtherKey.toByteArray(), signedBook.getValue().publicKeys()[1]);
+        assertArrayEquals(signedBook.getValue().nodeIds(), provedBook.getValue().nodeIds());
+        assertArrayEquals(signedBook.getValue().weights(), provedBook.getValue().weights());
+        assertArrayEquals(newOtherKey.toByteArray(), provedBook.getValue().publicKeys()[1]);
+        assertEquals(Bytes.wrap("pk2"), sourceProof.targetProofKeys().get(1).key());
+        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), any());
+    }
+
+    @Test
+    void genesisSignsAndPersistsCompleteBookWithSentinelSlotsAcrossSparseHintsGap() {
+        final var canonicalWeights = new TreeMap<Long, Long>();
+        for (long nodeId = 0; nodeId < 7; nodeId++) {
+            canonicalWeights.put(nodeId, 1L);
+        }
+        givenThreeNodeNetwork(canonicalWeights);
+        for (final long absent : List.of(3L, 4L)) {
+            sourceWeights.remove(absent);
+            proofKeys.remove(absent);
+            targetProofKeys.remove(absent);
+        }
+        subject = newSubject(null, Runnable::run, delayer);
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
+                .willReturn(new Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        replaySigningRoundsFrom(List.of(0L, SELF_ID, 5L));
+
+        subject.advance(
+                EPOCH, groundingConstruction(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+
+        final var signedBook = ArgumentCaptor.forClass(AddressBook.class);
+        verify(historyLibrary)
+                .runAggregationPhase(any(), any(), any(), any(), signedBook.capture(), eq(Set.of(0L, SELF_ID, 5L)));
+        assertArrayEquals(
+                new long[] {0, 1, 2, 3, 4, 5, 6}, signedBook.getValue().nodeIds());
+        assertArrayEquals(
+                HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(),
+                signedBook.getValue().publicKeys()[3]);
+        assertArrayEquals(
+                HistoryLibrary.MISSING_SCHNORR_KEY.toByteArray(),
+                signedBook.getValue().publicKeys()[4]);
+        assertArrayEquals(
+                new long[] {1, 1, 1, 1, 1, 1, 1}, signedBook.getValue().weights());
+        final var vote = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), vote.capture());
+        assertEquals(
+                HistoryProofAddressBooks.weightsFrom(targetWeights),
+                vote.getValue().targetNodeWeights());
+        assertEquals(
+                Set.of(0L, 1L, 2L, 5L, 6L),
+                vote.getValue().targetProofKeys().stream()
+                        .map(ProofKey::nodeId)
+                        .collect(java.util.stream.Collectors.toSet()));
     }
 
     @Test
@@ -421,12 +943,16 @@ class WrapsHistoryProverTest {
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
         verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
         final var proof = captor.getValue();
+        assertEquals(Bytes.EMPTY, proof.keyProvenanceSignature());
         assertEquals(COMPRESSED, proof.chainOfTrustProofOrThrow().wrapsProofOrThrow());
         assertEquals(UNCOMPRESSED, proof.uncompressedWrapsProof());
         assertEquals(new History(TARGET_BOOK_HASH, TARGET_METADATA), proof.targetHistory());
         assertEquals(
                 List.of(new ProofKey(SELF_ID, Bytes.wrap("pk1")), new ProofKey(OTHER_NODE_ID, Bytes.wrap("pk2"))),
                 proof.targetProofKeys());
+        // The proof uses the signature the deterministic check already verified
+        verify(historyLibrary, times(1)).runAggregationPhase(any(), any(), any(), any(), any(), any());
+        verify(historyLibrary, times(1)).verifyAggregateSignature(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -498,29 +1024,35 @@ class WrapsHistoryProverTest {
     }
 
     @Test
-    void aggregatePhaseSkipsVoteWhenAggregationReturnsNull() {
+    void aggregatePhaseFailsRecoverablyWhenAggregationReturnsNull() {
         subject = newSubject(null, Runnable::run, delayer);
         givenWrapsMessage();
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
-        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
         given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
                 .willReturn(null);
         replaySigningRounds();
 
+        // Even a node that cannot submit reaches the same verdict
         final var outcome = subject.advance(
-                EPOCH, groundingConstruction(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+                EPOCH,
+                groundingConstruction(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                null,
+                false);
 
-        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(WrapsHistoryProver.AGGREGATION_FAILURE_PREFIX + "[1, 2]", failure.reason());
+        assertTrue(failure.missingNodeIds().isEmpty());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
         verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
         verifyNoInteractions(submissions);
     }
 
     @Test
-    void aggregatePhaseSkipsVoteWhenAggregateSignatureIsInvalid() {
+    void aggregatePhaseFailsRecoverablyWhenAggregateSignatureIsInvalid() {
         subject = newSubject(null, Runnable::run, delayer);
         givenWrapsMessage();
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
-        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
         given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
                 .willReturn(AGG_SIG.toByteArray());
         given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
@@ -530,13 +1062,15 @@ class WrapsHistoryProverTest {
         final var outcome = subject.advance(
                 EPOCH, groundingConstruction(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
 
-        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(WrapsHistoryProver.AGGREGATION_FAILURE_PREFIX + "[1, 2]", failure.reason());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
         verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
         verifyNoInteractions(submissions);
     }
 
     @Test
-    void aggregatePhaseSkipsVoteWhenProofConstructionReturnsNull() {
+    void unexpectedNativeNullIsALocalErrorAndDoesNotDecideSharedFailure() {
         subject = newSubject(null, Runnable::run, delayer);
         givenWrapsMessage();
         givenValidAggregateSignature();
@@ -544,13 +1078,27 @@ class WrapsHistoryProverTest {
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(null);
         replaySigningRounds();
+        final var logs = new LogCaptor(LogManager.getLogger(WrapsHistoryProver.class));
+        try {
+            final var outcome = subject.advance(
+                    EPOCH,
+                    groundingConstruction(AGGREGATE, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    null,
+                    true);
 
-        final var outcome = subject.advance(
-                EPOCH, groundingConstruction(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
-
-        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
-        verifyNoInteractions(submissions);
-        assertNull(getField("phaseNeedingWrapsReadinessRetry"));
+            assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+            verifyNoInteractions(submissions);
+            assertNull(getField("phaseNeedingRetry"));
+            assertEquals(1, logs.errorLogs().size());
+            assertTrue(logs.errorLogs().getFirst().contains("Genesis WRAPS proof construction returned null"));
+            assertTrue(logs.errorLogs().getFirst().contains(Long.toString(CONSTRUCTION_ID)));
+            assertFalse(((CompletableFuture<?>) getField("voteFuture")).isDone());
+        } finally {
+            logs.stopCapture();
+        }
     }
 
     @Test
@@ -575,17 +1123,19 @@ class WrapsHistoryProverTest {
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, firstOutcome);
         verifyNoInteractions(submissions);
-        verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
         assertSame(
                 AGGREGATE,
-                getField("phaseNeedingWrapsReadinessRetry"),
+                getField("phaseNeedingRetry"),
                 "Deferring because WRAPS is not ready must flag the phase so the next round retries");
 
         final var secondOutcome =
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, secondOutcome);
         verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), any());
-        assertNull(getField("phaseNeedingWrapsReadinessRetry"));
+        assertNull(getField("phaseNeedingRetry"));
+        // The signature verified in the first round is not computed again
+        verify(historyLibrary, times(1)).runAggregationPhase(any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -611,7 +1161,7 @@ class WrapsHistoryProverTest {
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, firstOutcome);
         verifyNoInteractions(submissions);
-        assertSame(AGGREGATE, getField("phaseNeedingWrapsReadinessRetry"));
+        assertSame(AGGREGATE, getField("phaseNeedingRetry"));
 
         final var secondOutcome =
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
@@ -626,6 +1176,10 @@ class WrapsHistoryProverTest {
         subject = newSubject(null, Runnable::run, delayer);
         givenWrapsMessage();
         given(historyLibrary.wrapsProverReady()).willReturn(false);
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
         replaySigningRounds();
         final var construction = groundingConstruction(AGGREGATE, null);
 
@@ -635,7 +1189,7 @@ class WrapsHistoryProverTest {
             assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
             assertSame(
                     AGGREGATE,
-                    getField("phaseNeedingWrapsReadinessRetry"),
+                    getField("phaseNeedingRetry"),
                     "Iteration " + i + ": phase must remain flagged while WRAPS is not ready");
         }
         verifyNoInteractions(submissions);
@@ -654,7 +1208,7 @@ class WrapsHistoryProverTest {
             return delayedExecutor;
         });
         givenWrapsMessage();
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        givenValidAggregateSignature();
         given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
         replaySigningRoundsFrom(List.of(OTHER_NODE_ID, THIRD_NODE_ID));
 
@@ -663,7 +1217,7 @@ class WrapsHistoryProverTest {
 
         assertEquals(List.of(2 * JITTER_PER_RANK.toMillis()), delays);
         assertEquals(1, delayedExecutor.pendingTasks());
-        verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -711,7 +1265,7 @@ class WrapsHistoryProverTest {
         subject.advance(
                 EPOCH, groundingConstruction(AGGREGATE, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
 
-        verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
         assertEquals(1, delayedExecutor.pendingTasks());
 
         delayedExecutor.runNext();
@@ -725,7 +1279,7 @@ class WrapsHistoryProverTest {
         final var delayedExecutor = new ManualExecutor();
         subject = newSubject(null, Runnable::run, (delay, unit, executor) -> delayedExecutor);
         givenWrapsMessage();
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        givenValidAggregateSignature();
         given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
         given(submissions.submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID))
                 .willReturn(CompletableFuture.completedFuture(null));
@@ -738,7 +1292,6 @@ class WrapsHistoryProverTest {
         verify(submissions).submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID);
         // Once the jitter elapses there is nothing left to do
         delayedExecutor.runNext();
-        verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
         verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
         verify(submissions, never()).submitExplicitProofVote(anyLong(), any());
     }
@@ -770,7 +1323,7 @@ class WrapsHistoryProverTest {
         final var delayedExecutor = new ManualExecutor();
         subject = newSubject(null, Runnable::run, (delay, unit, executor) -> delayedExecutor);
         givenWrapsMessage();
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        givenValidAggregateSignature();
         given(submissions.submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID))
                 .willReturn(CompletableFuture.completedFuture(null));
         replaySigningRounds();
@@ -781,7 +1334,7 @@ class WrapsHistoryProverTest {
 
         verify(submissions).submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID);
         assertEquals(0, delayedExecutor.pendingTasks());
-        verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -789,7 +1342,7 @@ class WrapsHistoryProverTest {
         final var delayedExecutor = new ManualExecutor();
         subject = newSubject(null, Runnable::run, (delay, unit, executor) -> delayedExecutor);
         givenWrapsMessage();
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        givenValidAggregateSignature();
         replaySigningRounds();
 
         subject.observeProofVote(OTHER_NODE_ID, explicitVote(wrapsExtensibleProof()), true, VALID);
@@ -805,7 +1358,7 @@ class WrapsHistoryProverTest {
         final var delayedExecutor = new ManualExecutor();
         subject = newSubject(null, Runnable::run, (delay, unit, executor) -> delayedExecutor);
         givenWrapsMessage();
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        givenValidAggregateSignature();
         given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
         replaySigningRounds();
 
@@ -815,7 +1368,7 @@ class WrapsHistoryProverTest {
         delayedExecutor.runNext();
 
         verifyNoInteractions(submissions);
-        verify(historyLibrary, never()).runAggregationPhase(any(), any(), any(), any(), any(), any());
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -903,6 +1456,302 @@ class WrapsHistoryProverTest {
         subject.replayWrapsSigningMessage(CONSTRUCTION_ID, publication);
 
         verifyNoInteractions(writableHistoryStore);
+    }
+
+    @Test
+    void rotationRequiresValidPairedR1BeforeItCanAdvance() {
+        subject = newRotationSubject(executor);
+        final var valid = provenancePublication(SELF_ID, R1, R1_MESSAGE, SELF_PARTIAL);
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, valid, writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(
+                        SELF_ID,
+                        R1_MESSAGE,
+                        R1,
+                        EPOCH,
+                        valid.hintsPartialSignature()
+                                .copyBuilder()
+                                .message(Bytes.wrap("wrong-key"))
+                                .build()),
+                writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID + 1, valid, writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(
+                        SELF_ID,
+                        R1_MESSAGE,
+                        R1,
+                        EPOCH,
+                        valid.hintsPartialSignature()
+                                .copyBuilder()
+                                .constructionId(SOURCE_HINTS_ID + 1)
+                                .build()),
+                writableHistoryStore));
+        verifyNoInteractions(writableHistoryStore);
+
+        given(provenanceSigner.verify(SELF_ID, SOURCE_HINTS_ID, TARGET_METADATA, SELF_PARTIAL))
+                .willReturn(true);
+        given(provenanceSigner.verify(OTHER_NODE_ID, SOURCE_HINTS_ID, TARGET_METADATA, OTHER_PARTIAL))
+                .willReturn(true);
+        assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, valid, writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, valid, writableHistoryStore));
+        verifyNoInteractions(writableHistoryStore);
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                provenancePublication(OTHER_NODE_ID, R1, R1_MESSAGE, OTHER_PARTIAL),
+                writableHistoryStore));
+        verify(writableHistoryStore).advanceWrapsSigningPhase(CONSTRUCTION_ID, R2, EPOCH.plus(GRACE_PERIOD));
+    }
+
+    @Test
+    void rotationReplaysValidPairedR1WithoutWritingState() {
+        subject = newRotationSubject(executor);
+        givenValidProvenancePartials();
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, provenancePublication(SELF_ID, R1, R1_MESSAGE, SELF_PARTIAL));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, provenancePublication(OTHER_NODE_ID, R1, R1_MESSAGE, OTHER_PARTIAL));
+        verifyNoInteractions(writableHistoryStore);
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(
+                        SELF_ID,
+                        R2_MESSAGE,
+                        R2,
+                        EPOCH,
+                        provenancePublication(SELF_ID, R1, R1_MESSAGE, SELF_PARTIAL)
+                                .hintsPartialSignature()),
+                writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH), writableHistoryStore));
+    }
+
+    @Test
+    void genesisDoesNotAcceptUnvalidatedCompanionBytes() {
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, provenancePublication(SELF_ID, R1, R1_MESSAGE, SELF_PARTIAL), writableHistoryStore));
+        verifyNoInteractions(writableHistoryStore, provenanceSigner);
+    }
+
+    @Test
+    void rotationPublishesSourceHintsShareAlongsideItsR1() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(R1_MESSAGE.toByteArray());
+        given(provenanceSigner.isEligibleSigner(SELF_ID)).willReturn(true);
+        given(provenanceSigner.sign(SELF_ID, TARGET_METADATA)).willReturn(SELF_PARTIAL);
+        given(submissions.submitWrapsSigningMessage(eq(R1), any(), eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        subject.advance(
+                EPOCH, transitionConstruction(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        final var captor = ArgumentCaptor.forClass(HintsPartialSignatureTransactionBody.class);
+        verify(submissions).submitWrapsSigningMessage(eq(R1), eq(R1_MESSAGE), eq(CONSTRUCTION_ID), captor.capture());
+        final var partial = captor.getValue();
+        assertEquals(SOURCE_HINTS_ID, partial.constructionId());
+        assertEquals(TARGET_METADATA, partial.message());
+        assertEquals(SELF_PARTIAL, partial.partialSignature());
+        verify(submissions, never()).submitWrapsSigningMessage(any(), any(), anyLong());
+    }
+
+    @Test
+    void rotationSkipsR1ForNodesIneligibleInTheSourceScheme() {
+        final var manualExecutor = new ManualExecutor();
+        subject = newRotationSubject(manualExecutor);
+        givenWrapsMessage();
+        final var logs = new LogCaptor(LogManager.getLogger(WrapsHistoryProver.class));
+        try {
+            // Eligibility is fixed by the source scheme, so repeated rounds remain a quiet no-op.
+            for (int round = 0; round < 2; round++) {
+                assertSame(
+                        HistoryProver.Outcome.InProgress.INSTANCE,
+                        subject.advance(
+                                EPOCH.plusSeconds(round),
+                                transitionConstruction(R1, null),
+                                TARGET_METADATA,
+                                targetProofKeys,
+                                tssConfig,
+                                LEDGER_ID,
+                                true));
+            }
+            assertEquals(0, manualExecutor.pendingTasks());
+            verify(provenanceSigner, never()).sign(anyLong(), any());
+            verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+            verifyNoInteractions(submissions);
+            assertTrue(logs.warnLogs().isEmpty());
+            assertTrue(logs.errorLogs().isEmpty());
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
+    void rotationDoesNotPublishUnpairedR1WhenItsPreviousPrivateKeyIsUnavailable() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(R1_MESSAGE.toByteArray());
+        given(provenanceSigner.isEligibleSigner(SELF_ID)).willReturn(true);
+        given(provenanceSigner.sign(SELF_ID, TARGET_METADATA)).willReturn(null);
+        final var logs = new LogCaptor(LogManager.getLogger(WrapsHistoryProver.class));
+        try {
+            subject.advance(
+                    EPOCH,
+                    transitionConstruction(R1, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    LEDGER_ID,
+                    true);
+
+            verify(provenanceSigner).sign(SELF_ID, TARGET_METADATA);
+            verifyNoInteractions(submissions);
+            assertEquals(
+                    List.of("Cannot contribute WRAPS R1 without a valid source hinTS share for construction #"
+                            + CONSTRUCTION_ID),
+                    logs.warnLogs());
+        } finally {
+            logs.stopCapture();
+        }
+    }
+
+    @Test
+    void rotationProofVoteCarriesAggregateOfItsFrozenR1Companions() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(new Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(provenanceSigner.aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL)))
+                .willReturn(Optional.of(KEY_PROVENANCE_SIGNATURE));
+        replayProvenanceSigningRounds();
+
+        subject.advance(
+                EPOCH,
+                transitionConstruction(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertEquals(KEY_PROVENANCE_SIGNATURE, captor.getValue().keyProvenanceSignature());
+        assertEquals(COMPRESSED, captor.getValue().chainOfTrustProofOrThrow().wrapsProofOrThrow());
+        verify(provenanceSigner)
+                .aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL));
+        verifyNoInteractions(writableHistoryStore);
+    }
+
+    @Test
+    void rotationNeverPublishesAProofWhenCompanionAggregationFails() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(provenanceSigner.aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL)))
+                .willReturn(Optional.empty());
+        replayProvenanceSigningRounds();
+
+        subject.advance(
+                EPOCH,
+                transitionConstruction(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        verifyNoInteractions(submissions);
+        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
+        assertSame(AGGREGATE, getField("phaseNeedingRetry"));
+    }
+
+    @Test
+    void newSigningGenerationExtendsExistingProofEvenWhenRosterHashesMatch() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(new Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(provenanceSigner.aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL)))
+                .willReturn(Optional.of(KEY_PROVENANCE_SIGNATURE));
+        replayProvenanceSigningRounds();
+        final var construction = groundingConstruction(AGGREGATE, null)
+                .copyBuilder()
+                .keyProvenance(provenanceBinding())
+                .build();
+
+        subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        verify(historyLibrary)
+                .constructIncrementalWrapsProof(
+                        aryEq(LEDGER_ID.toByteArray()),
+                        aryEq(UNCOMPRESSED.toByteArray()),
+                        any(),
+                        any(),
+                        aryEq(TARGET_METADATA.toByteArray()),
+                        aryEq(AGG_SIG.toByteArray()),
+                        eq(Set.of(SELF_ID, OTHER_NODE_ID)));
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertEquals(KEY_PROVENANCE_SIGNATURE, captor.getValue().keyProvenanceSignature());
+    }
+
+    @Test
+    void rotationRetriesTransientCompanionAggregationFailureWithoutRepeatingSigningRounds() {
+        subject = newRotationSubject(Runnable::run);
+        givenWrapsMessage();
+        givenValidAggregateSignature();
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(JITTER_PER_RANK);
+        given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(new Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        given(provenanceSigner.aggregate(TARGET_METADATA, Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL)))
+                .willReturn(Optional.empty(), Optional.of(KEY_PROVENANCE_SIGNATURE));
+        replayProvenanceSigningRounds();
+        final var construction = transitionConstruction(AGGREGATE, null);
+
+        subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+        verifyNoInteractions(submissions);
+        assertSame(AGGREGATE, getField("phaseNeedingRetry"));
+        subject.advance(
+                EPOCH.plusSeconds(1), construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertEquals(KEY_PROVENANCE_SIGNATURE, captor.getValue().keyProvenanceSignature());
+        assertNull(getField("phaseNeedingRetry"));
+        verify(submissions, never()).submitWrapsSigningMessage(any(), any(), anyLong());
+        verify(submissions, never()).submitWrapsSigningMessage(any(), any(), anyLong(), any());
+        verifyNoInteractions(writableHistoryStore);
+    }
+
+    @Test
+    void rotationRejectsChangedTargetBindingBeforeStartingWork() {
+        subject = newRotationSubject(Runnable::run);
+        final var outcome = subject.advance(
+                EPOCH,
+                transitionConstruction(R1, null),
+                Bytes.wrap("replacement-key"),
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+        assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        verifyNoInteractions(historyLibrary, submissions);
     }
 
     @Test
@@ -1025,6 +1874,130 @@ class WrapsHistoryProverTest {
         verifyNoInteractions(submissions);
     }
 
+    @Test
+    void eligibleSetThatCannotMeetCanonicalQuorumFailsBeforeAnyR1Work() {
+        // Seven listed members with real keys, but only three are in the source hinTS scheme: the eligible
+        // weight (3) cannot exceed half of the canonical effective weight (7), so R1 could never freeze.
+        final var canonicalWeights = new TreeMap<Long, Long>();
+        for (long nodeId = 0; nodeId < 7; nodeId++) {
+            canonicalWeights.put(nodeId, 1L);
+        }
+        givenThreeNodeNetwork(canonicalWeights);
+        for (long nodeId = 3; nodeId < 7; nodeId++) {
+            sourceWeights.remove(nodeId);
+        }
+        final var sourceProof = canonicalSourceProof(targetWeights);
+        for (final boolean canSubmit : List.of(false, true)) {
+            subject = newSubject(sourceProof, Runnable::run, delayer);
+            final var outcome = subject.advance(
+                    EPOCH,
+                    transitionConstruction(R1, null),
+                    TARGET_METADATA,
+                    targetProofKeys,
+                    tssConfig,
+                    LEDGER_ID,
+                    canSubmit);
+            final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+            assertEquals(WrapsHistoryProver.INSUFFICIENT_SIGNERS_FAILURE_PREFIX, failure.reason());
+            assertFalse(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+        }
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void exclusionsPersistedUnderAnOlderFeasibilityRuleFailRecoverably() {
+        final var canonicalWeights = new TreeMap<Long, Long>();
+        for (long nodeId = 0; nodeId < 7; nodeId++) {
+            canonicalWeights.put(nodeId, 1L);
+        }
+        givenThreeNodeNetwork(canonicalWeights);
+        final var sourceProof = canonicalSourceProof(targetWeights);
+        // Every member is eligible, but these exclusions leave three of seven, which no exclusion is allowed to do
+        final var construction = transitionConstruction(R1, null)
+                .copyBuilder()
+                .wrapsExcludedNodeIds(List.of(0L, 1L, 2L, 3L))
+                .build();
+        for (final boolean canSubmit : List.of(false, true)) {
+            subject = newSubject(sourceProof, Runnable::run, delayer);
+            final var outcome = subject.advance(
+                    EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, canSubmit);
+            final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+            assertTrue(failure.reason().startsWith(WrapsHistoryProver.INFEASIBLE_EXCLUSIONS_FAILURE_PREFIX));
+            assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+            assertTrue(WrapsHistoryProver.clearsExclusionsOnRetry(failure.reason()));
+        }
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void predecessorCommitmentIsHashedOncePerProverRatherThanEveryRound() {
+        subject = newSubject(wrapsExtensibleProof(), Runnable::run, delayer);
+
+        for (int round = 0; round < 3; round++) {
+            assertSame(
+                    HistoryProver.Outcome.InProgress.INSTANCE,
+                    subject.advance(
+                            EPOCH,
+                            transitionConstruction(R1, null),
+                            TARGET_METADATA,
+                            targetProofKeys,
+                            tssConfig,
+                            LEDGER_ID,
+                            false));
+        }
+
+        // Once for the target book with its WRAPS message, and once for the predecessor's committed book
+        verify(historyLibrary, times(2)).hashAddressBook(any());
+    }
+
+    @Test
+    void sourceBookMemberOutsideTheSourceSchemeSkipsR1EvenWithItsOwnKey() {
+        // This node has its own real key in the predecessor's book, but no weight in the source hinTS scheme
+        final var sourceProof = canonicalSourceProof(new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 2L)));
+        sourceWeights.clear();
+        sourceWeights.put(OTHER_NODE_ID, 2L);
+        subject = newSubject(sourceProof, Runnable::run, delayer);
+
+        final var outcome = subject.advance(
+                EPOCH, transitionConstruction(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void nodeOutsideTheSourceGenerationDoesNotComputeAProofItsVoteCouldNeverCount() {
+        // Node 2 alone has more than half the predecessor's effective weight, and this node is not a source node
+        final var sourceProof = canonicalSourceProof(new TreeMap<>(Map.of(SELF_ID, 1L, OTHER_NODE_ID, 2L)));
+        sourceWeights.clear();
+        sourceWeights.put(OTHER_NODE_ID, 2L);
+        subject = newSubject(sourceProof, Runnable::run, delayer);
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
+        // Everything a source node would need to compute its proof right away is in place
+        lenient().when(historyLibrary.wrapsProverReady()).thenReturn(true);
+        lenient().when(tssConfig.wrapsVoteJitterPerRank()).thenReturn(Duration.ZERO);
+        replaySigningRoundsFrom(List.of(OTHER_NODE_ID));
+
+        final var outcome = subject.advance(
+                EPOCH,
+                transitionConstruction(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
     private WrapsHistoryProver newSubject(
             @Nullable final HistoryProof sourceProof,
             final Executor executor,
@@ -1043,9 +2016,98 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
     }
 
+    /**
+     * Matches the private key of the signer that checks other nodes' R1 and R2 messages, which is not this node's.
+     */
+    private static byte[] checkKey() {
+        return argThat(
+                key -> key != null && !Arrays.equals(key, KEY_PAIR.privateKey().toByteArray()));
+    }
+
+    private boolean hasSenderSeat(@Nullable final AddressBook book, final long nodeId) {
+        return book != null
+                && book.publicKeys().length == 2
+                && Arrays.equals(book.publicKeys()[0], proofKeys.get(nodeId).toByteArray());
+    }
+
+    private static byte[] entropyOf(final long nodeId) {
+        final var entropy = new byte[32];
+        Arrays.fill(entropy, (byte) nodeId);
+        return entropy;
+    }
+
+    private static byte[] privateKeyOf(final Map<Long, SchnorrKeys> keys, final long nodeId) {
+        return keys.get(nodeId).privateKey();
+    }
+
+    private WrapsHistoryProver newRotationSubject(final Executor executor) {
+        given(provenanceSigner.constructionId()).willReturn(SOURCE_HINTS_ID);
+        given(provenanceSigner.verificationKey()).willReturn(SOURCE_VERIFICATION_KEY);
+        return new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                wrapsExtensibleProof(),
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine(),
+                provenanceSigner,
+                provenanceBinding());
+    }
+
+    private static HintsKeyProvenance provenanceBinding() {
+        return HintsKeyProvenance.newBuilder()
+                .sourceHintsConstructionId(SOURCE_HINTS_ID)
+                .targetHintsConstructionId(TARGET_HINTS_ID)
+                .sourceVerificationKey(SOURCE_VERIFICATION_KEY)
+                .targetVerificationKey(TARGET_METADATA)
+                .historyConstructionId(CONSTRUCTION_ID)
+                .build();
+    }
+
+    private void givenValidProvenancePartials() {
+        given(provenanceSigner.verify(SELF_ID, SOURCE_HINTS_ID, TARGET_METADATA, SELF_PARTIAL))
+                .willReturn(true);
+        given(provenanceSigner.verify(OTHER_NODE_ID, SOURCE_HINTS_ID, TARGET_METADATA, OTHER_PARTIAL))
+                .willReturn(true);
+    }
+
+    private void replayProvenanceSigningRounds() {
+        givenValidProvenancePartials();
+        for (final var phaseAndMessage :
+                List.of(Map.entry(R1, R1_MESSAGE), Map.entry(R2, R2_MESSAGE), Map.entry(R3, R3_MESSAGE))) {
+            for (final var entry :
+                    Map.of(SELF_ID, SELF_PARTIAL, OTHER_NODE_ID, OTHER_PARTIAL).entrySet()) {
+                subject.replayWrapsSigningMessage(
+                        CONSTRUCTION_ID,
+                        provenancePublication(
+                                entry.getKey(),
+                                phaseAndMessage.getKey(),
+                                phaseAndMessage.getValue(),
+                                entry.getValue()));
+            }
+        }
+    }
+
+    private static WrapsMessagePublication provenancePublication(
+            final long nodeId, final WrapsPhase phase, final Bytes message, final Bytes signature) {
+        final var partial = phase == R1
+                ? HintsPartialSignatureTransactionBody.newBuilder()
+                        .constructionId(SOURCE_HINTS_ID)
+                        .message(TARGET_METADATA)
+                        .partialSignature(signature)
+                        .build()
+                : null;
+        return new WrapsMessagePublication(nodeId, message, phase, EPOCH, partial);
+    }
+
     private void givenWrapsMessage() {
-        given(historyLibrary.hashAddressBook(any())).willReturn(TARGET_BOOK_HASH.toByteArray());
-        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        lenient().when(historyLibrary.hashAddressBook(any())).thenReturn(TARGET_BOOK_HASH.toByteArray());
+        lenient().when(historyLibrary.computeWrapsMessage(any(), any())).thenReturn("MSG".getBytes(UTF_8));
     }
 
     private void givenValidAggregateSignature() {
@@ -1124,8 +2186,18 @@ class WrapsHistoryProverTest {
                 .build();
     }
 
-    private static HistoryProof wrapsExtensibleProof() {
+    private HistoryProof wrapsExtensibleProof() {
+        return canonicalSourceProof(sourceWeights);
+    }
+
+    private HistoryProof canonicalSourceProof(final SortedMap<Long, Long> canonicalWeights) {
         return HistoryProof.newBuilder()
+                .targetNodeWeights(HistoryProofAddressBooks.weightsFrom(canonicalWeights))
+                .targetProofKeys(proofKeys.entrySet().stream()
+                        .filter(entry -> canonicalWeights.containsKey(entry.getKey()))
+                        .map(entry -> new ProofKey(entry.getKey(), entry.getValue()))
+                        .toList())
+                .targetHistory(new History(TARGET_BOOK_HASH, SOURCE_VERIFICATION_KEY))
                 .chainOfTrustProof(
                         ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
                 .uncompressedWrapsProof(UNCOMPRESSED)

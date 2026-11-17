@@ -2,9 +2,11 @@
 module org.hiero.consensus.benchmark.tools {
     exports org.hiero.consensus.benchmark.tools.event;
     exports org.hiero.consensus.benchmark.tools.histogram;
+    exports org.hiero.consensus.benchmark.tools.pipeline;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires transitive jmh.core;
     requires com.hedera.node.hapi;
     requires org.hiero.base.crypto;

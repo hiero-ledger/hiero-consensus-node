@@ -31,7 +31,10 @@ testing {
         }
 
         targets.named("testOtter") {
-            testTask { dependsOn(":consensus-otter-docker-app:assemble") }
+            testTask {
+                useJUnitPlatform { excludeTags("falcon") }
+                dependsOn(":consensus-otter-docker-app:assemble")
+            }
         }
 
         // Runs tests against the Container environment

@@ -19,6 +19,7 @@ import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
@@ -40,6 +41,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -50,6 +52,7 @@ import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendi
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.info.DiskStartupNetworks.InfoType;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
@@ -71,6 +74,7 @@ import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -79,6 +83,7 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -96,6 +101,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -129,6 +135,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final int roundsPerBlock;
     private final Duration blockPeriod;
     private final boolean blockSizeCircuitBreakerApplicable;
+    private final boolean maxBlockSizeThrottleApplicable;
     private final BlockHashSigner blockHashSigner;
     private final SemanticVersion version;
     private final SemanticVersion hapiVersion;
@@ -177,10 +184,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     // The circuit-breaker size configuration snapshot for the current block.
     private boolean blockSizeCircuitBreakerEnabled;
     private long maxBlockSizeBytes;
+    private long maxBlockExecutionSizeBytes;
     // The canonical serialized size of all items accepted into the current block, excluding its asynchronous proof.
     private long currentBlockSizeBytes;
-    // Once open, no more output from savepoint stacks is accepted until the next block starts.
+    // Once open, no more output from savepoint stacks is accepted until the next block starts. Only ever engages
+    // in StreamMode.BOTH (preview block stream); see blockSizeCircuitBreakerApplicable.
     private boolean savepointOutputSuppressed;
+    // Independent of the circuit breaker above: in StreamMode.BLOCKS (canonical), tracks the same running size
+    // against the maxBlockExecutionSizeBytes limit, but never suppresses output — HandleWorkflow consults
+    // hasReachedMaxBlockSize() to reject further submitted and scheduled transactions with normal consensus throttle
+    // fees instead.
+    // Separate state from the circuit breaker so other consumers of isSavepointOutputSuppressed()
+    // (e.g. trace-data serialization)
+    // are unaffected by this StreamMode.BLOCKS-only mechanism.
+    private boolean maxBlockSizeThrottleEnabled;
+    private long currentThrottleBlockSizeBytes;
+    private boolean maxBlockSizeReached;
 
     // Trailing-hash transition logging. We emit a decoded, human-readable dump of both trailing windows
     // (trailingBlockHashes and trailingOutputHashes) at the two moments their layout changes: the block digest
@@ -272,6 +291,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * exactly once across the handler thread and the status-thread fallback.
      */
     private final Object fatalShutdownLock = new Object();
+    /**
+     * Contents files ({@code .pnd.gz}/{@code .open.gz}) written by the triage flush, for staging by the ISS-block
+     * capture pipeline. Written under the flush locks; read after {@link #awaitFatalShutdown}. Thread-safe for the
+     * lock-free read.
+     */
+    private final List<Path> flushedTriageBlockFiles = new CopyOnWriteArrayList<>();
 
     /**
      * False until the node has tried to recover any blocks pending TSS signature still on disk.
@@ -285,6 +310,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final BlockStreamingObs streamingObs;
 
     private final Counter blockSizeCircuitBreakerTripsCounter;
+    private final Counter maxBlockSizeThrottleTripsCounter;
+    private final Counter maxBlockSizeThrottleRejectionsCounter;
+    private final Counter maxBlockSizeThrottleRejectedBytesCounter;
+    private final Counter maxBlockSizeThrottleScheduledRejectionsCounter;
+    private final Counter maxBlockSizeThrottleScheduledRejectedBytesCounter;
+    private final Counter signedTxnsInSizeLimitedBlocksCounter;
+    private final LongGauge bytesAtMaxBlockSizeCutoffGauge;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -320,7 +352,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
-        this.blockSizeCircuitBreakerApplicable = blockStreamConfig.streamMode() == BOTH;
+        final var streamMode = blockStreamConfig.streamMode();
+        this.blockSizeCircuitBreakerApplicable = streamMode == BOTH;
+        this.maxBlockSizeThrottleApplicable = streamMode == BLOCKS;
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -337,6 +371,34 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         blockSizeCircuitBreakerTripsCounter = metrics.getOrCreate(new Counter.Config(
                         "block", "numBlockSizeCircuitBreakerTrips")
                 .withDescription("Number of preview blocks whose savepoint output was suppressed by the size limit"));
+        maxBlockSizeThrottleTripsCounter = metrics.getOrCreate(new Counter.Config(
+                        "block", "numMaxBlockSizeThrottleTrips")
+                .withDescription("Number of canonical blocks that reached the max block size limit, rejecting further"
+                        + " dispatches with THROTTLED_AT_CONSENSUS for the rest of the block"));
+        maxBlockSizeThrottleRejectionsCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numMaxBlockSizeThrottleRejections")
+                        .withDescription("Number of submitted transactions rejected with THROTTLED_AT_CONSENSUS because"
+                                + " the canonical block had reached the max block size limit"));
+        maxBlockSizeThrottleRejectedBytesCounter =
+                metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleRejectedBytes")
+                        .withDescription("Serialized bytes of block items written for submitted transactions rejected"
+                                + " because the canonical block had reached the max block size limit"));
+        maxBlockSizeThrottleScheduledRejectionsCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numMaxBlockSizeThrottleScheduledRejections")
+                        .withDescription("Number of due scheduled transactions rejected with THROTTLED_AT_CONSENSUS"
+                                + " because the canonical block had reached the max block size limit; each rejected"
+                                + " schedule is consumed and never retried"));
+        maxBlockSizeThrottleScheduledRejectedBytesCounter =
+                metrics.getOrCreate(new Counter.Config("block", "maxBlockSizeThrottleScheduledRejectedBytes")
+                        .withDescription("Serialized bytes of block items written for due scheduled transactions"
+                                + " rejected because the canonical block had reached the max block size limit"));
+        signedTxnsInSizeLimitedBlocksCounter =
+                metrics.getOrCreate(new Counter.Config("block", "numSignedTxnsInSizeLimitedBlocks")
+                        .withDescription("Number of signed transactions written to canonical blocks with the max block"
+                                + " size limit enabled, both before and after the limit is reached"));
+        bytesAtMaxBlockSizeCutoffGauge = metrics.getOrCreate(new LongGauge.Config("block", "bytesAtMaxBlockSizeCutoff")
+                .withDescription("Serialized size in bytes of the most recent canonical block when it reached the"
+                        + " max block size limit"));
         if (!quiescenceEnabled) {
             log.info("Quiescence is disabled");
             quiescedHeartbeat.shutdown();
@@ -627,7 +689,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             blockSizeCircuitBreakerEnabled = blockSizeCircuitBreakerApplicable && maxBlockSizeBytes > 0;
             currentBlockSizeBytes = 0;
             savepointOutputSuppressed = false;
-
+            maxBlockExecutionSizeBytes = blockStreamConfig.maxBlockExecutionSizeBytes();
+            maxBlockSizeThrottleEnabled = maxBlockSizeThrottleApplicable
+                    && blockStreamConfig.maxBlockSizeLimitEnabled()
+                    && maxBlockExecutionSizeBytes > 0;
+            currentThrottleBlockSizeBytes = 0;
+            maxBlockSizeReached = false;
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
@@ -865,6 +932,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Always clear the in-progress flag, even if endRoundInternal threw, so a concurrent fatal-shutdown
             // waiter does not block on a round boundary that will never arrive.
             roundInProgress = false;
+            // A fatal shutdown can be signalled AFTER endRoundInternal's own fatalShutdownRequested check (so it took
+            // the normal path and did not flush). Capture the open/pending blocks now, on the handler thread that owns
+            // the writer: this completes fatalShutdownFuture so awaitFatalShutdown's waiter is released immediately
+            // (rather than stalling the whole timeout) and the open block is not lost. Idempotent, and a no-op on the
+            // normal, non-fatal path.
+            if (fatalShutdownRequested) {
+                flushOpenAndPendingBlocksForTriage();
+            }
         }
     }
 
@@ -960,6 +1035,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     traceDataHash,
                     newBlockStreamInfo.blockTime());
             final var finalBlockRootHash = rootAndSiblingHashes.blockRootHash();
+            final var signedPreviousBlockHash = lastBlockHash;
+            final var signedBlockTimestamp = blockTimestamp;
+            final var signedDigestType = digestType();
 
             // Create BlockFooter with the three essential hashes:
             final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
@@ -1008,11 +1086,41 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                     signedBlockNumber,
                                     finalBlockRootHash);
                         } else {
+                            // Complete the block before best-effort publication can contend with reconciliation.
                             finishProofWithSignature(
                                     finalBlockRootHash,
                                     signature,
                                     attempt.verificationKey(),
                                     attempt.chainOfTrustProof());
+                            if (attempt.constructionId() > 0 && attempt.verificationKey() != null) {
+                                try {
+                                    final var witness = HintsKeyWitness.newBuilder()
+                                            .targetHintsConstructionId(attempt.constructionId())
+                                            .timestamp(signedBlockTimestamp)
+                                            .siblingHash(BlockRootTree.timestampSiblingHash(
+                                                    signedDigestType,
+                                                    signedPreviousBlockHash,
+                                                    rootAndSiblingHashes.siblingHashes()))
+                                            .signature(signature)
+                                            .hashAlgorithm(signedDigestType == DigestType.SHA_256 ? SHA2_256 : SHA2_384)
+                                            .build();
+                                    // Publish even if this block has already been closed with an indirect proof.
+                                    // The callback is tied to the original signing attempt and only submits work.
+                                    if (HintsKeyWitnessVerifier.rootHash(witness)
+                                            .equals(finalBlockRootHash)) {
+                                        blockHashSigner.publishKeyWitness(attempt.verificationKey(), witness);
+                                    } else {
+                                        log.error(
+                                                "Witness root differs from signed block root for block #{}; skipping publication",
+                                                signedBlockNumber);
+                                    }
+                                } catch (RuntimeException e) {
+                                    log.warn(
+                                            "Failed to offer key witness for directly signed block #{}",
+                                            signedBlockNumber,
+                                            e);
+                                }
+                            }
                         }
                         if (quiescenceEnabled) {
                             final var lastCommand = lastQuiescenceCommand.get();
@@ -1068,12 +1176,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         return null;
                     });
 
-            final var exportNetworkToDisk =
-                    switch (diskNetworkExport) {
-                        case NEVER -> false;
-                        case EVERY_BLOCK -> true;
-                        case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
-                    };
+            final var exportNetworkToDisk = switch (diskNetworkExport) {
+                case NEVER -> false;
+                case EVERY_BLOCK -> true;
+                case ONLY_FREEZE_BLOCK -> roundNum == freezeRoundNumber;
+            };
             if (exportNetworkToDisk) {
                 final var exportPath = Paths.get(diskNetworkExportFile);
                 final var infoTypes = EnumSet.of(InfoType.ROSTER, InfoType.NODE_DETAILS);
@@ -1159,15 +1266,20 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return savepointOutputSuppressed;
     }
 
+    @Override
+    public boolean hasReachedMaxBlockSize() {
+        return maxBlockSizeReached;
+    }
+
     private void accountForWrittenItems(@NonNull final List<BlockItem> items) {
-        if (!blockSizeCircuitBreakerEnabled) {
-            return;
+        if (blockSizeCircuitBreakerEnabled) {
+            final long addedSize = serializedBlockSize(items);
+            currentBlockSizeBytes = saturatedAdd(currentBlockSizeBytes, addedSize);
+            if (!savepointOutputSuppressed && currentBlockSizeBytes > maxBlockSizeBytes) {
+                tripBlockSizeCircuitBreaker(currentBlockSizeBytes, addedSize);
+            }
         }
-        final long addedSize = serializedBlockSize(items);
-        currentBlockSizeBytes = saturatedAdd(currentBlockSizeBytes, addedSize);
-        if (!savepointOutputSuppressed && currentBlockSizeBytes > maxBlockSizeBytes) {
-            tripBlockSizeCircuitBreaker(currentBlockSizeBytes, addedSize);
-        }
+        trackMaxBlockSizeThrottle(items);
     }
 
     private void tripBlockSizeCircuitBreaker(final long projectedSize, final long addedSize) {
@@ -1180,6 +1292,74 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 projectedSize,
                 addedSize,
                 maxBlockSizeBytes);
+    }
+
+    @Override
+    public void recordSubmittedTransaction(@NonNull final List<BlockItem> items, final boolean rejectedForBlockSize) {
+        recordBlockSizeRejection(
+                items,
+                rejectedForBlockSize,
+                maxBlockSizeThrottleRejectionsCounter,
+                maxBlockSizeThrottleRejectedBytesCounter);
+    }
+
+    @Override
+    public void recordScheduledTransaction(@NonNull final List<BlockItem> items, final boolean rejectedForBlockSize) {
+        recordBlockSizeRejection(
+                items,
+                rejectedForBlockSize,
+                maxBlockSizeThrottleScheduledRejectionsCounter,
+                maxBlockSizeThrottleScheduledRejectedBytesCounter);
+    }
+
+    private void recordBlockSizeRejection(
+            @NonNull final List<BlockItem> items,
+            final boolean rejectedForBlockSize,
+            @NonNull final Counter rejectionsCounter,
+            @NonNull final Counter rejectedBytesCounter) {
+        if (!maxBlockSizeThrottleEnabled || !rejectedForBlockSize) {
+            return;
+        }
+        rejectionsCounter.increment();
+        final long rejectedBytes = serializedBlockSize(items);
+        if (rejectedBytes > 0) {
+            rejectedBytesCounter.add(rejectedBytes);
+        }
+    }
+
+    /**
+     * Independent of the circuit breaker above: in {@code StreamMode.BLOCKS}, tracks the running size against
+     * the {@code maxBlockExecutionSizeBytes} limit, but never suppresses output. Once tripped, {@link
+     * #hasReachedMaxBlockSize()} reports {@code true} for the rest of the block, and {@code HandleWorkflow}
+     * is expected to reject further non-exempt submitted transactions and scheduled executions with {@code
+     * THROTTLED_AT_CONSENSUS} using normal consensus throttle fee charging rather than let them run. Scheduled
+     * executions with a throttle-exempt payer keep running (their output still counts toward the running size);
+     * block signatures remain eligible to run.
+     */
+    private void trackMaxBlockSizeThrottle(@NonNull final List<BlockItem> items) {
+        if (!maxBlockSizeThrottleEnabled) {
+            return;
+        }
+        final long addedSize = serializedBlockSize(items);
+        currentThrottleBlockSizeBytes = saturatedAdd(currentThrottleBlockSizeBytes, addedSize);
+        final long signedTxns =
+                items.stream().filter(BlockItem::hasSignedTransaction).count();
+        if (signedTxns > 0) {
+            signedTxnsInSizeLimitedBlocksCounter.add(signedTxns);
+        }
+        if (!maxBlockSizeReached && currentThrottleBlockSizeBytes > maxBlockExecutionSizeBytes) {
+            bytesAtMaxBlockSizeCutoffGauge.set(currentThrottleBlockSizeBytes);
+            maxBlockSizeReached = true;
+            maxBlockSizeThrottleTripsCounter.increment();
+            log.warn(
+                    "Block #{} reached a serialized size of {} bytes after adding {} bytes, exceeding the "
+                            + "{}-byte max-block-size-throttle limit; rejecting further dispatches in this block"
+                            + " with THROTTLED_AT_CONSENSUS",
+                    blockNumber,
+                    currentThrottleBlockSizeBytes,
+                    addedSize,
+                    maxBlockExecutionSizeBytes);
+        }
     }
 
     private static long serializedBlockSize(@NonNull final List<BlockItem> items) {
@@ -1877,7 +2057,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 if (writer != null) {
                     log.fatal("Flushing in-progress block {} to disk for triage", blockNumber);
                     try {
-                        writer.flushIncompleteBlock();
+                        final Path flushed = writer.flushIncompleteBlock();
+                        if (flushed != null) {
+                            flushedTriageBlockFiles.add(flushed);
+                        }
                     } catch (final Exception e) {
                         log.fatal("Failed to flush in-progress block {}", blockNumber, e);
                     }
@@ -1912,12 +2095,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         while ((block = pendingBlocks.poll()) != null) {
             log.fatal("Flushing pending block #{} to disk before fatal shutdown", block.number());
             try {
-                block.writer().flushPendingBlock(block.asPendingProof());
+                final Path flushed = block.writer().flushPendingBlock(block.asPendingProof());
+                if (flushed != null) {
+                    flushedTriageBlockFiles.add(flushed);
+                }
             } catch (final Exception e) {
                 log.fatal("Failed to flush pending block #{}", block.number(), e);
             }
             markPendingBlockProofComplete(block);
         }
+    }
+
+    @Override
+    @NonNull
+    public List<Path> flushedTriageBlockFiles() {
+        return List.copyOf(flushedTriageBlockFiles);
     }
 
     @Override

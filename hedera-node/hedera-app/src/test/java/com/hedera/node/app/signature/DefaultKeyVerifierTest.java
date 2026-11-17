@@ -23,11 +23,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.Streams;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
+import com.hedera.node.app.spi.key.KeyRequirement;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.workflows.prehandle.FakeSignatureVerificationFuture;
@@ -90,6 +92,21 @@ class DefaultKeyVerifierTest {
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> verifier.verificationFor(key, null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> verifier.verificationFor((Bytes) null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void cryptographicEvidenceCanSatisfyIndependentRequirementsWithoutDuplicateVerification() {
+        final var verifier = createVerifier(Map.of(ED25519_X1, goodFuture(ED25519_X1)));
+        final var first = KeyRequirement.forAccount(
+                AccountID.newBuilder().accountNum(1234).build(), ED25519_X1);
+        final var second = KeyRequirement.forAccount(
+                AccountID.newBuilder().accountNum(5678).build(), ED25519_X1);
+
+        assertThat(verifier.verificationFor(first).passed()).isTrue();
+        assertThat(verifier.verificationFor(second).passed()).isTrue();
+        assertThat(verifier.verificationFor(KeyRequirement.forKey(ED25519_X1)).passed())
+                .isTrue();
+        assertThat(verifier.numSignaturesVerified()).isEqualTo(1);
     }
 
     @Test

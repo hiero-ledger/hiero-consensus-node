@@ -3,8 +3,11 @@ package com.hedera.node.app.history;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.impl.OnProofFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -78,9 +81,37 @@ public interface HistoryService extends Service, OnProofFinished {
     void setLatestHistoryProof(@NonNull HistoryProof historyProof);
 
     /**
+     * Offers a directly signed block witness for consensus publication. The verification key and generation
+     * must come from the captured signing attempt, not the current mutable signing context.
+     */
+    void publishKeyWitness(@NonNull Bytes verificationKey, @NonNull HintsKeyWitness witness);
+
+    /**
      * Whether this service is ready to provide metadata-enriched proofs.
      */
     boolean isReady();
+
+    /**
+     * Persists a legacy active proof's complete membership only when available generation weights
+     * reproduce its committed address-book hash. Run before consumers resolve signing or vote weights.
+     *
+     * @param activeRosters the available rosters
+     * @param historyStore the history store in which to preserve the recovered snapshot
+     * @param activeConstruction the persisted active hinTS construction, if any
+     */
+    void recoverActiveBook(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull WritableHistoryStore historyStore,
+            @Nullable HintsConstruction activeConstruction);
+
+    /**
+     * Recovers a prepared next WRAPS proof's complete membership before handoff preflight. Candidate
+     * weights are accepted only when they reproduce the proof's existing address-book commitment.
+     */
+    void recoverNextBook(
+            @NonNull WritableHistoryStore historyStore,
+            @Nullable Roster targetRoster,
+            @Nullable HintsConstruction nextConstruction);
 
     /**
      * Reconciles the history of roster proofs with the given active rosters and metadata, if known.
@@ -93,6 +124,8 @@ public interface HistoryService extends Service, OnProofFinished {
      * @param isActive if the platform is active
      * @param activeConstruction the active hinTS construction, if any
      * @param freshGenesisRequested whether a fresh genesis proof is requested for the current roster
+     * @param sourceSigner the immutable persisted source signing generation, absent only before hinTS genesis
+     * @param targetHintsConstructionId the generation whose verification key is being certified
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,
@@ -102,7 +135,9 @@ public interface HistoryService extends Service, OnProofFinished {
             @NonNull TssConfig tssConfig,
             boolean isActive,
             @Nullable HintsConstruction activeConstruction,
-            boolean freshGenesisRequested);
+            boolean freshGenesisRequested,
+            @Nullable KeyProvenanceSigner sourceSigner,
+            long targetHintsConstructionId);
 
     /**
      * Stops the history service, causing it to abandon any in-progress work.

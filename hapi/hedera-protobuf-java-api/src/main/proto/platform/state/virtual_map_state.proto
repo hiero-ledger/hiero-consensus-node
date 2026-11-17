@@ -319,9 +319,15 @@ message StateKey {
      * A state identifier for the CLPR channel index entries.
      * Key is a sequence number issued by the channel index singleton.
      */
-    proto.ProtoLong ClprService_I_CHANNEL_INDEX_ENTRIES = 70;
+    proto.ProtoLong ClprService_I_CHANNEL_INDEX_ENTRIES = 72;
+
+    /** The target hinTS construction ID for an adopted key's signing witness. */
+    proto.ProtoLong HistoryService_I_HINTS_KEY_WITNESSES = 70;
 
     // Queue states
+    /** Queue index for adopted hinTS verification-key provenance. */
+    uint64 HistoryService_I_HINTS_KEY_PROVENANCE = 69;
+
     /**
      * Queue index for the round receipts queue.
      */
@@ -734,18 +740,24 @@ message StateValue {
     /**
      * A state identifier for the CLPR channel index. Singleton state.
      */
-    com.hedera.hapi.node.state.clpr.ClprChannelIndex ClprService_I_CHANNEL_INDEX = 69;
+    com.hedera.hapi.node.state.clpr.ClprChannelIndex ClprService_I_CHANNEL_INDEX = 71;
 
     /**
      * A state identifier for the CLPR channel index entries.
      * Value is the 32-byte id of the syncable Channel with that sequence number.
      */
-    proto.ProtoBytes ClprService_I_CHANNEL_INDEX_ENTRIES = 70;
+    proto.ProtoBytes ClprService_I_CHANNEL_INDEX_ENTRIES = 72;
 
     /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
+
+    /** Explicit authorization links between adopted hinTS generations. */
+    com.hedera.hapi.node.state.history.HintsKeyProvenance HistoryService_I_HINTS_KEY_PROVENANCE = 69;
+
+    /** Durable pending or completed block-signing witnesses for adopted keys. */
+    com.hedera.hapi.node.state.history.HintsKeyWitnessRecord HistoryService_I_HINTS_KEY_WITNESSES = 70;
 
     /**
      * Metadata of the queue state.<br/>
@@ -965,9 +977,12 @@ enum SingletonType {
    * A state identifier for the CLPR channel index — the last sequence number issued to a
    * Channel that is neither PENDING nor CLOSED. Singleton state.
    */
-  ClprService_I_CHANNEL_INDEX = 69;
+  ClprService_I_CHANNEL_INDEX = 71;
 
   // Queue metadata
+
+  /** Metadata of the adopted hinTS verification-key provenance queue. */
+  HistoryService_I_HINTS_KEY_PROVENANCE = 69;
 
   /**
    * Metadata of the round receipts queue.

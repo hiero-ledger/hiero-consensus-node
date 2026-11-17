@@ -111,7 +111,11 @@ public class OrderInvarianceTest {
         timeManager.waitFor(Duration.ofSeconds(10L));
 
         // Validations
-        assertThat(network.newConsensusResults()).haveEqualCommonRounds().haveConsistentRounds();
+        assertThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds()
+                .haveNoLostEvents()
+                .haveNoUnannouncedEvents();
         assertThat(network.newPlatformStatusResults())
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
     }

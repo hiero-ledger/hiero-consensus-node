@@ -6,6 +6,7 @@ import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVI
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -36,8 +37,14 @@ class V0790HistorySchemaTest {
             singleton(NEXT_PROOF_CONSTRUCTION_STATE_ID, null);
 
     @Test
-    void onlyRemovesTheWrapsProvingKeyHash() {
-        assertTrue(subject.statesToCreate().isEmpty());
+    void createsProvenanceQueueAndRemovesTheWrapsProvingKeyHash() {
+        final var definitions = subject.statesToCreate();
+        assertEquals(1, definitions.size());
+        final var definition = definitions.iterator().next();
+        assertEquals(V0790HistorySchema.HINTS_KEY_PROVENANCE_STATE_ID, definition.stateId());
+        assertEquals(V0790HistorySchema.HINTS_KEY_PROVENANCE_KEY, definition.stateKey());
+        assertTrue(definition.queue());
+        assertEquals(HintsKeyProvenance.PROTOBUF, definition.valueCodec());
         assertEquals(Set.of(WRAPS_PROVING_KEY_HASH_STATE_ID), subject.statesToRemove());
     }
 

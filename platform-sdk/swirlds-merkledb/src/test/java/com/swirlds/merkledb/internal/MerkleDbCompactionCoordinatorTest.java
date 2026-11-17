@@ -7,15 +7,18 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFI
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -288,6 +291,132 @@ class MerkleDbCompactionCoordinatorTest {
         verify(compactor).resumeCompaction();
 
         releaseTask.countDown();
+    }
+
+    @Test
+    void testPauseCompactionAndRunResumesAllCompactorsWhenOneResumeFails() throws IOException {
+        final IOException resumeFailure = new IOException("resume failed");
+        final DataFileCompactor failing = mock(DataFileCompactor.class);
+        doThrow(resumeFailure).when(failing).resumeCompaction();
+        final DataFileCollection fileCollection = mock(DataFileCollection.class);
+        when(fileCollection.getStoreName()).thenReturn(ID_TO_HASH_CHUNK);
+        final DataFileCompactor real = new DataFileCompactor(fileCollection, null, null, null, null, null);
+        addActiveCompactors(failing, real);
+
+        final IOException thrown = assertThrows(IOException.class, () -> coordinator.pauseCompactionAndRun(() -> {}));
+
+        assertSame(resumeFailure, thrown);
+        verify(failing).resumeCompaction();
+        // The real compactor's lock must be released, so it can be paused from another thread
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            final Future<?> pauseAndResume = executor.submit(() -> {
+                real.pauseCompaction();
+                real.resumeCompaction();
+                return null;
+            });
+            assertDoesNotThrow(
+                    () -> pauseAndResume.get(2, TimeUnit.SECONDS), "Compactor lock is still held after resume");
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void testPauseCompactionAndRunRethrowsFirstResumeFailure() throws IOException {
+        final IOException firstFailure = new IOException("first resume failed");
+        final IOException secondFailure = new IOException("second resume failed");
+        final DataFileCompactor first = mock(DataFileCompactor.class);
+        doThrow(firstFailure).when(first).resumeCompaction();
+        final DataFileCompactor second = mock(DataFileCompactor.class);
+        doThrow(secondFailure).when(second).resumeCompaction();
+        addActiveCompactors(first, second);
+
+        final IOException thrown = assertThrows(IOException.class, () -> coordinator.pauseCompactionAndRun(() -> {}));
+
+        assertSame(firstFailure, thrown);
+        verify(first).resumeCompaction();
+        verify(second).resumeCompaction();
+    }
+
+    @Test
+    void testPauseCompactionAndRunResumesAllCompactorsWhenResumesThrowSameError() throws IOException {
+        // The JVM may throw the same preallocated OutOfMemoryError instance more than once
+        final OutOfMemoryError error = new OutOfMemoryError("resume failed");
+        final DataFileCompactor first = mock(DataFileCompactor.class);
+        doThrow(error).when(first).resumeCompaction();
+        final DataFileCompactor second = mock(DataFileCompactor.class);
+        doThrow(error).when(second).resumeCompaction();
+        final DataFileCompactor third = mock(DataFileCompactor.class);
+        addActiveCompactors(first, second, third);
+
+        final OutOfMemoryError thrown =
+                assertThrows(OutOfMemoryError.class, () -> coordinator.pauseCompactionAndRun(() -> {}));
+
+        assertSame(error, thrown);
+        verify(first).resumeCompaction();
+        verify(second).resumeCompaction();
+        verify(third).resumeCompaction();
+    }
+
+    @Test
+    void testPauseCompactionAndRunActionFailureTakesPrecedence() throws IOException {
+        final IOException actionFailure = new IOException("action failed");
+        final IOException firstFailure = new IOException("first resume failed");
+        final IOException secondFailure = new IOException("second resume failed");
+        final DataFileCompactor first = mock(DataFileCompactor.class);
+        doThrow(firstFailure).when(first).resumeCompaction();
+        final DataFileCompactor second = mock(DataFileCompactor.class);
+        doThrow(secondFailure).when(second).resumeCompaction();
+        addActiveCompactors(first, second);
+
+        final IOException thrown = assertThrows(
+                IOException.class,
+                () -> coordinator.pauseCompactionAndRun(() -> {
+                    throw actionFailure;
+                }));
+
+        assertSame(actionFailure, thrown);
+        verify(first).resumeCompaction();
+        verify(second).resumeCompaction();
+    }
+
+    @Test
+    void testPauseCompactionAndRunResumesOnlyPausedCompactors() throws IOException {
+        final IOException pauseFailure = new IOException("pause failed");
+        final DataFileCompactor first = mock(DataFileCompactor.class);
+        doThrow(pauseFailure).when(first).pauseCompaction();
+        final DataFileCompactor second = mock(DataFileCompactor.class);
+        addActiveCompactors(first, second);
+        final AtomicBoolean actionRan = new AtomicBoolean();
+
+        final IOException thrown =
+                assertThrows(IOException.class, () -> coordinator.pauseCompactionAndRun(() -> actionRan.set(true)));
+
+        assertSame(pauseFailure, thrown);
+        assertFalse(actionRan.get(), "Action must not run if pausing fails");
+        // The failed pause still holds the lock, so the compactor is resumed
+        verify(first).resumeCompaction();
+        verify(second, never()).pauseCompaction();
+        verify(second, never()).resumeCompaction();
+    }
+
+    /**
+     * Registers the compactors as active, in the given order. The order is the order in which the coordinator
+     * pauses and resumes them.
+     */
+    private void addActiveCompactors(final DataFileCompactor... compactors) {
+        assertTrue(compactors.length <= 10, "Single-digit keys keep the HashMap iteration order");
+        synchronized (coordinator) {
+            for (int i = 0; i < compactors.length; i++) {
+                // The hash code of a single-digit key is 48 + i, so the keys fall into buckets 0 to 9 in order
+                coordinator.compactorsByName.put(Integer.toString(i), compactors[i]);
+            }
+            assertEquals(
+                    List.of(compactors),
+                    List.copyOf(coordinator.compactorsByName.values()),
+                    "Unexpected order of compactors");
+        }
     }
 
     @Test

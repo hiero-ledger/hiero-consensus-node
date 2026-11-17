@@ -14,6 +14,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.OFF;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_GAS_RESERVATION;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 import static java.util.Objects.requireNonNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -22,26 +25,37 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.ThrottleBucket;
+import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.ThrottleGroup;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.NetworkUtilizationManager;
+import com.hedera.node.app.throttle.NetworkUtilizationManagerImpl;
+import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -57,6 +71,8 @@ import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -156,6 +172,9 @@ class DispatchUsageManagerTest {
     @Mock
     private Dispatch dispatch;
 
+    @Mock
+    private HandleContext handleContext;
+
     private DispatchUsageManager subject;
 
     @BeforeEach
@@ -250,6 +269,7 @@ class DispatchUsageManagerTest {
 
     @Test
     void leaksUnusedGasForContractCall() {
+        givenRefundMetadata(EMPTY_METADATA);
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CONTRACT_CALL_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
@@ -267,6 +287,7 @@ class DispatchUsageManagerTest {
 
     @Test
     void leaksUnusedGasForContractCreate() {
+        givenRefundMetadata(EMPTY_METADATA);
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(CONTRACT_CREATE_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
@@ -285,6 +306,7 @@ class DispatchUsageManagerTest {
 
     @Test
     void leaksUnusedGasForEthTx() {
+        givenRefundMetadata(EMPTY_METADATA);
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
         given(dispatch.txnInfo()).willReturn(ETH_TXN_INFO);
         given(recordBuilder.hasContractResult()).willReturn(true);
@@ -301,6 +323,104 @@ class DispatchUsageManagerTest {
         verify(networkUtilizationManager)
                 .leakUnusedGasPreviouslyReserved(ETH_TXN_INFO, ETH_DATA_WITH_TO_ADDRESS.gasLimit() - GAS_USED);
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "3, CLPR_SUBMIT_BUNDLE, true, true",
+        "1234, CLPR_SUBMIT_BUNDLE, true, true",
+        "3, CLPR_COMPLETE_CHANNEL, true, false",
+        "1234, CLPR_COMPLETE_CHANNEL, true, true",
+        "3, CONTRACT_CALL, true, false",
+        "3, CLPR_SUBMIT_BUNDLE, false, false",
+        "1234, CLPR_SUBMIT_BUNDLE, false, false"
+    })
+    void verifierRefundUsesParentReservation(
+            final long payerNum,
+            final HederaFunctionality parentFunction,
+            final boolean throttleByGas,
+            final boolean reservesGas)
+            throws ThrottleException {
+        final long gasLimit = 2_000_000L;
+        final long gasUsed = 100_000L;
+        final long otherGasUsed = 300_000L;
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("clpr.verifierGasLimit", gasLimit)
+                .withValue("contracts.throttle.throttleByGas", throttleByGas)
+                .withValue("contracts.maxGasPerSecBackend", 3_000_000L)
+                .getOrCreateConfig();
+        final var throttle = new ThrottleAccumulator(() -> config, () -> 1, BACKEND_THROTTLE);
+        throttle.applyGasConfig();
+        throttle.rebuildFor(ThrottleDefinitions.newBuilder()
+                .throttleBuckets(ThrottleBucket.newBuilder()
+                        .name("Verifier")
+                        .burstPeriodMs(1000)
+                        .throttleGroups(ThrottleGroup.newBuilder()
+                                .milliOpsPerSec(10_000)
+                                .operations(parentFunction)
+                                .build())
+                        .build())
+                .build());
+        final var gasThrottle = throttle.gasLimitThrottle();
+        Assertions.assertThat(gasThrottle.allow(CONSENSUS_NOW, otherGasUsed)).isTrue();
+        final var utilization = new NetworkUtilizationManagerImpl(throttle, mock(CongestionMultipliers.class));
+        subject = new DispatchUsageManager(networkInfo, opWorkflowMetrics, throttleServiceManager, utilization);
+        final var payer = AccountID.newBuilder().accountNum(payerNum).build();
+        final var parentBodyBuilder = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(payer));
+        switch (parentFunction) {
+            case CLPR_SUBMIT_BUNDLE -> parentBodyBuilder.clprSubmitBundle(ClprSubmitBundleTransactionBody.DEFAULT);
+            case CLPR_COMPLETE_CHANNEL ->
+                parentBodyBuilder.clprCompleteChannel(ClprCompleteChannelTransactionBody.DEFAULT);
+            default ->
+                parentBodyBuilder.contractCall(
+                        ContractCallTransactionBody.newBuilder().gas(gasLimit));
+        }
+        final var parentBody = parentBodyBuilder.build();
+        final var parentInfo = new TransactionInfo(
+                SignedTransaction.DEFAULT, parentBody, SignatureMap.DEFAULT, Bytes.EMPTY, parentFunction, null);
+        final var parentMetadata = new DispatchMetadata(EMPTY_METADATA);
+        if (throttleByGas) {
+            givenRefundMetadata(parentMetadata);
+        }
+        given(dispatch.throttleStrategy()).willReturn(ON);
+        given(dispatch.txnInfo()).willReturn(parentInfo);
+        given(dispatch.config()).willReturn(config);
+        given(dispatch.consensusNow()).willReturn(CONSENSUS_NOW);
+        given(dispatch.stack()).willReturn(stack);
+
+        subject.screenForCapacity(dispatch);
+
+        Assertions.assertThat(gasThrottle.used()).isEqualTo(otherGasUsed + (reservesGas ? gasLimit : 0));
+        Assertions.assertThat(parentMetadata
+                        .getMetadata(CLPR_GAS_RESERVATION, TransactionInfo.class)
+                        .isPresent())
+                .isEqualTo(reservesGas);
+        final var childBody = parentBody
+                .copyBuilder()
+                .contractCall(ContractCallTransactionBody.newBuilder().gas(gasLimit))
+                .build();
+        final var childInfo = new TransactionInfo(
+                SignedTransaction.DEFAULT, childBody, SignatureMap.DEFAULT, Bytes.EMPTY, CONTRACT_CALL, null);
+        // DispatchHandleContext passes this reservation only to the direct verifier child.
+        if (throttleByGas) {
+            given(handleContext.dispatchMetadata()).willReturn(new DispatchMetadata(parentMetadata));
+        }
+        given(dispatch.txnInfo()).willReturn(childInfo);
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.CHILD);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
+        given(recordBuilder.hasContractResult()).willReturn(true);
+        given(recordBuilder.getGasUsedForContractTxn()).willReturn(gasUsed);
+
+        subject.finalizeAndSaveUsage(dispatch);
+
+        Assertions.assertThat(gasThrottle.used()).isEqualTo(otherGasUsed + (reservesGas ? gasUsed : 0));
+    }
+
+    private void givenRefundMetadata(final DispatchMetadata metadata) {
+        given(dispatch.handleContext()).willReturn(handleContext);
+        given(handleContext.dispatchMetadata()).willReturn(metadata);
     }
 
     @Test

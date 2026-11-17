@@ -254,7 +254,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
@@ -2717,10 +2717,12 @@ public class UtilVerbs {
     public static HapiSpecOperation validateRecordTransactionFees(String txn, Set<AccountID> feeRecipients) {
         return assertionsHold((spec, assertLog) -> {
             final AtomicReference<TransactionRecord> txnRecord = new AtomicReference<>();
-            allRunFor(spec, withStrictCostAnswerValidation(() -> getTxnRecord(txn)
-                    .payingWith(EXCHANGE_RATE_CONTROL)
-                    .exposingTo(txnRecord::set)
-                    .logged()));
+            allRunFor(
+                    spec,
+                    withStrictCostAnswerValidation(() -> getTxnRecord(txn)
+                            .payingWith(EXCHANGE_RATE_CONTROL)
+                            .exposingTo(txnRecord::set)
+                            .logged()));
             final var rcd = txnRecord.get();
             long realFee = rcd.getTransferList().getAccountAmountsList().stream()
                     .filter(aa -> feeRecipients.contains(aa.getAccountID()))
@@ -3213,20 +3215,7 @@ public class UtilVerbs {
         var key = spec.registry().getKey(privateKeyRef);
         final var privateKey = spec.keys()
                 .getEcdsaPrivateKey(CommonUtils.hex(key.getECDSASecp256K1().toByteArray()));
-
-        byte[] privateKeyByteArray;
-        byte[] dByteArray = ((BCECPrivateKey) privateKey).getD().toByteArray();
-        if (dByteArray.length < 32) {
-            privateKeyByteArray = new byte[32];
-            System.arraycopy(dByteArray, 0, privateKeyByteArray, 32 - dByteArray.length, dByteArray.length);
-        } else if (dByteArray.length == 32) {
-            privateKeyByteArray = dByteArray;
-        } else {
-            privateKeyByteArray = new byte[32];
-            System.arraycopy(dByteArray, dByteArray.length - 32, privateKeyByteArray, 0, 32);
-        }
-
-        return privateKeyByteArray;
+        return ECDSASecp256k1.asPrivateKeyByteArray32(privateKey);
     }
 
     public static PrivateKey getEd25519PrivateKeyFromSpec(final HapiSpec spec, final String privateKeyRef) {

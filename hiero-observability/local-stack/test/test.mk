@@ -15,6 +15,11 @@ TEST_UNITS   := victoriametrics loki alloy grafana selftest-metrics selftest-log
 # --wait fails if a container exits, so the fixtures stay alive. The trap
 # guarantees teardown on every path, including a failing `up`, and the backend
 # logs are dumped before teardown so a failure is debuggable.
+#
+# metrics-importer runs on the same file twice, on purpose: assert.sh then
+# checks the samples were stored once. It must also fail, naming
+# METRICS_RETENTION, on a sample older than retention, and fail on invalid
+# labels.
 selftest:
 	@set -u; \
 	trap '$(TEST_COMPOSE) down -v --remove-orphans >/dev/null 2>&1' EXIT INT TERM; \
@@ -28,5 +33,22 @@ selftest:
 	IMPORT_LOG_LABELS='not-json' IMPORT_WAIT_SECONDS=15 \
 	  $(TEST_COMPOSE) -f docker-compose.import.yml --profile import run --rm log-importer \
 	  && { echo 'expected log-importer to fail on invalid IMPORT_LOG_LABELS, but it exited 0'; exit 1; }; \
+	$(TEST_COMPOSE) run --rm selftest-metrics-import-writer || exit 1; \
+	for _ in 1 2; do \
+	  IMPORT_METRICS_DIR=selftest-metrics-import-src IMPORT_METRICS_INCLUDE=import-check.txt \
+	  IMPORT_METRICS_LABELS='{"environment":"selftest","node_id":"1"}' \
+	    $(TEST_COMPOSE) -f docker-compose.import.yml --profile import run --rm metrics-importer \
+	    || exit 1; \
+	done; \
+	_out=$$(IMPORT_METRICS_DIR=selftest-metrics-import-src IMPORT_METRICS_INCLUDE=too-old.txt \
+	  IMPORT_METRICS_LABELS='{"environment":"selftest"}' \
+	  $(TEST_COMPOSE) -f docker-compose.import.yml --profile import run --rm -T metrics-importer 2>&1) \
+	  && { printf '%s\n' "$$_out"; echo 'expected metrics-importer to fail on a sample older than METRICS_RETENTION, but it exited 0'; exit 1; }; \
+	printf '%s\n' "$$_out" | grep -q 'older than METRICS_RETENTION' \
+	  || { printf '%s\n' "$$_out"; echo 'expected metrics-importer to name METRICS_RETENTION as the reason it failed'; exit 1; }; \
+	IMPORT_METRICS_DIR=selftest-metrics-import-src IMPORT_METRICS_INCLUDE=import-check.txt \
+	IMPORT_METRICS_LABELS='not-json' \
+	  $(TEST_COMPOSE) -f docker-compose.import.yml --profile import run --rm metrics-importer \
+	  && { echo 'expected metrics-importer to fail on invalid IMPORT_METRICS_LABELS, but it exited 0'; exit 1; }; \
 	$(TEST_COMPOSE) run --rm -T selftest-assert \
 	  || { $(TEST_COMPOSE) logs --no-color --tail=100 alloy victoriametrics loki; exit 1; }

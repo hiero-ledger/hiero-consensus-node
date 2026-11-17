@@ -378,7 +378,8 @@ public class RecordCacheImpl implements HederaRecordCache {
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final StreamMode streamMode) {
         if (transactionReceipts.size() >= receiptEntriesBatchSize) {
-            commitReceipts(state, consensusNow, immediateStateChangeListener, blockStreamManager, streamMode);
+            // The rest of the round runs before consensusNow, so only the end of the round may purge
+            commitReceipts(state, consensusNow, immediateStateChangeListener, blockStreamManager, streamMode, false);
             transactionReceipts.clear();
         }
     }
@@ -390,6 +391,16 @@ public class RecordCacheImpl implements HederaRecordCache {
             @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final StreamMode streamMode) {
+        commitReceipts(state, consensusNow, immediateStateChangeListener, blockStreamManager, streamMode, true);
+    }
+
+    private void commitReceipts(
+            @NonNull final State state,
+            @NonNull final Instant consensusNow,
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull final BlockStreamManager blockStreamManager,
+            @NonNull final StreamMode streamMode,
+            final boolean purgeExpired) {
         requireNonNull(state);
         requireNonNull(consensusNow);
         requireNonNull(blockStreamManager);
@@ -399,7 +410,9 @@ public class RecordCacheImpl implements HederaRecordCache {
         }
         final var states = state.getWritableStates(NAME);
         final var queue = states.<TransactionReceiptEntries>getQueue(TRANSACTION_RECEIPTS_STATE_ID);
-        purgeExpiredReceiptEntries(queue, consensusNow);
+        if (purgeExpired) {
+            purgeExpiredReceiptEntries(queue, consensusNow);
+        }
         if (!transactionReceipts.isEmpty()) {
             queue.add(new TransactionReceiptEntries(new ArrayList<>(transactionReceipts), asTimestamp(consensusNow)));
         }

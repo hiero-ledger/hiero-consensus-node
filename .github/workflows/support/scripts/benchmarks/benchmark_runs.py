@@ -120,6 +120,10 @@ def read_iteration_times(path):
     fork = 0
     # JMH prints the iteration length before the benchmark's name
     length = None
+    # The measurement iteration whose score has not been printed yet. An iteration ends with the line of its score,
+    # which is usually its "Iteration N:" line. Output of the benchmark's setup can follow "Iteration N:" on that line,
+    # though, and the score then follows on a line of its own, much later.
+    pending = None
     with open(path, errors="replace") as f:
         for line in f:
             parts = line.rstrip("\n").split(" ", 1)
@@ -133,6 +137,7 @@ def read_iteration_times(path):
             if text.startswith("# Benchmark: "):
                 bench = text[len("# Benchmark: "):].strip()
                 params = {}
+                pending = None
             elif text.startswith("# Parameters: "):
                 inner = text[len("# Parameters: "):].strip().strip("()")
                 params = dict(p.split(" = ", 1) for p in inner.split(", ") if " = " in p)
@@ -143,13 +148,17 @@ def read_iteration_times(path):
                     length = float(m.group(1)) * scale
             elif text.startswith("# Fork: "):
                 fork = int(text.split()[2])
+                pending = None
             else:
                 m = re.match(r"Iteration\s+(\d+):", text)
                 if m and bench:
-                    key = bench_key(bench, params)
-                    times[(key, fork, int(m.group(1)))] = ts
+                    pending = (bench_key(bench, params), fork, int(m.group(1)))
+                # the score, such as "2004.777 ms/op" or "≈ 0 ms/op"
+                if pending is not None and re.search(r"\S \S+/op$", text.rstrip()):
+                    times[pending] = ts
                     if length is not None:
-                        lengths[key] = length
+                        lengths[pending[0]] = length
+                    pending = None
     return times, lengths
 
 

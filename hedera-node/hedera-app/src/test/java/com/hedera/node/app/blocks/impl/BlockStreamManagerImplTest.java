@@ -37,16 +37,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.withSettings;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -58,6 +63,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
@@ -67,6 +73,7 @@ import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.history.impl.HintsKeyWitnessVerifier;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
@@ -81,6 +88,7 @@ import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -100,7 +108,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -124,6 +134,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.function.Executable;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -250,6 +262,10 @@ class BlockStreamManagerImplTest {
 
     private boolean clprEnabled = false;
 
+    // Mock counters and gauges for the max block size throttle diagnostics, keyed by metric name
+    private final Map<String, Counter> throttleCounters = new HashMap<>();
+    private final Map<String, LongGauge> throttleGauges = new HashMap<>();
+
     private DigestType digestType = DigestType.SHA_384;
 
     @BeforeEach
@@ -257,9 +273,20 @@ class BlockStreamManagerImplTest {
         writableStates = mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
         lenient().when(metrics.getOrCreate(any(Counter.Config.class))).thenAnswer(invocation -> {
             final Counter.Config counterConfig = invocation.getArgument(0);
-            return "numBlockSizeCircuitBreakerTrips".equals(counterConfig.getName())
-                    ? blockSizeCircuitBreakerTripsCounter
-                    : indirectProofsCounter;
+            return switch (counterConfig.getName()) {
+                case "numBlockSizeCircuitBreakerTrips" -> blockSizeCircuitBreakerTripsCounter;
+                case "numMaxBlockSizeThrottleRejections",
+                        "maxBlockSizeThrottleRejectedBytes",
+                        "numMaxBlockSizeThrottleScheduledRejections",
+                        "maxBlockSizeThrottleScheduledRejectedBytes",
+                        "numSignedTxnsInSizeLimitedBlocks" ->
+                    throttleCounters.computeIfAbsent(counterConfig.getName(), name -> mock(Counter.class));
+                default -> indirectProofsCounter;
+            };
+        });
+        lenient().when(metrics.getOrCreate(any(LongGauge.Config.class))).thenAnswer(invocation -> {
+            final LongGauge.Config gaugeConfig = invocation.getArgument(0);
+            return throttleGauges.computeIfAbsent(gaugeConfig.getName(), name -> mock(LongGauge.class));
         });
     }
 
@@ -675,6 +702,10 @@ class BlockStreamManagerImplTest {
 
     @Test
     void configuredLimitIsInactiveInBlocksMode() {
+        // The BOTH-mode circuit breaker (isSavepointOutputSuppressed) must never engage in StreamMode.BLOCKS —
+        // that's the independent, BLOCKS-only max-block-size throttle's job (see hasReachedMaxBlockSize tests
+        // below), and the two must stay decoupled so other isSavepointOutputSuppressed() consumers (e.g. trace
+        // data serialization) are unaffected by BLOCKS mode.
         givenSubjectWith(
                 1,
                 0,
@@ -694,6 +725,256 @@ class BlockStreamManagerImplTest {
 
         assertFalse(subject.isSavepointOutputSuppressed());
         assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
+        verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
+        verify(blockSizeCircuitBreakerTripsCounter, never()).increment();
+    }
+
+    @Test
+    void configuredLimitIsInactiveInRecordsMode() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.RECORDS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final var lastAssignedTime = CONSENSUS_NOW.plusNanos(1);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), lastAssignedTime);
+        subject.prngSeed();
+
+        assertFalse(subject.isSavepointOutputSuppressed());
+        assertFalse(subject.hasReachedMaxBlockSize());
+        assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
+        verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
+    }
+
+    @Test
+    void maxBlockSizeThrottleTripsInBlocksModeWithoutSuppressingOutput() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final var lastAssignedTime = CONSENSUS_NOW.plusNanos(1);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), lastAssignedTime);
+        subject.prngSeed();
+
+        // The throttle engages (future dispatches should be rejected), but — unlike the BOTH-mode circuit
+        // breaker — the item that tripped it is still written: StreamMode.BLOCKS is canonical, so its output
+        // can never be silently dropped once already committed.
+        assertTrue(subject.hasReachedMaxBlockSize());
+        assertFalse(subject.isSavepointOutputSuppressed());
+        assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
+        verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
+    }
+
+    @Test
+    void blockSizeDiagnosticsTrackRejectionsAndBytesAfterCutoff() throws Exception {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        assertTrue(subject.hasReachedMaxBlockSize());
+        final var bytesField = BlockStreamManagerImpl.class.getDeclaredField("currentThrottleBlockSizeBytes");
+        bytesField.setAccessible(true);
+        final long before = bytesField.getLong(subject);
+        final var items = List.of(FAKE_SIGNED_TRANSACTION);
+        subject.recordSubmittedTransaction(items, true);
+        subject.writeSavepointItems(items, CONSENSUS_NOW.plusNanos(1));
+        subject.recordSubmittedTransaction(items, false);
+        subject.writeSavepointItems(items, CONSENSUS_NOW.plusNanos(2));
+        final long batchBytes = Block.PROTOBUF.measureRecord(new Block(items));
+        assertEquals(before + 2 * batchBytes, bytesField.getLong(subject));
+        verify(throttleCounters.get("numMaxBlockSizeThrottleRejections")).increment();
+        verify(throttleCounters.get("maxBlockSizeThrottleRejectedBytes")).add(batchBytes);
+        verify(throttleCounters.get("numSignedTxnsInSizeLimitedBlocks"), times(2))
+                .add(1L);
+        verify(throttleGauges.get("bytesAtMaxBlockSizeCutoff")).set(longThat(bytes -> bytes > 1L));
+    }
+
+    @Test
+    void scheduledRejectionsAreCountedSeparatelyFromSubmittedRejections() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        assertTrue(subject.hasReachedMaxBlockSize());
+        final var items = List.of(FAKE_SIGNED_TRANSACTION);
+
+        subject.recordScheduledTransaction(items, true);
+        subject.recordScheduledTransaction(items, false);
+
+        final long batchBytes = Block.PROTOBUF.measureRecord(new Block(items));
+        verify(throttleCounters.get("numMaxBlockSizeThrottleScheduledRejections"))
+                .increment();
+        verify(throttleCounters.get("maxBlockSizeThrottleScheduledRejectedBytes"))
+                .add(batchBytes);
+        verifyNoInteractions(throttleCounters.get("numMaxBlockSizeThrottleRejections"));
+        verifyNoInteractions(throttleCounters.get("maxBlockSizeThrottleRejectedBytes"));
+    }
+
+    @Test
+    void maxBlockSizeThrottleNeverEngagesInBothMode() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BOTH,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+
+        subject.startRound(round, state);
+
+        // The BOTH-mode circuit breaker trips as usual (see opensCircuitBreakerWhenARequiredItemCrossesLimit),
+        // but the independent, BLOCKS-only throttle must never engage here.
+        assertTrue(subject.isSavepointOutputSuppressed());
+        assertFalse(subject.hasReachedMaxBlockSize());
+    }
+
+    @Test
+    void maxBlockSizeThrottleNeverEngagesWhenFeatureFlagDisabled() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                false,
+                false,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final var lastAssignedTime = CONSENSUS_NOW.plusNanos(1);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), lastAssignedTime);
+        subject.prngSeed();
+
+        // Even though maxBlockSizeBytes is exceeded, the feature flag being off keeps the throttle from
+        // ever engaging, regardless of stream mode.
+        assertFalse(subject.hasReachedMaxBlockSize());
+    }
+
+    @Test
+    void refreshesExecutionBudgetFeatureFlagAtBlockBoundaries() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                false,
+                false,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+
+        // Enable after construction: the first block must use the current flag.
+        given(configProvider.getConfiguration())
+                .willReturn(versionedConfigWith(1, 0, StreamMode.BLOCKS, 1, true, false, 2L));
+        subject.startRound(round, state);
+        assertTrue(subject.hasReachedMaxBlockSize());
+
+        // A mid-block update must not change the active block's snapshot.
+        given(configProvider.getConfiguration())
+                .willReturn(versionedConfigWith(1, 0, StreamMode.BLOCKS, 1, false, false, 3L));
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), CONSENSUS_NOW.plusNanos(1));
+        assertTrue(subject.hasReachedMaxBlockSize());
+        subject.endRound(state, ROUND_NO);
+
+        // The next block honors the kill switch without a restart.
+        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
+        subject.startRound(round, state);
+        subject.writeSavepointItems(
+                List.of(FAKE_SIGNED_TRANSACTION), CONSENSUS_NOW.plusSeconds(1).plusNanos(1));
+        assertFalse(subject.hasReachedMaxBlockSize());
+        assertFalse(subject.isSavepointOutputSuppressed());
+    }
+
+    @Test
+    void previewAndExecutionBudgetLimitsAreIndependent() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BLOCKS,
+                1,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", StreamMode.BLOCKS.name())
+                .withValue("blockStream.maxBlockSizeBytes", 1)
+                .withValue("blockStream.maxBlockExecutionSizeBytes", 0)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 2L));
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), CONSENSUS_NOW.plusNanos(1));
+        assertFalse(subject.hasReachedMaxBlockSize());
+        assertFalse(subject.isSavepointOutputSuppressed());
+    }
+
+    @Test
+    void executionBudgetLimitDoesNotEnablePreviewCircuitBreaker() {
+        givenSubjectWith(
+                1,
+                0,
+                StreamMode.BOTH,
+                0,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", StreamMode.BOTH.name())
+                .withValue("blockStream.maxBlockSizeBytes", 0)
+                .withValue("blockStream.maxBlockExecutionSizeBytes", 1)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 2L));
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeSavepointItems(List.of(FAKE_SIGNED_TRANSACTION), CONSENSUS_NOW.plusNanos(1));
+        subject.prngSeed();
+        assertFalse(subject.hasReachedMaxBlockSize());
+        assertFalse(subject.isSavepointOutputSuppressed());
         verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
     }
 
@@ -1293,8 +1574,9 @@ class BlockStreamManagerImplTest {
         assertEquals(header.blockTimestamp(), asTimestamp(CONSENSUS_NOW));
     }
 
-    @Test
-    void pendingBlockProofsFutureCompletesWhenPendingBlockIsSigned() {
+    @ParameterizedTest
+    @ValueSource(strings = {"normal", "publisher failure", "root mismatch"})
+    void pendingBlockProofsCompleteDespiteWitnessPublicationFailureOrRootMismatch(final String scenario) {
         givenSubjectWith(
                 1,
                 0,
@@ -1307,7 +1589,19 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(blockHashSigner.isReady()).willReturn(true);
         given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
-                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+                .willReturn(
+                        new BlockHashSigner.Attempt(Bytes.EMPTY, null, mockSigningFuture, completedFuture(null), 7));
+        if (!scenario.equals("root mismatch")) {
+            doAnswer(invocation -> {
+                        assertTrue(subject.pendingBlockProofsFuture().isDone());
+                        if (scenario.equals("publisher failure")) {
+                            throw new IllegalStateException("witness publisher unavailable");
+                        }
+                        return null;
+                    })
+                    .when(blockHashSigner)
+                    .publishKeyWitness(eq(Bytes.EMPTY), any());
+        }
         final AtomicReference<Consumer<Bytes>> signatureConsumer = new AtomicReference<>();
         doAnswer(invocationOnMock -> {
                     signatureConsumer.set(invocationOnMock.getArgument(0));
@@ -1327,7 +1621,18 @@ class BlockStreamManagerImplTest {
 
         assertFalse(pendingBlockProofsFuture.isDone());
 
-        signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE);
+        if (scenario.equals("root mismatch")) {
+            try (final var witnessVerifier = mockStatic(HintsKeyWitnessVerifier.class)) {
+                witnessVerifier
+                        .when(() -> HintsKeyWitnessVerifier.rootHash(any()))
+                        .thenReturn(Bytes.EMPTY);
+                assertDoesNotThrow(() -> signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE));
+            }
+            verify(blockHashSigner, never()).publishKeyWitness(any(), any());
+        } else {
+            assertDoesNotThrow(() -> signatureConsumer.get().accept(FIRST_FAKE_SIGNATURE));
+            verify(blockHashSigner).publishKeyWitness(eq(Bytes.EMPTY), any());
+        }
 
         assertTrue(pendingBlockProofsFuture.isDone());
         verify(aWriter).closeCompleteBlock();
@@ -1619,7 +1924,7 @@ class BlockStreamManagerImplTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void registersClprBlockMetadataOnlyForDirectlySignedBlock() {
+    void registersClprMetadataOnlyForDirectBlockButPublishesBothCapturedGenerationWitnesses() {
         clprStateAccessor = mock(BlockProvenStateAccessor.class);
         clprEnabled = true;
         given(blockHashSigner.isReady()).willReturn(true);
@@ -1654,8 +1959,8 @@ class BlockStreamManagerImplTest {
         given(firstSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
         given(secondSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
         given(blockHashSigner.sign(any(), any()))
-                .willReturn(new BlockHashSigner.Attempt(null, null, firstSignature))
-                .willReturn(new BlockHashSigner.Attempt(null, null, secondSignature));
+                .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, null, firstSignature, completedFuture(null), 7))
+                .willReturn(new BlockHashSigner.Attempt(Bytes.EMPTY, null, secondSignature, completedFuture(null), 8));
         // End the round in block N
         subject.endRound(state, ROUND_NO);
 
@@ -1688,6 +1993,29 @@ class BlockStreamManagerImplTest {
                 .registerBlockMetadata(
                         eq(FAKE_START_OF_BLOCK_STATE_HASH.getBytes()), any(), eq(FIRST_FAKE_SIGNATURE), any(), any());
         verifyNoMoreInteractions(clprStateAccessor);
+
+        // The old direct signature must still produce its original generation's witness, even though
+        // its pending block was already closed indirectly and the mutable manager is on a later block.
+        final var witnesses = ArgumentCaptor.forClass(HintsKeyWitness.class);
+        verify(blockHashSigner, times(2)).publishKeyWitness(eq(Bytes.EMPTY), witnesses.capture());
+        final var published = witnesses.getAllValues();
+        assertEquals(8L, published.get(0).targetHintsConstructionId());
+        assertEquals(7L, published.get(1).targetHintsConstructionId());
+        assertEquals(asTimestamp(CONSENSUS_NOW.plusSeconds(1)), published.get(0).timestamp());
+        assertEquals(asTimestamp(CONSENSUS_NOW), published.get(1).timestamp());
+        assertEquals(FIRST_FAKE_SIGNATURE, published.get(0).signature());
+        assertEquals(SECOND_FAKE_SIGNATURE, published.get(1).signature());
+        final var roots = ArgumentCaptor.forClass(Bytes.class);
+        verify(blockHashSigner, times(2)).sign(roots.capture(), eq(SUCCINCT_SIGNATURE));
+        for (int i = 0; i < 2; i++) {
+            final var witness = published.get(i);
+            assertEquals(com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384, witness.hashAlgorithm());
+            final var timestampHash =
+                    hashLeaf(sha384DigestOrThrow(), Timestamp.PROTOBUF.toBytes(witness.timestampOrThrow()));
+            assertEquals(
+                    roots.getAllValues().get(1 - i),
+                    BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), timestampHash, witness.siblingHash()));
+        }
     }
 
     @Test
@@ -2459,8 +2787,9 @@ class BlockStreamManagerImplTest {
 
         final var sha256Genesis = hashOfZero(DigestType.SHA_256);
         assertEquals(32, sha256Genesis.length());
-        // Must take the genesis branch without reading BlockStreamService state (which is unmocked here).
-        assertDoesNotThrow(() -> subject.init(state, sha256Genesis, true));
+        // Must take the genesis branch without reading BlockStreamService state (which is unmocked here);
+        // the cutover schema never runs at genesis.
+        assertDoesNotThrow(() -> subject.init(state, sha256Genesis, false));
     }
 
     @Test
@@ -3253,6 +3582,47 @@ class BlockStreamManagerImplTest {
             final int blockPeriod,
             @NonNull final StreamMode streamMode,
             final long maxBlockSizeBytes,
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final PlatformState platformState,
+            @NonNull final BlockItemWriter... writers) {
+        givenSubjectWith(
+                roundsPerBlock,
+                blockPeriod,
+                streamMode,
+                maxBlockSizeBytes,
+                false,
+                blockStreamInfo,
+                platformState,
+                writers);
+    }
+
+    private void givenSubjectWith(
+            final int roundsPerBlock,
+            final int blockPeriod,
+            @NonNull final StreamMode streamMode,
+            final long maxBlockSizeBytes,
+            final boolean cutoverEnabled,
+            @NonNull final BlockStreamInfo blockStreamInfo,
+            @NonNull final PlatformState platformState,
+            @NonNull final BlockItemWriter... writers) {
+        givenSubjectWith(
+                roundsPerBlock,
+                blockPeriod,
+                streamMode,
+                maxBlockSizeBytes,
+                true,
+                cutoverEnabled,
+                blockStreamInfo,
+                platformState,
+                writers);
+    }
+
+    private void givenSubjectWith(
+            final int roundsPerBlock,
+            final int blockPeriod,
+            @NonNull final StreamMode streamMode,
+            final long maxBlockSizeBytes,
+            final boolean maxBlockSizeLimitEnabled,
             final boolean cutoverEnabled,
             @NonNull final BlockStreamInfo blockStreamInfo,
             @NonNull final PlatformState platformState,
@@ -3260,7 +3630,13 @@ class BlockStreamManagerImplTest {
         final AtomicInteger nextWriter = new AtomicInteger(0);
         given(configProvider.getConfiguration())
                 .willReturn(versionedConfigWith(
-                        roundsPerBlock, blockPeriod, streamMode, maxBlockSizeBytes, cutoverEnabled, 1L));
+                        roundsPerBlock,
+                        blockPeriod,
+                        streamMode,
+                        maxBlockSizeBytes,
+                        maxBlockSizeLimitEnabled,
+                        cutoverEnabled,
+                        1L));
         subject = new BlockStreamManagerImpl(
                 blockHashSigner,
                 () -> writers[nextWriter.getAndIncrement()],
@@ -3287,7 +3663,7 @@ class BlockStreamManagerImplTest {
 
     private VersionedConfigImpl versionedConfigWith(
             @NonNull final StreamMode streamMode, final long maxBlockSizeBytes, final long version) {
-        return versionedConfigWith(1, 0, streamMode, maxBlockSizeBytes, false, version);
+        return versionedConfigWith(1, 0, streamMode, maxBlockSizeBytes, true, false, version);
     }
 
     private VersionedConfigImpl versionedConfigWith(
@@ -3295,6 +3671,7 @@ class BlockStreamManagerImplTest {
             final int blockPeriod,
             @NonNull final StreamMode streamMode,
             final long maxBlockSizeBytes,
+            final boolean maxBlockSizeLimitEnabled,
             final boolean cutoverEnabled,
             final long version) {
         final var config = HederaTestConfigBuilder.create()
@@ -3303,8 +3680,10 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
+                .withValue("blockStream.maxBlockExecutionSizeBytes", maxBlockSizeBytes)
                 .withValue("blockStream.digestType", digestType.name())
                 .withValue("clpr.enabled", clprEnabled)
+                .withValue("blockStream.maxBlockSizeLimitEnabled", maxBlockSizeLimitEnabled)
                 .withValue("blockStream.enableCutover", cutoverEnabled)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
@@ -3484,6 +3863,80 @@ class BlockStreamManagerImplTest {
         assertFalse(closed);
         verify(aWriter).flushIncompleteBlock();
         verify(aWriter, never()).flushPendingBlock(any());
+    }
+
+    @Test
+    void fatalEventSignalledDuringNormalCloseStillFlushesForTriage() {
+        // #4 race: catastrophic failure is signalled AFTER endRoundInternal's own fatalShutdownRequested check — here
+        // during the normal block close, via onCloseBlock. endRound's finally must still capture the block for triage
+        // (and complete the fatal-shutdown future) instead of leaving it unflushed while awaitFatalShutdown stalls.
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockHashSigner.sign(any(), eq(SUCCINCT_SIGNATURE)))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        // Leave the signature future pending (do NOT invoke the consumer) so the just-closed block stays in the
+        // pending queue at finally-time; it is what the triage flush must then capture.
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        // The fatal flag flips to true DURING the close, after endRoundInternal already read it as false.
+        doAnswer(inv -> {
+                    subject.notifyFatalEvent();
+                    return null;
+                })
+                .when(lifecycle)
+                .onCloseBlock(any());
+        final var flushedPath = java.nio.file.Path.of("000000000000000000000000000000000001.pnd.gz");
+        given(aWriter.flushPendingBlock(any())).willReturn(flushedPath);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.endRound(state, ROUND_NO);
+
+        // endRound's finally captured the still-pending block for triage and exposed its path for upload.
+        verify(aWriter).flushPendingBlock(any());
+        final var flushed = subject.flushedTriageBlockFiles();
+        assertEquals(1, flushed.size());
+        assertEquals(flushedPath, flushed.get(0));
+    }
+
+    @Test
+    void flushedTriageBlockFilesExposesTheFlushedOpenBlockPath() {
+        // The triage flush records the path the writer wrote, so the ISS-block-upload pipeline can find it.
+        final java.nio.file.Path issPath = java.nio.file.Path.of("000000000000000000000000000000000007.iss.gz");
+        givenSubjectWith(
+                1,
+                2,
+                blockStreamInfoWith(
+                        Bytes.EMPTY, CREATION_VERSION.copyBuilder().patch(0).build()),
+                platformStateWithFreezeTime(null),
+                aWriter);
+        givenEndOfRoundSetup();
+        given(aWriter.flushIncompleteBlock()).willReturn(issPath);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        // Nothing flushed yet
+        assertTrue(subject.flushedTriageBlockFiles().isEmpty());
+
+        subject.notifyFatalEvent();
+        subject.endRound(state, ROUND_NO);
+
+        // After the flush, the open block's path is exposed for upload
+        final var flushed = subject.flushedTriageBlockFiles();
+        assertEquals(1, flushed.size());
+        assertEquals(issPath, flushed.get(0));
     }
 
     @Test

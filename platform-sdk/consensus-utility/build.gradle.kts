@@ -27,7 +27,9 @@ testModuleInfo {
 }
 
 jmhModuleInfo {
+    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.benchmark.tools")
+    requires("org.hiero.consensus.metrics")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.utility")
     requires("jmh.core")
@@ -35,5 +37,5 @@ jmhModuleInfo {
 
 jmh {
     // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
-    includes.convention(listOf("EventHashingBenchmark"))
+    includes.convention(listOf("EventFieldValidatorBenchmark", "EventHashingBenchmark"))
 }

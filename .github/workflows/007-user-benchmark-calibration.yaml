@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "007: [USER] Benchmark Calibration"
-# Calibration run of a JMH benchmark on the benchmark runner, a node shared with other workloads. Runs the benchmark jar
-# with a generous configuration, repeats a parameter set that was measured under load, and writes the calibration
-# analysis to the job summary. Publishes nothing; the results are kept as an artifact.
+# Calibration run of a JMH benchmark on the benchmark runner, a node shared with other workloads: the probe with the
+# default arguments, or the configuration run with the arguments that the probe's analysis prints. Runs the benchmark
+# jar, repeats a parameter set that was measured under load, and writes the calibration analysis to the job summary.
+# Publishes nothing; the results are kept as an artifact.
 on:
   workflow_dispatch:
     inputs:
@@ -22,10 +23,10 @@ on:
         required: false
         default: "org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler"
       jmh-args:
-        description: "JMH arguments. Warmup iterations stay out of the JSON, so calibration measures every iteration."
+        description: "JMH arguments: the probe's by default; for the configuration run, those its analysis prints."
         type: string
         required: true
-        default: "-f 10 -wi 0 -i 20 -r 5s"
+        default: "-f 10 -wi 0 -i 6 -r 5s"
       max-load:
         description: "Most CPUs that other workloads on the node may use during a quiet measurement."
         type: string

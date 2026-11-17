@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.infra;
 
+import static com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore.minimalKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
@@ -14,8 +18,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
-import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.hooks.EvmHookSlotKey;
@@ -30,6 +32,7 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.StorageSizeChange;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.tuweni.units.bigints.UInt256;
@@ -74,6 +77,22 @@ class IterableStorageManagerTest {
     void setUp() {
         lenient().when(enhancement.nativeOperations()).thenReturn(hederaNativeOperations);
         lenient().when(hederaNativeOperations.writableEvmHookStore()).thenReturn(writableEvmHookStore);
+    }
+
+    @Test
+    void leavesHookStorageAndReadOnlyAccessesUnchangedForPersistence() {
+        final var hookAccesses = new StorageAccesses(
+                ContractID.newBuilder().contractNum(HTS_HOOKS_CONTRACT_NUM).build(),
+                List.of(StorageAccess.newWrite(UInt256.ZERO, UInt256.ONE, UInt256.ZERO)));
+        final var readOnly = StorageAccess.newRead(UInt256.ZERO, UInt256.ONE);
+        final var normalAccesses = new StorageAccesses(CONTRACT_1, List.of(readOnly));
+
+        final var actual = subject.getPersistenceChanges(enhancement, List.of(hookAccesses, normalAccesses), store);
+
+        assertSame(hookAccesses, actual.getFirst());
+        assertEquals(normalAccesses, actual.getLast());
+        assertSame(readOnly, actual.getLast().accesses().getFirst());
+        verifyNoMoreInteractions(store);
     }
 
     @Test
@@ -143,20 +162,43 @@ class IterableStorageManagerTest {
         given(writableEvmHookStore.getSlotValue(slotKey))
                 .willReturn(new SlotValue(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY));
         given(writableEvmHookStore.getModifiedEvmHookSlotKeys()).willReturn(Set.of(slotKey));
-        given(writableEvmHookStore.updateStorage(any(), anyList())).willReturn(-1);
+        given(writableEvmHookStore.persistSlotValues(any(), anyList(), anyList()))
+                .willReturn(-1);
 
         subject.persistChanges(enhancement, List.of(), List.of(), store, writableEvmHookStore);
 
-        verify(writableEvmHookStore)
-                .updateStorage(
-                        hookEntity,
-                        List.of(EvmHookStorageUpdate.newBuilder()
-                                .storageSlot(EvmHookStorageSlot.newBuilder()
-                                        .key(BYTES_1)
-                                        .value(Bytes.EMPTY)
-                                        .build())
-                                .build()));
+        verify(writableEvmHookStore).persistSlotValues(hookEntity, List.of(minimalKey(BYTES_1)), List.of(Bytes.EMPTY));
         verify(hederaOperations).updateHookStorageSlots(ACCOUNT_ID_2, -1);
+        verifyNoMoreInteractions(hederaOperations);
+    }
+
+    @Test
+    void persistsTheModifiedSlotsOfEachHookSeparately() {
+        final var firstHook = HookId.newBuilder()
+                .hookId(1L)
+                .entityId(HookEntityId.newBuilder().accountId(ACCOUNT_ID_2).build())
+                .build();
+        final var secondHook = HookId.newBuilder()
+                .hookId(7L)
+                .entityId(HookEntityId.newBuilder()
+                        .accountId(AccountID.newBuilder().accountNum(3L).build())
+                        .build())
+                .build();
+        final var firstKey = new EvmHookSlotKey(firstHook, BYTES_1);
+        final var secondKey = new EvmHookSlotKey(secondHook, BYTES_1);
+        given(enhancement.operations()).willReturn(hederaOperations);
+        given(writableEvmHookStore.getModifiedEvmHookSlotKeys())
+                .willReturn(new LinkedHashSet<>(List.of(firstKey, secondKey)));
+        given(writableEvmHookStore.getSlotValue(firstKey)).willReturn(new SlotValue(BYTES_1, Bytes.EMPTY, Bytes.EMPTY));
+        // Already removed from state, so persisted as a zero value
+        given(writableEvmHookStore.getSlotValue(secondKey)).willReturn(null);
+        given(writableEvmHookStore.persistSlotValues(firstHook, List.of(minimalKey(BYTES_1)), List.of(BYTES_1)))
+                .willReturn(1);
+
+        subject.persistChanges(enhancement, List.of(), List.of(), store, writableEvmHookStore);
+
+        verify(writableEvmHookStore).persistSlotValues(secondHook, List.of(minimalKey(BYTES_1)), List.of(Bytes.EMPTY));
+        verify(hederaOperations).updateHookStorageSlots(ACCOUNT_ID_2, 1);
         verifyNoMoreInteractions(hederaOperations);
     }
 

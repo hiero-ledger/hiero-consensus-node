@@ -9,6 +9,7 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -78,6 +79,8 @@ public class EvmClprVerifier implements ClprVerifier {
     private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(Map.of(
             CLPR_DISPATCH,
             new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES),
+            CLPR_VERIFIER,
+            true,
             EXPLICIT_WRITE_TRACING,
             true));
 

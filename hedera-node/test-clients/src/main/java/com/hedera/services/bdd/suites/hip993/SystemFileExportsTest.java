@@ -128,11 +128,14 @@ public class SystemFileExportsTest {
                 // This is the genesis transaction
                 cryptoCreate("firstUser"),
                 overriding("nodes.updateAccountIdAllowed", "true"),
-                sourcing(() -> blockingOrder(nOps(CLASSIC_HAPI_TEST_NETWORK_SIZE, i -> nodeUpdate("" + i)
-                        .description(DESCRIPTION_PREFIX + i)
-                        .serviceEndpoint(endpointsFor(i))
-                        .grpcCertificateHash(grpcCertHashes[i])
-                        .gossipCaCertificate(derEncoded(gossipCertificates.get().get((long) i)))))),
+                sourcing(() -> blockingOrder(nOps(
+                        CLASSIC_HAPI_TEST_NETWORK_SIZE,
+                        i -> nodeUpdate("" + i)
+                                .description(DESCRIPTION_PREFIX + i)
+                                .serviceEndpoint(endpointsFor(i))
+                                .grpcCertificateHash(grpcCertHashes[i])
+                                .gossipCaCertificate(
+                                        derEncoded(gossipCertificates.get().get((long) i)))))),
                 waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),
@@ -154,11 +157,14 @@ public class SystemFileExportsTest {
                 // This is the genesis transaction
                 cryptoCreate("firstUser"),
                 overriding("nodes.updateAccountIdAllowed", "true"),
-                sourcing(() -> blockingOrder(nOps(CLASSIC_HAPI_TEST_NETWORK_SIZE, i -> nodeUpdate("" + i)
-                        .description(DESCRIPTION_PREFIX + i)
-                        .serviceEndpoint(endpointsFor(i))
-                        .grpcCertificateHash(grpcCertHashes[i])
-                        .gossipCaCertificate(derEncoded(gossipCertificates.get().get((long) i)))))),
+                sourcing(() -> blockingOrder(nOps(
+                        CLASSIC_HAPI_TEST_NETWORK_SIZE,
+                        i -> nodeUpdate("" + i)
+                                .description(DESCRIPTION_PREFIX + i)
+                                .serviceEndpoint(endpointsFor(i))
+                                .grpcCertificateHash(grpcCertHashes[i])
+                                .gossipCaCertificate(
+                                        derEncoded(gossipCertificates.get().get((long) i)))))),
                 waitUntilNextBlock().withBackgroundTraffic(true),
                 // And now simulate an upgrade boundary
                 simulatePostUpgradeTransaction(),

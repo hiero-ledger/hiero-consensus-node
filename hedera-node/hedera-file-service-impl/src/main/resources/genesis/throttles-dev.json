@@ -14,6 +14,42 @@
         }
       ]
     },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprUpdateLedgerConfiguration",
+            "ClprRegisterChannel",
+            "ClprCompleteChannel",
+            "ClprCloseChannel",
+            "ClprEvictPeerEndpoint",
+            "ClprRegisterConnector",
+            "ClprCompleteConnector",
+            "ClprDeregisterConnector"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprQueryLimits",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 1000000,
+          "operations": [
+            "ClprGetLedgerConfiguration",
+            "ClprGetEndpointManifest"
+          ]
+        }
+      ]
+    },
 	{
 	  "name": "ThroughputLimits",
 	  "burstPeriod": 1,
@@ -62,6 +98,7 @@
 				"ClprRegisterChannel",
 				"ClprCompleteChannel",
 				"ClprCloseChannel",
+				"ClprEvictPeerEndpoint",
 				"ClprRegisterConnector",
 				"ClprCompleteConnector",
 				"ClprDeregisterConnector",

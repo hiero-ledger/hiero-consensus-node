@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -26,9 +27,12 @@ public class PcesFileChannelWriter implements PcesFileWriter {
     static final int BUFFER_CAPACITY = 1024 * 1024 * 10;
     /** The file channel for writing events */
     private final FileChannel channel;
-    /** The buffer used to hold data being written to the file */
+    /**
+     * The buffer used to hold data being written to the file. Its native memory is released when the writer is
+     * closed, after which this field is {@code null}.
+     */
     private ByteBuffer buffer;
-    /** Wraps a ByteBuffer so that the protobuf codec can write to it */
+    /** Wraps a ByteBuffer so that the protobuf codec can write to it. {@code null} once the writer is closed. */
     private WritableSequentialData writableSequentialData;
     /** Tracks the size of the file in bytes */
     private int fileSize;
@@ -75,12 +79,14 @@ public class PcesFileChannelWriter implements PcesFileWriter {
 
     @Override
     public void writeVersion(final int version) throws IOException {
+        ensureOpen();
         buffer.putInt(version);
         flipWriteClear();
     }
 
     @Override
     public long writeEvent(@NonNull final GossipEvent event) throws IOException {
+        ensureOpen();
         final int size = GossipEvent.PROTOBUF.measureRecord(event);
         final boolean expandBuffer = (size + Integer.BYTES) > buffer.capacity();
         if (expandBuffer) {
@@ -92,6 +98,18 @@ public class PcesFileChannelWriter implements PcesFileWriter {
         GossipEvent.PROTOBUF.write(event, writableSequentialData);
         flipWriteClear();
         return size;
+    }
+
+    /**
+     * Ensures the writer has not been closed. Writing after close must fail before touching the buffer, since its
+     * native memory has already been released.
+     *
+     * @throws ClosedChannelException if the writer has been closed
+     */
+    private void ensureOpen() throws ClosedChannelException {
+        if (buffer == null) {
+            throw new ClosedChannelException();
+        }
     }
 
     /**
@@ -122,9 +140,22 @@ public class PcesFileChannelWriter implements PcesFileWriter {
         channel.force(false);
     }
 
+    /**
+     * Closes the file channel and releases the native memory of the direct buffer, instead of waiting for the garbage
+     * collector to reclaim it. Calling this method more than once has no further effect.
+     */
     @Override
     public void close() throws IOException {
-        channel.close();
+        try {
+            channel.close();
+        } finally {
+            if (buffer != null) {
+                final ByteBuffer toRelease = buffer;
+                buffer = null;
+                writableSequentialData = null;
+                MemoryUtils.closeDirectByteBuffer(toRelease);
+            }
+        }
     }
 
     @Override

@@ -38,6 +38,8 @@ public interface HintsServiceComponent {
 
     HintsContext signingContext();
 
+    HintsKeyAccessor keyAccessor();
+
     HintsControllers controllers();
 
     @Named(HintsModule.HINTS_SIGNINGS)

@@ -49,16 +49,19 @@ public class BlockNodeSimSuite {
             networkSize = 1,
             blockNodeConfigs = {
                 @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR),
-                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR)
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
+                @BlockNodeConfig(nodeId = 2, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true),
+                @BlockNodeConfig(nodeId = 3, mode = BlockNodeMode.SIMULATOR, catchUpFromPeers = true)
             },
             subProcessNodeConfigs = {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 1, 2, 3},
-                        applicationPropertiesOverrides = {"blockStream.buffer.ackedBlocksToRetain", "25"})
+                        applicationPropertiesOverrides = {
+                            "blockStream.buffer.maxBlocks", "75",
+                            "blockStream.buffer.ackedBlocksToRetain", "35"
+                        })
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingBlockNodeConnectionDropsTrickle() {
@@ -308,15 +311,19 @@ public class BlockNodeSimSuite {
                         byNodeId(0), "Received ResendBlock response for block ", Duration.ofSeconds(30)),
                 waitUntilNextBlocks(2).withBackgroundTraffic(true),
 
-                // BehindPublisher for a buffered block -> switch to N+1 in place (no reconnect).
+                // BehindPublisher one below the last verified block -> in-place switch to the last verified block,
+                // which is always buffered (lastVerified + 1 may not be open yet right after a block boundary).
+                // Assert the exact blocks, since the stream handshake may already have logged these messages.
                 blockNode(0).getLastVerifiedBlockExposing(lastVerified),
-                sourcingContextual(spec -> blockNode(0).sendNodeBehindPublisherImmediately(lastVerified.get())),
-                awaitBlockNodeCommsLogContainsText(
-                        byNodeId(0), "Received BehindPublisher response for block ", Duration.ofSeconds(30)),
-                awaitBlockNodeCommsLogContainsText(
+                sourcingContextual(spec -> blockNode(0).sendNodeBehindPublisherImmediately(lastVerified.get() - 1)),
+                sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
                         byNodeId(0),
-                        "Block node reported it is behind; will start streaming block ",
-                        Duration.ofSeconds(30)),
+                        "Received BehindPublisher response for block " + (lastVerified.get() - 1),
+                        Duration.ofSeconds(30))),
+                sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0),
+                        "Block node reported it is behind; will start streaming block " + lastVerified.get(),
+                        Duration.ofSeconds(30))),
                 waitUntilNextBlocks(2).withBackgroundTraffic(true),
 
                 // SkipBlock -> received and handled gracefully; stream continues. The exact

@@ -71,4 +71,17 @@ public interface NodeTraversalOrder {
     default String getStatistics() {
         return "";
     }
+
+    /**
+     * Returns a short human-readable summary of the current traversal state, such as how much state is
+     * kept for nodes that are not fully processed yet. It's logged once a minute during reconnect, on the
+     * thread that feeds leaves to the hasher, so it must not block, and its cost must be small compared to
+     * that interval. May be called concurrently with other methods of this object. Implementations that
+     * don't report any state return an empty string.
+     *
+     * @return current traversal state summary
+     */
+    default String getStatus() {
+        return "";
+    }
 }

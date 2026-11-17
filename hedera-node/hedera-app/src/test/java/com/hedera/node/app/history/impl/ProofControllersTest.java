@@ -9,16 +9,36 @@ import static com.hedera.node.app.history.impl.ProofControllers.freshGenesisRequ
 import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
+import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.ProofNodeWeight;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
+import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
+import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -28,11 +48,19 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -89,10 +117,14 @@ class ProofControllersTest {
     @Mock
     private ProofController controller;
 
+    @Mock
+    private KeyProvenanceSigner sourceSigner;
+
     private ProofControllers subject;
 
     @BeforeEach
     void setUp() {
+        lenient().when(activeRosters.currentRoster()).thenReturn(Roster.DEFAULT);
         subject = new ProofControllers(
                 executor,
                 keyAccessor,
@@ -153,6 +185,358 @@ class ProofControllersTest {
     }
 
     @Test
+    void usesPersistedSourceWeightsAndReplaysMessagesFromSourceRatherThanTargetNodes() {
+        final var sourceVk = Bytes.wrap("source VK");
+        final var targetVk = Bytes.wrap("target VK");
+        final var sourceHints = HintsConstruction.newBuilder()
+                .constructionId(7)
+                .hintsScheme(HintsScheme.newBuilder()
+                        .preprocessedKeys(new PreprocessedKeys(Bytes.wrap("source AK"), sourceVk))
+                        .nodePartyIds(new NodePartyId(10, 1, 3), new NodePartyId(20, 2, 5)))
+                .build();
+        final var sourceWeights = new TreeMap<>(Map.of(10L, 3L, 20L, 5L));
+        final var sourceIds = new TreeSet<>(Set.of(10L, 20L));
+        final var targetIds = Set.of(20L, 30L);
+        given(activeRosters.transitionWeights(sourceWeights)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(weights.sourceNodeIds()).willReturn(sourceIds);
+        given(weights.targetNodeIds()).willReturn(targetIds);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(sourceVk);
+
+        final var result = subject.getOrCreateFor(
+                activeRosters,
+                boundConstruction(sourceVk, targetVk),
+                historyStore,
+                sourceHints,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                sourceSigner);
+
+        assertInstanceOf(ProofControllerImpl.class, result);
+        verify(activeRosters).transitionWeights(sourceWeights);
+        verify(historyStore).getProofKeyPublications(targetIds);
+        verify(historyStore).getWrapsMessagePublications(1, sourceIds);
+        verify(historyStore, never()).getWrapsMessagePublications(1, targetIds);
+        verify(historyStore).getVotes(1, sourceIds);
+    }
+
+    @Test
+    void installingPendingBindingRecreatesControllerEvenWhenConstructionIdIsUnchanged() throws Exception {
+        final var sourceVk = Bytes.wrap("source VK");
+        final var bound = boundConstruction(sourceVk, Bytes.wrap("target VK"));
+        given(controller.constructionId()).willReturn(1L);
+        setController(controller);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        given(sourceSigner.constructionId()).willReturn(7L);
+        given(sourceSigner.verificationKey()).willReturn(sourceVk);
+
+        final var replacement = subject.getOrCreateFor(
+                activeRosters,
+                bound,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                sourceSigner);
+        final var reused = subject.getOrCreateFor(
+                activeRosters,
+                bound,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                sourceSigner);
+
+        assertNotSame(controller, replacement);
+        assertSame(replacement, reused);
+        verify(controller).cancelPendingWork();
+        verify(keyAccessor).getOrCreateSchnorrKeyPair(1L);
+    }
+
+    @Test
+    void genesisAndReanchorDoNotPassUnusedSourceSignerIntoProver() {
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+
+        final var result = assertDoesNotThrow(() -> subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                sourceSigner));
+
+        assertInstanceOf(ProofControllerImpl.class, result);
+        verifyNoInteractions(sourceSigner);
+    }
+
+    @Test
+    void boundRotationCannotReplayWithoutMatchingSourceGeneration() {
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        final var bound = boundConstruction(Bytes.wrap("source VK"), Bytes.wrap("target VK"));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.getOrCreateFor(
+                        activeRosters,
+                        bound,
+                        historyStore,
+                        HintsConstruction.DEFAULT,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                        null));
+        given(sourceSigner.constructionId()).willReturn(99L);
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.getOrCreateFor(
+                        activeRosters,
+                        bound,
+                        historyStore,
+                        HintsConstruction.DEFAULT,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_CONFIG.getConfigData(TssConfig.class),
+                        sourceSigner));
+    }
+
+    @Test
+    void replacesIncrementalControllerOnceTheActiveHintsConstructionHasAScheme() {
+        // Incremental authority switches from the platform fallback to the adopted hinTS generation.
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        final var partyWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L));
+        final var partyWeightedWeights = mock(RosterTransitionWeights.class);
+        given(activeRosters.transitionWeights(partyWeights)).willReturn(partyWeightedWeights);
+        final var hintsWithScheme = HintsConstruction.newBuilder()
+                .hintsScheme(HintsScheme.newBuilder()
+                        .nodePartyIds(new NodePartyId(1L, 0, 1L), new NodePartyId(2L, 1, 1L))
+                        .build())
+                .build();
+        final var tssConfig = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+
+        final var first = subject.getOrCreateFor(
+                activeRosters,
+                constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null),
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+        final var second = subject.getOrCreateFor(
+                activeRosters,
+                constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null),
+                historyStore,
+                hintsWithScheme,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+        final var third = subject.getOrCreateFor(
+                activeRosters,
+                constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null),
+                historyStore,
+                hintsWithScheme,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+
+        // A controller rebuilt from state would use the party weights, so the controller is replaced once
+        assertNotSame(first, second);
+        assertSame(second, third);
+        verify(activeRosters).transitionWeights(partyWeights);
+    }
+
+    @Test
+    void genesisUsesFullRosterAndKeepsItsControllerWhenSparseHintsSchemeArrives() {
+        final var fullNodeIds = new TreeSet<>(Set.of(1L, 2L, 3L));
+        final var partyWeights = new TreeMap<>(Map.of(1L, 7L, 2L, 9L));
+        final var sparseScheme = HintsConstruction.newBuilder()
+                .hintsScheme(
+                        HintsScheme.newBuilder().nodePartyIds(new NodePartyId(1L, 1, 7L), new NodePartyId(2L, 2, 9L)))
+                .build();
+        final var genesis = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(weights.sourceNodeIds()).willReturn(fullNodeIds);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+
+        final var beforeHints = subject.getOrCreateFor(
+                activeRosters,
+                genesis,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+        final var afterHints = subject.getOrCreateFor(
+                activeRosters,
+                genesis,
+                historyStore,
+                sparseScheme,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+
+        assertInstanceOf(ProofControllerImpl.class, afterHints);
+        assertSame(beforeHints, afterHints);
+        verify(activeRosters).transitionWeights(null);
+        verify(activeRosters, never()).transitionWeights(partyWeights);
+        verify(historyStore).getWrapsMessagePublications(1L, fullNodeIds);
+        verify(historyStore).getVotes(1L, fullNodeIds);
+    }
+
+    @Test
+    void groundingCreatedWhileSparseHintsSchemeIsActiveStillUsesFullRoster() {
+        // The fresh-genesis shape: the grounding construction's controller is first created after a sparse
+        // hinTS scheme already exists, so the scheme's party weights must not become its source weights.
+        final var fullNodeIds = new TreeSet<>(Set.of(1L, 2L, 3L));
+        final var partyWeights = new TreeMap<>(Map.of(1L, 7L, 2L, 9L));
+        final var sparseScheme = HintsConstruction.newBuilder()
+                .hintsScheme(
+                        HintsScheme.newBuilder().nodePartyIds(new NodePartyId(1L, 1, 7L), new NodePartyId(2L, 2, 9L)))
+                .build();
+        final var grounding = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null);
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(weights.sourceNodeIds()).willReturn(fullNodeIds);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+
+        final var controller = subject.getOrCreateFor(
+                activeRosters,
+                grounding,
+                historyStore,
+                sparseScheme,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+
+        assertInstanceOf(ProofControllerImpl.class, controller);
+        verify(activeRosters).transitionWeights(null);
+        verify(activeRosters, never()).transitionWeights(partyWeights);
+        verify(historyStore).getVotes(1L, fullNodeIds);
+    }
+
+    @Test
+    void rebuildsAnIncrementalControllerOnceItsSourceProofGainsACanonicalSnapshot() {
+        final var transition = constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null);
+        final var legacyProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
+                .build();
+        final var legacyActive = HistoryProofConstruction.newBuilder()
+                .constructionId(0L)
+                .targetProof(legacyProof)
+                .build();
+        final var enrichedActive = legacyActive
+                .copyBuilder()
+                .targetProof(legacyProof.copyBuilder().targetNodeWeights(new ProofNodeWeight(1L, 1L)))
+                .build();
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        final var config = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+
+        final var legacy = subject.getOrCreateFor(
+                activeRosters, transition, historyStore, HintsConstruction.DEFAULT, legacyActive, config);
+        final var reused = subject.getOrCreateFor(
+                activeRosters, transition, historyStore, HintsConstruction.DEFAULT, legacyActive, config);
+        // A restarted node would build its controller from the enriched proof, so a live node must too
+        final var rebuilt = subject.getOrCreateFor(
+                activeRosters, transition, historyStore, HintsConstruction.DEFAULT, enrichedActive, config);
+
+        assertSame(legacy, reused);
+        assertNotSame(legacy, rebuilt);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void sevenToEightTransitionWaitsForEveryCurrentMemberButNotTheJoiningNode(final boolean joiningNodePublishes) {
+        final var platformRoster = Roster.newBuilder()
+                .rosterEntries(LongStream.range(0, 7)
+                        .mapToObj(nodeId -> RosterEntry.newBuilder()
+                                .nodeId(nodeId)
+                                .weight(1L)
+                                .build())
+                        .toList())
+                .build();
+        final var hintsWeights = new TreeMap<Long, Long>();
+        LongStream.range(0, 6).forEach(nodeId -> hintsWeights.put(nodeId, 1L));
+        final var targetWeights = new TreeMap<Long, Long>();
+        LongStream.range(0, 8).forEach(nodeId -> targetWeights.put(nodeId, 1L));
+        final var transition = new RosterTransitionWeights(hintsWeights, targetWeights);
+        assertTrue(transition.sourceNodesHaveTargetThreshold());
+        final var hints = HintsConstruction.newBuilder()
+                .hintsScheme(HintsScheme.newBuilder()
+                        .nodePartyIds(hintsWeights.entrySet().stream()
+                                .map(entry -> new NodePartyId(
+                                        entry.getKey(), entry.getKey().intValue() + 1, entry.getValue()))
+                                .toList()))
+                .build();
+        final var initial = constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null)
+                .copyBuilder()
+                .gracePeriodEndTime(asTimestamp(Instant.EPOCH.plusSeconds(100)))
+                .build();
+        final var store = mock(WritableHistoryStore.class);
+        given(activeRosters.currentRoster()).willReturn(platformRoster);
+        given(activeRosters.transitionWeights(hintsWeights)).willReturn(transition);
+        given(store.getConstructionOrThrow(1L)).willReturn(initial);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+        final var controller = subject.getOrCreateFor(
+                activeRosters,
+                initial,
+                store,
+                hints,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+        final var nativeLibrary = new HistoryLibraryImpl();
+        final var keys = new TreeMap<Long, Bytes>();
+        LongStream.range(0, 8)
+                .forEach(nodeId -> keys.put(
+                        nodeId, Bytes.wrap(nativeLibrary.newSchnorrKeyPair().publicKey())));
+        for (long nodeId = 0; nodeId < 6; nodeId++) {
+            controller.addProofKeyPublication(new ProofKeyPublication(nodeId, keys.get(nodeId), Instant.EPOCH));
+        }
+        if (joiningNodePublishes) {
+            controller.addProofKeyPublication(new ProofKeyPublication(7L, keys.get(7L), Instant.EPOCH));
+        }
+
+        // Six hinTS parties, even with an extra joining-node key, cannot stand in for platform member 6.
+        controller.advanceConstruction(
+                Instant.EPOCH.plusSeconds(1),
+                Bytes.wrap("VK"),
+                store,
+                false,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+        verify(store, never()).setAssemblyTime(anyLong(), any());
+        controller.addProofKeyPublication(new ProofKeyPublication(6L, keys.get(6L), Instant.EPOCH));
+        final var assembledAt = Instant.EPOCH.plusSeconds(2);
+        given(store.setAssemblyTime(1L, assembledAt))
+                .willReturn(initial.copyBuilder()
+                        .assemblyStartTime(asTimestamp(assembledAt))
+                        .proofKeyCutoffTime(asTimestamp(assembledAt))
+                        .build());
+
+        controller.advanceConstruction(
+                assembledAt, Bytes.wrap("VK"), store, false, DEFAULT_CONFIG.getConfigData(TssConfig.class));
+
+        verify(store).setAssemblyTime(1L, assembledAt);
+        verify(activeRosters).transitionWeights(hintsWeights);
+        final var books = ArgumentCaptor.forClass(HistoryLibrary.AddressBook.class);
+        verify(library, atLeastOnce()).hashAddressBook(books.capture());
+        final var fullTargetBook = books.getValue();
+        assertArrayEquals(LongStream.range(0, 8).toArray(), fullTargetBook.nodeIds());
+        assertArrayEquals(
+                (joiningNodePublishes ? keys.get(7L) : HistoryLibrary.MISSING_SCHNORR_KEY).toByteArray(),
+                fullTargetBook.publicKeys()[7]);
+    }
+
+    @Test
     void stopCancelsAndRefreshesControllerForSameConstructionId() throws Exception {
         final var learnedConstruction = HistoryProofConstruction.newBuilder()
                 .constructionId(1L)
@@ -191,6 +575,19 @@ class ProofControllersTest {
         assertFalse(groundsChainOfTrust(constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null)));
         // A construction that does not exist yet grounds nothing
         assertFalse(groundsChainOfTrust(HistoryProofConstruction.DEFAULT));
+    }
+
+    @Test
+    void boundKeyRotationExtendsTheExistingChainEvenWhenRosterHashesMatch() {
+        final var rotation = boundConstruction(Bytes.wrap("source VK"), Bytes.wrap("target VK"))
+                .copyBuilder()
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .build();
+
+        assertFalse(groundsChainOfTrust(rotation));
+        assertFalse(freshGenesisInProgress(rotation));
+        assertFalse(activeProofNeedsWork(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF), rotation, false));
     }
 
     @Test
@@ -288,6 +685,19 @@ class ProofControllersTest {
             builder.targetProof(targetProof);
         }
         return builder.build();
+    }
+
+    private static HistoryProofConstruction boundConstruction(final Bytes sourceVk, final Bytes targetVk) {
+        return ONE_CONSTRUCTION
+                .copyBuilder()
+                .targetMetadata(targetVk)
+                .keyProvenance(HintsKeyProvenance.newBuilder()
+                        .historyConstructionId(1)
+                        .sourceHintsConstructionId(7)
+                        .targetHintsConstructionId(9)
+                        .sourceVerificationKey(sourceVk)
+                        .targetVerificationKey(targetVk))
+                .build();
     }
 
     private static Configuration configWith(final String... keysAndValues) {

@@ -6,36 +6,50 @@ import com.github.dockerjava.api.command.StopContainerCmd;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryIteratorException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import javax.xml.XMLConstants;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.utility.DockerImageName;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 /**
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
-    private static final String BLOCK_NODE_VERSION = "0.45.0-tssupdate";
+    private static final String BLOCK_NODE_VERSION_PROPERTY = "hapi.spec.blocknode.version";
+    private static final String BLOCK_NODE_VERSION = requiredBlockNodeVersion();
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
     private static final String MAVEN_CENTRAL_BASE_URL = "https://repo1.maven.org/maven2";
-    private static final String HIER0_BLOCK_NODE_GROUP_PATH = "org/hiero/block-node";
+    private static final String BLOCK_NODE_GROUP = "org.hiero.block-node";
     private static final String STATE_DIR_IN_CONTAINER = "/opt/hiero/block-node/application-state";
     private static final String RSA_BOOTSTRAP_FILE_NAME = "rsa-bootstrap-roster.json";
     private static final String LOGGING_CONFIG_IN_CONTAINER = "/opt/hiero/block-node/logs/config/logging.properties";
@@ -46,6 +60,9 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             // JVM sizes thread pools and heap for the whole host rather than the CPUs this job has.
             + " -XX:ActiveProcessorCount=" + Runtime.getRuntime().availableProcessors();
     private static final Object PLUGINS_LOCK = new Object();
+    // The app logs one of these once its main thread finishes startup, or dies (say, for a missing plugin)
+    private static final String STARTED_LINE = "Started BlockNode Server";
+    private static final String DIED_LINE = "Exception in thread \"main\"";
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
             "facility-messaging",
             "health",
@@ -58,28 +75,21 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             "stream-subscriber",
             "roster-bootstrap-rsa",
             "roster-bootstrap-tss");
-    private static final Map<String, String> REQUIRED_EXTRA_JARS = Map.ofEntries(
-            Map.entry(
-                    "spotbugs-annotations-4.10.4.jar",
-                    MAVEN_CENTRAL_BASE_URL
-                            + "/com/github/spotbugs/spotbugs-annotations/4.10.4/spotbugs-annotations-4.10.4.jar"),
-            Map.entry("disruptor-4.0.0.jar", MAVEN_CENTRAL_BASE_URL + "/com/lmax/disruptor/4.0.0/disruptor-4.0.0.jar"),
-            // Transitive deps of the block-verification plugin
-            Map.entry(
-                    "hedera-cryptography-wraps-3.21.0-verifier.jar",
-                    MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-wraps/3.21.0/hedera-cryptography-wraps-3.21.0-verifier.jar"),
-            Map.entry(
-                    "hedera-cryptography-hints-3.21.0.jar",
-                    MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/cryptography/hedera-cryptography-hints/3.21.0/hedera-cryptography-hints-3.21.0.jar"),
-            Map.entry(
-                    "hedera-common-nativesupport-3.21.0.jar",
-                    MAVEN_CENTRAL_BASE_URL
-                            + "/com/hedera/common/hedera-common-nativesupport/3.21.0/hedera-common-nativesupport-3.21.0.jar"),
-            Map.entry(
-                    "antlr4-runtime-4.13.2.jar",
-                    MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));
+    // Published, and then needed, only by some versions (facility-app-state from 0.45.0-rc2 on)
+    private static final List<String> OPTIONAL_PLUGIN_ARTIFACTS = List.of("facility-app-state");
+    // Jars the plugins need that the image lacks, at the versions declared by the POMs read before them (the
+    // plugins', then these jars' own), so the crypto libraries follow the block node version
+    private static final List<String> DECLARED_EXTRA_JARS = List.of(
+            "com.github.spotbugs:spotbugs-annotations",
+            "com.lmax:disruptor",
+            "com.hedera.cryptography:hedera-cryptography-hints",
+            "com.hedera.cryptography:hedera-cryptography-wraps:verifier",
+            "com.hedera.common:hedera-common-nativesupport");
+    // Needed too, but no POM read here declares it
+    private static final String ANTLR_RUNTIME = "org.antlr:antlr4-runtime";
+    private static final String ANTLR_RUNTIME_VERSION = "4.13.2";
+    // Guarded by PLUGINS_LOCK
+    private static @Nullable Path preparedPluginsDir;
     private String containerId;
 
     /**
@@ -125,7 +135,8 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 // The health endpoint is served on the same HTTP/2 port as gRPC (40840), which is
                 // incompatible with testcontainers' HTTP/1.1 wait strategy. Use a log-message check
                 // instead; BlockNodeNetwork.awaitGrpcReadiness() provides the gRPC-level confirmation.
-                .waitingFor(Wait.forLogMessage(".*Started BlockNode Server.*", 1)
+                // A dead main thread leaves the container running, so stop waiting then too (see start())
+                .waitingFor(Wait.forLogMessage(".*(" + STARTED_LINE + "|" + DIED_LINE + ").*", 1)
                         .withStartupTimeout(Duration.ofMinutes(2)));
     }
 
@@ -155,39 +166,82 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
                 """.formatted(BLOCK_PIPELINE_LOG_LEVEL);
     }
 
+    /**
+     * The version CITR deploys, which the test-clients build reads from {@code block-node-version} in
+     * {@code .github/workflows/support/citr/.citr-env}; deliberately no default, so it can't drift from that.
+     */
+    private static String requiredBlockNodeVersion() {
+        final String version = System.getProperty(BLOCK_NODE_VERSION_PROPERTY, "");
+        if (version.isBlank()) {
+            throw new IllegalStateException("No block node version; run through Gradle, which sets "
+                    + BLOCK_NODE_VERSION_PROPERTY + " from .github/workflows/support/citr/.citr-env");
+        }
+        return version;
+    }
+
     private static String pluginsDirInContainer() {
         return "/opt/hiero/block-node/app-" + BLOCK_NODE_VERSION + "/plugins";
     }
 
     /**
-     * The block node image is "barebone" and requires plugins to be mounted at runtime.
-     * This method downloads the required plugin jars (and a small set of extra runtime jars)
-     * from Maven Central into a shared temp directory and returns that directory.
+     * The block node image is "barebone" and requires plugins to be mounted at runtime. Downloads the plugins and the
+     * extra jars they need from Maven Central into the plugin cache directory and returns it. The extra jars' versions
+     * come from the block node's own POMs, so a new {@code block-node-version} in .citr-env needs no change here
+     * unless it needs another plugin.
      */
     private static Path ensurePluginsAvailable() {
         final Path pluginsDir = pluginCacheDir();
-        final Path marker = pluginsDir.resolve(".complete");
         synchronized (PLUGINS_LOCK) {
+            if (pluginsDir.equals(preparedPluginsDir)) {
+                return pluginsDir;
+            }
             try {
                 Files.createDirectories(pluginsDir);
                 final HttpClient client = HttpClient.newBuilder()
                         .connectTimeout(Duration.ofSeconds(30))
                         .followRedirects(HttpClient.Redirect.NORMAL)
                         .build();
-
-                for (final String artifact : REQUIRED_PLUGIN_ARTIFACTS) {
-                    final String fileName = artifact + "-" + BLOCK_NODE_VERSION + ".jar";
-                    final String url = MAVEN_CENTRAL_BASE_URL + "/" + HIER0_BLOCK_NODE_GROUP_PATH + "/" + artifact + "/"
-                            + BLOCK_NODE_VERSION + "/" + fileName;
-                    downloadIfMissing(client, url, pluginsDir.resolve(fileName));
+                final Map<String, String> declaredVersions = new HashMap<>();
+                final Set<String> jars = new HashSet<>();
+                for (final String plugin : REQUIRED_PLUGIN_ARTIFACTS) {
+                    fetch(
+                            client,
+                            pluginsDir,
+                            BLOCK_NODE_GROUP + ":" + plugin,
+                            BLOCK_NODE_VERSION,
+                            true,
+                            declaredVersions,
+                            jars);
                 }
-                for (final Map.Entry<String, String> entry : REQUIRED_EXTRA_JARS.entrySet()) {
-                    downloadIfMissing(client, entry.getValue(), pluginsDir.resolve(entry.getKey()));
+                for (final String plugin : OPTIONAL_PLUGIN_ARTIFACTS) {
+                    fetch(
+                            client,
+                            pluginsDir,
+                            BLOCK_NODE_GROUP + ":" + plugin,
+                            BLOCK_NODE_VERSION,
+                            false,
+                            declaredVersions,
+                            jars);
                 }
-                Files.writeString(marker, "ok\n");
+                for (final String coordinates : DECLARED_EXTRA_JARS) {
+                    final String version = declaredVersions.get(coordinates);
+                    if (version == null) {
+                        throw new IOException("none of its POMs declares " + coordinates);
+                    }
+                    fetch(client, pluginsDir, coordinates, version, true, declaredVersions, jars);
+                }
+                fetch(client, pluginsDir, ANTLR_RUNTIME, ANTLR_RUNTIME_VERSION, true, declaredVersions, jars);
+                // Another version's jars would be duplicate modules
+                deleteJarsOtherThan(pluginsDir, jars);
+                Files.writeString(pluginsDir.resolve(".complete"), "ok\n");
+                preparedPluginsDir = pluginsDir;
                 return pluginsDir;
             } catch (final IOException e) {
-                throw new RuntimeException("Failed to prepare block node plugins in " + pluginsDir, e);
+                throw new RuntimeException(
+                        "Failed to prepare plugins for Block Node " + BLOCK_NODE_VERSION + " in " + pluginsDir
+                                + " (its plugin jars must be published on Maven Central, and the plugin list and extra"
+                                + " jars here must match what that version needs): " + e.getMessage(),
+                        e);
             }
         }
     }
@@ -318,12 +372,119 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
         }
     }
 
+    /**
+     * Downloads the jar at {@code group:artifact[:classifier]} and the given version, after adding the versions its
+     * POM declares to {@code declaredVersions}. Does nothing if an optional artifact isn't published.
+     */
+    private static void fetch(
+            final HttpClient client,
+            final Path dir,
+            final String coordinates,
+            final String version,
+            final boolean required,
+            final Map<String, String> declaredVersions,
+            final Set<String> jars)
+            throws IOException {
+        final String[] parts = coordinates.split(":");
+        final String base = MAVEN_CENTRAL_BASE_URL + "/" + parts[0].replace('.', '/') + "/" + parts[1] + "/" + version
+                + "/" + parts[1] + "-" + version;
+        final String pom = getText(client, base + ".pom", required);
+        if (pom == null) {
+            return;
+        }
+        declaredVersions(pom).forEach(declaredVersions::putIfAbsent);
+        final String suffix = (parts.length > 2 ? "-" + parts[2] : "") + ".jar";
+        final String jar = parts[1] + "-" + version + suffix;
+        downloadIfMissing(client, base + suffix, dir.resolve(jar));
+        jars.add(jar);
+    }
+
+    // Returns null for an optional resource that isn't published
+    private static @Nullable String getText(final HttpClient client, final String url, final boolean required)
+            throws IOException {
+        final HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(Duration.ofMinutes(2))
+                .GET()
+                .build();
+        final HttpResponse<String> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted downloading " + url, e);
+        }
+        if (response.statusCode() == 404 && !required) {
+            return null;
+        }
+        if (response.statusCode() != 200) {
+            throw new IOException("Failed downloading " + url + " (HTTP " + response.statusCode() + ")");
+        }
+        return response.body();
+    }
+
+    // group:artifact[:classifier] to version, for each dependency the POM declares with a version
+    private static Map<String, String> declaredVersions(final String pom) throws IOException {
+        try {
+            final var factory = DocumentBuilderFactory.newInstance();
+            factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            final var document = factory.newDocumentBuilder().parse(new InputSource(new StringReader(pom)));
+            final Map<String, String> versions = new HashMap<>();
+            final NodeList dependencies = document.getElementsByTagName("dependency");
+            for (int i = 0; i < dependencies.getLength(); i++) {
+                final var dependency = (Element) dependencies.item(i);
+                final String version = childText(dependency, "version");
+                if (version != null) {
+                    final String classifier = childText(dependency, "classifier");
+                    versions.put(
+                            childText(dependency, "groupId") + ":" + childText(dependency, "artifactId")
+                                    + (classifier == null ? "" : ":" + classifier),
+                            version);
+                }
+            }
+            return versions;
+        } catch (final ParserConfigurationException | SAXException e) {
+            throw new IOException("Unreadable POM", e);
+        }
+    }
+
+    private static @Nullable String childText(final Element element, final String tag) {
+        for (var node = element.getFirstChild(); node != null; node = node.getNextSibling()) {
+            if (node instanceof Element child && tag.equals(child.getTagName())) {
+                return child.getTextContent().strip();
+            }
+        }
+        return null;
+    }
+
+    private static void deleteJarsOtherThan(final Path dir, final Set<String> jars) throws IOException {
+        try (final DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "*.jar")) {
+            for (final Path jar : stream) {
+                if (!jars.contains(jar.getFileName().toString())) {
+                    Files.delete(jar);
+                }
+            }
+        }
+    }
+
     @Override
     public void start() {
         if (!isRunning()) {
             super.start();
+            failIfAppDied();
         }
         containerId = getContainerId();
+    }
+
+    // Turns a block node that can't start into a quick, explicit failure rather than a startup timeout
+    private void failIfAppDied() {
+        final String logs = getLogs();
+        final int died = logs.indexOf(DIED_LINE);
+        if (died >= 0 && !logs.contains(STARTED_LINE)) {
+            stop();
+            throw new IllegalStateException("Block node " + BLOCK_NODE_VERSION + " failed to start: "
+                    + logs.substring(died).lines().findFirst().orElse(DIED_LINE));
+        }
     }
 
     @Override

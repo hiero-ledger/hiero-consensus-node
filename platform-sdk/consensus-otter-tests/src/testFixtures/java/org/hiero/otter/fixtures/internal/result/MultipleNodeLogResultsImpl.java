@@ -147,8 +147,33 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
         return suppressingLoggerName(DefaultIssDetector.class);
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The change is done on a best effort basis. A slower node may collect rounds after a clear that were
+     * discarded on faster nodes. Ideally, this method is only called while all nodes have progressed the same,
+     * e.g. while in the state {@link org.hiero.consensus.model.status.PlatformStatus#FREEZE_COMPLETE}.
+     */
     @Override
     public void clear() {
         results.forEach(OtterResult::clear);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Returns {@code true} if {@link #clear()} has been called on the result of any node.
+     */
+    @Override
+    public boolean isCleared() {
+        return results.stream().anyMatch(OtterResult::isCleared);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean allResultsArrived() {
+        return results.stream().allMatch(OtterResult::allResultsArrived);
     }
 }

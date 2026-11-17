@@ -3,9 +3,7 @@ package org.hiero.consensus.benchmark.tools.histogram;
 
 import com.sun.management.ThreadMXBean;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
-import java.util.List;
 
 /**
  * Measures how long each call of a benchmark takes, and how much memory the calls allocate, for one benchmark thread
@@ -56,6 +54,10 @@ import java.util.List;
  *
  * <p>Each pause costs a clock read and two reads of the allocated bytes, outside the recorded latencies. A garbage
  * collection during a pause still discards the pass, because it can leave work for the measured calls.
+ *
+ * <p>{@code pause()} on a paused pass, {@code resume()} on a running one, and {@link #stopMeasurement()} on a paused one
+ * throw, because each would count the allocation wrongly. A loop that times only some of its calls, and pauses only
+ * where a timed call follows an untimed one or the other way round, asks {@link #isPaused()}.
  *
  * <p>Reading the clock takes time and has a limited resolution. On Apple Silicon, {@link System#nanoTime()} advances in
  * steps of about 42 ns, so latencies below a few microseconds are coarse on a Mac.
@@ -123,20 +125,11 @@ public final class LatencyRecorder {
     /** The MXBean that measures the current thread's allocated bytes. */
     private static final ThreadMXBean THREAD_MX_BEAN = (ThreadMXBean) ManagementFactory.getThreadMXBean();
 
-    /** The MXBeans that count the JVM's garbage collections. */
-    private static final List<GarbageCollectorMXBean> GC_MX_BEANS = ManagementFactory.getGarbageCollectorMXBeans();
-
-    /** Buckets at most 2^-10 (about 0.1%) of their values wide, and exact below 2,048 ns. */
-    private static final int PRECISION_BITS = 10;
-
-    /** Tracks latencies up to 2^36 - 1 ns, about 68.7 s. */
-    private static final int RANGE_BITS = 36;
-
     /** The latencies of the kept passes. */
-    private final LatencyHistogram histogram = newHistogram();
+    private final LatencyHistogram histogram = HistogramLayout.newHistogram();
 
     /** The latencies of the running pass. */
-    private final LatencyHistogram passHistogram = newHistogram();
+    private final LatencyHistogram passHistogram = HistogramLayout.newHistogram();
 
     /** The timestamp of the previous lap, or of the start of the pass. */
     private long lapStart;
@@ -150,6 +143,9 @@ public final class LatencyRecorder {
     /** The bytes allocated by the current thread at the latest {@link #pause()}. */
     private long allocatedBytesAtPause;
 
+    /** Whether the running pass is paused. */
+    private boolean paused;
+
     /** The number of garbage collections in the JVM at the start of the running pass. */
     private long gcCountAtStart;
 
@@ -159,22 +155,13 @@ public final class LatencyRecorder {
     LatencyRecorder() {}
 
     /**
-     * Creates an empty histogram with the layout of the recorders' histograms, so that it can merge them.
-     *
-     * @return an empty histogram
-     */
-    @NonNull
-    static LatencyHistogram newHistogram() {
-        return new LatencyHistogram(PRECISION_BITS, RANGE_BITS);
-    }
-
-    /**
      * Starts a pass: measures the allocation of the current thread and watches for garbage collections from now on,
      * and starts the first lap. Call it right before the measured calls.
      */
     public void startMeasurement() {
         passHistogram.reset();
-        gcCountAtStart = totalGcCount();
+        paused = false;
+        gcCountAtStart = GarbageCollections.count();
         allocatedBytesAtStart = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes();
         // last, so that the reads above are not part of the first latency
         lapStart = System.nanoTime();
@@ -193,40 +180,58 @@ public final class LatencyRecorder {
     /**
      * Pauses the pass, so that the work until {@link #resume()} counts neither in a latency nor in the allocation. Call
      * it right after {@link #lap()}, and call {@code resume()} before the next measured call.
+     *
+     * @throws IllegalStateException if the pass is paused already
      */
     public void pause() {
+        if (paused) {
+            throw new IllegalStateException("The pass is paused already");
+        }
+        paused = true;
         allocatedBytesAtPause = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes();
     }
 
     /**
      * Resumes the pass paused by {@link #pause()} and starts the next lap. Call it right before the next measured call.
+     *
+     * @throws IllegalStateException if the pass is not paused
      */
     public void resume() {
+        if (!paused) {
+            throw new IllegalStateException("The pass is not paused");
+        }
+        paused = false;
         allocatedBytesAtStart += THREAD_MX_BEAN.getCurrentThreadAllocatedBytes() - allocatedBytesAtPause;
         // last, so that the read above is not part of the next latency
         lapStart = System.nanoTime();
     }
 
     /**
+     * Returns whether the pass is paused: {@link #pause()} was called, and {@link #resume()} not since.
+     *
+     * @return true if the pass is paused
+     */
+    public boolean isPaused() {
+        return paused;
+    }
+
+    /**
      * Ends the pass started by {@link #startMeasurement()}. Call it right after the measured calls. Keeps the pass's
      * latencies and allocation if no garbage collection ran during it, and discards them otherwise.
+     *
+     * @throws IllegalStateException if the pass is paused
      */
     public void stopMeasurement() {
+        if (paused) {
+            throw new IllegalStateException("The pass is paused; resume it before stopping the measurement");
+        }
         final long passAllocatedBytes = THREAD_MX_BEAN.getCurrentThreadAllocatedBytes() - allocatedBytesAtStart;
-        if (totalGcCount() == gcCountAtStart) {
+        if (GarbageCollections.count() == gcCountAtStart) {
             histogram.add(passHistogram);
             allocatedBytes += passAllocatedBytes;
         } else {
             discardedPasses++;
         }
-    }
-
-    private static long totalGcCount() {
-        long count = 0;
-        for (final GarbageCollectorMXBean bean : GC_MX_BEANS) {
-            count += Math.max(0, bean.getCollectionCount());
-        }
-        return count;
     }
 
     /**

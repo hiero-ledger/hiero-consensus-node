@@ -5,10 +5,15 @@ import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.tss.TssBlockHashSigner.usesChainOfTrustProof;
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toSet;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HintsKeyProvenance;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.app.hints.KeyProvenanceSigner;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
@@ -19,7 +24,9 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.SortedMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -45,6 +52,23 @@ public class ProofControllers {
      */
     @Nullable
     private ProofController controller;
+
+    /**
+     * If not null, the source weights from the active hinTS construction that {@link #controller} was created with.
+     */
+    @Nullable
+    private SortedMap<Long, Long> controllerSourceWeights;
+
+    @Nullable
+    private HintsKeyProvenance controllerBinding;
+
+    /**
+     * If not null, whether the source proof that {@link #controller} was created with had a canonical WRAPS
+     * membership snapshot; null for a grounding construction or one without a source proof. A controller
+     * extending a proof that gains a snapshot in state must be rebuilt to use it, as a restarted node would.
+     */
+    @Nullable
+    private Boolean controllerSourceSnapshotted;
 
     @Inject
     public ProofControllers(
@@ -77,6 +101,7 @@ public class ProofControllers {
      * @param tssConfig the TSS configuration
      * @return the result of the operation
      */
+    @VisibleForTesting
     public @NonNull ProofController getOrCreateFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HistoryProofConstruction construction,
@@ -84,11 +109,37 @@ public class ProofControllers {
             @Nullable final HintsConstruction activeHintsConstruction,
             @NonNull final HistoryProofConstruction activeProofConstruction,
             @NonNull final TssConfig tssConfig) {
+        return getOrCreateFor(
+                activeRosters,
+                construction,
+                historyStore,
+                activeHintsConstruction,
+                activeProofConstruction,
+                tssConfig,
+                null);
+    }
+
+    public @NonNull ProofController getOrCreateFor(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final HistoryProofConstruction construction,
+            @NonNull final ReadableHistoryStore historyStore,
+            @Nullable final HintsConstruction activeHintsConstruction,
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            @NonNull final TssConfig tssConfig,
+            @Nullable final KeyProvenanceSigner sourceSigner) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
         requireNonNull(activeProofConstruction);
-        if (currentConstructionId() != construction.constructionId()) {
+        // Incremental authority follows the adopted hinTS generation, which may have newer stake weights than
+        // the platform roster. A grounding construction instead signs with its own complete target book.
+        final boolean grounding = groundsChainOfTrust(construction);
+        final var sourceWeights = grounding ? null : maybeWeightsFrom(activeHintsConstruction);
+        final var sourceSnapshotted = grounding ? null : snapshotStateOf(activeProofConstruction.targetProof());
+        if (currentConstructionId() != construction.constructionId()
+                || !Objects.equals(controllerBinding, construction.keyProvenance())
+                || !Objects.equals(sourceWeights, controllerSourceWeights)
+                || !Objects.equals(sourceSnapshotted, controllerSourceSnapshotted)) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
@@ -98,7 +149,11 @@ public class ProofControllers {
                     historyStore,
                     activeHintsConstruction,
                     activeProofConstruction,
-                    tssConfig);
+                    tssConfig,
+                    sourceSigner);
+            controllerBinding = construction.keyProvenance();
+            controllerSourceWeights = sourceWeights;
+            controllerSourceSnapshotted = sourceSnapshotted;
         }
         return requireNonNull(controller);
     }
@@ -150,20 +205,44 @@ public class ProofControllers {
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
             @NonNull final HistoryProofConstruction activeProofConstruction,
-            @NonNull final TssConfig tssConfig) {
-        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
+            @NonNull final TssConfig tssConfig,
+            @Nullable final KeyProvenanceSigner sourceSigner) {
+        final boolean grounding = groundsChainOfTrust(construction);
+        final var weights =
+                activeRosters.transitionWeights(grounding ? null : maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
+            // Publisher readiness follows platform membership, not the sparse hinTS source authority.
+            // A joining target node cannot publish until platform adoption; an existing platform member
+            // can publish even if it did not contribute to the current hinTS scheme.
+            final var expectedProofKeyPublishers =
+                    requireNonNull(activeRosters.currentRoster()).rosterEntries().stream()
+                            .map(RosterEntry::nodeId)
+                            .filter(weights.targetNodeIds()::contains)
+                            .collect(toSet());
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
             final var wrapsMessagePublications =
-                    historyStore.getWrapsMessagePublications(construction.constructionId(), weights.targetNodeIds());
+                    historyStore.getWrapsMessagePublications(construction.constructionId(), weights.sourceNodeIds());
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
-            final var sourceProof = activeProofConstruction.targetProof();
+            final var sourceProof = grounding ? null : activeProofConstruction.targetProof();
+            final var provenanceSigner = construction.hasKeyProvenance() ? sourceSigner : null;
             final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
-                    s, t.wrapsMessageGracePeriod(), k, p, w, r, CompletableFuture::delayedExecutor, x, l, m, machine);
+                    s,
+                    t.wrapsMessageGracePeriod(),
+                    k,
+                    p,
+                    w,
+                    r,
+                    CompletableFuture::delayedExecutor,
+                    x,
+                    l,
+                    m,
+                    machine,
+                    provenanceSigner,
+                    construction.keyProvenance());
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -180,8 +259,14 @@ public class ProofControllers {
                     proverFactory,
                     sourceProof,
                     historyProofMetrics,
-                    tssConfig);
+                    tssConfig,
+                    provenanceSigner,
+                    expectedProofKeyPublishers);
         }
+    }
+
+    private static @Nullable Boolean snapshotStateOf(@Nullable final HistoryProof proof) {
+        return proof == null ? null : !proof.targetNodeWeights().isEmpty();
     }
 
     /**
@@ -195,7 +280,8 @@ public class ProofControllers {
 
     /**
      * Returns whether the given construction grounds a chain of trust rather than extending one to a new roster;
-     * that is, whether it has the same roster as both source and target. This is the shape of the genesis
+     * that is, whether it has the same roster as both source and target and no previous key generation to certify
+     * its adoption. This is the shape of the genesis
      * construction, and of any construction later created to build a fresh genesis WRAPS proof for the roster
      * the network already has.
      *
@@ -204,7 +290,8 @@ public class ProofControllers {
      */
     public static boolean groundsChainOfTrust(@NonNull final HistoryProofConstruction construction) {
         requireNonNull(construction);
-        return !Bytes.EMPTY.equals(construction.sourceRosterHash())
+        return !construction.hasKeyProvenance()
+                && !Bytes.EMPTY.equals(construction.sourceRosterHash())
                 && construction.sourceRosterHash().equals(construction.targetRosterHash());
     }
 

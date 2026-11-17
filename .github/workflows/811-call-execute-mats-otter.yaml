@@ -26,6 +26,16 @@ on:
         type: boolean
         required: false
         default: false
+      enable-fast-otter-tests:
+        description: "Fast Otter Testing Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-falcon-tests:
+        description: "Falcon Testing Enabled"
+        type: boolean
+        required: false
+        default: false
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -55,6 +65,7 @@ permissions:
 
 jobs:
   fast-otter:
+    if: ${{ inputs.enable-fast-otter-tests }}
     uses: ./.github/workflows/847-call-execute-otter-fast.yaml
     with:
       ref: ${{ inputs.ref }}
@@ -67,11 +78,24 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  falcon:
+    if: ${{ inputs.enable-falcon-tests }}
+    uses: ./.github/workflows/872-call-execute-otter-falcon.yaml
+    with:
+      ref: ${{ inputs.ref }}
+      java-distribution: ${{ inputs.java-distribution }}
+      java-version: ${{ inputs.java-version }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   set-failure-mode:
     name: "Set Failure Mode"
     runs-on: hl-cn-default-lin-sm
     needs:
       - fast-otter
+      - falcon
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
@@ -88,8 +112,11 @@ jobs:
         env:
           INPUT_JOB_STATUSES: >-
             ${{ needs.fast-otter.result }}
+            ${{ needs.falcon.result }}
           INPUT_JOB_FAILURE_MODES: >-
             ${{ needs.fast-otter.outputs.failure-mode || 'none' }}
+            ${{ needs.falcon.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
             fast-otter
+            falcon
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

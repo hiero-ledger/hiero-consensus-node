@@ -1,4 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
+#
+# Runs the required Title Check and Assignee Check on every PR, including PRs from forks.
+#
+# Why pull_request_target: it runs this workflow as it is on the base branch (main), so a PR cannot
+# change the checks it is judged by. A pull_request trigger would run the PR's own copy of this file.
+# GitHub blocks pull_request_target in public repositories unless an Actions event policy allows it.
+# The repository policy "[Workflow] Pull_Request_Target: Assignee & Title Check" (Settings > Actions >
+# Policies) allows it for this file's path only, so renaming or moving this file blocks it again;
+# update the policy's workflow path with any rename (see issue #28310).
+#
+# Keep it safe to run with the base repository's token:
+#   - never check out, build or run code from the PR;
+#   - never use secrets other than GITHUB_TOKEN;
+#   - only read the PR's metadata (title, assignees) from the event payload or the API;
+#   - keep the permissions at the minimum the checks need.
 name: "601: [FLOW] PR Formatting"
 on:
   pull_request_target:
@@ -22,9 +37,8 @@ defaults:
   run:
     shell: bash
 
+# The title check reads the PR through the API; the assignee check reads only the event payload
 permissions:
-  statuses: write
-  contents: read
   pull-requests: read
 
 jobs:

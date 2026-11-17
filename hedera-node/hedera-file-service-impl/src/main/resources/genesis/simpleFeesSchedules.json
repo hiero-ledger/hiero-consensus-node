@@ -813,6 +813,11 @@
           "extras": []
         },
         {
+          "name": "ClprEvictPeerEndpoint",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
           "name": "ClprSubmitBundle",
           "baseFee": 10000000,
           "extras": []

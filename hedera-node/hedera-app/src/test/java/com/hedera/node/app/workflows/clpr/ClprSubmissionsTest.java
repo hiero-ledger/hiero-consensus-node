@@ -59,7 +59,10 @@ class ClprSubmissionsTest {
 
     @Test
     void skipsEndpointPublicationWhenClprIsDisabled() {
-        given(appContext.configSupplier()).willReturn(() -> HederaTestConfigBuilder.createConfig());
+        given(appContext.configSupplier())
+                .willReturn(() -> HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", false)
+                        .getOrCreateConfig());
 
         subject.submitEndpointPublication(TEST_ENDPOINT);
 
@@ -92,9 +95,10 @@ class ClprSubmissionsTest {
         given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
         given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
         given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
-        given(appContext.configSupplier()).willReturn(() -> HederaTestConfigBuilder.create()
-                .withValue("clpr.enabled", true)
-                .getOrCreateConfig());
+        given(appContext.configSupplier())
+                .willReturn(() -> HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .getOrCreateConfig());
         given(appContext.gossip()).willReturn(gossip);
     }
 

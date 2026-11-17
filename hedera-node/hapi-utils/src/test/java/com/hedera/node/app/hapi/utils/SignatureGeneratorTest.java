@@ -1,31 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
-import static com.hedera.node.app.hapi.utils.SignatureGenerator.BOUNCYCASTLE_PROVIDER;
-
-import java.security.SecureRandom;
-import java.security.spec.ECGenParameterSpec;
+import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
+import java.security.KeyPair;
 import net.i2p.crypto.eddsa.KeyPairGenerator;
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class SignatureGeneratorTest {
-    private static final BouncyCastleProvider BC = new BouncyCastleProvider();
 
     @Test
     void rejectsNonEddsaKeys() {
-        Assertions.assertThrows(IllegalArgumentException.class, () -> SignatureGenerator.signBytes(new byte[0], null));
+        Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> SignatureGenerator.signBytes(new byte[Libsecp256k1.SIGNATURE_BYTES], null));
     }
 
     @Test
-    void acceptsEcdsaKey() throws Exception {
-        final ECGenParameterSpec ecSpec = new ECGenParameterSpec("secp256k1");
-        final java.security.KeyPairGenerator generator =
-                java.security.KeyPairGenerator.getInstance("EC", BOUNCYCASTLE_PROVIDER);
-        generator.initialize(ecSpec, new SecureRandom());
-        final var kp = generator.generateKeyPair();
-        Assertions.assertDoesNotThrow(() -> SignatureGenerator.signBytes("abc".getBytes(), kp.getPrivate()));
+    void acceptsEcdsaKey() {
+        final KeyPair kp = ECDSASecp256k1.genEcdsaSecp256k1KeyPair();
+        Assertions.assertDoesNotThrow(
+                () -> SignatureGenerator.signBytes(MiscCryptoUtils.keccak256DigestOf("abc"), kp.getPrivate()));
     }
 
     @Test

@@ -15,10 +15,10 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
-import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.node.app.service.clpr.impl.ClprLedgerConfigurationFile;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -92,9 +92,6 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
     /** EVM address of the Hiero CLPR service contract: 0x000000000000000000000000000000000000016e */
     public static final Bytes CLPR_SERVICE_ADDRESS = CLPR_EVM_ADDRESS_BYTES;
 
-    /** Default max gas per inbound message dispatch (15M, matching the consensus gas budget). */
-    public static final long DEFAULT_MAX_GAS_PER_MESSAGE = 15_000_000L;
-
     /**
      * Constructor for this schema.
      */
@@ -138,7 +135,7 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
      * {@link com.hedera.node.app.service.clpr.impl.ClprServiceImpl#doGenesisSetup} initializes them, so the
      * empty genesis hash is externalized before these writes. For a network upgrading from a version without
      * them, the handle workflow initializes them during post-upgrade setup. Both run at handle time, when
-     * network properties such as {@code clpr.chainId} are in effect; schema startup only sees node-local
+     * network properties such as {@code contracts.chainId} are in effect; schema startup only sees node-local
      * configuration.
      *
      * <p>All three singletons are initialized even when {@code clpr.enabled} is false. CLPR handlers need
@@ -160,15 +157,9 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                 writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
         if (ledgerConfigurationState.get() == null) {
             final var clprConfig = configuration.getConfigData(ClprConfig.class);
-            final var defaultThrottles = ClprThrottles.newBuilder()
-                    .maxSyncBytes(4_194_304L) // 4 MB
-                    .maxMessagesPerBundle(1_000)
-                    .maxQueueDepth(10_000)
-                    .maxMessagePayloadBytes(65_536) // 64 KB per message
-                    .maxGasPerMessage(Math.min(
-                            DEFAULT_MAX_GAS_PER_MESSAGE,
-                            configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction()))
-                    .build();
+            // The CAIP-2 chain id is the network's HIP-26 EVM chain id in the eip155 namespace
+            final var chainId = "eip155:"
+                    + configuration.getConfigData(ContractsConfig.class).chainId();
             // Use seconds=1 as the initialization sentinel so timestamp is non-zero and
             // distinguishable from the proto default. The first admin update replaces it with
             // the actual consensus time.
@@ -177,11 +168,11 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
             // The trust anchor fields remain unset until the history ledger ID is established.
             // The first configuration update after that point populates them from consensus state.
             final var initialConfig = ClprLedgerConfiguration.newBuilder()
-                    .chainId(clprConfig.chainId())
+                    .chainId(chainId)
                     .protocolVersion(clprConfig.protocolVersion())
                     .serviceAddress(CLPR_SERVICE_ADDRESS)
                     .timestamp(initializationTimestamp)
-                    .throttles(defaultThrottles)
+                    .throttles(ClprLedgerConfigurationFile.initialThrottles(configuration))
                     .build();
             ledgerConfigurationState.put(initialConfig);
             initialized = true;

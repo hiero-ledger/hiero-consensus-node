@@ -48,9 +48,11 @@ class BlockStreamUtilsTest {
         "STATE_ID_CLPR_ENDPOINT_MANIFEST, ClprService.ENDPOINT_MANIFEST",
         "STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION, ClprService.ENDPOINT_MANIFEST_CONSTRUCTION",
         "STATE_ID_CLPR_CHANNEL_INDEX, ClprService.CHANNEL_INDEX",
-        "STATE_ID_CLPR_CHANNEL_INDEX_ENTRIES, ClprService.CHANNEL_INDEX_ENTRIES"
+        "STATE_ID_CLPR_CHANNEL_INDEX_ENTRIES, ClprService.CHANNEL_INDEX_ENTRIES",
+        "STATE_ID_HINTS_KEY_PROVENANCE, HistoryService.HINTS_KEY_PROVENANCE",
+        "STATE_ID_HINTS_KEY_WITNESSES, HistoryService.HINTS_KEY_WITNESSES"
     })
-    void mapsAllClprStateIdentifiers(final StateIdentifier stateIdentifier, final String expectedStateName) {
+    void mapsStateIdentifiers(final StateIdentifier stateIdentifier, final String expectedStateName) {
         assertEquals(expectedStateName, BlockStreamUtils.stateNameOf(stateIdentifier.protoOrdinal()));
     }
 }

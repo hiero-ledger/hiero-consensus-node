@@ -105,6 +105,10 @@ public class BlockNodeConnectionManager {
      */
     private final AtomicInteger globalActiveStreamingConnectionCount = new AtomicInteger();
     /**
+     * Counter for tracking the total number of active block node observing connections across all block nodes.
+     */
+    private final AtomicInteger globalActiveObservingConnectionCount = new AtomicInteger();
+    /**
      * The most recent configuration used. This configuration is used to compare against newer configs to know if a
      * configuration change has occurred.
      */
@@ -432,53 +436,52 @@ public class BlockNodeConnectionManager {
             final BlockNode node = nodes.get(i);
             final BlockNodeEndpoint serviceEndpoint = node.configuration().serviceEndpoint();
             final Future<BlockNodeStatus> future = futures.get(i);
-            final BlockNodeStatus status =
-                    switch (future.state()) {
-                        case SUCCESS -> {
-                            final BlockNodeStatus bns = future.resultNow();
-                            if (bns == null) {
-                                logger.warn(
-                                        "[{}:{}] Retrieving block node status was successful, but null returned",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port());
-                                // we don't have any information so mark it unreachable... hopefully this never happens
-                                yield BlockNodeStatus.notReachable();
-                            } else {
-                                logger.debug(
-                                        "[{}:{}] Successfully retrieved block node status",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port());
-                                yield bns;
-                            }
-                        }
-                        case FAILED -> {
-                            final Throwable error = future.exceptionNow();
-                            final FailureType failureType = FailureType.findFailureType(error);
-                            if (failureType.isCommonFailure()) {
-                                logger.warn(
-                                        "[{}:{}] Failed to retrieve block node status (error: {})",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port(),
-                                        failureType);
-                            } else {
-                                logger.warn(
-                                        "[{}:{}] Failed to retrieve block node status",
-                                        serviceEndpoint.host(),
-                                        serviceEndpoint.port(),
-                                        error);
-                            }
+            final BlockNodeStatus status = switch (future.state()) {
+                case SUCCESS -> {
+                    final BlockNodeStatus bns = future.resultNow();
+                    if (bns == null) {
+                        logger.warn(
+                                "[{}:{}] Retrieving block node status was successful, but null returned",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port());
+                        // we don't have any information so mark it unreachable... hopefully this never happens
+                        yield BlockNodeStatus.notReachable();
+                    } else {
+                        logger.debug(
+                                "[{}:{}] Successfully retrieved block node status",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port());
+                        yield bns;
+                    }
+                }
+                case FAILED -> {
+                    final Throwable error = future.exceptionNow();
+                    final FailureType failureType = FailureType.findFailureType(error);
+                    if (failureType.isCommonFailure()) {
+                        logger.warn(
+                                "[{}:{}] Failed to retrieve block node status (error: {})",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port(),
+                                failureType);
+                    } else {
+                        logger.warn(
+                                "[{}:{}] Failed to retrieve block node status",
+                                serviceEndpoint.host(),
+                                serviceEndpoint.port(),
+                                error);
+                    }
 
-                            yield BlockNodeStatus.notReachable();
-                        }
-                        case CANCELLED, RUNNING -> {
-                            logger.warn(
-                                    "[{}:{}] Timed out waiting for block node status",
-                                    serviceEndpoint.host(),
-                                    serviceEndpoint.port());
-                            future.cancel(true);
-                            yield BlockNodeStatus.notReachable();
-                        }
-                    };
+                    yield BlockNodeStatus.notReachable();
+                }
+                case CANCELLED, RUNNING -> {
+                    logger.warn(
+                            "[{}:{}] Timed out waiting for block node status",
+                            serviceEndpoint.host(),
+                            serviceEndpoint.port());
+                    future.cancel(true);
+                    yield BlockNodeStatus.notReachable();
+                }
+            };
 
             node.onServerStatusCheck(status);
 
@@ -605,7 +608,7 @@ public class BlockNodeConnectionManager {
      *
      * @param connection the connection that has been activated
      */
-    public void notifyConnectionActive(@NonNull final BlockNodeStreamingConnection connection) {
+    public void notifyConnectionActive(@NonNull final BlockNodePublisherConnection connection) {
         final BlockNodeConfiguration config = connection.configuration();
         final BlockNode node = nodes.get(config.streamingEndpoint());
 
@@ -669,7 +672,8 @@ public class BlockNodeConnectionManager {
      */
     private void updateConnectionIfNeeded() {
         // record the latest number of active connections
-        blockStreamMetrics.recordActiveConnectionCount(globalActiveStreamingConnectionCount.get());
+        blockStreamMetrics.recordActiveStreamingConnectionCount(globalActiveStreamingConnectionCount.get());
+        blockStreamMetrics.recordActiveObservingConnectionCount(globalActiveObservingConnectionCount.get());
 
         final Instant now = Instant.now();
         final BlockNodeStreamingConnection activeConnection = activeConnectionRef.get();
@@ -820,6 +824,7 @@ public class BlockNodeConnectionManager {
                                     configProvider,
                                     newNodeConfig,
                                     globalActiveStreamingConnectionCount,
+                                    globalActiveObservingConnectionCount,
                                     new BlockNodeStats()));
                     changesDetected = true;
                 } else if (!existingNode.configuration().equals(newNodeConfig)) {

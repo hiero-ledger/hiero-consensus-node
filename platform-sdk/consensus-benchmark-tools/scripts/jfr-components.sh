@@ -16,6 +16,11 @@
 # enabled: ConsensusLayerBenchmark.runBenchmark then records one file per node in the node's output directory. The
 # samples of several files are added up.
 #
+# A pipeline benchmark, which times its inputs with a PipelineTimer, is profiled from JMH's -prof jfr recording. Two
+# buckets show the timer itself: "timer: waiting", the timer's thread waiting for the next input's due time, which is
+# expected, and "timer: output", the timer noting the arrivals on the pipeline's threads, which should be well under a
+# percent.
+#
 # A sample counts toward the innermost method on its stack (the one closest to where the sample was taken) that lies
 # in an org.hiero, com.swirlds, or com.hedera package and belongs to a component. Time in JDK, crypto, and
 # serialization code thus counts toward the component that called it;
@@ -26,6 +31,8 @@ for f in "$@"; do
   "$J" print --events jdk.ExecutionSample --stack-depth 96 "$f"
 done | awk '
   function bucket(fr) {
+    if (fr ~ /\.pipeline\.PipelineTimer\$Output\.arrive/) return "timer: output"
+    if (fr ~ /\.pipeline\.PipelineTimer\.replay/) return "timer: waiting"
     if (fr ~ /event\.intake/) return "intake"
     if (fr ~ /event\.creator/) return "event creation"
     if (fr ~ /hashgraph/) return "hashgraph/consensus"

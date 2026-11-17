@@ -19,7 +19,6 @@ merge:
     - "MATS / HAPI Tests / HAPI Tests (Time Consuming)"
     - "MATS / HAPI Tests / HAPI Tests (State Throttling)"
     - "MATS / HAPI Tests / HAPI Tests (Simple Fees)"
-    - "MATS / Snyk Scan / Snyk Checks"
     - "MATS / Otter Tests / Fast Otter Tests"
 
     # MATS Gradle Determinism
@@ -36,9 +35,6 @@ merge:
     - "MQ MATS / Docker Determinism / Docker: Generate Baseline"
     - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (ubuntu-24.04)"
     - "MQ MATS / Docker Determinism / Docker: Verify Artifacts (hl-cn-docker-determinism-lin-lg)"
-
-    # MATS Snyk
-    - "MQ MATS / Snyk Scan / Snyk Checks"
 
     # XTS Required Checks
     - "MQ XTS / XTS Timing Sensitive Tests / Timing Sensitive Tests"

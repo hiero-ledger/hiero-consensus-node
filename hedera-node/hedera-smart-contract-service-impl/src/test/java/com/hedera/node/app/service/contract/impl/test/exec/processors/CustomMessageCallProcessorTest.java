@@ -259,7 +259,10 @@ class CustomMessageCallProcessorTest {
         subject = new CustomMessageCallProcessor(
                 evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
         givenCallWithCode(address);
-        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", false)
+                        .getOrCreateConfig());
         given(addressChecks.isSystemAccount(address)).willReturn(true);
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);

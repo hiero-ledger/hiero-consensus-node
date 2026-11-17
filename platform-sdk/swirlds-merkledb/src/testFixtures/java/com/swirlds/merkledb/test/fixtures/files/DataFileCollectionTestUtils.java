@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
 import java.util.Arrays;
 
@@ -33,7 +33,7 @@ public class DataFileCollectionTestUtils {
 
     public static void checkData(
             final DataFileCollection fileCollection,
-            final LongListHeap storedOffsets,
+            final LongList storedOffsets,
             final FilesTestType testType,
             final int fromIndex,
             final int toIndexExclusive,

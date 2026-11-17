@@ -105,6 +105,8 @@ public final class BlockStreamUtils {
             case STATE_ID_WRAPS_MESSAGE_HISTORIES -> "HistoryService.WRAPS_MESSAGE_HISTORIES";
             case STATE_ID_CRS_STATE -> "HintsService.CRS_STATE";
             case STATE_ID_NEXT_CRS_STATE -> "HintsService.NEXT_CRS_STATE";
+            case STATE_ID_HINTS_KEY_PROVENANCE -> "HistoryService.HINTS_KEY_PROVENANCE";
+            case STATE_ID_HINTS_KEY_WITNESSES -> "HistoryService.HINTS_KEY_WITNESSES";
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
             case STATE_ID_NODE_PAYMENTS -> "TokenService.NODE_PAYMENTS";
@@ -156,6 +158,7 @@ public final class BlockStreamUtils {
         return switch (queuePushChange.value().kind()) {
             case UNSET, PROTO_STRING_ELEMENT -> throw new IllegalStateException("Queue push value is not supported");
             case PROTO_BYTES_ELEMENT -> new ProtoBytes(queuePushChange.protoBytesElementOrThrow());
+            case HINTS_KEY_PROVENANCE_ELEMENT -> queuePushChange.hintsKeyProvenanceElementOrThrow();
             case TRANSACTION_RECEIPT_ENTRIES_ELEMENT -> queuePushChange.transactionReceiptEntriesElementOrThrow();
         };
     }
@@ -231,6 +234,7 @@ public final class BlockStreamUtils {
             case PROTO_BYTES_VALUE -> new ProtoBytes(mapChangeValue.protoBytesValueOrThrow());
             case CLPR_MESSAGE_VALUE -> mapChangeValue.clprMessageValueOrThrow();
             case CLPR_CONNECTOR_VALUE -> mapChangeValue.clprConnectorValueOrThrow();
+            case HINTS_KEY_WITNESS_RECORD_VALUE -> mapChangeValue.hintsKeyWitnessRecordValueOrThrow();
         };
     }
 
