@@ -26,7 +26,6 @@ See also [`privileged-transactions.md`](privileged-transactions.md) for the sema
 | `0.0.58`  | `accounts.freezeAdmin`          |
 | `0.0.59`  | `accounts.systemDeleteAdmin`    |
 | `0.0.60`  | `accounts.systemUndeleteAdmin`  |
-| `0.0.601` | `accounts.clprAdmin`            |
 | `0.0.800` | `accounts.stakingRewardAccount` |
 | `0.0.801` | `accounts.nodeRewardAccount`    |
 | `0.0.802` | `accounts.feeCollectionAccount` |

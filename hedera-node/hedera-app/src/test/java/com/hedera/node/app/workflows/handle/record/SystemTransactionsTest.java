@@ -871,15 +871,16 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void genesisSetupDoesNotDuplicateDefaultClprAdminTreasuryClone() {
+    void genesisSetupDoesNotDuplicateConfiguredClprAdminTreasuryClone() {
         final var accounts = givenAccountsState();
         givenEntityIdStates();
         final var adminId = givenLocalAccountId(CLPR_ADMIN_ACCOUNT_NUM);
         // The mock dispatch does not write the treasury clone created earlier in genesis.
         given(accounts.get(adminId)).willReturn(Account.DEFAULT);
 
-        final var systemContext =
-                doGenesisSetup(HederaTestConfigBuilder.create().withValue("clpr.enabled", true));
+        final var systemContext = doGenesisSetup(HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", true)
+                .withValue("accounts.clprAdmin", CLPR_ADMIN_ACCOUNT_NUM));
 
         final var body = capturedAccountCreation(systemContext, CLPR_ADMIN_ACCOUNT_NUM);
         assertEquals("Synthetic zero-balance treasury clone", body.memo());
