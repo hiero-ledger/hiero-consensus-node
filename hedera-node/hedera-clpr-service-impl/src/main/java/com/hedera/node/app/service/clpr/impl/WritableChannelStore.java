@@ -17,9 +17,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 /**
  * Provides write methods for modifying CLPR channels in state. Keeps the channel index (see
  * {@link #syncableChannelIds()}) in step with the channels: a channel that is neither {@code PENDING} nor
- * {@code CLOSED} is issued the next sequence number; an index entry maps that number to its id, and a sequence
- * number entry maps its id back to the number. Both are removed when the channel becomes either or is removed. A write
- * that does not change whether a channel is syncable keeps its sequence number and leaves the index untouched.
+ * {@code CLOSED} is issued the next index number; the indexed channels map that number to its id, and the channel
+ * index numbers map its id back to the number. Both entries are removed when the channel becomes either or is
+ * removed. A write that does not change whether a channel is syncable keeps its index number and leaves the index untouched.
  */
 public class WritableChannelStore extends ReadableChannelStoreImpl {
 
@@ -43,13 +43,13 @@ public class WritableChannelStore extends ReadableChannelStoreImpl {
     }
 
     @Override
-    protected WritableKVState<ProtoLong, ProtoBytes> channelIndexEntriesState() {
-        return super.channelIndexEntriesState();
+    protected WritableKVState<ProtoLong, ProtoBytes> indexedChannelsState() {
+        return super.indexedChannelsState();
     }
 
     @Override
-    protected WritableKVState<ProtoBytes, ProtoLong> channelIndexSequenceNumbersState() {
-        return super.channelIndexSequenceNumbersState();
+    protected WritableKVState<ProtoBytes, ProtoLong> channelIndexNumsState() {
+        return super.channelIndexNumsState();
     }
 
     /**
@@ -62,14 +62,14 @@ public class WritableChannelStore extends ReadableChannelStoreImpl {
         requireNonNull(channel);
         requireNonNull(channel.channelId());
         final var key = new ProtoBytes(channel.channelId());
-        final var sequenceNumber = channelIndexSequenceNumbersState().get(key);
+        final var indexNum = channelIndexNumsState().get(key);
         if (isSyncable(channel.status())) {
             // Also indexes a syncable channel that predates the index, on its first write
-            if (sequenceNumber == null) {
+            if (indexNum == null) {
                 addIndexEntries(key);
             }
-        } else if (sequenceNumber != null) {
-            removeIndexEntries(key, sequenceNumber);
+        } else if (indexNum != null) {
+            removeIndexEntries(key, indexNum);
         }
         channelState().put(key, channel);
     }
@@ -82,37 +82,37 @@ public class WritableChannelStore extends ReadableChannelStoreImpl {
     public void remove(@NonNull final Bytes channelId) {
         requireNonNull(channelId);
         final var key = new ProtoBytes(channelId);
-        final var sequenceNumber = channelIndexSequenceNumbersState().get(key);
-        if (sequenceNumber != null) {
-            removeIndexEntries(key, sequenceNumber);
+        final var indexNum = channelIndexNumsState().get(key);
+        if (indexNum != null) {
+            removeIndexEntries(key, indexNum);
         }
         channelState().remove(key);
     }
 
     /**
-     * Issues the next sequence number to the given channel id, and maps each to the other.
+     * Issues the next index number to the given channel id, and maps each to the other.
      *
      * @param channelId the channel id
      */
     private void addIndexEntries(@NonNull final ProtoBytes channelId) {
-        final var sequenceNumber = new ProtoLong(lastSequenceNumber() + 1);
+        final var indexNum = new ProtoLong(lastIndexNum() + 1);
         channelIndexState()
                 .put(ClprChannelIndex.newBuilder()
-                        .lastSequenceNumber(sequenceNumber.value())
+                        .lastIndexNum(indexNum.value())
                         .build());
-        channelIndexEntriesState().put(sequenceNumber, channelId);
-        channelIndexSequenceNumbersState().put(channelId, sequenceNumber);
+        indexedChannelsState().put(indexNum, channelId);
+        channelIndexNumsState().put(channelId, indexNum);
     }
 
     /**
-     * Removes the index entries of the given channel id and its sequence number.
+     * Removes the index entries of the given channel id and its index number.
      *
      * @param channelId the channel id
-     * @param sequenceNumber the channel's sequence number
+     * @param indexNum the channel's index number
      */
-    private void removeIndexEntries(@NonNull final ProtoBytes channelId, @NonNull final ProtoLong sequenceNumber) {
-        channelIndexEntriesState().remove(sequenceNumber);
-        channelIndexSequenceNumbersState().remove(channelId);
+    private void removeIndexEntries(@NonNull final ProtoBytes channelId, @NonNull final ProtoLong indexNum) {
+        indexedChannelsState().remove(indexNum);
+        channelIndexNumsState().remove(channelId);
     }
 
     private static boolean isSyncable(@NonNull final ClprChannelStatus status) {

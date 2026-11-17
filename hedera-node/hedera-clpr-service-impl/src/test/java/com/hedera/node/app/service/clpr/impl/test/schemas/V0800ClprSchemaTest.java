@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.schemas;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_KEY;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_KEY;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_KEY;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_NUMS_KEY;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_NUMS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.INDEXED_CHANNELS_KEY;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.INDEXED_CHANNELS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -30,30 +30,27 @@ class V0800ClprSchemaTest {
     }
 
     @Test
-    void createsTheChannelIndexSingletonEntriesAndSequenceNumbers() {
+    void createsTheChannelIndexAndItsMaps() {
         final var definitions = subject.statesToCreate().stream()
                 .collect(Collectors.toMap(StateDefinition::stateId, Function.identity()));
         assertThat(definitions)
-                .containsOnlyKeys(
-                        CHANNEL_INDEX_STATE_ID,
-                        CHANNEL_INDEX_ENTRIES_STATE_ID,
-                        CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID);
+                .containsOnlyKeys(CHANNEL_INDEX_STATE_ID, INDEXED_CHANNELS_STATE_ID, CHANNEL_INDEX_NUMS_STATE_ID);
 
         final var index = definitions.get(CHANNEL_INDEX_STATE_ID);
         assertThat(index.stateKey()).isEqualTo(CHANNEL_INDEX_KEY);
         assertThat(index.singleton()).isTrue();
         assertThat(index.valueCodec()).isEqualTo(ClprChannelIndex.PROTOBUF);
 
-        final var entries = definitions.get(CHANNEL_INDEX_ENTRIES_STATE_ID);
-        assertThat(entries.stateKey()).isEqualTo(CHANNEL_INDEX_ENTRIES_KEY);
-        assertThat(entries.keyValue()).isTrue();
-        assertThat(entries.keyCodec()).isEqualTo(ProtoLong.PROTOBUF);
-        assertThat(entries.valueCodec()).isEqualTo(ProtoBytes.PROTOBUF);
+        final var indexedChannels = definitions.get(INDEXED_CHANNELS_STATE_ID);
+        assertThat(indexedChannels.stateKey()).isEqualTo(INDEXED_CHANNELS_KEY);
+        assertThat(indexedChannels.keyValue()).isTrue();
+        assertThat(indexedChannels.keyCodec()).isEqualTo(ProtoLong.PROTOBUF);
+        assertThat(indexedChannels.valueCodec()).isEqualTo(ProtoBytes.PROTOBUF);
 
-        final var sequenceNumbers = definitions.get(CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID);
-        assertThat(sequenceNumbers.stateKey()).isEqualTo(CHANNEL_INDEX_SEQUENCE_NUMBERS_KEY);
-        assertThat(sequenceNumbers.keyValue()).isTrue();
-        assertThat(sequenceNumbers.keyCodec()).isEqualTo(ProtoBytes.PROTOBUF);
-        assertThat(sequenceNumbers.valueCodec()).isEqualTo(ProtoLong.PROTOBUF);
+        final var indexNums = definitions.get(CHANNEL_INDEX_NUMS_STATE_ID);
+        assertThat(indexNums.stateKey()).isEqualTo(CHANNEL_INDEX_NUMS_KEY);
+        assertThat(indexNums.keyValue()).isTrue();
+        assertThat(indexNums.keyCodec()).isEqualTo(ProtoBytes.PROTOBUF);
+        assertThat(indexNums.valueCodec()).isEqualTo(ProtoLong.PROTOBUF);
     }
 }

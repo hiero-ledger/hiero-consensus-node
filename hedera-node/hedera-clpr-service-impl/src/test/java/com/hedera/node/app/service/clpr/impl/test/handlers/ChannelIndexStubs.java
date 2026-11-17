@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test.handlers;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_NUMS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.INDEXED_CHANNELS_STATE_ID;
 import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.node.state.clpr.ClprChannelIndex;
@@ -23,7 +23,7 @@ final class ChannelIndexStubs {
     private ChannelIndexStubs() {}
 
     /**
-     * Makes the given mocked writable states return an empty channel index singleton, entries and sequence numbers.
+     * Makes the given mocked writable states return an empty channel index singleton, indexed channels and channel index numbers.
      *
      * @param writableStates the mocked CLPR writable states
      */
@@ -37,14 +37,14 @@ final class ChannelIndexStubs {
                         channelIndexRef::get,
                         channelIndexRef::set));
         lenient()
-                .when(writableStates.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID))
+                .when(writableStates.<ProtoLong, ProtoBytes>get(INDEXED_CHANNELS_STATE_ID))
                 .thenReturn(MapWritableKVState.<ProtoLong, ProtoBytes>builder(
-                                CHANNEL_INDEX_ENTRIES_STATE_ID, "ClprService:CHANNEL_INDEX_ENTRIES")
+                                INDEXED_CHANNELS_STATE_ID, "ClprService:INDEXED_CHANNELS")
                         .build());
         lenient()
-                .when(writableStates.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID))
+                .when(writableStates.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_NUMS_STATE_ID))
                 .thenReturn(MapWritableKVState.<ProtoBytes, ProtoLong>builder(
-                                CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID, "ClprService:CHANNEL_INDEX_SEQUENCE_NUMBERS")
+                                CHANNEL_INDEX_NUMS_STATE_ID, "ClprService:CHANNEL_INDEX_NUMS")
                         .build());
     }
 }

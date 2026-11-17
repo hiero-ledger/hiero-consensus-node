@@ -2,9 +2,9 @@
 package com.hedera.node.app.service.clpr.impl.test;
 
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_NUMS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.INDEXED_CHANNELS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
@@ -52,9 +52,9 @@ class ChannelStoreTest {
 
     private MapWritableKVState<ProtoBytes, ClprChannel> channels;
 
-    private MapWritableKVState<ProtoLong, ProtoBytes> entries;
+    private MapWritableKVState<ProtoLong, ProtoBytes> indexedChannels;
 
-    private MapWritableKVState<ProtoBytes, ProtoLong> sequenceNumbers;
+    private MapWritableKVState<ProtoBytes, ProtoLong> indexNums;
 
     private WritableChannelStore subject;
 
@@ -70,18 +70,18 @@ class ChannelStoreTest {
         lenient()
                 .when(writableStates.<ClprChannelIndex>getSingleton(CHANNEL_INDEX_STATE_ID))
                 .thenReturn(indexState);
-        entries = MapWritableKVState.<ProtoLong, ProtoBytes>builder(
-                        CHANNEL_INDEX_ENTRIES_STATE_ID, "ClprService:CHANNEL_INDEX_ENTRIES")
+        indexedChannels = MapWritableKVState.<ProtoLong, ProtoBytes>builder(
+                        INDEXED_CHANNELS_STATE_ID, "ClprService:INDEXED_CHANNELS")
                 .build();
         lenient()
-                .when(writableStates.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID))
-                .thenReturn(entries);
-        sequenceNumbers = MapWritableKVState.<ProtoBytes, ProtoLong>builder(
-                        CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID, "ClprService:CHANNEL_INDEX_SEQUENCE_NUMBERS")
+                .when(writableStates.<ProtoLong, ProtoBytes>get(INDEXED_CHANNELS_STATE_ID))
+                .thenReturn(indexedChannels);
+        indexNums = MapWritableKVState.<ProtoBytes, ProtoLong>builder(
+                        CHANNEL_INDEX_NUMS_STATE_ID, "ClprService:CHANNEL_INDEX_NUMS")
                 .build();
         lenient()
-                .when(writableStates.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID))
-                .thenReturn(sequenceNumbers);
+                .when(writableStates.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_NUMS_STATE_ID))
+                .thenReturn(indexNums);
         subject = new WritableChannelStore(writableStates);
     }
 
@@ -98,71 +98,71 @@ class ChannelStoreTest {
 
         assertThat(subject.syncableChannelIds()).isEmpty();
         assertThat(indexState.isModified()).isFalse();
-        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isZero();
+        assertThat(indexNumOf(CHANNEL_ID_1)).isZero();
     }
 
     @Test
-    @DisplayName("channels are issued increasing sequence numbers when they become syncable, in that order")
+    @DisplayName("channels are issued increasing index numbers when they become syncable, in that order")
     void channelsAreIndexedInActivationOrder() {
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.PENDING));
         subject.put(channel(CHANNEL_ID_2, ClprChannelStatus.ACTIVE));
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
 
         assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_2, CHANNEL_ID_1);
-        assertThat(sequenceNumberOf(CHANNEL_ID_2)).isEqualTo(1L);
-        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isEqualTo(2L);
+        assertThat(indexNumOf(CHANNEL_ID_2)).isEqualTo(1L);
+        assertThat(indexNumOf(CHANNEL_ID_1)).isEqualTo(2L);
         indexState.commit();
-        assertThat(index.get().lastSequenceNumber()).isEqualTo(2L);
+        assertThat(index.get().lastIndexNum()).isEqualTo(2L);
     }
 
     @ParameterizedTest
     @EnumSource(
             value = ClprChannelStatus.class,
             names = {"ACTIVE", "PAUSED", "CLOSING", "DRAINED"})
-    @DisplayName("rewriting a syncable channel keeps its sequence number and leaves the index untouched")
-    void syncableRewriteKeepsSequenceNumber(final ClprChannelStatus status) {
+    @DisplayName("rewriting a syncable channel keeps its index number and leaves the index untouched")
+    void syncableRewriteKeepsIndexNum(final ClprChannelStatus status) {
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
         indexState.commit();
-        entries.commit();
-        sequenceNumbers.commit();
+        indexedChannels.commit();
+        indexNums.commit();
 
         subject.put(channel(CHANNEL_ID_1, status));
 
-        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isEqualTo(1L);
+        assertThat(indexNumOf(CHANNEL_ID_1)).isEqualTo(1L);
         assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_1);
         assertThat(indexState.isModified()).isFalse();
-        assertThat(entries.modifiedKeys()).isEmpty();
-        assertThat(sequenceNumbers.modifiedKeys()).isEmpty();
+        assertThat(indexedChannels.modifiedKeys()).isEmpty();
+        assertThat(indexNums.modifiedKeys()).isEmpty();
     }
 
     @Test
-    @DisplayName("a CLOSED channel loses its entry, and sequence numbers are not reused")
+    @DisplayName("a CLOSED channel leaves the index, and index numbers are not reused")
     void closedChannelLeavesIndex() {
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
         subject.put(channel(CHANNEL_ID_2, ClprChannelStatus.ACTIVE));
 
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.CLOSED));
 
-        assertThat(entries.get(new ProtoLong(1L))).isNull();
-        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isZero();
+        assertThat(indexedChannels.get(new ProtoLong(1L))).isNull();
+        assertThat(indexNumOf(CHANNEL_ID_1)).isZero();
         assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_2);
 
-        // A channel id cannot actually be reused, but the store must not reuse sequence numbers either way
+        // A channel id cannot actually be reused, but the store must not reuse index numbers either way
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
 
-        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isEqualTo(3L);
+        assertThat(indexNumOf(CHANNEL_ID_1)).isEqualTo(3L);
         assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_2, CHANNEL_ID_1);
     }
 
     @Test
-    @DisplayName("a removed channel loses its entry")
+    @DisplayName("a removed channel leaves the index")
     void removedChannelLeavesIndex() {
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
 
         subject.remove(CHANNEL_ID_1);
 
         assertThat(subject.syncableChannelIds()).isEmpty();
-        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isZero();
+        assertThat(indexNumOf(CHANNEL_ID_1)).isZero();
         assertThat(subject.getChannel(CHANNEL_ID_1)).isNull();
     }
 
@@ -175,8 +175,8 @@ class ChannelStoreTest {
 
         assertThat(subject.getChannel(CHANNEL_ID_1)).isNull();
         assertThat(indexState.isModified()).isFalse();
-        assertThat(entries.modifiedKeys()).isEmpty();
-        assertThat(sequenceNumbers.modifiedKeys()).isEmpty();
+        assertThat(indexedChannels.modifiedKeys()).isEmpty();
+        assertThat(indexNums.modifiedKeys()).isEmpty();
     }
 
     @Test
@@ -187,13 +187,13 @@ class ChannelStoreTest {
 
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
 
-        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isEqualTo(1L);
+        assertThat(indexNumOf(CHANNEL_ID_1)).isEqualTo(1L);
         assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_1);
     }
 
     @Test
-    @DisplayName("the readable store reads every entry up to the last sequence number, skipping gaps")
-    void readableStoreReadsEntries() {
+    @DisplayName("the readable store reads every indexed channel up to the last index number, skipping gaps")
+    void readableStoreReadsIndexedChannels() {
         given(readableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .willReturn(
                         MapReadableKVState.<ProtoBytes, ClprChannel>builder(CHANNELS_STATE_ID, "ClprService:CHANNELS")
@@ -202,12 +202,10 @@ class ChannelStoreTest {
                 .willReturn(new FunctionReadableSingletonState<>(
                         CHANNEL_INDEX_STATE_ID,
                         "ClprService:CHANNEL_INDEX",
-                        () -> ClprChannelIndex.newBuilder()
-                                .lastSequenceNumber(3L)
-                                .build()));
-        given(readableStates.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID))
+                        () -> ClprChannelIndex.newBuilder().lastIndexNum(3L).build()));
+        given(readableStates.<ProtoLong, ProtoBytes>get(INDEXED_CHANNELS_STATE_ID))
                 .willReturn(MapReadableKVState.<ProtoLong, ProtoBytes>builder(
-                                CHANNEL_INDEX_ENTRIES_STATE_ID, "ClprService:CHANNEL_INDEX_ENTRIES")
+                                INDEXED_CHANNELS_STATE_ID, "ClprService:INDEXED_CHANNELS")
                         .value(new ProtoLong(1L), new ProtoBytes(CHANNEL_ID_2))
                         .value(new ProtoLong(3L), new ProtoBytes(CHANNEL_ID_1))
                         .build());
@@ -216,9 +214,9 @@ class ChannelStoreTest {
                 .containsExactly(CHANNEL_ID_2, CHANNEL_ID_1);
     }
 
-    private long sequenceNumberOf(final Bytes channelId) {
-        final var sequenceNumber = sequenceNumbers.get(new ProtoBytes(channelId));
-        return sequenceNumber == null ? 0L : sequenceNumber.value();
+    private long indexNumOf(final Bytes channelId) {
+        final var indexNum = indexNums.get(new ProtoBytes(channelId));
+        return indexNum == null ? 0L : indexNum.value();
     }
 
     private static ClprChannel channel(final Bytes channelId, final ClprChannelStatus status) {

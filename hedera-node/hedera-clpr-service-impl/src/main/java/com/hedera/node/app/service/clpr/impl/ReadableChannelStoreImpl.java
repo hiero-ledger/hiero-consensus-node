@@ -2,9 +2,9 @@
 package com.hedera.node.app.service.clpr.impl;
 
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_NUMS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.INDEXED_CHANNELS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -29,7 +29,7 @@ public class ReadableChannelStoreImpl implements ReadableChannelStore {
     /** The underlying data storage class that holds channel data. */
     private final ReadableKVState<ProtoBytes, ClprChannel> channelState;
 
-    /** The states holding the channel index and its entries, which are only looked up when they are used. */
+    /** The states holding the channel index and its maps, which are only looked up when they are used. */
     private final ReadableStates states;
 
     /**
@@ -58,12 +58,12 @@ public class ReadableChannelStoreImpl implements ReadableChannelStore {
     @Override
     @NonNull
     public List<Bytes> syncableChannelIds() {
-        // One lookup per sequence number ever issued; those of Channels that stopped being syncable are gaps
-        final long lastSequenceNumber = lastSequenceNumber();
+        // One lookup per index number ever issued; those of Channels that stopped being syncable are gaps
+        final long lastIndexNum = lastIndexNum();
         final var channelIds = new ArrayList<Bytes>();
-        final ReadableKVState<ProtoLong, ProtoBytes> entries = channelIndexEntriesState();
-        for (long sequenceNumber = 1; sequenceNumber <= lastSequenceNumber; sequenceNumber++) {
-            final var channelId = entries.get(new ProtoLong(sequenceNumber));
+        final ReadableKVState<ProtoLong, ProtoBytes> indexedChannels = indexedChannelsState();
+        for (long indexNum = 1; indexNum <= lastIndexNum; indexNum++) {
+            final var channelId = indexedChannels.get(new ProtoLong(indexNum));
             if (channelId != null) {
                 channelIds.add(channelId.value());
             }
@@ -72,25 +72,25 @@ public class ReadableChannelStoreImpl implements ReadableChannelStore {
     }
 
     /**
-     * Returns the last sequence number issued to a syncable channel, or 0 if none.
+     * Returns the last index number issued to a syncable channel, or 0 if none.
      *
-     * @return the last sequence number issued
+     * @return the last index number issued
      */
-    protected long lastSequenceNumber() {
+    protected long lastIndexNum() {
         final var index = channelIndexState().get();
-        return index == null ? 0L : index.lastSequenceNumber();
+        return index == null ? 0L : index.lastIndexNum();
     }
 
     protected <T extends ReadableSingletonState<ClprChannelIndex>> T channelIndexState() {
         return (T) states.<ClprChannelIndex>getSingleton(CHANNEL_INDEX_STATE_ID);
     }
 
-    protected <T extends ReadableKVState<ProtoLong, ProtoBytes>> T channelIndexEntriesState() {
-        return (T) states.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID);
+    protected <T extends ReadableKVState<ProtoLong, ProtoBytes>> T indexedChannelsState() {
+        return (T) states.<ProtoLong, ProtoBytes>get(INDEXED_CHANNELS_STATE_ID);
     }
 
-    protected <T extends ReadableKVState<ProtoBytes, ProtoLong>> T channelIndexSequenceNumbersState() {
-        return (T) states.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_SEQUENCE_NUMBERS_STATE_ID);
+    protected <T extends ReadableKVState<ProtoBytes, ProtoLong>> T channelIndexNumsState() {
+        return (T) states.<ProtoBytes, ProtoLong>get(CHANNEL_INDEX_NUMS_STATE_ID);
     }
 
     protected <T extends ReadableKVState<ProtoBytes, ClprChannel>> T channelState() {

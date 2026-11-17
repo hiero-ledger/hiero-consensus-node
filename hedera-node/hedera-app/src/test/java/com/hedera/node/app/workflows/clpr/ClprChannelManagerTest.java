@@ -2,8 +2,8 @@
 package com.hedera.node.app.workflows.clpr;
 
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.INDEXED_CHANNELS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.awaitility.Awaitility.await;
@@ -537,21 +537,20 @@ class ClprChannelManagerTest {
     }
 
     /**
-     * Returns CLPR states whose channel index holds the given channels, in sequence order.
+     * Returns CLPR states whose channel index holds the given channels, in index order.
      */
     private static ReadableStates clprStatesIndexing(final Bytes... channelIds) {
-        final var entries = MapReadableKVState.<ProtoLong, ProtoBytes>builder(
-                CHANNEL_INDEX_ENTRIES_STATE_ID, "ClprService:CHANNEL_INDEX_ENTRIES");
+        final var indexedChannels = MapReadableKVState.<ProtoLong, ProtoBytes>builder(
+                INDEXED_CHANNELS_STATE_ID, "ClprService:INDEXED_CHANNELS");
         for (int i = 0; i < channelIds.length; i++) {
-            entries.value(new ProtoLong(i + 1), new ProtoBytes(channelIds[i]));
+            indexedChannels.value(new ProtoLong(i + 1), new ProtoBytes(channelIds[i]));
         }
-        final var index = ClprChannelIndex.newBuilder()
-                .lastSequenceNumber(channelIds.length)
-                .build();
+        final var index =
+                ClprChannelIndex.newBuilder().lastIndexNum(channelIds.length).build();
         return MapReadableStates.builder()
                 .state(MapReadableKVState.builder(CHANNELS_STATE_ID, "ClprService:CHANNELS")
                         .build())
-                .state(entries.build())
+                .state(indexedChannels.build())
                 .state(new FunctionReadableSingletonState<>(
                         CHANNEL_INDEX_STATE_ID, "ClprService:CHANNEL_INDEX", () -> index))
                 .build();

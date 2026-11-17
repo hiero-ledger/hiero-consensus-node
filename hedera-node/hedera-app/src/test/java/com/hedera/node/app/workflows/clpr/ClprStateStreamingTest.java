@@ -59,7 +59,7 @@ class ClprStateStreamingTest {
                 Arguments.of(
                         CHANNEL_INDEX_STATE_ID,
                         ClprChannelIndex.DEFAULT,
-                        ClprChannelIndex.newBuilder().lastSequenceNumber(2L).build()));
+                        ClprChannelIndex.newBuilder().lastIndexNum(2L).build()));
     }
 
     @ParameterizedTest

@@ -31,7 +31,7 @@ public interface ReadableChannelStore {
     /**
      * Gets the ids of every channel that is neither {@code PENDING} nor {@code CLOSED}, in the order they became
      * syncable. Unlike the channels themselves, which can only be looked up by id, this list can be read in full;
-     * e.g., by a node that starts and must find the channels to sync. Reading it takes one lookup per sequence number
+     * e.g., by a node that starts and must find the channels to sync. Reading it takes one lookup per index number
      * ever issued, including those of channels that are no longer syncable.
      *
      * @return the syncable channel ids
