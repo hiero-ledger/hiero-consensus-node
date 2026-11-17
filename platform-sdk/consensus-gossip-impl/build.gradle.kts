@@ -34,8 +34,8 @@ benchmarkTracking {
     // the recording of 28 nodes takes about 5 minutes per fork on a laptop; one parameter set is
     // enough for the smoke run
     smokeArgs = listOf("-p", "numNodes=10")
-    // the recording of 10 nodes keeps up to about 3 GB live
-    smokeJvmArgs = "-Xms6g -Xmx6g"
+    // the recording of 10 nodes keeps up to about 2 GB live
+    smokeJvmArgs = "-Xms4g -Xmx4g"
 }
 
 testModuleInfo {
