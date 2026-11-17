@@ -51,4 +51,18 @@ public class Ed25519Test {
 
         assertArrayEquals(SIGNATURE, signature);
     }
+
+    @Test
+    public void testSimpleSign() {
+        byte[] signature = Ed25519.sign(SEED, SECRET_KEY);
+
+        assertArrayEquals(SIGNATURE, signature);
+    }
+
+    @Test
+    public void testSignWithSeed() {
+        byte[] signature = Ed25519.signWithSeed(SEED, SEED);
+
+        assertArrayEquals(SIGNATURE, signature);
+    }
 }
