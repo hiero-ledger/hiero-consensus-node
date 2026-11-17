@@ -101,6 +101,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -762,6 +763,116 @@ class ClprSubmitBundleHandlerTest {
         assertThat(response.payload().messageReplyOrThrow().status())
                 .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
         assertThat(response.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+    }
+
+    @Nested
+    @DisplayName("reply size limit")
+    class ReplySizeLimit {
+
+        private static final int PEER_MAX_PAYLOAD_BYTES = 8;
+        // The channel starts with receivedMessageId 0, so the bundle's single data message has id 1
+        private static final long INBOUND_DATA_MESSAGE_ID = 1L;
+
+        @ParameterizedTest
+        @ValueSource(strings = {"SUCCESS", "CONTRACT_REVERT_EXECUTED"})
+        @DisplayName(
+                "given a reply over the peer's payload limit, then it is enqueued as APPLICATION_ERROR with no data")
+        void givenReplyOverPeerLimit_thenEnqueuedAsApplicationErrorWithNoData(final ResponseCodeEnum dispatchStatus) {
+            givenChannelWithPeerPayloadLimit(PEER_MAX_PAYLOAD_BYTES);
+            setupHandleContext(validSingleDataBundle(), true);
+            putConnector();
+            given(dispatchResult.status()).willReturn(dispatchStatus);
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[PEER_MAX_PAYLOAD_BYTES + 1]));
+
+            subject.handle(handleContext);
+
+            assertApplicationErrorResponse();
+        }
+
+        @Test
+        @DisplayName("given no peer throttles, when the reply exceeds the local payload limit, "
+                + "then it is enqueued as APPLICATION_ERROR with no data")
+        void givenNoPeerThrottles_whenReplyExceedsLocalLimit_thenEnqueuedAsApplicationErrorWithNoData() {
+            // Smallest local limit that still accepts the inbound data message, which is measured serialized
+            final int localMaxPayloadBytes = ClprMessagePayload.PROTOBUF.measureRecord(dataPayload());
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            setupHandleContext(validSingleDataBundle(), true, 100, localMaxPayloadBytes, 1_048_576L);
+            putConnector();
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[localMaxPayloadBytes + 1]));
+
+            subject.handle(handleContext);
+
+            assertApplicationErrorResponse();
+        }
+
+        @Test
+        @DisplayName("given a reply with size of the peer's payload limit then enqueue with SUCCESS")
+        void givenReplySerializedAtPeerLimit_thenEnqueuedWithSuccessAndData() {
+            final var replyData = Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8});
+            givenChannelWithPeerPayloadLimit(serializedReplySize(replyData));
+            setupHandleContext(validSingleDataBundle(), true);
+            putConnector();
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(replyData.toByteArray()));
+
+            subject.handle(handleContext);
+
+            final var reply = messageQueueStore.getMessage(CHANNEL_ID, 0);
+            assertThat(reply).isNotNull();
+            assertThat(reply.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+            assertThat(reply.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(replyData);
+        }
+
+        @Test
+        @DisplayName(
+                "given reply fits the peer's payload limit but framing exceeds it, then it enqueue as APPLICATION_ERROR")
+        void givenReplyDataAtPeerLimit_whenFramingExceedsIt_thenEnqueuedAsApplicationErrorWithNoData() {
+            givenChannelWithPeerPayloadLimit(PEER_MAX_PAYLOAD_BYTES);
+            setupHandleContext(validSingleDataBundle(), true);
+            putConnector();
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[PEER_MAX_PAYLOAD_BYTES]));
+
+            subject.handle(handleContext);
+
+            assertApplicationErrorResponse();
+        }
+
+        /**
+         * Serialized size of the SUCCESS reply the handler builds for the bundle's single data message.
+         */
+        private int serializedReplySize(@NonNull final Bytes replyData) {
+            return ClprMessagePayload.PROTOBUF.measureRecord(ClprMessagePayload.newBuilder()
+                    .messageReply(ClprMessageReply.newBuilder()
+                            .messageId(INBOUND_DATA_MESSAGE_ID)
+                            .status(ClprMessageReplyStatus.SUCCESS)
+                            .messageReplyData(replyData)
+                            .build())
+                    .build());
+        }
+
+        private void givenChannelWithPeerPayloadLimit(final int peerMaxPayloadBytes) {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            channelStore.put(channelStore
+                    .getChannel(CHANNEL_ID)
+                    .copyBuilder()
+                    .peerThrottles(peerThrottlesWithPayloadLimit(peerMaxPayloadBytes))
+                    .build());
+        }
+
+        private ClprThrottles peerThrottlesWithPayloadLimit(final int peerMaxPayloadBytes) {
+            return defaultTestThrottles()
+                    .copyBuilder()
+                    .maxMessagePayloadBytes(peerMaxPayloadBytes)
+                    .build();
+        }
+
+        private void assertApplicationErrorResponse() {
+            final var reply = messageQueueStore.getMessage(CHANNEL_ID, 0);
+            assertThat(reply).isNotNull();
+            assertThat(reply.payload()).isNotNull();
+            assertThat(reply.payload().messageReplyOrThrow().status())
+                    .isEqualTo(ClprMessageReplyStatus.APPLICATION_ERROR);
+            assertThat(reply.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(Bytes.EMPTY);
+        }
     }
 
     @Test

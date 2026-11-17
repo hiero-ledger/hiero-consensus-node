@@ -40,6 +40,7 @@ import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
 import com.hedera.node.app.service.clpr.impl.ClprServiceApiImpl;
 import com.hedera.node.app.service.clpr.impl.ClprSlashingUtils;
+import com.hedera.node.app.service.clpr.impl.ClprThrottlesUtils;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
@@ -58,14 +59,19 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.Map;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 
 /**
  * Handles {@link com.hedera.hapi.node.base.HederaFunctionality#CLPR_SUBMIT_BUNDLE} transactions.
@@ -79,6 +85,10 @@ import org.apache.logging.log4j.Logger;
 public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     private static final Logger log = LogManager.getLogger(ClprSubmitBundleHandler.class);
+
+    private static final Marker CLPR_MARKER = MarkerManager.getMarker("CLPR");
+
+    private static final Duration MESSAGE_WARN_LOG_PERIOD = Duration.ofMinutes(1);
 
     private static final Bytes ZERO_HASH = Bytes.wrap(new byte[32]);
 
@@ -102,6 +112,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     private final EntityIdFactory entityIdFactory;
     private final ClprChannelLifecycle channelLifecycle;
     private final ClprBundleValidator bundleValidator;
+    private final RateLimitedLogger oversizedReplyLog =
+            new RateLimitedLogger(log, Time.getCurrent(), MESSAGE_WARN_LOG_PERIOD);
 
     @Inject
     public ClprSubmitBundleHandler(
@@ -703,6 +715,33 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             if (unusedReimbursement > 0) {
                                 tokenServiceApi.transferFromTo(context.payer(), gasPayer, unusedReimbursement);
                             }
+                        }
+
+                        // The data returned by the CLPR application after processing a message is untrusted,
+                        // as the response payload is completely open. This way, we need to limit the size of it.
+                        // Without it, a reply is bounded only by the EVM memory the gas allows (megabytes), grows state
+                        // far beyond the data-message limit, and can exceed the peer's max_sync_bytes, wedging the
+                        // channel. Like a data message, the whole serialized reply payload is measured.
+                        final int maxReplyBytes = ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, throttles);
+                        final int replyBytes = ClprMessagePayload.PROTOBUF.measureRecord(
+                                OutboundQueue.replyPayload(receivedMessageId, replyStatus, responseData));
+                        if (replyBytes > maxReplyBytes) {
+                            oversizedReplyLog.warn(
+                                    CLPR_MARKER,
+                                    "[ClprSubmitBundle] DATA reply exceeds max_message_payload_bytes conn={} "
+                                            + "receivedMsgId={} target={} connectorId={} replyStatus={} "
+                                            + "responseDataLen={} replyBytes={} maxReplyBytes={}; replacing with "
+                                            + "APPLICATION_ERROR and empty payload",
+                                    channelId,
+                                    receivedMessageId,
+                                    appContractId,
+                                    dataMsg.connectorId(),
+                                    replyStatus,
+                                    responseData.length(),
+                                    replyBytes,
+                                    maxReplyBytes);
+                            responseData = Bytes.EMPTY;
+                            replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                         }
 
                         // OutboundQueue reads/writes channel state directly from the
@@ -1379,13 +1418,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     status,
                     data.length(),
                     shortHex(data));
-            enqueue(ClprMessagePayload.newBuilder()
+            enqueue(replyPayload(inboundMessageId, status, data));
+        }
+
+        /** Builds the payload of a reply to the given inbound message. */
+        static ClprMessagePayload replyPayload(
+                final long inboundMessageId, @NonNull final ClprMessageReplyStatus status, @NonNull final Bytes data) {
+            return ClprMessagePayload.newBuilder()
                     .messageReply(ClprMessageReply.newBuilder()
                             .messageId(inboundMessageId)
                             .status(status)
                             .messageReplyData(data)
                             .build())
-                    .build());
+                    .build();
         }
 
         long nextMessageId() {
