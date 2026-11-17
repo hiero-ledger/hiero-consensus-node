@@ -60,9 +60,11 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -70,6 +72,9 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.MarkerManager;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 
 /**
  * Handles {@link com.hedera.hapi.node.base.HederaFunctionality#CLPR_SUBMIT_BUNDLE} transactions.
@@ -83,6 +88,10 @@ import org.apache.logging.log4j.Logger;
 public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     private static final Logger log = LogManager.getLogger(ClprSubmitBundleHandler.class);
+
+    private static final Marker CLPR_MARKER = MarkerManager.getMarker("CLPR");
+
+    private static final Duration MESSAGE_WARN_LOG_PERIOD = Duration.ofMinutes(1);
 
     private static final Bytes ZERO_HASH = Bytes.wrap(new byte[32]);
 
@@ -106,6 +115,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     private final EntityIdFactory entityIdFactory;
     private final ClprChannelLifecycle channelLifecycle;
     private final ClprBundleValidator bundleValidator;
+    private final RateLimitedLogger oversizedReplyLog =
+            new RateLimitedLogger(log, Time.getCurrent(), MESSAGE_WARN_LOG_PERIOD);
 
     @Inject
     public ClprSubmitBundleHandler(
@@ -729,7 +740,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         final int replyBytes = ClprMessagePayload.PROTOBUF.measureRecord(
                                 OutboundQueue.replyPayload(receivedMessageId, replyStatus, responseData));
                         if (replyBytes > maxReplyBytes) {
-                            log.warn(
+                            oversizedReplyLog.warn(
+                                    CLPR_MARKER,
                                     "[ClprSubmitBundle] DATA reply exceeds max_message_payload_bytes conn={} "
                                             + "receivedMsgId={} target={} connectorId={} replyStatus={} "
                                             + "responseDataLen={} replyBytes={} maxReplyBytes={}; replacing with "

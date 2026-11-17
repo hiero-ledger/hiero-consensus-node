@@ -33,6 +33,8 @@ module com.hedera.node.app.service.clpr.impl {
     requires com.hedera.cryptography.hints;
     requires com.hedera.cryptography.libsodium;
     requires com.hedera.node.app.service.contract;
+    requires com.swirlds.base;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.roster;
     requires com.sun.jna;

@@ -767,6 +767,8 @@ class ClprSubmitBundleHandlerTest {
     class ReplySizeLimit {
 
         private static final int PEER_MAX_PAYLOAD_BYTES = 8;
+        // The channel starts with receivedMessageId 0, so the bundle's single data message has id 1
+        private static final long INBOUND_DATA_MESSAGE_ID = 1L;
 
         @ParameterizedTest
         @ValueSource(strings = {"SUCCESS", "CONTRACT_REVERT_EXECUTED"})
@@ -798,6 +800,50 @@ class ClprSubmitBundleHandlerTest {
             subject.handle(handleContext);
 
             assertApplicationErrorResponse();
+        }
+
+        @Test
+        @DisplayName("given a reply with size of the peer's payload limit then enqueue with SUCCESS")
+        void givenReplySerializedAtPeerLimit_thenEnqueuedWithSuccessAndData() {
+            final var replyData = Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8});
+            givenChannelWithPeerPayloadLimit(serializedReplySize(replyData));
+            setupHandleContext(validSingleDataBundle(), true);
+            putConnector();
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(replyData.toByteArray()));
+
+            subject.handle(handleContext);
+
+            final var reply = messageQueueStore.getMessage(CHANNEL_ID, 0);
+            assertThat(reply).isNotNull();
+            assertThat(reply.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+            assertThat(reply.payload().messageReplyOrThrow().messageReplyData()).isEqualTo(replyData);
+        }
+
+        @Test
+        @DisplayName(
+                "given reply fits the peer's payload limit but framing exceeds it, then it enqueue as APPLICATION_ERROR")
+        void givenReplyDataAtPeerLimit_whenFramingExceedsIt_thenEnqueuedAsApplicationErrorWithNoData() {
+            givenChannelWithPeerPayloadLimit(PEER_MAX_PAYLOAD_BYTES);
+            setupHandleContext(validSingleDataBundle(), true);
+            putConnector();
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[PEER_MAX_PAYLOAD_BYTES]));
+
+            subject.handle(handleContext);
+
+            assertApplicationErrorResponse();
+        }
+
+        /**
+         * Serialized size of the SUCCESS reply the handler builds for the bundle's single data message.
+         */
+        private int serializedReplySize(@NonNull final Bytes replyData) {
+            return ClprMessagePayload.PROTOBUF.measureRecord(ClprMessagePayload.newBuilder()
+                    .messageReply(ClprMessageReply.newBuilder()
+                            .messageId(INBOUND_DATA_MESSAGE_ID)
+                            .status(ClprMessageReplyStatus.SUCCESS)
+                            .messageReplyData(replyData)
+                            .build())
+                    .build());
         }
 
         private void givenChannelWithPeerPayloadLimit(final int peerMaxPayloadBytes) {
