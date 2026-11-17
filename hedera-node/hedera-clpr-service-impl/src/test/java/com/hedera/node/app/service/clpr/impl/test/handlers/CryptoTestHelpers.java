@@ -76,11 +76,7 @@ final class CryptoTestHelpers {
         final byte[] msgHash =
                 MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(msgPreimage)).toByteArray();
         try {
-            byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
-            byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
-            Ed25519.newKeypair(publicKey, secretKey, seed);
-
-            return Bytes.wrap(Ed25519.sign(msgHash, secretKey));
+            return Bytes.wrap(Ed25519.signWithSeed(msgHash, seed));
         } catch (final Exception e) {
             throw new IllegalStateException("Failed to sign with Ed25519", e);
         }
