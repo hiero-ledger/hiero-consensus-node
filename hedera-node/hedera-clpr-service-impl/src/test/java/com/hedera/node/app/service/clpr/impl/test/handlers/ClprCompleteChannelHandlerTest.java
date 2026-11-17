@@ -915,6 +915,42 @@ class ClprCompleteChannelHandlerTest {
                 .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
     }
 
+    @Test
+    void completeChannelAcceptsCantonBuiltInVerifier() {
+        final var cantonCid = ContractID.newBuilder().contractNum(0x172L).build();
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var op = validEcdsaTxn()
+                .clprCompleteChannelOrThrow()
+                .copyBuilder()
+                .verifierContract(cantonCid)
+                .build();
+        setupHandleContext(txnWith(op));
+
+        subject.handle(handleContext);
+
+        final var stored = channelStore.getChannel(CHANNEL_ID);
+        assertThat(stored).isNotNull();
+        assertThat(stored.verifierContract()).isEqualTo(cantonCid);
+        assertThat(stored.verifierFingerprint())
+                .isEqualTo(Bytes.fromHex("8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9"));
+        then(accountStore).shouldHaveNoInteractions();
+        then(smartContractServiceApi).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void builtInVerifierForReturnsEvmVerifierForPrecompileBuiltIns() {
+        for (long num : new long[] {0x16eL, 0x16fL, 0x170L, 0x171L}) {
+            var cid = ContractID.newBuilder().contractNum(num).build();
+            assertThat(ClprCompleteChannelHandler.builtInVerifierFor(cid)).isInstanceOf(EvmClprVerifier.class);
+        }
+    }
+
+    @Test
+    void builtInVerifierForReturnsNullForNonBuiltIn() {
+        var cid = ContractID.newBuilder().contractNum(0x999L).build();
+        assertThat(ClprCompleteChannelHandler.builtInVerifierFor(cid)).isNull();
+    }
+
     private void setupHandleContext(final TransactionBody txn) {
         setupHandleContext(txn, enabledConfig());
     }
@@ -1037,41 +1073,5 @@ class ClprCompleteChannelHandlerTest {
         LibSecp256k1.secp256k1_ecdsa_recoverable_signature_serialize_compact(
                 LibSecp256k1.CONTEXT, compactSigBuffer, recId, recoverableSig);
         return compactSigBuffer.array();
-    }
-
-    @Test
-    void completeChannelAcceptsCantonBuiltInVerifier() {
-        final var cantonCid = ContractID.newBuilder().contractNum(0x172L).build();
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var op = validEcdsaTxn()
-                .clprCompleteChannelOrThrow()
-                .copyBuilder()
-                .verifierContract(cantonCid)
-                .build();
-        setupHandleContext(txnWith(op));
-
-        subject.handle(handleContext);
-
-        final var stored = channelStore.getChannel(CHANNEL_ID);
-        assertThat(stored).isNotNull();
-        assertThat(stored.verifierContract()).isEqualTo(cantonCid);
-        assertThat(stored.verifierFingerprint())
-                .isEqualTo(Bytes.fromHex("8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9"));
-        then(accountStore).shouldHaveNoInteractions();
-        then(smartContractServiceApi).shouldHaveNoInteractions();
-    }
-
-    @Test
-    void builtInVerifierForReturnsEvmVerifierForPrecompileBuiltIns() {
-        for (long num : new long[] {0x16eL, 0x16fL, 0x170L, 0x171L}) {
-            var cid = ContractID.newBuilder().contractNum(num).build();
-            assertThat(ClprCompleteChannelHandler.builtInVerifierFor(cid)).isInstanceOf(EvmClprVerifier.class);
-        }
-    }
-
-    @Test
-    void builtInVerifierForReturnsNullForNonBuiltIn() {
-        var cid = ContractID.newBuilder().contractNum(0x999L).build();
-        assertThat(ClprCompleteChannelHandler.builtInVerifierFor(cid)).isNull();
     }
 }

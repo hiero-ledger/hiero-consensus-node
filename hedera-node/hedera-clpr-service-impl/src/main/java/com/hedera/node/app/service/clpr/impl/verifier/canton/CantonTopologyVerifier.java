@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
-import com.hedera.node.app.hapi.utils.CommonUtils;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
+
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
+import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonRlp.Slice;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
@@ -22,9 +24,9 @@ import java.util.Objects;
  * applied in order, each serial going up by exactly one from the one in the sets.
  *
  * <p>Unlike the Solidity reference, no {@code IEd25519Verifier} argument is threaded through: this port verifies
- * Ed25519 through {@link CantonTopology#signedBy}, which uses the static {@link com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify}.
+ * Ed25519 through {@link CantonTopology.Transaction#signedBy}, which uses the static {@link Ed25519Verify}.
  */
-public final class CantonTopologyVerifier {
+final class CantonTopologyVerifier {
 
     private CantonTopologyVerifier() {}
 
@@ -254,19 +256,14 @@ public final class CantonTopologyVerifier {
             }
         }
 
-        final byte[] newOwnerSet = CantonSets.encodeOwners(owners.toImmutable());
-        final byte[] newMediatorSet = CantonSets.encodeMediators(mediators.toImmutable());
-        final CantonAnchor.Anchor next = new CantonAnchor.Anchor(
-                anchor.synchronizerId(),
-                anchor.lastRequestId(),
-                anchor.mediatorGroup(),
-                anchor.synchronizerNamespace(),
+        final byte[] newOwnerSet = owners.toImmutable().encode();
+        final byte[] newMediatorSet = mediators.toImmutable().encode();
+        final CantonAnchor.Anchor next = anchor.withRotation(
                 MiscCryptoUtils.keccak256DigestOf(newOwnerSet),
                 MiscCryptoUtils.keccak256DigestOf(newMediatorSet),
                 lsu.successor,
                 lsu.upgradeTime,
-                lsu.serial,
-                anchor.app());
+                lsu.serial);
         return new RotationResult(next.encode(), newMediatorSet, newOwnerSet);
     }
 
@@ -280,7 +277,7 @@ public final class CantonTopologyVerifier {
         if (!CantonRlp.isEmpty(l.get(1))) {
             for (final Slice ks : CantonRlp.readList(l.get(1))) {
                 final CantonSets.Key key = CantonSets.decodeKey(CantonRlp.readBytes(ks));
-                if (!CantonSets.hasOwnFingerprint(key)) {
+                if (!key.hasOwnFingerprint()) {
                     throw CantonProofException.invalidSignerKey();
                 }
                 signerKeys.add(key);
@@ -308,7 +305,7 @@ public final class CantonTopologyVerifier {
     }
 
     private static boolean ownerSigned(final MOwner owner, final CantonTopology.Transaction t, final int code) {
-        if (CantonTopology.signedBy(t, owner.root)) {
+        if (t.signedBy(owner.root)) {
             return true;
         }
         return delegateSigned(owner.delegations, t, code);
@@ -317,7 +314,7 @@ public final class CantonTopologyVerifier {
     private static boolean delegateSigned(
             final List<MDelegation> delegations, final CantonTopology.Transaction t, final int code) {
         for (final MDelegation d : delegations) {
-            if (allows(d, code) && CantonTopology.signedBy(t, d.key)) {
+            if (allows(d, code) && t.signedBy(d.key)) {
                 return true;
             }
         }
@@ -346,7 +343,7 @@ public final class CantonTopologyVerifier {
     private static boolean rootSigned(final Rotation rot, final byte[] namespace) {
         for (final CantonSets.Key k : rot.signerKeys()) {
             if (Arrays.equals(k.fingerprint(), namespace)) {
-                return CantonTopology.signedBy(rot.tx(), k);
+                return rot.tx().signedBy(k);
             }
         }
         return false;
@@ -384,7 +381,7 @@ public final class CantonTopologyVerifier {
                 o = new MOwner();
                 o.namespace = member;
                 o.root = signerKey(rot, member);
-                if (!CantonTopology.signedBy(t, o.root)) {
+                if (!t.signedBy(o.root)) {
                     throw CantonProofException.topologyUnauthorized();
                 }
             }
@@ -431,7 +428,7 @@ public final class CantonTopologyVerifier {
         if (owner == null) {
             throw CantonProofException.invalidTopologyChange();
         }
-        if (!CantonTopology.signedBy(t, owner.root)) {
+        if (!t.signedBy(owner.root)) {
             throw CantonProofException.topologyUnauthorized();
         }
         applyDelegation(owner.delegations, t, nd);
@@ -514,7 +511,7 @@ public final class CantonTopologyVerifier {
             throw CantonProofException.rotationsNotSupported();
         }
         for (final CantonSets.Key k : otk.keys()) {
-            if (!holds(m.current, k.fingerprint()) && !CantonTopology.signedBy(t, k)) {
+            if (!holds(m.current, k.fingerprint()) && !t.signedBy(k)) {
                 throw CantonProofException.topologyUnauthorized();
             }
         }
@@ -687,11 +684,5 @@ public final class CantonTopologyVerifier {
             v = v * 10 + (c - 0x30);
         }
         return new Decimal(i > from, v, i);
-    }
-
-    // ── Primitives ───────────────────────────────────────────────────────────
-
-    private static byte[] sha256(final byte[] message) {
-        return CommonUtils.sha256DigestOrThrow().digest(message);
     }
 }

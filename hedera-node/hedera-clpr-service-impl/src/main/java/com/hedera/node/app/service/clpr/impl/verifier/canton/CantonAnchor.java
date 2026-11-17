@@ -41,6 +41,90 @@ public final class CantonAnchor {
             @NonNull String app) {
 
         /**
+         * The anchor a config descriptor declares: no request seen yet, no pending upgrade, and no app (the
+         * config opening supplies it).
+         */
+        @NonNull
+        public static Anchor initial(
+                @NonNull final String synchronizerId,
+                final int mediatorGroup,
+                @NonNull final byte[] synchronizerNamespace,
+                @NonNull final byte[] ownersHash,
+                @NonNull final byte[] mediatorsHash) {
+            return new Anchor(
+                    synchronizerId, 0, mediatorGroup, synchronizerNamespace, ownersHash, mediatorsHash, "", 0, 0, "");
+        }
+
+        /** This anchor with {@code app} as its app. */
+        @NonNull
+        public Anchor withApp(@NonNull final String newApp) {
+            return new Anchor(
+                    synchronizerId,
+                    lastRequestId,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    ownersHash,
+                    mediatorsHash,
+                    successorSynchronizerId,
+                    upgradeTime,
+                    lsuSerial,
+                    newApp);
+        }
+
+        /** This anchor with {@code requestId} as the last request id. */
+        @NonNull
+        public Anchor withLastRequestId(final long requestId) {
+            return new Anchor(
+                    synchronizerId,
+                    requestId,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    ownersHash,
+                    mediatorsHash,
+                    successorSynchronizerId,
+                    upgradeTime,
+                    lsuSerial,
+                    app);
+        }
+
+        /** This anchor with a rotated owner set, mediator set, and logical-synchronizer-upgrade announcement. */
+        @NonNull
+        public Anchor withRotation(
+                @NonNull final byte[] newOwnersHash,
+                @NonNull final byte[] newMediatorsHash,
+                @NonNull final String newSuccessorSynchronizerId,
+                final long newUpgradeTime,
+                final int newLsuSerial) {
+            return new Anchor(
+                    synchronizerId,
+                    lastRequestId,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    newOwnersHash,
+                    newMediatorsHash,
+                    newSuccessorSynchronizerId,
+                    newUpgradeTime,
+                    newLsuSerial,
+                    app);
+        }
+
+        /** This anchor once its announced successor synchronizer has taken over: no pending upgrade remains. */
+        @NonNull
+        public Anchor withSuccessorAsSynchronizer() {
+            return new Anchor(
+                    successorSynchronizerId,
+                    lastRequestId,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    ownersHash,
+                    mediatorsHash,
+                    "",
+                    0L,
+                    0,
+                    app);
+        }
+
+        /**
          * Decodes {@code abi.decode(trustAnchor, (string, uint64, uint32, bytes32, bytes32, bytes32, string, uint64,
          * uint32, string))}.
          */

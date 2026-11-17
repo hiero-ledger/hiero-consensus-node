@@ -7,10 +7,13 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Checks a Canton mediator verdict: a fresh approval of a transaction view on the expected synchronizer, signed by
- * a threshold of distinct members of the mediator set. Currently does not implement bundle rotations or LSU handling.
+ * a threshold of distinct members of the mediator set. A bundle's verdict is checked by {@link #verifyBundleVerdict},
+ * which first applies the bundle's topology rotations and completes a pending logical synchronizer upgrade (LSU).
  *
  * <p>Signatures are RLP {@code [[keyFingerprint(32), signature, delegation], …]} with every {@code delegation}
  * empty. Entries with an unknown fingerprint or a member already counted are skipped; a known key whose signature
@@ -21,6 +24,7 @@ import java.util.Objects;
  * verification must accept exactly what the reference accepts.
  */
 public final class CantonVerdictVerifier {
+    private static final Logger log = LogManager.getLogger(CantonVerdictVerifier.class);
 
     /** The verdict's request id and the root hash of the transaction it approves. */
     public record VerdictResult(long requestId, @NonNull byte[] rootHash) {}
@@ -106,19 +110,17 @@ public final class CantonVerdictVerifier {
         final CantonProto.Verdict v = CantonProto.parseVerdict(typedContent);
         final boolean upgraded = !anchor.successorSynchronizerId().isEmpty()
                 && Long.compareUnsigned(v.requestId(), anchor.upgradeTime()) > 0;
-        final CantonAnchor.Anchor effective = upgraded
-                ? new CantonAnchor.Anchor(
-                        anchor.successorSynchronizerId(),
-                        anchor.lastRequestId(),
-                        anchor.mediatorGroup(),
-                        anchor.synchronizerNamespace(),
-                        anchor.ownersHash(),
-                        anchor.mediatorsHash(),
-                        "",
-                        0L,
-                        0,
-                        anchor.app())
-                : anchor;
+        final CantonAnchor.Anchor effective = upgraded ? anchor.withSuccessorAsSynchronizer() : anchor;
+        if (changed) {
+            log.info("Canton trust anchor rotated by bundle topology rotations (request id {})", v.requestId());
+        }
+        if (upgraded) {
+            log.info(
+                    "Canton trust anchor upgraded from {} to {} (request id {})",
+                    anchor.synchronizerId(),
+                    effective.synchronizerId(),
+                    v.requestId());
+        }
         check(
                 typedContent,
                 v,
@@ -129,17 +131,7 @@ public final class CantonVerdictVerifier {
 
         byte[] newTrustAnchor = new byte[0];
         if (changed || upgraded) {
-            final CantonAnchor.Anchor next = new CantonAnchor.Anchor(
-                    effective.synchronizerId(),
-                    v.requestId(),
-                    effective.mediatorGroup(),
-                    effective.synchronizerNamespace(),
-                    effective.ownersHash(),
-                    effective.mediatorsHash(),
-                    effective.successorSynchronizerId(),
-                    effective.upgradeTime(),
-                    effective.lsuSerial(),
-                    effective.app());
+            final CantonAnchor.Anchor next = effective.withLastRequestId(v.requestId());
             newTrustAnchor = next.encode();
         }
         return new BundleVerdictResult(v.requestId(), v.rootHash(), effective, newTrustAnchor);

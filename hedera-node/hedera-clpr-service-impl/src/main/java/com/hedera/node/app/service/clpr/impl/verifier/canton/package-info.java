@@ -3,8 +3,8 @@
  * Java port of the Solidity {@code CantonVerifier}: a {@link com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier}
  * that checks a CLPR bundle was committed by the CLPR service on a Canton synchronizer.
  *
- * <p>The design is vendored at {@code docs/superpowers/specs/canton-verifier/canton-verifier.md}
- * (see also {@code canton-protobuf-inventory.md} and {@code solidity-reference/} alongside it).
+ * <p>The Solidity {@code CantonVerifier} and its supporting contracts are the reference; this port must match them
+ * byte for byte.
  *
  * <h2>What a bundle proof shows</h2>
  * Canton has no blocks and no state root, so each bundle is checked in two parts:

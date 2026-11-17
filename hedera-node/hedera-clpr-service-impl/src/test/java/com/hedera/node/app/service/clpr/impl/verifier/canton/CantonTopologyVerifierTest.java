@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.MEDIATOR1_DELEGATED;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.MEDIATOR1_KEY_2;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.MEDIATOR1_P256;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.MEDIATOR2_KEY;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.OWNER_DELEGATED_P256;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.SYNCHRONIZER_NAMESPACE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
@@ -27,8 +33,6 @@ class CantonTopologyVerifierTest {
     // Fixture constants from CantonTopologyFixtures.sol (pr-556).
     private static final String SYNCHRONIZER_ID =
             "probe::1220fe3624c1c2190638c3a9f88ec65abdb7b8a3908031d62dc2a0f65ed68c1e9922::35-0";
-    private static final byte[] SYNCHRONIZER_NAMESPACE =
-            HEX.parseHex("fe3624c1c2190638c3a9f88ec65abdb7b8a3908031d62dc2a0f65ed68c1e9922");
     private static final byte[] OWNER_SEQUENCER =
             HEX.parseHex("65971ff3bf94bdd46a9bab769b1c6e7e8e6a324031d3719586eb51c058e6d2a8");
     private static final byte[] OWNER_PARTICIPANT =
@@ -37,60 +41,8 @@ class CantonTopologyVerifierTest {
             HEX.parseHex("6e8899fea6adfe7b3965493fb60343bd44215fe4c695d02e6c8a761bd7bfa9bc");
     private static final byte[] MEDIATOR2 =
             HEX.parseHex("8e1a7f24091ce78a600a76759af67ac913bf3ff954e8eb8a166c5a1cb184892c");
-    private static final byte[] MEDIATOR1_KEY_2 =
-            HEX.parseHex("4318031c692a30b683240a94c7fea3bc3a439e64d1cbe4e1f2e9599ba2938dcc");
-    private static final byte[] MEDIATOR1_P256 =
-            HEX.parseHex("fe282f9c0c644fb7fd24f7029187d266a60edee684c0d2ad87cd34efcf4ba678");
-    private static final byte[] MEDIATOR1_DELEGATED =
-            HEX.parseHex("5191509ee4422119ae336fde0a17e775ea8540ee50c9a1f3904b04fbe42fa48b");
-    private static final byte[] MEDIATOR2_KEY =
-            HEX.parseHex("acc89538ec7fd9a5a0b31428b77ffdf69cea9c238b375531d8f5c18cbf45a16e");
-    private static final byte[] OWNER_DELEGATED_P256 =
-            HEX.parseHex("55f33859de079494a9ac84ad47db6a9e5bb911bee79131d29cd5b6faceff3d32");
 
     private static final String APP = "app::1220" + "ff".repeat(32);
-
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    private static byte[] anchor(
-            final String synchronizerId, final byte[] namespace, final byte[] ownerSet, final byte[] mediatorSet) {
-        return new CantonAnchor.Anchor(
-                        synchronizerId,
-                        1L,
-                        0,
-                        namespace,
-                        MiscCryptoUtils.keccak256DigestOf(ownerSet),
-                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
-                        "",
-                        0L,
-                        0,
-                        APP)
-                .encode();
-    }
-
-    private static byte[] bytesOf(final CantonRlp.Slice s) {
-        return Arrays.copyOfRange(s.buf(), s.off(), s.off() + s.len());
-    }
-
-    private static CantonSets.Member member(final CantonSets.Mediators m, final byte[] id) {
-        return m.members().stream()
-                .filter(x -> Arrays.equals(x.memberId(), id))
-                .findFirst()
-                .orElseThrow();
-    }
-
-    private static CantonSets.Owner owner(final CantonSets.Owners o, final byte[] ns) {
-        return o.owners().stream()
-                .filter(x -> Arrays.equals(x.namespace(), ns))
-                .findFirst()
-                .orElseThrow();
-    }
-
-    private static String errorOf(final org.assertj.core.api.ThrowableAssert.ThrowingCallable c) {
-        final var t = catchThrowable(c);
-        assertThat(t).isInstanceOf(CantonProofException.class);
-        return ((CantonProofException) t).errorName();
-    }
 
     // ── Real rotations ─────────────────────────────────────────────────────────
 
@@ -116,14 +68,14 @@ class CantonTopologyVerifierTest {
         assertThat(one.current().get(1).keySpec()).isEqualTo(CantonSets.SPEC_P256);
         assertThat(one.previous()).isEmpty();
         assertThat(one.delegations()).hasSize(1);
-        assertThat(one.delegations().get(0).key().fingerprint()).isEqualTo(MEDIATOR1_DELEGATED);
-        assertThat(one.delegations().get(0).restriction()).isEqualTo(2);
-        assertThat(one.delegations().get(0).mappings()).isEqualTo(1L << 4);
+        assertThat(one.delegations().getFirst().key().fingerprint()).isEqualTo(MEDIATOR1_DELEGATED);
+        assertThat(one.delegations().getFirst().restriction()).isEqualTo(2);
+        assertThat(one.delegations().getFirst().mappings()).isEqualTo(1L << 4);
 
         final CantonSets.Member two = member(m, MEDIATOR2);
         assertThat(two.otkSerial()).isEqualTo(1);
         assertThat(two.current()).hasSize(1);
-        assertThat(two.current().get(0).fingerprint()).isEqualTo(MEDIATOR2_KEY);
+        assertThat(two.current().getFirst().fingerprint()).isEqualTo(MEDIATOR2_KEY);
 
         final CantonSets.Owners o = CantonSets.decodeOwners(r.newOwnerSet());
         assertThat(o.serial()).isEqualTo(2);
@@ -131,8 +83,8 @@ class CantonTopologyVerifierTest {
         assertThat(o.owners()).hasSize(2);
         final CantonSets.Owner sequencer = owner(o, OWNER_SEQUENCER);
         assertThat(sequencer.delegations()).hasSize(1);
-        assertThat(sequencer.delegations().get(0).key().fingerprint()).isEqualTo(OWNER_DELEGATED_P256);
-        assertThat(sequencer.delegations().get(0).restriction()).isEqualTo(1);
+        assertThat(sequencer.delegations().getFirst().key().fingerprint()).isEqualTo(OWNER_DELEGATED_P256);
+        assertThat(sequencer.delegations().getFirst().restriction()).isEqualTo(1);
         assertThat(owner(o, OWNER_PARTICIPANT).namespace()).isEqualTo(OWNER_PARTICIPANT);
 
         final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(r.newAnchor());
@@ -260,5 +212,47 @@ class CantonTopologyVerifierTest {
     /** {@code RLP([ownerSet, RLP(encodedItems)])}; {@code encodedItems} are already-encoded rotation items. */
     private static byte[] rebuild(final byte[] ownerSet, final List<byte[]> encodedItems) {
         return Rlp.encodeList(List.of(Rlp.encodeBytes(ownerSet), Rlp.encodeList(encodedItems)));
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static byte[] anchor(
+            final String synchronizerId, final byte[] namespace, final byte[] ownerSet, final byte[] mediatorSet) {
+        return new CantonAnchor.Anchor(
+                        synchronizerId,
+                        1L,
+                        0,
+                        namespace,
+                        MiscCryptoUtils.keccak256DigestOf(ownerSet),
+                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
+                        "",
+                        0L,
+                        0,
+                        APP)
+                .encode();
+    }
+
+    private static byte[] bytesOf(final CantonRlp.Slice s) {
+        return Arrays.copyOfRange(s.buf(), s.off(), s.off() + s.len());
+    }
+
+    private static CantonSets.Member member(final CantonSets.Mediators m, final byte[] id) {
+        return m.members().stream()
+                .filter(x -> Arrays.equals(x.memberId(), id))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static CantonSets.Owner owner(final CantonSets.Owners o, final byte[] ns) {
+        return o.owners().stream()
+                .filter(x -> Arrays.equals(x.namespace(), ns))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static String errorOf(final org.assertj.core.api.ThrowableAssert.ThrowingCallable c) {
+        final var t = catchThrowable(c);
+        assertThat(t).isInstanceOf(CantonProofException.class);
+        return ((CantonProofException) t).errorName();
     }
 }

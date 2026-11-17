@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.concat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.u32;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.word;
+
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.Secp256k1Recovery;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -244,37 +247,6 @@ public final class CantonMediators {
             return Secp256k1Recovery.recoverAddress(digest32, r, s, recId);
         } catch (final RuntimeException e) {
             return null;
-        }
-    }
-
-    /** The unsigned 32-bit big-endian value at {@code off} (the reference's {@code _u32}). */
-    private static long u32(@NonNull final byte[] b, final int off) {
-        return ((long) (Byte.toUnsignedInt(b[off])) << 24)
-                | ((long) Byte.toUnsignedInt(b[off + 1]) << 16)
-                | ((long) Byte.toUnsignedInt(b[off + 2]) << 8)
-                | Byte.toUnsignedInt(b[off + 3]);
-    }
-
-    /** The 32 bytes at {@code off} (the reference's {@code _word}). */
-    @NonNull
-    private static byte[] word(@NonNull final byte[] b, final int off) {
-        return Arrays.copyOfRange(b, off, off + 32);
-    }
-
-    @NonNull
-    private static byte[] concat(@NonNull final byte[] a, @NonNull final byte[] b) {
-        final byte[] out = new byte[a.length + b.length];
-        System.arraycopy(a, 0, out, 0, a.length);
-        System.arraycopy(b, 0, out, a.length, b.length);
-        return out;
-    }
-
-    @NonNull
-    private static byte[] sha256(@NonNull final byte[] message) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(message);
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
 }

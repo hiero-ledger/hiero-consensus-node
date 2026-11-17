@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.be32;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.concat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
+
 import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Field;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Range;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Varint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -24,7 +26,7 @@ import java.util.Objects;
  * and {@code transaction} is {@code UntypedVersionedMessage{1: TopologyTransaction{1: operation, 2: serial,
  * 3: TopologyMapping}, 2: 30}}. Its hash is {@code SHA256(BE32(11) ‖ transaction)}, as received.
  */
-public final class CantonTopology {
+final class CantonTopology {
 
     static final long VERSION_V30 = 30;
     public static final long OP_ADD_REPLACE = 1;
@@ -74,7 +76,32 @@ public final class CantonTopology {
             long mappingKind,
             @NonNull byte[] body,
             @NonNull byte[] hash,
-            @NonNull List<Signature> signatures) {}
+            @NonNull List<Signature> signatures) {
+
+        /**
+         * Whether {@code key} signed this transaction. A signature that names {@code key} and does not verify
+         * throws {@code InvalidTopologySignature}. Mirrors the reference {@code signedBy}.
+         *
+         * <p>Unlike the Solidity reference, no {@code IEd25519Verifier} argument is needed: this port verifies
+         * Ed25519 through the static {@link Ed25519Verify}, as {@link CantonMediators#verify} does.
+         */
+        public boolean signedBy(@NonNull final CantonSets.Key key) {
+            Objects.requireNonNull(key, "key");
+            for (final Signature s : signatures) {
+                if (!Arrays.equals(s.fingerprint(), key.fingerprint())) {
+                    continue;
+                }
+                final CantonMediators.SignerKey k =
+                        new CantonMediators.SignerKey(true, 0, key.keySpec(), key.x(), key.y());
+                final byte[] message = concat(MULTIHASH_PREFIX, s.hash());
+                if (!CantonMediators.verify(k, message, s.signature())) {
+                    throw CantonProofException.invalidTopologySignature();
+                }
+                return true;
+            }
+            return false;
+        }
+    }
 
     /** A parsed {@code LsuAnnouncement}: the successor physical synchronizer id and the upgrade time (micros). */
     public record LsuAnnouncement(@NonNull byte[] successor, long upgradeTime) {}
@@ -137,30 +164,6 @@ public final class CantonTopology {
         return new Transaction(operation, serial, mappingKind, body, hash, signatures);
     }
 
-    /**
-     * Whether {@code key} signed {@code t}. A signature that names {@code key} and does not verify throws
-     * {@code InvalidTopologySignature}. Mirrors the reference {@code signedBy}.
-     *
-     * <p>Unlike the Solidity reference, no {@code IEd25519Verifier} argument is needed: this port verifies
-     * Ed25519 through the static {@link Ed25519Verify}, as {@link CantonMediators#verify} does.
-     */
-    public static boolean signedBy(@NonNull final Transaction t, @NonNull final CantonSets.Key key) {
-        Objects.requireNonNull(t, "t");
-        Objects.requireNonNull(key, "key");
-        for (final Signature s : t.signatures()) {
-            if (!Arrays.equals(s.fingerprint(), key.fingerprint())) {
-                continue;
-            }
-            final CantonMediators.SignerKey k = new CantonMediators.SignerKey(true, 0, key.keySpec(), key.x(), key.y());
-            final byte[] message = concat(MULTIHASH_PREFIX, s.hash());
-            if (!CantonMediators.verify(k, message, s.signature())) {
-                throw CantonProofException.invalidTopologySignature();
-            }
-            return true;
-        }
-        return false;
-    }
-
     private static List<Signature> signatures(final byte[] signed, final List<Range> items, final byte[] hash) {
         final List<Signature> out = new ArrayList<>();
         for (final Range item : items) {
@@ -208,11 +211,11 @@ public final class CantonTopology {
         if (!covers) {
             throw CantonProofException.cantonProtoMalformed("multi-transaction hashes do not cover this transaction");
         }
-        final CantonBuf buf = new CantonBuf();
-        buf.be32(PURPOSE_MULTI_TOPOLOGY_TRANSACTION);
-        buf.be32(sorted.size());
+        final CantonBytes.Writer buf = new CantonBytes.Writer();
+        buf.u32(PURPOSE_MULTI_TOPOLOGY_TRANSACTION);
+        buf.u32(sorted.size());
         for (final byte[] h : sorted) {
-            buf.be32(34);
+            buf.u32(34);
             buf.bytes(MULTIHASH_PREFIX);
             buf.bytes(h);
         }
@@ -472,54 +475,5 @@ public final class CantonTopology {
 
     private static BigInteger unsigned(final long v) {
         return new BigInteger(Long.toUnsignedString(v));
-    }
-
-    private static byte[] be32(final int v) {
-        return new byte[] {(byte) (v >>> 24), (byte) (v >>> 16), (byte) (v >>> 8), (byte) v};
-    }
-
-    private static byte[] concat(final byte[] a, final byte[] b) {
-        final byte[] out = new byte[a.length + b.length];
-        System.arraycopy(a, 0, out, 0, a.length);
-        System.arraycopy(b, 0, out, a.length, b.length);
-        return out;
-    }
-
-    private static byte[] sha256(final byte[] message) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(message);
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
-    }
-
-    /** A minimal growable big-endian byte writer. */
-    private static final class CantonBuf {
-        private byte[] buf = new byte[64];
-        private int len = 0;
-
-        private void ensure(final int extra) {
-            if (len + extra > buf.length) {
-                buf = Arrays.copyOf(buf, Math.max(buf.length * 2, len + extra));
-            }
-        }
-
-        void be32(final int v) {
-            ensure(4);
-            buf[len++] = (byte) (v >>> 24);
-            buf[len++] = (byte) (v >>> 16);
-            buf[len++] = (byte) (v >>> 8);
-            buf[len++] = (byte) v;
-        }
-
-        void bytes(final byte[] b) {
-            ensure(b.length);
-            System.arraycopy(b, 0, buf, len, b.length);
-            len += b.length;
-        }
-
-        byte[] toBytes() {
-            return Arrays.copyOf(buf, len);
-        }
     }
 }

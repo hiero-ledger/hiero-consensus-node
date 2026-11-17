@@ -13,13 +13,28 @@ import java.util.HexFormat;
  */
 public final class CantonFixtures {
     private static final String BASE = "/canton/fixtures/";
+    private static final HexFormat HEX = HexFormat.of();
+
+    // Fixture constants from reference implementation, shared by the topology tests.
+    public static final byte[] SYNCHRONIZER_NAMESPACE =
+            HEX.parseHex("fe3624c1c2190638c3a9f88ec65abdb7b8a3908031d62dc2a0f65ed68c1e9922");
+    public static final byte[] MEDIATOR1_KEY_2 =
+            HEX.parseHex("4318031c692a30b683240a94c7fea3bc3a439e64d1cbe4e1f2e9599ba2938dcc");
+    public static final byte[] MEDIATOR1_P256 =
+            HEX.parseHex("fe282f9c0c644fb7fd24f7029187d266a60edee684c0d2ad87cd34efcf4ba678");
+    public static final byte[] MEDIATOR1_DELEGATED =
+            HEX.parseHex("5191509ee4422119ae336fde0a17e775ea8540ee50c9a1f3904b04fbe42fa48b");
+    public static final byte[] MEDIATOR2_KEY =
+            HEX.parseHex("acc89538ec7fd9a5a0b31428b77ffdf69cea9c238b375531d8f5c18cbf45a16e");
+    public static final byte[] OWNER_DELEGATED_P256 =
+            HEX.parseHex("55f33859de079494a9ac84ad47db6a9e5bb911bee79131d29cd5b6faceff3d32");
 
     private CantonFixtures() {}
 
     /** Loads {@code <name>.hex} as bytes. */
     @NonNull
     public static byte[] load(@NonNull final String name) {
-        return HexFormat.of().parseHex(text(name + ".hex").strip());
+        return HEX.parseHex(text(name + ".hex").strip());
     }
 
     /** Loads an arbitrary text resource under the fixtures directory (e.g. a JSON file). */

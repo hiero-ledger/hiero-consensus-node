@@ -119,8 +119,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
             new BuiltInVerifier("Sei CometBFT (0x170)", builtInFingerprint("sei-cometbft"), EvmClprVerifier::new);
     private static final BuiltInVerifier ETHEREUM_VERIFIER = new BuiltInVerifier(
             "Ethereum sync committee (0x171)", builtInFingerprint("ethereum-sync-committee"), EvmClprVerifier::new);
+    /** The Canton verifier is stateless, so one instance serves every call. */
+    private static final CantonProofVerifier CANTON_PROOF_VERIFIER = new CantonProofVerifier();
+
     private static final BuiltInVerifier CANTON_VERIFIER =
-            new BuiltInVerifier("Canton (0x172)", builtInFingerprint("canton"), cid -> new CantonProofVerifier());
+            new BuiltInVerifier("Canton (0x172)", builtInFingerprint("canton"), cid -> CANTON_PROOF_VERIFIER);
 
     private static final Map<Long, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_NUM = Map.of(
             CLPR_SERVICE_ACCOUNT_NUM, HIERO_TSS_VERIFIER,
@@ -256,7 +259,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                         shortHex(op.channelId()),
                         op.verifierContractOrThrow(),
                         verifierAccount != null,
-                        verifierAccount != null && verifierAccount.smartContract());
+                        verifierAccount.smartContract());
                 throw new HandleException(CLPR_INVALID_VERIFIER_CONTRACT);
             }
         }

@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.concat;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
@@ -39,8 +40,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Canton proof verification. This class currently holds the Merkle opening ({@code _openTree} of the Solidity
- * reference implementation.
+ * Canton proof verification: the config proof ({@code verifyConfig}) and the bundle proof ({@code verifyBundle}) of
+ * the Solidity reference implementation, including the Merkle opening ({@code _openTree}).
  *
  * <p><b>Opening.</b> {@code opening = RLP[submitterMetadataHash, commonMetadata, participantMetadataHash, view,
  * path]}, where a leaf is RLP {@code [salt, bytes]}, the view RLP {@code [viewCommonData, viewParticipantData]}
@@ -61,6 +62,35 @@ public final class CantonProofVerifier implements ClprVerifier {
     private static final int FIRST_AUTHORIZATION_ITEM = 4;
 
     private static final int DESCRIPTOR_FIELDS = 10;
+    private static final int DESCRIPTOR_SYNCHRONIZER_ID_INDEX = 0;
+    private static final int DESCRIPTOR_MEDIATOR_GROUP_INDEX = 1;
+    private static final int DESCRIPTOR_OWNER_SET_INDEX = 2;
+    private static final int DESCRIPTOR_MEDIATOR_SET_INDEX = 3;
+
+    private static final int CONFIG_SERVICE_ADDRESS_INDEX = 0;
+    private static final int CONFIG_CHAIN_ID_INDEX = 1;
+    private static final int CONFIG_NANOS_INDEX = 2;
+    private static final int CONFIG_THROTTLES_INDEX = 3;
+    private static final int CONFIG_DESCRIPTOR_INDEX = 4;
+    private static final int CONFIG_VERDICT_INDEX = 5;
+    private static final int CONFIG_OPENING_INDEX = 6;
+
+    /** A config opening is {@code [opening, createdIndex]}. */
+    private static final int CONFIG_OPENING_FIELDS = 2;
+
+    private static final int CONFIG_OPENING_TREE_INDEX = 0;
+    private static final int CONFIG_OPENING_CREATED_INDEX = 1;
+
+    private static final int MANIFEST_VERDICT_INDEX = 0;
+    private static final int MANIFEST_OPENING_INDEX = 1;
+    private static final int MANIFEST_CREATED_INDEX = 2;
+    private static final int MANIFEST_PREIMAGE_INDEX = 3;
+
+    /** A verdict is {@code [typedContent, signatures]}. */
+    private static final int VERDICT_FIELDS = 2;
+
+    private static final int VERDICT_TYPED_CONTENT_INDEX = 0;
+    private static final int VERDICT_SIGNATURES_INDEX = 1;
 
     /** Manifest proof: {@code [verdict, opening, createdIndex, manifestPreimage]}. */
     private static final int MANIFEST_PROOF_FIELDS = 4;
@@ -150,7 +180,7 @@ public final class CantonProofVerifier implements ClprVerifier {
     // ── ClprVerifier ───────────────────────────────────────────────────────
 
     /**
-     * Not yet implemented.
+     * {@inheritDoc}
      *
      * <p>Runs {@link #verifyConfig(byte[], byte[], byte[], byte[])} with this ledger's chain id, which the reference
      * reads from the calling {@code ClprService}'s {@code getLedgerConfiguration}; any verification failure is a
@@ -177,7 +207,7 @@ public final class CantonProofVerifier implements ClprVerifier {
                         .chainId()
                         .getBytes(StandardCharsets.UTF_8);
             } catch (final RuntimeException e) {
-                throw CantonProofException.serviceCallFailed("ledger configuration unavailable: " + e.getMessage());
+                throw withCause(CantonProofException.serviceCallFailed("ledger configuration unavailable"), e);
             }
             return verifyConfig(
                     configProofBytes.toByteArray(),
@@ -186,6 +216,7 @@ public final class CantonProofVerifier implements ClprVerifier {
                     localChainId);
         } catch (final RuntimeException e) {
             // The reference reverts on any malformed input; so does this.
+            log.error("Canton config verification failed", e);
             throw new HandleException(CLPR_VERIFIER_CONFIG_FAILED);
         }
     }
@@ -227,29 +258,31 @@ public final class CantonProofVerifier implements ClprVerifier {
             throw CantonProofException.invalidPayloadShape("channel id is not 32 bytes");
         }
 
-        final byte[] serviceAddress = CantonRlp.readBytes(fields.get(0));
+        final byte[] serviceAddress = CantonRlp.readBytes(fields.get(CONFIG_SERVICE_ADDRESS_INDEX));
         final Service service = decodeService(concat(channelId, serviceAddress));
-        final byte[] chainId = CantonRlp.readBytes(fields.get(1));
+        final byte[] chainId = CantonRlp.readBytes(fields.get(CONFIG_CHAIN_ID_INDEX));
         validateChainId(chainId);
-        final BigInteger[] config = readConfig(fields.get(2), fields.get(3));
+        final BigInteger[] config = readConfig(fields.get(CONFIG_NANOS_INDEX), fields.get(CONFIG_THROTTLES_INDEX));
 
-        final Descriptor descriptor = readDescriptor(fields.get(4));
+        final Descriptor descriptor = readDescriptor(fields.get(CONFIG_DESCRIPTOR_INDEX));
         final CantonAnchor.Anchor declared = descriptor.anchor();
         final byte[] mediatorSet = descriptor.mediatorSet();
-        final CantonVerdictVerifier.VerdictResult verdict = verifyVerdict(fields.get(5), declared, mediatorSet);
-        final List<Slice> opening = CantonRlp.readList(fields.get(6));
-        if (opening.size() != 2) {
+        final CantonVerdictVerifier.VerdictResult verdict =
+                verifyVerdict(fields.get(CONFIG_VERDICT_INDEX), declared, mediatorSet);
+        final List<Slice> opening = CantonRlp.readList(fields.get(CONFIG_OPENING_INDEX));
+        if (opening.size() != CONFIG_OPENING_FIELDS) {
             throw CantonProofException.invalidPayloadShape("config opening has " + opening.size() + " items");
         }
         final ChannelConfig channelConfig = readChannelConfig(
-                opening.get(0),
-                createdIndex(opening.get(1)),
+                opening.get(CONFIG_OPENING_TREE_INDEX),
+                createdIndex(opening.get(CONFIG_OPENING_CREATED_INDEX)),
                 declared,
                 verdict.rootHash(),
                 service,
                 localChainId,
                 config);
-        final CantonAnchor.Anchor anchor = withApp(declared, channelConfig.app());
+        final CantonAnchor.Anchor anchor = declared.withApp(
+                strictUtf8(channelConfig.app(), () -> CantonProofException.wrongContract("app is not valid UTF-8")));
 
         ClprEndpointManifest manifest = ClprEndpointManifest.newBuilder()
                 .serviceAddress(Bytes.wrap(serviceAddress))
@@ -257,7 +290,7 @@ public final class CantonProofVerifier implements ClprVerifier {
         if (endpointManifestProofBytes.length != 0) {
             manifest = verifyConfigManifest(endpointManifestProofBytes, anchor, mediatorSet, service, localChainId);
         }
-        final CantonAnchor.Anchor initial = withLastRequestId(anchor, verdict.requestId());
+        final CantonAnchor.Anchor initial = anchor.withLastRequestId(verdict.requestId());
 
         final long nanos = config[0].longValue();
         final ClprLedgerConfiguration ledgerConfig = ClprLedgerConfiguration.newBuilder()
@@ -294,27 +327,24 @@ public final class CantonProofVerifier implements ClprVerifier {
             }
         }
         final String synchronizerId = strictUtf8(
-                CantonRlp.readBytes(d.get(0)), () -> CantonProofException.invalidSynchronizerId("not valid UTF-8"));
+                CantonRlp.readBytes(d.get(DESCRIPTOR_SYNCHRONIZER_ID_INDEX)),
+                () -> CantonProofException.invalidSynchronizerId("not valid UTF-8"));
         final byte[] namespace = synchronizerNamespace(synchronizerId.getBytes(StandardCharsets.UTF_8));
-        final BigInteger group = uint256(d.get(1));
+        final BigInteger group = uint256(d.get(DESCRIPTOR_MEDIATOR_GROUP_INDEX));
         if (group.bitLength() > 32) {
             throw CantonProofException.invalidConfig("mediator group exceeds 32 bits");
         }
-        final byte[] ownersHash = MiscCryptoUtils.keccak256DigestOf(CantonRlp.readBytes(d.get(2)));
+        final byte[] ownersHash =
+                MiscCryptoUtils.keccak256DigestOf(CantonRlp.readBytes(d.get(DESCRIPTOR_OWNER_SET_INDEX)));
         // The set layout is validated by the verdict check that follows.
-        final byte[] mediatorSet = CantonRlp.readBytes(d.get(3));
+        final byte[] mediatorSet = CantonRlp.readBytes(d.get(DESCRIPTOR_MEDIATOR_SET_INDEX));
         return new Descriptor(
-                new CantonAnchor.Anchor(
+                CantonAnchor.Anchor.initial(
                         synchronizerId,
-                        0,
                         group.intValue(),
                         namespace,
                         ownersHash,
-                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
-                        "",
-                        0,
-                        0,
-                        ""),
+                        MiscCryptoUtils.keccak256DigestOf(mediatorSet)),
                 mediatorSet);
     }
 
@@ -414,25 +444,35 @@ public final class CantonProofVerifier implements ClprVerifier {
         if (f.size() != MANIFEST_PROOF_FIELDS) {
             throw CantonProofException.invalidPayloadShape("manifest proof has " + f.size() + " items");
         }
-        final CantonVerdictVerifier.VerdictResult verdict = verifyVerdict(f.get(0), anchor, mediatorSet);
+        final CantonVerdictVerifier.VerdictResult verdict =
+                verifyVerdict(f.get(MANIFEST_VERDICT_INDEX), anchor, mediatorSet);
         final ChannelConfig channelConfig = readChannelConfig(
-                f.get(1), createdIndex(f.get(2)), anchor, verdict.rootHash(), service, localChainId, new BigInteger[0]);
+                f.get(MANIFEST_OPENING_INDEX),
+                createdIndex(f.get(MANIFEST_CREATED_INDEX)),
+                anchor,
+                verdict.rootHash(),
+                service,
+                localChainId,
+                new BigInteger[0]);
         if (!Arrays.equals(channelConfig.app(), anchor.app().getBytes(StandardCharsets.UTF_8))) {
             throw CantonProofException.wrongContract("manifest's app is not the config's app");
         }
-        return decodeManifest(CantonRlp.readBytes(f.get(3)), channelConfig.manifestHash(), service.serviceAddress());
+        return decodeManifest(
+                CantonRlp.readBytes(f.get(MANIFEST_PREIMAGE_INDEX)),
+                channelConfig.manifestHash(),
+                service.serviceAddress());
     }
 
     /** {@code verdictItem} = RLP {@code [typedContent, signatures]}. */
     private static CantonVerdictVerifier.VerdictResult verifyVerdict(
             final Slice verdictItem, final CantonAnchor.Anchor anchor, final byte[] mediatorSet) {
         final List<Slice> item = CantonRlp.readList(verdictItem);
-        if (item.size() != 2) {
+        if (item.size() != VERDICT_FIELDS) {
             throw CantonProofException.invalidPayloadShape("verdict has " + item.size() + " items");
         }
         return CantonVerdictVerifier.verifyVerdict(
-                CantonRlp.readBytes(item.get(0)),
-                bytesOf(item.get(1)),
+                CantonRlp.readBytes(item.get(VERDICT_TYPED_CONTENT_INDEX)),
+                bytesOf(item.get(VERDICT_SIGNATURES_INDEX)),
                 mediatorSet,
                 anchor.synchronizerId().getBytes(StandardCharsets.UTF_8),
                 anchor.lastRequestId());
@@ -543,48 +583,6 @@ public final class CantonProofVerifier implements ClprVerifier {
         }
     }
 
-    private static CantonAnchor.Anchor withApp(final CantonAnchor.Anchor a, final byte[] app) {
-        return new CantonAnchor.Anchor(
-                a.synchronizerId(),
-                a.lastRequestId(),
-                a.mediatorGroup(),
-                a.synchronizerNamespace(),
-                a.ownersHash(),
-                a.mediatorsHash(),
-                a.successorSynchronizerId(),
-                a.upgradeTime(),
-                a.lsuSerial(),
-                strictUtf8(app, () -> CantonProofException.wrongContract("app is not valid UTF-8")));
-    }
-
-    private static CantonAnchor.Anchor withLastRequestId(final CantonAnchor.Anchor a, final long requestId) {
-        return new CantonAnchor.Anchor(
-                a.synchronizerId(),
-                requestId,
-                a.mediatorGroup(),
-                a.synchronizerNamespace(),
-                a.ownersHash(),
-                a.mediatorsHash(),
-                a.successorSynchronizerId(),
-                a.upgradeTime(),
-                a.lsuSerial(),
-                a.app());
-    }
-
-    private static byte[] concat(final byte[]... parts) {
-        int n = 0;
-        for (final byte[] p : parts) {
-            n += p.length;
-        }
-        final byte[] out = new byte[n];
-        int at = 0;
-        for (final byte[] p : parts) {
-            System.arraycopy(p, 0, out, at, p.length);
-            at += p.length;
-        }
-        return out;
-    }
-
     /**
      * {@inheritDoc}
      *
@@ -611,7 +609,7 @@ public final class CantonProofVerifier implements ClprVerifier {
                 queue = context.storeFactory().readableStore(ReadableMessageQueueStore.class);
             } catch (final RuntimeException e) {
                 log.error("Failed to get message queue store for outbound lookup", e);
-                throw CantonProofException.serviceCallFailed("message queue unavailable: " + e.getMessage());
+                throw withCause(CantonProofException.serviceCallFailed("message queue unavailable"), e);
             }
             final var stored = queue.getMessage(Bytes.wrap(channelId), messageId);
             return stored == null || !stored.hasPayload() ? null : stored.payload();
@@ -668,12 +666,12 @@ public final class CantonProofVerifier implements ClprVerifier {
         }
 
         final List<Slice> verdict = CantonRlp.readList(fields.get(BUNDLE_VERDICT_INDEX));
-        if (verdict.size() != 2) {
+        if (verdict.size() != VERDICT_FIELDS) {
             throw CantonProofException.invalidPayloadShape("verdict has " + verdict.size() + " items");
         }
         final CantonVerdictVerifier.BundleVerdictResult bv = CantonVerdictVerifier.verifyBundleVerdict(
-                CantonRlp.readBytes(verdict.get(0)),
-                bytesOf(verdict.get(1)),
+                CantonRlp.readBytes(verdict.get(VERDICT_TYPED_CONTENT_INDEX)),
+                bytesOf(verdict.get(VERDICT_SIGNATURES_INDEX)),
                 mediatorSet,
                 trustAnchor,
                 bytesOf(fields.get(BUNDLE_ROTATIONS_INDEX)));
@@ -716,6 +714,12 @@ public final class CantonProofVerifier implements ClprVerifier {
     private static int createdIndex(final Slice item) {
         final BigInteger v = new BigInteger(1, CantonRlp.readBytes32(item));
         return v.bitLength() > 30 ? Integer.MAX_VALUE : v.intValue();
+    }
+
+    /** {@code e} with {@code cause} attached, so the original stack trace is not lost. */
+    private static CantonProofException withCause(final CantonProofException e, final Throwable cause) {
+        e.initCause(cause);
+        return e;
     }
 
     private static byte[] bytesOf(final Slice s) {

@@ -42,7 +42,7 @@ class CantonSetsTest {
         assertThat(o.serial()).isEqualTo(1L);
         assertThat(o.threshold()).isEqualTo(1L);
         assertThat(o.owners()).hasSize(1);
-        final CantonSets.Owner owner = o.owners().get(0);
+        final CantonSets.Owner owner = o.owners().getFirst();
         assertThat(owner.namespace()).isEqualTo(OWNER_SEQUENCER);
         // A root key's fingerprint must be its owner's namespace (enforced by decode).
         assertThat(owner.root().fingerprint()).isEqualTo(OWNER_SEQUENCER);
@@ -53,7 +53,7 @@ class CantonSetsTest {
     @Test
     void encodeOwnersRoundTripsTheRealOwnerSet() {
         final byte[] bytes = CantonFixtures.topologyOwnerSet();
-        assertThat(CantonSets.encodeOwners(CantonSets.decodeOwners(bytes))).isEqualTo(bytes);
+        assertThat(CantonSets.decodeOwners(bytes).encode()).isEqualTo(bytes);
     }
 
     @Test
@@ -62,7 +62,7 @@ class CantonSetsTest {
         assertThat(o.serial()).isEqualTo(1L);
         assertThat(o.threshold()).isEqualTo(1L);
         assertThat(o.owners()).hasSize(1);
-        assertThat(CantonSets.encodeOwners(o)).isEqualTo(CantonFixtures.lsuOwnerSet());
+        assertThat(o.encode()).isEqualTo(CantonFixtures.lsuOwnerSet());
     }
 
     // ── Mediator set ─────────────────────────────────────────────────────────
@@ -74,21 +74,20 @@ class CantonSetsTest {
         assertThat(m.serial()).isEqualTo(1L);
         assertThat(m.threshold()).isEqualTo(1L);
         assertThat(m.members()).hasSize(1);
-        final CantonSets.Member member = m.members().get(0);
+        final CantonSets.Member member = m.members().getFirst();
         assertThat(member.memberId()).isEqualTo(MEDIATOR1);
         assertThat(member.otkSerial()).isEqualTo(1L);
         assertThat(member.delegations()).isEmpty();
         assertThat(member.current()).hasSize(1);
         assertThat(member.previous()).isEmpty();
-        assertThat(member.current().get(0).fingerprint()).isEqualTo(MEDIATOR1_KEY_1);
-        assertThat(member.current().get(0).keySpec()).isEqualTo(CantonSets.SPEC_ED25519);
+        assertThat(member.current().getFirst().fingerprint()).isEqualTo(MEDIATOR1_KEY_1);
+        assertThat(member.current().getFirst().keySpec()).isEqualTo(CantonSets.SPEC_ED25519);
     }
 
     @Test
     void encodeMediatorsRoundTripsTheRealMediatorSet() {
         final byte[] bytes = CantonFixtures.topologyMediatorSet();
-        assertThat(CantonSets.encodeMediators(CantonSets.decodeMediators(bytes)))
-                .isEqualTo(bytes);
+        assertThat(CantonSets.decodeMediators(bytes).encode()).isEqualTo(bytes);
     }
 
     // ── Keys and fingerprints ────────────────────────────────────────────────
@@ -97,14 +96,14 @@ class CantonSetsTest {
     void decodeKeyAndEncodeKeyRoundTrip() {
         final CantonSets.Key key = CantonSets.decodeMediators(CantonFixtures.topologyMediatorSet())
                 .members()
-                .get(0)
+                .getFirst()
                 .current()
-                .get(0);
-        final byte[] encoded = CantonSets.encodeKey(key);
+                .getFirst();
+        final byte[] encoded = key.encode();
         assertThat(encoded).hasSize(98);
         // Key is a record over byte[] (identity equality), so compare the encoding and the fields.
         final CantonSets.Key decoded = CantonSets.decodeKey(encoded);
-        assertThat(CantonSets.encodeKey(decoded)).isEqualTo(encoded);
+        assertThat(decoded.encode()).isEqualTo(encoded);
         assertThat(decoded.fingerprint()).isEqualTo(key.fingerprint());
         assertThat(decoded.keySpec()).isEqualTo(key.keySpec());
         assertThat(decoded.fingerprintMode()).isEqualTo(key.fingerprintMode());
@@ -116,9 +115,9 @@ class CantonSetsTest {
     void keyFromDerRecomputesTheRealEd25519Fingerprint() {
         final CantonSets.Key key = CantonSets.decodeMediators(CantonFixtures.topologyMediatorSet())
                 .members()
-                .get(0)
+                .getFirst()
                 .current()
-                .get(0);
+                .getFirst();
         // Ed25519: the DER header plus the raw 32-byte key; fingerprint = SHA256(BE32(12) ‖ rawKey).
         final byte[] der = concat(CantonSets.DER_ED25519, key.x());
         final CantonSets.KeyFromDer parsed = CantonSets.keyFromDer(CantonSets.SPEC_ED25519, der);
@@ -146,16 +145,16 @@ class CantonSetsTest {
     void hasOwnFingerprintAcceptsTheRealKeyAndRejectsTampering() {
         final CantonSets.Key key = CantonSets.decodeMediators(CantonFixtures.topologyMediatorSet())
                 .members()
-                .get(0)
+                .getFirst()
                 .current()
-                .get(0);
-        assertThat(CantonSets.hasOwnFingerprint(key)).isTrue();
+                .getFirst();
+        assertThat(key.hasOwnFingerprint()).isTrue();
 
         final byte[] badFingerprint = key.fingerprint().clone();
         badFingerprint[0] ^= 0x01;
         final CantonSets.Key forged =
                 new CantonSets.Key(badFingerprint, key.keySpec(), key.fingerprintMode(), key.x(), key.y());
-        assertThat(CantonSets.hasOwnFingerprint(forged)).isFalse();
+        assertThat(forged.hasOwnFingerprint()).isFalse();
     }
 
     // ── Rejections (InvalidSet parity) ───────────────────────────────────────

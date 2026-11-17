@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.be32;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.concat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.u32;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.word;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,7 +30,7 @@ import java.util.Objects;
  * ({@code x ‖ y}). {@code fingerprintMode}: 0 over the raw key (Ed25519), 1 over the DER
  * {@code SubjectPublicKeyInfo}.
  */
-public final class CantonSets {
+final class CantonSets {
 
     /** Ed25519 key spec. */
     public static final int SPEC_ED25519 = 1;
@@ -59,7 +63,31 @@ public final class CantonSets {
             int keySpec,
             int fingerprintMode,
             @NonNull byte[] x,
-            @NonNull byte[] y) {}
+            @NonNull byte[] y) {
+
+        /** Encodes this key as {@code fingerprint ‖ keySpec ‖ fingerprintMode ‖ x ‖ y}. */
+        @NonNull
+        public byte[] encode() {
+            final CantonBytes.Writer out = new CantonBytes.Writer();
+            out.bytes(fingerprint);
+            out.u8(keySpec);
+            out.u8(fingerprintMode);
+            out.bytes(x);
+            out.bytes(y);
+            return out.toBytes();
+        }
+
+        /** Whether this key's fingerprint is the one Canton computes for its key. Mirrors {@code hasOwnFingerprint}. */
+        public boolean hasOwnFingerprint() {
+            final byte[] header = header(keySpec);
+            if (header.length == 0) {
+                return false;
+            }
+            final byte[] der = keySpec == SPEC_ED25519 ? concat(header, x) : concat(header, x, y);
+            final KeyFromDer computed = keyFromDer(keySpec, der);
+            return computed.ok() && Arrays.equals(computed.key().fingerprint(), fingerprint);
+        }
+    }
 
     /**
      * A namespace delegation. {@code restriction}: 0 all mappings, 1 all but {@code NamespaceDelegation},
@@ -75,7 +103,23 @@ public final class CantonSets {
 
     /** The decentralized-namespace owner set: serial, threshold, and the owners. */
     public record Owners(
-            long serial, long threshold, @NonNull List<Owner> owners) {}
+            long serial, long threshold, @NonNull List<Owner> owners) {
+
+        /** Encodes this owner set. Mirrors the reference {@code encodeOwners}. */
+        @NonNull
+        public byte[] encode() {
+            final CantonBytes.Writer out = new CantonBytes.Writer();
+            out.u32(serial);
+            out.u32(threshold);
+            out.u32(owners.size());
+            for (final Owner o : owners) {
+                out.bytes(o.namespace());
+                out.bytes(o.root().encode());
+                encodeDelegations(out, o.delegations());
+            }
+            return out.toBytes();
+        }
+    }
 
     /** A mediator member, its key-mapping serial, delegations, current keys, and previous keys. */
     public record Member(
@@ -87,7 +131,25 @@ public final class CantonSets {
 
     /** The mediator synchronizer state set: serial, threshold, and the members. */
     public record Mediators(
-            long serial, long threshold, @NonNull List<Member> members) {}
+            long serial, long threshold, @NonNull List<Member> members) {
+
+        /** Encodes this mediator set. Mirrors the reference {@code encodeMediators}. */
+        @NonNull
+        public byte[] encode() {
+            final CantonBytes.Writer out = new CantonBytes.Writer();
+            out.u32(serial);
+            out.u32(threshold);
+            out.u32(members.size());
+            for (final Member m : members) {
+                out.bytes(m.memberId());
+                out.u32(m.otkSerial());
+                encodeDelegations(out, m.delegations());
+                encodeKeys(out, m.current());
+                encodeKeys(out, m.previous());
+            }
+            return out.toBytes();
+        }
+    }
 
     /** The result of {@link #keyFromDer}: whether it decoded, and the key. */
     public record KeyFromDer(boolean ok, @NonNull Key key) {}
@@ -129,22 +191,6 @@ public final class CantonSets {
         return new Owners(serial, threshold, owners);
     }
 
-    /** Encodes an owner set. Mirrors the reference {@code encodeOwners}. */
-    @NonNull
-    public static byte[] encodeOwners(@NonNull final Owners s) {
-        Objects.requireNonNull(s, "s");
-        final ByteBuf out = new ByteBuf();
-        out.u32(s.serial());
-        out.u32(s.threshold());
-        out.u32(s.owners().size());
-        for (final Owner o : s.owners()) {
-            out.bytes(o.namespace());
-            out.bytes(encodeKey(o.root()));
-            encodeDelegations(out, o.delegations());
-        }
-        return out.toBytes();
-    }
-
     // ── Mediator set ─────────────────────────────────────────────────────────
 
     /**
@@ -181,24 +227,6 @@ public final class CantonSets {
         return new Mediators(serial, threshold, members);
     }
 
-    /** Encodes a mediator set. Mirrors the reference {@code encodeMediators}. */
-    @NonNull
-    public static byte[] encodeMediators(@NonNull final Mediators s) {
-        Objects.requireNonNull(s, "s");
-        final ByteBuf out = new ByteBuf();
-        out.u32(s.serial());
-        out.u32(s.threshold());
-        out.u32(s.members().size());
-        for (final Member m : s.members()) {
-            out.bytes(m.memberId());
-            out.u32(m.otkSerial());
-            encodeDelegations(out, m.delegations());
-            encodeKeys(out, m.current());
-            encodeKeys(out, m.previous());
-        }
-        return out.toBytes();
-    }
-
     // ── Keys ───────────────────────────────────────────────────────────────
 
     /** Decodes a single 98-byte key. Mirrors the reference {@code decodeKey}. */
@@ -209,19 +237,6 @@ public final class CantonSets {
             throw CantonProofException.invalidSet("key not " + KEY_LENGTH + " bytes");
         }
         return key(b, 0);
-    }
-
-    /** Encodes a single key as {@code fingerprint ‖ keySpec ‖ fingerprintMode ‖ x ‖ y}. */
-    @NonNull
-    public static byte[] encodeKey(@NonNull final Key k) {
-        Objects.requireNonNull(k, "k");
-        final ByteBuf out = new ByteBuf();
-        out.bytes(k.fingerprint());
-        out.u8(k.keySpec());
-        out.u8(k.fingerprintMode());
-        out.bytes(k.x());
-        out.bytes(k.y());
-        return out.toBytes();
     }
 
     /**
@@ -250,18 +265,6 @@ public final class CantonSets {
         final byte[] y = word(der, header.length + 32);
         final byte[] fingerprint = sha256(concat(be32(PURPOSE_PUBLIC_KEY_FINGERPRINT), der));
         return new KeyFromDer(true, new Key(fingerprint, keySpec, 1, x, y));
-    }
-
-    /** Whether {@code k}'s fingerprint is the one Canton computes for its key. Mirrors {@code hasOwnFingerprint}. */
-    public static boolean hasOwnFingerprint(@NonNull final Key k) {
-        Objects.requireNonNull(k, "k");
-        final byte[] header = header(k.keySpec());
-        if (header.length == 0) {
-            return false;
-        }
-        final byte[] der = k.keySpec() == SPEC_ED25519 ? concat(header, k.x()) : concat(concat(header, k.x()), k.y());
-        final KeyFromDer computed = keyFromDer(k.keySpec(), der);
-        return computed.ok() && Arrays.equals(computed.key().fingerprint(), k.fingerprint());
     }
 
     @NonNull
@@ -334,13 +337,13 @@ public final class CantonSets {
 
     // ── Encoding helpers ───────────────────────────────────────────────────
 
-    private static void encodeDelegations(final ByteBuf out, final List<Delegation> d) {
+    private static void encodeDelegations(final CantonBytes.Writer out, final List<Delegation> d) {
         if (d.size() > 255) {
             throw CantonProofException.invalidSet("too many delegations");
         }
         out.u8(d.size());
         for (final Delegation x : d) {
-            out.bytes(encodeKey(x.key()));
+            out.bytes(x.key().encode());
             out.u8(x.restriction());
             out.u32(x.mappings());
             out.u32(x.serial());
@@ -348,13 +351,13 @@ public final class CantonSets {
         }
     }
 
-    private static void encodeKeys(final ByteBuf out, final List<Key> k) {
+    private static void encodeKeys(final CantonBytes.Writer out, final List<Key> k) {
         if (k.size() > 255) {
             throw CantonProofException.invalidSet("too many keys");
         }
         out.u8(k.size());
         for (final Key x : k) {
-            out.bytes(encodeKey(x));
+            out.bytes(x.encode());
         }
     }
 
@@ -364,72 +367,7 @@ public final class CantonSets {
         return new Key(new byte[32], 0, 0, new byte[32], new byte[32]);
     }
 
-    private static long u32(final byte[] b, final int off) {
-        return ((long) Byte.toUnsignedInt(b[off]) << 24)
-                | ((long) Byte.toUnsignedInt(b[off + 1]) << 16)
-                | ((long) Byte.toUnsignedInt(b[off + 2]) << 8)
-                | Byte.toUnsignedInt(b[off + 3]);
-    }
-
-    private static byte[] word(final byte[] b, final int off) {
-        return Arrays.copyOfRange(b, off, off + 32);
-    }
-
-    private static byte[] be32(final int v) {
-        return new byte[] {(byte) (v >>> 24), (byte) (v >>> 16), (byte) (v >>> 8), (byte) v};
-    }
-
-    private static byte[] concat(final byte[] a, final byte[] b) {
-        final byte[] out = new byte[a.length + b.length];
-        System.arraycopy(a, 0, out, 0, a.length);
-        System.arraycopy(b, 0, out, a.length, b.length);
-        return out;
-    }
-
-    private static byte[] sha256(final byte[] message) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(message);
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
-    }
-
     private static byte[] hex(final String s) {
         return java.util.HexFormat.of().parseHex(s);
-    }
-
-    /** A minimal growable big-endian byte writer, matching {@code abi.encodePacked} widths. */
-    private static final class ByteBuf {
-        private byte[] buf = new byte[64];
-        private int len = 0;
-
-        void ensure(final int extra) {
-            if (len + extra > buf.length) {
-                buf = Arrays.copyOf(buf, Math.max(buf.length * 2, len + extra));
-            }
-        }
-
-        void u8(final int v) {
-            ensure(1);
-            buf[len++] = (byte) v;
-        }
-
-        void u32(final long v) {
-            ensure(4);
-            buf[len++] = (byte) (v >>> 24);
-            buf[len++] = (byte) (v >>> 16);
-            buf[len++] = (byte) (v >>> 8);
-            buf[len++] = (byte) v;
-        }
-
-        void bytes(final byte[] b) {
-            ensure(b.length);
-            System.arraycopy(b, 0, buf, len, b.length);
-            len += b.length;
-        }
-
-        byte[] toBytes() {
-            return Arrays.copyOf(buf, len);
-        }
     }
 }

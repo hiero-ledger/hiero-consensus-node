@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.be32;
+
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
 /**
@@ -32,7 +33,7 @@ public final class CantonMerkle {
     public static byte[] leaf(final int purpose, @NonNull final byte[] salt, @NonNull final byte[] data) {
         Objects.requireNonNull(salt, "salt");
         Objects.requireNonNull(data, "data");
-        final var md = sha256();
+        final var md = CommonUtils.sha256DigestOrThrow();
         md.update(be32(purpose));
         md.update(be32(salt.length));
         md.update(salt);
@@ -45,7 +46,7 @@ public final class CantonMerkle {
     @NonNull
     public static byte[] inner(@NonNull final byte[][] children) {
         Objects.requireNonNull(children, "children");
-        final var md = sha256();
+        final var md = CommonUtils.sha256DigestOrThrow();
         md.update(be32(PURPOSE_MERKLE_TREE_INNER_NODE));
         md.update(be32(children.length));
         for (final byte[] child : children) {
@@ -70,7 +71,7 @@ public final class CantonMerkle {
     @NonNull
     public static byte[] verdictSigningInput(@NonNull final byte[] typedContent) {
         Objects.requireNonNull(typedContent, "typedContent");
-        final var md = sha256();
+        final var md = CommonUtils.sha256DigestOrThrow();
         md.update(be32(PURPOSE_RESULT_MESSAGE_SIGNATURE));
         md.update(typedContent);
         final byte[] digest = md.digest();
@@ -89,17 +90,5 @@ public final class CantonMerkle {
         md.update(MULTIHASH_SHA256);
         md.update(MULTIHASH_LEN_32);
         md.update(child);
-    }
-
-    private static byte[] be32(final int v) {
-        return ByteBuffer.allocate(4).putInt(v).array();
-    }
-
-    private static MessageDigest sha256() {
-        try {
-            return MessageDigest.getInstance("SHA-256");
-        } catch (final NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
     }
 }
