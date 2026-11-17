@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_DESCRIPTIO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_ENDPOINT_TYPE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_REGISTERED_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_REQUIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REGISTERED_ENDPOINTS_EXCEEDED_LIMIT;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -16,7 +17,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.addressbook.RegisteredNodeCreateTransactionBody;
@@ -24,8 +27,10 @@ import com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
@@ -69,6 +74,9 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
 
     @Mock
     private RegisteredNodeCreateStreamBuilder recordBuilder;
+
+    @Mock
+    private ReadableNodeStore readableNodeStore;
 
     private RegisteredNodeCreateHandler subject;
 
@@ -645,6 +653,85 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         verify(writableRegisteredNodeStore).putAndIncrement(any());
     }
 
+    // ─── System-dispatched creation with an explicit id ─────────────────
+
+    @Test
+    @DisplayName("handle uses explicit id from system dispatch metadata")
+    void handleUsesExplicitIdFromSystemDispatch() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long explicitId = 100L;
+        final var txn = txnWithOp(opBuilder().build());
+        givenSystemDispatchHandleContext(txn, explicitId, stack, attributeValidator);
+        given(readableNodeStore.get(explicitId)).willReturn(null);
+        given(writableRegisteredNodeStore.get(explicitId)).willReturn(null);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+
+        final var captor = ArgumentCaptor.forClass(RegisteredNode.class);
+        verify(writableRegisteredNodeStore).putWithExplicitId(captor.capture());
+        verify(writableRegisteredNodeStore, never()).putAndIncrement(any());
+        verify(writableRegisteredNodeStore, never()).peekAtNextNodeId();
+        assertEquals(explicitId, captor.getValue().registeredNodeId());
+        assertEquals(key, captor.getValue().adminKey());
+        assertEquals("desc", captor.getValue().description());
+        verify(recordBuilder).registeredNodeID(explicitId);
+    }
+
+    @Test
+    @DisplayName("handle rejects explicit id already used by a consensus node")
+    void handleRejectsExplicitIdOfConsensusNode() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long explicitId = 3L;
+        final var txn = txnWithOp(opBuilder().build());
+        givenSystemDispatchHandleContext(txn, explicitId, stack, attributeValidator);
+        given(readableNodeStore.get(explicitId))
+                .willReturn(Node.newBuilder().nodeId(explicitId).build());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_NODE_ID);
+        verify(writableRegisteredNodeStore, never()).putWithExplicitId(any());
+    }
+
+    @Test
+    @DisplayName("handle rejects explicit id already used by a registered node")
+    void handleRejectsExplicitIdOfExistingRegisteredNode() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var attributeValidator = mock(AttributeValidator.class);
+        final long explicitId = 100L;
+        final var txn = txnWithOp(opBuilder().build());
+        givenSystemDispatchHandleContext(txn, explicitId, stack, attributeValidator);
+        given(readableNodeStore.get(explicitId)).willReturn(null);
+        given(writableRegisteredNodeStore.get(explicitId))
+                .willReturn(
+                        RegisteredNode.newBuilder().registeredNodeId(explicitId).build());
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+
+        assertThat(msg.getStatus()).isEqualTo(INVALID_REGISTERED_NODE_ID);
+        verify(writableRegisteredNodeStore, never()).putWithExplicitId(any());
+    }
+
+    private void givenSystemDispatchHandleContext(
+            final TransactionBody txn,
+            final long explicitId,
+            final HandleContext.SavepointStack stack,
+            final AttributeValidator attributeValidator) {
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.configuration()).willReturn(newConfig());
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
+        given(storeFactory.readableStore(ReadableNodeStore.class)).willReturn(readableNodeStore);
+        given(handleContext.dispatchMetadata())
+                .willReturn(new HandleContext.DispatchMetadata(
+                        HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM, explicitId));
+        given(handleContext.attributeValidator()).willReturn(attributeValidator);
+        lenient().when(handleContext.savepointStack()).thenReturn(stack);
+        lenient().when(stack.getBaseBuilder(any())).thenReturn(recordBuilder);
+    }
+
     private void givenHandleContext(
             final TransactionBody txn,
             final long newId,
@@ -654,6 +741,7 @@ class RegisteredNodeCreateHandlerTest extends AddressBookTestBase {
         given(handleContext.configuration()).willReturn(newConfig());
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableRegisteredNodeStore.class)).willReturn(writableRegisteredNodeStore);
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
         given(writableRegisteredNodeStore.peekAtNextNodeId()).willReturn(newId);
         given(handleContext.savepointStack()).willReturn(stack);
         given(handleContext.attributeValidator()).willReturn(attributeValidator);
