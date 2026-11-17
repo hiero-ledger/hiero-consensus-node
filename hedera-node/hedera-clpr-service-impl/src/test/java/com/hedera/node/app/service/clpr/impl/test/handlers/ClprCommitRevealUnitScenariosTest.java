@@ -8,8 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PENDING_COMMITMENTS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.test.handlers.ChannelIndexStubs.stubChannelIndex;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -24,10 +23,8 @@ import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
 import com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody;
 import com.hedera.hapi.node.clpr.ClprSignatureScheme;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
-import com.hedera.hapi.node.state.clpr.ClprChannelIndex;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
@@ -50,11 +47,9 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
-import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
-import java.util.concurrent.atomic.AtomicReference;
 import net.i2p.crypto.eddsa.EdDSAEngine;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.junit.jupiter.api.BeforeEach;
@@ -149,19 +144,7 @@ class ClprCommitRevealUnitScenariosTest {
         lenient()
                 .when(writableStates.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID))
                 .thenReturn(writableChannels);
-        final var channelIndexRef = new AtomicReference<ClprChannelIndex>();
-        lenient()
-                .when(writableStates.<ClprChannelIndex>getSingleton(CHANNEL_INDEX_STATE_ID))
-                .thenReturn(new FunctionWritableSingletonState<>(
-                        CHANNEL_INDEX_STATE_ID,
-                        "ClprService:CHANNEL_INDEX",
-                        channelIndexRef::get,
-                        channelIndexRef::set));
-        lenient()
-                .when(writableStates.<ProtoLong, ProtoBytes>get(CHANNEL_INDEX_ENTRIES_STATE_ID))
-                .thenReturn(MapWritableKVState.<ProtoLong, ProtoBytes>builder(
-                                CHANNEL_INDEX_ENTRIES_STATE_ID, "ClprService:CHANNEL_INDEX_ENTRIES")
-                        .build());
+        stubChannelIndex(writableStates);
         channelStore = new WritableChannelStore(writableStates);
     }
 

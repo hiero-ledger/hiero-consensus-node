@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_ENTRIES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -27,14 +29,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.clpr.ClprChannel;
+import com.hedera.hapi.node.state.clpr.ClprChannelIndex;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.primitives.ProtoLong;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -43,6 +50,10 @@ import com.hedera.node.config.testfixtures.ClprConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
+import com.swirlds.state.test.fixtures.MapReadableKVState;
+import com.swirlds.state.test.fixtures.MapReadableStates;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -133,18 +144,20 @@ class ClprChannelManagerTest {
             subject.start();
             assertTrue(subject.started());
             final var executor = (ScheduledThreadPoolExecutor) subject.scheduler();
-            final int scheduledAfterFirstStart = executor.getQueue().size();
-            assertEquals(1, scheduledAfterFirstStart);
+            final var tick = subject.syncTickFuture(CHANNEL_ID_1);
+            assertNotNull(tick);
+            await().atMost(Duration.ofSeconds(1))
+                    .until(() -> executor.getQueue().size() == 1);
 
             // The platform can re-reach ACTIVE with no intervening stop() (e.g. after a reconnect);
             // the guard must make the re-entry a no-op rather than leak a duplicate tick.
             subject.start();
 
             assertTrue(subject.started());
-            assertEquals(
-                    scheduledAfterFirstStart,
-                    executor.getQueue().size(),
-                    "Second start() must not schedule duplicate tasks");
+            assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
+            await().during(Duration.ofMillis(100))
+                    .atMost(Duration.ofSeconds(1))
+                    .until(() -> executor.getQueue().size() == 1);
         }
     }
 
@@ -456,52 +469,47 @@ class ClprChannelManagerTest {
         @Test
         @DisplayName("start() registers and schedules every channel in the channel index")
         void startRegistersIndexedChannels() {
-            final var channelStore = mock(ReadableChannelStore.class);
-            given(channelStore.syncableChannelIds()).willReturn(List.of(CHANNEL_ID_1, CHANNEL_ID_2));
+            givenLatestStates(clprStatesIndexing(CHANNEL_ID_1, CHANNEL_ID_2));
 
-            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
-                subject.start();
-            }
+            subject.start();
 
+            // The index is read on the sync scheduler
+            await().atMost(Duration.ofSeconds(1))
+                    .until(() -> subject.syncTickFuture(CHANNEL_ID_1) != null
+                            && subject.syncTickFuture(CHANNEL_ID_2) != null);
             assertThat(subject.knownChannelsIds()).containsExactlyInAnyOrder(CHANNEL_ID_1, CHANNEL_ID_2);
-            assertNotNull(subject.syncTickFuture(CHANNEL_ID_1));
-            assertNotNull(subject.syncTickFuture(CHANNEL_ID_2));
         }
 
         @Test
         @DisplayName("a repeated start() picks up newly indexed channels and keeps existing ticks")
         void repeatedStartPicksUpNewlyIndexedChannels() {
-            final var channelStore = mock(ReadableChannelStore.class);
-            given(channelStore.syncableChannelIds())
-                    .willReturn(List.of(CHANNEL_ID_1))
-                    .willReturn(List.of(CHANNEL_ID_1, CHANNEL_ID_2));
+            final var state = givenLatestStates(clprStatesIndexing(CHANNEL_ID_1));
+            subject.start();
+            await().atMost(Duration.ofSeconds(1)).until(() -> subject.syncTickFuture(CHANNEL_ID_1) != null);
+            final var tick = subject.syncTickFuture(CHANNEL_ID_1);
 
-            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
-                subject.start();
-                final var tick = subject.syncTickFuture(CHANNEL_ID_1);
+            // E.g. the platform becomes active again after a reconnect, with no stop() in between
+            given(state.getReadableStates(ClprService.NAME)).willReturn(clprStatesIndexing(CHANNEL_ID_1, CHANNEL_ID_2));
+            subject.start();
 
-                // E.g. the platform becomes active again after a reconnect, with no stop() in between
-                subject.start();
-
-                assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
-                assertFalse(tick.isCancelled());
-            }
-            assertNotNull(subject.syncTickFuture(CHANNEL_ID_2));
+            await().atMost(Duration.ofSeconds(1)).until(() -> subject.syncTickFuture(CHANNEL_ID_2) != null);
+            assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
+            assertFalse(tick.isCancelled());
         }
 
         @Test
         @DisplayName("start() with an unreadable channel index still starts and schedules activated channels")
         void startWithUnreadableIndexStillStarts() {
             subject.onChannelActivated(CHANNEL_ID_1);
-            final var channelStore = mock(ReadableChannelStore.class);
-            given(channelStore.syncableChannelIds()).willThrow(new IllegalStateException("unreadable"));
+            final var state = givenLatestStates(clprStatesIndexing());
+            given(state.getReadableStates(ClprService.NAME)).willThrow(new IllegalStateException("unreadable"));
 
-            try (var _ = givenMockedStateForSync(channelStore, ledgerConfigWithMaxPeerEndpoints(0))) {
-                subject.start();
-            }
+            subject.start();
 
             assertTrue(subject.started());
             assertNotNull(subject.syncTickFuture(CHANNEL_ID_1));
+            verify(state, timeout(1000)).getReadableStates(ClprService.NAME);
+            assertThat(subject.knownChannelsIds()).containsExactly(CHANNEL_ID_1);
         }
     }
 
@@ -514,6 +522,38 @@ class ClprChannelManagerTest {
                 .throttles(ClprThrottles.newBuilder()
                         .maxPeerEndpoints(maxPeerEndpoints)
                         .build())
+                .build();
+    }
+
+    /**
+     * Makes the state accessor return a state holding the given CLPR states.
+     */
+    private State givenLatestStates(final ReadableStates clprStates) {
+        final var state = mock(State.class);
+        given(stateAccessor.get()).willAnswer(invocation -> new AutoCloseableWrapper<>(state, () -> {}));
+        lenient().when(state.getReadableStates(ClprService.NAME)).thenReturn(clprStates);
+        lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(mock(ReadableStates.class));
+        return state;
+    }
+
+    /**
+     * Returns CLPR states whose channel index holds the given channels, in sequence order.
+     */
+    private static ReadableStates clprStatesIndexing(final Bytes... channelIds) {
+        final var entries = MapReadableKVState.<ProtoLong, ProtoBytes>builder(
+                CHANNEL_INDEX_ENTRIES_STATE_ID, "ClprService:CHANNEL_INDEX_ENTRIES");
+        for (int i = 0; i < channelIds.length; i++) {
+            entries.value(new ProtoLong(i + 1), new ProtoBytes(channelIds[i]));
+        }
+        final var index = ClprChannelIndex.newBuilder()
+                .lastSequenceNumber(channelIds.length)
+                .build();
+        return MapReadableStates.builder()
+                .state(MapReadableKVState.builder(CHANNELS_STATE_ID, "ClprService:CHANNELS")
+                        .build())
+                .state(entries.build())
+                .state(new FunctionReadableSingletonState<>(
+                        CHANNEL_INDEX_STATE_ID, "ClprService:CHANNEL_INDEX", () -> index))
                 .build();
     }
 

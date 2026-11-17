@@ -14,26 +14,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public interface ClprChannelLifecycle {
 
     /**
-     * A lifecycle for contexts with no sync orchestrator to notify, such as standalone transaction dispatch.
-     */
-    ClprChannelLifecycle NO_OP = new ClprChannelLifecycle() {
-        @Override
-        public void onChannelActivated(@NonNull final Bytes channelId) {
-            // Nothing to notify
-        }
-
-        @Override
-        public void onChannelClosed(@NonNull final Bytes channelId) {
-            // Nothing to notify
-        }
-
-        @Override
-        public void recordPeerObservedManifestVersion(@NonNull final Bytes channelId, final long peerObservedVersion) {
-            // Nothing to notify
-        }
-    };
-
-    /**
      * Notify the orchestrator that a Channel has just become active and
      * should be included in the outbound sync loop.
      *

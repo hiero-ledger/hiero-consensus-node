@@ -156,6 +156,30 @@ class ChannelStoreTest {
     }
 
     @Test
+    @DisplayName("removing a channel that is not indexed leaves the index untouched")
+    void removedUnindexedChannelLeavesIndexUntouched() {
+        subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.PENDING));
+
+        subject.remove(CHANNEL_ID_1);
+
+        assertThat(subject.getChannel(CHANNEL_ID_1)).isNull();
+        assertThat(indexState.isModified()).isFalse();
+        assertThat(entries.modifiedKeys()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a sequence number set on the written channel is replaced by the one the store issues")
+    void writtenSequenceNumberIsReplaced() {
+        subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE)
+                .copyBuilder()
+                .indexSequenceNumber(99L)
+                .build());
+
+        assertThat(sequenceNumberOf(CHANNEL_ID_1)).isEqualTo(1L);
+        assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_1);
+    }
+
+    @Test
     @DisplayName("a syncable channel that predates the index is indexed on its next write")
     void preexistingSyncableChannelIsIndexedOnNextWrite() {
         // As written before the index existed: syncable, with no sequence number

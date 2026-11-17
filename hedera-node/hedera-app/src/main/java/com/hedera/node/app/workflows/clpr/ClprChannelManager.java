@@ -121,14 +121,27 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         }
         final boolean firstStart = !started;
         started = true;
-        registerIndexedChannels();
-        // Schedule ticks for any channels registered before now; they would otherwise never tick and never
-        // exchange messages. A channel that already has a tick keeps it.
-        for (final var channelId : knownChannelIds) {
-            channelSyncFutures.computeIfAbsent(channelId, this::scheduleTick);
-        }
+        scheduleKnownChannelTicks();
+        // Read the channel index on the sync scheduler
+        scheduler.execute(() -> {
+            registerIndexedChannels();
+            scheduleKnownChannelTicks();
+        });
         if (firstStart) {
             logger.info("CLPR sync orchestrator started (maxConcurrentSyncs={})", clprConfig.maxConcurrentSyncs());
+        }
+    }
+
+    /**
+     * Schedules ticks for the registered channels that have none yet; they would otherwise never tick and never
+     * exchange messages. A channel that already has a tick keeps it.
+     */
+    private void scheduleKnownChannelTicks() {
+        for (final var channelId : knownChannelIds) {
+            if (!started || scheduler.isShutdown()) {
+                return;
+            }
+            channelSyncFutures.computeIfAbsent(channelId, this::scheduleTick);
         }
     }
 
