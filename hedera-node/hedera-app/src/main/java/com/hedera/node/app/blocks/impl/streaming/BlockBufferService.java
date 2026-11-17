@@ -201,7 +201,12 @@ public class BlockBufferService extends BlockStreamingBase {
         }
 
         // Initialize buffer and start worker thread if streaming is enabled
-        loadBufferFromDisk();
+        try {
+            loadBufferFromDisk();
+        } catch (final RuntimeException e) {
+            // Restoring the buffer is best-effort; a failure must not stop the worker from being scheduled
+            logger.error("Failed to restore block buffer from disk; continuing startup", e);
+        }
 
         execSvc = Executors.newSingleThreadScheduledExecutor();
         scheduleNextWorkerTask();
