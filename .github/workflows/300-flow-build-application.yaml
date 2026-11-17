@@ -106,7 +106,8 @@ jobs:
           checkout: "true"
           checkout-ref: ${{ github.sha }}
           checkout-token: ${{ secrets.GITHUB_TOKEN }}
-          checkout-fetch-depth: "0"
+          # git ls-remote asks the remote; no local history is needed
+          checkout-fetch-depth: "1"
 
       - name: Resolve Workflow Reference
         id: resolve-ref
@@ -156,7 +157,8 @@ jobs:
           checkout: "true"
           checkout-ref: ${{ github.sha }}
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
-          checkout-fetch-depth: "0"
+          # git log -1 reads only the checked-out commit (github.sha)
+          checkout-fetch-depth: "1"
           setup-gomplate: "true"
 
       - name: Collect run logs in a log file
