@@ -1364,11 +1364,9 @@ seed_block_node_tss_parameters() {
 }
 
 # After the stage 3 upgrade, assert the BN VERIFIES + PERSISTS the real-TSS-signed blocks.
-# Reads serverStatus.nextExpectedBlock twice over a window and requires it to advance.
-# nextExpectedBlock is the live publisher position (= lastAvailableBlock + 1), bumped as the BN
-# receives/verifies each block; unlike lastAvailableBlock it does not lag behind the persistence/
-# available-store watermark, which can stay stuck after the cutover re-seed even while the BN is
-# verifying + persisting fine. If the BN were rejecting the real-TSS blocks it would be stuck.
+# Reads the persisted position (lastAvailableBlock + 1) twice over a window and requires it to
+# advance. The raw nextExpectedBlock is not used: above earliestManagedBlock it climbs with every
+# accepted block header, even if nothing is stored.
 # Also surfaces any recent 'Verification failed' log lines on failure for diagnosis.
 verify_block_node_persists_post_cutover() {
   local timeout_secs="${1:-300}"
@@ -1386,7 +1384,7 @@ verify_block_node_persists_post_cutover() {
     raw="$(grpcurl -plaintext -import-path "${proto_api_root}" -import-path "${proto_hapi_root}" \
             -proto "${proto_file}" -d '{}' "127.0.0.1:${local_port}" \
             org.hiero.block.api.BlockNodeService/serverStatus 2>/dev/null)" || true
-    bn_effective_next_expected_from_status "${raw}"
+    echo "${raw}" | jq -r '.lastAvailableBlock // empty | tonumber + 1' 2>/dev/null || true
   }
 
   kill_processes_on_local_port "${local_port}"
@@ -2178,6 +2176,11 @@ verify_block_node_has_blocks 180
 nudge_consensus_with_transactions
 verify_wraps_on_consensus_nodes 600
 verify_stage2_migration_votes
+# BN >= 0.45.1 never re-requests a block below earliestManagedBlock (hiero-block-node#3913), and the
+# deploy floor sits above every block of this test, so a block cut off by the stage 3 node restart
+# stalled the BN for good. Drop the floor below the stored blocks; the seed roll applies it.
+kubectl -n "${SOLO_NAMESPACE}" patch configmap "block-node-${BLOCK_NODE_ID}-config" --type merge \
+  -p "{\"data\":{\"BLOCK_NODE_EARLIEST_MANAGED_BLOCK\":\"${JUMPSTART_BLOCK_NUMBER}\"}}"
 seed_block_node_tss_parameters
 # The CN's reconnect after the seed roll used to overlap the seed step's idle 180 s; keep that budget.
 wait_for_block_node_caught_up 360
