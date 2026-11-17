@@ -11,11 +11,14 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_QUEUE_FULL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
@@ -83,11 +86,13 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
@@ -1691,7 +1696,7 @@ class ClprSubmitBundleHandlerTest {
         order.verify(applicationStack).createSavepoint();
         order.verify(handleContext).dispatch(any(DispatchOptions.class));
         order.verify(applicationStack).rollback();
-        order.verify(dispatchResult).getGasUsedForContractTxn();
+        // The 100 gas reported during dispatch is still billed after rollback: 800 reserved, 600 returned.
         order.verify(tokenServiceApi).transferFromTo(PAYER_ID, CONNECTOR_CONTRACT_ACCOUNT, 600L);
         verify(applicationStack, never()).commit();
         verify(handleContext).refundHandlerCharge(PAYER_ID, 1800L);
@@ -1861,14 +1866,16 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void dataAndResponseExecutionPayActualNetworkGas(final boolean response) {
+    @CsvSource({"false, SUCCESS", "true, SUCCESS", "false, CONTRACT_REVERT_EXECUTED", "true, CONTRACT_REVERT_EXECUTED"})
+    void dataAndResponseExecutionPayActualNetworkGas(final boolean response, final ResponseCodeEnum status) {
         putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
         if (response) putOutboundDataMessage(1);
         final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
         putConnector();
         pricedGasContext();
+        // Response delivery is best-effort and consumes its gas report without inspecting status.
+        lenient().when(dispatchResult.status()).thenReturn(status);
 
         subject.handle(handleContext);
 
@@ -1897,7 +1904,8 @@ class ClprSubmitBundleHandlerTest {
         setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
         putConnector();
         pricedGasContext();
-        given(dispatchResult.status()).willReturn(status);
+        // Response delivery is best-effort and consumes its gas report without inspecting status.
+        lenient().when(dispatchResult.status()).thenReturn(status);
         given(dispatchResult.hasContractResult()).willReturn(false);
 
         final long initialBalance = 10_000_000L;
@@ -1963,6 +1971,27 @@ class ClprSubmitBundleHandlerTest {
         verify(handleContext).refundHandlerCharge(PAYER_ID, 1600L);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void fundedConnectorCannotFinanceAnUnderfundedParentsGasEscrow(final boolean response) {
+        putChannel(ClprChannelStatus.ACTIVE, response ? 2 : 0, 0, ZERO_HASH);
+        if (response) putOutboundDataMessage(1);
+        final var messages = response ? List.of(replyPayload(1)) : List.of(dataPayload());
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, response ? 1 : 0, ZERO_HASH, messages), true);
+        putConnector();
+        pricedGasContext();
+        given(handleContext.tryToCharge(PAYER_ID, 2000L)).willReturn(false);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_PAYER_BALANCE));
+
+        verify(handleContext).tryToCharge(PAYER_ID, 2000L);
+        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
+    }
+
     private void pricedGasContext() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", true)
@@ -1995,6 +2024,16 @@ class ClprSubmitBundleHandlerTest {
                         .centEquiv(1)
                         .build());
         lenient().when(dispatchResult.getGasUsedForContractTxn()).thenReturn(100L);
+        lenient().when(handleContext.dispatch(any(DispatchOptions.class))).thenAnswer(invocation -> {
+            final DispatchOptions<?> options = invocation.getArgument(0);
+            if (dispatchResult.hasContractResult()) {
+                options.dispatchMetadata()
+                        .getMetadata(CONTRACT_GAS_USAGE, ContractGasUsage.class)
+                        .orElseThrow()
+                        .recordGasUsed(dispatchResult.getGasUsedForContractTxn());
+            }
+            return dispatchResult;
+        });
     }
 
     @Nested
@@ -2474,6 +2513,62 @@ class ClprSubmitBundleHandlerTest {
         // Neither data message should be deleted
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 3)).isNotNull();
+    }
+
+    @Test
+    void insufficientPenaltyHeadroomRejectsTheBundleBeforeVerifierExecution() {
+        final long alreadyCharged = 300;
+        final long penalty = 5_000_000;
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        setupHandleContext(
+                validSingleDataBundle()
+                        .copyBuilder()
+                        .transactionFee(alreadyCharged + penalty - 1)
+                        .build(),
+                true);
+        final var builder = handleContext.savepointStack().getBaseBuilder(StreamBuilder.class);
+        given(builder.isUserDispatch()).willReturn(true);
+        given(builder.transactionFee()).willReturn(alreadyCharged);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_TX_FEE));
+
+        verify(verifierFactory, never()).getVerifier(any());
+        verify(handleContext, never()).tryToCharge(any(), anyLong());
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
+    }
+
+    @Test
+    void orderingViolationChargesTheFullPenaltyWithinTheSignedOffer() {
+        final long alreadyCharged = 300;
+        final long penalty = 5_000_000;
+        final long offered = alreadyCharged + penalty;
+        putOutboundDataMessage(1);
+        putOutboundDataMessage(3);
+        putChannel(ClprChannelStatus.ACTIVE, 4, 0, ZERO_HASH);
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(replyPayload(3)))
+                        .copyBuilder()
+                        .transactionFee(offered)
+                        .build(),
+                true);
+        final var recordedFee = new java.util.concurrent.atomic.AtomicLong(alreadyCharged);
+        final var builder = handleContext.savepointStack().getBaseBuilder(StreamBuilder.class);
+        given(builder.isUserDispatch()).willReturn(true);
+        given(builder.transactionFee()).willAnswer(_ -> recordedFee.get());
+        given(handleContext.tryToCharge(PAYER_ID, penalty)).willAnswer(_ -> {
+            recordedFee.addAndGet(penalty);
+            return true;
+        });
+
+        subject.handle(handleContext);
+
+        assertThat(recordedFee).hasValue(offered);
+        verify(handleContext).tryToCharge(PAYER_ID, penalty);
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+        assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
     }
 
     @Test
@@ -4185,6 +4280,19 @@ class ClprSubmitBundleHandlerTest {
         }
 
         @Test
+        void internalFailureBeforeEvmWorkKeepsItsOriginalExceptionAndDoesNotChargeGas() {
+            putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+            setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload())), true);
+            final var failure = new IllegalStateException("Before verifier execution");
+            given(mockVerifier.verifyBundle(any(), any(), any(), any())).willThrow(failure);
+
+            assertThatThrownBy(() -> subject.handle(handleContext)).isSameAs(failure);
+
+            verify(handleContext, never()).tryToCharge(any(), anyLong());
+            verify(handleContext, never()).refundHandlerCharge(any(), anyLong());
+        }
+
+        @Test
         @DisplayName("verifyBundle() reverts — bundle rejected, channel state unchanged")
         void verifyBundleRevertsRejectsBundle() {
             putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
@@ -4658,7 +4766,9 @@ class ClprSubmitBundleHandlerTest {
                 .thenReturn(new HandleContext.DispatchMetadata(new java.util.HashMap<>()));
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
+        // One stack serves both the application savepoint and the fee-headroom checks on its base builder.
         lenient().when(handleContext.savepointStack()).thenReturn(applicationStack);
+        lenient().when(applicationStack.getBaseBuilder(StreamBuilder.class)).thenReturn(mock(StreamBuilder.class));
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
         // Default to self-submitted (creatorNodeId == endpointNodeId): the handler skips
         // endpoint-signature verification for self-submitted bundles. Tests that need to

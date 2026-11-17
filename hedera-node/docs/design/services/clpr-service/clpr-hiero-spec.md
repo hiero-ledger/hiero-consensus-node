@@ -342,10 +342,25 @@ Lazy publication avoids an O(channels) rewrite on each configuration change.
 
 ## E-10. Application execution gas and endpoint compensation
 
-Before verifier or application EVM execution, the submitting transaction's original
-payer prepays the network fee for `contracts.maxGasPerTransaction` gas. The gas-unit
-price uses the ordinary ContractCall price, congestion multiplier, and active exchange
-rate. Unused gas fees are refunded once the entire parent transaction succeeds. If a
+Immediately before the first verifier or application EVM dispatch, the submitting
+transaction's original payer reserves the network gas fee. Early validation failures do
+not create an escrow. Bundles reserve before processing DATA or response payloads,
+including before reversible connector compensation or slashing payouts. This prevents
+those transfers from backing the parent's gas payment, even when a callback is later
+skipped. A bundle reserves `contracts.maxGasPerTransaction` gas because
+its shared allowance covers both verification and callbacks; completion reserves only
+its verifier allowance, with its billable reservation capped at 300,000 gas units.
+The configured transaction maximum therefore determines a bundle payer's worst-case
+required balance, so CLPR execution profiles must choose it deliberately. The signed
+`transactionFee` must cover already charged base/byte fees plus the gas reservation.
+Node-submitted bundles sign `clpr.nodeSubmitBundleMaxFee`, which defaults to 1,000 HBAR.
+Explicitly configured caps still apply and must cover this reservation and the other
+applicable fees; increasing the cap does not increase the charge for actual execution.
+Before bundle validation, the handler also reserves signed-fee headroom for the full
+possible endpoint misbehavior penalty. This reserves capacity only: the penalty is
+collected only when applicable, and the gas escrow must leave that headroom available.
+The gas-unit price uses the ordinary ContractCall price, congestion multiplier, and active
+exchange rate; globally free fees or a free ContractCall service make this gas free. Unused gas fees are refunded once the entire parent transaction succeeds. If a
 later failure rolls back application state, payment for gas already used is replayed
 against that original payer before other failure penalties. Reversible transfers from
 connectors never provide the backing for this network payment.
@@ -363,8 +378,8 @@ The connector's worst-case gas reimbursement and compensation are transferred be
 the callback. Unused gas reimbursement is returned afterward. Response callbacks use
 the same gas payment and reimbursement path without the DATA compensation. An absent
 or underfunded originating connector causes best-effort response delivery to be skipped.
-Reverted callbacks still pay for gas consumed. A dispatch without a reported EVM result
-consumes its full gas reservation for billing.
+Reverted callbacks still pay for gas consumed. Gas is reported before rollback clears stream-builder results. A pre-execution failure
+without an EVM outcome bills zero gas; a reverted execution pays its reported gas.
 
 The sum of verifier and application gas grants cannot exceed the transaction cap.
 Callbacks share the remaining allowance: each DATA or response payload receives at
@@ -380,9 +395,12 @@ A multi-message bundle can therefore give each callback less than the per-messag
 ceiling. Applications must stay within the callback's allocated grant; exhausting it
 produces the existing application error response. Per-message limits remain ceilings.
 
-When integrating the separate [CLPR fee proposal](https://github.com/hiero-ledger/hiero-consensus-node/pull/28137),
-reconcile any prepaid verifier GAS fee with the actual-gas escrow to avoid charging the
-same execution twice. That fee proposal does not replace callback gas accounting.
+Verifier fees are billed once through the shared escrow, capped at 300,000 gas units
+across the operation. Native measured-fee settlement recognizes that ownership and adds
+applicable stored-byte fees without charging verifier gas again. Without an escrow-owned
+verifier, compatibility settlement applies the same billing cap. This reconciles the
+[CLPR fee proposal](https://github.com/hiero-ledger/hiero-consensus-node/pull/28137) with
+callback accounting; callback gas remains billed for its reported execution.
 
 See also the economics section in [config-and-slashing.md](config-and-slashing.md).
 
