@@ -11,6 +11,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -78,6 +79,41 @@ class HistorySubmissionsTest {
         spec.accept(builder);
         final var body = builder.build();
         assertTrue(body.hasHistoryProofKeyPublication());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void publishesKeyWitnessWithoutDependingOnAHistoryConstructionOrWrapsRound() {
+        given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
+        given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
+        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
+        given(appContext.gossip()).willReturn(gossip);
+        final var witness =
+                HintsKeyWitness.newBuilder().targetHintsConstructionId(7).build();
+
+        subject.submitKeyWitness(witness);
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
+        verify(gossip)
+                .submitFuture(
+                        eq(AccountID.DEFAULT),
+                        eq(Instant.EPOCH),
+                        any(),
+                        captor.capture(),
+                        any(),
+                        anyInt(),
+                        anyInt(),
+                        any(),
+                        any());
+        final var builder = TransactionBody.newBuilder();
+        captor.getValue().accept(builder);
+        final var publication = builder.build().historyProofKeyPublicationOrThrow();
+        assertEquals(witness, publication.keyWitnessOrThrow());
+        assertEquals(0, publication.constructionId());
+        assertFalse(publication.hasHintsPartialSignature());
+        assertFalse(publication.hasWrapsMessage());
+        assertFalse(publication.hasProofKey());
     }
 
     @Test

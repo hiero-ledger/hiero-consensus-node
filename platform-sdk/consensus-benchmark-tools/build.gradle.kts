@@ -18,5 +18,8 @@ testModuleInfo {
 }
 
 jmhModuleInfo {
+    requires("com.swirlds.base")
+    requires("com.swirlds.metrics.api")
     requires("org.hiero.consensus.benchmark.tools")
+    requires("org.hiero.consensus.fakes")
 }

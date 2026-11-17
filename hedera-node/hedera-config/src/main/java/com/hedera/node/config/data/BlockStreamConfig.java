@@ -21,10 +21,10 @@ import org.hiero.base.crypto.DigestType;
  * @param maxBlockSizeBytes the maximum serialized preview block size in bytes before savepoint output is suppressed;
  *                          zero disables the circuit breaker in {@code StreamMode.BOTH}
  * @param maxBlockExecutionSizeBytes the maximum serialized canonical block size in bytes before subsequent
- *                                   non-exempt submitted transactions are rejected with {@code THROTTLED_AT_CONSENSUS}
- *                                   and charged normal consensus throttle fees in {@code StreamMode.BLOCKS};
- *                                   zero disables the budget. Scheduled executions, network protocol transactions and
- *                                   payers in {@code 1..accounts.lastThrottleExempt} are exempt
+ *                                   non-exempt submitted transactions and scheduled executions are rejected with
+ *                                   {@code THROTTLED_AT_CONSENSUS} and charged normal consensus throttle fees in
+ *                                   {@code StreamMode.BLOCKS}; zero disables the budget. Network protocol transactions
+ *                                   and payers in {@code 1..accounts.lastThrottleExempt} are exempt
  * @param maxBlockSizeLimitEnabled feature flag for the canonical block execution budget, refreshed at each block start;
  *                                 does not affect
  *                                 the preview-mode savepoint-output circuit breaker

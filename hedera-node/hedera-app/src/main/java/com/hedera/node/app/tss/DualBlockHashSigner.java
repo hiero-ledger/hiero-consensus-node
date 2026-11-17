@@ -3,6 +3,7 @@ package com.hedera.node.app.tss;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.RsaContext;
@@ -43,6 +44,11 @@ public class DualBlockHashSigner implements BlockHashSigner {
     @Override
     public void onBlockStarted(final long blockNumber) {
         succinctSignatureDelegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        succinctSignatureDelegate.publishKeyWitness(verificationKey, witness);
     }
 
     @Override

@@ -21,6 +21,7 @@ import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.ProvenQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommitteeProofVerifier;
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.NativeBlsSignatureVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.VerifiedBundle;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
@@ -161,12 +162,12 @@ public class EthereumVerifyBundleCall extends AbstractCall {
     }
 
     /**
-     * Runs the (BLS-deferred) proof verifier. Returns the verified bundle, or {@code null} when the proof is rejected
+     * Runs the proof verifier. Returns the verified bundle, or {@code null} when the proof is rejected
      * or the verifier errors unexpectedly.
      */
     @Nullable
     private VerifiedBundle runVerifier() {
-        final var verifier = new EthereumSyncCommitteeProofVerifier(FakeBlsSignatureVerifier.INSTANCE);
+        final var verifier = new EthereumSyncCommitteeProofVerifier(NativeBlsSignatureVerifier.INSTANCE);
         final VerifiedBundle verified;
         try {
             verified = verifier.verifyBundle(bundlePayload, trustAnchor, channelContext);

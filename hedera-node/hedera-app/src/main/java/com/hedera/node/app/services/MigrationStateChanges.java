@@ -56,10 +56,12 @@ public class MigrationStateChanges {
     public void trackCommit() {
         final var immediateChanges = new ArrayList<>(immediateStateChangeListener.getKvStateChanges());
         immediateChanges.addAll(immediateStateChangeListener.getSingletonStateChanges());
+        immediateChanges.addAll(immediateStateChangeListener.getQueueStateChanges());
         if (!immediateChanges.isEmpty()) {
             stateChanges.add(immediateChanges);
             immediateStateChangeListener.resetKvStateChanges(null);
             immediateStateChangeListener.resetSingletonStateChanges();
+            immediateStateChangeListener.resetQueueStateChanges();
         }
     }
 

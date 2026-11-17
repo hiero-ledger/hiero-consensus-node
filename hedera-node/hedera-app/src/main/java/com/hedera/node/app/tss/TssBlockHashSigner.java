@@ -5,6 +5,7 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.HintsService;
@@ -123,6 +124,19 @@ public class TssBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        requireNonNull(verificationKey);
+        requireNonNull(witness);
+        if (historyService != null
+                && !configProvider
+                        .getConfiguration()
+                        .getConfigData(TssConfig.class)
+                        .forceMockSignatures()) {
+            historyService.publishKeyWitness(verificationKey, witness);
+        }
+    }
+
+    @Override
     public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
         requireNonNull(blockHash);
         requireNonNull(request);
@@ -149,14 +163,20 @@ public class TssBlockHashSigner implements BlockHashSigner {
                 throw new IllegalStateException("hinTS signing required for TSS block hash " + blockHash);
             }
             if (historyService == null) {
-                return new Attempt(signing.verificationKey(), null, signing.future(), signingResult.submissionFuture());
+                return new Attempt(
+                        signing.verificationKey(),
+                        null,
+                        signing.future(),
+                        signingResult.submissionFuture(),
+                        signing.constructionId());
             } else {
                 final var chainOfTrustProof = historyService.getCurrentChainOfTrustProof(signing.verificationKey());
                 return new Attempt(
                         signing.verificationKey(),
                         chainOfTrustProof,
                         signing.future(),
-                        signingResult.submissionFuture());
+                        signingResult.submissionFuture(),
+                        signing.constructionId());
             }
         }
     }

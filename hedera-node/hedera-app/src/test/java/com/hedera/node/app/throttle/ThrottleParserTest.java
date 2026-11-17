@@ -152,6 +152,26 @@ class ThrottleParserTest {
     }
 
     @Test
+    void parseWithUint64OpsPerSecAboveLongMax_throwsThrottleGroupHasZeroOpsPerSec() {
+        // On the wire this is uint64 2^64 - 1, which reads as a negative long
+        final var negativeOpsGroup = ThrottleGroup.newBuilder()
+                .operations(ThrottleParser.EXPECTED_OPS.stream().toList())
+                .milliOpsPerSec(-1)
+                .build();
+        final var bucket = ThrottleBucket.newBuilder()
+                .name("bucket")
+                .burstPeriodMs(100L)
+                .throttleGroups(negativeOpsGroup)
+                .build();
+        final var bytes = ThrottleDefinitions.PROTOBUF.toBytes(
+                ThrottleDefinitions.newBuilder().throttleBuckets(bucket).build());
+
+        assertThatThrownBy(() -> subject.parse(bytes))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC));
+    }
+
+    @Test
     void parseWithEmptyBucket_throwsBucketHasNoThrottleGroups() {
         final var bucket =
                 ThrottleBucket.newBuilder().name("bucket").burstPeriodMs(100L).build();

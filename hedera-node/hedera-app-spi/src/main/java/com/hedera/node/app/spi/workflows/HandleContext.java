@@ -206,6 +206,8 @@ public interface HandleContext {
              * Metadata for a contract child dispatch executed by the native CLPR service.
              */
             CLPR_DISPATCH,
+            /** Parent-owned network gas payments and remaining execution budget for CLPR. */
+            CLPR_GAS_ACCOUNTING,
             /**
              * Boolean marker identifying the verifier call within a native CLPR transaction.
              */
@@ -286,6 +288,9 @@ public interface HandleContext {
      * @param amount the amount to refund.
      */
     void refundBestEffort(AccountID accountId, long amount);
+
+    /** Refunds an extra handler charge through the same fee component and strategy as {@link #tryToCharge}. */
+    void refundHandlerCharge(@NonNull AccountID accountId, long amount);
 
     /**
      * Refunds the requested account in this context the given amount of service fee.
@@ -551,6 +556,16 @@ public interface HandleContext {
          * @param <T>          the type to cast the builders to
          */
         <T> void forEachNonBaseBuilder(@NonNull Class<T> builderClass, @NonNull Consumer<T> consumer);
+
+        /**
+         * Registers an action to run if the changes made so far in the current savepoint are rolled back. Like those
+         * changes, the action moves into the enclosing savepoint when this one commits, including the savepoint of
+         * the parent dispatch when this stack commits; so it runs if any savepoint holding the changes is rolled
+         * back, and is discarded once they are committed at the root.
+         *
+         * @param action the action to run on rollback
+         */
+        void onRollback(@NonNull Runnable action);
 
         /**
          * Attaches a value to this stack under the given type. Until it is detached, {@link #findInLineage(Class)}

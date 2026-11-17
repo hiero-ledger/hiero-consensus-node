@@ -942,6 +942,31 @@ final class RecordCacheImplTest extends AppTestBase {
                     .hasSize(1);
         }
 
+        @Test
+        @DisplayName("A mid-round batch commit keeps ids that the rest of the round can still duplicate")
+        void midRoundBatchCommitKeepsIdsTheRestOfTheRoundCanDuplicate() {
+            final var cache = new RecordCacheImpl(dedupeCache, wsa, props, networkInfo);
+            final var original = recordWith(FIRST_ROUND_TIME, SUCCESS);
+            final var txnId = original.transactionIDOrThrow();
+            handleRound(cache, FIRST_ROUND_TIME, original);
+
+            // The round ends after the id expires, but transactions earlier in the round still run while it is valid
+            final var roundTime = FIRST_ROUND_TIME.plusSeconds(MAX_VALID_DURATION_SECS + 1);
+            final var state = Objects.requireNonNull(wsa.getState());
+            final var batched = recordWith(roundTime, SUCCESS);
+            cache.resetRoundReceipts();
+            cache.addRecordSource(
+                    0, batched.transactionIDOrThrow(), DueDiligenceFailure.NO, new PartialRecordSource(batched));
+            cache.maybeCommitReceiptsBatch(
+                    state, roundTime, immediateStateChangeListener, 1, blockStreamManager, RECORDS);
+            assertThat(receiptQueue()).hasSize(2);
+            assertThat(cache.hasDuplicate(txnId, 0)).isEqualTo(SAME_NODE);
+
+            cache.commitReceipts(state, roundTime, immediateStateChangeListener, blockStreamManager, RECORDS);
+            assertThat(receiptQueue()).hasSize(1);
+            assertThat(cache.hasDuplicate(txnId, 0)).isEqualTo(NO_DUPLICATE);
+        }
+
         private void handleRound(
                 @NonNull final RecordCacheImpl cache,
                 @NonNull final Instant consensusTime,

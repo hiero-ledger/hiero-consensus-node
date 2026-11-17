@@ -88,6 +88,12 @@ public class NetworkUtilizationManagerImpl implements NetworkUtilizationManager 
     }
 
     @Override
+    public void leakCapacityForNOfUnscaled(final int n, @NonNull final HederaFunctionality function) {
+        // The claim was made against the normal buckets, as shouldThrottleNOfUnscaled() uses no high-volume ones
+        backendThrottle.leakCapacityForNOfUnscaled(n, function, false);
+    }
+
+    @Override
     public int highVolumeThrottleUtilization(
             @NonNull final HederaFunctionality function, @NonNull final Instant consensusTime) {
         return backendThrottle.getHighVolumeThrottleInstantaneousUtilizationBps(function, consensusTime);

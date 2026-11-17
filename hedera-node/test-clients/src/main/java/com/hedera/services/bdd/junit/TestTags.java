@@ -16,6 +16,7 @@ public class TestTags {
     public static final String ND_RECONNECT = "ND_RECONNECT";
     public static final String UPGRADE = "UPGRADE";
     public static final String ISS = "ISS";
+    public static final String ISS_GRPC = "ISS_GRPC";
     public static final String BLOCK_NODE = "BLOCK_NODE";
     /**
      * Tags a test that needs a real multi-node subprocess network started at genesis (e.g. to

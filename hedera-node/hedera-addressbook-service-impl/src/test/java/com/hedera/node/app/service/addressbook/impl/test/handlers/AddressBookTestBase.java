@@ -218,8 +218,9 @@ public class AddressBookTestBase {
                         c -> {}));
         given(readableStates.getSingleton(ENTITY_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
-                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
-                                .build()));
+                        ENTITY_ID_STATE_ID,
+                        ENTITY_ID_STATE_LABEL,
+                        () -> EntityNumber.newBuilder().build()));
         given(readableStates.getSingleton(HIGHEST_NODE_ID_STATE_ID))
                 .willReturn(new FunctionReadableSingletonState<>(
                         HIGHEST_NODE_ID_STATE_ID,
@@ -390,14 +391,14 @@ public class AddressBookTestBase {
     }
 
     protected void mockAccountLookup(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
-        final var account = mock(Account.class);
-        given(account.key()).willReturn(key);
+        final var account =
+                Account.newBuilder().accountId(contextPayerId).key(key).build();
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
     }
 
     protected void mockAccountKeyOrThrow(Key key, AccountID contextPayerId, ReadableAccountStore accountStore) {
-        final var account = mock(Account.class);
-        given(account.keyOrThrow()).willReturn(key);
+        final var account =
+                Account.newBuilder().accountId(contextPayerId).key(key).build();
         given(accountStore.getAccountById(contextPayerId)).willReturn(account);
     }
 

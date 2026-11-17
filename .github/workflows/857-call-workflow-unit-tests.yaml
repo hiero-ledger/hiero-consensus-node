@@ -93,3 +93,23 @@ jobs:
 
       - name: Test Block Node Version Resolution
         run: bash ./.github/workflows/support/tests/test-resolve-bn-versions.sh
+
+  test-ci-metrics:
+    name: Validate CI Metrics Scripts
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      # The runner image's Python: on the hl-cn runners, setup-python installs a build that needs a newer glibc than
+      # the image has (same pattern as 007, 822, 823 and 905)
+      - name: Install Python
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends python3
+
+      - name: Test CI Metrics Scripts
+        run: python3 -I -m unittest discover -s .github/workflows/support/scripts/ci-metrics/tests

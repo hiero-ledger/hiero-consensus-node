@@ -407,6 +407,79 @@ class SimulatedNetworkConnectivityTest {
         assertThat(node2.receivedEvents.get(1).getTimeReceived()).isEqualTo(at(682));
     }
 
+    @Test
+    @DisplayName("an event submitted again by the same node is delivered once")
+    void repeatedSubmissionIsIgnored() {
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        network.submitEvent(event);
+        tickTo(2);
+        network.submitEvent(event);
+        tickTo(2000);
+
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("every submitting node is scheduled, even for the same event")
+    void sameEventFromDifferentNodesIsScheduledForEach() {
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = submit(NODE_0);
+        forward(event, NODE_1);
+        tickTo(1);
+        tickTo(2000);
+
+        assertThat(forwardedBy(node2, NODE_0)).hasSize(1);
+        assertThat(forwardedBy(node2, NODE_1)).hasSize(1);
+        assertThat(forwardedBy(node0, NODE_1)).hasSize(1);
+        assertThat(forwardedBy(node1, NODE_0)).hasSize(1);
+        assertThat(node0.receivedEvents).hasSize(1);
+        assertThat(node1.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a restarted node is sent the whole event log again")
+    void restartedNodeReceivesLogAgain() {
+        network.setConnections(connections(true));
+
+        submit(NODE_0);
+        submit(NODE_2);
+        tickTo(1);
+        tickTo(2000);
+        assertThat(node1.receivedEvents).hasSize(2);
+        assertThat(node2.receivedEvents).hasSize(1);
+
+        network.resetCursor(NODE_1);
+        tickTo(2001);
+        tickTo(6000);
+
+        assertThat(node1.receivedEvents).hasSize(4);
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node0.receivedEvents).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("a restarted node is not sent its own events, but is sent the ones submitted after the restart once")
+    void restartedNodeReceivesNewEventsOnce() {
+        network.setConnections(connections(true));
+
+        submit(NODE_1);
+        tickTo(1);
+        tickTo(2000);
+
+        network.resetCursor(NODE_1);
+        submit(NODE_0);
+        tickTo(2001);
+        tickTo(6000);
+
+        assertThat(node1.receivedEvents).hasSize(1);
+        assertThat(node1.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_0);
+    }
+
     /**
      * Creates and submits an event from a node.
      */

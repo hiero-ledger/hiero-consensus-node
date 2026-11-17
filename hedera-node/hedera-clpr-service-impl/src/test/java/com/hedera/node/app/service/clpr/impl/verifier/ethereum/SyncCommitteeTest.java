@@ -8,6 +8,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumTe
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumBundleFixtures.Committee;
 import java.util.Arrays;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,16 @@ class SyncCommitteeTest {
 
         assertThat(SyncCommittee.fromPubkeys(swapped, new byte[48]).pubkeysRoot32())
                 .isNotEqualTo(root);
+    }
+
+    @Test
+    @DisplayName("given a committee, then decompressAggregatePubkey returns the aggregate's EIP-2537 encoding")
+    void givenCommittee_thenDecompressAggregatePubkeyReturnsUncompressedAggregate() {
+        final Committee keys = Committee.of(SyncCommitteePreset.MINIMAL, 1);
+
+        final SyncCommittee committee = new SyncCommittee(keys.pubkeysRoot, keys.compressedAggregate);
+
+        assertThat(committee.decompressAggregatePubkey()).isEqualTo(keys.uncompressedAggregate);
     }
 
     @Test

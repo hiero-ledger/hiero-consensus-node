@@ -52,6 +52,6 @@ jobs:
       release-version: ${{ inputs.version || github.ref_name }}
       create-release-notes: true
       create-release: false
-      dry-run: ${{ inputs.dry-run-enabled }}
+      dry-run-enabled: ${{ inputs.dry-run-enabled }}
     secrets:
       gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}

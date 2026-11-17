@@ -226,7 +226,6 @@ public class StandaloneDispatchFactory {
                 NO_OP_KEY_VERIFIER,
                 creatorInfo,
                 consensusNow,
-                preHandleResult.getRequiredKeys(),
                 preHandleResult.getHollowAccounts(),
                 dispatchHandleContext,
                 stack,

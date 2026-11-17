@@ -27,6 +27,12 @@ class StorageAccountingScopeTest {
     @Mock
     private StorageAccountingScope enclosingScope;
 
+    @Mock
+    private HandleContext nestedContext;
+
+    @Mock
+    private HandleContext.SavepointStack nestedStack;
+
     @BeforeEach
     void setUp() {
         given(context.savepointStack()).willReturn(stack);
@@ -57,5 +63,30 @@ class StorageAccountingScopeTest {
 
         verify(stack, never()).attach(any(), any());
         verify(stack, never()).detach(any());
+    }
+
+    @Test
+    void ownerRecordsItsCommit() {
+        final var subject = new StorageAccountingScope(context);
+
+        assertThat(subject.ownerHasCommitted()).isFalse();
+        subject.markCommitted();
+
+        assertThat(subject.ownerHasCommitted()).isTrue();
+    }
+
+    @Test
+    void nestedExecutionFollowsTheCommitOfItsOwner() {
+        final var owner = new StorageAccountingScope(context);
+        given(nestedContext.savepointStack()).willReturn(nestedStack);
+        given(nestedStack.findInLineage(StorageAccountingScope.class)).willReturn(owner);
+        final var subject = new StorageAccountingScope(nestedContext);
+
+        // Only the owner's commit makes the creations in its scope final
+        subject.markCommitted();
+        assertThat(subject.ownerHasCommitted()).isFalse();
+        owner.markCommitted();
+
+        assertThat(subject.ownerHasCommitted()).isTrue();
     }
 }

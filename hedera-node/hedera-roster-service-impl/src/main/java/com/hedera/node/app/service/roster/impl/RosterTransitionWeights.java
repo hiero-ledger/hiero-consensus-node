@@ -179,7 +179,7 @@ public record RosterTransitionWeights(
     public static long atLeastOneThirdOfTotal(final long totalWeight) {
         // Since aBFT is unachievable with n/3 malicious weight, using the conclusion of n/3 weight
         // ensures it the conclusion overlaps with the weight held by at least one honest node
-        return (totalWeight + 2) / 3;
+        return totalWeight / 3 + (totalWeight % 3 == 0 ? 0 : 1);
     }
 
     /**

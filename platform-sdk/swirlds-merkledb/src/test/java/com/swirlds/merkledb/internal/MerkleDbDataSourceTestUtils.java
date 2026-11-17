@@ -7,7 +7,9 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -55,8 +57,21 @@ public final class MerkleDbDataSourceTestUtils {
             final long size,
             final boolean compactionEnabled,
             final boolean preferDiskBasedIndexes) {
-        return (MerkleDbDataSource) builder(configuration, fileSystemManager, size)
-                .build(name, null, compactionEnabled, preferDiskBasedIndexes);
+        final Configuration config = preferDiskBasedIndexes ? withDiskIndices(configuration) : configuration;
+        return (MerkleDbDataSource) builder(config, fileSystemManager, size).build(name, null, compactionEnabled);
+    }
+
+    /// Returns a copy of the given configuration with disk based indices, see
+    /// [com.swirlds.merkledb.config.MerkleDbConfig#useDiskIndices()].
+    private static Configuration withDiskIndices(final Configuration configuration) {
+        final ConfigurationBuilder builder = ConfigurationBuilder.create().autoDiscoverExtensions();
+        configuration.getPropertyNames().forEach(name -> {
+            final String value = configuration.getValue(name);
+            if (value != null) {
+                builder.withValue(name, value);
+            }
+        });
+        return builder.withValue(MerkleDbConfig_.USE_DISK_INDICES, "true").build();
     }
 
     /**
@@ -91,7 +106,7 @@ public final class MerkleDbDataSourceTestUtils {
             final boolean compactionEnabled) {
         // Initial capacity 0: on the restore path it is read back from the snapshot metadata
         return (MerkleDbDataSource)
-                builder(configuration, fileSystemManager, 0).build(name, snapshotDir, compactionEnabled, false);
+                builder(configuration, fileSystemManager, 0).build(name, snapshotDir, compactionEnabled);
     }
 
     /**

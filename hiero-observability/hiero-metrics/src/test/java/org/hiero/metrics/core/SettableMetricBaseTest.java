@@ -8,6 +8,9 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.hiero.metrics.ThreadUtils;
 import org.junit.jupiter.api.Nested;
@@ -17,16 +20,55 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
         extends MetricBaseTest<M, B> {
 
     @Test
-    void testIterationStartedBeforeAddSeesFixedList() {
+    void testSnapshotChangesOnlyOnUpdate() {
         M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+        MetricSnapshot snapshot = metric.snapshot();
         metric.getOrCreateLabeled("label", "a");
+        snapshot.update();
 
-        Iterator<MeasurementSnapshot> export = metric.snapshot().iterator();
+        Iterator<MeasurementSnapshot> export = snapshot.iterator();
         metric.getOrCreateLabeled("label", "b");
+        assertThat(labels(snapshot)).as("not visible before update").containsExactly("[a]");
 
+        snapshot.update();
         List<String> seen = new ArrayList<>();
         export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
-        assertThat(seen).containsExactly("[a]");
+        assertThat(seen).as("started iteration is not affected").containsExactly("[a]");
+        assertThat(labels(snapshot)).containsExactly("[a]", "[b]");
+    }
+
+    @Test
+    void testSnapshotIsSortedByLabelValues() {
+        M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+        metric.getOrCreateLabeled("label", "b");
+        metric.getOrCreateLabeled("label", "2");
+        metric.getOrCreateLabeled("label", "a");
+        metric.getOrCreateLabeled("label", "10");
+
+        assertThat(exportedLabels(metric))
+                .as("values are compared as strings")
+                .containsExactly("[10]", "[2]", "[a]", "[b]");
+    }
+
+    @Test
+    void testSnapshotIsSortedByLabelNamesAndThenValues() {
+        M metric = emptyMetricBuilder().addDynamicLabelNames("type", "node").build();
+        metric.getOrCreateLabeled("type", "a", "node", "2");
+        metric.getOrCreateLabeled("type", "b", "node", "1");
+        metric.getOrCreateLabeled("node", "1", "type", "a");
+
+        assertThat(exportedLabels(metric)).containsExactly("[1,a]", "[1,b]", "[2,a]");
+    }
+
+    @Test
+    void testMeasurementSnapshotIsReusedWhenSnapshotIsRebuilt() {
+        M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+        metric.getOrCreateLabeled("label", "b");
+        MeasurementSnapshot created = exported(metric).getFirst();
+
+        metric.getOrCreateLabeled("label", "a");
+
+        assertThat(exported(metric)).hasSize(2).last().isSameAs(created);
     }
 
     /**
@@ -235,7 +277,7 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                 assertThat(results[i]).isNotNull();
                 assertThat(results[i]).isSameAs(results[0]);
             }
-            assertThat(metric.snapshot()).hasSize(1);
+            assertThat(exported(metric)).hasSize(1);
         }
 
         @Test
@@ -255,7 +297,7 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                 assertThat(results[i]).isNotNull();
                 assertThat(results[i]).isSameAs(results[0]);
             }
-            assertThat(metric.snapshot()).hasSize(1);
+            assertThat(exported(metric)).hasSize(1);
         }
 
         @Test
@@ -268,12 +310,182 @@ public abstract class SettableMetricBaseTest<M extends SettableMetric<?, ?>, B e
                     Duration.ofMillis(300),
                     threadIdx -> () -> metric.getOrCreateLabeled("label", "v" + threadIdx));
 
-            List<String> seen = new ArrayList<>();
-            metric.snapshot().forEach(s -> seen.add(s.getDynamicLabelValues().toString()));
-            assertThat(seen)
+            assertThat(exportedLabels(metric))
                     .containsExactlyInAnyOrderElementsOf(IntStream.range(0, threadCount)
                             .mapToObj(i -> "[v" + i + "]")
                             .toList());
         }
+    }
+
+    /**
+     * Tests for removing measurements of settable metrics.
+     */
+    @Nested
+    class RemoveMeasurementsTests {
+
+        @Test
+        void testRemoveIfThrowsWhenNoDynamicLabelsDefined() {
+            M metric = emptyMetricBuilder().build();
+
+            assertThatThrownBy(() -> metric.removeIf(_ -> true))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage(
+                            "This metric has no dynamic labels, so it can be removed only from the metric registry");
+        }
+
+        @Test
+        void testRemoveIfNullFilterThrows() {
+            M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+
+            assertThatThrownBy(() -> metric.removeIf(null))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessage("filter must not be null");
+        }
+
+        @Test
+        void testRemoveIfByLabelValue() {
+            M metric = emptyMetricBuilder().addDynamicLabelNames("node", "type").build();
+            Object kept = metric.getOrCreateLabeled("node", "1", "type", "a");
+            metric.getOrCreateLabeled("node", "3", "type", "a");
+            metric.getOrCreateLabeled("node", "3", "type", "b");
+
+            assertThat(metric.removeIf(labelValues -> "3".equals(labelValues.get("node"))))
+                    .isEqualTo(2);
+            assertThat(metric.removeIf(labelValues -> "3".equals(labelValues.get("node"))))
+                    .as("nothing left to remove")
+                    .isZero();
+            assertThat(metric.getOrCreateLabeled("node", "1", "type", "a")).isSameAs(kept);
+            assertThat(exportedLabels(metric)).containsExactly("[1,a]");
+        }
+
+        @Test
+        void testRemovedMeasurementIsCreatedAgain() {
+            M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+            Object removed = metric.getOrCreateLabeled("label", "a");
+
+            assertThat(metric.removeIf(_ -> true)).isEqualTo(1);
+
+            assertThat(metric.getOrCreateLabeled("label", "a")).isNotSameAs(removed);
+        }
+
+        @Test
+        void testSnapshotDropsRemovedAndSortsCreatedAgain() {
+            M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+            MetricSnapshot snapshot = metric.snapshot();
+            metric.getOrCreateLabeled("label", "a");
+            metric.getOrCreateLabeled("label", "b");
+            snapshot.update();
+
+            Iterator<MeasurementSnapshot> export = snapshot.iterator();
+            metric.removeIf(labelValues -> "a".equals(labelValues.get("label")));
+            metric.getOrCreateLabeled("label", "c");
+            snapshot.update();
+
+            List<String> seen = new ArrayList<>();
+            export.forEachRemaining(s -> seen.add(s.getDynamicLabelValues().toString()));
+            assertThat(seen).as("started iteration is not affected").containsExactly("[a]", "[b]");
+            assertThat(labels(snapshot)).containsExactly("[b]", "[c]");
+
+            metric.getOrCreateLabeled("label", "a");
+            snapshot.update();
+            assertThat(labels(snapshot)).containsExactly("[a]", "[b]", "[c]");
+        }
+
+        @Test
+        void testRemoveIfCallsFilterWithoutLock() {
+            M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+            metric.getOrCreateLabeled("label", "a");
+            AtomicInteger removedByOtherThread = new AtomicInteger();
+
+            int removed = metric.removeIf(_ -> {
+                // removing the same measurement in another thread would block, if the filter held the map bin lock
+                removedByOtherThread.set(CompletableFuture.supplyAsync(() -> metric.removeIf(_ -> true))
+                        .orTimeout(1, TimeUnit.SECONDS)
+                        .join());
+                return true;
+            });
+
+            assertThat(removedByOtherThread).hasValue(1);
+            assertThat(removed).as("already removed by the other thread").isZero();
+        }
+
+        @Test
+        void testConcurrentCreateAndRemoveKeepSnapshotConsistent() throws InterruptedException {
+            M metric = emptyMetricBuilder().addDynamicLabelNames("label").build();
+            MetricSnapshot snapshot = metric.snapshot();
+            final int threadCount = 4;
+            final int iterations = 20_000;
+            final List<String> values = collidingLabelValues();
+            // all label values share one map bin, created up front, so the race starts on a resized map with a tree bin
+            values.forEach(value -> metric.getOrCreateLabeled("label", value));
+
+            // an export rebuilt during concurrent changes may iterate a measurement removed and created again twice,
+            // so every export is checked for duplicates
+            ThreadUtils.runConcurrentAndCheck(
+                    threadCount,
+                    Duration.ofSeconds(10),
+                    threadIdx -> () -> {
+                        for (int i = 0; i < iterations; i++) {
+                            final String label = values.get(i % values.size());
+                            if ((i + threadIdx) % 2 == 0) {
+                                metric.getOrCreateLabeled("label", label);
+                            } else {
+                                metric.removeIf(labelValues -> label.equals(labelValues.get("label")));
+                            }
+                        }
+                    },
+                    () -> {
+                        snapshot.update();
+                        assertThat(labels(snapshot))
+                                .as("export has duplicate labels")
+                                .doesNotHaveDuplicates();
+                    });
+
+            // the first export after the race rebuilds only if a change is still marked
+            List<MeasurementSnapshot> exported = exported(metric);
+            assertThat(labelsOf(exported)).doesNotHaveDuplicates();
+            metric.getOrCreateLabeled("label", "forced_rebuild");
+            metric.removeIf(labelValues -> "forced_rebuild".equals(labelValues.get("label")));
+            assertThat(exported)
+                    .as("exported snapshots are the ones of the current measurements, so no change was lost")
+                    .usingElementComparator(SettableMetricBaseTest::compareIdentity)
+                    .containsExactlyElementsOf(exported(metric));
+            assertThat(metric.removeIf(_ -> true))
+                    .as("exported measurements are the existing ones")
+                    .isEqualTo(exported.size());
+            assertThat(exportedLabels(metric))
+                    .as("no removed measurement left in the snapshot")
+                    .isEmpty();
+        }
+    }
+
+    // equal only for the same instance, for assertions on which snapshot is exported
+    private static int compareIdentity(MeasurementSnapshot first, MeasurementSnapshot second) {
+        return first == second ? 0 : 1;
+    }
+
+    private static List<String> labelsOf(List<MeasurementSnapshot> snapshots) {
+        return snapshots.stream()
+                .map(snapshot -> snapshot.getDynamicLabelValues().toString())
+                .toList();
+    }
+
+    private static List<MeasurementSnapshot> exported(Metric<?> metric) {
+        MetricSnapshot snapshot = metric.snapshot();
+        snapshot.update();
+        List<MeasurementSnapshot> exported = new ArrayList<>();
+        snapshot.forEach(exported::add);
+        return exported;
+    }
+
+    private static List<String> exportedLabels(Metric<?> metric) {
+        metric.snapshot().update();
+        return labels(metric.snapshot());
+    }
+
+    private static List<String> labels(MetricSnapshot snapshot) {
+        List<String> labels = new ArrayList<>();
+        snapshot.forEach(s -> labels.add(s.getDynamicLabelValues().toString()));
+        return labels;
     }
 }

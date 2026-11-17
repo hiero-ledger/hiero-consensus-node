@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.gossip.config.GossipConfig.isFarFutureEventFilterDisabled;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.filterLikelyDuplicates;
 
 import com.swirlds.base.time.Time;
@@ -17,6 +18,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -61,16 +63,16 @@ public class ShadowgraphSynchronizer {
     private final Duration nonAncestorFilterThreshold;
 
     /**
-     * For events that are ancestors of self events, we must have had this event for at least this amount
-     * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
-     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
+     * For events that are ancestors of self events, we must have had this event for at least this amount of time before
+     * it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce the duplicate
+     * ratio when using broadcast. Not active if broadcast is disabled.
      */
     private final Duration ancestorFilterThreshold;
 
     /**
-     * For events that are self events, we must have had this event for at least this amount
-     * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
-     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
+     * For events that are self events, we must have had this event for at least this amount of time before it is
+     * eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce the duplicate ratio
+     * when using broadcast. Not active if broadcast is disabled.
      */
     private final Duration selfFilterThreshold;
 
@@ -81,16 +83,21 @@ public class ShadowgraphSynchronizer {
 
     private final Consumer<SyncProgress> syncProgressHandler;
 
+    private final int farFutureEventOffset;
+
+    @NonNull
+    private volatile EventWindow latestSelfEventWindow = EventWindow.getGenesisEventWindow();
+
     /**
      * Constructs a new ShadowgraphSynchronizer.
      *
-     * @param configuration the platform configuration
-     * @param metrics the metrics system
-     * @param time source of time
-     * @param numberOfNodes number of nodes in the network
-     * @param syncMetrics metrics for sync
+     * @param configuration      the platform configuration
+     * @param metrics            the metrics system
+     * @param time               source of time
+     * @param numberOfNodes      number of nodes in the network
+     * @param syncMetrics        metrics for sync
      * @param intakeEventCounter used for tracking events in the intake pipeline per peer
-     * @param syncLagHandler callback for reporting median sync lag
+     * @param syncLagHandler     callback for reporting median sync lag
      */
     public ShadowgraphSynchronizer(
             @NonNull final Configuration configuration,
@@ -109,6 +116,8 @@ public class ShadowgraphSynchronizer {
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
         this.ancestorFilterThreshold = syncConfig.ancestorFilterThreshold();
         this.selfFilterThreshold = syncConfig.selfFilterThreshold();
+        this.farFutureEventOffset =
+                configuration.getConfigData(GossipConfig.class).farFutureEventOffset();
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
@@ -198,11 +207,34 @@ public class ShadowgraphSynchronizer {
             sendList = eventsTheyMayNeed;
         }
 
-        if (maximumEventsPerSync > 0 && sendList.size() > maximumEventsPerSync) {
-            sendList = sendList.subList(0, maximumEventsPerSync);
+        List<PlatformEvent> nonFarFutureEventsToSend =
+                filterFarFutureEvents(theirEventWindow.getPendingConsensusRound(), sendList);
+        syncMetrics.syncEventsHeldBack(sendList.size() - nonFarFutureEventsToSend.size());
+
+        if (maximumEventsPerSync > 0 && nonFarFutureEventsToSend.size() > maximumEventsPerSync) {
+            nonFarFutureEventsToSend = nonFarFutureEventsToSend.subList(0, maximumEventsPerSync);
         }
 
-        return sendList;
+        return nonFarFutureEventsToSend;
+    }
+
+    /**
+     * Filters out events that are considered "far future" events based on the peer's pending round and the configured
+     * threshold.
+     *
+     * @param theirPendingRound the pending round of the peer
+     * @param sendList          the list of events to be sent to the peer
+     * @return a list of events in the {@code sendList} that are not considered "far future" events for the peer
+     */
+    private List<PlatformEvent> filterFarFutureEvents(
+            final long theirPendingRound, @NonNull final List<PlatformEvent> sendList) {
+        if (isFarFutureEventFilterDisabled(farFutureEventOffset)) {
+            return sendList;
+        }
+
+        return sendList.stream()
+                .filter(e -> !SyncUtils.isFarFutureEvent(farFutureEventOffset, e.getBirthRound(), theirPendingRound))
+                .toList();
     }
 
     /**
@@ -210,6 +242,7 @@ public class ShadowgraphSynchronizer {
      */
     public void clear() {
         this.shadowGraph.clear();
+        latestSelfEventWindow = EventWindow.getGenesisEventWindow();
     }
 
     /**
@@ -227,7 +260,18 @@ public class ShadowgraphSynchronizer {
      * @param eventWindow new event window to apply
      */
     public void updateEventWindow(@NonNull final EventWindow eventWindow) {
+        this.latestSelfEventWindow = eventWindow;
         this.shadowGraph.updateEventWindow(eventWindow);
+    }
+
+    /**
+     * Returns the current event window for this node.
+     *
+     * @return this nodes current event window
+     */
+    @NonNull
+    public EventWindow getEventWindow() {
+        return latestSelfEventWindow;
     }
 
     /**

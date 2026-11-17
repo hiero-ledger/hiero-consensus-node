@@ -43,6 +43,18 @@ record SyncCommittee(@NonNull byte[] pubkeysRoot32, @NonNull byte[] aggregatePub
         return Ssz.sha256(pubkeysRoot32, Ssz.pubkeyHash64(aggregatePubkey48));
     }
 
+    /**
+     * Decompresses the aggregate key to the 128-byte EIP-2537 encoding the BLS checks take. The committee holds the
+     * compressed form, which is what the beacon state commits to.
+     *
+     * @throws com.hedera.node.app.service.clpr.impl.verifier.ProofException if the aggregate key is not a point of the
+     *     curve
+     */
+    @NonNull
+    byte[] decompressAggregatePubkey() {
+        return G1Compression.decompress(aggregatePubkey48, "aggregatePubkey");
+    }
+
     @Override
     public byte[] pubkeysRoot32() {
         return pubkeysRoot32.clone();
