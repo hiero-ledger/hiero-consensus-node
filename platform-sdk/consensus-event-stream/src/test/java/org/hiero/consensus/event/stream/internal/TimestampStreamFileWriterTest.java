@@ -1,12 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream.internal;
 
+import static java.util.stream.Collectors.toSet;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.computeEntireHash;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.generateSigFilePath;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.generateStreamFileNameFromInstant;
+import static org.hiero.consensus.event.stream.internal.StreamValidationResult.OK;
+import static org.hiero.consensus.event.stream.test.fixtures.TestStreamType.TEST_STREAM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.Set;
+import java.util.stream.Stream;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.constructable.ConstructableRegistration;
+import org.hiero.consensus.event.stream.LinkedObjectStream;
+import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.event.stream.test.fixtures.ObjectForTestStream;
+import org.hiero.consensus.event.stream.test.fixtures.StreamFileSigner;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @DisplayName("TimestampStreamFileWriter Test")
 class TimestampStreamFileWriterTest {
@@ -180,6 +201,58 @@ class TimestampStreamFileWriterTest {
                         new ObjectForTestStream(id, firstPeriodStart.plusMillis(3 * windowSizeMs), ++alignment),
                         true,
                         "new period and alignment, should start new file"));
+    }
+
+    @Test
+    @DisplayName("restartAtCompleteWindow() discards the partial file and resumes at the next complete window")
+    void restartAtCompleteWindowDiscardsPartialFile(@TempDir final Path directory)
+            throws IOException, NoSuchAlgorithmException, ConstructableRegistryException {
+        ConstructableRegistration.registerCoreConstructables();
+
+        final long windowSizeMs = 1000;
+        final Instant start = Instant.ofEpochSecond(1000);
+        final StreamFileSigner signer = new StreamFileSigner();
+        final TimestampStreamFileWriter<ObjectForTestStream> writer =
+                new TimestampStreamFileWriter<>(directory.toString(), windowSizeMs, signer, false, TEST_STREAM);
+        final LinkedObjectStream<ObjectForTestStream> stream =
+                new HashCalculatorForStream<>(new RunningHashCalculatorForStream<>(writer));
+        stream.setRunningHash(new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384));
+
+        int id = 0;
+        // the first window is complete, the second window is still being written
+        stream.addObject(new ObjectForTestStream(id++, start));
+        stream.addObject(new ObjectForTestStream(id++, start.plusMillis(1000)));
+        stream.addObject(new ObjectForTestStream(id++, start.plusMillis(1500)));
+
+        writer.restartAtCompleteWindow();
+
+        // the first object after the restart is in the middle of a window
+        stream.addObject(new ObjectForTestStream(id++, start.plusMillis(5500)));
+        // the next window is complete once the object of the following window arrives
+        stream.addObject(new ObjectForTestStream(id++, start.plusMillis(6000)));
+        stream.addObject(new ObjectForTestStream(id, start.plusMillis(7000)));
+
+        final String firstFile = generateStreamFileNameFromInstant(start, TEST_STREAM);
+        final String restartedFile = generateStreamFileNameFromInstant(start.plusMillis(6000), TEST_STREAM);
+        final String currentFile = generateStreamFileNameFromInstant(start.plusMillis(7000), TEST_STREAM);
+        try (final Stream<Path> files = Files.list(directory)) {
+            assertEquals(
+                    Set.of(firstFile, firstFile + "_sig", restartedFile, restartedFile + "_sig", currentFile),
+                    files.map(file -> file.getFileName().toString()).collect(toSet()),
+                    "the partial window must be deleted and writing must resume at the next complete window");
+        }
+
+        final File restartedStreamFile = directory.resolve(restartedFile).toFile();
+        assertEquals(
+                OK,
+                LinkedObjectStreamValidateUtils.validateSignature(
+                        computeEntireHash(restartedStreamFile),
+                        new File(generateSigFilePath(restartedStreamFile)),
+                        signer.getPublicKey(),
+                        TEST_STREAM),
+                "the deleted file must not affect the signature of the next file");
+
+        writer.close();
     }
 
     /**

@@ -249,7 +249,12 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
         }
 
         if (streamFileWriter != null) {
-            streamFileWriter.setStartWriteAtCompleteWindow(runningEventHashOverride.isReconnect());
+            if (runningEventHashOverride.isReconnect()) {
+                // The events after a reconnect do not continue the file being written, so it must not be signed
+                streamFileWriter.restartAtCompleteWindow();
+            } else {
+                streamFileWriter.setStartWriteAtCompleteWindow(false);
+            }
         }
 
         initialHash = new Hash(runningEventHashOverride.legacyRunningEventHash());

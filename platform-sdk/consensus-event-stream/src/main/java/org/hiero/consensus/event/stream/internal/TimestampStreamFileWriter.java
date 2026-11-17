@@ -489,8 +489,7 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
     }
 
     /**
-     * This method is called when the node falls behind.
-     * This method will delete any partially written files.
+     * Deletes the file that is currently being written, if any. The file is incomplete, so it is never signed.
      */
     @Override
     public void clear() {
@@ -498,6 +497,9 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
             final File closedFile = currentFile;
             // close current file
             closeFile();
+            // the digests hold the bytes of the deleted file, they must not leak into the hashes of the next file
+            streamDigest.reset();
+            metadataStreamDigest.reset();
             try {
                 // delete this file since it is half written
                 Files.delete(closedFile.toPath());
@@ -533,8 +535,8 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
 
     /**
      * Set if files should only be written in their entirety (as opposed to allowing files to be partially created
-     * if the initial objects are not present). Should be set to be true after reconnect, or at state recovering,
-     * and should be set to be false at restart
+     * if the initial objects are not present). Should be set to be true at state recovering, and should be set to be
+     * false at restart. After a reconnect, use {@link #restartAtCompleteWindow()} instead.
      */
     public void setStartWriteAtCompleteWindow(final boolean startWriteAtCompleteWindow) {
         this.startWriteAtCompleteWindow = startWriteAtCompleteWindow;
@@ -542,5 +544,17 @@ public class TimestampStreamFileWriter<T extends StreamAligned & RunningHashable
                 OBJECT_STREAM.getMarker(),
                 "TimestampStreamFileWriter::setStartWriteAtCompleteWindow: {}",
                 startWriteAtCompleteWindow);
+    }
+
+    /**
+     * Deletes the file that is currently being written, if any, and resumes writing at the next complete window. Used
+     * after a reconnect, when the objects that follow do not continue the objects written so far. Without this, the
+     * next object would close and sign the current file although it contains only part of its window.
+     */
+    public void restartAtCompleteWindow() {
+        clear();
+        previousObject = null;
+        previousHeldBackByAlignment = false;
+        setStartWriteAtCompleteWindow(true);
     }
 }
