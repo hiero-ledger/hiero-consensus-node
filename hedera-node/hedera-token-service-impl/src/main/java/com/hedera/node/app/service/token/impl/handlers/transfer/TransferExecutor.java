@@ -200,10 +200,11 @@ public class TransferExecutor extends BaseTokenHandler {
             hookCalls = null;
         }
         // The implicit list of written keys for a hook execution is all the transaction's hook storage changes,
-        // without distinguishing hooks; so only the transaction's single hook invocation (perhaps executed both
-        // pre- and post-transaction) can trace its storage writes implicitly
+        // without distinguishing hooks or executions; so only the transaction's single hook execution can trace
+        // its storage writes implicitly (a pre-post hook invocation is two executions)
         final boolean isolated = hasHooks
-                && hookCalls.preOnlyHooks().size() + hookCalls.prePostHooks().size() == 1;
+                && hookCalls.preOnlyHooks().size() == 1
+                && hookCalls.prePostHooks().isEmpty();
         final var numAttemptedHookCalls = new Counter();
         if (hasHooks) {
             try {
@@ -488,7 +489,7 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param handleContext the handle context to use for dispatching
      * @param function the ABI function to use for encoding
      * @param numAttemptedHookCalls the number of successful hook calls
-     * @param isolated whether these calls execute the transaction's only hook invocation
+     * @param isolated whether these calls are the transaction's only hook execution
      */
     private void dispatchHookCalls(
             @NonNull final HookContext hookContext,

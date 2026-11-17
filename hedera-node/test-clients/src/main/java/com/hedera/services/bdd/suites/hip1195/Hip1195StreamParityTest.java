@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord.nonStakingRecordsFrom;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -72,6 +73,7 @@ import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.node.config.types.StreamMode;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
@@ -127,11 +129,15 @@ public class Hip1195StreamParityTest {
     @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
     static SpecContract CREATE_OP_HOOK;
 
+    @Contract(contract = "ManagedTransferCap", creationGas = 5_000_000)
+    static SpecContract MANAGED_TRANSFER_CAP_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(MULTIPURPOSE.getInfo());
         testLifecycle.doAdhoc(CREATE_OP_HOOK.getInfo());
+        testLifecycle.doAdhoc(MANAGED_TRANSFER_CAP_HOOK.getInfo());
         testLifecycle.doAdhoc(SET_AND_PASS_HOOK.getInfo());
         testLifecycle.doAdhoc(THREE_PASSES_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
@@ -288,6 +294,29 @@ public class Hip1195StreamParityTest {
                         .via(transfer),
                 streamMustIncludePassWithReplayFrom(
                         spec -> hookExecutionsTraceExplicitWrites(spec, transfer, 3), Duration.ofSeconds(30)));
+    }
+
+    /**
+     * A single pre-post hook invocation is two executions of the same hook; here the first only reads the slot that
+     * the second writes. The implicit list of written keys does not distinguish executions, so both must trace
+     * their writes explicitly.
+     */
+    @HapiTest
+    final Stream<DynamicTest> prePostHookExecutionsTraceExplicitWrites() {
+        // Storage traces only go to the block stream
+        assumeFalse(targetStreamMode() == RECORDS, "No block stream to check when streamMode=RECORDS");
+        final var transfer = "prePostTransfer";
+        return hapiTest(
+                cryptoCreate("party").withHooks(accountAllowanceHook(1L, MANAGED_TRANSFER_CAP_HOOK.name())),
+                // Slot zero is the remaining cap on credits (here 500), which the hook only reads pre-transaction,
+                // and reduces by the credit post-transaction
+                accountEvmHookStore("party", 1L).putSlot(Bytes.EMPTY, Bytes.fromHex("01f4")),
+                cryptoTransfer(movingHbar(200L).between(DEFAULT_PAYER, "party"))
+                        .withPrePostHookFor("party", 1L, 100_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .via(transfer),
+                streamMustIncludePassWithReplayFrom(
+                        spec -> hookExecutionsTraceExplicitWrites(spec, transfer, 2), Duration.ofSeconds(30)));
     }
 
     @HapiTest
@@ -621,7 +650,7 @@ public class Hip1195StreamParityTest {
                             usages.stream()
                                     .anyMatch(usage ->
                                             usage.contractIdOrThrow().contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM),
-                            "Each hook execution writes its own storage");
+                            "Each hook execution uses its own storage");
                     assertTrue(
                             usages.stream().allMatch(ContractSlotUsage::hasWrittenSlotKeys),
                             "Each hook execution must trace its writes explicitly");

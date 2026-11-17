@@ -664,7 +664,7 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
     static Stream<Arguments> hookInvocationMixes() {
         return Stream.of(
                 Arguments.of(HookUse.PRE, HookUse.NONE, 1, false),
-                Arguments.of(HookUse.PRE_POST, HookUse.NONE, 2, false),
+                Arguments.of(HookUse.PRE_POST, HookUse.NONE, 2, true),
                 Arguments.of(HookUse.PRE, HookUse.PRE, 2, true),
                 Arguments.of(HookUse.PRE, HookUse.PRE_POST, 3, true),
                 Arguments.of(HookUse.PRE_POST, HookUse.PRE_POST, 4, true));
@@ -672,7 +672,7 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
 
     @ParameterizedTest
     @MethodSource("hookInvocationMixes")
-    void onlyASingleHookInvocationTracesStorageWritesImplicitly(
+    void onlyASingleHookExecutionTracesStorageWritesImplicitly(
             HookUse senderHook, HookUse receiverHook, int numExecutions, boolean explicitWrites)
             throws PreCheckException {
         subject = new CryptoTransferHandler(validator, new HookCallsFactory(), entityIdFactory);
