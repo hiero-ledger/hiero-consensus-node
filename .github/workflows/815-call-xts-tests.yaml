@@ -21,6 +21,10 @@ on:
         type: string
         description: "Run HAPI Test Suite"
         default: "false"
+      enable-hapi-pre-cutover-rerun:
+        type: string
+        description: "Also rerun the HAPI panels with the pre-cutover profile (needs enable-hapi-test-suite)"
+        default: "true"
       enable-otter-test-suite:
         type: string
         description: "Run Otter Test Suite"
@@ -252,7 +256,9 @@ jobs:
     needs:
       - commit-info
       - build
-    if: ${{ needs.build.result == 'success' && inputs.enable-hapi-test-suite == 'true' }}
+    if: >-
+      ${{ needs.build.result == 'success' && inputs.enable-hapi-test-suite == 'true' &&
+      inputs.enable-hapi-pre-cutover-rerun == 'true' }}
     uses: ./.github/workflows/829-call-execute-xts-hapi-testnet.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha }}
