@@ -6,6 +6,7 @@ import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateR
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newBlockHeader;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBlockToDisk;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
@@ -17,6 +18,7 @@ import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -44,6 +46,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -78,6 +81,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -2274,6 +2278,70 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 assertThat(actualBlock.blockItem(i)).isEqualTo(expectedBlock.blockItem(i));
             }
         }
+    }
+
+    @Test
+    void testStartupSkipsInvalidBlockOnDisk() throws Exception {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.maxBlocks", 10)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        final File blockDir = new File(testDirFile, Long.toString(Instant.now().toEpochMilli()));
+        Files.createDirectories(blockDir.toPath());
+        final List<BlockState> blocks = generateRandomBlocks(3);
+        for (final BlockState block : blocks) {
+            writeBlockToDisk(block, true, new File(blockDir, "block-" + block.blockNumber() + ".bin"));
+        }
+
+        // The file parses, but its second item starts with a varint that never terminates
+        final BlockState invalidBlock = new BlockState(3L, 2_000L);
+        invalidBlock.addItem(newBlockHeader(3L));
+        invalidBlock.addSerializedItem(
+                Bytes.wrap(new byte[] {(byte) 0x80}), BlockItem.ItemOneOfType.SIGNED_TRANSACTION);
+        invalidBlock.closeBlock();
+        writeBlockToDisk(invalidBlock, true, new File(blockDir, "block-3.bin"));
+
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
+        assertThatCode(blockBufferService::start).doesNotThrowAnyException();
+
+        assertThat(blockBuffer(blockBufferService)).containsOnlyKeys(0L, 1L, 2L);
+        // The worker is scheduled, so the service finished starting
+        assertThat(execSvcHandle.get(blockBufferService)).isNotNull();
+    }
+
+    @Test
+    void testStartupSchedulesWorkerWhenBufferRestoreFails() {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.maxBlocks", 10)
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        // Reading the buffer directory fails with an unchecked exception, e.g. from the Files.list stream
+        final UncheckedIOException readFailure = new UncheckedIOException(new IOException("listing failed"));
+        try (final MockedConstruction<BlockBufferIO> mockBufferIO = mockConstruction(
+                BlockBufferIO.class, (bufferIO, ctx) -> when(bufferIO.read()).thenThrow(readFailure))) {
+            blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
+            assertThat(mockBufferIO.constructed()).hasSize(1);
+
+            assertThatCode(blockBufferService::start).doesNotThrowAnyException();
+        }
+
+        assertThat(blockBuffer(blockBufferService)).isEmpty();
+        // The worker is scheduled, so the service finished starting
+        assertThat(execSvcHandle.get(blockBufferService)).isNotNull();
     }
 
     @Test

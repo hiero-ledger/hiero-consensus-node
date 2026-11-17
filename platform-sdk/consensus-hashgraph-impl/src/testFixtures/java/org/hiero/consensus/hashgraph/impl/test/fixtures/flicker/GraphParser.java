@@ -315,7 +315,7 @@ public final class GraphParser {
                 throw new GraphParseException(line, "'%s' is listed twice in this roster".formatted(letter));
             }
         }
-        return new NamedRoster(tokens.get(1), weights);
+        return NamedRoster.of(tokens.get(1), weights);
     }
 
     /**
