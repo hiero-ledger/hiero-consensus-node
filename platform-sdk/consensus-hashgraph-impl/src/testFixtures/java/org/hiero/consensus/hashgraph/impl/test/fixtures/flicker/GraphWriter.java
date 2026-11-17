@@ -138,8 +138,10 @@ public final class GraphWriter {
 
     @NonNull
     private static String weights(@NonNull final NamedRoster roster) {
-        final List<String> parts = new ArrayList<>(roster.weightsByLetter().size());
-        roster.weightsByLetter().forEach((letter, weight) -> parts.add(letter + "=" + weight));
+        final List<String> parts = new ArrayList<>(roster.roster().size());
+        roster.roster()
+                .rosterEntries()
+                .forEach(entry -> parts.add(NamedRoster.letterFor(entry.nodeId()) + "=" + entry.weight()));
         return String.join(" ", parts);
     }
 
