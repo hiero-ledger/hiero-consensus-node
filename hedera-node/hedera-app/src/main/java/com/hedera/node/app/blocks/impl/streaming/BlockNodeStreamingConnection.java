@@ -530,28 +530,38 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
 
         // Process the response
         if (response.hasAcknowledgement()) {
-            metrics().recordResponseReceived(response.response().kind());
+            metrics()
+                    .recordResponseReceived(
+                            connectionType(), response.response().kind());
             handleAcknowledgement(response.acknowledgement());
         } else if (response.hasEndStream()) {
-            metrics().recordResponseEndOfStreamReceived(response.endStream().status());
+            metrics()
+                    .recordResponseEndOfStreamReceived(
+                            connectionType(), response.endStream().status());
             metrics().recordLatestBlockEndOfStream(response.endStream().blockNumber());
             handleEndOfStream(response.endStream());
         } else if (response.hasSkipBlock()) {
-            metrics().recordResponseReceived(response.response().kind());
+            metrics()
+                    .recordResponseReceived(
+                            connectionType(), response.response().kind());
             metrics().recordLatestBlockSkipBlock(response.skipBlock().blockNumber());
             handleSkipBlock(response.skipBlock());
         } else if (response.hasResendBlock()) {
-            metrics().recordResponseReceived(response.response().kind());
+            metrics()
+                    .recordResponseReceived(
+                            connectionType(), response.response().kind());
             metrics().recordLatestBlockResendBlock(response.resendBlock().blockNumber());
             handleResendBlock(response.resendBlock());
         } else if (response.hasNodeBehindPublisher()) {
-            metrics().recordResponseReceived(response.response().kind());
+            metrics()
+                    .recordResponseReceived(
+                            connectionType(), response.response().kind());
             metrics()
                     .recordLatestBlockBehindPublisher(
                             response.nodeBehindPublisher().blockNumber());
             handleBlockNodeBehind(response.nodeBehindPublisher());
         } else {
-            metrics().recordUnknownResponseReceived();
+            metrics().recordUnknownResponseReceived(connectionType());
             logger.warn("{} Unexpected response received: {}", this, response);
         }
     }
@@ -620,7 +630,7 @@ public class BlockNodeStreamingConnection extends BlockNodePublisherConnection {
         @Override
         public void run() {
             logger.info(
-                    "{} Worker thread started (messageSizeSoftLimit: {}, messageSizeHardLimit: {}, requestPadding: {}, itemPadding: {})",
+                    "{} Worker thread started (streamer, messageSizeSoftLimit: {}, messageSizeHardLimit: {}, requestPadding: {}, itemPadding: {})",
                     BlockNodeStreamingConnection.this,
                     softLimitBytes,
                     hardLimitBytes,

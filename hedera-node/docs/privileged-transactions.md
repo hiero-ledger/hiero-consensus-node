@@ -85,10 +85,11 @@ transaction, if within the window during which such a reversal is possible.
 
 The treasury, system admin, and configured CLPR admin can submit
 `ClprUpdateLedgerConfiguration`, `ClprCloseChannel`, and `ClprEvictPeerEndpoint`.
-The network property `accounts.clprAdmin` defaults to `601`, which selects account
-number 601 in the network's shard and realm (`0.0.601` on Previewnet). To choose
-another CLPR admin, set the property to a positive account number in the network
-properties file (`0.0.121`). Set `accounts.clprAdmin=-1` to disable the delegation.
+The network property `accounts.clprAdmin` defaults to `-1`, which disables the
+delegation, so only the treasury and system admin can submit these transactions. To
+enable a CLPR admin, set the property to a positive account number in the network
+properties file (`0.0.121`); for example, `accounts.clprAdmin=601` selects account
+number 601 in the network's shard and realm (`0.0.601` on Previewnet).
 
 When CLPR is enabled, HCN creates a missing eligible CLPR admin account at genesis
 or after an upgrade. It creates the account with the treasury's current key and a

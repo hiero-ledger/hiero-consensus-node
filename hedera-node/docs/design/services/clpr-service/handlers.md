@@ -1,6 +1,7 @@
 # CLPR HAPI Transaction Handlers (Hiero)
 
-> Prereq: read `clpr-service-spec.md` §6 (Pseudo-API Reference) for the protocol-level
+> Prereq: read the canonical [CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md)
+> §6 (Pseudo-API Reference) for the protocol-level
 > semantics of each operation. This document covers the *Hiero handlers* — file
 > locations, validation contracts, state changes, lifecycle hooks, and admin gating.
 
@@ -65,10 +66,19 @@ side-effects.
 
 - Functionality: `CLPR_CLOSE_CHANNEL`. Spec §6.2 (`closeChannel`).
 - Admin-gated.
-- Status transitions to `CLOSING` (then `DRAINED`/`CLOSED` per spec §2.1.1; depending on
-  queue state at handle time).
-- **Lifecycle hook:** `onChannelClosed(channelId)` → orchestrator removes from
-  sync schedule.
+- From `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED` directly if the whole
+  outbound queue is already acknowledged. From `DRAINED`, status becomes `CLOSED`.
+  `CLOSING` and `CLOSED` are rejected; a `PENDING` Channel is deleted.
+- New local `sendMessage` calls are blocked during `CLOSING` and `DRAINED`. Inbound Data
+  Messages still dispatch normally, charge the connector, and generate responses.
+- `DRAINED` means the peer has acknowledged this side's outbound Data Messages; responses
+  may still be generated and drain before `CLOSED`. Admin may close a stuck `DRAINED`
+  Channel through the recovery path (canonical spec §3.4); the handler does not check
+  acknowledgements for this transition.
+- **Lifecycle hook:** `onChannelClosed(channelId)` runs only when status becomes `CLOSED`
+  and unschedules the channel; the orchestrator continues syncing during `CLOSING` and
+  `DRAINED`. Implementation status: no close-notification bundle is sent after `CLOSED`
+  yet ([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
 
 ### `ClprEvictPeerEndpointHandler` — admin endpoint eviction
 
@@ -116,13 +126,15 @@ side-effects.
   event-level signature substitutes for an explicit `SignatureMap` (which is empty);
   `CLPR_SUBMIT_BUNDLE` is therefore in `networkAdmin.nodeTransactionsAllowList`.
 - Validation pipeline (each step is from spec §4.2):
-  1. Lookup channel; check it is `ACTIVE`/`PAUSED`. If `DRAINED`/`CLOSED`, reject.
+  1. Lookup channel; reject `PENDING`/`CLOSED`. `ACTIVE`, `PAUSED`, `CLOSING`, and
+     `DRAINED` accept bundles, subject to the usual validation and response ordering rules.
   2. Call `ClprVerifier.verifyBundle` (see [`verifier.md`](verifier.md)) → `ClprBundleContent`.
   3. Check monotonic & contiguous message IDs vs. channel's `acked_message_id`.
   4. Recompute received running hash with `ClprHashUtils.computeRunningHash`; compare.
   5. Apply control messages (only `ConfigUpdate` today) before data messages.
   6. Dispatch each data message to its `targetApplication` via a child contract call;
-     bookkeep replies (`ClprMessageReply`).
+     charge the connector and bookkeep replies (`ClprMessageReply`). This also applies in
+     `CLOSING`/`DRAINED`: graceful close drains inbound traffic through normal dispatch.
 - State writes: channel's `received_running_hash`, `last_received_message_id`; per-data-
   message replies stored back into the queue (replies on the source-side queue).
 - An authorized CLPR admin can use `yahcli clpr submit-bundle --expected-cached-manifest-version`

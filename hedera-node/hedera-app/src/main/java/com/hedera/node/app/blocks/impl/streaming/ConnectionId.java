@@ -30,21 +30,27 @@ public class ConnectionId {
         /**
          * Denotes a connection that intends to stream block data to a block node.
          */
-        BLOCK_STREAMING("STR"), // block STReaming
+        BLOCK_STREAMING("STR", "streaming"), // block STReaming
         /**
          * Denotes a connection that intends to query server information from a block node.
          */
-        SERVER_STATUS("SVC"), // block node SerViCe
+        SERVER_STATUS("SVC", "service"), // block node SerViCe
         /**
          * Denotes a connection that intends to request block acknowledgements from the block node. This type of
          * connection WILL NOT stream blocks.
          */
-        ACK_OBSERVING("OBS"); // acknowledgement OBServing
+        ACK_OBSERVING("OBS", "observing"); // acknowledgement OBServing
 
         private final String key;
+        private final String shortName;
 
-        ConnectionType(final String key) {
+        ConnectionType(final String key, final String shortName) {
             this.key = key;
+            this.shortName = shortName;
+        }
+
+        public String shortName() {
+            return shortName;
         }
     }
 

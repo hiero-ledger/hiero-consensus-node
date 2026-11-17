@@ -45,8 +45,8 @@ public class ClprUpdateLedgerConfigurationSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> defaultClprAdminCanSubmitAdminTransactions() {
-        // The local network creates account 601 with the genesis key.
+    final Stream<DynamicTest> configuredClprAdminCanSubmitAdminTransactions() {
+        // The CLPR test tasks set accounts.clprAdmin=601, so the local network creates it with the genesis key.
         final var admin = "601";
         final var missingChannelId = new byte[32];
         final var throttles = HapiClprUpdateLedgerConfiguration.defaultThrottles();
