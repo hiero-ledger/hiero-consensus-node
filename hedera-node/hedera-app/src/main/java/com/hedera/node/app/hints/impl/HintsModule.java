@@ -26,6 +26,8 @@ import javax.inject.Singleton;
 public interface HintsModule {
     String HINTS_SIGNINGS = "hinTS signings";
     String RSA_SIGNINGS = "RSA signings";
+    /** Qualifies the platform configuration, which unlike the services configuration includes metrics settings. */
+    String PLATFORM_CONFIG = "platform configuration";
 
     @Provides
     @Singleton

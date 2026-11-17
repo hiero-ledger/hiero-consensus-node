@@ -75,7 +75,7 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         this.rsaSignings = requireNonNull(rsaSignings);
         this.hintsContext = requireNonNull(context);
         this.rsaContext = requireNonNull(rsaContext);
-        // Only used when waiting for consensus to construct deterministic signatures
+        // Validation results from pre-handle, reused at handle so no partial signature is verified twice
         cache = Caffeine.newBuilder()
                 .expireAfterAccess(Math.max(1, 2 * blockPeriod.getSeconds()), TimeUnit.SECONDS)
                 .softValues()
@@ -112,14 +112,9 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
                 return;
             }
             final var partialSignature = new PartialSignature(op.constructionId(), crs, creatorId, op);
-            if (tssConfig.useDeterministicHintsSignatures()) {
-                //noinspection ResultOfMethodCallIgnored
-                cache.get(partialSignature);
-            } else {
-                final boolean isValid = Boolean.TRUE.equals(validate(partialSignature));
-                if (isValid) {
-                    incorporateIfConstructionMatches(op, crs, creatorId);
-                }
+            final boolean isValid = Boolean.TRUE.equals(cache.get(partialSignature));
+            if (isValid && !tssConfig.useDeterministicHintsSignatures()) {
+                incorporateIfConstructionMatches(op, crs, creatorId);
             }
         } catch (Exception e) {
             log.debug("Ignoring partial signature in pre-handle for node {}", creatorId, e);
@@ -142,14 +137,39 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
         if (crs == null) {
             return;
         }
-        // Only something to do at handle if using deterministic hinTS signatures
-        if (tssConfig.useDeterministicHintsSignatures()) {
-            final boolean isValid = Boolean.TRUE.equals(cache.get(new PartialSignature(
-                    op.constructionId(), crs, context.creatorInfo().nodeId(), op)));
+        // With deterministic hinTS signatures, partial signatures are only incorporated at handle; otherwise they
+        // were normally already incorporated at pre-handle, but that may have been impossible for a node behind its
+        // peers (e.g., one that had not yet handled the construction handoff), so retry any that are still needed
+        if (tssConfig.useDeterministicHintsSignatures() || isStillNeeded(op, creatorId)) {
+            final boolean isValid =
+                    Boolean.TRUE.equals(cache.get(new PartialSignature(op.constructionId(), crs, creatorId, op)));
             if (isValid) {
                 incorporateIfConstructionMatches(op, crs, creatorId);
             }
         }
+    }
+
+    /**
+     * Whether a partial signature that reached consensus might not have been incorporated at pre-handle, but would be
+     * if incorporated now. This is the case when there is either no signing attempt for its message, or a signing
+     * attempt for its construction that still lacks a signature from its creator.
+     * <p>
+     * Pre-handle only incorporates partial signatures for constructions this node already knows; so when this node
+     * is behind its peers, it can pre-handle their partial signatures for a block under a new construction before it
+     * has handled the handoff to that construction. Without retrying at handle, those signatures would be lost and
+     * the block could only be proven indirectly.
+     *
+     * @param op the partial signature
+     * @param creatorId the node that created the partial signature
+     * @return true if the partial signature should be validated and incorporated at handle
+     */
+    private boolean isStillNeeded(@NonNull final HintsPartialSignatureTransactionBody op, final long creatorId) {
+        final var existing = signings.get(op.message());
+        if (existing == null) {
+            return true;
+        }
+        final var signing = asMatchingSigning(existing, op.constructionId());
+        return signing != null && signing.needsSignatureFrom(creatorId);
     }
 
     /**

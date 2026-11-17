@@ -9,6 +9,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import dagger.BindsInstance;
 import dagger.Component;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -26,6 +27,7 @@ public interface HintsServiceComponent {
                 @BindsInstance AppContext appContext,
                 @BindsInstance Executor executor,
                 @BindsInstance Metrics metrics,
+                @BindsInstance @Nullable @Named(HintsModule.PLATFORM_CONFIG) Configuration platformConfig,
                 @BindsInstance Duration blockPeriod,
                 @BindsInstance OnHintsFinished onHintsFinished,
                 @BindsInstance RsaContext rsaContext,

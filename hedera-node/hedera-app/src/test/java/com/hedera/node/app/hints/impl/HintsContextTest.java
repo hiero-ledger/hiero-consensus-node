@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -9,6 +10,7 @@ import static org.mockito.ArgumentMatchers.longThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -22,6 +24,7 @@ import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.spi.fixtures.util.LogCaptor;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -94,13 +97,21 @@ class HintsContextTest {
     @Mock
     private HintsSigningMetrics signingMetrics;
 
+    @Mock
+    private Supplier<NodeInfo> selfNodeInfoSupplier;
+
+    @Mock
+    private NodeInfo selfNodeInfo;
+
     private HintsContext subject;
 
     @BeforeEach
     void setUp() {
         lenient().when(configProvider.get()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(defaultConfig());
-        subject = new HintsContext(library, configProvider, signingMetrics);
+        lenient().when(selfNodeInfoSupplier.get()).thenReturn(selfNodeInfo);
+        lenient().when(selfNodeInfo.nodeId()).thenReturn(A_NODE_PARTY_ID.nodeId());
+        subject = new HintsContext(library, configProvider, signingMetrics, selfNodeInfoSupplier);
     }
 
     private static TssConfig defaultConfig() {
@@ -292,6 +303,113 @@ class HintsContextTest {
         assertTrue(future.isDone());
         assertEquals(aggregateSignature, future.join());
         verify(signingMetrics).recordSignatureProduced(longThat(ms -> ms >= 0));
+    }
+
+    @Test
+    void recordsLatenciesFromLocalSubmissionWhenSignaturesFollowIt() {
+        given(library.aggregateSignatures(any(), any(), any(), any())).willReturn(Bytes.wrap("AS"));
+        setConstruction(CONSTRUCTION, CRS_STATE);
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+
+        signing.markLocalSubmission();
+        // This node's own partial signature is not a peer signature
+        signing.incorporateValid(CRS, A_NODE_PARTY_ID.nodeId(), signature);
+        verify(signingMetrics, never()).recordSubmitToFirstPeerSignature(anyLong());
+        signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
+        verify(signingMetrics).recordSubmitToFirstPeerSignature(longThat(nanos -> nanos >= 0));
+        verify(signingMetrics, never()).recordSubmitToProofReady(anyLong());
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+        assertTrue(signing.future().isDone());
+        signing.incorporateValid(CRS, C_NODE_PARTY_ID.nodeId(), signature);
+        signing.markLocalSubmission();
+
+        verify(signingMetrics, times(1)).recordSubmitToFirstPeerSignature(anyLong());
+        verify(signingMetrics, times(1)).recordSubmitToProofReady(longThat(nanos -> nanos >= 0));
+        verify(signingMetrics, never()).recordPeerSignatureBeforeSubmit(anyLong());
+        verify(signingMetrics, never()).recordThresholdBeforeSubmit();
+    }
+
+    @Test
+    void countsSignaturesReadyBeforeLocalSubmissionWithoutAveragingThem() {
+        given(library.aggregateSignatures(any(), any(), any(), any())).willReturn(Bytes.wrap("AS"));
+        setConstruction(CONSTRUCTION, CRS_STATE);
+        // As when a slow node pre-handles its peers' partial signatures before it has produced the block
+        final var signing =
+                requireNonNull(subject.newSigningForConstruction(BLOCK_HASH, CONSTRUCTION.constructionId(), () -> {}));
+
+        signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+        assertTrue(signing.future().isDone());
+        verify(signingMetrics).recordSignatureProduced(anyLong());
+        verify(signingMetrics, never()).recordPeerSignatureBeforeSubmit(anyLong());
+        verify(signingMetrics, never()).recordThresholdBeforeSubmit();
+        awaitNanoTimeTick();
+        signing.markLocalSubmission();
+        signing.markLocalSubmission();
+
+        verify(signingMetrics, times(1)).recordPeerSignatureBeforeSubmit(longThat(nanos -> nanos >= 0));
+        verify(signingMetrics, times(1)).recordThresholdBeforeSubmit();
+        verify(signingMetrics, never()).recordSubmitToFirstPeerSignature(anyLong());
+        verify(signingMetrics, never()).recordSubmitToProofReady(anyLong());
+    }
+
+    @Test
+    void measuresAggregationAfterLocalSubmissionEvenIfAPeerSignatureCameFirst() {
+        given(library.aggregateSignatures(any(), any(), any(), any())).willReturn(Bytes.wrap("AS"));
+        setConstruction(CONSTRUCTION, CRS_STATE);
+        final var signing =
+                requireNonNull(subject.newSigningForConstruction(BLOCK_HASH, CONSTRUCTION.constructionId(), () -> {}));
+
+        signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
+        awaitNanoTimeTick();
+        signing.markLocalSubmission();
+        verify(signingMetrics).recordPeerSignatureBeforeSubmit(longThat(nanos -> nanos >= 0));
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+
+        verify(signingMetrics).recordSubmitToProofReady(longThat(nanos -> nanos >= 0));
+        verify(signingMetrics, never()).recordThresholdBeforeSubmit();
+        verify(signingMetrics, never()).recordSubmitToFirstPeerSignature(anyLong());
+    }
+
+    @Test
+    void neverRecordsSubmissionLatenciesWithoutALocalSubmission() {
+        given(library.aggregateSignatures(any(), any(), any(), any())).willReturn(Bytes.wrap("AS"));
+        setConstruction(CONSTRUCTION, CRS_STATE);
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+
+        signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+
+        assertTrue(signing.future().isDone());
+        verify(signingMetrics).recordSignatureProduced(anyLong());
+        verify(signingMetrics, never()).recordSubmitToFirstPeerSignature(anyLong());
+        verify(signingMetrics, never()).recordSubmitToProofReady(anyLong());
+        verify(signingMetrics, never()).recordPeerSignatureBeforeSubmit(anyLong());
+        verify(signingMetrics, never()).recordThresholdBeforeSubmit();
+    }
+
+    @Test
+    void needsSignaturesOnlyFromUnsignedPartiesOfAnIncompleteAttempt() {
+        given(library.aggregateSignatures(any(), any(), any(), any())).willReturn(Bytes.wrap("AS"));
+        setConstruction(CONSTRUCTION, CRS_STATE);
+        final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+
+        assertTrue(signing.needsSignatureFrom(B_NODE_PARTY_ID.nodeId()));
+        assertFalse(signing.needsSignatureFrom(42L), "A node outside the scheme is never needed");
+        signing.incorporateValid(CRS, B_NODE_PARTY_ID.nodeId(), signature);
+        assertFalse(signing.needsSignatureFrom(B_NODE_PARTY_ID.nodeId()));
+        assertTrue(signing.needsSignatureFrom(C_NODE_PARTY_ID.nodeId()));
+        signing.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), signature);
+        assertTrue(signing.future().isDone());
+        assertFalse(signing.needsSignatureFrom(C_NODE_PARTY_ID.nodeId()), "A complete attempt needs nothing more");
+    }
+
+    /** Ensures that the next {@link System#nanoTime()} reading is strictly later than any taken before. */
+    private static void awaitNanoTimeTick() {
+        final long start = System.nanoTime();
+        while (System.nanoTime() == start) {
+            Thread.onSpinWait();
+        }
     }
 
     @Test
@@ -594,7 +712,7 @@ class HintsContextTest {
         assertEquals(oldAggregate, oldSigning.future().join());
         assertEquals(nextAggregate, nextSigning.future().join());
 
-        final var restarted = new HintsContext(library, configProvider, signingMetrics);
+        final var restarted = new HintsContext(library, configProvider, signingMetrics, selfNodeInfoSupplier);
         restarted.setConstruction(next, CRS_STATE, HintsGenerationWeights.from(next, nextHistory));
         final var afterRestart = restarted.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         afterRestart.incorporateValid(CRS, 1L, signature);

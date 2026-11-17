@@ -98,7 +98,8 @@ class HintsPreparationLivenessTest {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("tss.useDeterministicHintsSignatures", deterministicSignatures)
                 .getOrCreateConfig();
-        final var signingContext = new HintsContext(library, () -> config, mock(HintsSigningMetrics.class));
+        final var self = mock(NodeInfo.class);
+        final var signingContext = new HintsContext(library, () -> config, mock(HintsSigningMetrics.class), () -> self);
         signingContext.setConstruction(
                 active.construction(), active.crsState(), HintsGenerationTestUtils.weightsFor(active.construction()));
         final var signing = signingContext.newSigningForActiveConstruction(MESSAGE, () -> {});
