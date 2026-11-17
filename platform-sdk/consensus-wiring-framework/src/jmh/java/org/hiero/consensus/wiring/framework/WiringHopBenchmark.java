@@ -65,13 +65,26 @@ import org.openjdk.jmh.runner.IterationType;
  * {@link PipelineTimer} hands each item to the input wire at its due time and records its latency, which
  * {@link LatencyProfiler} reports: run the benchmark with {@code -prof} and the profiler's class name. After every
  * invocation, every item must have reached the handler.
+ *
+ * <h2>Calibration</h2>
+ * <ul>
+ *   <li>Date / commit: 2026-11-13, 3d8076cad3</li>
+ *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms2g -Xmx2g -XX:+AlwaysPreTouch</li>
+ *   <li>Parameter sets: rate=3,scheduler=CONCURRENT / rate=3,scheduler=DIRECT / rate=3,scheduler=DIRECT_THREADSAFE / rate=3,scheduler=SEQUENTIAL / rate=3,scheduler=SEQUENTIAL_THREAD / rate=460,scheduler=CONCURRENT / rate=460,scheduler=DIRECT / rate=460,scheduler=DIRECT_THREADSAFE / rate=460,scheduler=SEQUENTIAL / rate=460,scheduler=SEQUENTIAL_THREAD</li>
+ *   <li>Steady state after: ? / ? / ? / ? / ? / ? / ? / ? / ? / ?</li>
+ *   <li>Noise (latency.mean, CV): 11.78% / 5.74% / 6.72% / 4.13% / 24.93% / 5.56% / 10.77% / 3.01% / 3.34% / 22.27% per 22 s iteration, 2.92% / 3.30% / 0.00% / 10.88% / 18.34% / 2.47% / 8.34% / 8.03% / 3.90% / 3.48% between forks, - / - / - / - / - / - / - / - / - / - between runs (1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 / 1 of 1 runs quiet)</li>
+ *   <li>Expected detectable regression: 12.32% / 7.34% / 4.68% / 16.02% / 37.64% / 6.49% / 16.13% / 11.74% / 6.39% / 22.46% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 210 / 210 / 210 / 210 / 210 / 14 k / 14 k / 14 k / 14 k / 14 k; expected stable: - / - / - / - / - / p90 / - / p90 / p90 / -; unmeasured: p90, p99, p99.9, p99.99 / p90, p99, p99.9, p99.99 / p90, p99, p99.9, p99.99 / p90, p99, p99.9, p99.99 / p90, p99, p99.9, p99.99 / p99.9, p99.99 / p99.9, p99.99 / p99.9, p99.99 / p99.9, p99.99 / p99.9, p99.99</li>
+ *   <li>Runtime: 4.8 / 4.8 / 4.8 / 4.8 / 4.8 / 2.2 / 2.2 / 2.2 / 2.2 / 2.2 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/43424840850</li>
+ * </ul>
  */
 @State(Scope.Thread)
 @Fork(
         value = 2,
         jvmArgsAppend = {"-Xms2g", "-Xmx2g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 5)
-@Measurement(iterations = 3, time = 10)
+@Measurement(iterations = 2, time = 22)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class WiringHopBenchmark {
