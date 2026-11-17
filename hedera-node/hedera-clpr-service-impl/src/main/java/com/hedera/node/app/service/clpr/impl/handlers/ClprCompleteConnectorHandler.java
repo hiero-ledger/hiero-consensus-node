@@ -62,12 +62,11 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
         validateTruePreCheck(op.hasConnectorContract(), INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.hasAdminKey(), INVALID_TRANSACTION_BODY);
 
-        final var expectedKeyLength =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
-                    case ED25519 -> ED25519_KEY_LENGTH;
-                    default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
-                };
+        final var expectedKeyLength = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
+            case ED25519 -> ED25519_KEY_LENGTH;
+            default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
+        };
         validateTruePreCheck(op.publicKey().length() == expectedKeyLength, INVALID_TRANSACTION_BODY);
     }
 
@@ -110,12 +109,11 @@ public final class ClprCompleteConnectorHandler extends AbstractClprHandler {
 
         // 5. Verify signature over keccak256(connectorId || clprServiceAddress)
         final var sigMsgHash = computeSignatureMessage(derivedConnectorId.toByteArray());
-        final var signatureType =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
-                    case ED25519 -> SignatureType.ED25519;
-                    default -> throw new HandleException(INVALID_TRANSACTION_BODY);
-                };
+        final var signatureType = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
+            case ED25519 -> SignatureType.ED25519;
+            default -> throw new HandleException(INVALID_TRANSACTION_BODY);
+        };
         final var isValid = CryptographyProvider.getInstance()
                 .verifySync(sigMsgHash, op.signature().toByteArray(), pubKeyBytes, signatureType);
         if (!isValid) {

@@ -18,6 +18,15 @@ public interface ThrottleAdviser {
     boolean shouldThrottleNOfUnscaled(int n, HederaFunctionality function);
 
     /**
+     * Gives back the capacity claimed by an earlier call to {@link #shouldThrottleNOfUnscaled(int, HederaFunctionality)}
+     * that returned {@code false} for the same positive number of the same function.
+     *
+     * @param n the number of the given function, as passed to the earlier call
+     * @param function the function
+     */
+    void leakCapacityForNOfUnscaled(int n, HederaFunctionality function);
+
+    /**
      * Returns the available ops duration capacity for the execution.
      * Takes into account the amount leaked from the bucket up to the current consensus time.
      */

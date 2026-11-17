@@ -99,7 +99,8 @@ public class ClprServiceApiImpl implements ClprServiceApi {
         // Step 4: Connector authorization is enforced upstream in SendMessageCall
         // via a sub-call to IClprConnector.authorizeOutboundMessage before this method is invoked.
 
-        // Step 5: Validate payload size against the peer's limit — the destination is authoritative
+        // Step 5: Build and validate the entire serialized Data payload, including metadata,
+        // against the peer's limit — the destination is authoritative
         // for its own max_message_payload_bytes. Fall back to local config if peer throttles are absent
         // (e.g., for channels established before this field was introduced).
         final var localThrottles = ledgerConfig.throttles();
@@ -107,7 +108,15 @@ public class ClprServiceApiImpl implements ClprServiceApi {
         final var effectiveMaxPayload = (peerThrottles != null && peerThrottles.maxMessagePayloadBytes() > 0)
                 ? peerThrottles.maxMessagePayloadBytes()
                 : localThrottles.maxMessagePayloadBytes();
-        if (messageData.length() > effectiveMaxPayload) {
+        final var clprMessage = ClprMessage.newBuilder()
+                .connectorId(connector.connectorId())
+                .targetApplication(targetApplication)
+                .sender(sender)
+                .messageData(messageData)
+                .build();
+        final var dataPayload =
+                ClprMessagePayload.newBuilder().message(clprMessage).build();
+        if (ClprMessagePayload.PROTOBUF.measureRecord(dataPayload) > effectiveMaxPayload) {
             throw new HandleException(CLPR_PAYLOAD_TOO_LARGE);
         }
 
@@ -203,16 +212,6 @@ public class ClprServiceApiImpl implements ClprServiceApi {
             currentNextMessageId++;
             updatedLastConfigTimestamp = configTimestamp;
         }
-
-        // Steps 7-8: Construct ClprMessage and wrap in ClprMessagePayload
-        final var clprMessage = ClprMessage.newBuilder()
-                .connectorId(connector.connectorId())
-                .targetApplication(targetApplication)
-                .sender(sender)
-                .messageData(messageData)
-                .build();
-        final var dataPayload =
-                ClprMessagePayload.newBuilder().message(clprMessage).build();
 
         // Step 9: Compute running hash
         final var previousRunningHash = currentRunningHash;

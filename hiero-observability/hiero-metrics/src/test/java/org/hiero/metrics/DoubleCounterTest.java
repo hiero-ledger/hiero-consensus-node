@@ -292,20 +292,20 @@ public class DoubleCounterTest extends SettableMetricBaseTest<DoubleCounter, Dou
             metric.getOrCreateLabeled(() -> 100.0, "label1", "2").increment(1.1); // 100.0 + 1.1 = 101.1
 
             new MetricSnapshotVerifier(metric)
-                    .add(101.1, "label1", "2")
                     .add(12.1, "label1", "1")
+                    .add(101.1, "label1", "2")
                     .verify();
             new MetricSnapshotVerifier(metric)
-                    .add(101.1, "label1", "2")
                     .add(12.1, "label1", "1")
+                    .add(101.1, "label1", "2")
                     .verify();
 
             metric.getOrCreateLabeled("label1", "2").increment(3.5); // 101.1 + 3.5 = 104.6
             metric.getOrCreateLabeled("label1", "3").increment(42.7); // 10.0 + 42.7 = 52.7
 
             new MetricSnapshotVerifier(metric)
-                    .add(104.6, "label1", "2")
                     .add(12.1, "label1", "1") // unchanged
+                    .add(104.6, "label1", "2")
                     .add(52.7, "label1", "3")
                     .verify();
         }

@@ -13,6 +13,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -85,37 +86,42 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     private long currentTime = 0;
 
     /**
-     * A cursored log of unique events used for gossiping events between nodes. Each node has its own cursor into this
-     * log, which is used to determine which events to transmit to that node. The log is pruned based on the event
-     * windows reported by the nodes, so that events that are no longer needed by any node are removed from the log.
+     * A log of the unique events that have been submitted, kept only to send everything again to a node that restarts,
+     * see {@link #resetCursor(NodeId)}. Every submission is scheduled for delivery to all its receivers when it is
+     * added, so nothing is read from the log in normal operation. The log is pruned based on the event windows reported
+     * by the nodes, so that events that are no longer needed by any node are removed from the log.
      */
     private final CursoredLog<PlatformEvent> eventLog;
 
     /**
-     * The cursor of each node into {@link #eventLog}, indexed by rank, used to determine which events the node receives
-     * next.
+     * Events submitted by each node since the previous tick, indexed by rank, held until they can be scheduled for
+     * delivery. Nodes submit while they are running concurrently, so each node appends only to its own list and no node
+     * observes the submissions of another. {@link #submissionOrder} decides the order the lists are drained in.
      */
-    private final List<Cursor<PlatformEvent>> nodeCursors;
+    private final List<List<PlatformEvent>> newlySubmittedEvents;
 
     /**
-     * Events submitted by each node since the previous tick, held until they can be added to {@link #eventLog}. Nodes
-     * submit while they are running concurrently, so each node appends only to its own list and no node observes the
-     * submissions of another. The iteration order of this map is not relied upon; {@link #submissionOrder} decides the
-     * order the lists are drained in.
+     * The ranks of the nodes that have restarted since the previous tick, whose events are sent again by
+     * {@link #replayEventLog(long)}. Nodes restart while they are running concurrently.
      */
-    private final Map<NodeId, List<PlatformEvent>> newlySubmittedEvents;
+    private final Set<Integer> restartedNodes = ConcurrentHashMap.newKeySet();
 
     /**
      * The roster of the network. A node's rank is its index in the roster. Fixed by the constructor; the roster order
-     * serves as the canonical starting point for the shuffle in {@link #addSubmittedEventsToEventLog()}.
+     * serves as the canonical starting point for the shuffle in {@link #scheduleSubmittedEvents(long)}.
      */
     private final RosterWrapper roster;
 
     /**
-     * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of the node ids in
-     * roster order, reused across ticks so that producing it does not allocate.
+     * The order {@link #newlySubmittedEvents} is drained in on the current tick. A shuffled copy of the ranks in rank
+     * order, reused across ticks so that producing it does not allocate.
      */
-    private final List<NodeId> submissionOrder = new ArrayList<>();
+    private final List<Integer> submissionOrder = new ArrayList<>();
+
+    /**
+     * The event window of each node at the time the submissions of the current tick are scheduled, indexed by rank.
+     */
+    private final EventWindow[] receiverEventWindows;
 
     /**
      * The most recent {@link EventWindow} reported by each node. A node's window determines which events are worth
@@ -134,7 +140,8 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     private final Map<NodeId, EventWindow> newlyReportedEventWindows = new ConcurrentHashMap<>();
 
     /**
-     * Recognizes events that have already been submitted, so that each one is added to {@link #eventLog} exactly once.
+     * Recognizes events that have already been submitted by a node, so that each submission is scheduled and added to
+     * {@link #eventLog} exactly once.
      */
     private final EventDeduplicator deduplicator = new EventDeduplicator();
 
@@ -265,23 +272,21 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
                 INITIAL_EVENT_LOG_CAPACITY,
                 PlatformEvent::getBirthRound);
         final List<EventReceiver> receiversByRank = new ArrayList<>(nodeCount);
-        final List<Cursor<PlatformEvent>> cursors = new ArrayList<>(nodeCount);
         final Map<NodeId, EventWindow> eventWindows = new ConcurrentHashMap<>();
-        final Map<NodeId, List<PlatformEvent>> submittedEvents = new HashMap<>();
+        final List<List<PlatformEvent>> submittedEvents = new ArrayList<>(nodeCount);
         for (final NodeId nodeId : roster.nodeIds()) {
             final EventReceiver eventReceiver = receiversById.get(nodeId);
             if (eventReceiver == null) {
                 throw new IllegalArgumentException("Node " + nodeId + " is in the roster but has no event receiver");
             }
             receiversByRank.add(eventReceiver);
-            cursors.add(eventLog.newCursor());
             eventWindows.put(nodeId, EventWindow.getGenesisEventWindow());
-            submittedEvents.put(nodeId, new ArrayList<>());
+            submittedEvents.add(new ArrayList<>());
         }
         this.eventReceivers = List.copyOf(receiversByRank);
-        this.nodeCursors = List.copyOf(cursors);
         this.nodeEventWindows = eventWindows;
-        this.newlySubmittedEvents = Map.copyOf(submittedEvents);
+        this.newlySubmittedEvents = List.copyOf(submittedEvents);
+        this.receiverEventWindows = new EventWindow[nodeCount];
 
         links = new LinkStates(nodeCount, random, broadcastConfig);
         arrivalTimes = new ArrivalTimes(start, random, links, nodeCount, broadcastConfig, syncConfig);
@@ -339,50 +344,83 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     /**
      * Submit an event to be gossiped around the network. Safe to be called by multiple nodes in parallel.
      *
-     * <p>The event is not added to {@link #eventLog} here. Nodes run concurrently while they submit, so the order
-     * submissions arrive in is decided by the thread scheduler, and the log has to be ordered reproducibly. The event
-     * is held until the next call to {@link #tick(Instant)}, which does the appending on a single thread.
+     * <p>The event is not scheduled here. Nodes run concurrently while they submit, so the order submissions arrive in
+     * is decided by the thread scheduler, and scheduling draws random numbers, which has to happen in a reproducible
+     * order. The event is held until the next call to {@link #tick(Instant)}, which does the scheduling on a single
+     * thread.
      *
      * @param event the event to gossip, with its sender set to the node submitting it
      */
     @Override
     public void submitEvent(@NonNull final PlatformEvent event) {
         final NodeId submitter = requireNonNull(event.getSenderId(), "a submitted event must have its sender set");
-        newlySubmittedEvents.get(submitter).add(event);
+        newlySubmittedEvents.get(rankOf(submitter)).add(event);
     }
 
     /**
-     * Adds the events submitted since the previous tick to {@link #eventLog}, one node at a time, and within a node in
-     * the order it submitted them.
+     * Schedules the events submitted since the previous tick, one node at a time, and within a node in the order it
+     * submitted them. Every submission is scheduled once, to all of its receivers, and added to {@link #eventLog}.
      *
-     * <p>The position an event is given in the log decides the order every node's cursor hands it out in, and
-     * therefore which jitter value it draws from {@link #random} and when it arrives. Appending as submissions
-     * arrived would let the thread scheduler decide all of that and break determinism, so the submissions are
-     * held and appended here instead.
+     * <p>The order submissions are scheduled in decides which jitter value each of them draws from {@link #random} and
+     * when it arrives. Scheduling as submissions arrived would let the thread scheduler decide all of that and break
+     * determinism, so the submissions are held and scheduled here instead.
      *
      * <p>Which node goes first is drawn from {@link #random} rather than fixed, so that a scenario which always
      * targets the same node - isolating it, or narrowing its bandwidth - is not always paired with the same position
-     * in the event log. A fixed order would let one node's events systematically precede another's for a whole run.
+     * in the schedule. A fixed order would let one node's events systematically precede another's for a whole run.
      *
-     * <p>Shuffling still leaves the result reproducible, because it depends only on {@link #random} and on the roster
+     * <p>Shuffling still leaves the result reproducible, because it depends only on {@link #random} and on the rank
      * order it starts from, neither of which is affected by how the nodes interleaved their submissions.
+     *
+     * @param now the current time, in nanoseconds since the start
      */
-    private void addSubmittedEventsToEventLog() {
+    private void scheduleSubmittedEvents(final long now) {
+        final int nodeCount = roster.size();
+        for (int receiver = 0; receiver < nodeCount; receiver++) {
+            receiverEventWindows[receiver] = nodeEventWindows.get(roster.nodeIdAtIndex(receiver));
+        }
+
         submissionOrder.clear();
-        submissionOrder.addAll(roster.nodeIds());
+        for (int rank = 0; rank < nodeCount; rank++) {
+            submissionOrder.add(rank);
+        }
         Collections.shuffle(submissionOrder, random);
 
-        for (final NodeId submitter : submissionOrder) {
-            final List<PlatformEvent> events = newlySubmittedEvents.get(submitter);
+        for (final int sender : submissionOrder) {
+            final List<PlatformEvent> events = newlySubmittedEvents.get(sender);
             for (final PlatformEvent event : events) {
                 // The same event is submitted by its creator and again by every node that receives it and re-offers
-                // it to gossip. All of those belong in the event log: it records which node transmits an event which
-                // is an important part of simulating gossip.
-                if (deduplicator.addIfUnique(event)) {
+                // it to gossip. All of those are scheduled: which node transmits an event is an important part of
+                // simulating gossip. Only a node submitting the same event again is ignored.
+                if (deduplicator.addIfUnique(event, sender)) {
                     eventLog.add(event);
+                    for (int receiver = 0; receiver < nodeCount; receiver++) {
+                        scheduleEvent(event, sender, receiver, now);
+                    }
                 }
             }
             events.clear();
+        }
+    }
+
+    /**
+     * Sends the events of {@link #eventLog} again to the nodes that have restarted since the previous tick. This runs
+     * before the submissions of the current tick are scheduled, which reach the restarted nodes on their own.
+     *
+     * @param now the current time, in nanoseconds since the start
+     */
+    private void replayEventLog(final long now) {
+        for (int receiver = 0; receiver < roster.size(); receiver++) {
+            if (!restartedNodes.remove(receiver)) {
+                continue;
+            }
+            receiverEventWindows[receiver] = nodeEventWindows.get(roster.nodeIdAtIndex(receiver));
+            final Cursor<PlatformEvent> cursor = eventLog.newCursor();
+            while (cursor.hasNext()) {
+                final PlatformEvent event = cursor.next();
+                final NodeId senderId = event.getSenderId();
+                scheduleEvent(event, rankOf(senderId), receiver, now);
+            }
         }
     }
 
@@ -441,9 +479,8 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     public void tick(@NonNull final Instant now) {
         currentTime = InFlightQueue.nanosSince(start, now);
         // The oldest event window is applied first, so that the window the deduplicator discards expired events by
-        // matches the range of birth rounds the log still accepts when the submissions below are appended.
+        // matches the range of birth rounds the log still accepts when the submissions are appended.
         applyOldestEventWindow();
-        addSubmittedEventsToEventLog();
         // Events are delivered before new ones are scheduled, so that an event always spends at least one tick in
         // flight. Scheduling first would let a connection configured with no latency deliver an event in the same
         // tick it was sent, with no simulated time passing in between.
@@ -481,11 +518,11 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
 
     /**
      * Put onto the network everything that is waiting to be sent: the event windows that nodes have reported since the
-     * previous tick, and the events that each node's cursor has not handed out yet.
+     * previous tick, the events of the restarted nodes, and the events submitted since the previous tick.
      *
-     * <p>The event windows are scheduled first, sender by sender, and then the events, receiver by receiver. This is
-     * the order {@link #deliverArrived(Instant)} follows too, which delivers the event windows to every receiver
-     * before any events. The order is not incidental: everything scheduled draws an arrival time from
+     * <p>The event windows are scheduled first, sender by sender, and then the events. This is the order
+     * {@link #deliverArrived(Instant)} follows too, which delivers the event windows to every receiver before any
+     * events. The order is not incidental: everything scheduled draws an arrival time from
      * {@link #random}, and a window and an event on the same connection share the clamp in {@link ArrivalTimes}, so
      * which goes first decides the arrival times of both, and the same seed only reproduces a run if it is always the
      * same.
@@ -499,9 +536,8 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
         }
 
         scheduleEventWindows(now);
-        for (int receiver = 0; receiver < roster.size(); receiver++) {
-            scheduleEventsTo(receiver, now);
-        }
+        replayEventLog(now);
+        scheduleSubmittedEvents(now);
     }
 
     /**
@@ -539,53 +575,45 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     }
 
     /**
-     * Walk a node's cursor over {@link #eventLog} and schedule every event it has not been sent yet for delivery. A
-     * node is not sent its own events, nor events that are already ancient for it.
+     * Schedule an event for delivery to a node. A node is not sent its own events, nor events that are already ancient
+     * for it.
      *
-     * <p>When each event arrives is decided by {@link ArrivalTimes#decideNextArrivalTime(int, int, MessageRoute, long)}.
+     * <p>When the event arrives is decided by {@link ArrivalTimes#decideNextArrivalTime(int, int, MessageRoute, long)}.
      *
-     * @param receiver the rank of the node the events are traveling to
+     * @param event    the event to send
+     * @param sender   the rank of the node the event is sent from
+     * @param receiver the rank of the node the event is traveling to
      * @param now      the current time, in nanoseconds since the start
      */
-    private void scheduleEventsTo(final int receiver, final long now) {
-        final Cursor<PlatformEvent> cursor = nodeCursors.get(receiver);
-        final EventWindow receiverEventWindow = nodeEventWindows.get(roster.nodeIdAtIndex(receiver));
-
-        while (cursor.hasNext()) {
-            final PlatformEvent event = cursor.next();
-            final NodeId senderId = event.getSenderId();
-            assert senderId != null;
-            final int sender = rankOf(senderId);
-
-            // Don't send a node's own events back to it
-            if (receiver == sender) {
-                continue;
-            }
-
-            // The receiver would discard this event on arrival, so there is no point in transmitting it
-            if (receiverEventWindow.isAncient(event)) {
-                continue;
-            }
-
-            // The sender and receiver may be known to each other, in which case the event is enqueued for delivery.
-            // Whether the connection is up is decided at delivery time rather than here: the cursor is consumed
-            // either way, so an event dropped now would never be offered to this receiver again, and a partition
-            // would permanently deprive it of every event created while the partition was in place.
-            final boolean broadcast =
-                    senderId.equals(event.getCreatorId()) && links.isBroadcastMode(sender, receiver, now);
-            final MessageRoute route = broadcast ? MessageRoute.BROADCAST : MessageRoute.SYNC;
-            final Instant arrivalTime = arrivalTimes.decideNextArrivalTime(sender, receiver, route, now);
-            // create a copy so that nodes don't modify each other's events
-            final PlatformEvent eventToDeliver = event.copyGossipedData();
-            eventToDeliver.setSenderId(senderId);
-            eventToDeliver.setTimeReceived(arrivalTime);
-            inFlightEvents.add(sender, receiver, new EventInTransit(eventToDeliver, senderId, arrivalTime));
+    private void scheduleEvent(final PlatformEvent event, final int sender, final int receiver, final long now) {
+        // Don't send a node's own events back to it
+        if (receiver == sender) {
+            return;
         }
+
+        // The receiver would discard this event on arrival, so there is no point in transmitting it
+        if (receiverEventWindows[receiver].isAncient(event)) {
+            return;
+        }
+
+        // The sender and receiver may be known to each other, in which case the event is enqueued for delivery.
+        // Whether the connection is up is decided at delivery time rather than here: the event is scheduled only once,
+        // so one dropped now would never be offered to this receiver again, and a partition would permanently deprive
+        // it of every event created while the partition was in place.
+        final NodeId senderId = roster.nodeIdAtIndex(sender);
+        final boolean broadcast = senderId.equals(event.getCreatorId()) && links.isBroadcastMode(sender, receiver, now);
+        final MessageRoute route = broadcast ? MessageRoute.BROADCAST : MessageRoute.SYNC;
+        final Instant arrivalTime = arrivalTimes.decideNextArrivalTime(sender, receiver, route, now);
+        // create a copy so that nodes don't modify each other's events
+        final PlatformEvent eventToDeliver = event.copyGossipedData();
+        eventToDeliver.setSenderId(senderId);
+        eventToDeliver.setTimeReceived(arrivalTime);
+        inFlightEvents.add(sender, receiver, new EventInTransit(eventToDeliver, senderId, arrivalTime));
     }
 
     /**
-     * Reset the cursor for a node to the beginning of the event log. This is useful for testing scenarios where a node
-     * is restarted and needs to reprocess all events from the beginning.
+     * Have the events of the event log sent again to a node, from the next tick on. This is useful for testing
+     * scenarios where a node is restarted and needs to reprocess all events from the beginning.
      *
      * <p>A restart counts as all of the node's links coming up: each of them has to wait out a reconnect delay, and
      * each of its peers is sent its latest event window again, since the windows that were waiting for the node are
@@ -596,7 +624,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork {
     @Override
     public void resetCursor(@NonNull final NodeId nodeId) {
         final int node = rankOf(nodeId);
-        nodeCursors.get(node).seekToFirst();
+        restartedNodes.add(node);
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
             inFlight.clearIncoming(node);
         }

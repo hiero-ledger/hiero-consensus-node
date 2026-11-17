@@ -54,6 +54,7 @@ import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
@@ -215,6 +216,7 @@ public class HandleWorkflow {
     private boolean checkedForTransplant;
 
     private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
+    private final ThrottledLogging hintsGenerationFailureLogging = new ThrottledLogging();
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -791,8 +793,10 @@ public class HandleWorkflow {
      * time to the latest time known to have been processed; and the {@link #lastExecutedSecond} value to the last
      * second of the interval for which all scheduled transactions were executed.
      * <p>
-     * Scheduled executions are exempt from the {@code StreamMode.BLOCKS} block execution budget, so they run here
-     * even after {@link BlockStreamManager#hasReachedMaxBlockSize()} is {@code true}.
+     * Due schedules are still processed after {@link BlockStreamManager#hasReachedMaxBlockSize()} is {@code true}
+     * in {@code StreamMode.BLOCKS}, but only those with a throttle-exempt payer execute; the rest are rejected with
+     * {@code THROTTLED_AT_CONSENSUS} and normal consensus throttle fees. Either way the schedule is consumed, and its
+     * output is written to the block.
      *
      * @param state the state to execute scheduled transactions from
      * @param executionStart the start of the interval to execute transactions in
@@ -944,6 +948,24 @@ public class HandleWorkflow {
     }
 
     /**
+     * Returns whether the given due schedule must be rejected with {@code THROTTLED_AT_CONSENSUS} instead of executed,
+     * because the {@code StreamMode.BLOCKS} block execution budget is spent and the schedule's payer is not in
+     * {@code 1..accounts.lastThrottleExempt}.
+     * <p>
+     * This applies only to schedules executed at expiry ({@code wait_for_expiry=true}). A schedule with {@code
+     * wait_for_expiry=false} executes as a child of the {@code ScheduleCreate} or {@code ScheduleSign} that supplies
+     * its last required signature, so it inherits that transaction's budget decision from
+     * {@link #isExecutionBudgetExempt(ParentTxn)} (the submitter's exemption, not the schedule payer's). In a full
+     * block, a {@code ScheduleSign} from an exempt account can therefore still execute a schedule whose payer is not
+     * exempt; a {@code ScheduleSign} from a non-exempt account is rejected without consuming the schedule.
+     */
+    private boolean isRejectedForBlockBudget(@NonNull final ExecutableTxn<? extends StreamBuilder> executableTxn) {
+        return streamMode == BLOCKS
+                && blockStreamManager.hasReachedMaxBlockSize()
+                && !throttleExempt(executableTxn.payerId(), configProvider.getConfiguration());
+    }
+
+    /**
      * Executes the user transaction and returns the output that should be externalized in the
      * block stream. (And if still producing records, the precomputed records.)
      * <p>
@@ -1046,11 +1068,23 @@ public class HandleWorkflow {
             final var dispatch =
                     parentTxnFactory.createDispatch(scheduledTxn, baseBuilder, executableTxn.keyVerifier(), SCHEDULED);
             stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
-            dispatchProcessor.processDispatch(dispatch);
+            // Once the block is full, a due schedule whose payer is not throttle-exempt is rejected just like a
+            // submitted transaction; it is still consumed, so a later block never retries it
+            final boolean blockFull = isRejectedForBlockBudget(executableTxn);
+            if (blockFull) {
+                dispatchProcessor.processDispatch(dispatch, null, true);
+            } else {
+                dispatchProcessor.processDispatch(dispatch);
+            }
             final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
                     .stack()
                     .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
+            if (streamMode == BLOCKS) {
+                blockStreamManager.recordScheduledTransaction(
+                        handleOutput.blockRecordSourceOrThrow().blockItems(),
+                        blockFull && baseBuilder.status() == THROTTLED_AT_CONSENSUS);
+            }
             recordCache.addRecordSource(
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
@@ -1192,22 +1226,26 @@ public class HandleWorkflow {
             @NonNull final State state, @NonNull final AtomicReference<LedgerIdContext> setLedgerIdContext) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
-            hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
-                // On finishing the genesis construction, use it immediately no matter what
-                if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstruction(construction, hintsStore.getCrsStateFor(construction));
-                } else if (!tssConfig.historyEnabled()) {
-                    // When not using history proofs, completing a weight rotation is also immediately actionable
-                    final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                    if (rosterStore.candidateIsWeightRotation()) {
-                        hintsService.handoff(
-                                hintsStore,
-                                requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()));
+            if (!HintsGenerationWeights.requiresHistory(tssConfig)) {
+                hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
+                    if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                        hintsService.setActiveConstruction(construction, hintsStore.getCrsStateFor(construction));
+                    } else if (!tssConfig.historyEnabled()) {
+                        final var rosters = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+                        if (rosters.candidateIsWeightRotation()) {
+                            hintsService.handoff(
+                                    hintsStore,
+                                    requireNonNull(rosters.getActiveRoster()),
+                                    requireNonNull(rosters.getCandidateRoster()),
+                                    requireNonNull(rosters.getCandidateRosterHash()));
+                        }
                     }
-                }
-            });
+                });
+            } else {
+                // A compatibility callback captures its earlier policy; discard it when strict mode takes over.
+                hintsService.onFinishedConstruction(null);
+            }
+
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction, targetNodeWeights) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
@@ -1248,13 +1286,15 @@ public class HandleWorkflow {
                                     hintsService,
                                     activeRoster,
                                     requireNonNull(candidateRoster),
-                                    requireNonNull(candidateRosterHash));
+                                    requireNonNull(candidateRosterHash),
+                                    requireNonNull(inFlightDispatch).consensusNow());
                         } else if (historyStore.handoff(
                                 activeRoster,
                                 // A fresh genesis handoff keeps the active roster, so a pending candidate
                                 // roster must not remove the proof keys of the nodes it drops
                                 null,
-                                candidateRosterHash)) {
+                                candidateRosterHash,
+                                null)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                             // The ledger id is that of the history a genesis proof grounds its chain of
@@ -1475,18 +1515,49 @@ public class HandleWorkflow {
                                     freshGenesisRequested));
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
+                if (tssConfig.historyEnabled()) {
+                    // Recover the source generation before either signing or preprocessing votes can
+                    // require its complete denominator. The hinTS reconciliation below reads the update.
+                    doStreamingOnlyKvChanges(
+                            historyWritableStates,
+                            null,
+                            () -> historyService.recoverActiveBook(
+                                    activeRosters,
+                                    new WritableHistoryStoreImpl(historyWritableStates),
+                                    new ReadableHintsStoreImpl(hintsWritableStates, entityCounters)
+                                            .getActiveConstruction()));
+                }
+                final var activeHistory = HintsGenerationWeights.requiresHistory(tssConfig)
+                        ? readableHistoryStore.getActiveConstruction()
+                        : null;
+                try {
+                    // A restarted node installs signing at startup, so do it here before reading readiness
+                    hintsService.activateSigning(
+                            new ReadableHintsStoreImpl(hintsWritableStates, entityCounters), tssConfig, activeHistory);
+                } catch (HintsGenerationWeights.InvalidGenerationException ignore) {
+                    // Reported by the reconciliation below
+                }
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
-                doStreamingOnlyKvChanges(
-                        hintsWritableStates,
-                        null,
-                        () -> hintsService.reconcile(
+                doStreamingOnlyKvChanges(hintsWritableStates, null, () -> {
+                    try {
+                        hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
                                 roundTimestamp,
                                 workTime,
                                 tssConfig,
-                                isActive));
+                                isActive,
+                                activeHistory);
+                        hintsGenerationFailureLogging.reset();
+                    } catch (HintsGenerationWeights.InvalidGenerationException e) {
+                        if (hintsGenerationFailureLogging.shouldLog(e)) {
+                            logger.error(
+                                    "Cannot advance hinTS with the current generation snapshot; history reconciliation will continue",
+                                    e);
+                        }
+                    }
+                });
                 if (tssConfig.historyEnabled()) {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);

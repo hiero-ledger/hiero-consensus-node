@@ -62,6 +62,7 @@ public class BlockStreamMetrics {
     private LongGauge connRecv_latestBlockSkipBlockGauge;
     private LongGauge connRecv_latestBlockResendBlockGauge;
     private LongGauge connRecv_latestBlockBehindPublisherGauge;
+    private Counter connRecv_observerIgnored;
 
     // connectivity metrics
     private Counter conn_onCompleteCounter;
@@ -78,7 +79,8 @@ public class BlockStreamMetrics {
     private RunningAverageMetric conn_blockEndSentToAckLatency;
     private RunningAverageMetric conn_blockClosedToAckLatency;
     private RunningAverageMetric conn_headerSentToBlockEndSentLatency;
-    private LongGauge conn_activeConnectionCount;
+    private LongGauge conn_activeStreamingConnectionCount;
+    private LongGauge conn_activeObservingConnectionCount;
     private final Map<CloseReason, Counter> conn_closeReasonCounters = new EnumMap<>(CloseReason.class);
 
     // buffer metrics
@@ -469,10 +471,15 @@ public class BlockStreamMetrics {
                         "Number of times a pipeline onNext() or onComplete() operation timed out on a block node connection");
         conn_pipelineOperationTimeoutCounter = metrics.getOrCreate(pipelineTimeoutCfg);
 
-        final LongGauge.Config activeConnectionCountCfg = new LongGauge.Config(
-                        CATEGORY, GROUP_CONN + "_activeConnectionCount")
+        final LongGauge.Config activeStreamingConnectionCountCfg = new LongGauge.Config(
+                        CATEGORY, GROUP_CONN + "_activeStreamingConnectionCount")
                 .withDescription("Current number of active streaming connections to block nodes");
-        conn_activeConnectionCount = metrics.getOrCreate(activeConnectionCountCfg);
+        conn_activeStreamingConnectionCount = metrics.getOrCreate(activeStreamingConnectionCountCfg);
+
+        final LongGauge.Config activeObservingConnectionCountCfg = new LongGauge.Config(
+                        CATEGORY, GROUP_CONN + "_activeObservingConnectionCount")
+                .withDescription("Current number of active acknowledgement observing connections to block nodes");
+        conn_activeObservingConnectionCount = metrics.getOrCreate(activeObservingConnectionCountCfg);
 
         for (final CloseReason closeReason : CloseReason.values()) {
             final String metricName = "connClose_" + toCamelCase(closeReason.name());
@@ -487,8 +494,17 @@ public class BlockStreamMetrics {
      *
      * @param connectionCount the latest connection count
      */
-    public void recordActiveConnectionCount(final long connectionCount) {
-        conn_activeConnectionCount.set(connectionCount);
+    public void recordActiveStreamingConnectionCount(final long connectionCount) {
+        conn_activeStreamingConnectionCount.set(connectionCount);
+    }
+
+    /**
+     * Record the number of active connections that are observing acknowledgements from block nodes.
+     *
+     * @param connectionCount the latest connection count
+     */
+    public void recordActiveObservingConnectionCount(final long connectionCount) {
+        conn_activeObservingConnectionCount.set(connectionCount);
     }
 
     /**
@@ -648,6 +664,10 @@ public class BlockStreamMetrics {
         final LongGauge.Config latestBlockBehindCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockBehindPublisher")
                 .withDescription("The latest block number received in a BehindPublisher response");
         this.connRecv_latestBlockBehindPublisherGauge = metrics.getOrCreate(latestBlockBehindCfg);
+
+        final Counter.Config observerIgnoredCfg = newCounter(GROUP_CONN_RECV, "responsesIgnoredAsObserving")
+                .withDescription("The number of ignored responses from the block node over observing connections");
+        this.connRecv_observerIgnored = metrics.getOrCreate(observerIgnoredCfg);
     }
 
     /**
@@ -717,6 +737,13 @@ public class BlockStreamMetrics {
      */
     public void recordLatestBlockBehindPublisher(final long blockNumber) {
         connRecv_latestBlockBehindPublisherGauge.set(blockNumber);
+    }
+
+    /**
+     * Record a response from the block node as being ignored because it was not valid for an observing connection.
+     */
+    public void recordIgnoredResponseWhileObserving() {
+        connRecv_observerIgnored.increment();
     }
 
     // Connection SEND metrics -----------------------------------------------------------------------------------------

@@ -513,6 +513,12 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     @Override
+    public void onRollback(@NonNull final Runnable action) {
+        requireNonNull(action);
+        peek().onRollback(action);
+    }
+
+    @Override
     public <T> void attach(@NonNull final Class<T> type, @NonNull final T value) {
         requireNonNull(type);
         requireNonNull(value);

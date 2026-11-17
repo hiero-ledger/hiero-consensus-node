@@ -407,8 +407,9 @@ class BlockStateProofGeneratorTest {
     private void verifyLoadedProofs(@NonNull final Map<Long, StateProof> expectedIndirectProofs) {
         // Verify that we have the expected number of proof files, including the final signed block proof
         Assertions.assertThat(expectedIndirectProofs.size()).isEqualTo(EXPECTED_NUM_INDIRECT_PROOFS);
-        expectedIndirectProofs.values().forEach(sp -> Assertions.assertThat(sp.signedBlockProof())
-                .isEqualTo(EXPECTED_TSS_PROOF));
+        expectedIndirectProofs
+                .values()
+                .forEach(sp -> Assertions.assertThat(sp.signedBlockProof()).isEqualTo(EXPECTED_TSS_PROOF));
 
         // Verify the contents of each expected indirect proof
         final var min = expectedIndirectProofs.keySet().stream()
@@ -665,13 +666,13 @@ class BlockStateProofGeneratorTest {
         }
 
         @Override
-        public void flushPendingBlock(@NonNull final PendingProof pendingProof) {
-            // No-op
+        public Path flushPendingBlock(@NonNull final PendingProof pendingProof) {
+            return null;
         }
 
         @Override
-        public void flushIncompleteBlock() {
-            // No-op
+        public Path flushIncompleteBlock() {
+            return null;
         }
     }
 }

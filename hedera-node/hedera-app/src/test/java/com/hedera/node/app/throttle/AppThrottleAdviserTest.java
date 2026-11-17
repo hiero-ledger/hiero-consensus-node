@@ -34,6 +34,12 @@ class AppThrottleAdviserTest {
     }
 
     @Test
+    void forwardsLeakCapacityForNOfUnscaled() {
+        subject.leakCapacityForNOfUnscaled(2, CRYPTO_TRANSFER);
+        verify(networkUtilizationManager).leakCapacityForNOfUnscaled(2, CRYPTO_TRANSFER);
+    }
+
+    @Test
     void forwardsHighVolumeThrottleUtilization() {
         given(networkUtilizationManager.highVolumeThrottleUtilization(CRYPTO_TRANSFER, CONSENSUS_NOW))
                 .willReturn(2_500);

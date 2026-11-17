@@ -3,6 +3,7 @@ package org.hiero.consensus.crypto;
 
 import static org.hiero.consensus.benchmark.tools.event.EmpiricalDistribution.constant;
 import static org.hiero.consensus.benchmark.tools.event.EventShape.MAINNET;
+import static org.hiero.consensus.benchmark.tools.event.EventStreamGenerator.receiveUnhashed;
 import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRoster;
 
 import java.security.MessageDigest;
@@ -219,10 +220,5 @@ public class EventHashingBenchmark {
         }
         recorder.resume();
         recorder.stopMeasurement();
-    }
-
-    /** Receives a generated event anew, as the intake receives it: parsed from the gossip streams and built. */
-    private static PlatformEvent receiveUnhashed(final PlatformEvent generatedEvent) {
-        return EventStreamGenerator.receiveUnhashed(List.of(generatedEvent)).getFirst();
     }
 }

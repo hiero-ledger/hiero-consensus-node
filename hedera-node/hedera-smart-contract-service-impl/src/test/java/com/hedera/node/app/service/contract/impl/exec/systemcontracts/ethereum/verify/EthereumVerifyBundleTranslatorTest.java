@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.ethereum.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mockConstruction;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -13,6 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
@@ -69,7 +71,33 @@ class EthereumVerifyBundleTranslatorTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
 
-        assertThat(subject.callFrom(attempt)).isInstanceOf(EthereumVerifyBundleCall.class);
+        // Constructor args are (enhancement, gasCalculator, bundlePayload, trustAnchor, channelContext); check that
+        // the decoded channelContext reaches the call instead of being dropped.
+        try (final var calls = mockConstruction(
+                EthereumVerifyBundleCall.class,
+                (mock, context) -> assertThat(context.arguments().get(4)).isEqualTo(channelContext))) {
+            assertThat(subject.callFrom(attempt)).isSameAs(calls.constructed().getFirst());
+        }
+    }
+
+    @Test
+    @DisplayName("given verifyBundle calldata, then callFrom passes each argument to the call in its ABI position")
+    void givenVerifyBundleCalldata_thenCallFromPassesEachArgumentInItsAbiPosition() {
+        final byte[] bundlePayload = {1, 2, 3};
+        final byte[] trustAnchor = {4, 5, 6, 7};
+        final byte[] channelContext = {8, 9, 10, 11, 12};
+        given(attempt.inputBytes())
+                .willReturn(EthereumVerifyBundleTranslator.VERIFY_BUNDLE
+                        .encodeCall(Tuple.of(bundlePayload, trustAnchor, channelContext))
+                        .array());
+        given(attempt.enhancement()).willReturn(mockEnhancement());
+        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
+
+        assertThat(subject.callFrom(attempt)).isInstanceOfSatisfying(EthereumVerifyBundleCall.class, call -> {
+            assertThat(call.bundlePayload()).isEqualTo(bundlePayload);
+            assertThat(call.trustAnchor()).isEqualTo(trustAnchor);
+            assertThat(call.channelContext()).isEqualTo(channelContext);
+        });
     }
 
     @Test

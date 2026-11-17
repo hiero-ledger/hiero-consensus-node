@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.state.history.HintsKeyWitness;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
@@ -56,6 +57,12 @@ public class LapsingBlockHashSigner implements BlockHashSigner {
     @Override
     public void onBlockStarted(final long blockNumber) {
         delegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
+    public void publishKeyWitness(@NonNull final Bytes verificationKey, @NonNull final HintsKeyWitness witness) {
+        // A completed signing attempt remains publishable even after new signing requests are paused.
+        delegate.publishKeyWitness(verificationKey, witness);
     }
 
     @Override

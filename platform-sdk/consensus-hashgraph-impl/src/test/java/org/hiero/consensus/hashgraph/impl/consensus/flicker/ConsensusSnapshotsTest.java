@@ -27,7 +27,7 @@ class ConsensusSnapshotsTest {
     private static final RosterWrapper ROSTER = LadderGraph.roster();
 
     /** The ladder graph, which is the simplest graph that produces a snapshot. */
-    private static final List<NamedEvent> GRAPH = LadderGraph.build(ROSTER);
+    private static final List<NamedEvent> GRAPH = LadderGraph.build();
 
     /**
      * Run the LadderGraph and return its intake.

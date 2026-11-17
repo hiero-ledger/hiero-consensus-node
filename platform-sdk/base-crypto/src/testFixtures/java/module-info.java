@@ -5,6 +5,7 @@ open module org.hiero.base.crypto.test.fixtures {
     requires transitive com.hedera.pbj.runtime;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires com.hedera.cryptography.libsecp256k1;
     requires com.swirlds.logging;
     requires org.hiero.base.utility.test.fixtures;
     requires org.apache.logging.log4j;
