@@ -1187,8 +1187,12 @@ public class AutoAccountCreationSuite {
                                         tinyBarsFromToWithAlias(PAYER, "alias5", 100))
                                 .via("failedAutoCreate")
                                 .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE),
+                        // the two rolled back auto-creations are kept as reverted children
                         getTxnRecord("failedAutoCreate")
-                                .hasNonStakingChildRecordCount(0)
+                                .hasNonStakingChildRecordCount(2)
+                                .hasChildRecords(
+                                        recordWith().revertedAccountCreation(),
+                                        recordWith().revertedAccountCreation())
                                 .logged(),
                         getAccountInfo(PAYER)
                                 .has(accountWith().balance((INITIAL_BALANCE * ONE_HBAR) - 3 * ONE_HUNDRED_HBARS))));

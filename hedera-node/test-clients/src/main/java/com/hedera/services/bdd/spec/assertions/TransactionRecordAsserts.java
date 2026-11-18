@@ -4,7 +4,9 @@ package com.hedera.services.bdd.spec.assertions;
 import static com.hedera.services.bdd.spec.assertions.EqualityAssertsProviderFactory.shouldBe;
 import static com.hedera.services.bdd.spec.assertions.EqualityAssertsProviderFactory.shouldNotBe;
 import static java.util.Collections.EMPTY_LIST;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REVERTED_SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
@@ -437,6 +439,24 @@ public class TransactionRecordAsserts extends BaseErroringAssertsProvider<Transa
 
     public TransactionRecordAsserts memo(String text) {
         registerTypedProvider("memo", shouldBe(text));
+        return this;
+    }
+
+    /**
+     * Asserts the record is of an account creation that was rolled back with its parent; and so has a
+     * reverted status and none of the side effects of the creation.
+     */
+    public TransactionRecordAsserts revertedAccountCreation() {
+        registerProvider((spec, o) -> {
+            final var actual = (TransactionRecord) o;
+            assertEquals(REVERTED_SUCCESS, actual.getReceipt().getStatus(), "Bad status!");
+            assertFalse(actual.getReceipt().hasAccountID(), "Created account id was not cleared!");
+            assertEquals(ByteString.EMPTY, actual.getAlias(), "Alias was not cleared!");
+            assertEquals(ByteString.EMPTY, actual.getEvmAddress(), "EVM address was not cleared!");
+            assertEquals(0, actual.getTransferList().getAccountAmountsCount(), "Transfers were not cleared!");
+            assertEquals(0, actual.getTokenTransferListsCount(), "Token transfers were not cleared!");
+            assertEquals(0L, actual.getTransactionFee(), "Fee was not cleared!");
+        });
         return this;
     }
 

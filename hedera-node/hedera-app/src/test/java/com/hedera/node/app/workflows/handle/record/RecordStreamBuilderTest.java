@@ -3,14 +3,18 @@ package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.base.AccountAmount;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -104,5 +108,33 @@ public class RecordStreamBuilderTest {
         assertThat(record.contractCreateResult().logInfo()).isEmpty();
         assertThat(record.contractCreateResult().bloom()).isEqualTo(Bytes.EMPTY);
         assertThat(record.contractCreateResult().createdContractIDs()).isEmpty();
+    }
+
+    @Test
+    void nullOutSideEffectFieldsClearsAccountCreationFields() {
+        final var builder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, PRECEDING)
+                .signedTx(SIGNED_TX)
+                .transactionID(TransactionID.DEFAULT)
+                .status(SUCCESS)
+                .accountID(AccountID.newBuilder().accountNum(1234L).build())
+                .evmAddress(Bytes.wrap(new byte[20]))
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(AccountAmount.newBuilder()
+                                .accountID(AccountID.newBuilder().accountNum(98L).build())
+                                .amount(100L)
+                                .build())
+                        .build())
+                .transactionFee(100L);
+
+        builder.nullOutSideEffectFields();
+
+        final var record = builder.build().transactionRecord();
+
+        assertThat(record.receiptOrThrow().accountID()).isNull();
+        assertThat(record.alias()).isEqualTo(Bytes.EMPTY);
+        assertThat(record.evmAddress()).isEqualTo(Bytes.EMPTY);
+        assertThat(record.transferListOrElse(TransferList.DEFAULT).accountAmounts())
+                .isEmpty();
+        assertThat(record.transactionFee()).isZero();
     }
 }

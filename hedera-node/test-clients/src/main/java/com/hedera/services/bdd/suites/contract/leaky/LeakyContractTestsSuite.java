@@ -902,7 +902,11 @@ public class LeakyContractTestsSuite {
                                     .via(revertingTxn)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(6_000_000),
-                            emptyChildRecordsCheck(revertingTxn, CONTRACT_REVERT_EXECUTED),
+                            // the rolled back hollow creation stays in the stream as a reverted child
+                            childRecordsCheck(
+                                    revertingTxn,
+                                    CONTRACT_REVERT_EXECUTED,
+                                    recordWith().revertedAccountCreation()),
                             getAliasedAccountInfo(evmAddress).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID),
                             // given a valid address that is derived from an ECDSA key, should create hollow account
                             contractCall(LAZY_CREATE_CONTRACT, callLazyCreateFunction, address)
@@ -997,7 +1001,11 @@ public class LeakyContractTestsSuite {
                                     .logged()
                                     .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID));
                 }),
-                emptyChildRecordsCheck(TRANSFER_TXN, MAX_CHILD_RECORDS_EXCEEDED));
+                // the hollow creation that used the only child slot stays in the stream as a reverted child
+                childRecordsCheck(
+                        TRANSFER_TXN,
+                        MAX_CHILD_RECORDS_EXCEEDED,
+                        recordWith().revertedAccountCreation()));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -1401,9 +1409,8 @@ public class LeakyContractTestsSuite {
                                         .contractCallResult(resultWith()
                                                 .contractCallResult(htsPrecompileResult()
                                                         .forFunction(FunctionType.ERC_OWNER)
-                                                        .withOwner(asAddress(
-                                                                spec.registry()
-                                                                        .getAccountID(SOME_ERC_721_SCENARIOS)))))),
+                                                        .withOwner(asAddress(spec.registry()
+                                                                .getAccountID(SOME_ERC_721_SCENARIOS)))))),
                         childRecordsCheck(
                                 "CIVILIAN_OWNER",
                                 SUCCESS,
