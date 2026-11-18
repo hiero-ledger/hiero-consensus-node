@@ -108,8 +108,8 @@ env:
   NUM_OF_BLOCK_NODES: 3
 
   #Chaos mapping
-  FROM_BN_NETEM: "delay 25ms 2ms 25% rate 100gbit limit 100000"
-  FROM_CN_NETEM: "delay 12ms 5ms distribution normal rate 100gbit limit 100000"
+  FROM_BN_NETEM: "delay 42ms reorder 0.1% 25% limit 100000"
+  FROM_CN_NETEM: "delay 21ms 5ms distribution normal reorder 0.1% 25% limit 100000"
 
 jobs:
   get-chewie-jwt:
