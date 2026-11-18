@@ -118,7 +118,7 @@ class DefaultTransactionHandlerTests {
                     "the round handled should be the one we provided");
             boolean eventWithNoTransactions = false;
             for (final ConsensusEvent consensusEvent : tester.getHandledRounds().getFirst()) {
-                if (!consensusEvent.consensusTransactionIterator().hasNext()) {
+                if (consensusEvent.getTransactions().isEmpty()) {
                     eventWithNoTransactions = true;
                     break;
                 }

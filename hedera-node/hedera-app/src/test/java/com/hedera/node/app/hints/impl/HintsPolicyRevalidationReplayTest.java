@@ -206,11 +206,11 @@ class HintsPolicyRevalidationReplayTest {
             final var library = mock(HintsLibrary.class);
             when(library.validateHintsKey(any(), any(), anyInt(), anyInt())).thenReturn(true);
             when(library.aggregateSignatures(any(), any(), any(), any())).thenReturn(AGGREGATE);
-            signingContext = new HintsContext(library, config::get, mock(HintsSigningMetrics.class));
-            final var accessor = mock(HintsKeyAccessor.class);
-            when(accessor.getOrCreateBlsPrivateKey(NEXT_ID)).thenReturn(Bytes.wrap("private key"));
             final var self = mock(NodeInfo.class);
             when(self.nodeId()).thenReturn(0L);
+            signingContext = new HintsContext(library, config::get, mock(HintsSigningMetrics.class), () -> self);
+            final var accessor = mock(HintsKeyAccessor.class);
+            when(accessor.getOrCreateBlsPrivateKey(NEXT_ID)).thenReturn(Bytes.wrap("private key"));
             controllers = new HintsControllers(
                     Runnable::run,
                     accessor,

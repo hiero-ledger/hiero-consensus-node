@@ -482,7 +482,6 @@ class ClprCompleteChannelHandlerTest {
         return Map.of(
                         0x16eL, "9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e",
                         0x16fL, "9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909",
-                        0x170L, "ee0783a29d06bd654e54a8fd53a8553af7a43b0e601b1a0a1b59034b10e2ff45",
                         0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c",
                         0x172L, "8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9")
                 .entrySet()
@@ -490,6 +489,25 @@ class ClprCompleteChannelHandlerTest {
                 .flatMap(entry -> Stream.of(
                         Arguments.of(verifierContractId(entry.getKey(), false), Bytes.fromHex(entry.getValue())),
                         Arguments.of(verifierContractId(entry.getKey(), true), Bytes.fromHex(entry.getValue()))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void rejectsTheUnsupportedSeiVerifier(final boolean useEvmAddress) {
+        // 0x170 is not a built-in verifier: without a smart-contract account it is rejected like any other address
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var seiVerifierId = verifierContractId(0x170L, useEvmAddress);
+        final var op = validEcdsaTxn()
+                .clprCompleteChannelOrThrow()
+                .copyBuilder()
+                .verifierContract(seiVerifierId)
+                .build();
+        setupHandleContext(txnWith(op));
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_INVALID_VERIFIER_CONTRACT));
+        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
     }
 
     @ParameterizedTest

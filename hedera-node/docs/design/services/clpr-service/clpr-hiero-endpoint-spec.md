@@ -222,7 +222,8 @@ When initiating a sync for a Channel, the endpoint must select a peer endpoint f
 
 **Selection algorithm:**
 
-1. **Filter.** Remove endpoints that are marked as unreachable (circuit breaker open — see Section 13).
+1. **Filter.** Defer endpoints until their next retry time. When `clpr.syncPeerExclusionEnabled=true`, also
+   remove endpoints whose circuit breaker is open (see Section 13).
 2. **Randomize.** From the remaining candidates, select one using weighted random selection.
 3. **Weight factors:**
    - **Base weight:** Equal for all candidates (ensures randomization).
@@ -235,6 +236,18 @@ When initiating a sync for a Channel, the endpoint must select a peer endpoint f
 `(channel_id, peer_endpoint_account_id)`. This table is not persisted to state — it is rebuilt from scratch
 on node restart. Entries decay over time (exponential decay with a half-life of `clpr.reputationDecaySeconds`,
 default: 300 seconds).
+
+**Outbound destinations.** CLPR endpoint addresses MUST be numeric IPv4 or IPv6 literals, without DNS names or
+IPv6 scope identifiers, and ports MUST be in `1..65535`. Before creating a client, the node validates the destination
+and passes the parsed socket address directly to the transport. Ordinary public unicast destinations are accepted
+by default. For IPv6, this means `2000::/3`, excluding the IETF special-purpose range `2001::/23`, documentation
+ranges `2001:db8::/32` and `3fff::/20`, and the 6to4 range `2002::/16`.
+Deployments using other unicast ranges, including local or private networks, MUST explicitly list them in the node-local
+`clpr.additionalPeerEndpointCidrs` setting, for example `127.0.0.1/32,10.0.0.0/24`. The default is an empty set.
+Unspecified and multicast destinations remain invalid. These checks apply independently of
+`clpr.syncPeerExclusionEnabled` and do not change the peer manifest stored in consensus state.
+When the client cache observes a changed CIDR setting on its next lookup, it retires existing transports before
+validating the requested destination and creating a client under the new setting.
 
 ## 3.3 Concurrency Model
 
@@ -528,8 +541,8 @@ submitting endpoint pays the transaction cost.
 
 ## 7.1 Local Endpoint Identity
 
-On Hiero, every consensus node is automatically a CLPR endpoint. The CLPR endpoint module derives its identity
-from the active consensus roster. No manual endpoint registration is needed.
+Each Hiero consensus node can publish its own CLPR endpoint using its address-book entry and local HAPI TLS
+configuration.
 
 **Roster reading.** The `RosterObserver` component reads the active roster from state on startup and watches for
 roster change events. Each node's CLPR endpoint identity is derived from:
@@ -540,6 +553,18 @@ roster change events. Each node's CLPR endpoint identity is derived from:
 | `tls_certificate`   | Node's HAPI TLS certificate (DER-encoded); not used by the network                |
 | `ecdsa_signing_key` | Node's ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes uncompressed) |
 | `account_id`        | Node's account ID (serialized as bytes, 20 bytes for Hiero)                       |
+
+For CLPR self-publication, configure a reachable IPv4 address in the `ipAddressV4` field of a HAPI service
+endpoint in the node's address book. The publisher selects the first such entry in address-book order. It uses
+that entry's port for plaintext or `grpc.tlsPort` when the node has a HAPI TLS certificate. A node with only
+domain-name entries skips self-publication until a numeric endpoint is available.
+
+**Migrating existing hostname publications.** Before upgrading peers that dial this ledger, put the reachable
+IPv4 entry first so older publishers also select it. Restart with the updated address book. The reconciler
+publishes the numeric endpoint and the next finalized manifest replaces the hostname entry. Check the address
+and port with `yahcli clpr get-endpoint-manifest` and confirm existing peer channels have received the new
+manifest version while they can still sync. For private addresses, configure the corresponding
+`clpr.additionalPeerEndpointCidrs` on the dialing nodes.
 
 The endpoint count from the active roster is used for per-endpoint throttle calculation
 (`max_bundles_per_sec / num_endpoints`).
@@ -650,12 +675,13 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 
 ## 9.3 Peer Selection Parameters
 
-|            Parameter            |   Type   | Default |                         Description                         |
-|---------------------------------|----------|---------|-------------------------------------------------------------|
-| `clpr.reputationDecaySeconds`   | `int`    | `300`   | Half-life for peer reputation score decay.                  |
-| `clpr.reputationSuccessBonus`   | `double` | `1.0`   | Reputation score added for a successful sync.               |
-| `clpr.reputationFailurePenalty` | `double` | `5.0`   | Reputation score subtracted for a failed sync.              |
-| `clpr.recentPeerPenaltyFactor`  | `double` | `0.5`   | Weight multiplier for a peer selected on the previous tick. |
+|             Parameter              |     Type      | Default |                                           Description                                            |
+|------------------------------------|---------------|---------|--------------------------------------------------------------------------------------------------|
+| `clpr.reputationDecaySeconds`      | `int`         | `300`   | Half-life for peer reputation score decay.                                                       |
+| `clpr.reputationSuccessBonus`      | `double`      | `1.0`   | Reputation score added for a successful sync.                                                    |
+| `clpr.reputationFailurePenalty`    | `double`      | `5.0`   | Reputation score subtracted for a failed sync.                                                   |
+| `clpr.recentPeerPenaltyFactor`     | `double`      | `0.5`   | Weight multiplier for a peer selected on the previous tick.                                      |
+| `clpr.additionalPeerEndpointCidrs` | `Set<String>` | empty   | Node-local IPv4/IPv6 CIDRs for additional peer destinations, such as a local or private network. |
 
 ## 9.4 Retry Parameters
 
@@ -872,14 +898,15 @@ within the node process.
 
 ## 13.1 Retry Strategy
 
-Transient failures (network timeouts, gRPC `UNAVAILABLE`, ingest throttling) are retried with **exponential
-backoff with jitter**:
+Failed syncs are retried with **capped exponential delay**, including connection failures and stream timeouts:
 
 ```
-delay = min(retryInitialDelayMs * 2^attempt + random(0, retryInitialDelayMs), retryMaxDelayMs)
+delay = min(retryInitialDelayMs * 2^attempt, retryMaxDelayMs)
 ```
 
-The maximum number of consecutive retries before opening the circuit breaker is `retryMaxAttempts`.
+Retry pacing remains active when `clpr.syncPeerExclusionEnabled=false`. Successful syncs reset the delay.
+The `clpr.syncTimeoutSeconds` deadline covers the complete streaming exchange. When peer exclusion is enabled,
+the maximum number of consecutive retries before opening the circuit breaker is `retryMaxAttempts`.
 
 ## 13.2 Circuit Breaker Pattern
 
@@ -898,14 +925,15 @@ Each peer endpoint has an independent circuit breaker with three states:
 ```
 
 - **CLOSED:** Normal operation. Failures increment a counter.
-- **OPEN:** All sync attempts to this peer are skipped. After `circuitBreakerCooldownSeconds`, transition to
+- **OPEN:** When peer exclusion is enabled, sync attempts to this peer are skipped. After
+  `circuitBreakerCooldownSeconds`, transition to
   HALF-OPEN.
 - **HALF-OPEN:** A single probe sync is attempted. If it succeeds, transition to CLOSED. If it fails, transition
   back to OPEN.
 
 ## 13.3 Channel-Level Resilience
 
-When all peer endpoints for a Channel have open circuit breakers:
+When peer exclusion is enabled and all peer endpoints for a Channel have open circuit breakers:
 
 1. Outbound messages continue to queue (up to `max_queue_depth`).
 2. The orchestrator continues probing (via half-open circuit breakers) on each tick.
