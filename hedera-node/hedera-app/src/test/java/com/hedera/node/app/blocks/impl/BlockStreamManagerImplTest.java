@@ -2627,8 +2627,7 @@ class BlockStreamManagerImplTest {
         given(mockEvent.getConsensusTimestamp()).willReturn(asInstant(CONSENSUS_THEN));
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(roundEnd);
-        given(round.getConsensusEvents())
-                .willAnswer(_ -> List.of(nullTimestampEvent, mockEvent).iterator());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(nullTimestampEvent, mockEvent));
 
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
@@ -2667,8 +2666,7 @@ class BlockStreamManagerImplTest {
         given(mockEvent.getConsensusTimestamp()).willReturn(asInstant(CONSENSUS_THEN));
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(roundEnd);
-        given(round.getConsensusEvents())
-                .willAnswer(_ -> List.of(epochEvent, mockEvent).iterator());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(epochEvent, mockEvent));
 
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
@@ -2711,7 +2709,7 @@ class BlockStreamManagerImplTest {
         given(round.getRoundNum()).willReturn(ROUND_NO);
         given(round.getConsensusTimestamp()).willReturn(roundEnd);
         given(mockEvent.getConsensusTimestamp()).willReturn(roundStart);
-        given(round.getConsensusEvents()).willAnswer(_ -> List.of(mockEvent).iterator());
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(mockEvent));
 
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
