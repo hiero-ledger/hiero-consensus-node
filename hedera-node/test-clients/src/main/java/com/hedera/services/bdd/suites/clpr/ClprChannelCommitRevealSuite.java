@@ -33,6 +33,7 @@ import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -315,7 +316,7 @@ public class ClprChannelCommitRevealSuite {
                         .hasKnownStatus(CLPR_INVALID_VERIFIER_CONTRACT));
     }
 
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    @HapiTest
     @DisplayName("Reveal with the unsupported Sei verifier (0x170) fails INVALID_VERIFIER_CONTRACT")
     final Stream<DynamicTest> seiVerifierFails() {
         final var byNumber = new ClprChannelCrypto();
