@@ -101,10 +101,9 @@ public class EventStreamScanner {
     private void collectEventData(final CesEvent mostRecentEvent) {
         eventCount++;
         granularEventCount++;
-        mostRecentEvent.getPlatformEvent().transactionIterator().forEachRemaining(transaction -> {
-            applicationTransactionCount++;
-            granularApplicationTransactionCount++;
-        });
+        final int numTransactions = mostRecentEvent.getTransactions().size();
+        applicationTransactionCount += numTransactions;
+        granularApplicationTransactionCount += numTransactions;
     }
 
     /**

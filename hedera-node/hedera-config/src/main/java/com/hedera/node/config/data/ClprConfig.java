@@ -7,6 +7,7 @@ import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
+import java.util.Set;
 
 /**
  * Configuration for the CLPR (Cross Ledger Protocol) service.
@@ -64,6 +65,9 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "30000") long retryMaxDelayMs,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int retryMaxAttempts,
         @ConfigProperty(defaultValue = "120") int circuitBreakerCooldownSeconds,
+        // Additional numeric IP ranges this node may dial for CLPR sync, such as a local test network.
+        // Ordinary public unicast addresses need no entry; other unicast ranges require an IPv4 or IPv6 CIDR.
+        @ConfigProperty(defaultValue = "") @NodeProperty Set<String> additionalPeerEndpointCidrs,
         // --- Local peer exclusion heuristics ---
         // When false, CLPR does not reject inbound requests or remove outbound candidates
         // due to local shunning or open circuit-breaker state.

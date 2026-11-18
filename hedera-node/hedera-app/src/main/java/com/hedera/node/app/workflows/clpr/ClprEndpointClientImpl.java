@@ -17,7 +17,9 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.time.Duration;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
@@ -104,22 +106,29 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
      * @param useTls whether to encrypt the channel with TLS
      */
     ClprEndpointClientImpl(@NonNull final String host, final int port, final boolean useTls) {
-        this.channel = newChannel(host, port, useTls);
+        this(ClprEndpointAddressPolicy.addressFor(host, port, Set.of()), useTls);
+    }
+
+    /** Creates a client for a destination already checked against the node's endpoint policy. */
+    ClprEndpointClientImpl(@NonNull final InetSocketAddress address, final boolean useTls) {
+        this.channel = newChannel(address, useTls);
     }
 
     /**
      * Builds the {@link ManagedChannel} backing this client, using the same TLS/plaintext rules as the
      * constructors.
      *
-     * @param host the peer's IP address
-     * @param port the peer's gRPC port
+     * @param address the peer's resolved IP address and gRPC port
      * @param useTls whether to encrypt the channel with TLS
      * @return a new managed channel owned by this client instance
      */
     @NonNull
-    static ManagedChannel newChannel(@NonNull final String host, final int port, final boolean useTls) {
-        requireNonNull(host);
-        final var builder = NettyChannelBuilder.forAddress(host, port).maxInboundMessageSize(MAX_SYNC_BYTES);
+    static ManagedChannel newChannel(@NonNull final InetSocketAddress address, final boolean useTls) {
+        requireNonNull(address);
+        if (address.isUnresolved() || address.getPort() == 0) {
+            throw new ClientException("CLPR peer endpoint must have a resolved address and nonzero port", null);
+        }
+        final var builder = NettyChannelBuilder.forAddress(address).maxInboundMessageSize(MAX_SYNC_BYTES);
         if (!useTls) {
             return builder.usePlaintext().build();
         }
@@ -127,7 +136,7 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
             return builder.sslContext(buildClientSslContext()).build();
         } catch (final SSLException e) {
             throw new ClientException(
-                    "Failed to build TLS channel for CLPR peer " + host + ":" + port + ": " + e.getMessage(), e);
+                    "Failed to build TLS channel for CLPR peer " + address + ": " + e.getMessage(), e);
         }
     }
 
@@ -171,8 +180,8 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
                 managedChannel.shutdownNow();
             }
         } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
             managedChannel.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 }
