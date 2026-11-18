@@ -38,6 +38,7 @@ import com.hedera.node.config.data.CacheConfig;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.DiskSpaceConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
@@ -150,6 +151,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(ClprConfig.class)
                 .withConfigDataType(ConsensusConfig.class)
                 .withConfigDataType(ContractsConfig.class)
+                .withConfigDataType(DiskSpaceConfig.class)
                 .withConfigDataType(HooksConfig.class)
                 .withConfigDataType(EntitiesConfig.class)
                 .withConfigDataType(ExpiryConfig.class)
