@@ -4,6 +4,7 @@ package org.hiero.consensus.model.hashgraph;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.crypto.RunningHash;
@@ -44,14 +45,6 @@ public interface Round {
      */
     @NonNull
     List<? extends ConsensusEvent> getConsensusEvents();
-
-    /**
-     * Returns the number of consensus events in this round.
-     * @return the number of consensus events in this round.
-     */
-    default int getNumEvents() {
-        return getConsensusEvents().size();
-    }
 
     /**
      * Get the roster that was used to compute consensus for this round.
@@ -102,14 +95,13 @@ public interface Round {
     Instant getReachedConsTimestamp();
 
     /**
-     * The legacy running event hash of the last event in this round. This method will be removed when the consensus
-     * event stream is retired.
+     * The legacy running event hash of the last event in this round, or {@code null} if there are no events in the
+     * round.
      * <p>
-     * This method is temporary and will be removed when the consensus event stream is retired in favor of the block
-     * stream.
+     * This method is temporary and will be removed when the consensus event stream is retired.
      *
      * @return the running event hash of the last event
      */
-    @NonNull
+    @Nullable
     RunningHash getLastEventRunningHash();
 }

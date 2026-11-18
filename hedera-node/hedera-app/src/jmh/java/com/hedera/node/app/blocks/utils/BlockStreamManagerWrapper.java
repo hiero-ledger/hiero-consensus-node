@@ -204,11 +204,6 @@ public class BlockStreamManagerWrapper {
         }
 
         @Override
-        public int getNumEvents() {
-            return 0;
-        }
-
-        @Override
         public @NonNull Roster getConsensusRoster() {
             return Roster.DEFAULT;
         }

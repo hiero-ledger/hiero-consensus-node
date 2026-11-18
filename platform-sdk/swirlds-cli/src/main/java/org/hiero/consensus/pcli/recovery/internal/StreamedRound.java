@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.RunningHash;
@@ -26,7 +27,7 @@ public class StreamedRound implements Round {
             @NonNull final List<CesEvent> events,
             final long roundNumber,
             final long transactionOffsetNanos) {
-        this.events = events;
+        this.events = Collections.unmodifiableList(events);
         this.roundNumber = roundNumber;
         events.stream()
                 .map(CesEvent::getPlatformEvent)

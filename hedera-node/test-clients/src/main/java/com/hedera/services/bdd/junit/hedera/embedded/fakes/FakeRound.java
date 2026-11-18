@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -21,7 +22,7 @@ public class FakeRound implements Round {
             final long roundNum, @NonNull final Roster roster, @NonNull final List<ConsensusEvent> consensusEvents) {
         this.roundNum = roundNum;
         this.roster = requireNonNull(roster);
-        this.consensusEvents = requireNonNull(consensusEvents);
+        this.consensusEvents = Collections.unmodifiableList(requireNonNull(consensusEvents));
     }
 
     @Override
