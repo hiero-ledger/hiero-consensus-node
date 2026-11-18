@@ -691,12 +691,12 @@ jobs:
 
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
 
-          #for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
-          #do
-          #  echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
-          #done
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          do
+            echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
+          done
 
-          # echo "     - 'mirror-1-rest.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local=mn:1'" >> new.yml
+          #echo "     - 'mirror-1-rest.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local=mn:1'" >> new.yml
 
           mv new.yml nlg-values.yaml
 
@@ -827,7 +827,7 @@ jobs:
           relayIP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get svc | grep 'relay-1' | grep 7546 | awk '{print $3}'`
           relayUrl=http://${relayIP}:7546
 
-          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }} -relay $relayUrl"
+          NLGargs=" -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }} -relay $relayUrl"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
