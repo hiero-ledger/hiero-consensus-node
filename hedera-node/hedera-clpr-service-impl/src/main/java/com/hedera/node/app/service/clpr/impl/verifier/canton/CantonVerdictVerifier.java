@@ -23,18 +23,18 @@ import org.apache.logging.log4j.Logger;
  * library, because the general-purpose {@code Rlp} decoder in this module is more lenient and consensus
  * verification must accept exactly what the reference accepts.
  */
-public final class CantonVerdictVerifier {
+final class CantonVerdictVerifier {
     private static final Logger log = LogManager.getLogger(CantonVerdictVerifier.class);
 
     /** The verdict's request id and the root hash of the transaction it approves. */
-    public record VerdictResult(long requestId, @NonNull byte[] rootHash) {}
+    record VerdictResult(long requestId, @NonNull byte[] rootHash) {}
 
     /**
      * The outcome of a bundle verdict: the verdict's request id, the root hash it approves, the effective anchor to
      * open the transaction tree under (after the rotations and any completed upgrade), and the new anchor to commit
      * when the bundle changed it (empty otherwise).
      */
-    public record BundleVerdictResult(
+    record BundleVerdictResult(
             long requestId,
             @NonNull byte[] rootHash,
             @NonNull CantonAnchor.Anchor anchor,
@@ -49,7 +49,7 @@ public final class CantonVerdictVerifier {
      * @throws CantonProofException on any verification failure
      */
     @NonNull
-    public static VerdictResult verifyVerdict(
+    static VerdictResult verifyVerdict(
             @NonNull final byte[] typedContent,
             @NonNull final byte[] signatures,
             @NonNull final byte[] mediatorSet,
@@ -82,7 +82,7 @@ public final class CantonVerdictVerifier {
      * @throws CantonProofException on any verification failure
      */
     @NonNull
-    public static BundleVerdictResult verifyBundleVerdict(
+    static BundleVerdictResult verifyBundleVerdict(
             @NonNull final byte[] typedContent,
             @NonNull final byte[] signatures,
             @NonNull final byte[] mediatorSet,
@@ -137,7 +137,7 @@ public final class CantonVerdictVerifier {
         return new BundleVerdictResult(v.requestId(), v.rootHash(), effective, newTrustAnchor);
     }
 
-    private static void check(
+    static void check(
             final byte[] typed,
             final CantonProto.Verdict v,
             final byte[] synchronizerId,

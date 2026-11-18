@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.concat;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.node.app.service.clpr.impl.verifier.Ed25519Verify;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Field;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Range;
@@ -29,24 +30,24 @@ import java.util.Objects;
 final class CantonTopology {
 
     static final long VERSION_V30 = 30;
-    public static final long OP_ADD_REPLACE = 1;
-    public static final long OP_REMOVE = 2;
+    static final long OP_ADD_REPLACE = 1;
+    static final long OP_REMOVE = 2;
 
     /** {@code TopologyMapping} oneof fields. */
-    public static final long MAPPING_NAMESPACE_DELEGATION = 1;
+    static final long MAPPING_NAMESPACE_DELEGATION = 1;
 
-    public static final long MAPPING_DECENTRALIZED_NAMESPACE = 3;
-    public static final long MAPPING_OWNER_TO_KEY = 4;
-    public static final long MAPPING_MEDIATOR_STATE = 12;
-    public static final long MAPPING_LSU_ANNOUNCEMENT = 17;
+    static final long MAPPING_DECENTRALIZED_NAMESPACE = 3;
+    static final long MAPPING_OWNER_TO_KEY = 4;
+    static final long MAPPING_MEDIATOR_STATE = 12;
+    static final long MAPPING_LSU_ANNOUNCEMENT = 17;
 
     /** Mapping codes, which delegation restrictions name. */
-    public static final int CODE_NAMESPACE_DELEGATION = 1;
+    static final int CODE_NAMESPACE_DELEGATION = 1;
 
-    public static final int CODE_DECENTRALIZED_NAMESPACE = 3;
-    public static final int CODE_OWNER_TO_KEY = 4;
-    public static final int CODE_MEDIATOR_STATE = 12;
-    public static final int CODE_LSU_ANNOUNCEMENT = 19;
+    static final int CODE_DECENTRALIZED_NAMESPACE = 3;
+    static final int CODE_OWNER_TO_KEY = 4;
+    static final int CODE_MEDIATOR_STATE = 12;
+    static final int CODE_LSU_ANNOUNCEMENT = 19;
 
     /** {@code SigningKeyUsage.PROTOCOL}, the usage of the keys that sign verdicts. */
     static final long USAGE_PROTOCOL = 4;
@@ -64,13 +65,13 @@ final class CantonTopology {
     private CantonTopology() {}
 
     /** A signature over a topology transaction: the signer fingerprint, the signed hash, and the bytes. */
-    public record Signature(
+    record Signature(
             @NonNull byte[] fingerprint,
             @NonNull byte[] hash,
             @NonNull byte[] signature) {}
 
     /** A signed topology transaction: its operation, serial, mapping kind, mapping body, hash, and signatures. */
-    public record Transaction(
+    record Transaction(
             long operation,
             long serial,
             long mappingKind,
@@ -85,7 +86,7 @@ final class CantonTopology {
          * <p>Unlike the Solidity reference, no {@code IEd25519Verifier} argument is needed: this port verifies
          * Ed25519 through the static {@link Ed25519Verify}, as {@link CantonMediators#verify} does.
          */
-        public boolean signedBy(@NonNull final CantonSets.Key key) {
+        boolean signedBy(@NonNull final CantonSets.Key key) {
             Objects.requireNonNull(key, "key");
             for (final Signature s : signatures) {
                 if (!Arrays.equals(s.fingerprint(), key.fingerprint())) {
@@ -104,30 +105,30 @@ final class CantonTopology {
     }
 
     /** A parsed {@code LsuAnnouncement}: the successor physical synchronizer id and the upgrade time (micros). */
-    public record LsuAnnouncement(@NonNull byte[] successor, long upgradeTime) {}
+    record LsuAnnouncement(@NonNull byte[] successor, long upgradeTime) {}
 
     /** A parsed {@code DecentralizedNamespaceDefinition}: the namespace, threshold, and owner namespaces. */
-    public record DecentralizedNamespace(
+    record DecentralizedNamespace(
             @NonNull byte[] namespace,
             long threshold,
             @NonNull List<byte[]> owners) {}
 
     /** A parsed {@code OwnerToKeyMapping}: the mediator uid and its {@code PROTOCOL} signing keys. */
-    public record OwnerToKey(@NonNull byte[] uid, @NonNull List<CantonSets.Key> keys) {}
+    record OwnerToKey(@NonNull byte[] uid, @NonNull List<CantonSets.Key> keys) {}
 
     /** A parsed {@code MediatorSynchronizerState}: synchronizer id range, group, threshold, and active members. */
-    public record MediatorState(
+    record MediatorState(
             @NonNull Range synchronizerId,
             long group,
             long threshold,
             @NonNull List<byte[]> active) {}
 
     /** A parsed {@code NamespaceDelegation}: namespace, target key (with {@code ok}), restriction, mappings. */
-    public record NamespaceDelegation(
+    record NamespaceDelegation(
             @NonNull byte[] namespace, boolean ok, @NonNull CantonSets.Key target, int restriction, long mappings) {}
 
     /** A parsed {@code SigningPublicKey}: whether it decoded, the key, and whether it has usage {@code PROTOCOL}. */
-    public record SigningKey(boolean ok, @NonNull CantonSets.Key key, boolean protocol) {}
+    record SigningKey(boolean ok, @NonNull CantonSets.Key key, boolean protocol) {}
 
     // ── Transactions and signatures ────────────────────────────────────────
 
@@ -136,7 +137,7 @@ final class CantonTopology {
      * key without a session-key delegation. Mirrors the reference {@code readTransaction}.
      */
     @NonNull
-    public static Transaction readTransaction(@NonNull final byte[] wrapped) {
+    static Transaction readTransaction(@NonNull final byte[] wrapped) {
         Objects.requireNonNull(wrapped, "wrapped");
         final byte[] signed = unwrapV30(wrapped);
         final Range r = CantonProto.whole(signed);
@@ -229,7 +230,7 @@ final class CantonTopology {
      * upgrade time in microseconds. Mirrors the reference {@code readLsuAnnouncement}.
      */
     @NonNull
-    public static LsuAnnouncement readLsuAnnouncement(@NonNull final byte[] b) {
+    static LsuAnnouncement readLsuAnnouncement(@NonNull final byte[] b) {
         Objects.requireNonNull(b, "b");
         final Range r = CantonProto.whole(b);
         final byte[] successor = CantonProto.copy(b, CantonProto.get(b, r, 1));
@@ -249,7 +250,7 @@ final class CantonTopology {
      * reference {@code readDecentralizedNamespace}.
      */
     @NonNull
-    public static DecentralizedNamespace readDecentralizedNamespace(@NonNull final byte[] b) {
+    static DecentralizedNamespace readDecentralizedNamespace(@NonNull final byte[] b) {
         Objects.requireNonNull(b, "b");
         final Range r = CantonProto.whole(b);
         final byte[] namespace = namespaceOf(b, CantonProto.get(b, r, 1));
@@ -268,7 +269,7 @@ final class CantonTopology {
      * the reference {@code readOwnerToKey}.
      */
     @NonNull
-    public static OwnerToKey readOwnerToKey(@NonNull final byte[] b) {
+    static OwnerToKey readOwnerToKey(@NonNull final byte[] b) {
         Objects.requireNonNull(b, "b");
         final Range r = CantonProto.whole(b);
         final Range member = CantonProto.get(b, r, 1);
@@ -301,7 +302,7 @@ final class CantonTopology {
      * Mirrors the reference {@code readMediatorState}.
      */
     @NonNull
-    public static MediatorState readMediatorState(@NonNull final byte[] b) {
+    static MediatorState readMediatorState(@NonNull final byte[] b) {
         Objects.requireNonNull(b, "b");
         final Range r = CantonProto.whole(b);
         final Range synchronizerId = CantonProto.get(b, r, 1);
@@ -320,7 +321,7 @@ final class CantonTopology {
      * Mirrors the reference {@code readNamespaceDelegation}.
      */
     @NonNull
-    public static NamespaceDelegation readNamespaceDelegation(@NonNull final byte[] b) {
+    static NamespaceDelegation readNamespaceDelegation(@NonNull final byte[] b) {
         Objects.requireNonNull(b, "b");
         final Range r = CantonProto.whole(b);
         final byte[] namespace = namespaceOf(b, CantonProto.get(b, r, 1));
@@ -351,7 +352,7 @@ final class CantonTopology {
      * check. Mirrors the reference {@code signingKey}.
      */
     @NonNull
-    public static SigningKey signingKey(@NonNull final byte[] b, @NonNull final Range r) {
+    static SigningKey signingKey(@NonNull final byte[] b, @NonNull final Range r) {
         Objects.requireNonNull(b, "b");
         Objects.requireNonNull(r, "r");
         final long spec = CantonProto.getVarint(b, r, 6);
@@ -371,7 +372,8 @@ final class CantonTopology {
      * The 32 bytes of a namespace or a fingerprint written as {@code 1220<64 hex>}. Mirrors {@code namespaceOf}.
      */
     @NonNull
-    public static byte[] namespaceOf(@NonNull final byte[] b, @NonNull final Range r) {
+    @VisibleForTesting
+    static byte[] namespaceOf(@NonNull final byte[] b, @NonNull final Range r) {
         Objects.requireNonNull(b, "b");
         Objects.requireNonNull(r, "r");
         final Fingerprint f = fingerprint(b, r);
@@ -383,7 +385,7 @@ final class CantonTopology {
 
     /** The namespace of a uid {@code <name>::1220<64 hex>}. Mirrors {@code namespaceOfUid}. */
     @NonNull
-    public static byte[] namespaceOfUid(@NonNull final byte[] uid) {
+    static byte[] namespaceOfUid(@NonNull final byte[] uid) {
         Objects.requireNonNull(uid, "uid");
         if (uid.length < 71 || uid[uid.length - 70] != ':' || uid[uid.length - 69] != ':') {
             throw CantonProofException.cantonProtoMalformed("uid has no namespace suffix");

@@ -27,14 +27,14 @@ import java.util.Objects;
  * {@code point} is {@code x ‖ y} for ECDSA keys and the 32-byte key zero-padded for Ed25519; {@code k}
  * counts current keys and {@code p} previous ones. Delegations authorize key rotations and are skipped.
  */
-public final class CantonMediators {
+final class CantonMediators {
 
     /** Ed25519 key spec. */
-    public static final int KEY_SPEC_ED25519 = 1;
+    static final int KEY_SPEC_ED25519 = 1;
     /** NIST P-256 key spec. */
-    public static final int KEY_SPEC_P256 = 2;
+    static final int KEY_SPEC_P256 = 2;
     /** secp256k1 key spec. */
-    public static final int KEY_SPEC_SECP256K1 = 3;
+    static final int KEY_SPEC_SECP256K1 = 3;
 
     private static final int HEADER_LENGTH = 12;
     /** {@code memberId(32) ‖ otkSerial(4)}, before the delegation count. */
@@ -50,10 +50,10 @@ public final class CantonMediators {
     private CantonMediators() {}
 
     /** The threshold and member count of a validated mediator set. */
-    public record SetSummary(int threshold, int members) {}
+    record SetSummary(int threshold, int members) {}
 
     /** The key of the signer {@code fingerprint}, and the index of the member it belongs to. */
-    public record SignerKey(boolean found, int member, int keySpec, byte[] x, byte[] y) {
+    record SignerKey(boolean found, int member, int keySpec, byte[] x, byte[] y) {
         /** A not-found result. */
         public static SignerKey notFound() {
             return new SignerKey(false, 0, 0, new byte[0], new byte[0]);
@@ -61,7 +61,7 @@ public final class CantonMediators {
     }
 
     /** The outcome of parsing an ECDSA signature into its {@code (r, s)} components. */
-    public record EcdsaSignature(boolean ok, byte[] r, byte[] s) {
+    record EcdsaSignature(boolean ok, byte[] r, byte[] s) {
         static EcdsaSignature invalid() {
             return new EcdsaSignature(false, new byte[0], new byte[0]);
         }
@@ -75,7 +75,7 @@ public final class CantonMediators {
      * @throws CantonProofException if the set does not match its declared layout
      */
     @NonNull
-    public static SetSummary validate(@NonNull final byte[] set) {
+    static SetSummary validate(@NonNull final byte[] set) {
         Objects.requireNonNull(set, "set");
         if (set.length < HEADER_LENGTH) {
             throw CantonProofException.invalidMediatorSet("set shorter than header (" + set.length + " bytes)");
@@ -114,7 +114,7 @@ public final class CantonMediators {
      * every member. {@code set} must have passed {@link #validate}. Mirrors the reference {@code lookup}.
      */
     @NonNull
-    public static SignerKey lookup(@NonNull final byte[] set, @NonNull final byte[] fingerprint32) {
+    static SignerKey lookup(@NonNull final byte[] set, @NonNull final byte[] fingerprint32) {
         Objects.requireNonNull(set, "set");
         Objects.requireNonNull(fingerprint32, "fingerprint32");
         final long members = u32(set, 8);
@@ -144,7 +144,7 @@ public final class CantonMediators {
      * Ed25519 signs {@code message} directly; ECDSA ({@code SHA256withECDSA}) signs {@code SHA256(message)}
      * and its signature is DER or the 64-byte {@code r ‖ s}. Mirrors the reference {@code verify}.
      */
-    public static boolean verify(
+    static boolean verify(
             @NonNull final SignerKey key, @NonNull final byte[] message, @NonNull final byte[] signature) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(message, "message");

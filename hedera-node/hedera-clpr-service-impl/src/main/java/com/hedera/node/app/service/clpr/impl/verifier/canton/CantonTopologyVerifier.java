@@ -31,7 +31,7 @@ final class CantonTopologyVerifier {
     private CantonTopologyVerifier() {}
 
     /** The anchor, mediator set and owner set after the rotations. */
-    public record RotationResult(
+    record RotationResult(
             @NonNull byte[] newAnchor,
             @NonNull byte[] newMediatorSet,
             @NonNull byte[] newOwnerSet) {}
@@ -196,7 +196,7 @@ final class CantonTopologyVerifier {
      * @throws CantonProofException on any verification failure
      */
     @NonNull
-    public static RotationResult applyRotations(
+    static RotationResult applyRotations(
             @NonNull final byte[] trustAnchor, @NonNull final byte[] mediatorSet, @NonNull final byte[] rotations) {
         Objects.requireNonNull(trustAnchor, "trustAnchor");
         Objects.requireNonNull(mediatorSet, "mediatorSet");

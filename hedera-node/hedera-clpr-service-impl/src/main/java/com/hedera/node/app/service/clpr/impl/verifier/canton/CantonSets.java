@@ -33,32 +33,32 @@ import java.util.Objects;
 final class CantonSets {
 
     /** Ed25519 key spec. */
-    public static final int SPEC_ED25519 = 1;
+    static final int SPEC_ED25519 = 1;
     /** ECDSA P-256 key spec. */
-    public static final int SPEC_P256 = 2;
+    static final int SPEC_P256 = 2;
     /** ECDSA secp256k1 key spec. */
-    public static final int SPEC_SECP256K1 = 3;
+    static final int SPEC_SECP256K1 = 3;
 
     private static final int HEADER_LENGTH = 12;
     private static final int KEY_LENGTH = 98;
     private static final int DELEGATION_LENGTH = 108;
 
     /** {@code SHA256(BE32(12) ‖ keyBytes)}, Canton's {@code PublicKeyFingerprint} hash purpose. */
-    public static final int PURPOSE_PUBLIC_KEY_FINGERPRINT = 12;
+    static final int PURPOSE_PUBLIC_KEY_FINGERPRINT = 12;
 
     /**
      * The {@code SubjectPublicKeyInfo} header of each key spec, up to the key: for ECDSA keys including the
      * {@code 0x04} of the uncompressed point.
      */
-    public static final byte[] DER_ED25519 = hex("302a300506032b6570032100");
+    static final byte[] DER_ED25519 = hex("302a300506032b6570032100");
 
-    public static final byte[] DER_P256 = hex("3059301306072a8648ce3d020106082a8648ce3d03010703420004");
-    public static final byte[] DER_SECP256K1 = hex("3056301006072a8648ce3d020106052b8104000a03420004");
+    static final byte[] DER_P256 = hex("3059301306072a8648ce3d020106082a8648ce3d03010703420004");
+    static final byte[] DER_SECP256K1 = hex("3056301006072a8648ce3d020106052b8104000a03420004");
 
     private CantonSets() {}
 
     /** A Canton public key: its fingerprint, key spec, fingerprint mode, and the two 32-byte point words. */
-    public record Key(
+    record Key(
             @NonNull byte[] fingerprint,
             int keySpec,
             int fingerprintMode,
@@ -67,7 +67,7 @@ final class CantonSets {
 
         /** Encodes this key as {@code fingerprint ‖ keySpec ‖ fingerprintMode ‖ x ‖ y}. */
         @NonNull
-        public byte[] encode() {
+        byte[] encode() {
             final CantonBytes.Writer out = new CantonBytes.Writer();
             out.bytes(fingerprint);
             out.u8(keySpec);
@@ -78,7 +78,7 @@ final class CantonSets {
         }
 
         /** Whether this key's fingerprint is the one Canton computes for its key. Mirrors {@code hasOwnFingerprint}. */
-        public boolean hasOwnFingerprint() {
+        boolean hasOwnFingerprint() {
             final byte[] header = header(keySpec);
             if (header.length == 0) {
                 return false;
@@ -93,21 +93,20 @@ final class CantonSets {
      * A namespace delegation. {@code restriction}: 0 all mappings, 1 all but {@code NamespaceDelegation},
      * 2 the codes set in {@code mappings}.
      */
-    public record Delegation(@NonNull Key key, int restriction, long mappings, long serial, boolean removed) {}
+    record Delegation(@NonNull Key key, int restriction, long mappings, long serial, boolean removed) {}
 
     /** An owner (a namespace), its root key, and its delegations. */
-    public record Owner(
+    record Owner(
             @NonNull byte[] namespace,
             @NonNull Key root,
             @NonNull List<Delegation> delegations) {}
 
     /** The decentralized-namespace owner set: serial, threshold, and the owners. */
-    public record Owners(
-            long serial, long threshold, @NonNull List<Owner> owners) {
+    record Owners(long serial, long threshold, @NonNull List<Owner> owners) {
 
         /** Encodes this owner set. Mirrors the reference {@code encodeOwners}. */
         @NonNull
-        public byte[] encode() {
+        byte[] encode() {
             final CantonBytes.Writer out = new CantonBytes.Writer();
             out.u32(serial);
             out.u32(threshold);
@@ -122,7 +121,7 @@ final class CantonSets {
     }
 
     /** A mediator member, its key-mapping serial, delegations, current keys, and previous keys. */
-    public record Member(
+    record Member(
             @NonNull byte[] memberId,
             long otkSerial,
             @NonNull List<Delegation> delegations,
@@ -130,12 +129,11 @@ final class CantonSets {
             @NonNull List<Key> previous) {}
 
     /** The mediator synchronizer state set: serial, threshold, and the members. */
-    public record Mediators(
-            long serial, long threshold, @NonNull List<Member> members) {
+    record Mediators(long serial, long threshold, @NonNull List<Member> members) {
 
         /** Encodes this mediator set. Mirrors the reference {@code encodeMediators}. */
         @NonNull
-        public byte[] encode() {
+        byte[] encode() {
             final CantonBytes.Writer out = new CantonBytes.Writer();
             out.u32(serial);
             out.u32(threshold);
@@ -152,7 +150,7 @@ final class CantonSets {
     }
 
     /** The result of {@link #keyFromDer}: whether it decoded, and the key. */
-    public record KeyFromDer(boolean ok, @NonNull Key key) {}
+    record KeyFromDer(boolean ok, @NonNull Key key) {}
 
     // ── Owner set ──────────────────────────────────────────────────────────
 
@@ -162,7 +160,7 @@ final class CantonSets {
      * @throws CantonProofException {@code InvalidSet} if the bytes do not match the layout
      */
     @NonNull
-    public static Owners decodeOwners(@NonNull final byte[] b) {
+    static Owners decodeOwners(@NonNull final byte[] b) {
         Objects.requireNonNull(b, "b");
         if (b.length < HEADER_LENGTH) {
             throw CantonProofException.invalidSet("owner set shorter than header");
@@ -199,7 +197,7 @@ final class CantonSets {
      * @throws CantonProofException {@code InvalidSet} if the bytes do not match the layout
      */
     @NonNull
-    public static Mediators decodeMediators(@NonNull final byte[] b) {
+    static Mediators decodeMediators(@NonNull final byte[] b) {
         Objects.requireNonNull(b, "b");
         if (b.length < HEADER_LENGTH) {
             throw CantonProofException.invalidSet("mediator set shorter than header");
@@ -231,7 +229,7 @@ final class CantonSets {
 
     /** Decodes a single 98-byte key. Mirrors the reference {@code decodeKey}. */
     @NonNull
-    public static Key decodeKey(@NonNull final byte[] b) {
+    static Key decodeKey(@NonNull final byte[] b) {
         Objects.requireNonNull(b, "b");
         if (b.length != KEY_LENGTH) {
             throw CantonProofException.invalidSet("key not " + KEY_LENGTH + " bytes");
@@ -245,7 +243,7 @@ final class CantonSets {
      * spec or encoding. Mirrors the reference {@code keyFromDer}.
      */
     @NonNull
-    public static KeyFromDer keyFromDer(final int keySpec, @NonNull final byte[] der) {
+    static KeyFromDer keyFromDer(final int keySpec, @NonNull final byte[] der) {
         Objects.requireNonNull(der, "der");
         final byte[] header = header(keySpec);
         final int points = keySpec == SPEC_ED25519 ? 32 : 64;

@@ -287,15 +287,16 @@ class CantonTopologyVerifierSignedTest {
         final CantonSets.Key d1 = DELEGATE_1.key();
         final CantonSets.Key d2 = DELEGATE_2.key();
         final long lsuBit = 1L << CantonTopology.CODE_LSU_ANNOUNCEMENT;
-        final byte[] ownerSet = CantonSets.encodeOwners(new CantonSets.Owners(
-                1,
-                1,
-                List.of(new CantonSets.Owner(
-                        OWNER_A.ns(),
-                        OWNER_A.key(),
-                        List.of(
-                                new CantonSets.Delegation(d1, 2, 0, 1, false), // not LSU announcements
-                                new CantonSets.Delegation(d2, 2, lsuBit, 1, false))))));
+        final byte[] ownerSet = (new CantonSets.Owners(
+                        1,
+                        1,
+                        List.of(new CantonSets.Owner(
+                                OWNER_A.ns(),
+                                OWNER_A.key(),
+                                List.of(
+                                        new CantonSets.Delegation(d1, 2, 0, 1, false), // not LSU announcements
+                                        new CantonSets.Delegation(d2, 2, lsuBit, 1, false))))))
+                .encode();
         // D1 holds no right to this mapping.
         assertThat(error(ownerSet, mediators(), lsu(ADD, 1, SYNC_LOGICAL + "::35-1", DELEGATE_1)))
                 .isEqualTo("TopologyUnauthorized");
@@ -309,15 +310,16 @@ class CantonTopologyVerifierSignedTest {
     @Test
     void lsuAnnouncementAuthorizedByDelegatesOfEveryOpenRestriction() {
         for (final int restriction : new int[] {0, 1}) {
-            final byte[] ownerSet = CantonSets.encodeOwners(new CantonSets.Owners(
-                    1,
-                    1,
-                    List.of(new CantonSets.Owner(
-                            OWNER_A.ns(),
-                            OWNER_A.key(),
-                            List.of(
-                                    new CantonSets.Delegation(DELEGATE_1.key(), 0, 0, 1, true), // removed
-                                    new CantonSets.Delegation(DELEGATE_2.key(), restriction, 0, 1, false))))));
+            final byte[] ownerSet = (new CantonSets.Owners(
+                            1,
+                            1,
+                            List.of(new CantonSets.Owner(
+                                    OWNER_A.ns(),
+                                    OWNER_A.key(),
+                                    List.of(
+                                            new CantonSets.Delegation(DELEGATE_1.key(), 0, 0, 1, true), // removed
+                                            new CantonSets.Delegation(DELEGATE_2.key(), restriction, 0, 1, false))))))
+                    .encode();
             assertThat(error(ownerSet, mediators(), lsu(ADD, 1, SYNC_LOGICAL + "::35-1", DELEGATE_1)))
                     .isEqualTo("TopologyUnauthorized");
             final CantonTopologyVerifier.RotationResult res =
@@ -474,7 +476,7 @@ class CantonTopologyVerifierSignedTest {
                         new CantonSets.Delegation(DELEGATE_2.key(), 2, otkBit, 1, false)),
                 List.of(KEY_OLD.key()),
                 List.of());
-        final byte[] mediatorSet = CantonSets.encodeMediators(new CantonSets.Mediators(1, 1, List.of(member)));
+        final byte[] mediatorSet = (new CantonSets.Mediators(1, 1, List.of(member))).encode();
 
         // The removed delegate may not sign, and nor may a stranger.
         assertThat(error(owners(OWNER_A), mediatorSet, otk(ADD, 2, List.of(KEY_OLD), List.of(DELEGATE_1), List.of())))
@@ -587,7 +589,7 @@ class CantonTopologyVerifierSignedTest {
         final byte[] offered = r.offered().isEmpty()
                 ? Rlp.encodeBytes(NO_BYTES)
                 : Rlp.encodeList(r.offered().stream()
-                        .map(s -> Rlp.encodeBytes(CantonSets.encodeKey(s.key())))
+                        .map(s -> Rlp.encodeBytes(s.key().encode()))
                         .toList());
         return Rlp.encodeList(List.of(Rlp.encodeBytes(r.signedTx()), offered, Rlp.encodeBytes(r.uid())));
     }
@@ -595,20 +597,23 @@ class CantonTopologyVerifierSignedTest {
     private static byte[] owners(final Signer... roots) {
         final List<Signer> sorted = new ArrayList<>(List.of(roots));
         sorted.sort((x, y) -> Arrays.compareUnsigned(x.ns(), y.ns()));
-        return CantonSets.encodeOwners(new CantonSets.Owners(
-                1,
-                1,
-                sorted.stream()
-                        .map(s -> new CantonSets.Owner(s.ns(), s.key(), List.of()))
-                        .toList()));
+        return (new CantonSets.Owners(
+                        1,
+                        1,
+                        sorted.stream()
+                                .map(s -> new CantonSets.Owner(s.ns(), s.key(), List.of()))
+                                .toList()))
+                .encode();
     }
 
     /** One mediator, {@link #MEDIATOR_UID}, holding {@link #KEY_OLD}, at serial 1. */
     private static byte[] mediators() {
-        return CantonSets.encodeMediators(new CantonSets.Mediators(
-                1,
-                1,
-                List.of(new CantonSets.Member(sha256(MEDIATOR_UID), 1, List.of(), List.of(KEY_OLD.key()), List.of()))));
+        return (new CantonSets.Mediators(
+                        1,
+                        1,
+                        List.of(new CantonSets.Member(
+                                sha256(MEDIATOR_UID), 1, List.of(), List.of(KEY_OLD.key()), List.of()))))
+                .encode();
     }
 
     private static byte[] anchorOf(

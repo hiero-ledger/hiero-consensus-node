@@ -45,7 +45,7 @@ public final class CantonAnchor {
          * config opening supplies it).
          */
         @NonNull
-        public static Anchor initial(
+        static Anchor initial(
                 @NonNull final String synchronizerId,
                 final int mediatorGroup,
                 @NonNull final byte[] synchronizerNamespace,
@@ -57,7 +57,7 @@ public final class CantonAnchor {
 
         /** This anchor with {@code app} as its app. */
         @NonNull
-        public Anchor withApp(@NonNull final String newApp) {
+        Anchor withApp(@NonNull final String newApp) {
             return new Anchor(
                     synchronizerId,
                     lastRequestId,
@@ -73,7 +73,7 @@ public final class CantonAnchor {
 
         /** This anchor with {@code requestId} as the last request id. */
         @NonNull
-        public Anchor withLastRequestId(final long requestId) {
+        Anchor withLastRequestId(final long requestId) {
             return new Anchor(
                     synchronizerId,
                     requestId,
@@ -89,7 +89,7 @@ public final class CantonAnchor {
 
         /** This anchor with a rotated owner set, mediator set, and logical-synchronizer-upgrade announcement. */
         @NonNull
-        public Anchor withRotation(
+        Anchor withRotation(
                 @NonNull final byte[] newOwnersHash,
                 @NonNull final byte[] newMediatorsHash,
                 @NonNull final String newSuccessorSynchronizerId,
@@ -110,7 +110,7 @@ public final class CantonAnchor {
 
         /** This anchor once its announced successor synchronizer has taken over: no pending upgrade remains. */
         @NonNull
-        public Anchor withSuccessorAsSynchronizer() {
+        Anchor withSuccessorAsSynchronizer() {
             return new Anchor(
                     successorSynchronizerId,
                     lastRequestId,
@@ -129,7 +129,7 @@ public final class CantonAnchor {
          * uint32, string))}.
          */
         @NonNull
-        public static Anchor decode(@NonNull final byte[] trustAnchor) {
+        static Anchor decode(@NonNull final byte[] trustAnchor) {
             Objects.requireNonNull(trustAnchor, "trustAnchor");
             if (trustAnchor.length < MIN_LENGTH) {
                 throw CantonProofException.invalidTrustAnchor();
@@ -149,7 +149,7 @@ public final class CantonAnchor {
 
         /** Encodes as Solidity {@code abi.encode} of the ten fields. */
         @NonNull
-        public byte[] encode() {
+        byte[] encode() {
             final byte[][] strings = {
                 synchronizerId.getBytes(StandardCharsets.UTF_8),
                 successorSynchronizerId.getBytes(StandardCharsets.UTF_8),
