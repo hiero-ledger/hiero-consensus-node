@@ -1,18 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test;
 
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
+import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
-import com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
@@ -24,6 +31,8 @@ import com.swirlds.state.State;
 import com.swirlds.state.binary.MerkleProof;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.LongToIntFunction;
+import java.util.function.ToLongFunction;
 import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,12 +42,14 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * Unit tests for {@link ClprStateProofManager#buildManifestStateProofWithValue()} that drive the real
- * manager, mocking only its collaborators.
+ * Unit tests for {@link ClprStateProofManager} that drive the real manager, mocking only its collaborators.
  */
 @ExtendWith(MockitoExtension.class)
 class ClprStateProofManagerTest {
     private static final long MIB = 1024L * 1024L;
+    private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[32]);
+    private static final long CHANNEL_PATH = 1_000L;
+    private static final ToLongFunction<StateProof> PROOF_SIZE = StateProof.PROTOBUF::measureRecord;
 
     @Mock
     private BlockProvenSnapshotProvider snapshotProvider;
@@ -206,24 +217,41 @@ class ClprStateProofManagerTest {
     }
 
     @Test
-    @DisplayName("Sync bytes are never capped below what one message the peer's payload limit admits needs")
-    void neverCapsSyncBytesBelowOneAdmittedMessage() {
-        // The peer admits 4 MiB messages, more than the local 2 MiB sync limit carries
-        final var peer = throttles(10, 4 * MIB, 1024L * MIB);
-        final var local = throttles(10, MIB, 2 * MIB);
+    @DisplayName("Small messages are packed only up to the local sync limit, not the peer's larger one")
+    void packsSmallMessagesOnlyUpToTheLocalLimit() {
+        givenBundleSnapshot(throttles(100, 1_000, 10_000), 30, id -> 1_000);
 
-        assertThat(ClprStateProofManager.boundedByLocalThrottles(peer, local).maxSyncBytes())
-                .isEqualTo(4 * MIB + ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES);
+        final var result = subject.buildBundleProof(
+                snapshot, CHANNEL_ID, 1L, throttles(100, 1_000, 40_000), false, false, PROOF_SIZE);
+
+        assertThat(result).isNotNull();
+        assertThat(result.messageCount()).isBetween(2, 9);
+        assertThat(result.payload().length()).isLessThanOrEqualTo(10_000L);
     }
 
     @Test
-    @DisplayName("Without a peer payload limit, the local one bounds the messages admitted")
-    void usesTheLocalPayloadLimitWhenThePeerHasNone() {
-        final var local = throttles(10, MIB, 2 * MIB);
+    @DisplayName("A first message that fits only under the peer's sync limit is sent on its own")
+    void sendsALargeFirstMessageAloneUnderThePeerLimit() {
+        givenBundleSnapshot(throttles(100, 1_000, 10_000), 2, id -> id == 1L ? 20_000 : 1_000);
 
-        assertThat(ClprStateProofManager.boundedByLocalThrottles(throttles(10, 0, 1024L * MIB), local)
-                        .maxSyncBytes())
-                .isEqualTo(2 * MIB);
+        final var result = subject.buildBundleProof(
+                snapshot, CHANNEL_ID, 1L, throttles(100, 30_000, 40_000), false, false, PROOF_SIZE);
+
+        assertThat(result).isNotNull();
+        assertThat(result.messageCount()).isEqualTo(1);
+        assertThat(result.lastMessageId()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("A first message over both sync limits is not sent")
+    void skipsAFirstMessageOverBothLimits() {
+        givenBundleSnapshot(throttles(100, 1_000, 10_000), 1, id -> 50_000);
+
+        final var result = subject.buildBundleProof(
+                snapshot, CHANNEL_ID, 1L, throttles(100, 30_000, 40_000), true, false, PROOF_SIZE);
+
+        assertThat(result).isNotNull();
+        assertThat(result.messageCount()).isZero();
     }
 
     @Test
@@ -261,5 +289,35 @@ class ClprStateProofManagerTest {
         given(snapshot.tssSignature()).willReturn(Bytes.EMPTY);
         given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(1L);
         given(binaryState.getMerkleProof(1L)).willReturn(new MerkleProof(Bytes.EMPTY, List.of(), List.of()));
+    }
+
+    /**
+     * Stubs a snapshot whose channel has {@code queuedMessages} messages from ID 1, each a leaf of the given size,
+     * and whose ledger configuration carries the given local throttles.
+     */
+    private void givenBundleSnapshot(
+            final ClprThrottles localThrottles, final long queuedMessages, final LongToIntFunction leafSize) {
+        given(snapshot.state()).willReturn(provenState);
+        given(snapshot.blockTimestamp())
+                .willReturn(Timestamp.newBuilder().seconds(1L).build());
+        given(snapshot.path()).willReturn(MerklePath.DEFAULT);
+        given(snapshot.tssSignature()).willReturn(Bytes.EMPTY);
+        given(binaryState.getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(ClprLedgerConfiguration.PROTOBUF.toBytes(ClprLedgerConfiguration.newBuilder()
+                        .throttles(localThrottles)
+                        .build()));
+        given(binaryState.getKvPath(eq(CHANNELS_STATE_ID), any(Bytes.class))).willReturn(CHANNEL_PATH);
+        given(binaryState.getKvPath(eq(MESSAGE_QUEUE_STATE_ID), any(Bytes.class)))
+                .willAnswer(invocation -> {
+                    final long id = ClprMessageKey.PROTOBUF
+                            .parse(invocation.<Bytes>getArgument(1).toReadableSequentialData())
+                            .messageId();
+                    return id <= queuedMessages ? CHANNEL_PATH + id : -1L;
+                });
+        given(binaryState.getMerkleProof(anyLong())).willAnswer(invocation -> {
+            final long path = invocation.getArgument(0);
+            final int size = path == CHANNEL_PATH ? 0 : leafSize.applyAsInt(path - CHANNEL_PATH);
+            return new MerkleProof(Bytes.wrap(new byte[size]), List.of(), List.of());
+        });
     }
 }

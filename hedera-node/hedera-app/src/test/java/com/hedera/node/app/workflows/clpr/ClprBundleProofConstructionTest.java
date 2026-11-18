@@ -7,6 +7,7 @@ import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,6 +24,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
@@ -165,6 +167,39 @@ class ClprBundleProofConstructionTest {
         verify(binaryState, never()).getKvPath(MESSAGE_QUEUE_STATE_ID, messageKeyBytes(FIRST_MESSAGE_ID + 1));
     }
 
+    @Test
+    void capsCompactBundlesAtTheLocalSyncLimit() throws Exception {
+        final var channel = channel(70, 1_048_576);
+        givenLocalMaxSyncBytes(32_768);
+        givenQueue(channel, 1_024, false);
+        final var producer = producer(channel, SIGNING_KEY);
+
+        final var payload = requireNonNull(producer.next(false));
+
+        final long localMaxPayloadBytes = ClprStateProofManager.maxBundlePayloadBytes(
+                ClprThrottles.newBuilder().maxSyncBytes(32_768).build());
+        assertThat(payload.length()).isLessThanOrEqualTo(localMaxPayloadBytes);
+        final long packed = producer.nextStartingMessageId() - FIRST_MESSAGE_ID;
+        assertThat(packed).isBetween(2L, 31L);
+        verify(proofSupport).verify(payload, keccak256DigestOf(SIGNING_KEY));
+    }
+
+    @Test
+    void sendsAHeadMessageOverTheLocalSyncLimitAloneInACompactBundle() throws Exception {
+        final var channel = channel(3, 1_048_576);
+        givenLocalMaxSyncBytes(16_384);
+        givenQueue(channel, 20_000, false);
+        final var producer = producer(channel, SIGNING_KEY);
+
+        final var payload = requireNonNull(producer.next(false));
+
+        final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
+        assertThat(proof.paths()).hasSize(2);
+        assertThat(payload.length()).isGreaterThan(16_384);
+        assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID + 1);
+        verify(proofSupport).verify(payload, keccak256DigestOf(SIGNING_KEY));
+    }
+
     private void assertWitnessOnly(final ClprChannel channel) throws Exception {
         final var producer = producer(channel, PREDECESSOR_KEY);
         final var payload = requireNonNull(producer.next(false));
@@ -212,6 +247,15 @@ class ClprBundleProofConstructionTest {
                 .willReturn(List.of(HintsKeyWitnessRecord.newBuilder()
                         .provenance(provenance)
                         .witness(witness)
+                        .build()));
+    }
+
+    private void givenLocalMaxSyncBytes(final long maxSyncBytes) {
+        given(((BinaryState) provenState).getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(ClprLedgerConfiguration.PROTOBUF.toBytes(ClprLedgerConfiguration.newBuilder()
+                        .throttles(ClprThrottles.newBuilder()
+                                .maxMessagesPerBundle(100)
+                                .maxSyncBytes(maxSyncBytes))
                         .build()));
     }
 
