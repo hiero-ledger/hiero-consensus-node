@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -22,6 +24,8 @@ public final class CantonFixtures {
             HEX.parseHex("47d7e478d17269b47ac84ed799101a84156ac084b2b186ee31c91cf7a1e67b40");
     public static final byte[] MEDIATOR1_KEY_2 =
             HEX.parseHex("4318031c692a30b683240a94c7fea3bc3a439e64d1cbe4e1f2e9599ba2938dcc");
+    static final byte[] MEDIATOR1 =
+            hex("6e8899fea6adfe7b3965493fb60343bd44215fe4c695d02e6c8a761bd7bfa9bc");
     public static final byte[] MEDIATOR1_P256 =
             HEX.parseHex("fe282f9c0c644fb7fd24f7029187d266a60edee684c0d2ad87cd34efcf4ba678");
     public static final byte[] MEDIATOR1_DELEGATED =
@@ -30,6 +34,7 @@ public final class CantonFixtures {
             HEX.parseHex("acc89538ec7fd9a5a0b31428b77ffdf69cea9c238b375531d8f5c18cbf45a16e");
     public static final byte[] OWNER_DELEGATED_P256 =
             HEX.parseHex("55f33859de079494a9ac84ad47db6a9e5bb911bee79131d29cd5b6faceff3d32");
+    static final byte[] OWNER_SEQUENCER = hex("65971ff3bf94bdd46a9bab769b1c6e7e8e6a324031d3719586eb51c058e6d2a8");
 
     private CantonFixtures() {}
 
@@ -132,5 +137,13 @@ public final class CantonFixtures {
 
     static byte[] hex(final String s) {
         return HEX.parseHex(s);
+    }
+
+    static String formatHex(final byte[] bytes) {
+        return HEX.formatHex(bytes);
+    }
+
+    static byte[] fp(final byte[] namespace) {
+        return utf8("1220" + HEX.formatHex(namespace));
     }
 }

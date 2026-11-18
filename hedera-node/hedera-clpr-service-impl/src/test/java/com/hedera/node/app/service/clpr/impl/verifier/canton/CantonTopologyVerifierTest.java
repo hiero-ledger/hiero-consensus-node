@@ -6,15 +6,18 @@ import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtur
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.MEDIATOR1_P256;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.MEDIATOR2_KEY;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.OWNER_DELEGATED_P256;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.OWNER_SEQUENCER;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.SYNCHRONIZER_NAMESPACE;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.hex;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.fail;
 
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -28,19 +31,13 @@ import org.junit.jupiter.api.Test;
  */
 class CantonTopologyVerifierTest {
 
-    private static final HexFormat HEX = HexFormat.of();
-
-    // Fixture constants from CantonTopologyFixtures.sol (pr-556).
+    // Fixture constants from reference implementation
     private static final String SYNCHRONIZER_ID =
             "probe::1220fe3624c1c2190638c3a9f88ec65abdb7b8a3908031d62dc2a0f65ed68c1e9922::35-0";
-    private static final byte[] OWNER_SEQUENCER =
-            HEX.parseHex("65971ff3bf94bdd46a9bab769b1c6e7e8e6a324031d3719586eb51c058e6d2a8");
     private static final byte[] OWNER_PARTICIPANT =
-            HEX.parseHex("1a356465bbf4bc3a2e5f22fbb6cbc74ddb20169b68b60218d7c2edd94c053ca5");
-    private static final byte[] MEDIATOR1 =
-            HEX.parseHex("6e8899fea6adfe7b3965493fb60343bd44215fe4c695d02e6c8a761bd7bfa9bc");
+            hex("1a356465bbf4bc3a2e5f22fbb6cbc74ddb20169b68b60218d7c2edd94c053ca5");
     private static final byte[] MEDIATOR2 =
-            HEX.parseHex("8e1a7f24091ce78a600a76759af67ac913bf3ff954e8eb8a166c5a1cb184892c");
+            hex("8e1a7f24091ce78a600a76759af67ac913bf3ff954e8eb8a166c5a1cb184892c");
 
     private static final String APP = "app::1220" + "ff".repeat(32);
 
@@ -60,7 +57,7 @@ class CantonTopologyVerifierTest {
         assertThat(m.threshold()).isEqualTo(1);
         assertThat(m.members()).hasSize(2);
 
-        final CantonSets.Member one = member(m, MEDIATOR1);
+        final CantonSets.Member one = member(m, CantonFixtures.MEDIATOR1);
         assertThat(one.otkSerial()).isEqualTo(4);
         assertThat(one.current()).hasSize(2);
         assertThat(one.current().get(0).fingerprint()).isEqualTo(MEDIATOR1_KEY_2);
@@ -129,6 +126,7 @@ class CantonTopologyVerifierTest {
 
     @Test
     void ownerSetNotHashingToAnchorRejected() {
+        fail("need to fix");
         final byte[] ownerSet = CantonFixtures.topologyOwnerSet();
         final byte[] mediatorSet = CantonFixtures.topologyMediatorSet();
         // Anchor commits to a different owners hash, so the owner set in the rotations fails the check.
@@ -154,7 +152,7 @@ class CantonTopologyVerifierTest {
     private static final String LSU_SYNCHRONIZER =
             "probe::122042b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0::35-0";
     private static final byte[] LSU_NAMESPACE =
-            HEX.parseHex("42b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0");
+            hex("42b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0");
 
     @Test
     void realLsuAnnouncementSetsThePendingUpgrade() {

@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.MEDIATOR1;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.Arrays;
-import java.util.HexFormat;
+
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -19,17 +22,6 @@ import org.junit.jupiter.api.Test;
  */
 class CantonSetsTest {
 
-    private static final HexFormat HEX = HexFormat.of();
-
-    // From reference implementation
-    private static final byte[] OWNER_SEQUENCER =
-            hex("65971ff3bf94bdd46a9bab769b1c6e7e8e6a324031d3719586eb51c058e6d2a8");
-    private static final byte[] MEDIATOR1 = hex("6e8899fea6adfe7b3965493fb60343bd44215fe4c695d02e6c8a761bd7bfa9bc");
-
-    private static byte[] hex(final String s) {
-        return HEX.parseHex(s);
-    }
-
     // ── Owner set ──────────────────────────────────────────────────────────
 
     @Test
@@ -41,9 +33,9 @@ class CantonSetsTest {
         assertThat(o.threshold()).isEqualTo(1L);
         assertThat(o.owners()).hasSize(1);
         final CantonSets.Owner owner = o.owners().getFirst();
-        assertThat(owner.namespace()).isEqualTo(OWNER_SEQUENCER);
+        assertThat(owner.namespace()).isEqualTo(CantonFixtures.OWNER_SEQUENCER);
         // A root key's fingerprint must be its owner's namespace (enforced by decode).
-        assertThat(owner.root().fingerprint()).isEqualTo(OWNER_SEQUENCER);
+        assertThat(owner.root().fingerprint()).isEqualTo(CantonFixtures.OWNER_SEQUENCER);
         assertThat(owner.root().keySpec()).isEqualTo(CantonSets.SPEC_ED25519);
         assertThat(owner.delegations()).isEmpty();
     }
@@ -117,7 +109,7 @@ class CantonSetsTest {
                 .current()
                 .getFirst();
         // Ed25519: the DER header plus the raw 32-byte key; fingerprint = SHA256(BE32(12) ‖ rawKey).
-        final byte[] der = concat(CantonSets.DER_ED25519, key.x());
+        final byte[] der = CantonBytes.concat(CantonSets.DER_ED25519, key.x());
         final CantonSets.KeyFromDer parsed = CantonSets.keyFromDer(CantonSets.SPEC_ED25519, der);
 
         assertThat(parsed.ok()).isTrue();
@@ -132,7 +124,7 @@ class CantonSetsTest {
         assertThat(CantonSets.keyFromDer(CantonSets.SPEC_ED25519, new byte[10]).ok())
                 .isFalse();
         // Right length, wrong header byte.
-        final byte[] der = concat(CantonSets.DER_ED25519, new byte[32]);
+        final byte[] der = CantonBytes.concat(CantonSets.DER_ED25519, new byte[32]);
         der[0] = 0x00;
         assertThat(CantonSets.keyFromDer(CantonSets.SPEC_ED25519, der).ok()).isFalse();
         // Unknown spec.
@@ -156,50 +148,47 @@ class CantonSetsTest {
     }
 
     // ── Rejections (InvalidSet parity) ───────────────────────────────────────
+    @Nested()
+    class InvalidSetParity {
 
-    @Test
-    void decodeOwnersRejectsAShortBuffer() {
-        assertThatThrownBy(() -> CantonSets.decodeOwners(new byte[4]))
-                .isInstanceOfSatisfying(
-                        CantonProofException.class,
-                        e -> assertThat(e.errorName()).isEqualTo("InvalidSet"));
-    }
+        @Test
+        void decodeOwnersRejectsAShortBuffer() {
+            assertThatThrownBy(() -> CantonSets.decodeOwners(new byte[4]))
+                    .isInstanceOfSatisfying(
+                            CantonProofException.class,
+                            e -> assertThat(e.errorName()).isEqualTo("InvalidSet"));
+        }
 
-    @Test
-    void decodeOwnersRejectsARootFingerprintThatIsNotItsNamespace() {
-        final byte[] bytes = CantonFixtures.topologyOwnerSet().clone();
-        // Flip a byte of the root key's fingerprint (it sits right after the 32-byte namespace at offset 12).
-        bytes[12 + 32] ^= 0x01;
-        assertThatThrownBy(() -> CantonSets.decodeOwners(bytes))
-                .isInstanceOfSatisfying(
-                        CantonProofException.class,
-                        e -> assertThat(e.errorName()).isEqualTo("InvalidSet"));
-    }
+        @Test
+        void decodeOwnersRejectsARootFingerprintThatIsNotItsNamespace() {
+            final byte[] bytes = CantonFixtures.topologyOwnerSet().clone();
+            // Flip a byte of the root key's fingerprint (it sits right after the 32-byte namespace at offset 12).
+            bytes[12 + 32] ^= 0x01;
+            assertThatThrownBy(() -> CantonSets.decodeOwners(bytes))
+                    .isInstanceOfSatisfying(
+                            CantonProofException.class,
+                            e -> assertThat(e.errorName()).isEqualTo("InvalidSet"));
+        }
 
-    @Test
-    void decodeOwnersRejectsTrailingBytes() {
-        final byte[] bytes =
-                Arrays.copyOf(CantonFixtures.topologyOwnerSet(), CantonFixtures.topologyOwnerSet().length + 1);
-        assertThatThrownBy(() -> CantonSets.decodeOwners(bytes))
-                .isInstanceOfSatisfying(
-                        CantonProofException.class,
-                        e -> assertThat(e.errorName()).isEqualTo("InvalidSet"));
-    }
+        @Test
+        void decodeOwnersRejectsTrailingBytes() {
+            final byte[] bytes =
+                    Arrays.copyOf(CantonFixtures.topologyOwnerSet(),
+                            CantonFixtures.topologyOwnerSet().length + 1);
+            assertThatThrownBy(() -> CantonSets.decodeOwners(bytes))
+                    .isInstanceOfSatisfying(
+                            CantonProofException.class,
+                            e -> assertThat(e.errorName()).isEqualTo("InvalidSet"));
+        }
 
-    @Test
-    void decodeMediatorsRejectsTrailingBytes() {
-        final byte[] src = CantonFixtures.topologyMediatorSet();
-        final byte[] bytes = Arrays.copyOf(src, src.length + 1);
-        assertThatThrownBy(() -> CantonSets.decodeMediators(bytes))
-                .isInstanceOfSatisfying(
-                        CantonProofException.class,
-                        e -> assertThat(e.errorName()).isEqualTo("InvalidSet"));
-    }
-
-    private static byte[] concat(final byte[] a, final byte[] b) {
-        final byte[] out = new byte[a.length + b.length];
-        System.arraycopy(a, 0, out, 0, a.length);
-        System.arraycopy(b, 0, out, a.length, b.length);
-        return out;
+        @Test
+        void decodeMediatorsRejectsTrailingBytes() {
+            final byte[] src = CantonFixtures.topologyMediatorSet();
+            final byte[] bytes = Arrays.copyOf(src, src.length + 1);
+            assertThatThrownBy(() -> CantonSets.decodeMediators(bytes))
+                    .isInstanceOfSatisfying(
+                            CantonProofException.class,
+                            e -> assertThat(e.errorName()).isEqualTo("InvalidSet"));
+        }
     }
 }

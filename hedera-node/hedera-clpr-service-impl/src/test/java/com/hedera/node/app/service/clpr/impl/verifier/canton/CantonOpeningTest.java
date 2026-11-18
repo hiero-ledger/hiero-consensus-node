@@ -36,29 +36,9 @@ import org.junit.jupiter.api.Test;
  * are the same.
  */
 class CantonOpeningTest {
-
     private static final String SYNC_ID = realSynchronizerId();
     private static final byte[] VPD_DATA = CantonFixtures.load("created-event-blob");
     private static final byte[] VCD_DATA = lenField(2, "app-one".getBytes(StandardCharsets.UTF_8));
-
-    private static String realSynchronizerId() {
-        final var m = Pattern.compile("\"synchronizerId\":\\s*\"([^\"]+)\"")
-                .matcher(CantonFixtures.text("localnet-example-proof-bundle.json"));
-        assertThat(m.find()).isTrue();
-        return m.group(1);
-    }
-
-    private static CantonAnchor.Anchor anchor(final String sync, final int group) {
-        return new CantonAnchor.Anchor(sync, 0L, group, new byte[32], new byte[32], new byte[32], "", 0L, 0, "app-one");
-    }
-
-    private static CantonAnchor.Anchor anchor() {
-        return anchor(SYNC_ID, 7);
-    }
-
-    private static String error(final Runnable r) {
-        return assertThrows(CantonProofException.class, r::run).errorName();
-    }
 
     // ---- accepted shapes --------------------------------------------------------------------------------------
 
@@ -273,7 +253,7 @@ class CantonOpeningTest {
         final var op = new Builder().rootView(31);
         final byte[][] o = Builder.items(op.rlp());
         // sibling 32 bytes -> encode as a non-minimal long-form string (0xb8 0x20 ...) where 0xa0 is canonical
-        o[0] = concat(new byte[] {(byte) 0xb8, 0x20}, Builder.SUBMITTER);
+        o[0] = CantonBytes.concat(new byte[] {(byte) 0xb8, 0x20}, Builder.SUBMITTER);
         assertThat(error(() -> CantonProofVerifier.openTree(rlpList(o), anchor(), op.root())))
                 .isEqualTo("InvalidPayloadShape");
     }
@@ -281,7 +261,7 @@ class CantonOpeningTest {
     @Test
     void trailingBytesAfterOpeningRejected() {
         final var op = new Builder().rootView(31);
-        final byte[] trailing = concat(op.rlp(), new byte[] {0});
+        final byte[] trailing = CantonBytes.concat(op.rlp(), new byte[] {0});
         assertThat(error(() -> CantonProofVerifier.openTree(trailing, anchor(), op.root())))
                 .isEqualTo("InvalidPayloadShape");
     }
@@ -453,7 +433,7 @@ class CantonOpeningTest {
 
     /** UntypedVersionedMessage{1: data, 2: version}. */
     private static byte[] versioned(final byte[] data, final int version) {
-        return concat(lenField(1, data), varintField(2, version));
+        return CantonBytes.concat(lenField(1, data), varintField(2, version));
     }
 
     private static byte[] leafHash(final int purpose, final byte[] data, final int version) {
@@ -466,7 +446,7 @@ class CantonOpeningTest {
 
     /** CommonMetadata{1:{2: salt}, 3: synchronizer id, 4: uuid, 5: mediator group}. */
     private static byte[] commonMetadata(final String sync, final long group) {
-        return concat(
+        return CantonBytes.concat(
                 lenField(1, lenField(2, sha("cm-salt"))),
                 lenField(3, sync.getBytes(StandardCharsets.UTF_8)),
                 lenField(4, "uuid-0000".getBytes(StandardCharsets.UTF_8)),
@@ -482,11 +462,11 @@ class CantonOpeningTest {
     }
 
     private static byte[] lenField(final int number, final byte[] value) {
-        return concat(varint(((long) number << 3) | 2), varint(value.length), value);
+        return CantonBytes.concat(varint(((long) number << 3) | 2), varint(value.length), value);
     }
 
     private static byte[] varintField(final int number, final long value) {
-        return concat(varint((long) number << 3), varint(value));
+        return CantonBytes.concat(varint((long) number << 3), varint(value));
     }
 
     private static byte[] varint(long v) {
@@ -503,12 +483,12 @@ class CantonOpeningTest {
         if (b.length == 1 && (b[0] & 0xff) < 0x80) {
             return b.clone();
         }
-        return concat(rlpHeader(0x80, b.length), b);
+        return CantonBytes.concat(rlpHeader(0x80, b.length), b);
     }
 
     private static byte[] rlpList(final byte[]... items) {
-        final byte[] payload = concat(items);
-        return concat(rlpHeader(0xc0, payload.length), payload);
+        final byte[] payload = CantonBytes.concat(items);
+        return CantonBytes.concat(rlpHeader(0xc0, payload.length), payload);
     }
 
     private static byte[] rlpHeader(final int base, final int len) {
@@ -516,7 +496,7 @@ class CantonOpeningTest {
             return new byte[] {(byte) (base + len)};
         }
         final byte[] lenBytes = varintBigEndian(len);
-        return concat(new byte[] {(byte) (base + 55 + lenBytes.length)}, lenBytes);
+        return CantonBytes.concat(new byte[] {(byte) (base + 55 + lenBytes.length)}, lenBytes);
     }
 
     private static byte[] varintBigEndian(final int v) {
@@ -531,11 +511,22 @@ class CantonOpeningTest {
         return out;
     }
 
-    private static byte[] concat(final byte[]... parts) {
-        final var out = new ByteArrayOutputStream();
-        for (final byte[] p : parts) {
-            out.writeBytes(p);
-        }
-        return out.toByteArray();
+    private static String realSynchronizerId() {
+        final var m = Pattern.compile("\"synchronizerId\":\\s*\"([^\"]+)\"")
+                .matcher(CantonFixtures.text("localnet-example-proof-bundle.json"));
+        assertThat(m.find()).isTrue();
+        return m.group(1);
+    }
+
+    private static CantonAnchor.Anchor anchor(final String sync, final int group) {
+        return new CantonAnchor.Anchor(sync, 0L, group, new byte[32], new byte[32], new byte[32], "", 0L, 0, "app-one");
+    }
+
+    private static CantonAnchor.Anchor anchor() {
+        return anchor(SYNC_ID, 7);
+    }
+
+    private static String error(final Runnable r) {
+        return assertThrows(CantonProofException.class, r::run).errorName();
     }
 }

@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.be32;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -39,96 +41,6 @@ class CantonVerdictVerifierTest {
     private static final byte[] REAL_SET = setOf(1, new Mediator(null, REAL_KEY, REAL_FP));
     private static final CantonProto.Verdict VERDICT = CantonProto.parseVerdict(TYPED);
     private static final byte[] SYNC = VERDICT.synchronizerId();
-
-    // ---------------------------------------------------------------- helpers
-
-    private static byte[] realFingerprint() {
-        return REAL_FP;
-    }
-
-    private static byte[] entry(final byte[] fp, final byte[] sig, final byte[] delegationRlp) {
-        return Rlp.encodeList(List.of(Rlp.encodeBytes(fp), Rlp.encodeBytes(sig), delegationRlp));
-    }
-
-    private static byte[] sigs(final byte[]... entries) {
-        return Rlp.encodeList(List.of(entries));
-    }
-
-    private static byte[] realEntry() {
-        return entry(realFingerprint(), CantonFixtures.verdictMediatorSig(), EMPTY_DELEGATION);
-    }
-
-    private static CantonProofException expectError(final org.assertj.core.api.ThrowableAssert.ThrowingCallable c) {
-        final var t = org.assertj.core.api.Assertions.catchThrowable(c);
-        assertThat(t).isInstanceOf(CantonProofException.class);
-        return (CantonProofException) t;
-    }
-
-    private static void assertError(final String name, final org.assertj.core.api.ThrowableAssert.ThrowingCallable c) {
-        assertThat(expectError(c).errorName()).isEqualTo(name);
-    }
-
-    /** A constructed Ed25519 mediator: key pair plus its set fingerprint. */
-    private record Mediator(byte[] secret, byte[] pub, byte[] fp) {
-        static Mediator of(final int seed) {
-            final byte[] s = new byte[Ed25519.SEED_BYTES];
-            Arrays.fill(s, (byte) seed);
-            final byte[] pub = new byte[Ed25519.PUBLIC_KEY_BYTES];
-            final byte[] secret = new byte[Ed25519.SECRET_KEY_BYTES];
-            Ed25519.newKeypair(pub, secret, s);
-            return new Mediator(secret, pub, sha256(pub));
-        }
-
-        byte[] sign(final byte[] message) {
-            final byte[] sig = new byte[Ed25519.SIGNATURE_BYTES];
-            Ed25519.sign(sig, message, secret);
-            return sig;
-        }
-    }
-
-    private static byte[] sha256(final byte[] b) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(b);
-        } catch (final Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    /** Packed set layout of CantonMediators: Ed25519 members with one current key each, no delegations. */
-    private static byte[] setOf(final int threshold, final Mediator... members) {
-        final var out = new ByteArrayOutputStream();
-        out.writeBytes(new byte[] {0, 0, 0, 1});
-        out.writeBytes(be32(threshold));
-        out.writeBytes(be32(members.length));
-        for (int i = 0; i < members.length; i++) {
-            final byte[] id = new byte[32];
-            id[0] = (byte) (i + 1);
-            out.writeBytes(id);
-            out.writeBytes(be32(1));
-            out.write(0); // delegations
-            out.write(1); // current keys
-            out.writeBytes(members[i].fp());
-            out.write(1); // Ed25519
-            out.write(0);
-            out.writeBytes(members[i].pub());
-            out.writeBytes(new byte[32]); // y
-            out.write(0); // previous keys
-        }
-        return out.toByteArray();
-    }
-
-    private static byte[] be32(final int v) {
-        return new byte[] {(byte) (v >>> 24), (byte) (v >>> 16), (byte) (v >>> 8), (byte) v};
-    }
-
-    private static byte[] message() {
-        return CantonMerkle.verdictSigningInput(TYPED);
-    }
-
-    private static byte[] verify(final byte[] signatures, final byte[] set) {
-        return CantonVerdictVerifier.verifyVerdict(TYPED, signatures, set, SYNC, 0)
-                .rootHash();
-    }
 
     // ------------------------------------------------------------ happy path
 
@@ -423,15 +335,6 @@ class CantonVerdictVerifierTest {
         return typed;
     }
 
-    private static int indexOf(final byte[] src, final byte[] part) {
-        for (int i = 0; i + part.length <= src.length; i++) {
-            if (Arrays.equals(Arrays.copyOfRange(src, i, i + part.length), part)) {
-                return i;
-            }
-        }
-        throw new AssertionError("not found");
-    }
-
     @Test
     void bundleVerdictWithoutRotationsOrUpgradeLeavesTheAnchorUnchanged() {
         // REAL typed content, signature and key; CONSTRUCTED anchor naming the verdict's synchronizer.
@@ -528,6 +431,84 @@ class CantonVerdictVerifierTest {
                 () -> CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, rotations));
     }
 
+    // ---------------------------------------------------------------- helpers
+
+    private static byte[] realFingerprint() {
+        return REAL_FP;
+    }
+
+    private static byte[] entry(final byte[] fp, final byte[] sig, final byte[] delegationRlp) {
+        return Rlp.encodeList(List.of(Rlp.encodeBytes(fp), Rlp.encodeBytes(sig), delegationRlp));
+    }
+
+    private static byte[] sigs(final byte[]... entries) {
+        return Rlp.encodeList(List.of(entries));
+    }
+
+    private static byte[] realEntry() {
+        return entry(realFingerprint(), CantonFixtures.verdictMediatorSig(), EMPTY_DELEGATION);
+    }
+
+    private static CantonProofException expectError(final org.assertj.core.api.ThrowableAssert.ThrowingCallable c) {
+        final var t = org.assertj.core.api.Assertions.catchThrowable(c);
+        assertThat(t).isInstanceOf(CantonProofException.class);
+        return (CantonProofException) t;
+    }
+
+    private static void assertError(final String name, final org.assertj.core.api.ThrowableAssert.ThrowingCallable c) {
+        assertThat(expectError(c).errorName()).isEqualTo(name);
+    }
+
+    /** A constructed Ed25519 mediator: key pair plus its set fingerprint. */
+    private record Mediator(byte[] secret, byte[] pub, byte[] fp) {
+        static Mediator of(final int seed) {
+            final byte[] s = new byte[Ed25519.SEED_BYTES];
+            Arrays.fill(s, (byte) seed);
+            final byte[] pub = new byte[Ed25519.PUBLIC_KEY_BYTES];
+            final byte[] secret = new byte[Ed25519.SECRET_KEY_BYTES];
+            Ed25519.newKeypair(pub, secret, s);
+            return new Mediator(secret, pub, sha256(pub));
+        }
+
+        byte[] sign(final byte[] message) {
+            final byte[] sig = new byte[Ed25519.SIGNATURE_BYTES];
+            Ed25519.sign(sig, message, secret);
+            return sig;
+        }
+    }
+
+    /** Packed set layout of CantonMediators: Ed25519 members with one current key each, no delegations. */
+    private static byte[] setOf(final int threshold, final Mediator... members) {
+        final var out = new ByteArrayOutputStream();
+        out.writeBytes(new byte[] {0, 0, 0, 1});
+        out.writeBytes(be32(threshold));
+        out.writeBytes(be32(members.length));
+        for (int i = 0; i < members.length; i++) {
+            final byte[] id = new byte[32];
+            id[0] = (byte) (i + 1);
+            out.writeBytes(id);
+            out.writeBytes(be32(1));
+            out.write(0); // delegations
+            out.write(1); // current keys
+            out.writeBytes(members[i].fp());
+            out.write(1); // Ed25519
+            out.write(0);
+            out.writeBytes(members[i].pub());
+            out.writeBytes(new byte[32]); // y
+            out.write(0); // previous keys
+        }
+        return out.toByteArray();
+    }
+
+    private static byte[] message() {
+        return CantonMerkle.verdictSigningInput(TYPED);
+    }
+
+    private static byte[] verify(final byte[] signatures, final byte[] set) {
+        return CantonVerdictVerifier.verifyVerdict(TYPED, signatures, set, SYNC, 0)
+                .rootHash();
+    }
+
     private static byte[] mutate(final byte[] src, final byte[] from, final byte[] to) {
         final List<Integer> hits = new ArrayList<>();
         for (int i = 0; i + from.length <= src.length; i++) {
@@ -539,5 +520,14 @@ class CantonVerdictVerifierTest {
         final byte[] out = src.clone();
         System.arraycopy(to, 0, out, hits.getFirst(), to.length);
         return out;
+    }
+
+    private static int indexOf(final byte[] src, final byte[] part) {
+        for (int i = 0; i + part.length <= src.length; i++) {
+            if (Arrays.equals(Arrays.copyOfRange(src, i, i + part.length), part)) {
+                return i;
+            }
+        }
+        throw new AssertionError("not found");
     }
 }

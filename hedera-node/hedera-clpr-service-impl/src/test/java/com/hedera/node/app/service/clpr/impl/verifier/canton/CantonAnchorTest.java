@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.filled;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.hex;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
-import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -20,18 +23,10 @@ import org.junit.jupiter.api.Test;
  * (the no-pending-LSU shape built by {@code CantonProofBuilder._anchorFor}).
  */
 class CantonAnchorTest {
-    private static final HexFormat HEX = HexFormat.of();
-
     private static final String FULL_HEX =
             "0000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000ffffffffffffffff00000000000000000000000000000000000000000000000000000000ffffffff11111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222333333333333333333333333333333333333333333333333333333333333333300000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000001c00000000000000000000000000000000000000000000000000000000000000017676c6f62616c2d646f6d61696e3a3a3132323061626364000000000000000000000000000000000000000000000000000000000000000000000000000000000c737563633a3a313232306566000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000096170703a3a313232300000000000000000000000000000000000000000000000";
     private static final String MINIMAL_HEX =
             "000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001f4000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222333333333333333333333333333333333333333333333333333333333333333300000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000000000000873796e633a3a313200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-
-    private static byte[] filled(final int b) {
-        final byte[] out = new byte[32];
-        Arrays.fill(out, (byte) b);
-        return out;
-    }
 
     private static CantonAnchor.Anchor full() {
         return new CantonAnchor.Anchor(
@@ -66,7 +61,7 @@ class CantonAnchorTest {
 
     @Test
     void decodesSolidityEncodedFull() {
-        final var a = CantonAnchor.Anchor.decode(HEX.parseHex(FULL_HEX));
+        final var a = CantonAnchor.Anchor.decode(hex(FULL_HEX));
         assertAnchorEquals(full(), a);
         // unsigned semantics
         assertEquals("18446744073709551615", Long.toUnsignedString(a.lastRequestId()));
@@ -77,13 +72,13 @@ class CantonAnchorTest {
 
     @Test
     void decodesSolidityEncodedMinimal() {
-        assertAnchorEquals(minimal(), CantonAnchor.Anchor.decode(HEX.parseHex(MINIMAL_HEX)));
+        assertAnchorEquals(minimal(), CantonAnchor.Anchor.decode(hex(MINIMAL_HEX)));
     }
 
     @Test
     void encodeMatchesSolidityBytes() {
-        assertEquals(FULL_HEX, HEX.formatHex(full().encode()));
-        assertEquals(MINIMAL_HEX, HEX.formatHex(minimal().encode()));
+        assertEquals(FULL_HEX, formatHex(full().encode()));
+        assertEquals(MINIMAL_HEX, formatHex(minimal().encode()));
     }
 
     @Test
@@ -126,7 +121,7 @@ class CantonAnchorTest {
 
     @Test
     void tooShortThrowsInvalidTrustAnchor() {
-        final byte[] ok = HEX.parseHex(MINIMAL_HEX);
+        final byte[] ok = hex(MINIMAL_HEX);
         for (final int len : new int[] {0, 1, 31, 13 * 32 - 1}) {
             final byte[] shortBytes = Arrays.copyOf(ok, len);
             final var ex = assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(shortBytes));
@@ -136,7 +131,7 @@ class CantonAnchorTest {
 
     @Test
     void truncatedTailThrowsInvalidTrustAnchor() {
-        final byte[] full = HEX.parseHex(FULL_HEX);
+        final byte[] full = hex(FULL_HEX);
         final byte[] cut = Arrays.copyOf(full, full.length - 32);
         final var ex = assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(cut));
         assertEquals("InvalidTrustAnchor", ex.errorName());
@@ -144,17 +139,17 @@ class CantonAnchorTest {
 
     @Test
     void dirtyUintHighBitsRejected() {
-        final byte[] bad = HEX.parseHex(MINIMAL_HEX);
+        final byte[] bad = hex(MINIMAL_HEX);
         bad[32] = 1; // lastRequestId word, top byte nonzero (exceeds uint64)
         assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(bad));
-        final byte[] bad2 = HEX.parseHex(MINIMAL_HEX);
+        final byte[] bad2 = hex(MINIMAL_HEX);
         bad2[64 + 27] = 1; // mediatorGroup word, byte above uint32
         assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(bad2));
     }
 
     @Test
     void offsetOutOfBoundsRejected() {
-        final byte[] bad = HEX.parseHex(MINIMAL_HEX);
+        final byte[] bad = hex(MINIMAL_HEX);
         bad[31] = (byte) 0xFF;
         bad[30] = (byte) 0xFF; // synchronizerId offset far beyond the input
         assertThrows(CantonProofException.class, () -> CantonAnchor.Anchor.decode(bad));

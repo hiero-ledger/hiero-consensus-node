@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -22,7 +26,6 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.MessageDigest;
 import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.Signature;
@@ -53,7 +56,7 @@ class CantonProofVerifierConfigTest {
 
     private static final byte[] PACKAGE_ID = repeat((byte) 0x5a, 32);
     private static final byte[] OPERATOR = utf8("operator::1220" + "ab".repeat(32));
-    private static final byte[] SERVICE_ADDRESS = concat(PACKAGE_ID, OPERATOR);
+    private static final byte[] SERVICE_ADDRESS = CantonBytes.concat(PACKAGE_ID, OPERATOR);
     private static final String APP = "app::1220" + "cd".repeat(32);
     private static final String OTHER = "other::1220" + "ef".repeat(32);
     private static final byte[] CHANNEL_ID = repeat((byte) 0x11, 32);
@@ -211,7 +214,7 @@ class CantonProofVerifierConfigTest {
 
     @Test
     void badServiceAddressIsInvalidServiceAddress() {
-        assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(concat(PACKAGE_ID, utf8("operator"))));
+        assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(CantonBytes.concat(PACKAGE_ID, utf8("operator"))));
         assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(PACKAGE_ID));
         assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(new byte[0]));
     }
@@ -334,14 +337,14 @@ class CantonProofVerifierConfigTest {
         final var cfg = new Cfg();
         final var proof = new Cfg().contractManifestHash(MANIFEST_HASH);
         // The preimage is not the committed one.
-        assertRejectsManifest("ManifestMismatch", cfg, proof, concat(MANIFEST_BYTES, new byte[] {0}));
+        assertRejectsManifest("ManifestMismatch", cfg, proof, CantonBytes.concat(MANIFEST_BYTES, new byte[] {0}));
         // The config commits to no manifest at all.
         assertRejectsManifest("ManifestMismatch", cfg, new Cfg(), MANIFEST_BYTES);
         // The manifest names another service.
         final byte[] other = ClprEndpointManifest.PROTOBUF
                 .toBytes(ClprEndpointManifest.newBuilder()
                         .version(2)
-                        .serviceAddress(Bytes.wrap(concat(PACKAGE_ID, utf8("x::1220" + "00".repeat(32)))))
+                        .serviceAddress(Bytes.wrap(CantonBytes.concat(PACKAGE_ID, utf8("x::1220" + "00".repeat(32)))))
                         .build())
                 .toByteArray();
         assertRejectsManifest(
@@ -744,7 +747,7 @@ class CantonProofVerifierConfigTest {
 
         /** CommonMetadata{3: synchronizer id, 5: mediator group}. */
         private static byte[] commonMetadata() {
-            return concat(
+            return CantonBytes.concat(
                     Pb.lenField(1, Pb.lenField(2, sha("cm-salt"))),
                     Pb.lenField(3, utf8(SYNC)),
                     Pb.lenField(4, utf8("uuid-0000")),
@@ -820,7 +823,7 @@ class CantonProofVerifierConfigTest {
                 gen.initialize(NamedParameterSpec.ED25519, fixed);
                 final KeyPair pair = gen.generateKeyPair();
                 final byte[] pub = rawPublicKey((EdECPublicKey) pair.getPublic());
-                return new Med(pair.getPrivate(), pub, sha(pub));
+                return new Med(pair.getPrivate(), pub, sha256(pub));
             } catch (final Exception e) {
                 throw new IllegalStateException(e);
             }
@@ -887,65 +890,32 @@ class CantonProofVerifierConfigTest {
         return out;
     }
 
-    private static void assertRejects(final String errorName, final org.junit.jupiter.api.function.Executable body) {
-        assertThatThrownBy(body::execute)
-                .isInstanceOf(CantonProofException.class)
-                .satisfies(
-                        e -> assertThat(((CantonProofException) e).errorName()).isEqualTo(errorName));
-    }
-
     private static byte[] sha(final String s) {
-        return sha(utf8(s));
-    }
-
-    private static byte[] sha(final byte[] b) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(b);
-        } catch (final Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static byte[] utf8(final String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static byte[] repeat(final byte b, final int n) {
-        final byte[] out = new byte[n];
-        Arrays.fill(out, b);
-        return out;
-    }
-
-    private static byte[] concat(final byte[]... parts) {
-        final var out = new ByteArrayOutputStream();
-        for (final byte[] p : parts) {
-            out.writeBytes(p);
-        }
-        return out.toByteArray();
+        return sha256(utf8(s));
     }
 
     private static byte[] versioned(final byte[] data, final int version) {
-        return concat(Pb.lenField(1, data), new Pb().varint(2, version).build());
+        return CantonBytes.concat(Pb.lenField(1, data), new Pb().varint(2, version).build());
     }
 
     private static byte[] leafHash(final int purpose, final byte[] data, final int version) {
-        return CantonMerkle.leaf(purpose, sha(data), versioned(data, version));
+        return CantonMerkle.leaf(purpose, sha256(data), versioned(data, version));
     }
 
     private static byte[] leafRlp(final byte[] data, final int version) {
-        return rlpList(rlpString(sha(data)), rlpString(versioned(data, version)));
+        return rlpList(rlpString(sha256(data)), rlpString(versioned(data, version)));
     }
 
     private static byte[] rlpString(final byte[] b) {
         if (b.length == 1 && (b[0] & 0xff) < 0x80) {
             return b.clone();
         }
-        return concat(rlpHeader(0x80, b.length), b);
+        return CantonBytes.concat(rlpHeader(0x80, b.length), b);
     }
 
     private static byte[] rlpList(final byte[]... items) {
-        final byte[] payload = concat(items);
-        return concat(rlpHeader(0xc0, payload.length), payload);
+        final byte[] payload = CantonBytes.concat(items);
+        return CantonBytes.concat(rlpHeader(0xc0, payload.length), payload);
     }
 
     private static byte[] rlpHeader(final int base, final int len) {
@@ -960,7 +930,7 @@ class CantonProofVerifierConfigTest {
         for (int i = 0; i < n; ++i) {
             lenBytes[i] = (byte) (len >>> (8 * (n - 1 - i)));
         }
-        return concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
+        return CantonBytes.concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
     }
 
     /** Minimal protobuf wire-format builder. */

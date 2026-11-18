@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.fp;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import java.io.ByteArrayOutputStream;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HexFormat;
 import java.util.List;
 import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.Test;
@@ -24,7 +27,6 @@ import org.junit.jupiter.api.Test;
  */
 class CantonTopologyVerifierSignedTest {
 
-    private static final HexFormat HEX = HexFormat.of();
     private static final byte[] NO_BYTES = new byte[0];
 
     private static final Signer OWNER_A = Signer.of(1);
@@ -37,7 +39,7 @@ class CantonTopologyVerifierSignedTest {
     private static final Signer KEY_NEW = Signer.of(8);
 
     private static final byte[] SYNC_NAMESPACE = repeat((byte) 0x11, 32);
-    private static final String SYNC_LOGICAL = "sync::1220" + HEX.formatHex(SYNC_NAMESPACE);
+    private static final String SYNC_LOGICAL = "sync::1220" + formatHex(SYNC_NAMESPACE);
     private static final String SYNC_ID = SYNC_LOGICAL + "::35-0";
     private static final String APP = "app::1220" + "ff".repeat(32);
 
@@ -45,7 +47,7 @@ class CantonTopologyVerifierSignedTest {
     private static final long REMOVE = CantonTopology.OP_REMOVE;
     private static final long OTHER_OP = 3;
 
-    private static final byte[] MEDIATOR_UID = utf8("med::1220" + HEX.formatHex(MEDIATOR_ROOT.ns()));
+    private static final byte[] MEDIATOR_UID = utf8("med::1220" + formatHex(MEDIATOR_ROOT.ns()));
 
     // ── Decentralized namespace (owners) ─────────────────────────────────────
 
@@ -331,7 +333,7 @@ class CantonTopologyVerifierSignedTest {
     // ── Mediator state ───────────────────────────────────────────────────────
 
     private static byte[] uidOf(final String name) {
-        return utf8(name + "::1220" + HEX.formatHex(MEDIATOR_ROOT.ns()));
+        return utf8(name + "::1220" + formatHex(MEDIATOR_ROOT.ns()));
     }
 
     private static Rot mediatorState(
@@ -383,8 +385,7 @@ class CantonTopologyVerifierSignedTest {
         final CantonSets.Mediators out = CantonSets.decodeMediators(res.newMediatorSet());
         assertThat(out.serial()).isEqualTo(2);
         assertThat(out.threshold()).isEqualTo(2);
-        final List<byte[]> ascending = new ArrayList<>(
-                uids.stream().map(CantonTopologyVerifierSignedTest::sha256).toList());
+        final List<byte[]> ascending = new ArrayList<>(uids.stream().map(CantonBytes::sha256).toList());
         ascending.sort(Arrays::compareUnsigned);
         assertThat(out.members().stream().map(CantonSets.Member::memberId).toList())
                 .usingElementComparator(Arrays::compare)
@@ -558,7 +559,7 @@ class CantonTopologyVerifierSignedTest {
             final byte[] secret = new byte[Ed25519.SECRET_KEY_BYTES];
             Ed25519.newKeypair(pub, secret, s);
             final CantonSets.Key key = CantonSets.keyFromDer(
-                            CantonSets.SPEC_ED25519, concat(CantonSets.DER_ED25519, pub))
+                            CantonSets.SPEC_ED25519, CantonBytes.concat(CantonSets.DER_ED25519, pub))
                     .key();
             return new Signer(secret, pub, key);
         }
@@ -673,8 +674,8 @@ class CantonTopologyVerifierSignedTest {
                 .varint(2, serial)
                 .field(3, new Pb().field((int) mappingKind, body).build())
                 .build());
-        final byte[] hash = sha256(concat(new byte[] {0, 0, 0, CantonTopology.PURPOSE_TOPOLOGY_TRANSACTION}, txBytes));
-        final byte[] message = concat(new byte[] {0x12, 0x20}, hash);
+        final byte[] hash = sha256(CantonBytes.concat(new byte[] {0, 0, 0, CantonTopology.PURPOSE_TOPOLOGY_TRANSACTION}, txBytes));
+        final byte[] message = CantonBytes.concat(new byte[] {0x12, 0x20}, hash);
         final Pb signed = new Pb().field(1, txBytes);
         for (final Signer s : signers) {
             signed.field(
@@ -722,7 +723,7 @@ class CantonTopologyVerifierSignedTest {
     }
 
     private static byte[] otkBody(final byte[] uid, final List<Signer> keys) {
-        final Pb pb = new Pb().field(1, concat(utf8("MED::"), uid));
+        final Pb pb = new Pb().field(1, CantonBytes.concat(utf8("MED::"), uid));
         for (final Signer k : keys) {
             pb.field(2, new Pb().field(1, signingKey(k)).build());
         }
@@ -733,7 +734,7 @@ class CantonTopologyVerifierSignedTest {
     private static byte[] signingKey(final Signer s) {
         return new Pb()
                 .varint(2, 4)
-                .field(3, concat(CantonSets.DER_ED25519, s.pub()))
+                .field(3, CantonBytes.concat(CantonSets.DER_ED25519, s.pub()))
                 .varint(5, 4)
                 .varint(6, 1)
                 .build();
@@ -743,34 +744,7 @@ class CantonTopologyVerifierSignedTest {
         return new Pb().field(1, data).varint(2, CantonTopology.VERSION_V30).build();
     }
 
-    private static byte[] fp(final byte[] namespace) {
-        return utf8("1220" + HEX.formatHex(namespace));
-    }
 
-    private static byte[] utf8(final String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static byte[] repeat(final byte b, final int n) {
-        final byte[] out = new byte[n];
-        Arrays.fill(out, b);
-        return out;
-    }
-
-    private static byte[] concat(final byte[] a, final byte[] b) {
-        final byte[] out = new byte[a.length + b.length];
-        System.arraycopy(a, 0, out, 0, a.length);
-        System.arraycopy(b, 0, out, a.length, b.length);
-        return out;
-    }
-
-    private static byte[] sha256(final byte[] m) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(m);
-        } catch (final java.security.NoSuchAlgorithmException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 
     /** Minimal protobuf wire-format builder. */
     private static final class Pb {

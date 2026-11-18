@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -21,7 +25,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -40,21 +43,19 @@ import org.junit.jupiter.api.Test;
  * encoded by PBJ.
  */
 class CantonWriteTest {
-    private static final HexFormat HEX = HexFormat.of();
-
     private static final byte[] PACKAGE_ID = repeat((byte) 0x5a, 32);
-    private static final byte[] PACKAGE_HEX = HEX.formatHex(PACKAGE_ID).getBytes(StandardCharsets.UTF_8);
+    private static final byte[] PACKAGE_HEX = formatHex(PACKAGE_ID).getBytes(StandardCharsets.UTF_8);
     private static final byte[] OPERATOR = utf8("operator::1220" + "ab".repeat(32));
     private static final byte[] APP = utf8("app::1220" + "cd".repeat(32));
     private static final byte[] OTHER_PARTY = utf8("other::1220" + "ef".repeat(32));
     private static final byte[] CHANNEL_ID = repeat((byte) 0x11, 32);
-    private static final byte[] CHANNEL_HEX = HEX.formatHex(CHANNEL_ID).getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CHANNEL_HEX = formatHex(CHANNEL_ID).getBytes(StandardCharsets.UTF_8);
     private static final byte[] SENT_HASH = repeat((byte) 0x22, 32);
     private static final byte[] RECV_HASH = repeat((byte) 0x33, 32);
     private static final byte[] MANIFEST_HASH = repeat((byte) 0x44, 32);
 
     private static final Service SERVICE =
-            new Service(CHANNEL_ID, CHANNEL_HEX, PACKAGE_HEX, OPERATOR, concat(PACKAGE_ID, OPERATOR));
+            new Service(CHANNEL_ID, CHANNEL_HEX, PACKAGE_HEX, OPERATOR, CantonBytes.concat(PACKAGE_ID, OPERATOR));
 
     // ── readWrite: success ───────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ class CantonWriteTest {
                 true,
                 exercise(),
                 false,
-                channel().manifestHash(HEX.formatHex(MANIFEST_HASH)).build());
+                channel().manifestHash(formatHex(MANIFEST_HASH)).build());
         final WriteResult r = CantonProofVerifier.readWrite(vpd, true, 0, SERVICE, APP);
         assertArrayEquals(MANIFEST_HASH, r.manifestHash());
         assertEquals(7, r.metadata().nextMessageId());
@@ -271,8 +272,8 @@ class CantonWriteTest {
     void dataWithEmptyPresentConnectorIdIsRejected() {
         // PBJ drops a zero-length bytes field on encode, so build the wire bytes by hand: field 1 (message),
         // containing connector_id (field 1) with length 0, then sender (field 3).
-        final byte[] inner = concat(new byte[] {0x0a, 0x00, 0x1a, (byte) APP.length}, APP);
-        final byte[] p = concat(new byte[] {0x0a, (byte) inner.length}, inner);
+        final byte[] inner = CantonBytes.concat(new byte[] {0x0a, 0x00, 0x1a, (byte) APP.length}, APP);
+        final byte[] p = CantonBytes.concat(new byte[] {0x0a, (byte) inner.length}, inner);
         assertRejects(
                 "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
     }
@@ -366,7 +367,7 @@ class CantonWriteTest {
     void trailingFieldAfterPayloadIsWrongMessageType() {
         // A valid DATA from the app followed by a second oneof arm: PBJ would keep the last arm, the reference
         // rejects anything but exactly one field spanning the whole payload.
-        final byte[] p = concat(data(APP, OTHER_PARTY), data(OTHER_PARTY, APP));
+        final byte[] p = CantonBytes.concat(data(APP, OTHER_PARTY), data(OTHER_PARTY, APP));
         assertRejects("WrongMessageType", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
     }
 
@@ -466,8 +467,8 @@ class CantonWriteTest {
         private byte[] channelHex = CHANNEL_HEX;
         private byte[] signatory = APP;
         private long next = 7;
-        private String sentHash = HEX.formatHex(SENT_HASH);
-        private String recvHash = HEX.formatHex(RECV_HASH);
+        private String sentHash = formatHex(SENT_HASH);
+        private String recvHash = formatHex(RECV_HASH);
         private String manifestHash = "";
         private String status = "Active";
         private int fieldCount = 26;
@@ -590,23 +591,7 @@ class CantonWriteTest {
                         e -> assertThat(((CantonProofException) e).errorName()).isEqualTo(errorName));
     }
 
-    private static byte[] utf8(final String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
-    }
 
-    private static byte[] repeat(final byte b, final int n) {
-        final byte[] out = new byte[n];
-        java.util.Arrays.fill(out, b);
-        return out;
-    }
-
-    private static byte[] concat(final byte[]... parts) {
-        final var out = new ByteArrayOutputStream();
-        for (final byte[] p : parts) {
-            out.writeBytes(p);
-        }
-        return out.toByteArray();
-    }
 
     /** Minimal protobuf wire-format builder. */
     private static final class Pb {

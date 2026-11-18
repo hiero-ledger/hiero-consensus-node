@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.to32;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigInteger;
@@ -102,17 +104,5 @@ class P256VerifyTest {
         signer.initSign(keyPair.getPrivate());
         signer.update(message);
         return signer.sign();
-    }
-
-    private static byte[] to32(final BigInteger v) {
-        final byte[] raw = v.toByteArray();
-        final byte[] out = new byte[32];
-        if (raw.length <= 32) {
-            System.arraycopy(raw, 0, out, 32 - raw.length, raw.length);
-        } else {
-            // Strip a leading sign byte.
-            System.arraycopy(raw, raw.length - 32, out, 0, 32);
-        }
-        return out;
     }
 }

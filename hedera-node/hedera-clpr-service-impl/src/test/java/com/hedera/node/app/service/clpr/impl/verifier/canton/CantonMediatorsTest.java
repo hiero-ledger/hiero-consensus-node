@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.to32;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -8,7 +11,6 @@ import java.io.ByteArrayOutputStream;
 import java.math.BigInteger;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.security.interfaces.ECPublicKey;
@@ -226,7 +228,7 @@ class CantonMediatorsTest {
         final KeyPair pair = ECDSASecp256k1.genEcdsaSecp256k1KeyPair();
         final var pub = (ECPublicKey) pair.getPublic();
         final byte[] message = "verdict content k1".getBytes();
-        final byte[] sig = ECDSASecp256k1.signDigestWithEcdsaSecp256k1(pair.getPrivate(), sha256(message));
+        final byte[] sig = ECDSASecp256k1.signDigestWithEcdsaSecp256k1(pair.getPrivate(), CantonBytes.sha256(message));
         final byte[] x = to32(pub.getW().getAffineX());
         final byte[] y = to32(pub.getW().getAffineY());
         final var key = new CantonMediators.SignerKey(true, 0, CantonMediators.KEY_SPEC_SECP256K1, x, y);
@@ -242,13 +244,13 @@ class CantonMediatorsTest {
                 new CantonMediators.SignerKey(true, 0, CantonMediators.KEY_SPEC_SECP256K1, new byte[32], new byte[32]);
         final byte[] r = repeat((byte) 0x11, 32);
 
-        final byte[] sZero = concat(r, new byte[32]);
+        final byte[] sZero = CantonBytes.concat(r, new byte[32]);
         assertThat(CantonMediators.verify(key, "m".getBytes(), sZero)).isFalse();
 
-        final byte[] sEqualsN = concat(r, to32(SECP256K1_N));
+        final byte[] sEqualsN = CantonBytes.concat(r, to32(SECP256K1_N));
         assertThat(CantonMediators.verify(key, "m".getBytes(), sEqualsN)).isFalse();
 
-        final byte[] sAboveN = concat(r, repeat((byte) 0xFF, 32));
+        final byte[] sAboveN = CantonBytes.concat(r, repeat((byte) 0xFF, 32));
         assertThat(CantonMediators.verify(key, "m".getBytes(), sAboveN)).isFalse();
     }
 
@@ -275,37 +277,5 @@ class CantonMediatorsTest {
         out.write(sb.length);
         out.writeBytes(sb);
         return out.toByteArray();
-    }
-
-    private static byte[] repeat(final byte b, final int n) {
-        final byte[] out = new byte[n];
-        Arrays.fill(out, b);
-        return out;
-    }
-
-    private static byte[] concat(final byte[] a, final byte[] b) {
-        final byte[] out = new byte[a.length + b.length];
-        System.arraycopy(a, 0, out, 0, a.length);
-        System.arraycopy(b, 0, out, a.length, b.length);
-        return out;
-    }
-
-    private static byte[] sha256(final byte[] message) {
-        try {
-            return MessageDigest.getInstance("SHA-256").digest(message);
-        } catch (final Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static byte[] to32(final BigInteger v) {
-        final byte[] raw = v.toByteArray();
-        final byte[] out = new byte[32];
-        if (raw.length <= 32) {
-            System.arraycopy(raw, 0, out, 32 - raw.length, raw.length);
-        } else {
-            System.arraycopy(raw, raw.length - 32, out, 0, 32);
-        }
-        return out;
     }
 }

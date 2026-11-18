@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.lsuAnnouncement;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.lsuOwnerSet;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.verdictTypedContent;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,7 +35,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HexFormat;
 import java.util.List;
 import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.Test;
@@ -53,19 +59,17 @@ import org.junit.jupiter.api.Test;
  * Reject cases mutate the assembled happy-path inputs. Not byte-identical to a Solidity run.
  */
 class CantonProofVerifierBundleTest {
-    private static final HexFormat HEX = HexFormat.of();
-
-    private static final byte[] TYPED = CantonFixtures.verdictTypedContent();
+    private static final byte[] TYPED = verdictTypedContent();
     private static final CantonProto.Verdict VERDICT = CantonProto.parseVerdict(TYPED);
     private static final String SYNC = new String(VERDICT.synchronizerId(), StandardCharsets.UTF_8);
 
     private static final byte[] PACKAGE_ID = repeat((byte) 0x5a, 32);
     private static final byte[] OPERATOR = utf8("operator::1220" + "ab".repeat(32));
-    private static final byte[] SERVICE_ADDRESS = concat(PACKAGE_ID, OPERATOR);
+    private static final byte[] SERVICE_ADDRESS = CantonBytes.concat(PACKAGE_ID, OPERATOR);
     private static final String APP = "app::1220" + "cd".repeat(32);
     private static final String OTHER = "other::1220" + "ef".repeat(32);
     private static final byte[] CHANNEL_ID = repeat((byte) 0x11, 32);
-    private static final byte[] CHANNEL_CONTEXT = concat(CHANNEL_ID, SERVICE_ADDRESS);
+    private static final byte[] CHANNEL_CONTEXT = CantonBytes.concat(CHANNEL_ID, SERVICE_ADDRESS);
     private static final byte[] SUBMITTER = sha("submitter-metadata");
     private static final byte[] PARTICIPANT = sha("participant-metadata");
     private static final int GROUP = 7;
@@ -275,9 +279,9 @@ class CantonProofVerifierBundleTest {
         // A real LsuAnnouncement rotation reaches CantonTopologyVerifier.applyRotations through verifyBundle: the
         // owner set hashes to the anchor, but the announced successor is of a different logical synchronizer than
         // the anchor's, so applyRotations rejects it — proving field 4 is applied, not short-circuited.
-        final byte[] ownerSet = CantonFixtures.lsuOwnerSet();
+        final byte[] ownerSet = lsuOwnerSet();
         final byte[] rotationItem =
-                rlpList(rlpString(CantonFixtures.lsuAnnouncement()), rlpString(new byte[0]), rlpString(new byte[0]));
+                rlpList(rlpString(lsuAnnouncement()), rlpString(new byte[0]), rlpString(new byte[0]));
         final byte[] rotations = rlpList(rlpString(ownerSet), rlpList(rotationItem));
         final var b = new Bundle()
                 .anchorOwnersHash(MiscCryptoUtils.keccak256DigestOf(ownerSet))
@@ -326,7 +330,7 @@ class CantonProofVerifierBundleTest {
     @Test
     void channelContextForAnotherChannelIsWrongContract() {
         final var b = new Bundle();
-        final byte[] other = concat(repeat((byte) 0x12, 32), SERVICE_ADDRESS);
+        final byte[] other = CantonBytes.concat(repeat((byte) 0x12, 32), SERVICE_ADDRESS);
         assertRejects("WrongContract", () -> CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), other, NO_LOOKUP));
     }
 
@@ -336,11 +340,11 @@ class CantonProofVerifierBundleTest {
         assertRejects(
                 "InvalidServiceAddress",
                 () -> CantonProofVerifier.verifyBundle(
-                        b.proof(), b.anchor(), concat(CHANNEL_ID, PACKAGE_ID, utf8("operator")), NO_LOOKUP));
+                        b.proof(), b.anchor(), CantonBytes.concat(CHANNEL_ID, PACKAGE_ID, utf8("operator")), NO_LOOKUP));
         assertRejects(
                 "InvalidServiceAddress",
                 () -> CantonProofVerifier.verifyBundle(
-                        b.proof(), b.anchor(), concat(CHANNEL_ID, PACKAGE_ID), NO_LOOKUP));
+                        b.proof(), b.anchor(), CantonBytes.concat(CHANNEL_ID, PACKAGE_ID), NO_LOOKUP));
         assertRejects(
                 "InvalidServiceAddress",
                 () -> CantonProofVerifier.verifyBundle(b.proof(), b.anchor(), new byte[31], NO_LOOKUP));
@@ -508,8 +512,8 @@ class CantonProofVerifierBundleTest {
         assertRejectsPayload("WrongMessageType", new byte[] {0x08, 0x01});
         assertRejectsPayload("WrongMessageType", new byte[] {0x02, 0x00});
         // A length that never ends, one that is negative, and one that does not span the payload.
-        assertRejectsPayload("WrongMessageType", concat(new byte[] {0x0a}, repeat((byte) 0x80, 12)));
-        assertRejectsPayload("WrongMessageType", concat(new byte[] {0x0a}, repeat((byte) 0x80, 9), new byte[] {0x01}));
+        assertRejectsPayload("WrongMessageType", CantonBytes.concat(new byte[] {0x0a}, repeat((byte) 0x80, 12)));
+        assertRejectsPayload("WrongMessageType", CantonBytes.concat(new byte[] {0x0a}, repeat((byte) 0x80, 9), new byte[] {0x01}));
         assertRejectsPayload("WrongMessageType", new byte[] {0x0a, 0x05, 0x00});
     }
 
@@ -597,7 +601,7 @@ class CantonProofVerifierBundleTest {
         }
 
         Bundle commitManifest(final byte[] m) {
-            manifestHash = HEX.formatHex(MiscCryptoUtils.keccak256DigestOf(m));
+            manifestHash = formatHex(MiscCryptoUtils.keccak256DigestOf(m));
             return this;
         }
 
@@ -656,7 +660,7 @@ class CantonProofVerifierBundleTest {
 
         /** CommonMetadata{3: synchronizer id, 5: mediator group}; the opening's sync is the verdict's. */
         private static byte[] commonMetadata() {
-            return concat(
+            return CantonBytes.concat(
                     Pb.lenField(1, Pb.lenField(2, sha("cm-salt"))),
                     Pb.lenField(3, utf8(SYNC)),
                     Pb.lenField(4, utf8("uuid-0000")),
@@ -707,14 +711,14 @@ class CantonProofVerifierBundleTest {
     /** The {@code Channel} contract of {@link CantonWriteTest}: nine read fields at their positions, rest filler. */
     private static final class Chan {
         static byte[] channel(final String manifestHash) {
-            final byte[] packageHex = HEX.formatHex(PACKAGE_ID).getBytes(StandardCharsets.UTF_8);
+            final byte[] packageHex = formatHex(PACKAGE_ID).getBytes(StandardCharsets.UTF_8);
             final List<byte[]> values = new ArrayList<>();
             for (int i = 0; i < 26; ++i) {
                 values.add(text(""));
             }
             values.set(0, Pb.lenField(7, OPERATOR));
             values.set(1, Pb.lenField(7, utf8(APP)));
-            values.set(2, text(utf8(HEX.formatHex(CHANNEL_ID))));
+            values.set(2, text(utf8(formatHex(CHANNEL_ID))));
             values.set(5, new Pb().varint(3, 7L << 1).build());
             values.set(6, text(utf8("22".repeat(32))));
             values.set(10, new Pb().varint(3, 3L << 1).build());
@@ -843,26 +847,8 @@ class CantonProofVerifierBundleTest {
         }
     }
 
-    private static byte[] utf8(final String s) {
-        return s.getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static byte[] repeat(final byte b, final int n) {
-        final byte[] out = new byte[n];
-        Arrays.fill(out, b);
-        return out;
-    }
-
-    private static byte[] concat(final byte[]... parts) {
-        final var out = new ByteArrayOutputStream();
-        for (final byte[] p : parts) {
-            out.writeBytes(p);
-        }
-        return out.toByteArray();
-    }
-
     private static byte[] versioned(final byte[] data, final int version) {
-        return concat(Pb.lenField(1, data), new Pb().varint(2, version).build());
+        return CantonBytes.concat(Pb.lenField(1, data), new Pb().varint(2, version).build());
     }
 
     private static byte[] leafHash(final int purpose, final byte[] data, final int version) {
@@ -887,12 +873,12 @@ class CantonProofVerifierBundleTest {
         if (b.length == 1 && (b[0] & 0xff) < 0x80) {
             return b.clone();
         }
-        return concat(rlpHeader(0x80, b.length), b);
+        return CantonBytes.concat(rlpHeader(0x80, b.length), b);
     }
 
     private static byte[] rlpList(final byte[]... items) {
-        final byte[] payload = concat(items);
-        return concat(rlpHeader(0xc0, payload.length), payload);
+        final byte[] payload = CantonBytes.concat(items);
+        return CantonBytes.concat(rlpHeader(0xc0, payload.length), payload);
     }
 
     private static byte[] rlpHeader(final int base, final int len) {
@@ -907,7 +893,7 @@ class CantonProofVerifierBundleTest {
         for (int i = 0; i < n; ++i) {
             lenBytes[i] = (byte) (len >>> (8 * (n - 1 - i)));
         }
-        return concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
+        return CantonBytes.concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
     }
 
     /** Minimal protobuf wire-format builder. */

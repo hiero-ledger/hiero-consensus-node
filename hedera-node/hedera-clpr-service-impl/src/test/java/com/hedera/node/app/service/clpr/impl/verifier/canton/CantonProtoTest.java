@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -17,7 +19,6 @@ import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Verdict
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Versioned;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.HexFormat;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
@@ -37,8 +38,6 @@ import org.junit.jupiter.api.Test;
  * </ul>
  */
 class CantonProtoTest {
-    private static final HexFormat HEX = HexFormat.of();
-
     // ── REAL fixtures ────────────────────────────────────────────────────────
 
     @Test
@@ -50,7 +49,7 @@ class CantonProtoTest {
                 "global-domain::1220c6dcb0cb7cd1e6438a11ee70f7aa63d4b3c2f353a1ea7254c471d105e3ed33d4::35-0",
                 new String(v.synchronizerId(), StandardCharsets.UTF_8));
         assertEquals(1791363167585288L, v.requestId());
-        assertEquals("aec33071bc09ceaa6e4994806d6a0f8410788709e1cc8fd08049ff97b28fd2fe", HEX.formatHex(v.rootHash()));
+        assertEquals("aec33071bc09ceaa6e4994806d6a0f8410788709e1cc8fd08049ff97b28fd2fe", formatHex(v.rootHash()));
         assertTrue(v.approved());
     }
 
@@ -111,7 +110,7 @@ class CantonProtoTest {
     @Test
     void verdictRejectsVerdictOneofWithTwoArms() {
         // Verdict holder with two fields → not exactly one oneof arm → malformed.
-        final byte[] twoArm = concat(Pb.lenField(1, new byte[0]), Pb.lenField(2, new byte[0]));
+        final byte[] twoArm = CantonBytes.concat(Pb.lenField(1, new byte[0]), Pb.lenField(2, new byte[0]));
         final byte[] typed = verdict(crmBuilder().field(5, twoArm));
         assertMalformed(() -> CantonProto.parseVerdict(typed));
     }
@@ -342,7 +341,7 @@ class CantonProtoTest {
         final byte[] modB = "Wallet".getBytes(StandardCharsets.UTF_8);
         final byte[] name = "WalletAppInstall".getBytes(StandardCharsets.UTF_8);
         final byte[] expected =
-                concat(Pb.lenField(1, pkg), Pb.lenField(2, modA), Pb.lenField(2, modB), Pb.lenField(3, name));
+                CantonBytes.concat(Pb.lenField(1, pkg), Pb.lenField(2, modA), Pb.lenField(2, modB), Pb.lenField(3, name));
         assertArrayEquals(expected, CantonProto.encodeIdentifier(pkg, modA, modB, name));
     }
 
@@ -431,7 +430,7 @@ class CantonProtoTest {
         void oneofHolderWithUnexpectedExtraArmRejected() {
             // Daml-LF value holder carrying two fields is not a single oneof arm → malformed.
             final byte[] value =
-                    concat(Pb.lenField(CantonProto.VALUE_RECORD, new byte[0]), Pb.lenField(1, new byte[0]));
+                    CantonBytes.concat(Pb.lenField(CantonProto.VALUE_RECORD, new byte[0]), Pb.lenField(1, new byte[0]));
             assertMalformed(() -> CantonProto.recordFields(value, new Range(0, value.length)));
         }
 
@@ -560,20 +559,6 @@ class CantonProtoTest {
         final byte[] innerVersioned = new Pb().field(1, crm).build();
         final byte[] typed = new Pb().field(3, innerVersioned).build();
         return new Pb().field(1, typed).build();
-    }
-
-    private static byte[] concat(final byte[]... parts) {
-        int n = 0;
-        for (final byte[] p : parts) {
-            n += p.length;
-        }
-        final byte[] out = new byte[n];
-        int o = 0;
-        for (final byte[] p : parts) {
-            System.arraycopy(p, 0, out, o, p.length);
-            o += p.length;
-        }
-        return out;
     }
 
     private static void writeVarint(final ByteArrayOutputStream out, long v) {
