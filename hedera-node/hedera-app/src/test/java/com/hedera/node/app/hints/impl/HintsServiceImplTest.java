@@ -178,8 +178,8 @@ class HintsServiceImplTest {
 
     @Test
     void stopsControllersAndClearsSigningGenerationsWhenAsked() {
-        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
-        signings.put(Bytes.wrap("block-hash"), signing);
+        final var signings = new ConcurrentHashMap<SigningAttemptId, HintsContext.Signing>();
+        signings.put(new SigningAttemptId(Bytes.wrap("block-hash"), 123L), signing);
         given(component.controllers()).willReturn(controllers);
         given(component.signingContext()).willReturn(context);
         given(component.signings()).willReturn(signings);
@@ -194,8 +194,8 @@ class HintsServiceImplTest {
 
     @Test
     void cancelSigningsCancelsAndRemovesAllInProgressSignings() {
-        final var signings = new ConcurrentHashMap<Bytes, BlockHashSigning>();
-        signings.put(Bytes.wrap("block-hash"), signing);
+        final var signings = new ConcurrentHashMap<SigningAttemptId, HintsContext.Signing>();
+        signings.put(new SigningAttemptId(Bytes.wrap("block-hash"), 123L), signing);
         given(component.signings()).willReturn(signings);
 
         subject.cancelSignings();
@@ -371,7 +371,8 @@ class HintsServiceImplTest {
         final var submissionFuture = CompletableFuture.<Void>completedFuture(null);
         given(context.constructionIdOrThrow()).willReturn(123L);
         given(signing.constructionId()).willReturn(123L);
-        given(submissions.submitPartialSignature(123L, blockHash)).willReturn(submissionFuture);
+        given(submissions.submitPartialSignature(eq(123L), eq(blockHash), any(Runnable.class)))
+                .willReturn(submissionFuture);
         given(context.newSigningForActiveConstruction(eq(blockHash), any(Runnable.class)))
                 .willReturn(signing);
 
@@ -381,8 +382,8 @@ class HintsServiceImplTest {
         assertSame(signing, signings.get(new SigningAttemptId(blockHash, 123L)));
         assertSame(peerOpenedSigning, signings.get(new SigningAttemptId(blockHash, 122L)));
         verifyNoInteractions(peerOpenedSigning);
-        verify(submissions).submitPartialSignature(123L, blockHash);
-        verify(submissions, never()).submitPartialSignature(122L, blockHash);
+        verify(submissions).submitPartialSignature(eq(123L), eq(blockHash), any(Runnable.class));
+        verify(submissions, never()).submitPartialSignature(eq(122L), any(), any());
     }
 
     @Test

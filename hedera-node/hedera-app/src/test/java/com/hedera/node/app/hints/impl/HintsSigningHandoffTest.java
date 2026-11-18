@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -111,6 +112,9 @@ class HintsSigningHandoffTest {
     @Mock
     private NodeInfo creatorInfo;
 
+    @Mock
+    private NodeInfo selfInfo;
+
     private final Configuration config = HederaTestConfigBuilder.create()
             .withValue("tss.hintsEnabled", "true")
             .withValue("tss.historyEnabled", "true")
@@ -128,7 +132,7 @@ class HintsSigningHandoffTest {
 
     @BeforeEach
     void setUp() {
-        hintsContext = new HintsContext(library, () -> config, signingMetrics);
+        hintsContext = new HintsContext(library, () -> config, signingMetrics, () -> selfInfo);
         partialSignatureHandler = new HintsPartialSignatureHandler(
                 Duration.ofSeconds(2), signings, new ConcurrentHashMap<>(), hintsContext, rsaContext);
 
@@ -136,7 +140,7 @@ class HintsSigningHandoffTest {
         lenient().when(hintsComponent.signings()).thenReturn(signings);
         lenient().when(hintsComponent.submissions()).thenReturn(submissions);
         lenient()
-                .when(submissions.submitPartialSignature(anyLong(), any()))
+                .when(submissions.submitPartialSignature(anyLong(), any(), any()))
                 .thenReturn(CompletableFuture.completedFuture(null));
         final var hintsService = new HintsServiceImpl(hintsComponent, library);
 
@@ -159,8 +163,9 @@ class HintsSigningHandoffTest {
         assertEquals(NEW_CHAIN_OF_TRUST_PROOF, attempt.chainOfTrustProof());
         final var signing = signings.get(new SigningAttemptId(POST_HANDOFF_BLOCK_HASH, NEW_CONSTRUCTION_ID));
         assertSame(signing.future(), attempt.signatureFuture());
-        verify(submissions).submitPartialSignature(NEW_CONSTRUCTION_ID, POST_HANDOFF_BLOCK_HASH);
-        verify(submissions, never()).submitPartialSignature(OLD_CONSTRUCTION_ID, POST_HANDOFF_BLOCK_HASH);
+        verify(submissions)
+                .submitPartialSignature(eq(NEW_CONSTRUCTION_ID), eq(POST_HANDOFF_BLOCK_HASH), any(Runnable.class));
+        verify(submissions, never()).submitPartialSignature(eq(OLD_CONSTRUCTION_ID), any(), any());
     }
 
     @Test
