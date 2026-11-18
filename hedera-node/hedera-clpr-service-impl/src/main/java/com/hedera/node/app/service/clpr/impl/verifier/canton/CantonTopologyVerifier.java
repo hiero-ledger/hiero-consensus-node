@@ -322,16 +322,22 @@ final class CantonTopologyVerifier {
     }
 
     private static boolean allows(final MDelegation d, final int code) {
-        if (d.removed) {
-            return false;
-        }
-        if (d.restriction == 0) {
+        return !d.removed && allows(d.restriction, d.mappings, code);
+    }
+
+    /**
+     * Whether a live delegation with {@code restriction} and {@code mappings} may sign a mapping of {@code code}:
+     * restriction 0 allows every mapping, 1 every mapping but namespace delegations, and 2 only the mappings whose
+     * bit is set in {@code mappings}.
+     */
+    static boolean allows(final int restriction, final long mappings, final int code) {
+        if (restriction == 0) {
             return true;
         }
-        if (d.restriction == 1) {
+        if (restriction == 1) {
             return code != CantonTopology.CODE_NAMESPACE_DELEGATION;
         }
-        return d.restriction == 2 && ((d.mappings >> code) & 1) == 1;
+        return restriction == 2 && ((mappings >> code) & 1) == 1;
     }
 
     private static void requireOwners(final MOwners owners, final CantonTopology.Transaction t, final int code) {

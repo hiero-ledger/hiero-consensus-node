@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.rlpList;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.rlpString;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.versioned;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -436,11 +439,6 @@ class CantonOpeningTest {
         }
     }
 
-    /** UntypedVersionedMessage{1: data, 2: version}. */
-    private static byte[] versioned(final byte[] data, final int version) {
-        return CantonBytes.concat(lenField(1, data), varintField(2, version));
-    }
-
     private static byte[] leafHash(final int purpose, final byte[] data, final int version) {
         return CantonMerkle.leaf(purpose, sha(data), versioned(data, version));
     }
@@ -482,38 +480,6 @@ class CantonOpeningTest {
         }
         out.write((int) v);
         return out.toByteArray();
-    }
-
-    private static byte[] rlpString(final byte[] b) {
-        if (b.length == 1 && (b[0] & 0xff) < 0x80) {
-            return b.clone();
-        }
-        return CantonBytes.concat(rlpHeader(0x80, b.length), b);
-    }
-
-    private static byte[] rlpList(final byte[]... items) {
-        final byte[] payload = CantonBytes.concat(items);
-        return CantonBytes.concat(rlpHeader(0xc0, payload.length), payload);
-    }
-
-    private static byte[] rlpHeader(final int base, final int len) {
-        if (len <= 55) {
-            return new byte[] {(byte) (base + len)};
-        }
-        final byte[] lenBytes = varintBigEndian(len);
-        return CantonBytes.concat(new byte[] {(byte) (base + 55 + lenBytes.length)}, lenBytes);
-    }
-
-    private static byte[] varintBigEndian(final int v) {
-        int n = 4;
-        while (n > 1 && (v >>> (8 * (n - 1))) == 0) {
-            --n;
-        }
-        final byte[] out = new byte[n];
-        for (int i = 0; i < n; ++i) {
-            out[i] = (byte) (v >>> (8 * (n - 1 - i)));
-        }
-        return out;
     }
 
     private static String realSynchronizerId() {

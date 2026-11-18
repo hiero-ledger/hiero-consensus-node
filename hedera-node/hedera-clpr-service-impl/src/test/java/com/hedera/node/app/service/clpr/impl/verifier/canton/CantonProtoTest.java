@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.Pb;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.Contract;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.ContractRange;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProto.ParticipantData;
@@ -27,7 +28,7 @@ import org.junit.jupiter.api.Test;
  * <p><b>Provenance of vectors.</b>
  * <ul>
  *   <li><b>REAL Canton bytes:</b> {@code verdict-typed-content} (a real {@code ConfirmationResultMessage},
- *       protocol v35) anchors {@link #parseVerdictRealFixture}; {@code created-event-blob} (a real
+ *       protocol v35) anchors {@link RealFixtures#parseVerdictRealFixture}; {@code created-event-blob} (a real
  *       {@code FatContractInstance} with a real Daml-LF create argument) anchors the contract and Daml-LF
  *       accessor tests.</li>
  *   <li><b>CONSTRUCTED protobuf:</b> the common-metadata, view-participant-data (v31/v32), view-common-data,
@@ -518,41 +519,6 @@ class CantonProtoTest {
             assertEquals((byte) 10, vpd[p.createdCore().get(0).start()]);
             assertEquals((byte) 20, vpd[p.createdCore().get(1).start()]);
             assertEquals((byte) 30, vpd[p.createdCore().get(2).start()]);
-        }
-    }
-
-    /** Minimal protobuf wire-format builder for constructing real wire bytes in tests. */
-    private static final class Pb {
-        private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-        Pb field(final int number, final byte[] value) {
-            final byte[] f = lenField(number, value);
-            out.writeBytes(f);
-            return this;
-        }
-
-        Pb varint(final int number, final long value) {
-            writeVarint(out, (long) number << 3);
-            writeVarint(out, value);
-            return this;
-        }
-
-        byte[] build() {
-            return out.toByteArray();
-        }
-
-        /** A single LEN-delimited field {@code number: value}. */
-        static byte[] lenField(final long number, final byte[] value) {
-            final var o = new ByteArrayOutputStream();
-            writeVarint(o, (number << 3) | CantonProto.WIRE_LEN);
-            writeVarint(o, value.length);
-            o.writeBytes(value);
-            return o.toByteArray();
-        }
-
-        /** Treat raw field bytes as a complete message body (identity wrapper for readability). */
-        static byte[] msg(final byte[] fields) {
-            return fields;
         }
     }
 

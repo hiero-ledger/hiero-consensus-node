@@ -17,11 +17,11 @@ import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
+import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.Pb;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProofVerifier.OutboundLookup;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProofVerifier.Service;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonProofVerifier.WriteResult;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -593,46 +593,5 @@ class CantonWriteTest {
                 .isInstanceOf(CantonProofException.class)
                 .satisfies(
                         e -> assertThat(((CantonProofException) e).errorName()).isEqualTo(errorName));
-    }
-
-    /** Minimal protobuf wire-format builder. */
-    private static final class Pb {
-        private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-        Pb field(final int number, final byte[] value) {
-            out.writeBytes(lenField(number, value));
-            return this;
-        }
-
-        Pb varint(final int number, final long value) {
-            writeVarint(out, (long) number << 3);
-            writeVarint(out, value);
-            return this;
-        }
-
-        byte[] build() {
-            return out.toByteArray();
-        }
-
-        static byte[] lenField(final long number, final byte[] value) {
-            final var o = new ByteArrayOutputStream();
-            writeVarint(o, (number << 3) | CantonProto.WIRE_LEN);
-            writeVarint(o, value.length);
-            o.writeBytes(value);
-            return o.toByteArray();
-        }
-
-        private static void writeVarint(final ByteArrayOutputStream o, long v) {
-            while (true) {
-                final int b = (int) (v & 0x7f);
-                v >>>= 7;
-                if (v != 0) {
-                    o.write(b | 0x80);
-                } else {
-                    o.write(b);
-                    return;
-                }
-            }
-        }
     }
 }

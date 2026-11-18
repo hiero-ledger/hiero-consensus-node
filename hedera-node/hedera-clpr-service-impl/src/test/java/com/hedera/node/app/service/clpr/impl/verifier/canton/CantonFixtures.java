@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.verifier.canton;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -144,5 +145,95 @@ public final class CantonFixtures {
 
     static byte[] fp(final byte[] namespace) {
         return utf8("1220" + HEX.formatHex(namespace));
+    }
+
+    /** A {@code Versioned{1: data, 2: version}} wrapper. */
+    static byte[] versioned(final byte[] data, final int version) {
+        return CantonBytes.concat(
+                Pb.lenField(1, data), new Pb().varint(2, version).build());
+    }
+
+    /** A {@code Versioned} wrapper at the topology protocol version. */
+    static byte[] versionedV30(final byte[] data) {
+        return versioned(data, (int) CantonTopology.VERSION_V30);
+    }
+
+    /** A sha256 multihash: {@code 0x12 0x20 || digest}. */
+    static byte[] multihash(final byte[] digest) {
+        return CantonBytes.concat(new byte[] {0x12, 0x20}, digest);
+    }
+
+    static byte[] rlpString(final byte[] b) {
+        if (b.length == 1 && (b[0] & 0xff) < 0x80) {
+            return b.clone();
+        }
+        return CantonBytes.concat(rlpHeader(0x80, b.length), b);
+    }
+
+    static byte[] rlpList(final byte[]... items) {
+        final byte[] payload = CantonBytes.concat(items);
+        return CantonBytes.concat(rlpHeader(0xc0, payload.length), payload);
+    }
+
+    private static byte[] rlpHeader(final int base, final int len) {
+        if (len <= 55) {
+            return new byte[] {(byte) (base + len)};
+        }
+        int n = 4;
+        while (n > 1 && (len >>> (8 * (n - 1))) == 0) {
+            --n;
+        }
+        final byte[] lenBytes = new byte[n];
+        for (int i = 0; i < n; ++i) {
+            lenBytes[i] = (byte) (len >>> (8 * (n - 1 - i)));
+        }
+        return CantonBytes.concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
+    }
+
+    /** Minimal protobuf wire-format builder for hand-crafted test messages. */
+    static final class Pb {
+        private final ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        Pb field(final int number, final byte[] value) {
+            out.writeBytes(lenField(number, value));
+            return this;
+        }
+
+        Pb varint(final int number, final long value) {
+            writeVarint(out, (long) number << 3);
+            writeVarint(out, value);
+            return this;
+        }
+
+        byte[] build() {
+            return out.toByteArray();
+        }
+
+        /** A single LEN-delimited field {@code number: value}. */
+        static byte[] lenField(final long number, final byte[] value) {
+            final var o = new ByteArrayOutputStream();
+            writeVarint(o, (number << 3) | CantonProto.WIRE_LEN);
+            writeVarint(o, value.length);
+            o.writeBytes(value);
+            return o.toByteArray();
+        }
+
+        /** Treat raw field bytes as a complete message body (identity wrapper for readability). */
+        static byte[] msg(final byte[] fields) {
+            return fields;
+        }
+
+        private static void writeVarint(final ByteArrayOutputStream o, long v) {
+            while (true) {
+                final int b = (int) (v & 0x7f);
+                v >>>= 7;
+                if (v != 0) {
+                    o.write(b | 0x80);
+                } else {
+                    o.write(b);
+                    return;
+                }
+            }
+        }
     }
 }

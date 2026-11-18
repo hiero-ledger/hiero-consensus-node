@@ -6,7 +6,10 @@ import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.lsuAnnouncement;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.lsuOwnerSet;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.rlpList;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.rlpString;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.verdictTypedContent;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.versioned;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -25,6 +28,7 @@ import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
+import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.Pb;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -681,9 +685,7 @@ class CantonProofVerifierBundleTest {
                     rlpString(MEDIATOR_SET),
                     rotations,
                     rlpString(manifest),
-                    rlpList(payloads.stream()
-                            .map(CantonProofVerifierBundleTest::rlpString)
-                            .toArray(byte[][]::new)));
+                    rlpList(payloads.stream().map(CantonFixtures::rlpString).toArray(byte[][]::new)));
         }
 
         byte[] anchor() {
@@ -781,47 +783,6 @@ class CantonProofVerifierBundleTest {
         }
     }
 
-    /** Minimal protobuf wire-format builder. */
-    private static final class Pb {
-        private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-        Pb field(final int number, final byte[] value) {
-            out.writeBytes(lenField(number, value));
-            return this;
-        }
-
-        Pb varint(final int number, final long value) {
-            writeVarint(out, (long) number << 3);
-            writeVarint(out, value);
-            return this;
-        }
-
-        byte[] build() {
-            return out.toByteArray();
-        }
-
-        static byte[] lenField(final long number, final byte[] value) {
-            final var o = new ByteArrayOutputStream();
-            writeVarint(o, (number << 3) | CantonProto.WIRE_LEN);
-            writeVarint(o, value.length);
-            o.writeBytes(value);
-            return o.toByteArray();
-        }
-
-        private static void writeVarint(final ByteArrayOutputStream o, long v) {
-            while (true) {
-                final int b = (int) (v & 0x7f);
-                v >>>= 7;
-                if (v != 0) {
-                    o.write(b | 0x80);
-                } else {
-                    o.write(b);
-                    return;
-                }
-            }
-        }
-    }
-
     private static void assertBundleVerificationFailed(final Bundle b, final HandleContext context) {
         assertThatThrownBy(() -> new CantonProofVerifier()
                         .verifyBundle(
@@ -897,11 +858,6 @@ class CantonProofVerifierBundleTest {
         }
     }
 
-    private static byte[] versioned(final byte[] data, final int version) {
-        return CantonBytes.concat(
-                Pb.lenField(1, data), new Pb().varint(2, version).build());
-    }
-
     private static byte[] leafHash(final int purpose, final byte[] data, final int version) {
         return CantonMerkle.leaf(purpose, sha(data), versioned(data, version));
     }
@@ -918,32 +874,5 @@ class CantonProofVerifierBundleTest {
                     l.get(i).buf(), l.get(i).off(), l.get(i).off() + l.get(i).len());
         }
         return out;
-    }
-
-    private static byte[] rlpString(final byte[] b) {
-        if (b.length == 1 && (b[0] & 0xff) < 0x80) {
-            return b.clone();
-        }
-        return CantonBytes.concat(rlpHeader(0x80, b.length), b);
-    }
-
-    private static byte[] rlpList(final byte[]... items) {
-        final byte[] payload = CantonBytes.concat(items);
-        return CantonBytes.concat(rlpHeader(0xc0, payload.length), payload);
-    }
-
-    private static byte[] rlpHeader(final int base, final int len) {
-        if (len <= 55) {
-            return new byte[] {(byte) (base + len)};
-        }
-        int n = 4;
-        while (n > 1 && (len >>> (8 * (n - 1))) == 0) {
-            --n;
-        }
-        final byte[] lenBytes = new byte[n];
-        for (int i = 0; i < n; ++i) {
-            lenBytes[i] = (byte) (len >>> (8 * (n - 1 - i)));
-        }
-        return CantonBytes.concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
     }
 }

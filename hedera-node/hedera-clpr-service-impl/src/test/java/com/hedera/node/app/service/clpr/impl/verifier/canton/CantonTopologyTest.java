@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.be32;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
@@ -11,9 +12,12 @@ import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtur
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.OWNER_DELEGATED_P256;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.SYNCHRONIZER_NAMESPACE;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.fp;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.multihash;
+import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.versionedV30;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.Pb;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -247,12 +251,12 @@ class CantonTopologyTest {
         class ReadTransaction {
             @Test
             void readTransactionRejectsAMappingThatIsNotAMessage() {
-                final byte[] tx = versioned(new Pb()
+                final byte[] tx = versionedV30(new Pb()
                         .varint(1, 1)
                         .varint(2, 1)
                         .field(3, new Pb().varint(4, 9).build())
                         .build());
-                final byte[] signed = versioned(new Pb().field(1, tx).build());
+                final byte[] signed = versionedV30(new Pb().field(1, tx).build());
                 assertMalformed(() -> CantonTopology.readTransaction(signed));
             }
 
@@ -266,7 +270,7 @@ class CantonTopologyTest {
                         .field(5, new byte[] {1})
                         .build();
                 final byte[] badFp = sigItem("not-a-fingerprint".getBytes(StandardCharsets.UTF_8), new byte[] {4});
-                final byte[] signed = versioned(new Pb()
+                final byte[] signed = versionedV30(new Pb()
                         .field(1, tx)
                         .field(2, good)
                         .field(2, session)
@@ -293,8 +297,8 @@ class CantonTopologyTest {
                         .field(1, multihash(low))
                         .field(1, multihash(high))
                         .field(2, sigItem(fp(NAMESPACE), new byte[] {7}));
-                final byte[] signed =
-                        versioned(new Pb().field(1, tx).field(4, multi.build()).build());
+                final byte[] signed = versionedV30(
+                        new Pb().field(1, tx).field(4, multi.build()).build());
 
                 final CantonTopology.Transaction t = CantonTopology.readTransaction(signed);
 
@@ -317,7 +321,7 @@ class CantonTopologyTest {
                 final byte[] sig = sigItem(fp(NAMESPACE), new byte[] {7});
 
                 // No hashes at all.
-                final byte[] none = versioned(new Pb()
+                final byte[] none = versionedV30(new Pb()
                         .field(1, tx)
                         .field(4, new Pb().field(2, sig).build())
                         .build());
@@ -329,14 +333,14 @@ class CantonTopologyTest {
                 for (int i = 0; i < CantonTopology.MAX_MULTI_HASHES; ++i) {
                     tooMany.field(1, multihash(repeat((byte) (i + 1), 32)));
                 }
-                final byte[] many = versioned(new Pb()
+                final byte[] many = versionedV30(new Pb()
                         .field(1, tx)
                         .field(4, tooMany.field(2, sig).build())
                         .build());
                 assertMalformed(() -> CantonTopology.readTransaction(many));
 
                 // Hashes that do not include this transaction's hash.
-                final byte[] uncovered = versioned(new Pb()
+                final byte[] uncovered = versionedV30(new Pb()
                         .field(1, tx)
                         .field(
                                 4,
@@ -537,60 +541,154 @@ class CantonTopologyTest {
             return CantonBytes.concat(CantonSets.DER_ED25519, ED_X);
         }
 
+        @Nested
+        class CombinedHash {
+            private static final byte[] H1 = repeat((byte) 0x01, 32);
+            private static final byte[] H2 = repeat((byte) 0x02, 32);
+            private static final byte[] H3 = repeat((byte) 0xf0, 32);
+
+            @Test
+            void hashesTheSortedMultihashesUnderThePurposePrefix() {
+                final byte[] signed = hashFields(H1, H2);
+                final byte[] expected =
+                        sha256(CantonBytes.concat(be32(55), be32(2), be32(34), multihash(H1), be32(34), multihash(H2)));
+
+                assertThat(CantonTopology.combinedHash(signed, ranges(signed), H1))
+                        .isEqualTo(expected);
+            }
+
+            @Test
+            void orderOfTheHashesDoesNotMatter() {
+                final byte[] ascending = hashFields(H1, H2, H3);
+                final byte[] shuffled = hashFields(H3, H1, H2);
+
+                assertThat(CantonTopology.combinedHash(shuffled, ranges(shuffled), H2))
+                        .isEqualTo(CantonTopology.combinedHash(ascending, ranges(ascending), H2));
+            }
+
+            @Test
+            void sortsUnsignedSoHighBytesComeLast() {
+                // 0xf0.. is negative as a signed byte; an unsigned sort still puts it after 0x01..
+                final byte[] signed = hashFields(H3, H1);
+                final byte[] expected =
+                        sha256(CantonBytes.concat(be32(55), be32(2), be32(34), multihash(H1), be32(34), multihash(H3)));
+
+                assertThat(CantonTopology.combinedHash(signed, ranges(signed), H1))
+                        .isEqualTo(expected);
+            }
+
+            @Test
+            void duplicateHashesAreCountedOnce() {
+                final byte[] withDuplicate = hashFields(H1, H2, H1);
+                final byte[] distinct = hashFields(H1, H2);
+
+                assertThat(CantonTopology.combinedHash(withDuplicate, ranges(withDuplicate), H1))
+                        .isEqualTo(CantonTopology.combinedHash(distinct, ranges(distinct), H1));
+            }
+
+            @Test
+            void singleHashIsAccepted() {
+                final byte[] signed = hashFields(H1);
+                final byte[] expected = sha256(CantonBytes.concat(be32(55), be32(1), be32(34), multihash(H1)));
+
+                assertThat(CantonTopology.combinedHash(signed, ranges(signed), H1))
+                        .isEqualTo(expected);
+            }
+
+            @Test
+            void differentSetsGiveDifferentHashes() {
+                final byte[] a = hashFields(H1, H2);
+                final byte[] b = hashFields(H1, H3);
+
+                assertThat(CantonTopology.combinedHash(a, ranges(a), H1))
+                        .isNotEqualTo(CantonTopology.combinedHash(b, ranges(b), H1));
+            }
+
+            @Test
+            void maxHashCountIsAccepted() {
+                final byte[][] hashes = distinctHashes(CantonTopology.MAX_MULTI_HASHES);
+                final byte[] signed = hashFields(hashes);
+
+                assertThat(CantonTopology.combinedHash(signed, ranges(signed), hashes[0]))
+                        .hasSize(32);
+            }
+
+            @Test
+            void noHashesRejected() {
+                assertThatThrownBy(() -> CantonTopology.combinedHash(new byte[0], List.of(), H1))
+                        .isInstanceOf(CantonProofException.class)
+                        .hasMessageContaining("hash count out of range");
+            }
+
+            @Test
+            void tooManyHashesRejected() {
+                final byte[][] hashes = distinctHashes(CantonTopology.MAX_MULTI_HASHES + 1);
+                final byte[] signed = hashFields(hashes);
+
+                assertThatThrownBy(() -> CantonTopology.combinedHash(signed, ranges(signed), hashes[0]))
+                        .isInstanceOf(CantonProofException.class)
+                        .hasMessageContaining("hash count out of range");
+            }
+
+            @Test
+            void hashesNotCoveringTheTransactionRejected() {
+                final byte[] signed = hashFields(H1, H2);
+
+                assertThatThrownBy(() -> CantonTopology.combinedHash(signed, ranges(signed), H3))
+                        .isInstanceOf(CantonProofException.class)
+                        .hasMessageContaining("do not cover this transaction");
+            }
+
+            @Test
+            void wrongLengthMultihashRejected() {
+                final byte[] signed = new Pb().field(1, repeat((byte) 0x01, 33)).build();
+
+                assertThatThrownBy(() -> CantonTopology.combinedHash(signed, ranges(signed), H1))
+                        .isInstanceOf(CantonProofException.class);
+            }
+
+            @Test
+            void wrongMultihashPrefixRejected() {
+                final byte[] bad = CantonBytes.concat(new byte[] {0x11, 0x20}, H1);
+                final byte[] signed = new Pb().field(1, bad).build();
+
+                assertThatThrownBy(() -> CantonTopology.combinedHash(signed, ranges(signed), H1))
+                        .isInstanceOf(CantonProofException.class);
+            }
+
+            /** A message of repeated field 1, one multihash per digest. */
+            private static byte[] hashFields(final byte[]... digests) {
+                final Pb pb = new Pb();
+                for (final byte[] d : digests) {
+                    pb.field(1, multihash(d));
+                }
+                return pb.build();
+            }
+
+            private static byte[][] distinctHashes(final int count) {
+                final byte[][] hashes = new byte[count][];
+                for (int i = 0; i < count; i++) {
+                    hashes[i] = repeat((byte) i, 32);
+                }
+                return hashes;
+            }
+
+            private static List<CantonProto.Range> ranges(final byte[] signed) {
+                return CantonProto.getAll(signed, CantonProto.whole(signed), 1);
+            }
+        }
+
         /** A versioned (v30) transaction holding a LSU-shaped mapping body. */
         private static byte[] simpleTx() {
-            return versioned(new Pb()
+            return versionedV30(new Pb()
                     .varint(1, 1)
                     .varint(2, 1)
                     .field(3, new Pb().field(1, new byte[] {1}).build())
                     .build());
         }
 
-        private static byte[] versioned(final byte[] data) {
-            return new Pb().field(1, data).varint(2, CantonTopology.VERSION_V30).build();
-        }
-
         private static byte[] sigItem(final byte[] fingerprint, final byte[] signature) {
             return new Pb().field(2, signature).field(3, fingerprint).build();
-        }
-
-        private static byte[] multihash(final byte[] digest) {
-            return CantonBytes.concat(new byte[] {0x12, 0x20}, digest);
-        }
-
-        /** Minimal protobuf wire-format builder. */
-        private static final class Pb {
-            private final ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-            Pb field(final int number, final byte[] value) {
-                writeVarint(((long) number << 3) | CantonProto.WIRE_LEN);
-                writeVarint(value.length);
-                out.writeBytes(value);
-                return this;
-            }
-
-            Pb varint(final int number, final long value) {
-                writeVarint((long) number << 3);
-                writeVarint(value);
-                return this;
-            }
-
-            byte[] build() {
-                return out.toByteArray();
-            }
-
-            private void writeVarint(long v) {
-                while (true) {
-                    final int b = (int) (v & 0x7f);
-                    v >>>= 7;
-                    if (v != 0) {
-                        out.write(b | 0x80);
-                    } else {
-                        out.write(b);
-                        return;
-                    }
-                }
-            }
         }
     }
 

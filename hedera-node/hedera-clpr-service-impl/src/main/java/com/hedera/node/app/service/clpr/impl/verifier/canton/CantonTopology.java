@@ -184,7 +184,7 @@ final class CantonTopology {
      * {@code SHA256(BE32(55) ‖ BE32(n) ‖ (BE32(34) ‖ 0x1220 ‖ h) for each distinct hash h, ascending)}. Throws
      * unless {@code hashes} hold {@code txHash}. Mirrors the reference {@code _combinedHash}.
      */
-    private static byte[] combinedHash(final byte[] signed, final List<Range> hashes, final byte[] txHash) {
+    static byte[] combinedHash(final byte[] signed, final List<Range> hashes, final byte[] txHash) {
         if (hashes.isEmpty() || hashes.size() > MAX_MULTI_HASHES) {
             throw CantonProofException.cantonProtoMalformed("multi-transaction hash count out of range");
         }
