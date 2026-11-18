@@ -123,7 +123,8 @@ public interface HintsLibrary {
      *     well-formed aggregate public key.</li>
      *     <li>The succinct verification key to use when verifying an aggregate signature.</li>
      * </ol>
-     * Both maps given must have the same key set; in particular, a subset of {@code [0, n-1)}.
+     * Every party with a hint must have a weight. A party with only a weight contributes to the
+     * verification key's total weight and cannot sign. All party IDs must be in {@code [0, n-1)}.
      *
      * @param crs the final CRS used by the network
      * @param hintsKeys the valid hinTS keys by party id

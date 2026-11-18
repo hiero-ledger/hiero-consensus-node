@@ -22,6 +22,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -108,6 +109,8 @@ public class HintsContext {
         private boolean hasSameSigningMaterial(final ConstructionSnapshot other) {
             return construction.crsId() == other.construction.crsId()
                     && construction.numParties() == other.construction.numParties()
+                    && Objects.equals(
+                            construction.preprocessingRosterWeight(), other.construction.preprocessingRosterWeight())
                     && construction.hintsSchemeOrThrow().equals(other.construction.hintsSchemeOrThrow())
                     && crsState.crs().equals(other.crsState.crs())
                     && (requiresHistory != other.requiresHistory
@@ -130,7 +133,7 @@ public class HintsContext {
         return HintsGenerationWeights.requiresHistory(configProvider.get().getConfigData(TssConfig.class));
     }
 
-    /** Restores scheme-only signing when history is disabled or signatures are mocked. */
+    /** Restores signing from the hinTS construction when the configuration permits a history-free snapshot. */
     public void setConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
         final var weights = requiresHistory()
                 ? HintsGenerationWeights.from(construction, null)
@@ -141,7 +144,7 @@ public class HintsContext {
     /**
      * Activates a completed scheme bound to its CRS. Real history-backed signing requires the complete
      * canonical generation supplied by startup recovery or a completed history handoff. History-disabled
-     * and mock-signature modes retain scheme-relative weights, regardless of an optional history snapshot.
+     * and mock-signature modes can use the weight frozen in the construction itself.
      * Existing signing attempts keep the weights and verification fraction captured when they opened.
      *
      * @param construction the completed construction to use for signing
@@ -436,7 +439,9 @@ public class HintsContext {
                 snapshot.crsState(),
                 blockHash,
                 threshold,
-                snapshot.generationWeights().verificationFraction(divisor),
+                snapshot.construction().hasPreprocessingRosterWeight()
+                        ? new HintsGenerationWeights.ThresholdFraction(1, divisor)
+                        : snapshot.generationWeights().verificationFraction(divisor),
                 snapshot.aggregationKey(),
                 snapshot.nodePartyIds(),
                 snapshot.nodeWeights(),
@@ -454,7 +459,10 @@ public class HintsContext {
         final var preprocessedKeys = scheme.preprocessedKeysOrThrow();
         final var schemeWeights =
                 scheme.nodePartyIds().stream().collect(toMap(NodePartyId::nodeId, NodePartyId::partyWeight));
-        if (!generationWeights.matches(construction) || !schemeWeights.equals(generationWeights.schemeWeights())) {
+        final long signingWeight = construction.preprocessingRosterWeightOrElse(generationWeights.totalWeight());
+        if (!generationWeights.matches(construction)
+                || !schemeWeights.equals(generationWeights.schemeWeights())
+                || (requiresHistory && signingWeight != generationWeights.totalWeight())) {
             throw new IllegalArgumentException("Generation weights do not match the hinTS scheme");
         }
         return new ConstructionSnapshot(
@@ -465,7 +473,7 @@ public class HintsContext {
                 preprocessedKeys.verificationKey(),
                 Map.copyOf(asNodePartyIds(scheme.nodePartyIds())),
                 generationWeights.schemeWeights(),
-                generationWeights.totalWeight(),
+                signingWeight,
                 generationWeights,
                 requiresHistory);
     }

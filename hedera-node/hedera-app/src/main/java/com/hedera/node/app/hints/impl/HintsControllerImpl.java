@@ -214,7 +214,11 @@ public class HintsControllerImpl implements HintsController {
         } else {
             final var crs = hintsStore.getCrsStateFor(construction).crs();
             if (shouldStartPreprocessing(now)) {
-                construction = hintsStore.setPreprocessingStartTime(construction.constructionId(), now);
+                final var config = configurationSupplier.get().getConfigData(TssConfig.class);
+                final Long rosterWeight = config.historyEnabled()
+                        ? weights.targetNodeWeights().values().stream().reduce(0L, Math::addExact)
+                        : null;
+                construction = hintsStore.setPreprocessingStartTime(construction.constructionId(), now, rosterWeight);
                 if (isActive) {
                     preprocessingVoteFuture = startPreprocessingVoteFuture(now, crs);
                 }
@@ -430,8 +434,11 @@ public class HintsControllerImpl implements HintsController {
                 .map(Map.Entry::getKey)
                 .findFirst();
         maybeWinningOutputs.ifPresent(keys -> {
+            final var participants =
+                    validHintsAt(asInstant(construction.preprocessingStartTimeOrThrow())).keySet().stream()
+                            .collect(toMap(partyNodeIds::get, partyId -> partyId));
             construction = hintsStore.setHintsScheme(
-                    construction.constructionId(), keys, nodePartyIds, weights.targetNodeWeights());
+                    construction.constructionId(), keys, participants, weights.targetNodeWeights());
             log.info(
                     "Completed hinTS scheme for construction #{} with {}",
                     construction.constructionId(),
@@ -689,6 +696,13 @@ public class HintsControllerImpl implements HintsController {
         }
     }
 
+    private TreeMap<Integer, Bytes> validHintsAt(final Instant cutoff) {
+        return validationFutures.headMap(cutoff, true).values().stream()
+                .map(CompletableFuture::join)
+                .filter(Validation::isValid)
+                .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
+    }
+
     /**
      * Returns a future that completes to the aggregated hinTS keys for this construction for
      * all valid published hinTS keys.
@@ -701,25 +715,25 @@ public class HintsControllerImpl implements HintsController {
                     try {
                         // IMPORTANT: since we only start this future when we have a preprocessing start
                         // time, there is no risk of CME with handle thread running addKeyPublication()
-                        final var hintKeys = validationFutures.headMap(cutoff, true).values().stream()
-                                .map(CompletableFuture::join)
-                                .filter(Validation::isValid)
-                                .collect(toMap(Validation::partyId, Validation::hintsKey, (a, b) -> a, TreeMap::new));
-                        final var aggregatedWeights = nodePartyIds.entrySet().stream()
-                                .filter(entry -> hintKeys.containsKey(entry.getValue()))
-                                .collect(toMap(
-                                        Map.Entry::getValue,
-                                        entry -> weights.targetWeightOf(entry.getKey()),
-                                        (a, b) -> a,
-                                        TreeMap::new));
+                        final var hintKeys = validHintsAt(cutoff);
+                        final var partyWeights = new TreeMap<Integer, Long>();
+                        if (construction.hasPreprocessingRosterWeight()) {
+                            weights.targetNodeWeights()
+                                    .forEach((nodeId, weight) ->
+                                            partyWeights.put(partyIdOf(nodeId).orElseThrow(), weight));
+                        } else {
+                            hintKeys.keySet()
+                                    .forEach(partyId -> partyWeights.put(
+                                            partyId, weights.targetWeightOf(partyNodeIds.get(partyId))));
+                        }
                         log.info(
-                                "Calling preprocess for construction #{} with crsHash={}, hintKeyHashes={}, aggregatedWeights={}, numParties={}",
+                                "Calling preprocess for construction #{} with crsHash={}, hintKeyHashes={}, partyWeights={}, numParties={}",
                                 construction.constructionId(),
                                 sha384Hex(crs),
                                 summarizeHintKeys(hintKeys),
-                                aggregatedWeights,
+                                partyWeights,
                                 numParties);
-                        final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
+                        final var output = library.preprocess(crs, hintKeys, partyWeights, numParties);
                         if (output == null) {
                             log.warn(
                                     "Library returned null preprocessing output for construction #{}; skipping vote",
