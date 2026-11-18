@@ -11,24 +11,14 @@ on:
         type: string
       cores:
         required: true
-        default: '4'
-        description: 'N of CPU cores, per node (AdHoc6)'
-        type: choice
-        options:
-          - 4
-          - 8
-          - 16
-          - 32
+        default: "4"
+        description: "Cores"
+        type: string
       ram:
         required: true
-        default: '32'
-        description: 'Amount of RAM (Gb), per node'
-        type: choice
-        options:
-          - 16
-          - 32
-          - 48
-          - 64
+        default: "32"
+        description: "Ram"
+        type: string
       solo-version:
         required: true
         default: "v0.84.1"
