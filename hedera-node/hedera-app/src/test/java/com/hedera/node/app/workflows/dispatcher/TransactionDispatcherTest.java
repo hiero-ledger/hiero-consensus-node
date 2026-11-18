@@ -2,15 +2,12 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
@@ -23,10 +20,6 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.service.token.impl.handlers.CryptoCreateHandler;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
-import com.hedera.node.app.spi.workflows.PreCheckException;
-import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.stream.Stream;
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +29,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -68,17 +60,6 @@ class TransactionDispatcherTest {
     void setUp() {
         subject = new TransactionDispatcher(handlers, feeManager);
         testExchangeRate = ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12).build();
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {"9a0500", "a20500"})
-    void rejectsRetiredChannelFields(final String wireHex) throws ParseException {
-        // Empty length-delimited fields 83 and 84 from the retired channel transactions.
-        final var context = mock(PureChecksContext.class);
-        given(context.body()).willReturn(TransactionBody.PROTOBUF.parse(Bytes.fromHex(wireHex)));
-        assertThat(assertThrows(PreCheckException.class, () -> subject.dispatchPureChecks(context))
-                        .responseCode())
-                .isEqualTo(ResponseCodeEnum.INVALID_TRANSACTION_BODY);
     }
 
     @Nested

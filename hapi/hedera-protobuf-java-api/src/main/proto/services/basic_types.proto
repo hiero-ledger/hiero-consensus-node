@@ -1346,9 +1346,6 @@ message SignatureMap {
  * The transactions and queries supported by Hedera Hashgraph.
  */
 enum HederaFunctionality {
-    reserved 118, 119;
-    reserved "ClprRegisterChannel", "ClprCompleteChannel";
-
     // FUTURE - Uncomment when https://github.com/hashgraph/pbj/issues/339 is fixed;
     // currently the PBJ-generated unit tests fail when using reserved ordinals
     // reserved 96, 97, 98, 99;

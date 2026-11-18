@@ -183,10 +183,9 @@ message Transaction {
  */
 message TransactionBody {
     // <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
-    reserved 30, 61, 62, 63, 64, 83, 84;
+    reserved 30, 61, 62, 63, 64;
 
     reserved "tssMessage", "tssVote", "tssShareSignature", "tssEncryptionKey";
-    reserved "clprRegisterChannel", "clprCompleteChannel";
 
     /**
      * A transaction identifier.<br/>
