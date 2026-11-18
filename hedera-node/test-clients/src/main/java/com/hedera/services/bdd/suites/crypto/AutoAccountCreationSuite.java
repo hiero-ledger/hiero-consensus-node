@@ -1424,8 +1424,8 @@ public class AutoAccountCreationSuite {
                 }),
                 doingContextual(spec -> {
                     /* hollow account created with nft transfer as expected */
-                    var cryptoTransferWithLazyCreate = cryptoTransfer(
-                                    (s, b) -> b.addTokenTransfers(TokenTransferList.newBuilder()
+                    var cryptoTransferWithLazyCreate = cryptoTransfer((s, b) ->
+                                    b.addTokenTransfers(TokenTransferList.newBuilder()
                                             .setToken(nftId.get())
                                             .addNftTransfers(ocWith(
                                                     accountIdFromEvmAddress(spec, partyAlias.get()),

@@ -1003,9 +1003,7 @@ public class LeakyContractTestsSuite {
                 }),
                 // the hollow creation that used the only child slot stays in the stream as a reverted child
                 childRecordsCheck(
-                        TRANSFER_TXN,
-                        MAX_CHILD_RECORDS_EXCEEDED,
-                        recordWith().revertedAccountCreation()));
+                        TRANSFER_TXN, MAX_CHILD_RECORDS_EXCEEDED, recordWith().revertedAccountCreation()));
     }
 
     @LeakyEmbeddedHapiTest(

@@ -120,7 +120,8 @@ public class RecordStreamBuilderTest {
                 .evmAddress(Bytes.wrap(new byte[20]))
                 .transferList(TransferList.newBuilder()
                         .accountAmounts(AccountAmount.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(98L).build())
+                                .accountID(
+                                        AccountID.newBuilder().accountNum(98L).build())
                                 .amount(100L)
                                 .build())
                         .build())
