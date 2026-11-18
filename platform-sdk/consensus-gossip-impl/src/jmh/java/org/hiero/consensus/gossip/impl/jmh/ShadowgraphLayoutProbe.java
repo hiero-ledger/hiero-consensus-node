@@ -128,7 +128,10 @@ import org.openjdk.jmh.runner.IterationType;
  * ({@code samples-pid<process id>.jfr} in the results directory; {@code -XX:+DebugNonSafepoints} ties each sample to
  * its line in compiled code). Comparing the lines of {@code Shadowgraph#addEvent} and its callees between fast and
  * slow forks shows where the slow forks lose their time: in one access, or over the whole call. The measurement
- * iterations are 30 s long, to collect more samples.
+ * iterations are 30 s long, to collect more samples. Ninth test (all the difference lay at one point of
+ * {@code Shadowgraph#insert}, line 582): the same forks print the machine code of {@code Shadowgraph#addEvent}, and
+ * of {@code insert} where it is not inlined, with the debug points ({@code -XX:CompileCommand=print}; without the
+ * hsdis library as raw bytes), to see which instructions JFR charged to that point.
  */
 @State(Scope.Thread)
 @Fork(
@@ -138,7 +141,9 @@ import org.openjdk.jmh.runner.IterationType;
             "-Xmx10g",
             "-XX:+AlwaysPreTouch",
             "-XX:+UnlockDiagnosticVMOptions",
-            "-XX:+DebugNonSafepoints"
+            "-XX:+DebugNonSafepoints",
+            "-XX:CompileCommand=print,org.hiero.consensus.gossip.impl.gossip.shadowgraph.Shadowgraph::addEvent",
+            "-XX:CompileCommand=print,org.hiero.consensus.gossip.impl.gossip.shadowgraph.Shadowgraph::insert"
         })
 @Warmup(iterations = 1, time = 10)
 @Measurement(iterations = 2, time = 30)
