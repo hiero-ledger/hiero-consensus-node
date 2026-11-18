@@ -183,7 +183,7 @@ class ClprServiceApiImplTest {
 
     @Test
     void reducedCalldataLimitBoundsNewDataAtItsSerializedSize() {
-        final int budget = 30 * 1024;
+        final int budget = 22 * 1024;
         final var config = HederaTestConfigBuilder.create()
                 .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
                 .getOrCreateConfig();

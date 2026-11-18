@@ -5,6 +5,9 @@ import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.ACTIVE;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.SIGNATURE_LENGTH;
 import static com.hedera.node.app.hints.impl.HintsLibraryImpl.VK_LENGTH;
+import static com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy.MAX_STORED_MANIFEST_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy.boundedManifest;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.senderPayloadBudget;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
@@ -20,13 +23,18 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
+import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprMessage;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
+import com.hedera.hapi.node.state.clpr.ClprMessageReply;
+import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.history.HintsKeyProvenance;
@@ -52,12 +60,16 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
 import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.SiblingHash;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.LongStream;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,7 +78,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** Exercises compact bundle packing from the snapshot's binary-state API through the emitted envelope. */
+/** Exercises native and compact bundle packing from the snapshot's binary-state API through the emitted proof. */
 @ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
 class ClprBundleProofConstructionTest {
     private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[32]);
@@ -148,6 +160,109 @@ class ClprBundleProofConstructionTest {
         verify(proofSupport).verify(payload, keccak256DigestOf(SIGNING_KEY));
         verifyNoInteractions(tssVerifier);
         assertThat(logCaptor.warnLogs()).isEmpty();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"65536, SHA_256, false", "98304, SHA_384, false", "43023, SHA_384, true"})
+    void nativeProofPacksBudgetSizedPayloadWithFullCachedManifest(
+            final int calldataLimit, final DigestType digest, final boolean emptyErrorReply) throws Exception {
+        final var config = new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("jumboTransactions.ethereumMaxCallDataSize", calldataLimit)
+                        .withValue("blockStream.digestType", digest.name())
+                        .getOrCreateConfig(),
+                0);
+        final var manager = new ClprStateProofManager(snapshotProvider, tssVerifier, () -> config, proofSupport);
+        final var anchor = Bytes.wrap(new byte[64]);
+        final var channel = channel(1, 4 * 1024 * 1024)
+                .copyBuilder()
+                .endpointManifest(fullCachedManifest())
+                .trustAnchor(anchor)
+                .channelContext(Bytes.wrap(new byte[52]))
+                .sentRunningHash(Bytes.wrap(new byte[32]))
+                .receivedRunningHash(Bytes.wrap(new byte[32]))
+                .build();
+        final int budget = Math.toIntExact(senderPayloadBudget(config));
+        final var payload = emptyErrorReply
+                ? ClprMessagePayload.newBuilder()
+                        .messageReply(ClprMessageReply.newBuilder()
+                                .messageId(-1L)
+                                .status(ClprMessageReplyStatus.APPLICATION_ERROR))
+                        .build()
+                : dataAtBudget(budget);
+        assertThat(payload.protobufSize()).isEqualTo(budget);
+
+        final var sibling = new Hash(digest);
+        givenQueue(
+                channel,
+                ClprMessageValue.newBuilder()
+                        .payload(payload)
+                        .runningHashAfterProcessing(channel.sentRunningHash())
+                        .build(),
+                false,
+                Collections.nCopies(30, new SiblingHash(true, sibling)));
+        given(snapshot.path())
+                .willReturn(MerklePath.newBuilder()
+                        .siblings(Collections.nCopies(
+                                4,
+                                SiblingNode.newBuilder()
+                                        .hash(sibling.getBytes())
+                                        .build()))
+                        .build());
+        given(snapshot.ledgerId()).willReturn(anchor);
+        given(tssVerifier.verifyTss(eq(anchor), eq(NATIVE_SIGNATURE), any())).willReturn(true);
+
+        final var bundle =
+                manager.buildBundleProof(CHANNEL_ID, FIRST_MESSAGE_ID, channel.peerThrottlesOrThrow(), false, false);
+        assertThat(bundle).isNotNull();
+        assertThat(bundle.messageCount()).isOne();
+        assertThat(bundle.lastMessageId()).isEqualTo(FIRST_MESSAGE_ID);
+        assertThat(bundle.payload().length())
+                .isLessThanOrEqualTo(manager.maxBundlePayloadBytes(channel.peerThrottlesOrThrow()));
+        final var proof = StateProof.PROTOBUF.parse(bundle.payload());
+        assertThat(proof.signedBlockProofOrThrow().blockSignature()).isEqualTo(NATIVE_SIGNATURE);
+        // Each leaf path carries the 30 state siblings, four block siblings and the timestamp sibling.
+        assertThat(proof.paths())
+                .hasSize(2)
+                .allSatisfy(path -> assertThat(path.siblings()).hasSize(35));
+        final var channelLeaf =
+                StateItem.PROTOBUF.parse(proof.paths().getFirst().stateItemLeafOrThrow());
+        assertThat(channelLeaf.valueOrThrow().clprServiceIChannelsOrThrow()).isEqualTo(channel);
+        final var message = StateItem.PROTOBUF.parse(proof.paths().getLast().stateItemLeafOrThrow());
+        assertThat(message.valueOrThrow().clprServiceIMessageQueueOrThrow().payloadOrThrow())
+                .isEqualTo(payload);
+    }
+
+    private static ClprEndpointManifest fullCachedManifest() {
+        final var endpoint = ClprEndpoint.newBuilder();
+        final var manifest = ClprEndpointManifest.newBuilder().version(1).serviceAddress(Bytes.wrap(new byte[20]));
+        // Measure with a two-byte certificate length prefix, which also applies at the storage cap.
+        final int sampleLength = MAX_STORED_MANIFEST_BYTES / 2;
+        final var sample = manifest.endpoints(endpoint.tlsCertificate(Bytes.wrap(new byte[sampleLength]))
+                        .build())
+                .build();
+        final int certificateLength = sampleLength + MAX_STORED_MANIFEST_BYTES - sample.protobufSize();
+        final var stored = boundedManifest(
+                manifest.endpoints(endpoint.tlsCertificate(Bytes.wrap(new byte[certificateLength]))
+                                .build())
+                        .build(),
+                1);
+        assertThat(stored.protobufSize()).isEqualTo(MAX_STORED_MANIFEST_BYTES);
+        return stored;
+    }
+
+    private static ClprMessagePayload dataAtBudget(final int budget) {
+        final var message = ClprMessage.newBuilder()
+                .connectorId(CHANNEL_ID)
+                .targetApplication(Bytes.wrap(new byte[20]))
+                .sender(Bytes.wrap(new byte[20]));
+        final var payload = ClprMessagePayload.newBuilder();
+        final int overhead = payload.message(message.messageData(Bytes.wrap(new byte[budget])))
+                        .build()
+                        .protobufSize()
+                - budget;
+        return payload.message(message.messageData(Bytes.wrap(new byte[budget - overhead])))
+                .build();
     }
 
     @Test
@@ -302,6 +417,18 @@ class ClprBundleProofConstructionTest {
     }
 
     private void givenQueue(final ClprChannel channel, final int messageBytes, final boolean includeManifest) {
+        final var value = ClprMessageValue.newBuilder()
+                .payload(ClprMessagePayload.newBuilder()
+                        .message(ClprMessage.newBuilder().messageData(Bytes.wrap(new byte[messageBytes]))))
+                .build();
+        givenQueue(channel, value, includeManifest, List.of());
+    }
+
+    private void givenQueue(
+            final ClprChannel channel,
+            final ClprMessageValue value,
+            final boolean includeManifest,
+            final List<SiblingHash> siblings) {
         final var binaryState = (BinaryState) provenState;
         final var channelKey = new ProtoBytes(CHANNEL_ID);
         final Map<Long, MerkleProof> proofs = new HashMap<>();
@@ -309,7 +436,8 @@ class ClprBundleProofConstructionTest {
                 CHANNEL_PATH,
                 leaf(
                         StateKey.newBuilder().clprServiceIChannels(channelKey).build(),
-                        StateValue.newBuilder().clprServiceIChannels(channel).build()));
+                        StateValue.newBuilder().clprServiceIChannels(channel).build(),
+                        siblings));
         given(binaryState.getKvPath(CHANNELS_STATE_ID, ProtoBytes.PROTOBUF.toBytes(channelKey)))
                 .willReturn(CHANNEL_PATH);
         if (includeManifest) {
@@ -323,13 +451,10 @@ class ClprBundleProofConstructionTest {
                                     .clprServiceIEndpointManifest(ClprEndpointManifest.newBuilder()
                                             .version(2)
                                             .build())
-                                    .build()));
+                                    .build(),
+                            siblings));
             given(binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID)).willReturn(MANIFEST_PATH);
         }
-        final var value = ClprMessageValue.newBuilder()
-                .payload(ClprMessagePayload.newBuilder()
-                        .message(ClprMessage.newBuilder().messageData(Bytes.wrap(new byte[messageBytes]))))
-                .build();
         for (long id = FIRST_MESSAGE_ID; id < channel.nextMessageId(); id++) {
             proofs.put(
                     id,
@@ -339,7 +464,8 @@ class ClprBundleProofConstructionTest {
                                     .build(),
                             StateValue.newBuilder()
                                     .clprServiceIMessageQueue(value)
-                                    .build()));
+                                    .build(),
+                            siblings));
         }
         given(binaryState.getKvPath(eq(MESSAGE_QUEUE_STATE_ID), any())).willAnswer(invocation -> {
             final var key = ClprMessageKey.PROTOBUF.parse((Bytes) invocation.getArgument(1));
@@ -371,8 +497,8 @@ class ClprBundleProofConstructionTest {
         return ClprMessageKey.PROTOBUF.toBytes(messageKey(id));
     }
 
-    private static MerkleProof leaf(final StateKey key, final StateValue value) {
-        return new MerkleProof(StateItem.PROTOBUF.toBytes(new StateItem(key, value)), List.of(), List.of());
+    private static MerkleProof leaf(final StateKey key, final StateValue value, final List<SiblingHash> siblings) {
+        return new MerkleProof(StateItem.PROTOBUF.toBytes(new StateItem(key, value)), siblings, List.of());
     }
 
     private static Bytes verificationKey(final int tag) {

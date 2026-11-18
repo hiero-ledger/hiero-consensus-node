@@ -316,11 +316,12 @@ including the trust anchor, channel context and ABI padding. Each native or comp
 both the peer's wire budget and the smaller of the local consensus calldata limit and 128 KiB.
 At default settings the largest proof is 126 KiB. Sync resumes at the first unreceived message.
 Prevalidation checks the complete encoded call against the receiver's configured calldata limit.
-Hiero caps new DATA and replies at 64 KiB. Within the local proof budget it reserves 32 KiB
-for the signature, channel metadata and Merkle paths. A 64 KiB calldata limit therefore allows a
-30 KiB serialized payload. At or below 34 KiB there is no room for new DATA or an application
-result. Inbound DATA then receives the minimum error reply without dispatching the application.
-Allow at least 34 KiB plus 15 bytes to budget for an empty error reply at every message ID.
+Hiero caps new DATA and replies at 64 KiB. Within the local proof budget it reserves 40 KiB
+for one message's proof overhead, including the 16 KiB cached peer manifest, the native TSS
+signature, both Merkle paths, channel fields and framing. A 64 KiB calldata limit therefore
+allows a 22 KiB serialized payload. At or below 42 KiB there is no room for new DATA or an
+application result. Inbound DATA then receives the minimum error reply without dispatching the application.
+Allow at least 42 KiB plus 15 bytes to budget for an empty error reply at every message ID.
 The advertised sync limit retains its separate 64 KiB wire headroom requirement. Peers with different calldata
 limits must coordinate the smaller bound. The default verifier allowance is 8,000,000 gas.
 Admission requires that much gas throttle headroom. Operators using a custom EVM verifier or

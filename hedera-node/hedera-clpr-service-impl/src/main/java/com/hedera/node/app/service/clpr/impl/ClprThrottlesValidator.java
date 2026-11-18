@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.clpr.impl;
 
 import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.MAX_SYNC_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy.MAX_STORED_MANIFEST_BYTES;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
@@ -28,9 +29,9 @@ public final class ClprThrottlesValidator {
     /** Covers the verifier selector, three dynamic arguments, trust anchor, channel context and word padding. */
     public static final int VERIFIER_CALL_OVERHEAD_BYTES = 2 * 1024;
 
-    // Space for the native TSS signature (13,712 bytes), channel metadata and Merkle paths
-    // alongside one message in a verifier proof. Final packing measures the actual proof.
-    private static final int SINGLE_MESSAGE_PROOF_OVERHEAD_BYTES = 32 * 1024;
+    // In addition to the cached manifest, allow 14 KiB for the 13,712-byte native TSS signature
+    // and 10 KiB for both Merkle paths, other channel fields and protobuf framing.
+    private static final int SINGLE_MESSAGE_PROOF_OVERHEAD_BYTES = MAX_STORED_MANIFEST_BYTES + (14 + 10) * 1024;
 
     /** Conservative wire framing reserve above the serialized StateProof. */
     static final long CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES = 114L;
@@ -46,10 +47,8 @@ public final class ClprThrottlesValidator {
      * cannot carry a single max-sized message plus its proof overhead, the Channel deadlocks —
      * the sender can never build a bundle that fits, the peer never acks, and the queue stalls
      * forever. Hiero senders may split a queue across proofs.
-     * The channel leaf includes its cached peer endpoint manifest, so this fixed
-     * allowance does not guarantee fit for an arbitrarily large manifest (for example, when max_peer_endpoints
-     * is unlimited). Include the largest supported manifest and Merkle paths in the sizing budget; the proof
-     * builder's final serialized-size check remains authoritative.
+     * The channel leaf includes the cached peer manifest. The sender accounts for its storage cap
+     * in its single-message budget and checks the actual serialized proof before transmission.
      */
     public static final long MIN_PROOF_OVERHEAD_BYTES =
             MIN_STATE_PROOF_OVERHEAD_BYTES + CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;

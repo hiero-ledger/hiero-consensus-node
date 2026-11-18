@@ -91,8 +91,8 @@ class ClprStateProofManagerTest {
 
     @ParameterizedTest
     @CsvSource({
-        "131072, 129024, 65536", "98304, 96256, 63488", "65536, 63488, 30720",
-        "34831, 32783, 15", "34816, 32768, 0", "1024, 0, 0"
+        "131072, 129024, 65536", "98304, 96256, 55296", "65536, 63488, 22528",
+        "43023, 40975, 15", "43008, 40960, 0", "1024, 0, 0"
     })
     void configuredCalldataBoundsProofsAndNewPayloads(
             final int calldata, final long proofBudget, final long payloadBudget) {

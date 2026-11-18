@@ -1782,7 +1782,7 @@ class ClprSubmitBundleHandlerTest {
                             .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
                             .getOrCreateConfig());
             putConnector();
-            final int budget = 30 * 1024;
+            final int budget = 22 * 1024;
             final int overhead = serializedReplySize(Bytes.wrap(new byte[budget])) - budget;
             final var replyData = Bytes.wrap(new byte[budget - overhead + extraByte]);
             assertThat(serializedReplySize(replyData)).isEqualTo(budget + extraByte);
