@@ -1771,6 +1771,35 @@ class ClprSubmitBundleHandlerTest {
             assertApplicationErrorResponse();
         }
 
+        @ParameterizedTest
+        @ValueSource(ints = {0, 1})
+        void reducedCalldataLimitBoundsTheSerializedApplicationReply(final int extraByte) {
+            givenChannelWithPeerPayloadLimit(65_536);
+            setupHandleContext(validSingleDataBundle(), true, 100, 65_536, 1_048_576L);
+            given(handleContext.configuration())
+                    .willReturn(HederaTestConfigBuilder.create()
+                            .withValue("clpr.enabled", true)
+                            .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
+                            .getOrCreateConfig());
+            putConnector();
+            final int budget = 30 * 1024;
+            final int overhead = serializedReplySize(Bytes.wrap(new byte[budget])) - budget;
+            final var replyData = Bytes.wrap(new byte[budget - overhead + extraByte]);
+            assertThat(serializedReplySize(replyData)).isEqualTo(budget + extraByte);
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(replyData.toByteArray()));
+
+            subject.handle(handleContext);
+
+            if (extraByte == 0) {
+                final var reply =
+                        messageQueueStore.getMessage(CHANNEL_ID, 0).payload().messageReplyOrThrow();
+                assertThat(reply.status()).isEqualTo(ClprMessageReplyStatus.SUCCESS);
+                assertThat(reply.messageReplyData()).isEqualTo(replyData);
+            } else {
+                assertApplicationErrorResponse();
+            }
+        }
+
         @Test
         @DisplayName("given a reply with size of the peer's payload limit then enqueue with SUCCESS")
         void givenReplySerializedAtPeerLimit_thenEnqueuedWithSuccessAndData() {

@@ -215,11 +215,14 @@ public class TransactionProcessor {
         result = safeCommit(
                 result, transaction, updater, context, accessTrackerFor(initialFrame), initialFrame.getSelfDestructs());
         if (transaction.isClprDispatch() && context.verifierGasUsage() != null && result.isSuccess()) {
-            // Prepaid CLPR calls skip the fee charging path. Keep the calldata floor when releasing capacity.
-            final long floor = gasCharging.gasRequirements(transaction).minimumGasUsed();
+            // Prepaid frames start with the full grant. Retain intrinsic gas in addition to executed
+            // gas, and respect the calldata floor before releasing capacity for callbacks.
+            final var requirements = gasCharging.gasRequirements(transaction);
             context.verifierGasUsage()
                     .recordUnspentGas(Math.clamp(
-                            initialFrame.getRemainingGas(), 0, Math.max(0L, transaction.gasLimit() - floor)));
+                            initialFrame.getRemainingGas() - requirements.intrinsicGas(),
+                            0,
+                            Math.max(0L, transaction.gasLimit() - requirements.minimumGasUsed())));
         }
         if (!gasIsPrepaid) {
             gasCharging.maybeRefundGiven(

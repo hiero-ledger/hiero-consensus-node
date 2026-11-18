@@ -235,8 +235,8 @@ Callbacks rejected by consensus throttling before execution incur no gas charge,
 so their entire gas reimbursement is returned to the connector.
 
 Verification and callback execution share `contracts.maxGasPerTransaction`. A successful
-verifier releases unused root-frame gas after accounting for the calldata floor and the fee
-owed. EVM billing refunds leave execution capacity unchanged. Remaining callbacks share the
+verifier releases unused root-frame gas after accounting for intrinsic gas, the calldata floor
+and the fee owed. EVM billing refunds leave execution capacity unchanged. Remaining callbacks share the
 available gas, with each grant capped by `maxGasPerMessage`. See [E-10](clpr-hiero-spec.md#e-10-application-execution-gas-and-endpoint-compensation)
 for pricing, rollback, and grant-allocation details.
 

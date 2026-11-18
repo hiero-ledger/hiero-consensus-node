@@ -34,6 +34,7 @@ contract ClprOutcomeApplication {
             // Invalid dynamic-bytes ABI: an offset without the length/data it points to.
             assembly { mstore(0, 32) return(0, 32) }
         }
+        if (mode == 3) return abi.encode(gasleft());
         return new bytes(length);
     }
 

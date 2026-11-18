@@ -12,7 +12,7 @@ public final class ContractGasUsage {
     private long gasUsed;
     private long unspentGas;
 
-    /** Records gas left in the root frame before EVM refunds, subject to the intrinsic calldata floor. */
+    /** Records unused capacity after intrinsic gas, pre-refund execution and the calldata floor. */
     public void recordUnspentGas(final long unspentGas) {
         if (unspentGas < 0) {
             throw new IllegalArgumentException("Negative unspent contract gas");

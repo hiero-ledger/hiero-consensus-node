@@ -129,9 +129,7 @@ public class ClprStateProofManager {
     public long maxBundlePayloadBytes(@NonNull final ClprThrottles peerThrottles) {
         final long wireBudget = Math.max(CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES, peerThrottles.maxSyncBytes())
                 - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
-        final long verifierBudget = ClprThrottlesValidator.senderCalldataBudget(configProvider.getConfiguration())
-                - (long) ClprThrottlesValidator.VERIFIER_CALL_OVERHEAD_BYTES;
-        return Math.min(wireBudget, Math.max(0, verifierBudget));
+        return Math.min(wireBudget, ClprThrottlesValidator.senderProofBudget(configProvider.getConfiguration()));
     }
 
     /**
@@ -309,8 +307,8 @@ public class ClprStateProofManager {
      * channel and up to {@code peerThrottles.maxMessagesPerBundle()} queued messages starting
      * from {@code firstMessageId} exist in the latest sealed state.
      *
-     * <p>Trims the message tail so the resulting {@code ClprSyncPayload} envelope never exceeds
-     * {@code peerThrottles.maxSyncBytes()} (spec §1.1 sender-side cap). Messages that don't fit
+     * <p>Trims the message tail to fit both the peer's framed sync limit and the local
+     * verifier calldata budget after reserving its ABI arguments. Messages that don't fit
      * stay in the outbound queue and are picked up by the next sync tick — no bookkeeping needed
      * since the queue is keyed by {@code messageId}. If the peer needs the endpoint manifest and
      * it fits on its own but cannot fit alongside the first message, prove just the manifest

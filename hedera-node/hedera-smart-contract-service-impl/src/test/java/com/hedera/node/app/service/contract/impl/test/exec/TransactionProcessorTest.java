@@ -116,6 +116,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
@@ -1086,8 +1087,8 @@ class TransactionProcessorTest {
     }
 
     @ParameterizedTest
-    @ValueSource(longs = {100L, GAS_LIMIT})
-    void clprDispatchWithoutSenderAccountUsesTransactionSenderAndPrepaidGas(final long gasLeft) {
+    @CsvSource({"100, 0", "800000, 778856", "1000000, 978640"})
+    void prepaidVerifierRetainsIntrinsicGasAndTheCalldataFloor(final long gasLeft, final long expectedUnspent) {
         final var usage = new ContractGasUsage();
         final var base = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
         final var context = new HederaEvmContext(
@@ -1108,7 +1109,7 @@ class TransactionProcessorTest {
         final var result =
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
-        assertEquals(Math.min(gasLeft, GAS_LIMIT - 21_360L), usage.takeUnspentGas());
+        assertEquals(expectedUnspent, usage.takeUnspentGas());
         assertEquals(SUCCESS_RESULT.withTxStorageUsage(new TxStorageUsage(List.of(), null)), result);
         verify(gasCharging, never()).chargeForGas(any(), any(), any(), any(), any());
         verify(gasCharging, never()).maybeRefundGiven(anyLong(), anyLong(), any(), any(), any(), any());

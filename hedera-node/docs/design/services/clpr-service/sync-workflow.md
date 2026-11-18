@@ -160,9 +160,9 @@ Lifecycle (called from `Hedera.java`):
 `ReadableChannelStore`.
 - `stop()` — at shutdown: cancel scheduler, drain in-flight syncs.
 - `onChannelActivated(channelId)` — add to schedule.
-- `onChannelClosed(channelId)` — remove from schedule.
 
 Per-tick logic (background thread):
+- Read the channel from committed state. Cancel its timer when its status is `CLOSED`.
 - For each scheduled channel, pick a peer using a reciprocity-biased heuristic
 (spec §5.2). Bounded by `clpr.maxConcurrentSyncs` (semaphore).
 - Acquire a per-channel lock (one in-flight sync per channel at a time).

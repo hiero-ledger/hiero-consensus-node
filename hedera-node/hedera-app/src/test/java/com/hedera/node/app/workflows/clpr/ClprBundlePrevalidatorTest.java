@@ -268,13 +268,18 @@ class ClprBundlePrevalidatorTest {
     void prevalidationAppliesConsensusCalldataLimitToEncodedVerifierCall() {
         final var jumbo = mock(JumboTransactionsConfig.class);
         when(configuration.getConfigData(JumboTransactionsConfig.class)).thenReturn(jumbo);
-        when(jumbo.ethereumMaxCallDataSize()).thenReturn(128);
+        when(jumbo.ethereumMaxCallDataSize())
+                .thenReturn(Math.toIntExact(encodedVerifierCall().length()) - 1);
         assertRejected(PAYLOAD, CLPR_BUNDLE_VERIFICATION_FAILED);
         verifyNoInteractions(localHandler);
     }
 
     @Test
     void verifiesProofLocallyAndChecksAttestedContentAgainstTheSameReadOnlyState() throws PreCheckException {
+        final var expectedCall = encodedVerifierCall();
+        final var jumbo = mock(JumboTransactionsConfig.class);
+        when(configuration.getConfigData(JumboTransactionsConfig.class)).thenReturn(jumbo);
+        when(jumbo.ethereumMaxCallDataSize()).thenReturn(Math.toIntExact(expectedCall.length()));
         final var content = bundle(List.of(dataPayload()));
         givenLocalReturn(content);
 
@@ -291,18 +296,21 @@ class ClprBundlePrevalidatorTest {
         verify(localHandler).findResponse(contextCaptor.capture(), any());
         final var context = contextCaptor.getValue();
         final var query = context.query().contractCallLocalOrThrow();
-        final var expectedCall = Bytes.wrap(new Function("verifyBundle(bytes,bytes,bytes)", "()")
-                .encodeCall(Tuple.of(
-                        PROOF.toByteArray(),
-                        CHANNEL.trustAnchor().toByteArray(),
-                        CHANNEL.channelContext().toByteArray()))
-                .array());
         assertThat(query.contractID()).isEqualTo(VERIFIER);
         assertThat(query.gas()).isEqualTo(VERIFIER_GAS);
         assertThat(query.functionParameters()).isEqualTo(expectedCall);
         assertThat(context.payer()).isEqualTo(CLPR_SERVICE_ACCOUNT_ID);
         assertThat(context.clprDispatchMetadata().senderId()).isEqualTo(CLPR_SERVICE_ACCOUNT_ID);
         assertThat(context.clprDispatchMetadata().senderAddress()).isEqualTo(CLPR_EVM_ADDRESS_BYTES);
+    }
+
+    private static Bytes encodedVerifierCall() {
+        return Bytes.wrap(new Function("verifyBundle(bytes,bytes,bytes)", "()")
+                .encodeCall(Tuple.of(
+                        PROOF.toByteArray(),
+                        CHANNEL.trustAnchor().toByteArray(),
+                        CHANNEL.channelContext().toByteArray()))
+                .array());
     }
 
     @ParameterizedTest

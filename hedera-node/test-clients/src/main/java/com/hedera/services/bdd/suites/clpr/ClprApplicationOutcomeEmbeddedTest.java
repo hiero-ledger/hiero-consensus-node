@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
@@ -205,11 +206,30 @@ public class ClprApplicationOutcomeEmbeddedTest {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.enabled", "clpr.messageExecutionCost", "clpr.endpointMarginPercent"})
+            overrides = {
+                "clpr.enabled",
+                "clpr.messageExecutionCost",
+                "clpr.endpointMarginPercent",
+                "jumboTransactions.ethereumMaxCallDataSize"
+            })
     final Stream<DynamicTest> exactSenderProofBudgetFitsTheConsensusVerifierCall() {
         return hapiTest(setup(), withOpContext((spec, log) -> {
             final var channelId = Bytes.wrap(new ClprChannelCrypto().channelId());
             seedChannel(spec, channelId, 1024, List.of());
+            final byte[] anchor = new byte[64];
+            final byte[] channelContext = new byte[52];
+            spec.mutateEmbeddedState(state -> {
+                final var channels =
+                        state.getWritableStates(ClprService.NAME).<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
+                final var key = new ProtoBytes(channelId);
+                channels.put(
+                        key,
+                        channels.get(key)
+                                .copyBuilder()
+                                .trustAnchor(Bytes.wrap(anchor))
+                                .channelContext(Bytes.wrap(channelContext))
+                                .build());
+            });
             final var messages = List.of(data(spec, new byte[96]));
             final var proof =
                     StateProof.PROTOBUF.parse(Bytes.wrap(toBundleProofBytes(ACTIVE, 0, 0, ZERO_HASH, messages)));
@@ -222,12 +242,29 @@ public class ClprApplicationOutcomeEmbeddedTest {
                     .signedBlockProof(signature.blockSignature(Bytes.wrap(new byte[budget - excess])))
                     .build();
             assertEquals(budget, exactProof.protobufSize());
+            final byte[] proofBytes = StateProof.PROTOBUF.toBytes(exactProof).toByteArray();
+            // Size the complete verifier call using normal Hiero anchor and context lengths.
+            final int encodedLength = new Function("verifyBundle(bytes,bytes,bytes)", "()")
+                    .encodeCall(Tuple.of(proofBytes, anchor, channelContext))
+                    .remaining();
+            assertTrue(encodedLength <= VERIFIABLE_SYNC_BYTES);
+            allRunFor(
+                    spec,
+                    overriding("jumboTransactions.ethereumMaxCallDataSize", Integer.toString(encodedLength - 1)),
+                    clprSubmitBundle()
+                            .channelId(channelId.toByteArray())
+                            .bundlePayload(proofBytes)
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS)
+                            .hasKnownStatus(
+                                    com.hederahashgraph.api.proto.java.ResponseCodeEnum
+                                            .CLPR_BUNDLE_VERIFICATION_FAILED),
+                    overriding("jumboTransactions.ethereumMaxCallDataSize", Integer.toString(encodedLength)));
             allRunFor(
                     spec,
                     clprSubmitBundle()
                             .channelId(channelId.toByteArray())
-                            .bundlePayload(
-                                    StateProof.PROTOBUF.toBytes(exactProof).toByteArray())
+                            .bundlePayload(proofBytes)
                             .endpointNodeId(0L)
                             .payingWith(GENESIS),
                     snapshot(1, 0, 0, 0, 0, 0));
@@ -235,7 +272,52 @@ public class ClprApplicationOutcomeEmbeddedTest {
         }));
     }
 
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {
+                "clpr.enabled",
+                "clpr.messageExecutionCost",
+                "clpr.endpointMarginPercent",
+                "contracts.throttle.throttleByGas",
+                "contracts.maxGasPerSecBackend"
+            })
+    final Stream<DynamicTest> successfulVerifierReleasesExecutionGasToTheApplication() {
+        return hapiTest(
+                // The CLPR task supplies the 15M transaction cap and the default 8M verifier grant.
+                overriding("contracts.maxGasPerSecBackend", "15000000"),
+                overriding("contracts.throttle.throttleByGas", "true"),
+                withOpContext((spec, log) -> {
+                    final var originalConfig = readConfig(spec);
+                    try {
+                        allRunFor(spec, setup(15_000_000L));
+                        final var channelId = Bytes.wrap(new ClprChannelCrypto().channelId());
+                        seedChannel(spec, channelId, 1024, List.of());
+                        final var message = MESSAGE_ARGS.encode(Tuple.of(BigInteger.ZERO, 3, false));
+                        final var incoming = data(spec, message.array());
+                        allRunFor(
+                                spec,
+                                submit(channelId, 0, 0, ZERO_HASH, incoming, ZERO_HASH),
+                                snapshot(1, 0, 0, 0, 0, 0));
+                        final var response =
+                                queueValue(spec, channelId, 1).payloadOrThrow().messageReplyOrThrow();
+                        assertEquals(com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus.SUCCESS, response.status());
+                        final long observedGas =
+                                new BigInteger(1, response.messageReplyData().toByteArray()).longValueExact();
+                        // Without the verifier release, this callback could start with at most 7M gas.
+                        assertTrue(
+                                observedGas > 7_000_000L && observedGas < 15_000_000L,
+                                () -> "gas left in application callback: " + observedGas);
+                    } finally {
+                        writeConfig(spec, originalConfig);
+                    }
+                }));
+    }
+
     private static SpecOperation setup() {
+        return setup(3_000_000L);
+    }
+
+    private static SpecOperation setup(final long maxGasPerMessage) {
         return withOpContext((spec, log) -> {
             allRunFor(
                     spec,
@@ -251,7 +333,7 @@ public class ClprApplicationOutcomeEmbeddedTest {
                                             com.hedera.hapi.node.state.clpr.ClprThrottles.class,
                                             ClprThrottles.class)
                                     .toBuilder()
-                                    .setMaxGasPerMessage(3_000_000L)
+                                    .setMaxGasPerMessage(maxGasPerMessage)
                                     .build())
                             .payingWith(GENESIS),
                     uploadInitCode(APPLICATION, CONNECTOR, VERIFIER),

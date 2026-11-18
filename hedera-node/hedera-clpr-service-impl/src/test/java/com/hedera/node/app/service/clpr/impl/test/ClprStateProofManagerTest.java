@@ -89,18 +89,23 @@ class ClprStateProofManagerTest {
                 .isEqualTo(8192L - 114);
     }
 
-    @Test
-    void smallerConfiguredCalldataLimitAppliesToProofsAndNewPayloads() {
+    @ParameterizedTest
+    @CsvSource({
+        "131072, 129024, 65536", "98304, 96256, 63488", "65536, 63488, 30720",
+        "34831, 32783, 15", "34816, 32768, 0", "1024, 0, 0"
+    })
+    void configuredCalldataBoundsProofsAndNewPayloads(
+            final int calldata, final long proofBudget, final long payloadBudget) {
         final var config = new VersionedConfigImpl(
                 HederaTestConfigBuilder.create()
-                        .withValue("jumboTransactions.ethereumMaxCallDataSize", 96 * 1024)
+                        .withValue("jumboTransactions.ethereumMaxCallDataSize", calldata)
                         .getOrCreateConfig(),
                 0);
         final var manager = new ClprStateProofManager(snapshotProvider, tssVerifier, () -> config, (p, a) -> false);
         final var peer =
                 ClprThrottles.newBuilder().maxSyncBytes(4 * 1024 * 1024).build();
-        assertThat(manager.maxBundlePayloadBytes(peer)).isEqualTo(94 * 1024L);
-        assertThat(ClprThrottlesValidator.senderPayloadBudget(config)).isEqualTo(32 * 1024L);
+        assertThat(manager.maxBundlePayloadBytes(peer)).isEqualTo(proofBudget);
+        assertThat(ClprThrottlesValidator.senderPayloadBudget(config)).isEqualTo(payloadBudget);
     }
 
     @Test

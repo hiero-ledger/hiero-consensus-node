@@ -182,6 +182,37 @@ class ClprServiceApiImplTest {
     }
 
     @Test
+    void reducedCalldataLimitBoundsNewDataAtItsSerializedSize() {
+        final int budget = 30 * 1024;
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("jumboTransactions.ethereumMaxCallDataSize", 64 * 1024)
+                .getOrCreateConfig();
+        given(configuration.getConfigData(JumboTransactionsConfig.class))
+                .willReturn(config.getConfigData(JumboTransactionsConfig.class));
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(createChannel(ClprChannelStatus.ACTIVE));
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 65_536, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(createConnector());
+
+        final int overhead =
+                createMessagePayload(SOURCE_CONNECTOR_ADDRESS, TARGET_APP, SENDER, Bytes.wrap(new byte[budget]))
+                                .protobufSize()
+                        - budget;
+        final var fits = Bytes.wrap(new byte[budget - overhead]);
+        final var exceeds = Bytes.wrap(new byte[budget - overhead + 1]);
+        assertThat(createMessagePayload(SOURCE_CONNECTOR_ADDRESS, TARGET_APP, SENDER, fits)
+                        .protobufSize())
+                .isEqualTo(budget);
+        assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, exceeds))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+        assertNoStateWrites();
+        assertThat(subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, fits))
+                .isZero();
+        verify(messageQueueStore).put(eq(CHANNEL_ID), eq(0L), any());
+    }
+
+    @Test
     @DisplayName("should reject when the serialized payload exceeds maximum size")
     void rejectsWhenPayloadTooLarge() {
         final var channel = createChannel(ClprChannelStatus.ACTIVE);

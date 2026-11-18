@@ -316,8 +316,12 @@ including the trust anchor, channel context and ABI padding. Each native or comp
 both the peer's wire budget and the smaller of the local consensus calldata limit and 128 KiB.
 At default settings the largest proof is 126 KiB. Sync resumes at the first unreceived message.
 Prevalidation checks the complete encoded call against the receiver's configured calldata limit.
-New DATA and replies from Hiero are limited to 64 KiB even on legacy channels. A smaller local
-calldata limit reduces this payload budget by the same amount. Peers with different calldata
+Hiero caps new DATA and replies at 64 KiB. Within the local proof budget it reserves 32 KiB
+for the signature, channel metadata and Merkle paths. A 64 KiB calldata limit therefore allows a
+30 KiB serialized payload. At or below 34 KiB there is no room for new DATA or an application
+result. Inbound DATA then receives the minimum error reply without dispatching the application.
+Allow at least 34 KiB plus 15 bytes to budget for an empty error reply at every message ID.
+The advertised sync limit retains its separate 64 KiB wire headroom requirement. Peers with different calldata
 limits must coordinate the smaller bound. The default verifier allowance is 8,000,000 gas.
 Admission requires that much gas throttle headroom. Operators using a custom EVM verifier or
 gas allowance must size it for their verifier's execution cost. The 4 MiB transport limit also carries frames produced
@@ -396,8 +400,8 @@ Reverted callbacks still pay for gas consumed. Gas is reported before rollback c
 without an EVM outcome bills zero gas; a reverted execution pays its reported gas.
 
 Verification and callbacks share the transaction cap. After a successful verifier call, gas
-left in its root frame can fund callbacks. The reservation still covers pre-refund execution,
-the calldata floor and the verifier fee owed. A verifier without a usage report consumes its
+left in its root frame can fund callbacks. The reservation covers intrinsic gas plus pre-refund execution,
+subject to the calldata floor, and the verifier fee owed. A verifier without a usage report consumes its
 full grant. Each remaining callback receives at most
 `min(maxGasPerMessage, remainingGas / remainingCallbackPayloads)`. Skipped callbacks release
 their share. An issued callback grant consumes its full execution capacity.
