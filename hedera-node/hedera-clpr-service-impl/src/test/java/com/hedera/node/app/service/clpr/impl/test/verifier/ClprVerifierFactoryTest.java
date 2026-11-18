@@ -60,8 +60,8 @@ class ClprVerifierFactoryTest {
     }
 
     @Test
-    @DisplayName("getVerifier resolves a precompile built-in (0x16f Besu) via the registry to an EvmClprVerifier")
-    void builtInResolvesViaRegistry() {
+    @DisplayName("getVerifier resolves a precompile built-in (0x16f Besu) to an EvmClprVerifier")
+    void precompileBuiltInResolvesToEvmVerifier() {
         final var cid = ContractID.newBuilder().contractNum(0x16fL).build();
         assertThat(subject.getVerifier(cid)).isInstanceOf(EvmClprVerifier.class);
     }

@@ -51,7 +51,6 @@ import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteChannelHandler;
 import com.hedera.node.app.service.clpr.impl.test.verifier.PassThroughClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
-import com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
 import com.hedera.node.app.service.contract.api.SmartContractServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -997,20 +996,6 @@ class ClprCompleteChannelHandlerTest {
                 .isEqualTo(Bytes.fromHex("8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9"));
         then(accountStore).shouldHaveNoInteractions();
         then(smartContractServiceApi).shouldHaveNoInteractions();
-    }
-
-    @Test
-    void builtInVerifierForReturnsEvmVerifierForPrecompileBuiltIns() {
-        for (long num : new long[] {0x16eL, 0x16fL, 0x170L, 0x171L}) {
-            var cid = ContractID.newBuilder().contractNum(num).build();
-            assertThat(ClprCompleteChannelHandler.builtInVerifierFor(cid)).isInstanceOf(EvmClprVerifier.class);
-        }
-    }
-
-    @Test
-    void builtInVerifierForReturnsNullForNonBuiltIn() {
-        var cid = ContractID.newBuilder().contractNum(0x999L).build();
-        assertThat(ClprCompleteChannelHandler.builtInVerifierFor(cid)).isNull();
     }
 
     private void setupHandleContext(final TransactionBody txn) {
