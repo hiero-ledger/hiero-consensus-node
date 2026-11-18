@@ -58,12 +58,12 @@ class BesuQbftVerifierTest {
     private static final byte[] EMPTY_TRIE_ROOT =
             HexFormat.of().parseHex("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421");
 
-    // 32-byte big-endian encoding of EVM storage slot 25: ClprService._config.serviceAddress
+    // 32-byte big-endian encoding of EVM storage slot 21: ClprService._config.serviceAddress
     // (_config base 23 + field offset 2, per SC-189's storage layout)
     private static final byte[] SERVICE_ADDR_STORAGE_SLOT = new byte[32];
 
     static {
-        SERVICE_ADDR_STORAGE_SLOT[31] = (byte) 25;
+        SERVICE_ADDR_STORAGE_SLOT[31] = (byte) 21;
     }
 
     // Block number of the headers built by buildRlpHeader: after the test hops (30_000, 60_000).
@@ -111,11 +111,11 @@ class BesuQbftVerifierTest {
     // message running-hash stand-in all have distinct first nibbles, so one test trie holds them all.
     private static final byte[] CHANNEL_ID = findChannelId();
 
-    /** The five Channel slot keys the relay proves for {@code channelId}: base + {1, 2, 4, 5, 16}. */
+    /** The five Channel slot keys the relay proves for {@code channelId}: base + {1, 2, 4, 5, 15}. */
     private static byte[][] channelSlotKeys(final byte[] channelId) {
         final byte[] base = connSlotBase(channelId);
         return new byte[][] {
-            plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4), plusOffset(base, 5), plusOffset(base, 16)
+            plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4), plusOffset(base, 5), plusOffset(base, 15)
         };
     }
 
@@ -1150,11 +1150,11 @@ class BesuQbftVerifierTest {
             byte[] slot3Value = new byte[32];
             slot3Value[0] = (byte) 0xBB; // receivedRunningHash
 
-            // endpointManifestVersion slot (SC-189 Channel offset 16) — proven but dropped by the verifier.
+            // endpointManifestVersion slot (Channel offset 15) — proven but dropped by the verifier.
             byte[] slot4Value = new byte[32];
             slot4Value[31] = (byte) 0xCC;
 
-            // The channel's Channel-struct slot keys at offsets {1,2,4,5,16}, matching what the relay proves.
+            // The channel's Channel-struct slot keys at offsets {1,2,4,5,15}, matching what the relay proves.
             byte[][] channelKeys = channelSlotKeys(CHANNEL_ID);
             byte[] slotKey1off = channelKeys[0]; // status | nextMessageId
             byte[] slotKey2off = channelKeys[1]; // acked | received | nextExpectedReply
@@ -1239,13 +1239,13 @@ class BesuQbftVerifierTest {
         void sevenItemBundle_wrongCommitmentSlot_throwsProofException() {
             byte[] preimage = manifestPreimage(1L, SERVICE_ADDR);
             byte[] wrongSlot = new byte[32];
-            wrongSlot[31] = 17; // not the manifest commitment slot (18)
+            wrongSlot[31] = 17; // not the manifest commitment slot (14)
             byte[] bundle = buildManifestBundle(preimage, preimage, wrongSlot, 1);
 
             assertThatThrownBy(() ->
                             verifyHeaderMode(BUNDLE_SUBJECT, bundle, validatorSet(VALIDATOR_ADDR), 0L, CHANNEL_ID))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("is not for the commitment slot (18)");
+                    .hasMessageContaining("is not for the commitment slot (14)");
         }
 
         @Test
@@ -1420,10 +1420,10 @@ class BesuQbftVerifierTest {
             byte[] vRecv = new byte[32];
             vRecv[0] = (byte) 0xBB; // offset 5
             byte[] vManifestVer = new byte[32];
-            vManifestVer[31] = 0x09; // offset 16 — proven but dropped
+            vManifestVer[31] = 0x09; // offset 15 — proven but dropped
 
             byte[][] keys = {
-                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4), plusOffset(base, 5), plusOffset(base, 16)
+                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4), plusOffset(base, 5), plusOffset(base, 15)
             };
             byte[][] vals = {vStatus, vReceived, vSent, vRecv, vManifestVer};
             byte[] bundle = buildBundleWithSlots(keys, vals);
@@ -1447,7 +1447,7 @@ class BesuQbftVerifierTest {
             vRunningHash[0] = (byte) 0xCC;
             byte[][] keys = {
                 plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
-                plusOffset(base, 5), plusOffset(base, 16), MiscCryptoUtils.keccak256DigestOf(connId)
+                plusOffset(base, 5), plusOffset(base, 15), MiscCryptoUtils.keccak256DigestOf(connId)
             };
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], vRunningHash};
             byte[] bundle = buildBundleWithSlots(keys, vals);
@@ -1472,7 +1472,7 @@ class BesuQbftVerifierTest {
             vRunningHash[0] = (byte) 0xDD;
             byte[][] keys = {
                 plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
-                plusOffset(base, 5), plusOffset(base, 16), messageRunningHashSlot(connId, 6L)
+                plusOffset(base, 5), plusOffset(base, 15), messageRunningHashSlot(connId, 6L)
             };
             byte[][] vals = {vStatus, vReceived, new byte[32], new byte[32], new byte[32], vRunningHash};
             byte[] bundle = buildBundleWithSlots(keys, vals);
@@ -1497,7 +1497,7 @@ class BesuQbftVerifierTest {
             byte[] base = connSlotBase(connId);
             byte[][] keys = {
                 plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
-                plusOffset(base, 5), plusOffset(base, 16), MiscCryptoUtils.keccak256DigestOf(connId)
+                plusOffset(base, 5), plusOffset(base, 15), MiscCryptoUtils.keccak256DigestOf(connId)
             };
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]};
             byte[] bundle = buildBundleWithSlots(keys, vals);
@@ -1515,7 +1515,7 @@ class BesuQbftVerifierTest {
             byte[] connIdA = findConnId(false);
             byte[] base = connSlotBase(connIdA);
             byte[][] keys = {
-                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4), plusOffset(base, 5), plusOffset(base, 16)
+                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4), plusOffset(base, 5), plusOffset(base, 15)
             };
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]};
             byte[] bundle = buildBundleWithSlots(keys, vals);
@@ -1534,7 +1534,7 @@ class BesuQbftVerifierTest {
             byte[] connId = findConnId(false);
             byte[] base = connSlotBase(connId);
             byte[][] keys = {
-                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4), plusOffset(base, 5), plusOffset(base, 16)
+                plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4), plusOffset(base, 5), plusOffset(base, 15)
             };
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]};
             byte[] bundle = buildBundleWithSlots(keys, vals);
@@ -2571,7 +2571,7 @@ class BesuQbftVerifierTest {
 
     // ── Endpoint-manifest proof helpers ──────────────────────────────────────
 
-    /** The 32-byte encoding of the endpoint-manifest commitment slot (18). */
+    /** The 32-byte encoding of the endpoint-manifest commitment slot (14). */
     private static byte[] manifestCommitmentSlot() {
         return ProofBytes.endpointManifestCommitmentSlot();
     }
@@ -2621,8 +2621,8 @@ class BesuQbftVerifierTest {
 
     /**
      * Builds a bundle payload with a Step-1b endpoint-manifest extension. The 5 ACK-only Channel
-     * slots {@code {1,2,4,5,16}} (at a collision-free base offset) and the manifest commitment slot
-     * (18) share one storage trie; {@code commitmentPreimage} is committed at slot 18, {@code
+     * slots {@code {1,2,4,5,15}} (at a collision-free base offset) and the manifest commitment slot
+     * (14) share one storage trie; {@code commitmentPreimage} is committed at slot 14, {@code
      * index6Preimage} is placed at RLP index 6, and the manifest storage proof (index 5) carries
      * {@code index5EntryCount} entries keyed on {@code index5SlotKey}. {@code index5EntryCount == 0}
      * yields a plain 5-item bundle (no manifest extension).
@@ -2664,7 +2664,7 @@ class BesuQbftVerifierTest {
                 Rlp.encodeBytes(index6Preimage)));
     }
 
-    /** A structurally-valid config payload (VALIDATOR_ADDR genesis, SERVICE_ADDR, slot-25 proof). */
+    /** A structurally-valid config payload (VALIDATOR_ADDR genesis, SERVICE_ADDR, slot-21 proof). */
     private static byte[] validConfigPayload() {
         byte[] correctSlotValue = serviceAddrSlotValue(SERVICE_ADDR);
         byte[][] storageMpt = buildStorageMptProof(SERVICE_ADDR_STORAGE_SLOT, correctSlotValue);
@@ -2706,11 +2706,11 @@ class BesuQbftVerifierTest {
 
     // ── Exact connId-based Channel-slot matching helpers ──────────────────
 
-    /** The SC-189 `_channels[connId]` struct base slot: MiscCryptoUtils.keccak256DigestOf(connId(32) || uint256(15)). */
+    /** The SC-189 `_channels[connId]` struct base slot: MiscCryptoUtils.keccak256DigestOf(connId(32) || uint256(11)). */
     private static byte[] connSlotBase(byte[] connId32) {
         byte[] pre = new byte[64];
         System.arraycopy(connId32, 0, pre, 0, 32);
-        pre[63] = 15; // CHANNELS_MAPPING_SLOT
+        pre[63] = 11; // CHANNELS_MAPPING_SLOT
         return MiscCryptoUtils.keccak256DigestOf(pre);
     }
 
@@ -2746,7 +2746,7 @@ class BesuQbftVerifierTest {
                 Rlp.encodeBytes(new byte[0])));
     }
 
-    /** A 32-byte channelId whose {1,2,4,5,16}(+optional message) slot keccaks have distinct nibbles. */
+    /** A 32-byte channelId whose {1,2,4,5,15}(+optional message) slot keccaks have distinct nibbles. */
     private static byte[] findConnId(boolean withMessage) {
         for (int seed = 1; seed < 4096; seed++) {
             byte[] connId = new byte[32];
@@ -2757,7 +2757,7 @@ class BesuQbftVerifierTest {
                     plusOffset(base, 2),
                     plusOffset(base, 4),
                     plusOffset(base, 5),
-                    plusOffset(base, 16)));
+                    plusOffset(base, 15)));
             byte[][] vals = {new byte[32], new byte[32], new byte[32], new byte[32], new byte[32]};
             if (withMessage) {
                 keys.add(MiscCryptoUtils.keccak256DigestOf(
@@ -2783,7 +2783,7 @@ class BesuQbftVerifierTest {
             byte[] base = connSlotBase(connId);
             byte[][] keys = {
                 plusOffset(base, 1), plusOffset(base, 2), plusOffset(base, 4),
-                plusOffset(base, 5), plusOffset(base, 16), messageRunningHashSlot(connId, id)
+                plusOffset(base, 5), plusOffset(base, 15), messageRunningHashSlot(connId, id)
             };
             try {
                 buildStorageMpt(keys, new byte[6][32]);

@@ -36,7 +36,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody;
+import com.hedera.hapi.node.clpr.ClprOpenChannelTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -150,6 +150,7 @@ class AtomicBatchHandlerTest {
             HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
             HederaFunctionality.CLPR_REGISTER_CHANNEL,
             HederaFunctionality.CLPR_COMPLETE_CHANNEL,
+            HederaFunctionality.CLPR_OPEN_CHANNEL,
             HederaFunctionality.CLPR_CLOSE_CHANNEL,
             HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,
             HederaFunctionality.CLPR_SUBMIT_BUNDLE,
@@ -263,7 +264,7 @@ class AtomicBatchHandlerTest {
     @Test
     void failsOnInnerClprTx() throws PreCheckException {
         final var innerTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
-                .clprRegisterChannel(ClprRegisterChannelTransactionBody.DEFAULT)
+                .clprOpenChannel(ClprOpenChannelTransactionBody.DEFAULT)
                 .batchKey(SIMPLE_KEY_A)
                 .nodeAccountID(AccountID.newBuilder().accountNum(0).build())
                 .build();

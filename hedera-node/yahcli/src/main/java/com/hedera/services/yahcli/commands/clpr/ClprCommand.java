@@ -23,8 +23,7 @@ import picocli.CommandLine.ParentCommand;
         name = "clpr",
         subcommands = {
             HelpCommand.class,
-            RegisterChannelCommand.class,
-            CompleteChannelCommand.class,
+            OpenChannelCommand.class,
             CloseChannelCommand.class,
             RegisterConnectorCommand.class,
             CompleteConnectorCommand.class,
@@ -33,7 +32,6 @@ import picocli.CommandLine.ParentCommand;
             UpdateLedgerConfigurationCommand.class,
             GetLedgerConfigurationCommand.class,
             GetEndpointManifestCommand.class,
-            GenerateChannelIdentityCommand.class,
             GenerateConnectorIdentityCommand.class,
             SendMessageCommand.class,
         },

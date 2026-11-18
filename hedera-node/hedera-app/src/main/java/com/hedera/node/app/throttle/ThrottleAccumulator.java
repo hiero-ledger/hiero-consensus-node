@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_OPEN_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL_LOCAL;
@@ -111,7 +111,7 @@ public class ThrottleAccumulator {
             CONTRACT_CREATE,
             ETHEREUM_TRANSACTION,
             HOOK_DISPATCH,
-            CLPR_COMPLETE_CHANNEL,
+            CLPR_OPEN_CHANNEL,
             CLPR_SUBMIT_BUNDLE);
     private static final Set<HederaFunctionality> AUTO_CREATE_FUNCTIONS =
             EnumSet.of(CRYPTO_TRANSFER, ETHEREUM_TRANSACTION);
@@ -865,7 +865,7 @@ public class ThrottleAccumulator {
                         .evmHookCallOrElse(EvmHookCall.DEFAULT)
                         .gasLimit();
             // Each dispatches once to the Channel's verifier contract, with the verifier gas limit
-            case CLPR_COMPLETE_CHANNEL, CLPR_SUBMIT_BUNDLE -> {
+            case CLPR_OPEN_CHANNEL, CLPR_SUBMIT_BUNDLE -> {
                 final var clprConfig = configSupplier.get().getConfigData(ClprConfig.class);
                 yield clprConfig.enabled() ? clprConfig.verifierGasLimit() : 0L;
             }

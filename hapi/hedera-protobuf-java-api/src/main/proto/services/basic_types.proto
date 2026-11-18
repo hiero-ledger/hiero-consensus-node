@@ -1951,6 +1951,9 @@ enum HederaFunctionality {
      * Remove a peer endpoint from a CLPR Channel's cached endpoint manifest.
      */
     ClprEvictPeerEndpoint = 130;
+
+    /** Open a CLPR channel in a single transaction. */
+    ClprOpenChannel = 131;
 }
 
 /**

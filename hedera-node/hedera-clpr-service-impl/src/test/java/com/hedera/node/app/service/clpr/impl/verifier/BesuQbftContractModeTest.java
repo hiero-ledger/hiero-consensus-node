@@ -936,9 +936,9 @@ class BesuQbftContractModeTest {
     private static final Map<BesuQbftVerifier.BytesKey, byte[][]> TRIE_NODES_BY_ROOT = new ConcurrentHashMap<>();
 
     private static byte[] channelStorageProof() {
-        final byte[] base = MiscCryptoUtils.keccak256DigestOf(concat(CHANNEL_ID, uint256(15)));
+        final byte[] base = MiscCryptoUtils.keccak256DigestOf(concat(CHANNEL_ID, uint256(11)));
         final List<byte[]> entries = new ArrayList<>();
-        for (final int offset : new int[] {1, 2, 4, 5, 16}) {
+        for (final int offset : new int[] {1, 2, 4, 5, 15}) {
             entries.add(Rlp.encodeList(List.of(Rlp.encodeBytes(plus(base, offset)), Rlp.encodeList(List.of()))));
         }
         return Rlp.encodeList(entries);

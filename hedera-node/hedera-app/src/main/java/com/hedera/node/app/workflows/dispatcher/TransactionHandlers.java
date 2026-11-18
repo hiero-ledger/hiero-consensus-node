@@ -16,12 +16,11 @@ import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreat
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeDeleteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeUpdateHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCloseChannelHandler;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteChannelHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteConnectorHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprDeregisterConnectorHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprEndpointPublicationHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprEvictPeerEndpointHandler;
-import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprOpenChannelHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterConnectorHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprSubmitBundleHandler;
 import com.hedera.node.app.service.clpr.impl.handlers.ClprUpdateLedgerConfigurationHandler;
@@ -153,8 +152,7 @@ public record TransactionHandlers(
         @NonNull CrsPublicationHandler crsPublicationHandler,
         @NonNull MigrationRootHashVoteHandler migrationRootHashVoteHandler,
         @NonNull ClprUpdateLedgerConfigurationHandler clprUpdateLedgerConfigurationHandler,
-        @NonNull ClprRegisterChannelHandler clprRegisterChannelHandler,
-        @NonNull ClprCompleteChannelHandler clprCompleteChannelHandler,
+        @NonNull ClprOpenChannelHandler clprOpenChannelHandler,
         @NonNull ClprCloseChannelHandler clprCloseChannelHandler,
         @NonNull ClprSubmitBundleHandler clprSubmitBundleHandler,
         @NonNull ClprRegisterConnectorHandler clprRegisterConnectorHandler,

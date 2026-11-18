@@ -27,24 +27,8 @@ import "services/transaction.proto";
  * independent ledger networks using the Cross Ledger Protocol.
  */
 service ClprService {
-    /**
-     * Register a new cross-ledger channel (Phase 1: Commit).
-     * <p>
-     * Reserves a channel by committing an ownership hash.
-     * Permissionless - any payer can register.<br/>
-     * The request body MUST be a
-     * [ClprRegisterChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody)
-     */
-    rpc registerChannel (Transaction) returns (TransactionResponse);
-
-    /**
-     * Complete a pending channel commitment (Phase 2: Reveal).
-     * <p>
-     * Reveals the preimage and proves key ownership to activate the channel.<br/>
-     * The request body MUST be a
-     * [ClprCompleteChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody)
-     */
-    rpc completeChannel (Transaction) returns (TransactionResponse);
+    /** Open a channel using a ClprOpenChannelTransactionBody. */
+    rpc openChannel (Transaction) returns (TransactionResponse);
 
     /**
      * Close a cross-ledger channel.

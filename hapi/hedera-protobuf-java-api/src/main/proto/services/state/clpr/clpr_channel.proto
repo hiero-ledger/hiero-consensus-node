@@ -195,4 +195,7 @@ message ClprChannel {
      * 0 = uninitialized (PENDING); >= 1 after completeChannel.
      */
     uint64 endpoint_manifest_version = 20;
+
+    /** The 32-byte salt used to derive a channel opened with ClprOpenChannel. */
+    bytes salt = 21;
 }

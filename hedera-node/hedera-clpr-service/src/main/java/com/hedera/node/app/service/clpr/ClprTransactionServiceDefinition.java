@@ -25,8 +25,7 @@ public final class ClprTransactionServiceDefinition implements RpcServiceDefinit
     public static final ClprTransactionServiceDefinition INSTANCE = new ClprTransactionServiceDefinition();
 
     private static final Set<RpcMethodDefinition<?, ?>> methods = Set.of(
-            new RpcMethodDefinition<>("registerChannel", Transaction.class, TransactionResponse.class),
-            new RpcMethodDefinition<>("completeChannel", Transaction.class, TransactionResponse.class),
+            new RpcMethodDefinition<>("openChannel", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("closeChannel", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("evictPeerEndpoint", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("submitBundle", Transaction.class, TransactionResponse.class),

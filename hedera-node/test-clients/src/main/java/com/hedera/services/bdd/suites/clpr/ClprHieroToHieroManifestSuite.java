@@ -75,7 +75,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     @DisplayName("Manifest-enabled round-trip (HAPI TLS): both ledgers self-derive manifests, complete a "
             + "TLS channel, and exchange messages both ways")
     Stream<DynamicTest> manifestEnabledRoundTrip(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         // Reuse the shared size-2 HAPI TLS ledgerA_manifest / ledgerB_manifest fixtures (the same @Network
         // definition the rotation tests use), so the endpoint-manifest feature is enabled at boot on
         // networks that no non-manifest suite shares — the boot-time flag cannot leak across suites.
@@ -170,7 +170,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
             + "manifest propagates to B via a bundle state proof, B dials A's new listener, and no messages are lost")
     Stream<DynamicTest> partialRotationPropagatesToPeer(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         // Each node's HAPI TLS certificate is advertised on-chain in tls_certificate and the endpoint ports
         // are each network's grpc.tlsPort, so the channel completes over — and syncs across — the HAPI TLS
         // listener rather than the plaintext path.
@@ -306,7 +306,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
             + "manifest out-of-band via clprGetEndpointManifest + clprSubmitBundle, with no gRPC to A's old endpoints")
     Stream<DynamicTest> completeTurnoverOneSideRecoversViaSubmitBundle(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         // A's manifest version B cached at connection time; the recovery is expressed relative to it.
         final AtomicLong aVersionBaseline = new AtomicLong();
         final AtomicReference<ByteString> aManifestProof = new AtomicReference<>();
@@ -365,7 +365,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
             + "independently recovers the other's advanced manifest via clprGetEndpointManifest + clprSubmitBundle")
     Stream<DynamicTest> simultaneousTurnoverBothSidesRecoverIndependently(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        final var crypto = new ClprCrypto();
+        final var crypto = new ClprCrypto(ledgerA, ledgerB);
         final AtomicLong aVersionBaseline = new AtomicLong();
         final AtomicLong bVersionBaseline = new AtomicLong();
         final AtomicReference<ByteString> aManifestProof = new AtomicReference<>();

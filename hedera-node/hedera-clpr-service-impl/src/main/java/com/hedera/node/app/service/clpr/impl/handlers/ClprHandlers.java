@@ -14,8 +14,7 @@ public class ClprHandlers {
 
     private final ClprUpdateLedgerConfigurationHandler clprUpdateLedgerConfigurationHandler;
     private final ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler;
-    private final ClprRegisterChannelHandler clprRegisterChannelHandler;
-    private final ClprCompleteChannelHandler clprCompleteChannelHandler;
+    private final ClprOpenChannelHandler clprOpenChannelHandler;
     private final ClprCloseChannelHandler clprCloseChannelHandler;
     private final ClprEvictPeerEndpointHandler clprEvictPeerEndpointHandler;
     private final ClprSubmitBundleHandler clprSubmitBundleHandler;
@@ -30,8 +29,7 @@ public class ClprHandlers {
      *
      * @param clprUpdateLedgerConfigurationHandler the handler for updating ledger configuration
      * @param clprGetLedgerConfigurationHandler the handler for getting ledger configuration
-     * @param clprRegisterChannelHandler the handler for registering channels (commit phase)
-     * @param clprCompleteChannelHandler the handler for completing channels (reveal phase)
+     * @param clprOpenChannelHandler the handler for opening channels
      * @param clprCloseChannelHandler the handler for closing channels
      * @param clprSubmitBundleHandler the handler for submitting bundles from peer syncs
      * @param clprRegisterConnectorHandler the handler for registering connectors (commit phase)
@@ -45,8 +43,7 @@ public class ClprHandlers {
     public ClprHandlers(
             @NonNull final ClprUpdateLedgerConfigurationHandler clprUpdateLedgerConfigurationHandler,
             @NonNull final ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler,
-            @NonNull final ClprRegisterChannelHandler clprRegisterChannelHandler,
-            @NonNull final ClprCompleteChannelHandler clprCompleteChannelHandler,
+            @NonNull final ClprOpenChannelHandler clprOpenChannelHandler,
             @NonNull final ClprCloseChannelHandler clprCloseChannelHandler,
             @NonNull final ClprSubmitBundleHandler clprSubmitBundleHandler,
             @NonNull final ClprRegisterConnectorHandler clprRegisterConnectorHandler,
@@ -59,10 +56,8 @@ public class ClprHandlers {
                 clprUpdateLedgerConfigurationHandler, "clprUpdateLedgerConfigurationHandler must not be null");
         this.clprGetLedgerConfigurationHandler = Objects.requireNonNull(
                 clprGetLedgerConfigurationHandler, "clprGetLedgerConfigurationHandler must not be null");
-        this.clprRegisterChannelHandler =
-                Objects.requireNonNull(clprRegisterChannelHandler, "clprRegisterChannelHandler must not be null");
-        this.clprCompleteChannelHandler =
-                Objects.requireNonNull(clprCompleteChannelHandler, "clprCompleteChannelHandler must not be null");
+        this.clprOpenChannelHandler =
+                Objects.requireNonNull(clprOpenChannelHandler, "clprOpenChannelHandler must not be null");
         this.clprCloseChannelHandler =
                 Objects.requireNonNull(clprCloseChannelHandler, "clprCloseChannelHandler must not be null");
         this.clprSubmitBundleHandler =
@@ -100,21 +95,12 @@ public class ClprHandlers {
     }
 
     /**
-     * Gets the handler for registering channels (commit phase).
+     * Gets the handler for opening channels.
      *
-     * @return the register channel handler
+     * @return the open channel handler
      */
-    public ClprRegisterChannelHandler clprRegisterChannelHandler() {
-        return clprRegisterChannelHandler;
-    }
-
-    /**
-     * Gets the handler for completing channels (reveal phase).
-     *
-     * @return the complete channel handler
-     */
-    public ClprCompleteChannelHandler clprCompleteChannelHandler() {
-        return clprCompleteChannelHandler;
+    public ClprOpenChannelHandler clprOpenChannelHandler() {
+        return clprOpenChannelHandler;
     }
 
     /**

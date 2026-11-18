@@ -42,7 +42,7 @@ class SyncCommitteeProofsTest {
     private static final byte[] CHANNEL_ID =
             HexFormat.of().parseHex("3c5b7a99b8d7f61534537291b0cfee0d2c4b6a89a8c7e60524436281a0bfdefd");
 
-    /** {@code keccak256(CHANNEL_ID ‖ uint256(15)) + 1}, computed with foundry's {@code cast}. */
+    /** {@code keccak256(CHANNEL_ID ‖ uint256(11)) + 1}, computed with foundry's {@code cast}. */
     private static final String FIRST_CHANNEL_SLOT = "44637163277d9a932c1ffaff31b12f7a1ef43c674d0f3387a8f8e6864b1628f4";
 
     @Test

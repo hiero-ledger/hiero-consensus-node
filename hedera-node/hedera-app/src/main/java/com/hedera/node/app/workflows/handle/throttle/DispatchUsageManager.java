@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.throttle;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_OPEN_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -90,7 +90,7 @@ public class DispatchUsageManager {
                 throw ThrottleException.newNativeThrottleException();
             }
             final var txnInfo = dispatch.txnInfo();
-            if ((txnInfo.functionality() == CLPR_COMPLETE_CHANNEL || txnInfo.functionality() == CLPR_SUBMIT_BUNDLE)
+            if ((txnInfo.functionality() == CLPR_OPEN_CHANNEL || txnInfo.functionality() == CLPR_SUBMIT_BUNDLE)
                     && dispatch.config().getConfigData(ClprConfig.class).enabled()
                     && dispatch.config().getConfigData(ContractsConfig.class).throttleThrottleByGas()
                     && !isPayerThrottleExempt(txnInfo, dispatch.config())) {

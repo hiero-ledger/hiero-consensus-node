@@ -8,6 +8,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprComplet
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprEvictPeerEndpoint;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprOpenChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
@@ -67,6 +68,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.Transaction
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.TransactionGetRecord;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.UtilPrng;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.stream.Collectors;
@@ -135,8 +137,9 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(EthereumTransaction), "Missing EthereumTransaction!");
         assertTrue(ACTIVE_OPS.contains(UtilPrng), "Missing UtilPrng!");
         assertTrue(ACTIVE_OPS.contains(ClprUpdateLedgerConfiguration), "Missing ClprUpdateLedgerConfiguration!");
-        assertTrue(ACTIVE_OPS.contains(ClprRegisterChannel), "Missing ClprRegisterChannel!");
-        assertTrue(ACTIVE_OPS.contains(ClprCompleteChannel), "Missing ClprCompleteChannel!");
+        assertFalse(ACTIVE_OPS.contains(ClprRegisterChannel));
+        assertFalse(ACTIVE_OPS.contains(ClprCompleteChannel));
+        assertTrue(ACTIVE_OPS.contains(ClprOpenChannel), "Missing ClprOpenChannel!");
         assertTrue(ACTIVE_OPS.contains(ClprCloseChannel), "Missing ClprCloseChannel!");
         assertTrue(ACTIVE_OPS.contains(ClprEvictPeerEndpoint), "Missing ClprEvictPeerEndpoint!");
         assertTrue(ACTIVE_OPS.contains(ClprGetLedgerConfiguration), "Missing ClprGetLedgerConfiguration!");

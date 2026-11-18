@@ -63,9 +63,9 @@ final class EthereumBundleFixtures {
     /** keccak256(RLP("")): the root of an empty Merkle-Patricia trie. */
     static final byte[] EMPTY_TRIE_ROOT = MiscCryptoUtils.keccak256DigestOf(new byte[] {(byte) 0x80});
 
-    private static final int CHANNELS_BASE_SLOT = 15;
-    private static final int[] CHANNEL_SLOT_OFFSETS = {1, 2, 4, 5, 16};
-    private static final byte MANIFEST_COMMITMENT_SLOT = 18;
+    private static final int CHANNELS_BASE_SLOT = 11;
+    private static final int[] CHANNEL_SLOT_OFFSETS = {1, 2, 4, 5, 15};
+    private static final byte MANIFEST_COMMITMENT_SLOT = 14;
 
     /** The BLS12-381 base field modulus. */
     private static final BigInteger FIELD_MODULUS = new BigInteger(
@@ -438,7 +438,7 @@ final class EthereumBundleFixtures {
         }
 
         /**
-         * Adds the manifest commitment of {@code preimage} at slot 18, proven under the same single-leaf storage trie
+         * Adds the manifest commitment of {@code preimage} at slot 14, proven under the same single-leaf storage trie
          * that serves the Channel slots.
          */
         DeliveryBuilder withManifest(final byte[] preimage, final byte[] commitment, final byte[] proofSlot) {
@@ -648,7 +648,7 @@ final class EthereumBundleFixtures {
     // -----------------------------------------------------------------------------------
 
     /**
-     * The five Channel slot keys of {@code channelId}: {@code keccak256(channelId ‖ uint256(15)) + {1, 2, 4, 5, 16}}.
+     * The five Channel slot keys of {@code channelId}: {@code keccak256(channelId ‖ uint256(11)) + {1, 2, 4, 5, 15}}.
      */
     static byte[][] channelSlots(final byte[] channelId) {
         final byte[] mappingSlot = new byte[32];

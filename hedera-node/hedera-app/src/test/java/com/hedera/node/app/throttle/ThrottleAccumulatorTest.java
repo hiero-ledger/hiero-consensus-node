@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_OPEN_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
@@ -1484,7 +1484,7 @@ public class ThrottleAccumulatorTest {
 
         given(transactionInfo.payerID())
                 .willReturn(AccountID.newBuilder().accountNum(1234L).build());
-        given(transactionInfo.functionality()).willReturn(CLPR_COMPLETE_CHANNEL);
+        given(transactionInfo.functionality()).willReturn(CLPR_OPEN_CHANNEL);
         given(transactionInfo.txBody()).willReturn(TransactionBody.DEFAULT);
 
         // when
@@ -1494,7 +1494,7 @@ public class ThrottleAccumulatorTest {
         // then the verifier call's gas limit is reserved from the gas throttle, which (mocked) has no capacity left
         assertTrue(ans);
         verify(gasThrottle).allow(TIME_INSTANT, verifierGasLimit);
-        assertTrue(ThrottleAccumulator.isGasThrottled(CLPR_COMPLETE_CHANNEL));
+        assertTrue(ThrottleAccumulator.isGasThrottled(CLPR_OPEN_CHANNEL));
         assertTrue(ThrottleAccumulator.isGasThrottled(CLPR_SUBMIT_BUNDLE));
     }
 

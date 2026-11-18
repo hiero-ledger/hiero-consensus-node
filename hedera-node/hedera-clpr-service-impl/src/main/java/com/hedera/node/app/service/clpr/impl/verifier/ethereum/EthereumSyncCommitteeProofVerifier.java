@@ -608,7 +608,7 @@ public final class EthereumSyncCommitteeProofVerifier {
     /**
      * Verifies an optional endpoint-manifest advance (spec §4.9). When {@code manifestPreimage} is present the manifest
      * commitment ({@code keccak256(manifestPreimage)}) is proven at the shared endpoint-manifest commitment slot
-     * (slot 18, {@code ProofBytes.endpointManifestCommitmentSlot()}) against the already-authenticated account
+     * (slot 14, {@code ProofBytes.endpointManifestCommitmentSlot()}) against the already-authenticated account
      * {@code storageRoot32} — the same root the queue metadata was proven against — and the reconstructed manifest is
      * checked for the spec §4.8 invariants. Returns {@code null} when the bundle carries no manifest advance.
      *

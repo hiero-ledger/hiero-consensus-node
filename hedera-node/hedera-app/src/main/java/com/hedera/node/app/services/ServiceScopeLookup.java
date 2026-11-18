@@ -119,8 +119,7 @@ public class ServiceScopeLookup {
             case MIGRATION_ROOT_HASH_VOTE -> BlockRecordService.NAME;
 
             case CLPR_UPDATE_LEDGER_CONFIGURATION,
-                    CLPR_REGISTER_CHANNEL,
-                    CLPR_COMPLETE_CHANNEL,
+                    CLPR_OPEN_CHANNEL,
                     CLPR_CLOSE_CHANNEL,
                     CLPR_EVICT_PEER_ENDPOINT,
                     CLPR_SUBMIT_BUNDLE,
