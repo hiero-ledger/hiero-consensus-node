@@ -103,7 +103,7 @@ public class ShadowgraphBenchmark {
     private static final int EVENTS = 350_000;
 
     /** The number of nodes in the simulated network. */
-    @Param({"10", "28"})
+    @Param({"28"})
     public int numNodes;
 
     /** What one call of the replay does. */
@@ -317,7 +317,14 @@ public class ShadowgraphBenchmark {
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @Fork(
             value = 3,
-            jvmArgsAppend = {"-Xms8g", "-Xmx8g", "-XX:+AlwaysPreTouch"})
+            jvmArgsAppend = {
+                "-Xms8g",
+                "-Xmx8g",
+                "-XX:+AlwaysPreTouch",
+                "-XX:+UnlockDiagnosticVMOptions",
+                "-XX:+LogCompilation",
+                "-XX:LogFile=build/benchmark-calibration/comp-%p.log"
+            })
     @Warmup(iterations = 1, time = 10)
     @Measurement(iterations = 2, time = 10)
     public void updateEventWindow() {
