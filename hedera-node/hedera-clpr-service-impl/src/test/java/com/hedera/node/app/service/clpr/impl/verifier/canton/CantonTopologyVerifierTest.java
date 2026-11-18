@@ -173,6 +173,81 @@ class CantonTopologyVerifierTest {
         }
     }
 
+    /** Each rotation is authorized against the sets that the rotations before it left behind. */
+    @Nested
+    class RotationsBuildOnEachOther {
+        private final String successor = SYNC_LOGICAL + "::35-1";
+
+        @Test
+        void ownersGrownByARotationAreHeldToTheNewThreshold() {
+            // OWNER_A alone grows the set to {A, B} at threshold 2; B is new and signs for itself.
+            final Rot grow = rot(
+                    tx(
+                            ADD,
+                            2,
+                            CantonTopology.MAPPING_DECENTRALIZED_NAMESPACE,
+                            dn(SYNC_NAMESPACE, 2, OWNER_A, OWNER_B),
+                            OWNER_A,
+                            OWNER_B),
+                    List.of(OWNER_B),
+                    NO_BYTES);
+
+            // The announcement that follows is judged by the grown set, so A alone no longer carries it.
+            assertThat(error(owners(OWNER_A), mediators(), grow, lsu(ADD, 1, successor, OWNER_A)))
+                    .isEqualTo("TopologyUnauthorized");
+            final CantonTopologyVerifier.RotationResult res =
+                    run(owners(OWNER_A), mediators(), grow, lsu(ADD, 1, successor, OWNER_A, OWNER_B));
+            assertThat(CantonAnchor.Anchor.decode(res.newAnchor()).successorSynchronizerId())
+                    .isEqualTo(successor);
+        }
+
+        @Test
+        void mediatorDelegationAddedByARotationAuthorizesTheNextRotation() {
+            final Rot delegate = mediatorDelegation(
+                    MEDIATOR_ROOT.ns(), MEDIATOR_UID, List.of(MEDIATOR_ROOT), List.of(MEDIATOR_ROOT));
+            // The delegate signs the key rotation, with no root key at all.
+            final Rot rotateKeys = otk(ADD, 2, List.of(KEY_OLD, KEY_NEW), List.of(DELEGATE_1, KEY_NEW), List.of());
+
+            // Without the delegation the delegate holds no right to it.
+            assertThat(error(owners(OWNER_A), mediators(), rotateKeys)).isEqualTo("TopologyUnauthorized");
+            final CantonTopologyVerifier.RotationResult res = run(owners(OWNER_A), mediators(), delegate, rotateKeys);
+            assertThat(CantonSets.decodeMediators(res.newMediatorSet())
+                            .members()
+                            .getFirst()
+                            .current())
+                    .hasSize(2);
+        }
+
+        /**
+         * A guard against future shared state, not against a present bug: the rotation state is immutable and the
+         * RLP byte strings are copied out of the input, so nothing today can make this fail except a deliberate write
+         * to an argument. It would catch a later change that caches decoded sets, or lets a rotation write into the
+         * caller's bytes.
+         */
+        @Test
+        void rotationsNeitherChangeTheirInputsNorDependOnEarlierCalls() {
+            final byte[] ownerSet = CantonFixtures.topologyOwnerSet();
+            final byte[] mediatorSet = CantonFixtures.topologyMediatorSet();
+            final byte[] rotations = CantonFixtures.topologyRotations();
+            final byte[] trustAnchor = anchor(SYNCHRONIZER_ID, SYNCHRONIZER_NAMESPACE, ownerSet, mediatorSet);
+            final byte[] anchorBefore = trustAnchor.clone();
+            final byte[] mediatorsBefore = mediatorSet.clone();
+            final byte[] rotationsBefore = rotations.clone();
+
+            final CantonTopologyVerifier.RotationResult first =
+                    CantonTopologyVerifier.applyRotations(trustAnchor, mediatorSet, rotations);
+            final CantonTopologyVerifier.RotationResult second =
+                    CantonTopologyVerifier.applyRotations(trustAnchor, mediatorSet, rotations);
+
+            assertThat(trustAnchor).isEqualTo(anchorBefore);
+            assertThat(mediatorSet).isEqualTo(mediatorsBefore);
+            assertThat(rotations).isEqualTo(rotationsBefore);
+            assertThat(second.newAnchor()).isEqualTo(first.newAnchor());
+            assertThat(second.newMediatorSet()).isEqualTo(first.newMediatorSet());
+            assertThat(second.newOwnerSet()).isEqualTo(first.newOwnerSet());
+        }
+    }
+
     @Nested
     class RealLsuAnnouncement {
 

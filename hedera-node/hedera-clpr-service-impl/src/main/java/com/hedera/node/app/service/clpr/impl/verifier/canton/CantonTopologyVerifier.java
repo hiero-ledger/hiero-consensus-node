@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Applies the topology rotations of a Canton bundle to the channel's trust anchor: the synchronizer owners'
@@ -41,146 +42,30 @@ final class CantonTopologyVerifier {
             @NonNull List<CantonSets.Key> signerKeys,
             @NonNull byte[] mediatorUid) {}
 
-    // ── Mutable working state ────────────────────────────────────────────────
+    /** The sets and anchor fields that the rotations change, as they stand after the rotations applied so far. */
+    private record RotationState(
+            @NonNull CantonSets.Owners owners,
+            @NonNull CantonSets.Mediators mediators,
+            @NonNull Lsu lsu) {
 
-    private static final class MDelegation {
-        private CantonSets.Key key;
-        private int restriction;
-        private long mappings;
-        private long serial;
-        private boolean removed;
-
-        MDelegation(final CantonSets.Delegation d) {
-            key = d.key();
-            restriction = d.restriction();
-            mappings = d.mappings();
-            serial = d.serial();
-            removed = d.removed();
+        RotationState withOwners(final CantonSets.Owners next) {
+            return new RotationState(next, mediators, lsu);
         }
 
-        MDelegation() {}
+        RotationState withMediators(final CantonSets.Mediators next) {
+            return new RotationState(owners, next, lsu);
+        }
 
-        CantonSets.Delegation toImmutable() {
-            return new CantonSets.Delegation(key, restriction, mappings, serial, removed);
+        RotationState withLsu(final Lsu next) {
+            return new RotationState(owners, mediators, next);
         }
     }
 
-    private static final class MOwner {
-        private byte[] namespace;
-        private CantonSets.Key root;
-        private final List<MDelegation> delegations;
+    /** The anchor fields that an {@code LsuAnnouncement} changes. */
+    private record Lsu(@NonNull String successor, long upgradeTime, int serial) {
 
-        MOwner(final CantonSets.Owner o) {
-            namespace = o.namespace();
-            root = o.root();
-            delegations = new ArrayList<>();
-            for (final CantonSets.Delegation d : o.delegations()) {
-                delegations.add(new MDelegation(d));
-            }
-        }
-
-        MOwner() {
-            delegations = new ArrayList<>();
-        }
-
-        CantonSets.Owner toImmutable() {
-            final List<CantonSets.Delegation> d = new ArrayList<>(delegations.size());
-            for (final MDelegation x : delegations) {
-                d.add(x.toImmutable());
-            }
-            return new CantonSets.Owner(namespace, root, d);
-        }
-    }
-
-    private static final class MMember {
-        private byte[] memberId;
-        private long otkSerial;
-        private final List<MDelegation> delegations;
-        private List<CantonSets.Key> current;
-        private List<CantonSets.Key> previous;
-
-        MMember(final CantonSets.Member m) {
-            memberId = m.memberId();
-            otkSerial = m.otkSerial();
-            delegations = new ArrayList<>();
-            for (final CantonSets.Delegation d : m.delegations()) {
-                delegations.add(new MDelegation(d));
-            }
-            current = new ArrayList<>(m.current());
-            previous = new ArrayList<>(m.previous());
-        }
-
-        MMember() {
-            delegations = new ArrayList<>();
-            current = new ArrayList<>();
-            previous = new ArrayList<>();
-        }
-
-        CantonSets.Member toImmutable() {
-            final List<CantonSets.Delegation> d = new ArrayList<>(delegations.size());
-            for (final MDelegation x : delegations) {
-                d.add(x.toImmutable());
-            }
-            return new CantonSets.Member(memberId, otkSerial, d, new ArrayList<>(current), new ArrayList<>(previous));
-        }
-    }
-
-    private static final class MOwners {
-        private final long serial;
-        private final long threshold;
-        private final List<MOwner> owners;
-
-        MOwners(final CantonSets.Owners s) {
-            serial = s.serial();
-            threshold = s.threshold();
-            owners = new ArrayList<>();
-            for (final CantonSets.Owner o : s.owners()) {
-                owners.add(new MOwner(o));
-            }
-        }
-
-        CantonSets.Owners toImmutable() {
-            final List<CantonSets.Owner> o = new ArrayList<>(owners.size());
-            for (final MOwner x : owners) {
-                o.add(x.toImmutable());
-            }
-            return new CantonSets.Owners(serial, threshold, o);
-        }
-    }
-
-    private static final class MMediators {
-        private long serial;
-        private long threshold;
-        private List<MMember> members;
-
-        MMediators(final CantonSets.Mediators s) {
-            serial = s.serial();
-            threshold = s.threshold();
-            members = new ArrayList<>();
-            for (final CantonSets.Member m : s.members()) {
-                members.add(new MMember(m));
-            }
-        }
-
-        CantonSets.Mediators toImmutable() {
-            final List<CantonSets.Member> m = new ArrayList<>(members.size());
-            for (final MMember x : members) {
-                m.add(x.toImmutable());
-            }
-            return new CantonSets.Mediators(serial, threshold, m);
-        }
-    }
-
-    /** The anchor fields that an {@code LsuAnnouncement} mutates while the rotations run. */
-    private static final class Lsu {
-        private String successor;
-        private long upgradeTime;
-        private int serial;
-
-        Lsu(final CantonAnchor.Anchor a) {
-            successor = a.successorSynchronizerId();
-            upgradeTime = a.upgradeTime();
-            serial = a.lsuSerial();
+        static Lsu of(final CantonAnchor.Anchor a) {
+            return new Lsu(a.successorSynchronizerId(), a.upgradeTime(), a.lsuSerial());
         }
     }
 
@@ -214,57 +99,60 @@ final class CantonTopologyVerifier {
         if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(ownerSet), anchor.ownersHash())) {
             throw CantonProofException.trustSetMismatch();
         }
-        MOwners owners = new MOwners(CantonSets.decodeOwners(ownerSet));
-        final MMediators mediators = new MMediators(CantonSets.decodeMediators(mediatorSet));
-        final Lsu lsu = new Lsu(anchor);
+        RotationState state = new RotationState(
+                CantonSets.decodeOwners(ownerSet), CantonSets.decodeMediators(mediatorSet), Lsu.of(anchor));
 
         final List<Slice> list = CantonRlp.readList(r.get(1));
         if (list.isEmpty()) {
             throw CantonProofException.invalidPayloadShape("rotations list is empty");
         }
         for (final Slice item : list) {
-            final Rotation rot = readRotation(item);
-            final long kind = rot.tx().mappingKind();
-            if (kind == CantonTopology.MAPPING_LSU_ANNOUNCEMENT) {
-                noSigners(rot);
-                requireOwners(owners, rot.tx(), CantonTopology.CODE_LSU_ANNOUNCEMENT);
-                applyLsuAnnouncement(anchor, lsu, rot.tx());
-            } else if (kind == CantonTopology.MAPPING_DECENTRALIZED_NAMESPACE) {
-                if (rot.mediatorUid().length != 0) {
-                    throw CantonProofException.rotationsNotSupported();
-                }
-                owners = applyOwners(anchor, owners, rot);
-            } else if (kind == CantonTopology.MAPPING_MEDIATOR_STATE) {
-                noSigners(rot);
-                applyMediatorState(anchor, owners, mediators, rot.tx());
-            } else if (kind == CantonTopology.MAPPING_OWNER_TO_KEY) {
-                if (rot.mediatorUid().length != 0) {
-                    throw CantonProofException.rotationsNotSupported();
-                }
-                applyOwnerToKey(mediators, rot);
-            } else if (kind == CantonTopology.MAPPING_NAMESPACE_DELEGATION) {
-                if (rot.mediatorUid().length == 0) {
-                    if (!rot.signerKeys().isEmpty()) {
-                        throw CantonProofException.rotationsNotSupported();
-                    }
-                    applyOwnerDelegation(owners, rot.tx());
-                } else {
-                    applyMediatorDelegation(mediators, rot);
-                }
-            } else {
-                throw CantonProofException.rotationsNotSupported();
-            }
+            state = applyRotation(anchor, state, readRotation(item));
         }
 
-        final byte[] newOwnerSet = owners.toImmutable().encode();
-        final byte[] newMediatorSet = mediators.toImmutable().encode();
+        final byte[] newOwnerSet = state.owners().encode();
+        final byte[] newMediatorSet = state.mediators().encode();
+        final Lsu lsu = state.lsu();
         final CantonAnchor.Anchor next = anchor.withRotation(
                 MiscCryptoUtils.keccak256DigestOf(newOwnerSet),
                 MiscCryptoUtils.keccak256DigestOf(newMediatorSet),
-                lsu.successor,
-                lsu.upgradeTime,
-                lsu.serial);
+                lsu.successor(),
+                lsu.upgradeTime(),
+                lsu.serial());
         return new RotationResult(next.encode(), newMediatorSet, newOwnerSet);
+    }
+
+    /** The state after one rotation, which is authorized against the state before it. */
+    private static RotationState applyRotation(
+            final CantonAnchor.Anchor anchor, final RotationState state, final Rotation rot) {
+        final long kind = rot.tx().mappingKind();
+        if (kind == CantonTopology.MAPPING_LSU_ANNOUNCEMENT) {
+            noSigners(rot);
+            requireOwners(state.owners(), rot.tx(), CantonTopology.CODE_LSU_ANNOUNCEMENT);
+            return state.withLsu(applyLsuAnnouncement(anchor, state.lsu(), rot.tx()));
+        } else if (kind == CantonTopology.MAPPING_DECENTRALIZED_NAMESPACE) {
+            if (rot.mediatorUid().length != 0) {
+                throw CantonProofException.rotationsNotSupported();
+            }
+            return state.withOwners(applyOwners(anchor, state.owners(), rot));
+        } else if (kind == CantonTopology.MAPPING_MEDIATOR_STATE) {
+            noSigners(rot);
+            return state.withMediators(applyMediatorState(anchor, state.owners(), state.mediators(), rot.tx()));
+        } else if (kind == CantonTopology.MAPPING_OWNER_TO_KEY) {
+            if (rot.mediatorUid().length != 0) {
+                throw CantonProofException.rotationsNotSupported();
+            }
+            return state.withMediators(applyOwnerToKey(state.mediators(), rot));
+        } else if (kind == CantonTopology.MAPPING_NAMESPACE_DELEGATION) {
+            if (rot.mediatorUid().length == 0) {
+                if (!rot.signerKeys().isEmpty()) {
+                    throw CantonProofException.rotationsNotSupported();
+                }
+                return state.withOwners(applyOwnerDelegation(state.owners(), rot.tx()));
+            }
+            return state.withMediators(applyMediatorDelegation(state.mediators(), rot));
+        }
+        throw CantonProofException.rotationsNotSupported();
     }
 
     private static Rotation readRotation(final Slice item) {
@@ -294,9 +182,10 @@ final class CantonTopologyVerifier {
 
     // ── Authorization ────────────────────────────────────────────────────────
 
-    private static int ownerSignatures(final MOwners owners, final CantonTopology.Transaction t, final int code) {
+    private static int ownerSignatures(
+            final CantonSets.Owners owners, final CantonTopology.Transaction t, final int code) {
         int count = 0;
-        for (final MOwner o : owners.owners) {
+        for (final CantonSets.Owner o : owners.owners()) {
             if (ownerSigned(o, t, code)) {
                 ++count;
             }
@@ -304,25 +193,26 @@ final class CantonTopologyVerifier {
         return count;
     }
 
-    private static boolean ownerSigned(final MOwner owner, final CantonTopology.Transaction t, final int code) {
-        if (t.signedBy(owner.root)) {
+    private static boolean ownerSigned(
+            final CantonSets.Owner owner, final CantonTopology.Transaction t, final int code) {
+        if (t.signedBy(owner.root())) {
             return true;
         }
-        return delegateSigned(owner.delegations, t, code);
+        return delegateSigned(owner.delegations(), t, code);
     }
 
     private static boolean delegateSigned(
-            final List<MDelegation> delegations, final CantonTopology.Transaction t, final int code) {
-        for (final MDelegation d : delegations) {
-            if (allows(d, code) && t.signedBy(d.key)) {
+            final List<CantonSets.Delegation> delegations, final CantonTopology.Transaction t, final int code) {
+        for (final CantonSets.Delegation d : delegations) {
+            if (allows(d, code) && t.signedBy(d.key())) {
                 return true;
             }
         }
         return false;
     }
 
-    private static boolean allows(final MDelegation d, final int code) {
-        return !d.removed && allows(d.restriction, d.mappings, code);
+    private static boolean allows(final CantonSets.Delegation d, final int code) {
+        return !d.removed() && allows(d.restriction(), d.mappings(), code);
     }
 
     /**
@@ -340,8 +230,9 @@ final class CantonTopologyVerifier {
         return restriction == 2 && ((mappings >> code) & 1) == 1;
     }
 
-    private static void requireOwners(final MOwners owners, final CantonTopology.Transaction t, final int code) {
-        if (ownerSignatures(owners, t, code) < owners.threshold) {
+    private static void requireOwners(
+            final CantonSets.Owners owners, final CantonTopology.Transaction t, final int code) {
+        if (ownerSignatures(owners, t, code) < owners.threshold()) {
             throw CantonProofException.topologyUnauthorized();
         }
     }
@@ -362,9 +253,34 @@ final class CantonTopologyVerifier {
         return t.serial();
     }
 
+    /** A copy of {@code list} with {@code item} at {@code index}. */
+    private static <T> List<T> replaced(final List<T> list, final int index, final T item) {
+        final List<T> copy = new ArrayList<>(list);
+        copy.set(index, item);
+        return copy;
+    }
+
+    /**
+     * Insert {@code item} into {@code list}, kept sorted by {@code key}; a key twice reverts.
+     */
+    private static <T> void insertSorted(final List<T> list, final T item, final Function<T, byte[]> key) {
+        final byte[] k = key.apply(item);
+        int j = list.size();
+        list.add(item);
+        while (j > 0 && Arrays.compareUnsigned(key.apply(list.get(j - 1)), k) > 0) {
+            list.set(j, list.get(j - 1));
+            --j;
+        }
+        if (j > 0 && Arrays.equals(key.apply(list.get(j - 1)), k)) {
+            throw CantonProofException.invalidTopologyChange();
+        }
+        list.set(j, item);
+    }
+
     // ── Owners ─────────────────────────────────────────────────────────────
 
-    private static MOwners applyOwners(final CantonAnchor.Anchor anchor, final MOwners owners, final Rotation rot) {
+    private static CantonSets.Owners applyOwners(
+            final CantonAnchor.Anchor anchor, final CantonSets.Owners owners, final Rotation rot) {
         final CantonTopology.Transaction t = rot.tx();
         if (t.operation() != CantonTopology.OP_ADD_REPLACE) {
             throw CantonProofException.rotationsNotSupported();
@@ -375,48 +291,33 @@ final class CantonTopologyVerifier {
                 || dn.threshold() > dn.owners().size()) {
             throw CantonProofException.invalidTopologyChange();
         }
-        final MOwners next =
-                new MOwners(new CantonSets.Owners(nextSerial(owners.serial, t), dn.threshold(), List.of()));
+        final long serial = nextSerial(owners.serial(), t);
         requireOwners(owners, t, CantonTopology.CODE_DECENTRALIZED_NAMESPACE);
+        final List<CantonSets.Owner> next = new ArrayList<>();
         for (final byte[] member : dn.owners()) {
-            final MOwner found = owner(owners, member);
-            final MOwner o;
-            if (found != null) {
-                o = found;
+            final int found = ownerIndex(owners, member);
+            final CantonSets.Owner o;
+            if (found >= 0) {
+                o = owners.owners().get(found);
             } else {
-                o = new MOwner();
-                o.namespace = member;
-                o.root = signerKey(rot, member);
-                if (!t.signedBy(o.root)) {
+                final CantonSets.Key root = signerKey(rot, member);
+                if (!t.signedBy(root)) {
                     throw CantonProofException.topologyUnauthorized();
                 }
+                o = new CantonSets.Owner(member, root, List.of());
             }
-            insertOwner(next.owners, o);
+            insertSorted(next, o, CantonSets.Owner::namespace);
         }
-        return next;
+        return new CantonSets.Owners(serial, dn.threshold(), next);
     }
 
-    private static MOwner owner(final MOwners owners, final byte[] namespace) {
-        for (final MOwner o : owners.owners) {
-            if (Arrays.equals(o.namespace, namespace)) {
-                return o;
+    private static int ownerIndex(final CantonSets.Owners owners, final byte[] namespace) {
+        for (int i = 0; i < owners.owners().size(); i++) {
+            if (Arrays.equals(owners.owners().get(i).namespace(), namespace)) {
+                return i;
             }
         }
-        return null;
-    }
-
-    /** Insert {@code o} into {@code list}, kept sorted by namespace; a namespace twice reverts. */
-    private static void insertOwner(final List<MOwner> list, final MOwner o) {
-        int j = list.size();
-        list.add(o);
-        while (j > 0 && Arrays.compareUnsigned(list.get(j - 1).namespace, o.namespace) > 0) {
-            list.set(j, list.get(j - 1));
-            --j;
-        }
-        if (j > 0 && Arrays.equals(list.get(j - 1).namespace, o.namespace)) {
-            throw CantonProofException.invalidTopologyChange();
-        }
-        list.set(j, o);
+        return -1;
     }
 
     private static CantonSets.Key signerKey(final Rotation rot, final byte[] namespace) {
@@ -428,24 +329,28 @@ final class CantonTopologyVerifier {
         throw CantonProofException.topologyUnauthorized();
     }
 
-    private static void applyOwnerDelegation(final MOwners owners, final CantonTopology.Transaction t) {
+    private static CantonSets.Owners applyOwnerDelegation(
+            final CantonSets.Owners owners, final CantonTopology.Transaction t) {
         final CantonTopology.NamespaceDelegation nd = CantonTopology.readNamespaceDelegation(t.body());
-        final MOwner owner = owner(owners, nd.namespace());
-        if (owner == null) {
+        final int index = ownerIndex(owners, nd.namespace());
+        if (index < 0) {
             throw CantonProofException.invalidTopologyChange();
         }
-        if (!t.signedBy(owner.root)) {
+        final CantonSets.Owner owner = owners.owners().get(index);
+        if (!t.signedBy(owner.root())) {
             throw CantonProofException.topologyUnauthorized();
         }
-        applyDelegation(owner.delegations, t, nd);
+        final CantonSets.Owner updated =
+                new CantonSets.Owner(owner.namespace(), owner.root(), applyDelegation(owner.delegations(), t, nd));
+        return new CantonSets.Owners(owners.serial(), owners.threshold(), replaced(owners.owners(), index, updated));
     }
 
     // ── Mediators ────────────────────────────────────────────────────────────
 
-    private static void applyMediatorState(
+    private static CantonSets.Mediators applyMediatorState(
             final CantonAnchor.Anchor anchor,
-            final MOwners owners,
-            final MMediators mediators,
+            final CantonSets.Owners owners,
+            final CantonSets.Mediators mediators,
             final CantonTopology.Transaction t) {
         if (t.operation() != CantonTopology.OP_ADD_REPLACE) {
             throw CantonProofException.rotationsNotSupported();
@@ -458,77 +363,72 @@ final class CantonTopologyVerifier {
                 || ms.threshold() > ms.active().size()) {
             throw CantonProofException.invalidTopologyChange();
         }
-        final long serial = nextSerial(mediators.serial, t);
+        final long serial = nextSerial(mediators.serial(), t);
         requireOwners(owners, t, CantonTopology.CODE_MEDIATOR_STATE);
-        final List<MMember> next = new ArrayList<>();
+        final List<CantonSets.Member> next = new ArrayList<>();
         for (final byte[] active : ms.active()) {
             final byte[] memberId = sha256(active);
-            final MMember existing = member(mediators, memberId);
-            final MMember m;
-            if (existing != null) {
-                m = existing;
-            } else {
-                m = new MMember();
-                m.memberId = memberId;
-            }
-            int j = next.size();
-            next.add(m);
-            while (j > 0 && Arrays.compareUnsigned(next.get(j - 1).memberId, memberId) > 0) {
-                next.set(j, next.get(j - 1));
-                --j;
-            }
-            if (j > 0 && Arrays.equals(next.get(j - 1).memberId, memberId)) {
-                throw CantonProofException.invalidTopologyChange();
-            }
-            next.set(j, m);
+            final int existing = memberIndex(mediators, memberId);
+            final CantonSets.Member m = existing >= 0
+                    ? mediators.members().get(existing)
+                    : new CantonSets.Member(memberId, 0, List.of(), List.of(), List.of());
+            insertSorted(next, m, CantonSets.Member::memberId);
         }
-        mediators.serial = serial;
-        mediators.threshold = ms.threshold();
-        mediators.members = next;
+        return new CantonSets.Mediators(serial, ms.threshold(), next);
     }
 
-    private static MMember member(final MMediators mediators, final byte[] memberId) {
-        for (final MMember m : mediators.members) {
-            if (Arrays.equals(m.memberId, memberId)) {
-                return m;
+    private static int memberIndex(final CantonSets.Mediators mediators, final byte[] memberId) {
+        for (int i = 0; i < mediators.members().size(); i++) {
+            if (Arrays.equals(mediators.members().get(i).memberId(), memberId)) {
+                return i;
             }
         }
-        return null;
+        return -1;
     }
 
-    private static void applyOwnerToKey(final MMediators mediators, final Rotation rot) {
+    private static CantonSets.Mediators applyOwnerToKey(final CantonSets.Mediators mediators, final Rotation rot) {
         final CantonTopology.Transaction t = rot.tx();
         final CantonTopology.OwnerToKey otk = CantonTopology.readOwnerToKey(t.body());
-        final MMember m = member(mediators, sha256(otk.uid()));
-        if (m == null) {
+        final int index = memberIndex(mediators, sha256(otk.uid()));
+        if (index < 0) {
             throw CantonProofException.invalidTopologyChange();
         }
-        m.otkSerial = nextSerial(m.otkSerial, t);
+        final CantonSets.Member m = mediators.members().get(index);
+        final long otkSerial = nextSerial(m.otkSerial(), t);
         if (!rootSigned(rot, CantonTopology.namespaceOfUid(otk.uid()))
-                && !delegateSigned(m.delegations, t, CantonTopology.CODE_OWNER_TO_KEY)) {
+                && !delegateSigned(m.delegations(), t, CantonTopology.CODE_OWNER_TO_KEY)) {
             throw CantonProofException.topologyUnauthorized();
         }
         if (t.operation() == CantonTopology.OP_REMOVE) {
-            m.current = new ArrayList<>();
-            m.previous = new ArrayList<>();
-            return;
+            return withMember(
+                    mediators,
+                    index,
+                    new CantonSets.Member(m.memberId(), otkSerial, m.delegations(), List.of(), List.of()));
         }
         if (t.operation() != CantonTopology.OP_ADD_REPLACE) {
             throw CantonProofException.rotationsNotSupported();
         }
         for (final CantonSets.Key k : otk.keys()) {
-            if (!holds(m.current, k.fingerprint()) && !t.signedBy(k)) {
+            if (!holds(m.current(), k.fingerprint()) && !t.signedBy(k)) {
                 throw CantonProofException.topologyUnauthorized();
             }
         }
-        final List<CantonSets.Key> replaced = new ArrayList<>();
-        for (final CantonSets.Key c : m.current) {
+        final List<CantonSets.Key> previous = new ArrayList<>();
+        for (final CantonSets.Key c : m.current()) {
             if (!holds(otk.keys(), c.fingerprint())) {
-                replaced.add(c);
+                previous.add(c);
             }
         }
-        m.previous = replaced;
-        m.current = new ArrayList<>(otk.keys());
+        return withMember(
+                mediators,
+                index,
+                new CantonSets.Member(m.memberId(), otkSerial, m.delegations(), List.copyOf(otk.keys()), previous));
+    }
+
+    private static CantonSets.Mediators withMember(
+            final CantonSets.Mediators mediators, final int index, final CantonSets.Member member) {
+        return new CantonSets.Mediators(
+                mediators.serial(), mediators.threshold(), replaced(mediators.members(), index, member));
     }
 
     private static boolean holds(final List<CantonSets.Key> keys, final byte[] fingerprint) {
@@ -540,80 +440,88 @@ final class CantonTopologyVerifier {
         return false;
     }
 
-    private static void applyMediatorDelegation(final MMediators mediators, final Rotation rot) {
+    private static CantonSets.Mediators applyMediatorDelegation(
+            final CantonSets.Mediators mediators, final Rotation rot) {
         final CantonTopology.Transaction t = rot.tx();
         final CantonTopology.NamespaceDelegation nd = CantonTopology.readNamespaceDelegation(t.body());
         if (!Arrays.equals(nd.namespace(), CantonTopology.namespaceOfUid(rot.mediatorUid()))) {
             throw CantonProofException.invalidTopologyChange();
         }
-        final MMember m = member(mediators, sha256(rot.mediatorUid()));
-        if (m == null) {
+        final int index = memberIndex(mediators, sha256(rot.mediatorUid()));
+        if (index < 0) {
             throw CantonProofException.invalidTopologyChange();
         }
         if (!rootSigned(rot, nd.namespace())) {
             throw CantonProofException.topologyUnauthorized();
         }
-        applyDelegation(m.delegations, t, nd);
+        final CantonSets.Member m = mediators.members().get(index);
+        return withMember(
+                mediators,
+                index,
+                new CantonSets.Member(
+                        m.memberId(),
+                        m.otkSerial(),
+                        applyDelegation(m.delegations(), t, nd),
+                        m.current(),
+                        m.previous()));
     }
 
     // ── Delegations ──────────────────────────────────────────────────────────
 
-    private static void applyDelegation(
-            final List<MDelegation> delegations,
+    private static List<CantonSets.Delegation> applyDelegation(
+            final List<CantonSets.Delegation> delegations,
             final CantonTopology.Transaction t,
             final CantonTopology.NamespaceDelegation nd) {
         if (!nd.ok() || Arrays.equals(nd.target().fingerprint(), nd.namespace())) {
             throw CantonProofException.rotationsNotSupported();
         }
-        for (final MDelegation d : delegations) {
-            if (!Arrays.equals(d.key.fingerprint(), nd.target().fingerprint())) {
+        for (int i = 0; i < delegations.size(); i++) {
+            final CantonSets.Delegation d = delegations.get(i);
+            if (!Arrays.equals(d.key().fingerprint(), nd.target().fingerprint())) {
                 continue;
             }
-            d.serial = nextSerial(d.serial, t);
-            setDelegation(d, t, nd);
-            return;
+            return replaced(delegations, i, setDelegation(d, nextSerial(d.serial(), t), t, nd));
         }
         if (t.operation() != CantonTopology.OP_ADD_REPLACE) {
             throw CantonProofException.invalidTopologyChange();
         }
-        final MDelegation grown = new MDelegation();
-        grown.serial = nextSerial(0, t);
-        setDelegation(grown, t, nd);
-        delegations.add(grown);
+        final List<CantonSets.Delegation> grown = new ArrayList<>(delegations);
+        grown.add(delegationOf(nd, nextSerial(0, t)));
+        return grown;
     }
 
-    private static void setDelegation(
-            final MDelegation d, final CantonTopology.Transaction t, final CantonTopology.NamespaceDelegation nd) {
+    private static CantonSets.Delegation setDelegation(
+            final CantonSets.Delegation d,
+            final long serial,
+            final CantonTopology.Transaction t,
+            final CantonTopology.NamespaceDelegation nd) {
         if (t.operation() == CantonTopology.OP_REMOVE) {
-            d.removed = true;
-            return;
+            return new CantonSets.Delegation(d.key(), d.restriction(), d.mappings(), serial, true);
         }
         if (t.operation() != CantonTopology.OP_ADD_REPLACE) {
             throw CantonProofException.rotationsNotSupported();
         }
-        d.key = nd.target();
-        d.restriction = nd.restriction();
-        d.mappings = nd.mappings();
-        d.removed = false;
+        return delegationOf(nd, serial);
+    }
+
+    private static CantonSets.Delegation delegationOf(final CantonTopology.NamespaceDelegation nd, final long serial) {
+        return new CantonSets.Delegation(nd.target(), nd.restriction(), nd.mappings(), serial, false);
     }
 
     // ── Logical Synchronizer Upgrade ───────────────────────────────────────
 
-    private static void applyLsuAnnouncement(
+    private static Lsu applyLsuAnnouncement(
             final CantonAnchor.Anchor anchor, final Lsu lsu, final CantonTopology.Transaction t) {
         final CantonTopology.LsuAnnouncement a = CantonTopology.readLsuAnnouncement(t.body());
-        final boolean pending = !lsu.successor.isEmpty();
-        if (pending && Long.compareUnsigned(t.serial(), Integer.toUnsignedLong(lsu.serial)) <= 0) {
+        final boolean pending = !lsu.successor().isEmpty();
+        if (pending && Long.compareUnsigned(t.serial(), Integer.toUnsignedLong(lsu.serial())) <= 0) {
             throw CantonProofException.invalidLsuAnnouncement();
         }
         if (t.operation() == CantonTopology.OP_REMOVE) {
             if (!pending) {
                 throw CantonProofException.invalidLsuAnnouncement();
             }
-            lsu.successor = "";
-            lsu.upgradeTime = 0;
-            lsu.serial = 0;
-            return;
+            return new Lsu("", 0, 0);
         }
         if (t.operation() != CantonTopology.OP_ADD_REPLACE || Long.compareUnsigned(t.serial(), 0xffffffffL) > 0) {
             throw CantonProofException.invalidLsuAnnouncement();
@@ -621,9 +529,7 @@ final class CantonTopologyVerifier {
         if (!succeeds(a.successor(), anchor.synchronizerId().getBytes(StandardCharsets.UTF_8))) {
             throw CantonProofException.invalidLsuAnnouncement();
         }
-        lsu.successor = new String(a.successor(), StandardCharsets.UTF_8);
-        lsu.upgradeTime = a.upgradeTime();
-        lsu.serial = (int) t.serial();
+        return new Lsu(new String(a.successor(), StandardCharsets.UTF_8), a.upgradeTime(), (int) t.serial());
     }
 
     private record Physical(boolean ok, int logical, long protocolVersion, long serial) {}
