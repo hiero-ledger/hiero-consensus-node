@@ -10,9 +10,9 @@ import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtur
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -30,17 +30,8 @@ import org.junit.jupiter.api.Test;
  */
 class CantonTopologyTest {
 
-    private static final HexFormat HEX = HexFormat.of();
-
-    // From CantonTopologyFixtures.sol (ref pr-556).
-    private static final byte[] MEDIATOR1_KEY_1 =
-            hex("47d7e478d17269b47ac84ed799101a84156ac084b2b186ee31c91cf7a1e67b40");
     private static final byte[] MEDIATOR1_NAMESPACE =
-            hex("c7cc5c9aa3791386b0bc13d1b57fd2c3d17a7dec0c9d11836612d8dc904abb49");
-
-    private static byte[] hex(final String s) {
-        return HEX.parseHex(s);
-    }
+            CantonFixtures.hex("c7cc5c9aa3791386b0bc13d1b57fd2c3d17a7dec0c9d11836612d8dc904abb49");
 
     /** The eight real signed topology transactions, in order, extracted from {@code topology-rotations.hex}. */
     private static List<byte[]> rotationTransactions() {
@@ -145,9 +136,9 @@ class CantonTopologyTest {
             final CantonTopology.OwnerToKey otk = CantonTopology.readOwnerToKey(t0.body());
 
             assertThat(new String(otk.uid(), StandardCharsets.UTF_8))
-                    .isEqualTo("mediator1::1220" + HEX.formatHex(MEDIATOR1_NAMESPACE));
+                    .isEqualTo("mediator1::1220" + Bytes.wrap(MEDIATOR1_NAMESPACE));
             assertThat(otk.keys()).hasSize(2);
-            assertThat(otk.keys().getFirst().fingerprint()).isEqualTo(MEDIATOR1_KEY_1);
+            assertThat(otk.keys().getFirst().fingerprint()).isEqualTo(CantonFixtures.MEDIATOR1_KEY_1);
             assertThat(otk.keys().get(1).fingerprint()).isEqualTo(MEDIATOR1_KEY_2);
 
             // The added P-256 key (third rotation), fingerprint over its DER.
@@ -155,7 +146,7 @@ class CantonTopologyTest {
                     CantonTopology.readTransaction(rotationTransactions().get(2));
             final List<CantonSets.Key> keys =
                     CantonTopology.readOwnerToKey(t2.body()).keys();
-            final CantonSets.Key p256 = keys.get(keys.size() - 1);
+            final CantonSets.Key p256 = keys.getLast();
             assertThat(p256.keySpec()).isEqualTo(CantonSets.SPEC_P256);
             assertThat(p256.fingerprint()).isEqualTo(MEDIATOR1_P256);
             assertThat(p256.fingerprintMode()).isEqualTo(1);

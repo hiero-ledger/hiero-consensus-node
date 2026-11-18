@@ -21,12 +21,10 @@ class CantonSetsTest {
 
     private static final HexFormat HEX = HexFormat.of();
 
-    // From CantonTopologyFixtures.sol (ref pr-556).
+    // From reference implementation
     private static final byte[] OWNER_SEQUENCER =
             hex("65971ff3bf94bdd46a9bab769b1c6e7e8e6a324031d3719586eb51c058e6d2a8");
     private static final byte[] MEDIATOR1 = hex("6e8899fea6adfe7b3965493fb60343bd44215fe4c695d02e6c8a761bd7bfa9bc");
-    private static final byte[] MEDIATOR1_KEY_1 =
-            hex("47d7e478d17269b47ac84ed799101a84156ac084b2b186ee31c91cf7a1e67b40");
 
     private static byte[] hex(final String s) {
         return HEX.parseHex(s);
@@ -80,7 +78,7 @@ class CantonSetsTest {
         assertThat(member.delegations()).isEmpty();
         assertThat(member.current()).hasSize(1);
         assertThat(member.previous()).isEmpty();
-        assertThat(member.current().getFirst().fingerprint()).isEqualTo(MEDIATOR1_KEY_1);
+        assertThat(member.current().getFirst().fingerprint()).isEqualTo(CantonFixtures.MEDIATOR1_KEY_1);
         assertThat(member.current().getFirst().keySpec()).isEqualTo(CantonSets.SPEC_ED25519);
     }
 
@@ -123,7 +121,7 @@ class CantonSetsTest {
         final CantonSets.KeyFromDer parsed = CantonSets.keyFromDer(CantonSets.SPEC_ED25519, der);
 
         assertThat(parsed.ok()).isTrue();
-        assertThat(parsed.key().fingerprint()).isEqualTo(MEDIATOR1_KEY_1);
+        assertThat(parsed.key().fingerprint()).isEqualTo(CantonFixtures.MEDIATOR1_KEY_1);
         assertThat(parsed.key().fingerprintMode()).isZero();
         assertThat(parsed.key().keySpec()).isEqualTo(CantonSets.SPEC_ED25519);
         assertThat(parsed.key().x()).isEqualTo(key.x());

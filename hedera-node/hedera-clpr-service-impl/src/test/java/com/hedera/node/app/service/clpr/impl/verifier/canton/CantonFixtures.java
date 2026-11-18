@@ -18,6 +18,8 @@ public final class CantonFixtures {
     // Fixture constants from reference implementation, shared by the topology tests.
     public static final byte[] SYNCHRONIZER_NAMESPACE =
             HEX.parseHex("fe3624c1c2190638c3a9f88ec65abdb7b8a3908031d62dc2a0f65ed68c1e9922");
+    public static final byte[] MEDIATOR1_KEY_1 =
+            HEX.parseHex("47d7e478d17269b47ac84ed799101a84156ac084b2b186ee31c91cf7a1e67b40");
     public static final byte[] MEDIATOR1_KEY_2 =
             HEX.parseHex("4318031c692a30b683240a94c7fea3bc3a439e64d1cbe4e1f2e9599ba2938dcc");
     public static final byte[] MEDIATOR1_P256 =
@@ -126,5 +128,9 @@ public final class CantonFixtures {
      */
     public static byte[] createdEventBlob() {
         return load("created-event-blob");
+    }
+
+    static byte[] hex(final String s) {
+        return HEX.parseHex(s);
     }
 }
