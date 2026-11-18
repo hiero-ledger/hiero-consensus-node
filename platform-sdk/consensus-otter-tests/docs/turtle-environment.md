@@ -323,23 +323,26 @@ concurrently, so nothing is scheduled yet: scheduling draws random numbers, whic
 2.1 The event window of the node that is furthest behind is applied, and the events expired for every node are
 forgotten.
 
-2.2 For each node, the event windows and then the events that have arrived over a usable link are delivered by calling
-`receiveEventWindow` and `receiveEvent` on its `SimulatedGossip`. A node may refuse the events of a sender; they stay in
-flight and are offered again on a later tick.
+2.2 The event windows reported since the previous tick are put in flight to every other node.
 
-2.2.1 The `SimulatedGossip` instance forwards each event it accepts to its `OutputWire`, from which it is consumed by the
-platform wiring.
-
-2.3 The event windows reported since the previous tick are put in flight to every other node.
-
-2.4 Every event that is not expired is sent again to each node that has restarted since the previous tick, once, by the
+2.3 Every event that is not expired is sent again to each node that has restarted since the previous tick, once, by the
 node that has it and can deliver it soonest.
 
-2.5 The submissions held since the previous tick are scheduled, one node at a time in a shuffled order, and within a node
+2.4 The submissions held since the previous tick are scheduled, one node at a time in a shuffled order, and within a node
 in the order it submitted them. A node submitting an event again is ignored. For every other node, the copy is put in
 flight if it is of use there: the creator's own copy always is, a forwarded copy only if it arrives first.
 
-Events are delivered before new ones are scheduled, so that an event always spends at least one tick in flight.
+2.5 For each node, the event windows and then the events that have arrived over a usable link are delivered by calling
+`receiveEventWindow` and `receiveEvent` on its `SimulatedGossip`. A node may refuse the events of a sender; they stay in
+flight and are offered again on a later tick.
+
+2.5.1 The `SimulatedGossip` instance forwards each event it accepts to its `OutputWire`, from which it is consumed by the
+platform wiring.
+
+The nodes run right after the network in every tick, at the same instant, so everything scheduled in steps 2.2 to 2.4
+was sent at the time of the previous tick, and is scheduled with that time. It is scheduled before the delivery, so that
+an event spends its latency in flight, rounded up to whole ticks, rather than one tick more. An event still spends at
+least one tick in flight, because it was sent at the previous tick.
 
 ## ⏱️ Time Management
 
@@ -413,7 +416,7 @@ void testDeterministicBehavior(@NonNull final TestEnvironment env) throws Interr
             network.newConsensusResults().results().getFirst().lastRoundNum();
 
     // This assertion will always pass with seed=42
-    assertThat(lastRound).isEqualTo(67L);
+    assertThat(lastRound).isEqualTo(69L);
 }
 ```
 
