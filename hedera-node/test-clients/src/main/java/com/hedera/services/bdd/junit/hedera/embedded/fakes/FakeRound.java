@@ -4,10 +4,11 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Iterator;
 import java.util.List;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -23,12 +24,6 @@ public class FakeRound implements Round {
         this.consensusEvents = requireNonNull(consensusEvents);
     }
 
-    @NonNull
-    @Override
-    public Iterator<ConsensusEvent> iterator() {
-        return consensusEvents.iterator();
-    }
-
     @Override
     public long getRoundNum() {
         return roundNum;
@@ -39,9 +34,10 @@ public class FakeRound implements Round {
         return consensusEvents.isEmpty();
     }
 
+    @NonNull
     @Override
-    public int getEventCount() {
-        return consensusEvents.size();
+    public List<ConsensusEvent> getConsensusEvents() {
+        return consensusEvents;
     }
 
     @NonNull
@@ -54,5 +50,28 @@ public class FakeRound implements Round {
     @Override
     public Instant getConsensusTimestamp() {
         return consensusEvents.getLast().getConsensusTimestamp();
+    }
+
+    @NonNull
+    @Override
+    public ConsensusSnapshot getConsensusSnapshot() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isPcesRound() {
+        return false;
+    }
+
+    @NonNull
+    @Override
+    public Instant getReachedConsTimestamp() {
+        throw new UnsupportedOperationException();
+    }
+
+    @NonNull
+    @Override
+    public RunningHash getLastEventRunningHash() {
+        throw new UnsupportedOperationException();
     }
 }
