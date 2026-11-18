@@ -541,8 +541,8 @@ submitting endpoint pays the transaction cost.
 
 ## 7.1 Local Endpoint Identity
 
-On Hiero, every consensus node is automatically a CLPR endpoint. The CLPR endpoint module derives its identity
-from the active consensus roster. No manual endpoint registration is needed.
+Each Hiero consensus node can publish its own CLPR endpoint using its address-book entry and local HAPI TLS
+configuration.
 
 **Roster reading.** The `RosterObserver` component reads the active roster from state on startup and watches for
 roster change events. Each node's CLPR endpoint identity is derived from:
@@ -553,6 +553,18 @@ roster change events. Each node's CLPR endpoint identity is derived from:
 | `tls_certificate`   | Node's HAPI TLS certificate (DER-encoded); not used by the network                |
 | `ecdsa_signing_key` | Node's ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes uncompressed) |
 | `account_id`        | Node's account ID (serialized as bytes, 20 bytes for Hiero)                       |
+
+For CLPR self-publication, configure a reachable IPv4 address in the `ipAddressV4` field of a HAPI service
+endpoint in the node's address book. The publisher selects the first such entry in address-book order. It uses
+that entry's port for plaintext or `grpc.tlsPort` when the node has a HAPI TLS certificate. A node with only
+domain-name entries skips self-publication until a numeric endpoint is available.
+
+**Migrating existing hostname publications.** Before upgrading peers that dial this ledger, put the reachable
+IPv4 entry first so older publishers also select it. Restart with the updated address book. The reconciler
+publishes the numeric endpoint and the next finalized manifest replaces the hostname entry. Check the address
+and port with `yahcli clpr get-endpoint-manifest` and confirm existing peer channels have received the new
+manifest version while they can still sync. For private addresses, configure the corresponding
+`clpr.additionalPeerEndpointCidrs` on the dialing nodes.
 
 The endpoint count from the active roster is used for per-endpoint throttle calculation
 (`max_bundles_per_sec / num_endpoints`).

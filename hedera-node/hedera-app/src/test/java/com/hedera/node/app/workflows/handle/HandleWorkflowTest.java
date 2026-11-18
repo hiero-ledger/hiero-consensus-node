@@ -6,6 +6,7 @@ import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.GENE
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_INITIALIZATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_ROSTER_RECONCILIATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
@@ -72,7 +73,6 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -1437,10 +1437,7 @@ class HandleWorkflowTest {
                                                 .accountId(AccountID.newBuilder()
                                                         .accountNum(3)
                                                         .build())
-                                                .serviceEndpoint(ServiceEndpoint.newBuilder()
-                                                        .domainName("node0")
-                                                        .port(50211)
-                                                        .build())
+                                                .serviceEndpoint(endpointFor("10.0.0.1", 50211))
                                                 .build())
                                 .build())
                         .build());
