@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.falcon;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -59,6 +60,10 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     /** The tipsets shared by the event creators of all mini nodes of this network. */
     private final FalconSharedTipsets sharedTipsets = new FalconSharedTipsets();
 
+    /** Follows what the nodes of this network do, or {@code null} if nothing does. */
+    @Nullable
+    private FalconObserver observer;
+
     /**
      * Constructor for {@code FalconNetwork}.
      *
@@ -99,6 +104,34 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
     }
 
     /**
+     * Has an observer follow what the nodes of this network do, for a measurement that is not part of Falcon itself.
+     *
+     * @param observer the observer
+     * @throws IllegalStateException if nodes have been added already, or an observer is already set
+     */
+    public void observe(@NonNull final FalconObserver observer) {
+        throwIfNodesAdded("The observer must be set before nodes are added.");
+        if (this.observer != null) {
+            throw new IllegalStateException("An observer is already set");
+        }
+        this.observer = requireNonNull(observer);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Also tells the observer, if there is one, that the network is starting. The nodes start right after, at the
+     * same simulated time.
+     */
+    @Override
+    protected void preStartHook(@NonNull final Roster roster) {
+        super.preStartHook(roster);
+        if (observer != null) {
+            observer.networkStarting(simulatedNetworkConnectivity(), timeManager.now());
+        }
+    }
+
+    /**
      * Returns the keys and certificates of all nodes, full nodes and mini-nodes alike.
      *
      * @return the keys and certificates, by node ID, in the order of the nodes
@@ -134,7 +167,11 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 networkConfiguration,
                 consensusRoundPool,
                 transactionShape,
-                signingSchema != null);
+                signingSchema != null,
+                observer);
+        if (observer != null) {
+            observer.nodeAdded(nodeId, true);
+        }
         addEventReceiver(node);
         return node;
     }
@@ -165,6 +202,9 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 sharedTipsets,
                 transactionShape,
                 signingSchema != null);
+        if (observer != null) {
+            observer.nodeAdded(nodeId, false);
+        }
         addEventReceiver(node);
         return node;
     }

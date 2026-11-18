@@ -71,6 +71,10 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
     /** Whether this node signs its events with its own key. */
     private final boolean signEvents;
 
+    /** Is given the consensus rounds this node reaches, or {@code null} if nothing is. */
+    @Nullable
+    private final FalconObserver observer;
+
     @Nullable
     private FalconWiring wiring;
 
@@ -101,6 +105,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
      * @param transactionShape the shape the transactions of created events are drawn from, or {@code null} for events
      * without any
      * @param signEvents whether this node signs its events with its own key
+     * @param observer is given the consensus rounds this node reaches, or {@code null} if nothing is
      */
     public FalconNode(
             @NonNull final Random random,
@@ -111,13 +116,15 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool,
             @Nullable final EventShape transactionShape,
-            final boolean signEvents) {
+            final boolean signEvents,
+            @Nullable final FalconObserver observer) {
         super(selfId, keysAndCerts, networkConfiguration);
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
         this.gossipNetwork = requireNonNull(gossipNetwork);
         this.transactionShape = transactionShape;
         this.signEvents = signEvents;
+        this.observer = observer;
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
@@ -257,6 +264,13 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             gossipNetwork.updateEventWindow(selfId, eventWindow);
         };
         wiring.eventWindowOutputWire().solderTo("EventWindowSubmitter_" + selfId, "event window", eventWindowSubmitter);
+        if (observer != null) {
+            // The observer is given this node's own rounds. Subscribers of the results collector receive the instance
+            // interned in the consensus round pool, which carries the reached timestamp of the first node that reported
+            // the round, not the one of this node.
+            wiring.consensusRoundOutputWire()
+                    .solderTo("FalconObserver", "consensus round", round -> observer.consensusRound(selfId, round));
+        }
         wiring.consensusRoundOutputWire()
                 .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
         wiring.preConsensusEventOutputWire()
