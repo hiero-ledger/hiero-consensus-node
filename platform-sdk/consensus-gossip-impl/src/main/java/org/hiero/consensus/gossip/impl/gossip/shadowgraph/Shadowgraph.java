@@ -354,7 +354,9 @@ public class Shadowgraph {
         while (oldestUnexpiredIndicator < minimumIndicatorToKeep) {
             final Set<ShadowEvent> shadowsToExpire = indicatorToShadowEvent.remove(oldestUnexpiredIndicator);
             if (shadowsToExpire != null) {
-                shadowsToExpire.forEach(this::expire);
+                for (final ShadowEvent shadow : shadowsToExpire) {
+                    expire(shadow);
+                }
             }
             oldestUnexpiredIndicator++;
         }
