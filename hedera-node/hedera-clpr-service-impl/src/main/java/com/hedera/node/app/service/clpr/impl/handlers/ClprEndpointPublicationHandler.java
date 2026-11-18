@@ -2,9 +2,6 @@
 package com.hedera.node.app.service.clpr.impl.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -64,17 +61,14 @@ public class ClprEndpointPublicationHandler extends AbstractClprHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        // The node transaction and creator attribution are checked in handle.
+        // No additional signers beyond the submitting node's own key (already required as payer).
     }
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
-        final var creator = context.creatorInfo();
-        validateTrue(
-                context.transactionCategory() == NODE && context.payer().equals(creator.accountId()), UNAUTHORIZED);
         final var op = context.body().clprEndpointPublicationOrThrow();
-        final long publisherNodeId = creator.nodeId();
+        final long publisherNodeId = context.creatorInfo().nodeId();
 
         final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
         final var publication = toStatePublication(op);

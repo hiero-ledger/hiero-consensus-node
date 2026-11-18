@@ -22,12 +22,7 @@ public class HapiClprRegisterChannel extends HapiTxnOp<HapiClprRegisterChannel> 
 
     private byte[] ownershipCommitment;
 
-    /** Covers the $100 CLPR price at the test exchange rate; an explicit {@link #fee} overrides it. */
-    private static final long DEFAULT_MAX_FEE_TINYBARS = 1_000L * 100_000_000L;
-
-    public HapiClprRegisterChannel() {
-        fee(DEFAULT_MAX_FEE_TINYBARS);
-    }
+    public HapiClprRegisterChannel() {}
 
     public HapiClprRegisterChannel ownershipCommitment(final byte[] commitment) {
         this.ownershipCommitment = commitment;

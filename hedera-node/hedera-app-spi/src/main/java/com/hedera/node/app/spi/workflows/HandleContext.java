@@ -217,6 +217,8 @@ public interface HandleContext {
              * Set by the app after capacity screening and passed only to the direct verifier child.
              */
             CLPR_GAS_RESERVATION,
+            /** Caller-owned billed-gas report that remains available after child-dispatch rollback. */
+            CONTRACT_GAS_USAGE,
             /**
              * Boolean marker set by the app when dispatching a trusted internal system transaction.
              * Never populate this from a submitted transaction or propagate it to child dispatches.
@@ -250,18 +252,6 @@ public interface HandleContext {
      */
     @NonNull
     TransactionBody body();
-
-    /**
-     * Returns the actual category of the transaction being handled.
-     *
-     * <p>Use this category for handler authorization. It is independent of the deprecated
-     * {@link com.hedera.node.app.spi.fees.FeeCharging.Context#category()} used for fee accounting,
-     * which may report {@link TransactionCategory#CHILD} to preserve its charging semantics.
-     *
-     * @return the transaction's dispatch category
-     */
-    @NonNull
-    TransactionCategory transactionCategory();
 
     /**
      * Gets the payer {@link AccountID}.

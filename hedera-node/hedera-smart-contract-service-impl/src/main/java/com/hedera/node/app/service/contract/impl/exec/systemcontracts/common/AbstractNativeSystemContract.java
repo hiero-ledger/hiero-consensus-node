@@ -269,7 +269,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                                     resultOfExecuting(attempt, call, input, frame, contractID, null))))) {
                 return null;
             }
-            pricedResult = executeCall(attempt, call, input, frame);
+            pricedResult = call.execute(frame);
             final var gasRequirement = pricedResult.fullResult().gasRequirement();
             final var insufficientGas = frame.getRemainingGas() < gasRequirement;
             final var dispatchedRecordBuilder = pricedResult.fullResult().recordBuilder();
@@ -416,14 +416,6 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         final var fullResult = pricedResult.fullResult();
         reportToMetrics(call, fullResult);
         return fullResult;
-    }
-
-    protected @NonNull Call.PricedResult executeCall(
-            @NonNull final AbstractCallAttempt<?> attempt,
-            @NonNull final Call call,
-            @NonNull final Bytes input,
-            @NonNull final MessageFrame frame) {
-        return call.execute(frame);
     }
 
     private void reportToMetrics(@NonNull final Call call, @NonNull final FullResult fullResult) {

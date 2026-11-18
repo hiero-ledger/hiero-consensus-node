@@ -309,16 +309,9 @@ public class TransactionExecutorsTest {
 
     @Test
     void connectorAuthorizationIsTracedAndItsHaltContainedWithinSendMessageTransaction() {
-        // The forwarder attaches no value, so price sendMessage entirely as gas
+        // The actions are read from sidecars, which only the record stream builds
         final var overrides = Map.of(
-                "hedera.transaction.maxMemoUtf8Bytes",
-                "101",
-                "clpr.enabled",
-                "true",
-                "clpr.sendMessageFeeTinycents",
-                "0",
-                "blockStream.streamMode",
-                "BOTH");
+                "hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true", "blockStream.streamMode", "BOTH");
         final var state = genesisState(overrides);
         final var executor = TRANSACTION_EXECUTORS.newExecutor(
                 TransactionExecutors.Properties.newBuilder()
@@ -390,14 +383,7 @@ public class TransactionExecutorsTest {
             final boolean channelExists,
             final boolean callerReverts,
             final boolean commits) {
-        // The forwarder attaches no value, so price sendMessage entirely as gas
-        final var overrides = Map.of(
-                "hedera.transaction.maxMemoUtf8Bytes",
-                "101",
-                "clpr.enabled",
-                "true",
-                "clpr.sendMessageFeeTinycents",
-                "0");
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true");
         final var state = genesisState(overrides);
         final var executor = TRANSACTION_EXECUTORS.newExecutor(
                 TransactionExecutors.Properties.newBuilder()

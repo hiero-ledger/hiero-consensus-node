@@ -129,24 +129,13 @@ See [C-6 in DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md#c-6) for the plan.
 
 ## E-5. `PrivilegesVerifier`-based admin gating
 
-Admin-gated CLPR operations — `closeChannel`, `redactMessage`, and
-`updateLedgerConfiguration` — require the transaction payer to be:
+The treasury (by default `0.0.2`), system admin (by default `0.0.50`), and configured
+`accounts.clprAdmin` payer can submit `closeChannel`, `evictPeerEndpoint`, and
+`updateLedgerConfiguration`.
+See [privileged transactions](../../../privileged-transactions.md#authorization-privileges-for-clpr-transactions).
 
-- **Account `0.0.2`** — the treasury account (Hiero "superuser")
-- **Account `0.0.50`** — the system admin account
-
-This is enforced by `PrivilegesVerifier.checkClprAdmin` inside `AbstractClprHandler`.
-The framework rejects unauthorized payers with `AUTHORIZATION_FAILED` before the
-handler's `doHandle` method is invoked.
-
-**There is no separate CLPR admin key in state or config.** Hiero does not define a
-per-service admin key for CLPR. Admin authority is inherited from the platform's
-standard privileged-account model.
-
-This matches the standard Hedera platform admin model used by other system services
-(e.g., file update, token pause). It means CLPR admin ops require the same governance
-process as any other Hedera system operation — no additional key management or
-CLPR-specific governance.
+`PrivilegesVerifier` checks the payer's authority. The framework rejects unauthorized
+payers with `AUTHORIZATION_FAILED` before invoking the handler.
 
 **Canonical spec note:** the canonical spec should not require an admin key field on
 the CLPR Service state or in `ClprLedgerConfiguration`. Platforms choose their own
@@ -193,49 +182,42 @@ mechanism; they should be made consistent once the paid-storage direction is set
 ## E-7. Geometric slashing escalation
 
 Hiero uses geometric escalation for connector misbehavior penalties. The formula,
-implemented in `ClprSlashingUtils.applySlash`:
+implemented in `ClprSlashingUtils.slashConnector`:
 
 ```
-basePenalty = convertToTinybars(slashBasePenaltyTinycents, activeConsensusRate)
 penalty = basePenalty * (multiplier ^ slashCount)
 banned  = (slashCount + 1) >= slashBanThreshold
 ```
 
 `penalty` is capped at `connector.lockedStake` (a connector cannot be penalized past
-its entire stake). If `banned`, the connector's entire remaining stake is forfeited and
-its record is removed from state; its ownership commitment stays registered, so the
-connector ID cannot be registered again.
+its entire stake). If `banned`, the connector's record remains in state but all further
+operations on it are blocked until an admin intervenes.
 
 ### Default values (from `ClprConfig`)
 
-|       Parameter       |            Config key            |             Default             |
-|-----------------------|----------------------------------|---------------------------------|
-| Base penalty          | `clpr.slashBasePenaltyTinycents` | 100,000,000,000 tinycents ($10) |
-| Escalation multiplier | `clpr.slashMultiplier`           | 2                               |
-| Ban threshold         | `clpr.slashBanThreshold`         | 5                               |
+|       Parameter       |        Config key        |            Default             |
+|-----------------------|--------------------------|--------------------------------|
+| Base penalty          | `clpr.slashBasePenalty`  | 10,000,000 tinybars (0.1 HBAR) |
+| Escalation multiplier | `clpr.slashMultiplier`   | 2                              |
+| Ban threshold         | `clpr.slashBanThreshold` | 5                              |
 
-At a constant exchange rate of $0.10/ℏ, the default escalation sequence is:
+With defaults, the escalation sequence is:
 
 | Offence # |                      Penalty                       |
 |-----------|----------------------------------------------------|
-| 1st       | 100 ℏ                                              |
-| 2nd       | 200 ℏ                                              |
-| 3rd       | 400 ℏ                                              |
-| 4th       | 800 ℏ                                              |
+| 1st       | 10 M tinybars                                      |
+| 2nd       | 20 M tinybars                                      |
+| 3rd       | 40 M tinybars                                      |
+| 4th       | 80 M tinybars                                      |
 | 5th (ban) | remaining locked stake forfeited; connector banned |
 
-The minimum connector bond is `clpr.minLockedStakeTinycents`, defaulting to $3,000. Completing connector
-registration converts this minimum at the active network exchange rate for the transaction's consensus time.
-The actual bond is transferred and stored in tinybars; existing locked stake is not continuously revalued
-as the exchange rate changes.
+A connector starting with the minimum locked stake of 100 M tinybars would have its
+entire stake exhausted by the 4th offence and would be banned on the 5th.
 
-At a constant $0.10/ℏ, the minimum bond is 30,000 ℏ. A connector starting with that bond would lose 1,500 ℏ (5% of
-its stake) over the first four offences and would be banned on the 5th.
-
-**Endpoint payout:** on a slash event, the submitting endpoint receives the full
-penalty from the slashed stake (`ClprSlashingUtils.reimburseEndpoint`), capped at the
-staking account's balance. This is always paid to the *submitting* endpoint, regardless
-of which side (source or destination connector) was at fault.
+**Endpoint payout:** on a slash event, the submitting endpoint receives
+`min(endpointPenaltyTinybars, penalty * endpointMarginPercent / 100)` from the slashed
+stake. This is always paid to the *submitting* endpoint, regardless of which side
+(source or destination connector) was at fault.
 
 **Cross-implementation note:** the EVM CLPR implementation also uses geometric
 escalation with the same formula. The formula and defaults should be promoted to the
@@ -299,37 +281,44 @@ actual send, which may never happen on an idle channel.
 
 ## E-10. Application execution gas and endpoint compensation
 
-Before verifier or application EVM execution, the submitting transaction's original
-payer prepays the network fee for `contracts.maxGasPerTransaction` gas. The gas-unit
-price uses the ordinary ContractCall price, congestion multiplier, and active exchange
-rate. Unused gas fees are refunded once the entire parent transaction succeeds. If a
+Immediately before the first verifier or application EVM dispatch, the submitting
+transaction's original payer reserves the network gas fee. Early validation failures do
+not create an escrow. Bundles reserve before processing DATA or response payloads,
+including before reversible connector compensation or slashing payouts. This prevents
+those transfers from backing the parent's gas payment, even when a callback is later
+skipped. A bundle reserves `contracts.maxGasPerTransaction` gas because
+its shared allowance covers both verification and callbacks; completion reserves only
+its verifier allowance, with its billable reservation capped at 300,000 gas units.
+The configured transaction maximum therefore determines a bundle payer's worst-case
+required balance, so CLPR execution profiles must choose it deliberately. The signed
+`transactionFee` must cover already charged base/byte fees plus the gas reservation.
+Node-submitted bundles sign `clpr.nodeSubmitBundleMaxFee`, which defaults to 1,000 HBAR.
+Explicitly configured caps still apply and must cover this reservation and the other
+applicable fees; increasing the cap does not increase the charge for actual execution.
+Before bundle validation, the handler also reserves signed-fee headroom for the full
+possible endpoint misbehavior penalty. This reserves capacity only: the penalty is
+collected only when applicable, and the gas escrow must leave that headroom available.
+The gas-unit price uses the ordinary ContractCall price, congestion multiplier, and active
+exchange rate; globally free fees or a free ContractCall service make this gas free. Unused gas fees are refunded once the entire parent transaction succeeds. If a
 later failure rolls back application state, payment for gas already used is replayed
 against that original payer before other failure penalties. Reversible transfers from
 connectors never provide the backing for this network payment.
 
 For each DATA callback, the receiving connector reimburses the payer for actual billed
-application gas, plus flat execution compensation and a progress reward:
+application gas, plus the existing flat endpoint compensation:
 
 ```
 networkGasFee = gasUsed * gasPriceTinybars
-endpointCompensation = messageExecutionCost + convertToTinybars(progressRewardTinycents, activeConsensusRate)
+endpointCompensation = messageExecutionCost * (1 + endpointMarginPercent / 100)
 connectorDebit = networkGasFee + endpointCompensation
 ```
-
-`messageExecutionCost` is a flat `clpr.messageExecutionCost` config value (default:
-1,000,000 tinybars). `progressRewardTinycents` is a USD-denominated reward (default:
-100,000,000 tinycents, or $0.01), converted using the active network exchange rate at
-the bundle's consensus time. The progress reward is paid once per newly dispatched
-DATA message.
 
 The connector's worst-case gas reimbursement and compensation are transferred before
 the callback. Unused gas reimbursement is returned afterward. Response callbacks use
 the same gas payment and reimbursement path without the DATA compensation. An absent
 or underfunded originating connector causes best-effort response delivery to be skipped.
-Reverted callbacks still pay for gas consumed. A dispatch without a reported EVM result
-consumes its full gas reservation for billing. Callbacks rejected by consensus
-throttling before execution incur no gas charge, so their gas reimbursement is returned
-in full.
+Reverted callbacks still pay for gas consumed. Gas is reported before rollback clears stream-builder results. A pre-execution failure
+without an EVM outcome bills zero gas; a reverted execution pays its reported gas.
 
 The sum of verifier and application gas grants cannot exceed the transaction cap.
 Callbacks share the remaining allowance: each DATA or response payload receives at
@@ -345,17 +334,14 @@ A multi-message bundle can therefore give each callback less than the per-messag
 ceiling. Applications must stay within the callback's allocated grant; exhausting it
 produces the existing application error response. Per-message limits remain ceilings.
 
-### Planned bundle fee recovery
+Verifier fees are billed once through the shared escrow, capped at 300,000 gas units
+across the operation. Native measured-fee settlement recognizes that ownership and adds
+applicable stored-byte fees without charging verifier gas again. Without an escrow-owned
+verifier, compatibility settlement applies the same billing cap. This reconciles the
+[CLPR fee proposal](https://github.com/hiero-ledger/hiero-consensus-node/pull/28137) with
+callback accounting; callback gas remains billed for its reported execution.
 
-The fee proposal's bundle billing appendix models recovering the actual submission fee
-separately, split by the number of messages attributed to each connector. Native verifier
-GAS pricing remains separate from callback gas accounting; the same verifier execution
-must not also be charged through the actual-gas escrow.
-
-See also D-8 in [DRIFT-REVIEW-2026-05.md](DRIFT-REVIEW-2026-05.md) and the
-"Success-path economics" subsection in [`config-and-slashing.md`](config-and-slashing.md).
-
----
+See also the economics section in [config-and-slashing.md](config-and-slashing.md).
 
 ## E-11. CLPR singleton maintenance in the block stream
 

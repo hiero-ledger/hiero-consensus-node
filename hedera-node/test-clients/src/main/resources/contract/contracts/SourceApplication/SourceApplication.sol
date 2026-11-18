@@ -32,15 +32,13 @@ contract SourceApplication is IClprApplication {
     /**
      * Sends `count` messages on the configured channel. Each message payload
      * is `abi.encodePacked("msg-", sentCount+i)` so they are individually
-     * distinguishable in the echo response. Each send attaches this contract's
-     * balance (including any value sent with this call) to cover its fee; the
-     * CLPR system contract collects only that fee.
+     * distinguishable in the echo response.
      */
-    function sendMessages(uint256 count) external payable {
+    function sendMessages(uint256 count) external {
         IClprSystemContract clpr = IClprSystemContract(CLPR_PRECOMPILE);
         for (uint256 i = 0; i < count; i++) {
             bytes memory payload = abi.encodePacked("msg-", sentCount + i);
-            clpr.sendMessage{value: address(this).balance}(channelId, connectorId, targetApplication, payload);
+            clpr.sendMessage(channelId, connectorId, targetApplication, payload);
         }
         sentCount += count;
     }

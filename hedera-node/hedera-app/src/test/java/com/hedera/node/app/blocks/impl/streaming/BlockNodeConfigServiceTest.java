@@ -4,12 +4,12 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -769,13 +769,16 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
 
             final AtomicBoolean isFirstTime = new AtomicBoolean(true);
             final CountDownLatch latch = new CountDownLatch(1);
+            final CountDownLatch releaseWatcher = new CountDownLatch(1);
             doAnswer(_ -> {
-                        latch.countDown();
                         if (isFirstTime.compareAndSet(true, false)) {
                             // only throw an exception on the first attempt
                             throw new RuntimeException("this isn't how it all ends");
                         }
 
+                        // A second take proves the watcher recovered; hold it still during verification.
+                        latch.countDown();
+                        releaseWatcher.await();
                         return watchKey;
                     })
                     .when(watchService)
@@ -783,18 +786,23 @@ class BlockNodeConfigServiceTest extends BlockNodeCommunicationTestBase {
 
             mockedFileUtils.when(() -> FileUtils.getAbsolutePath(anyString())).thenReturn(configDirectory);
 
-            configService = new BlockNodeConfigService(configProvider);
-            configService.start();
+            try {
+                configService = new BlockNodeConfigService(configProvider);
+                configService.start();
 
-            assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
+                assertThat(latch.await(10, TimeUnit.SECONDS)).isTrue();
 
-            // there was a non-fatal error so the service should still be active and the watcher running
-            assertThat(isActive()).isTrue();
-            assertThat(watchServiceRef()).doesNotHaveNullValue();
+                // There was a non-fatal error, and the recovered watcher is waiting for another event.
+                assertThat(isActive()).isTrue();
+                assertThat(watchServiceRef()).doesNotHaveNullValue();
 
-            verify(fileSystem).newWatchService();
-            verify(watchService, atLeastOnce()).take();
-            verifyNoMoreInteractions(watchService);
+                verify(fileSystem).newWatchService();
+                verify(watchService, times(2)).take();
+                verifyNoMoreInteractions(watchService);
+            } finally {
+                configService.shutdown();
+                releaseWatcher.countDown();
+            }
         }
     }
 

@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
@@ -11,14 +17,10 @@ import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FE
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
-import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -32,12 +34,13 @@ import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.FeeData;
-import com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody;
-import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.node.transaction.ExchangeRate;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -47,15 +50,15 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.stream.Stream;
-import org.hiero.hapi.support.fees.Extra;
-import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -79,11 +82,8 @@ class EvmClprVerifierTest {
     // Manifest-aware bundle return tuple — single-sourced with the producer + consumer via ClprVerifierAbi.
     private static final TupleType<Tuple> BUNDLE_RETURN = ClprVerifierAbi.VERIFY_BUNDLE_RETURN;
 
-    @Mock(extraInterfaces = FeeContext.class)
-    private HandleContext context;
-
     @Mock
-    private ResourcePriceCalculator priceCalculator;
+    private HandleContext context;
 
     @Mock
     private HookDispatchStreamBuilder dispatchResult;
@@ -95,15 +95,12 @@ class EvmClprVerifierTest {
     void verifyConfigWithManifestReturnsProvenConfigAndManifest() {
         givenConfig();
         givenDispatchReturns(configWithManifestReturn("295", SERVICE_ADDR, 3L));
-        given(dispatchResult.hasContractResult()).willReturn(true);
-        given(dispatchResult.getGasUsedForContractTxn()).willReturn(100_000L);
 
         final var verified = subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
 
         assertThat(verified.config().chainId()).isEqualTo("295");
         assertThat(verified.config().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
         assertThat(verified.manifest().version()).isEqualTo(3L);
-        assertThat(verified.verifierGasUsed()).isEqualTo(100_000L);
         assertThat(verified.manifest().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
     }
 
@@ -118,8 +115,8 @@ class EvmClprVerifierTest {
     }
 
     @Test
-    @DisplayName("Verifier dispatch treats execution gas as prepaid by the native parent")
-    void verifierDispatchTreatsGasAsPrepaid() {
+    @DisplayName("Verifier dispatch suppresses its child fee but allows EVM gas collection")
+    void verifierDispatchAllowsEvmGasCollection() {
         givenConfig();
         givenDispatchReturns(configWithManifestReturn("295", SERVICE_ADDR, 1L));
 
@@ -167,7 +164,6 @@ class EvmClprVerifierTest {
         assertThat(content.metadata()).isNotNull();
         assertThat(content.metadata().nextMessageId()).isEqualTo(1L);
         assertThat(content.newEndpointManifest()).isNull();
-        verify(context, never()).tryToChargePayer(anyLong());
     }
 
     @Test
@@ -180,51 +176,6 @@ class EvmClprVerifierTest {
 
         assertThat(content.metadata()).isNotNull();
         assertThat(content.metadata().endpointManifestVersion()).isEqualTo(9L);
-    }
-
-    @ParameterizedTest
-    @CsvSource({"100000,100000", "500000,300000"})
-    void chargesMeasuredBundleVerifierGasUpToTheCap(final long gasUsed, final long gasCharged) {
-        final var payload = Bytes.wrap(new byte[100]);
-        givenConfig();
-        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
-        given(dispatchResult.hasContractResult()).willReturn(true);
-        given(dispatchResult.getGasUsedForContractTxn()).willReturn(gasUsed);
-        given(context.simpleFeesSchedule())
-                .willReturn(FeeSchedule.newBuilder()
-                        .extras(makeExtraDef(Extra.GAS, 852L), makeExtraDef(Extra.PROCESSING_BYTES, 10_000L))
-                        .services(makeService(
-                                "Clpr",
-                                makeServiceFee(
-                                        CLPR_SUBMIT_BUNDLE,
-                                        100_000_000L,
-                                        makeExtraIncluded(Extra.PROCESSING_BYTES, 0))))
-                        .build());
-        given(context.body())
-                .willReturn(TransactionBody.newBuilder()
-                        .transactionFee(2_000_000_000L)
-                        .clprSubmitBundle(
-                                ClprSubmitBundleTransactionBody.newBuilder().bundlePayload(payload))
-                        .build());
-        given(context.resourcePriceCalculator()).willReturn(priceCalculator);
-        given(priceCalculator.resourcePricesFor(CLPR_SUBMIT_BUNDLE, DEFAULT))
-                .willReturn(new FunctionalityResourcePrices(FeeData.DEFAULT, 2));
-        given(((FeeContext) context).tinybarsFromTinycents(anyLong()))
-                .willAnswer(invocation -> invocation.getArgument(0));
-
-        final var savepointStack = mock(HandleContext.SavepointStack.class);
-        final var streamBuilder = mock(StreamBuilder.class);
-        given(context.savepointStack()).willReturn(savepointStack);
-        given(savepointStack.getBaseBuilder(StreamBuilder.class)).willReturn(streamBuilder);
-        given(streamBuilder.isUserDispatch()).willReturn(true);
-        given(streamBuilder.transactionFee()).willReturn(100_000_000L);
-        final long gasFee = gasCharged * 852L * 2;
-        given(context.tryToChargePayer(gasFee)).willReturn(true);
-
-        subject.verifyBundle(payload, Bytes.EMPTY, Bytes.EMPTY, context);
-
-        verify(context).tryToChargePayer(gasFee);
-        verify(context, never()).refundServiceFee(any(), anyLong());
     }
 
     @Test
@@ -291,18 +242,209 @@ class EvmClprVerifierTest {
         return Stream.of(null, Bytes.EMPTY, Bytes.fromHex("ffff"));
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void verifierGasIsPricedAndUnusedGasRefunded(final boolean configCall) {
+        givenPricedConfig(true);
+        givenDispatchReturns(
+                configCall
+                        ? configWithManifestReturn("295", SERVICE_ADDR, 1L)
+                        : bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
+        givenDispatchGasUsed(400L);
+
+        if (configCall) {
+            subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+        } else {
+            subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+        }
+
+        ClprGasAccounting.refundUnusedGas(context);
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context).refundHandlerCharge(PAYER, 12_600L);
+    }
+
+    @Test
+    void revertedVerifierStillPaysForActualGas() {
+        givenPricedConfig(true);
+        givenDispatchReturns(Bytes.EMPTY);
+        given(dispatchResult.status()).willReturn(CONTRACT_REVERT_EXECUTED);
+        givenDispatchGasUsed(400L);
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void underfundedVerifierIsNotDispatched() {
+        givenPricedConfig(false);
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_PAYER_BALANCE));
+        verify(context, never()).dispatch(any(DispatchOptions.class));
+        verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void verifierWithoutExecutionGasReportRefundsPrepayment() {
+        givenPricedConfig(true);
+        givenDispatchReturns(configWithManifestReturn("295", SERVICE_ADDR, 1L));
+
+        subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        ClprGasAccounting.refundUnusedGas(context);
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context).refundHandlerCharge(PAYER, 21_000L);
+    }
+
+    @Test
+    void verifierDispatchWithoutResultDoesNotPreserveAnyGasCharge() {
+        givenPricedConfig(true);
+        given(context.dispatch(any(DispatchOptions.class))).willReturn(null);
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+        final var failure = new HandleException(CLPR_VERIFIER_CONFIG_FAILED);
+        assertThat(ClprGasAccounting.preservingChargesOnRollback(context, failure))
+                .isSameAs(failure);
+    }
+
+    @Test
+    void verifierDispatchFailureBeforeExecutionDoesNotPreserveAnyGasCharge() {
+        givenPricedConfig(true);
+        given(context.dispatch(any(DispatchOptions.class))).willThrow(new HandleException(MAX_CHILD_RECORDS_EXCEEDED));
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_CHILD_RECORDS_EXCEEDED));
+        verify(context).tryToCharge(PAYER, 21_000L);
+        verify(context, never()).refundHandlerCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+        final var failure = new HandleException(MAX_CHILD_RECORDS_EXCEEDED);
+        assertThat(ClprGasAccounting.preservingChargesOnRollback(context, failure))
+                .isSameAs(failure);
+    }
+
+    @Test
+    void zeroVerifierLimitReportsInsufficientGasInsteadOfBalance() {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifierGasLimit", 0L)
+                        .getOrCreateConfig());
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_GAS));
+        verify(context, never()).dispatch(any(DispatchOptions.class));
+        verify(context, never()).tryToCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void oversizedVerifierLimitReportsGasLimitInsteadOfBalance() {
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifierGasLimit", 1001L)
+                        .withValue("contracts.maxGasPerTransaction", 1000L)
+                        .getOrCreateConfig());
+
+        assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_GAS_LIMIT_EXCEEDED));
+        verify(context, never()).dispatch(any(DispatchOptions.class));
+        verify(context, never()).tryToCharge(any(), org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void realVerifierDispatchReservesItsAllowanceOnlyOnceFromCallbackBudget() {
+        givenConfig();
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifierGasLimit", 1000L)
+                        .withValue("contracts.maxGasPerTransaction", 5000L)
+                        .getOrCreateConfig());
+        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
+        givenDispatchGasUsed(400L);
+
+        subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        assertThat(ClprGasAccounting.forContext(context).availableApplicationGas(5000L))
+                .isEqualTo(4000L);
+    }
+
+    @Test
+    void exhaustedParentGasReportsGasLimitInsteadOfBalance() {
+        givenConfig();
+        given(context.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.verifierGasLimit", 1000L)
+                        .withValue("contracts.maxGasPerTransaction", 1000L)
+                        .getOrCreateConfig());
+        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
+        subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
+
+        assertThatThrownBy(() -> subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(MAX_GAS_LIMIT_EXCEEDED));
+        verify(context).dispatch(any(DispatchOptions.class));
+    }
+
+    private void givenPricedConfig(final boolean solvent) {
+        final var cfg = HederaTestConfigBuilder.create()
+                .withValue("clpr.verifierGasLimit", 1000L)
+                .withValue("contracts.maxGasPerTransaction", 1000L)
+                .getOrCreateConfig();
+        given(context.configuration()).willReturn(cfg);
+        given(context.dispatchMetadata()).willReturn(new HandleContext.DispatchMetadata(new HashMap<>()));
+        givenBaseBuilder();
+        given(context.payer()).willReturn(PAYER);
+        given(context.getGasPriceInTinycents()).willReturn(2L);
+        final var prices = mock(ResourcePriceCalculator.class);
+        given(context.resourcePriceCalculator()).willReturn(prices);
+        given(prices.resourcePricesFor(CONTRACT_CALL, DEFAULT))
+                .willReturn(new FunctionalityResourcePrices(FeeData.DEFAULT, 3L));
+        final var rates = mock(ExchangeRateInfo.class);
+        given(context.exchangeRateInfo()).willReturn(rates);
+        given(context.consensusNow()).willReturn(Instant.EPOCH);
+        given(rates.activeRate(Instant.EPOCH))
+                .willReturn(ExchangeRate.newBuilder().hbarEquiv(7).centEquiv(2).build());
+        given(context.tryToCharge(PAYER, 21_000L)).willReturn(solvent);
+    }
+
     // ---- helpers ----
 
     private void givenConfig() {
         final Configuration cfg = HederaTestConfigBuilder.create().getOrCreateConfig();
         given(context.configuration()).willReturn(cfg);
+        given(context.dispatchMetadata()).willReturn(new HandleContext.DispatchMetadata(new HashMap<>()));
+    }
+
+    private void givenBaseBuilder() {
+        final var stack = mock(HandleContext.SavepointStack.class);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
     }
 
     private void givenDispatchReturns(final Bytes evmResult) {
         lenient().when(context.payer()).thenReturn(PAYER);
-        given(context.dispatch(any(DispatchOptions.class))).willReturn(dispatchResult);
+        lenient().when(context.dispatch(any(DispatchOptions.class))).thenReturn(dispatchResult);
         lenient().when(dispatchResult.status()).thenReturn(SUCCESS);
         lenient().when(dispatchResult.getEvmCallResult()).thenReturn(evmResult);
+    }
+
+    private void givenDispatchGasUsed(final long gasUsed) {
+        given(context.dispatch(any(DispatchOptions.class))).willAnswer(invocation -> {
+            final DispatchOptions<?> options = invocation.getArgument(0);
+            options.dispatchMetadata()
+                    .getMetadata(CONTRACT_GAS_USAGE, ContractGasUsage.class)
+                    .orElseThrow()
+                    .recordGasUsed(gasUsed);
+            return dispatchResult;
+        });
     }
 
     /** Encodes the manifest-aware return: config fields (7-field throttles, no endpoints) + manifest struct. */
