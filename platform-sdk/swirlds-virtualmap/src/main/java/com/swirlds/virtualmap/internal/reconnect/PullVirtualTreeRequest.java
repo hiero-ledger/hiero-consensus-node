@@ -100,6 +100,16 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashBytes, int ha
             if (other.getByte(i) != hashBytes.getByte(i)) {
                 return false;
             }
+        int i = 0;
+        for (; i + Long.BYTES <= hashPrefixLength; i += Long.BYTES) {
+            if (other.getLong(i) != hashBytes.getLong(i)) {
+                return false;
+            }
+        }
+        for (; i < hashPrefixLength; i++) {
+            if (other.getByte(i) != hashBytes.getByte(i)) {
+                return false;
+            }
         }
         return true;
     }
