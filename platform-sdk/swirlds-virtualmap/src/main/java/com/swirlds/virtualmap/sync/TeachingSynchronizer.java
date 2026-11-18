@@ -196,7 +196,7 @@ public class TeachingSynchronizer {
                 "Teacher sending root node response: firstLeafPath={}, lastLeafPath={}, hashPrefixLength={}",
                 firstLeafPath,
                 lastLeafPath,
-                rootRequest.hashPrefix().length());
+                rootRequest.hashPrefixLength());
         final byte[] responseBytes = new byte[rootResponse.getSizeInBytes()];
         rootResponse.writeTo(BufferedData.wrap(responseBytes));
         try {

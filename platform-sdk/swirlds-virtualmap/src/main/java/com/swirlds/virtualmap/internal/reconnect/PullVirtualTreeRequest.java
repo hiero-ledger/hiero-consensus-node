@@ -6,8 +6,8 @@ import static com.hedera.pbj.runtime.ProtoParserTools.readFixed64;
 import static com.hedera.pbj.runtime.ProtoParserTools.readInt32;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfDelimited;
 import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfTag;
-import static com.hedera.pbj.runtime.ProtoWriterTools.writeBytes;
 import static com.hedera.pbj.runtime.ProtoWriterTools.writeLong;
+import static com.hedera.pbj.runtime.ProtoWriterTools.writeTag;
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
@@ -17,8 +17,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -47,24 +45,30 @@ import org.hiero.base.crypto.Hash;
  * </pre>
  *
  * @param path virtual node path
- * @param hashPrefix a prefix of the virtual node hash on the learner, or the full hash. If a node with the given
- *     path does not exist on the learner (path is outside of range), a prefix of {@link Cryptography#NULL_HASH}
- *     is used
+ * @param hashBytes the virtual node hash on the learner, or its prefix. Only the first {@code hashPrefixLength}
+ *     bytes are sent, so the learner can pass a full hash without copying it. If a node with the given path does
+ *     not exist on the learner (path is outside of range), {@link Cryptography#NULL_HASH} is used
+ * @param hashPrefixLength the number of leading bytes of {@code hashBytes} the request carries
  */
-public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
+public record PullVirtualTreeRequest(long path, @NonNull Bytes hashBytes, int hashPrefixLength) {
 
     static final FieldDefinition FIELD_PULLREQUEST_PATH = new FieldDefinition("path", FieldType.FIXED64, false, 1);
     static final FieldDefinition FIELD_PULLREQUEST_HASH_PREFIX =
             new FieldDefinition("hashPrefix", FieldType.BYTES, false, 2);
 
     /**
-     * Creates a request with a hash prefix.
+     * Creates a request.
      *
      * @param path the virtual node path
-     * @param hashPrefix the hash prefix, or the full hash
+     * @param hashBytes the hash, or its prefix
+     * @param hashPrefixLength the number of leading bytes of {@code hashBytes} the request carries
      */
     public PullVirtualTreeRequest {
-        Objects.requireNonNull(hashPrefix, "hashPrefix");
+        Objects.requireNonNull(hashBytes, "hashBytes");
+        if ((hashPrefixLength < 0) || (hashPrefixLength > hashBytes.length())) {
+            throw new IllegalArgumentException(
+                    "Hash prefix length " + hashPrefixLength + " is out of range [0, " + hashBytes.length() + "]");
+        }
     }
 
     /**
@@ -76,10 +80,8 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
      *     the full hash is sent
      */
     public PullVirtualTreeRequest(final long path, @NonNull final Hash hash, final int hashPrefixLength) {
-        this(
-                path,
-                hash.getBytes()
-                        .slice(0, Math.min(hashPrefixLength, hash.getBytes().length())));
+        this(path, hash.getBytes(), (int)
+                Math.min(hashPrefixLength, hash.getBytes().length()));
     }
 
     /**
@@ -90,7 +92,16 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
      *     prefix longer than the hash never matches
      */
     public boolean matches(@NonNull final Hash hash) {
-        return hash.getBytes().matchesPrefix(hashPrefix);
+        final Bytes other = hash.getBytes();
+        if (other.length() < hashPrefixLength) {
+            return false;
+        }
+        for (int i = 0; i < hashPrefixLength; i++) {
+            if (other.getByte(i) != hashBytes.getByte(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -103,7 +114,7 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
         if (path != 0) {
             size += sizeOfTag(FIELD_PULLREQUEST_PATH) + Long.BYTES;
         }
-        size += sizeOfDelimited(FIELD_PULLREQUEST_HASH_PREFIX, (int) hashPrefix.length());
+        size += sizeOfDelimited(FIELD_PULLREQUEST_HASH_PREFIX, hashPrefixLength);
         return size;
     }
 
@@ -116,11 +127,10 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
         if (path != 0) {
             writeLong(out, FIELD_PULLREQUEST_PATH, path);
         }
-        try {
-            writeBytes(out, FIELD_PULLREQUEST_HASH_PREFIX, hashPrefix, false);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        // Write the hash prefix field by hand, since only a part of hashBytes is written
+        writeTag(out, FIELD_PULLREQUEST_HASH_PREFIX);
+        out.writeVarInt(hashPrefixLength, false);
+        hashBytes.writeTo(out, 0, hashPrefixLength);
     }
 
     /**
@@ -156,6 +166,6 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashPrefix) {
         if (hashPrefix == null) {
             throw new IllegalArgumentException("Missing hash prefix, path=" + path);
         }
-        return new PullVirtualTreeRequest(path, hashPrefix);
+        return new PullVirtualTreeRequest(path, hashPrefix, Math.toIntExact(hashPrefix.length()));
     }
 }

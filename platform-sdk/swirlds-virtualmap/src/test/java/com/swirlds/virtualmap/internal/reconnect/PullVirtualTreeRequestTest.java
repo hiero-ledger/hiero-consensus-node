@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,6 +31,9 @@ class PullVirtualTreeRequestTest {
         final long path = 42;
         final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
         final PullVirtualTreeRequest original = new PullVirtualTreeRequest(path, hash, PREFIX_LENGTH);
+        // The learner's request keeps the full hash without copying it, and writes only its prefix
+        assertSame(hash.getBytes(), original.hashBytes());
+        assertEquals(PREFIX_LENGTH, original.hashPrefixLength());
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));
@@ -38,11 +42,11 @@ class PullVirtualTreeRequestTest {
 
         assertNotNull(deserialized);
         assertEquals(original.path(), deserialized.path());
-        assertNotNull(deserialized.hashPrefix());
-        assertEquals(PREFIX_LENGTH, deserialized.hashPrefix().length());
+        assertEquals(PREFIX_LENGTH, deserialized.hashPrefixLength());
+        assertEquals(PREFIX_LENGTH, deserialized.hashBytes().length());
         assertArrayEquals(
                 hash.getBytes().slice(0, PREFIX_LENGTH).toByteArray(),
-                deserialized.hashPrefix().toByteArray());
+                deserialized.hashBytes().toByteArray());
         assertTrue(deserialized.matches(hash));
     }
 
@@ -60,7 +64,7 @@ class PullVirtualTreeRequestTest {
 
         assertNotNull(deserialized);
         assertEquals(MerklePathUtils.ROOT_PATH, deserialized.path());
-        assertNotNull(deserialized.hashPrefix());
+        assertEquals(PREFIX_LENGTH, deserialized.hashPrefixLength());
         assertTrue(deserialized.matches(hash));
     }
 
@@ -143,7 +147,8 @@ class PullVirtualTreeRequestTest {
             final BufferedData in = BufferedData.wrap(bytes, 0, (int) out.position());
 
             final PullVirtualTreeRequest request = PullVirtualTreeRequest.parseFrom(in);
-            assertEquals(prefix, request.hashPrefix());
+            assertEquals(prefix, request.hashBytes());
+            assertEquals(prefix.length(), request.hashPrefixLength());
             // A prefix longer than the hash never matches
             assertEquals(prefix.length() <= FULL_HASH_LENGTH, request.matches(hash));
         }
@@ -160,7 +165,7 @@ class PullVirtualTreeRequestTest {
         final PullVirtualTreeRequest deserialized = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(bytes));
 
         assertEquals(42, deserialized.path());
-        assertArrayEquals(hash.copyToByteArray(), deserialized.hashPrefix().toByteArray());
+        assertArrayEquals(hash.copyToByteArray(), deserialized.hashBytes().toByteArray());
         // path: tag + fixed64; hash: tag + length + hash bytes
         assertEquals(1 + Long.BYTES + 1 + 1 + FULL_HASH_LENGTH, original.getSizeInBytes());
 
@@ -179,6 +184,16 @@ class PullVirtualTreeRequestTest {
         final byte[] lastByteChanged = hash.copyToByteArray();
         lastByteChanged[lastByteChanged.length - 1] ^= 1;
         assertFalse(request.matches(new Hash(lastByteChanged, Cryptography.DEFAULT_DIGEST_TYPE)));
+    }
+
+    @Test
+    @DisplayName("A prefix length outside the hash bytes is rejected")
+    void prefixLengthOutOfRange() {
+        final Bytes hashBytes =
+                randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE).getBytes();
+        assertThrows(IllegalArgumentException.class, () -> new PullVirtualTreeRequest(1, hashBytes, -1));
+        assertThrows(
+                IllegalArgumentException.class, () -> new PullVirtualTreeRequest(1, hashBytes, FULL_HASH_LENGTH + 1));
     }
 
     @Test
