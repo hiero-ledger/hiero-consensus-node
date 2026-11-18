@@ -85,7 +85,7 @@ import org.openjdk.jmh.annotations.Warmup;
  *
  * <p>The two benchmark methods differ in how many calls they time per second, so each has its own {@code @Fork},
  * {@code @Warmup}, and {@code @Measurement}, and its calibration block in its Javadoc. On the benchmark machine, each
- * fork settles at a latency level of its own: the forks differ by 2% to 8%, many times more than the iterations of one
+ * fork settles at a latency level of its own: the forks differ by 2% to 4%, many times more than the iterations of one
  * fork, and that sets how small a regression one night detects. The cause is open (#27940).
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
@@ -269,22 +269,22 @@ public class ShadowgraphBenchmark {
      *
      * <h2>Calibration</h2>
      * <ul>
-     *   <li>Date / commit: 2026-11-10, b66805cd1e</li>
-     *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms10g -Xmx10g -XX:+AlwaysPreTouch</li>
+     *   <li>Date / commit: 2026-11-18, e696b4b6f9</li>
+     *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms8g -Xmx8g -XX:+AlwaysPreTouch</li>
      *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
-     *   <li>Steady state after: 0 s / 5 s</li>
-     *   <li>Noise (latency.mean, CV): 0.27% / 0.63% per 5 s iteration, 7.79% / 8.04% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
-     *   <li>Expected detectable regression: 8.86% / 9.16% (95 % CI half-width of one run)</li>
-     *   <li>Samples per iteration: 2.9 M / 1.6 M; expected stable: p99.99 / p99.99</li>
-     *   <li>Runtime: 3.5 / 15.3 min per parameter set</li>
-     *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/42764432289, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/42803765017</li>
+     *   <li>Steady state after: 5 s / 5 s</li>
+     *   <li>Noise (latency.mean, CV): 0.46% / 0.65% per 5 s iteration, 3.82% / 4.21% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+     *   <li>Expected detectable regression: 3.35% / 3.70% (95 % CI half-width of one run)</li>
+     *   <li>Samples per iteration: 3.9 M / 2.3 M; expected stable: mean, p50, p90, p99, p99.9, p99.99 / mean, p90, p99, p99.9, p99.99</li>
+     *   <li>Runtime: 4.8 / 21.8 min per parameter set</li>
+     *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/44132468757, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/44280814515</li>
      * </ul>
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @Fork(
-            value = 3,
+            value = 5,
             jvmArgsAppend = {"-Xms8g", "-Xmx8g", "-XX:+AlwaysPreTouch"})
     @Warmup(iterations = 1, time = 10)
     @Measurement(iterations = 2, time = 5)
@@ -296,27 +296,32 @@ public class ShadowgraphBenchmark {
      * Replays the calls after the fill and records the latency of each call of
      * {@link Shadowgraph#updateEventWindow(EventWindow)}.
      *
-     * <p>With 28 nodes, the forks allocate either about 66 or about 93 B per call and differ by about 3% in latency;
+     * <p>With 28 nodes, the forks allocate either about 66 or about 93 B per call and differ by a few percent in latency;
      * the noise between forks in the block includes it.
+     *
+     * <p>With 28 nodes, about one fork in five runs 10% to 30% slower with the same allocation. In these forks, C2 does
+     * not inline {@code HashMap.remove} into the removal of each expired event, because the JVM has already compiled it
+     * for all its callers into code larger than {@code InlineSmallCode}. Whether it has depends on the order of
+     * compilations, in production too. The noise between forks in the block includes it.
      *
      * <h2>Calibration</h2>
      * <ul>
-     *   <li>Date / commit: 2026-11-11, 0a26902e02</li>
-     *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms10g -Xmx10g -XX:+AlwaysPreTouch</li>
+     *   <li>Date / commit: 2026-11-18, e696b4b6f9</li>
+     *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254 24-Core Processor, JDK 25.0.2, -XX:ActiveProcessorCount=12 -Xms8g -Xmx8g -XX:+AlwaysPreTouch</li>
      *   <li>Parameter sets: numNodes=10 / numNodes=28</li>
      *   <li>Steady state after: 5 s / 5 s</li>
-     *   <li>Noise (latency.mean, CV): 0.43% / 0.80% per 10 s iteration, 2.08% / 2.01% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
-     *   <li>Expected detectable regression: 2.38% / 2.37% (95 % CI half-width of one run)</li>
-     *   <li>Samples per iteration: 110 k / 19 k; expected stable: mean, p50, p90, p99, p99.9 / mean, p50, p90, p99; unmeasured: p99.99 / p99.9, p99.99</li>
-     *   <li>Runtime: 4.0 / 15.7 min per parameter set</li>
-     *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/43035689532, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/43051816153</li>
+     *   <li>Noise (latency.mean, CV): 0.46% / 0.40% per 10 s iteration, 1.66% / 9.58% between forks, - / - between runs (1 of 1 / 1 of 1 runs quiet)</li>
+     *   <li>Expected detectable regression: 1.48% / 8.36% (95 % CI half-width of one run)</li>
+     *   <li>Samples per iteration: 147 k / 27 k; expected stable: mean, p50, p90, p99, p99.9 / -; unmeasured: p99.99 / p99.9, p99.99</li>
+     *   <li>Runtime: 5.6 / 22.7 min per parameter set</li>
+     *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/44132491036, https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/44280831984</li>
      * </ul>
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     @Fork(
-            value = 3,
+            value = 5,
             jvmArgsAppend = {"-Xms8g", "-Xmx8g", "-XX:+AlwaysPreTouch"})
     @Warmup(iterations = 1, time = 10)
     @Measurement(iterations = 2, time = 10)
