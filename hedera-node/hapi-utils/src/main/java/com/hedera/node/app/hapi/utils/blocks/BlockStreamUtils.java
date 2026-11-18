@@ -236,6 +236,7 @@ public final class BlockStreamUtils {
             case CLPR_MESSAGE_VALUE -> mapChangeValue.clprMessageValueOrThrow();
             case CLPR_CONNECTOR_VALUE -> mapChangeValue.clprConnectorValueOrThrow();
             case HINTS_KEY_WITNESS_RECORD_VALUE -> mapChangeValue.hintsKeyWitnessRecordValueOrThrow();
+            case PROTO_LONG_VALUE -> new ProtoLong(mapChangeValue.protoLongValueOrThrow());
         };
     }
 

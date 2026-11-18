@@ -388,6 +388,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case ProtoBytes protoBytes ->
                 new MapChangeValue(
                         new OneOf<>(MapChangeValue.ValueChoiceOneOfType.PROTO_BYTES_VALUE, protoBytes.value()));
+            case ProtoLong protoLong ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.PROTO_LONG_VALUE, protoLong.value()));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());

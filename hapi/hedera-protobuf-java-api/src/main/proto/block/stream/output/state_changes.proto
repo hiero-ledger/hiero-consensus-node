@@ -1313,6 +1313,11 @@ message MapChangeValue {
 
         /** A pending or completed block-signing witness for an adopted hinTS key. */
         com.hedera.hapi.node.state.history.HintsKeyWitnessRecord hints_key_witness_record_value = 37;
+
+        /**
+         * An int64 value.
+         */
+        google.protobuf.Int64Value proto_long_value = 38;
     }
 }
 

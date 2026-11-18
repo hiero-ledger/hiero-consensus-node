@@ -5,6 +5,7 @@ import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOne
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.MAP_UPDATE;
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_POP;
 import static com.hedera.hapi.block.stream.output.StateChange.ChangeOperationOneOfType.QUEUE_PUSH;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0800ClprSchema.CHANNEL_INDEX_NUMS_STATE_ID;
 import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
@@ -326,6 +327,20 @@ class ImmediateStateChangeListenerTest {
         assertEquals(key, BlockStreamUtils.mapKeyFor(restored.mapUpdateOrThrow().keyOrThrow()));
         assertEquals(
                 record, BlockStreamUtils.mapValueFor(restored.mapUpdateOrThrow().valueOrThrow()));
+    }
+
+    @Test
+    void clprChannelIndexNumMapChangesCanBeReplayed() throws Exception {
+        final var key = new ProtoBytes(Bytes.wrap(new byte[32]));
+        final var indexNum = new ProtoLong(7L);
+        listener.mapUpdateChange(CHANNEL_INDEX_NUMS_STATE_ID, key, indexNum);
+        final var restored = StateChange.PROTOBUF.parse(
+                StateChange.PROTOBUF.toBytes(listener.getStateChanges().getFirst()));
+        assertEquals(CHANNEL_INDEX_NUMS_STATE_ID, restored.stateId());
+        assertEquals(key, BlockStreamUtils.mapKeyFor(restored.mapUpdateOrThrow().keyOrThrow()));
+        assertEquals(
+                indexNum,
+                BlockStreamUtils.mapValueFor(restored.mapUpdateOrThrow().valueOrThrow()));
     }
 
     @Test
