@@ -60,8 +60,9 @@ jobs:
       enable-otter-tests: "true"
       enable-falcon-tests: "true"
       enable-benchmark-smoke: "true"
-      enable-gradle-determinism: "true"
-      enable-docker-determinism: "true"
+      # Release branches verify build determinism on every push; main verifies it once a day in 907.
+      enable-gradle-determinism: ${{ startsWith(github.ref, 'refs/heads/release/') && 'true' || 'false' }}
+      enable-docker-determinism: ${{ startsWith(github.ref, 'refs/heads/release/') && 'true' || 'false' }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       java-distribution: "temurin"
       custom-job-label: "MATS (main):"
