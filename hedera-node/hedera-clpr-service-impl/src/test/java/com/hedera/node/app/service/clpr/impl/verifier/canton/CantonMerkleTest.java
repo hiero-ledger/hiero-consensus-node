@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.hex;
-
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

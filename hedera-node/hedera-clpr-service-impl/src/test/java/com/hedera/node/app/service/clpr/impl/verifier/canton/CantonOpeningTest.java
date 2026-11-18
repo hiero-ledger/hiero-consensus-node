@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -36,237 +37,243 @@ import org.junit.jupiter.api.Test;
  * are the same.
  */
 class CantonOpeningTest {
+
     private static final String SYNC_ID = realSynchronizerId();
     private static final byte[] VPD_DATA = CantonFixtures.load("created-event-blob");
     private static final byte[] VCD_DATA = lenField(2, "app-one".getBytes(StandardCharsets.UTF_8));
 
-    // ---- accepted shapes --------------------------------------------------------------------------------------
+    @Nested
+    class AcceptedShapes {
+        /** CONSTRUCTED (_opening / _rootViewPath): root view, path [[[],[]]], one-child MerkleSeq.*/
+        @Test
+        void rootViewOneChildSeqRebuildsToRoot() {
+            final var b = new Builder();
+            final var op = b.rootView(31);
+            final var opened = CantonProofVerifier.openTree(op.rlp(), anchor(), op.root());
+            assertThat(opened.vcd()).isEqualTo(VCD_DATA);
+            assertThat(opened.vpd()).isEqualTo(VPD_DATA);
+            assertThat(opened.vpdIsV32()).isFalse();
+        }
 
-    /** CONSTRUCTED (_opening / _rootViewPath): root view, path [[[],[]]], one-child MerkleSeq.*/
-    @Test
-    void rootViewOneChildSeqRebuildsToRoot() {
-        final var b = new Builder();
-        final var op = b.rootView(31);
-        final var opened = CantonProofVerifier.openTree(op.rlp(), anchor(), op.root());
-        assertThat(opened.vcd()).isEqualTo(VCD_DATA);
-        assertThat(opened.vpd()).isEqualTo(VPD_DATA);
-        assertThat(opened.vpdIsV32()).isFalse();
-    }
+        /** CONSTRUCTED: same shape with a v32 ViewParticipantData leaf. */
+        @Test
+        void vpdVersion32IsFlagged() {
+            final var op = new Builder().rootView(32);
+            assertThat(CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())
+                            .vpdIsV32())
+                    .isTrue();
+        }
 
-    /** CONSTRUCTED: same shape with a v32 ViewParticipantData leaf. */
-    @Test
-    void vpdVersion32IsFlagged() {
-        final var op = new Builder().rootView(32);
-        assertThat(CantonProofVerifier.openTree(op.rlp(), anchor(), op.root()).vpdIsV32())
-                .isTrue();
-    }
+        /** CONSTRUCTED (_openingWithSubviews): workflow view with its subviews as a single hash. */
+        @Test
+        void viewWithSubviewsHashRebuildsToRoot() {
+            final var op = new Builder().withSubviews(sha("the issuer's subviews"));
+            final var opened = CantonProofVerifier.openTree(op.rlp(), anchor(), op.root());
+            assertThat(opened.vpd()).isEqualTo(VPD_DATA);
+        }
 
-    /** CONSTRUCTED (_openingWithSubviews): workflow view with its subviews as a single hash. */
-    @Test
-    void viewWithSubviewsHashRebuildsToRoot() {
-        final var op = new Builder().withSubviews(sha("the issuer's subviews"));
-        final var opened = CantonProofVerifier.openTree(op.rlp(), anchor(), op.root());
-        assertThat(opened.vpd()).isEqualTo(VPD_DATA);
-    }
+        /** CONSTRUCTED (_openingBelowWorkflow): child of a workflow view; 4 steps incl. non-empty "before" siblings. */
+        @Test
+        void viewBelowWorkflowRebuildsToRoot() {
+            final var op = new Builder().belowWorkflow();
+            assertThat(CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())
+                            .vpd())
+                    .isEqualTo(VPD_DATA);
+        }
 
-    /** CONSTRUCTED (_openingBelowWorkflow): child of a workflow view; 4 steps incl. non-empty "before" siblings. */
-    @Test
-    void viewBelowWorkflowRebuildsToRoot() {
-        final var op = new Builder().belowWorkflow();
-        assertThat(CantonProofVerifier.openTree(op.rlp(), anchor(), op.root()).vpd())
-                .isEqualTo(VPD_DATA);
-    }
+        /** A step with siblings on both sides: fold order is before ++ node ++ after. CONSTRUCTED. */
+        @Test
+        void siblingsOnBothSidesFoldInOrder() {
+            final var op = new Builder().bothSides();
+            CantonProofVerifier.openTree(op.rlp(), anchor(), op.root());
+        }
 
-    /** A step with siblings on both sides: fold order is before ++ node ++ after. CONSTRUCTED. */
-    @Test
-    void siblingsOnBothSidesFoldInOrder() {
-        final var op = new Builder().bothSides();
-        CantonProofVerifier.openTree(op.rlp(), anchor(), op.root());
-    }
+        /** The depth cap: 64 steps are accepted, 65 are rejected (InvalidPayloadShape). CONSTRUCTED. */
+        @Test
+        void pathDepthLimit() {
+            final var ok = new Builder().deep(CantonProofVerifier.MAX_PATH_DEPTH);
+            CantonProofVerifier.openTree(ok.rlp(), anchor(), ok.root());
+            final var tooDeep = new Builder().deep(CantonProofVerifier.MAX_PATH_DEPTH + 1);
+            assertThat(error(() -> CantonProofVerifier.openTree(tooDeep.rlp(), anchor(), tooDeep.root())))
+                    .isEqualTo("InvalidPayloadShape");
+        }
 
-    /** The depth cap: 64 steps are accepted, 65 are rejected (InvalidPayloadShape). CONSTRUCTED. */
-    @Test
-    void pathDepthLimit() {
-        final var ok = new Builder().deep(CantonProofVerifier.MAX_PATH_DEPTH);
-        CantonProofVerifier.openTree(ok.rlp(), anchor(), ok.root());
-        final var tooDeep = new Builder().deep(CantonProofVerifier.MAX_PATH_DEPTH + 1);
-        assertThat(error(() -> CantonProofVerifier.openTree(tooDeep.rlp(), anchor(), tooDeep.root())))
-                .isEqualTo("InvalidPayloadShape");
-    }
-
-    @Test
-    void emptyPathRejected() {
-        final var op = new Builder().custom(31, 30, 30, SYNC_ID, 7, new byte[0][], null);
-        assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())))
-                .isEqualTo("InvalidPayloadShape");
-    }
-
-    // ---- root / tamper ----------------------------------------------------------------------------------------
-
-    @Test
-    void wrongRootHashRejected() {
-        final var op = new Builder().rootView(31);
-        final byte[] bad = op.root().clone();
-        bad[0] ^= 1;
-        assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), bad)))
-                .isEqualTo("RootHashMismatch");
-    }
-
-    @Test
-    void tamperedSiblingRejected() {
-        final var b = new Builder();
-        final var op = b.belowWorkflow();
-        final byte[] tampered = b.flipByteOf(op.rlp(), sha("workflow view common data"));
-        assertThat(error(() -> CantonProofVerifier.openTree(tampered, anchor(), op.root())))
-                .isEqualTo("RootHashMismatch");
-    }
-
-    @Test
-    void tamperedSubviewsHashRejected() {
-        final var b = new Builder();
-        final byte[] subviews = sha("the issuer's subviews");
-        final var op = b.withSubviews(subviews);
-        final byte[] tampered = b.flipByteOf(op.rlp(), subviews);
-        assertThat(error(() -> CantonProofVerifier.openTree(tampered, anchor(), op.root())))
-                .isEqualTo("RootHashMismatch");
-    }
-
-    @Test
-    void tamperedSubmitterMetadataHashRejected() {
-        final var b = new Builder();
-        final var op = b.rootView(31);
-        final byte[] tampered = b.flipByteOf(op.rlp(), Builder.SUBMITTER);
-        assertThat(error(() -> CantonProofVerifier.openTree(tampered, anchor(), op.root())))
-                .isEqualTo("RootHashMismatch");
-    }
-
-    @Test
-    void tamperedViewLeafRejected() {
-        final var b = new Builder();
-        final var op = b.rootView(31);
-        final byte[] tampered = b.flipByteOf(op.rlp(), VCD_DATA);
-        assertThat(error(() -> CantonProofVerifier.openTree(tampered, anchor(), op.root())))
-                .isEqualTo("RootHashMismatch");
-    }
-
-    // ---- metadata ---------------------------------------------------------------------------------------------
-
-    @Test
-    void wrongSynchronizerIdIsMetadataMismatch() {
-        final var op = new Builder().rootView(31);
-        assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(SYNC_ID + "x", 7), op.root())))
-                .isEqualTo("MetadataMismatch");
-    }
-
-    @Test
-    void wrongMediatorGroupIsMetadataMismatch() {
-        final var op = new Builder().rootView(31);
-        assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(SYNC_ID, 8), op.root())))
-                .isEqualTo("MetadataMismatch");
-    }
-
-    /** The anchor's group is uint32: 0xFFFFFFFF must compare as 4294967295, not -1. CONSTRUCTED. */
-    @Test
-    void mediatorGroupIsUnsigned32() {
-        final var op = new Builder().custom(31, 30, 30, SYNC_ID, 0xFFFFFFFFL, Builder.ROOT_PATH, null);
-        CantonProofVerifier.openTree(op.rlp(), anchor(SYNC_ID, -1), op.root());
-    }
-
-    @Test
-    void metadataIsCheckedBeforeRoot() {
-        // Wrong metadata and a wrong root hash: the reference reverts MetadataMismatch first.
-        final var op = new Builder().rootView(31);
-        assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(SYNC_ID, 8), new byte[32])))
-                .isEqualTo("MetadataMismatch");
-    }
-
-    // ---- leaf versions ----------------------------------------------------------------------------------------
-
-    @Test
-    void commonMetadataMustBeVersion30() {
-        for (final int v : new int[] {29, 31, 32}) {
-            final var op = new Builder().custom(31, 30, v, SYNC_ID, 7, Builder.ROOT_PATH, null);
+        @Test
+        void emptyPathRejected() {
+            final var op = new Builder().custom(31, 30, 30, SYNC_ID, 7, new byte[0][], null);
             assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())))
-                    .as("cm version %d", v)
-                    .isEqualTo("UnsupportedLeafVersion");
+                    .isEqualTo("InvalidPayloadShape");
         }
     }
 
-    @Test
-    void viewCommonDataMustBeVersion30() {
-        for (final int v : new int[] {29, 31}) {
-            final var op = new Builder().custom(31, v, 30, SYNC_ID, 7, Builder.ROOT_PATH, null);
-            assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())))
-                    .as("vcd version %d", v)
-                    .isEqualTo("UnsupportedLeafVersion");
+    @Nested
+    class RootAndTamper {
+        @Test
+        void wrongRootHashRejected() {
+            final var op = new Builder().rootView(31);
+            final byte[] bad = op.root().clone();
+            bad[0] ^= 1;
+            assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), bad)))
+                    .isEqualTo("RootHashMismatch");
+        }
+
+        @Test
+        void tamperedSiblingRejected() {
+            final var b = new Builder();
+            final var op = b.belowWorkflow();
+            final byte[] tampered = b.flipByteOf(op.rlp(), sha("workflow view common data"));
+            assertThat(error(() -> CantonProofVerifier.openTree(tampered, anchor(), op.root())))
+                    .isEqualTo("RootHashMismatch");
+        }
+
+        @Test
+        void tamperedSubviewsHashRejected() {
+            final var b = new Builder();
+            final byte[] subviews = sha("the issuer's subviews");
+            final var op = b.withSubviews(subviews);
+            final byte[] tampered = b.flipByteOf(op.rlp(), subviews);
+            assertThat(error(() -> CantonProofVerifier.openTree(tampered, anchor(), op.root())))
+                    .isEqualTo("RootHashMismatch");
+        }
+
+        @Test
+        void tamperedSubmitterMetadataHashRejected() {
+            final var b = new Builder();
+            final var op = b.rootView(31);
+            final byte[] tampered = b.flipByteOf(op.rlp(), Builder.SUBMITTER);
+            assertThat(error(() -> CantonProofVerifier.openTree(tampered, anchor(), op.root())))
+                    .isEqualTo("RootHashMismatch");
+        }
+
+        @Test
+        void tamperedViewLeafRejected() {
+            final var b = new Builder();
+            final var op = b.rootView(31);
+            final byte[] tampered = b.flipByteOf(op.rlp(), VCD_DATA);
+            assertThat(error(() -> CantonProofVerifier.openTree(tampered, anchor(), op.root())))
+                    .isEqualTo("RootHashMismatch");
         }
     }
 
-    @Test
-    void participantDataMustBeVersion31Or32() {
-        for (final int v : new int[] {30, 33}) {
-            final var op = new Builder().custom(v, 30, 30, SYNC_ID, 7, Builder.ROOT_PATH, null);
-            assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())))
-                    .as("vpd version %d", v)
-                    .isEqualTo("UnsupportedLeafVersion");
+    @Nested
+    class Metadata {
+        @Test
+        void wrongSynchronizerIdIsMetadataMismatch() {
+            final var op = new Builder().rootView(31);
+            assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(SYNC_ID + "x", 7), op.root())))
+                    .isEqualTo("MetadataMismatch");
+        }
+
+        @Test
+        void wrongMediatorGroupIsMetadataMismatch() {
+            final var op = new Builder().rootView(31);
+            assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(SYNC_ID, 8), op.root())))
+                    .isEqualTo("MetadataMismatch");
+        }
+
+        /** The anchor's group is uint32: 0xFFFFFFFF must compare as 4294967295, not -1. CONSTRUCTED. */
+        @Test
+        void mediatorGroupIsUnsigned32() {
+            final var op = new Builder().custom(31, 30, 30, SYNC_ID, 0xFFFFFFFFL, Builder.ROOT_PATH, null);
+            CantonProofVerifier.openTree(op.rlp(), anchor(SYNC_ID, -1), op.root());
+        }
+
+        @Test
+        void metadataIsCheckedBeforeRoot() {
+            // Wrong metadata and a wrong root hash: the reference reverts MetadataMismatch first.
+            final var op = new Builder().rootView(31);
+            assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(SYNC_ID, 8), new byte[32])))
+                    .isEqualTo("MetadataMismatch");
         }
     }
 
-    // ---- shape / strict RLP -----------------------------------------------------------------------------------
+    @Nested
+    class LeafVersions {
+        @Test
+        void commonMetadataMustBeVersion30() {
+            for (final int v : new int[] {29, 31, 32}) {
+                final var op = new Builder().custom(31, 30, v, SYNC_ID, 7, Builder.ROOT_PATH, null);
+                assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())))
+                        .as("cm version %d", v)
+                        .isEqualTo("UnsupportedLeafVersion");
+            }
+        }
 
-    @Test
-    void wrongOpeningItemCountRejected() {
-        final var op = new Builder().rootView(31);
-        final byte[] four = rlpList(Arrays.copyOf(Builder.items(op.rlp()), 4));
-        assertThat(error(() -> CantonProofVerifier.openTree(four, anchor(), op.root())))
-                .isEqualTo("InvalidPayloadShape");
+        @Test
+        void viewCommonDataMustBeVersion30() {
+            for (final int v : new int[] {29, 31}) {
+                final var op = new Builder().custom(31, v, 30, SYNC_ID, 7, Builder.ROOT_PATH, null);
+                assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())))
+                        .as("vcd version %d", v)
+                        .isEqualTo("UnsupportedLeafVersion");
+            }
+        }
+
+        @Test
+        void participantDataMustBeVersion31Or32() {
+            for (final int v : new int[] {30, 33}) {
+                final var op = new Builder().custom(v, 30, 30, SYNC_ID, 7, Builder.ROOT_PATH, null);
+                assertThat(error(() -> CantonProofVerifier.openTree(op.rlp(), anchor(), op.root())))
+                        .as("vpd version %d", v)
+                        .isEqualTo("UnsupportedLeafVersion");
+            }
+        }
     }
 
-    @Test
-    void wrongViewItemCountRejected() {
-        final var b = new Builder();
-        final var op = b.rootView(31);
-        final byte[][] o = Builder.items(op.rlp());
-        final byte[][] v = Builder.items(o[3]);
-        o[3] = rlpList(v[0]); // one-item view
-        final byte[] bad = rlpList(o);
-        assertThat(error(() -> CantonProofVerifier.openTree(bad, anchor(), op.root())))
-                .isEqualTo("InvalidPayloadShape");
-        o[3] = rlpList(v[0], v[1], rlpString(new byte[32]), rlpString(new byte[32]));
-        final byte[] four = rlpList(o);
-        assertThat(error(() -> CantonProofVerifier.openTree(four, anchor(), op.root())))
-                .isEqualTo("InvalidPayloadShape");
-    }
+    @Nested
+    class ShapeAndStrictRlp {
+        @Test
+        void wrongOpeningItemCountRejected() {
+            final var op = new Builder().rootView(31);
+            final byte[] four = rlpList(Arrays.copyOf(Builder.items(op.rlp()), 4));
+            assertThat(error(() -> CantonProofVerifier.openTree(four, anchor(), op.root())))
+                    .isEqualTo("InvalidPayloadShape");
+        }
 
-    @Test
-    void stepWithWrongItemCountRejected() {
-        final var op = new Builder().rootView(31);
-        final byte[][] o = Builder.items(op.rlp());
-        o[4] = rlpList(rlpList(rlpList()));
-        assertThat(error(() -> CantonProofVerifier.openTree(rlpList(o), anchor(), op.root())))
-                .isEqualTo("InvalidPayloadShape");
-    }
+        @Test
+        void wrongViewItemCountRejected() {
+            final var b = new Builder();
+            final var op = b.rootView(31);
+            final byte[][] o = Builder.items(op.rlp());
+            final byte[][] v = Builder.items(o[3]);
+            o[3] = rlpList(v[0]); // one-item view
+            final byte[] bad = rlpList(o);
+            assertThat(error(() -> CantonProofVerifier.openTree(bad, anchor(), op.root())))
+                    .isEqualTo("InvalidPayloadShape");
+            o[3] = rlpList(v[0], v[1], rlpString(new byte[32]), rlpString(new byte[32]));
+            final byte[] four = rlpList(o);
+            assertThat(error(() -> CantonProofVerifier.openTree(four, anchor(), op.root())))
+                    .isEqualTo("InvalidPayloadShape");
+        }
 
-    /** OpenZeppelin RLP is strict; the module's lenient Rlp would accept 0x81 0x05 for the byte 0x05. */
-    @Test
-    void nonCanonicalRlpRejected() {
-        final var op = new Builder().rootView(31);
-        final byte[][] o = Builder.items(op.rlp());
-        // sibling 32 bytes -> encode as a non-minimal long-form string (0xb8 0x20 ...) where 0xa0 is canonical
-        o[0] = CantonBytes.concat(new byte[] {(byte) 0xb8, 0x20}, Builder.SUBMITTER);
-        assertThat(error(() -> CantonProofVerifier.openTree(rlpList(o), anchor(), op.root())))
-                .isEqualTo("InvalidPayloadShape");
-    }
+        @Test
+        void stepWithWrongItemCountRejected() {
+            final var op = new Builder().rootView(31);
+            final byte[][] o = Builder.items(op.rlp());
+            o[4] = rlpList(rlpList(rlpList()));
+            assertThat(error(() -> CantonProofVerifier.openTree(rlpList(o), anchor(), op.root())))
+                    .isEqualTo("InvalidPayloadShape");
+        }
 
-    @Test
-    void trailingBytesAfterOpeningRejected() {
-        final var op = new Builder().rootView(31);
-        final byte[] trailing = CantonBytes.concat(op.rlp(), new byte[] {0});
-        assertThat(error(() -> CantonProofVerifier.openTree(trailing, anchor(), op.root())))
-                .isEqualTo("InvalidPayloadShape");
-    }
+        /** OpenZeppelin RLP is strict; the module's lenient Rlp would accept 0x81 0x05 for the byte 0x05. */
+        @Test
+        void nonCanonicalRlpRejected() {
+            final var op = new Builder().rootView(31);
+            final byte[][] o = Builder.items(op.rlp());
+            // sibling 32 bytes -> encode as a non-minimal long-form string (0xb8 0x20 ...) where 0xa0 is canonical
+            o[0] = CantonBytes.concat(new byte[] {(byte) 0xb8, 0x20}, Builder.SUBMITTER);
+            assertThat(error(() -> CantonProofVerifier.openTree(rlpList(o), anchor(), op.root())))
+                    .isEqualTo("InvalidPayloadShape");
+        }
 
-    // ---- builder --------------------------------------------------------------
+        @Test
+        void trailingBytesAfterOpeningRejected() {
+            final var op = new Builder().rootView(31);
+            final byte[] trailing = CantonBytes.concat(op.rlp(), new byte[] {0});
+            assertThat(error(() -> CantonProofVerifier.openTree(trailing, anchor(), op.root())))
+                    .isEqualTo("InvalidPayloadShape");
+        }
+    }
 
     record Opening(byte[] rlp, byte[] root) {}
 
@@ -416,8 +423,6 @@ class CantonOpeningTest {
             return out;
         }
     }
-
-    // ---- encoding helpers (CantonProofBuilder.sol _versioned/_leafRlp/_commonMetadata/_step) ------------------
 
     private static byte[] sha(final String s) {
         return sha(s.getBytes(StandardCharsets.UTF_8));

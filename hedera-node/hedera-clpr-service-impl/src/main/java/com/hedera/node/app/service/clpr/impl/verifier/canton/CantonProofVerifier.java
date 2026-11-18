@@ -207,6 +207,7 @@ public final class CantonProofVerifier implements ClprVerifier {
                         .chainId()
                         .getBytes(StandardCharsets.UTF_8);
             } catch (final RuntimeException e) {
+                log.error("Failed to read ledger configuration for Canton config verification", e);
                 throw withCause(CantonProofException.serviceCallFailed("ledger configuration unavailable"), e);
             }
             return verifyConfig(

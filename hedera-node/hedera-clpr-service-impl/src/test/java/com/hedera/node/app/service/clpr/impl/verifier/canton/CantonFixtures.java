@@ -24,8 +24,7 @@ public final class CantonFixtures {
             HEX.parseHex("47d7e478d17269b47ac84ed799101a84156ac084b2b186ee31c91cf7a1e67b40");
     public static final byte[] MEDIATOR1_KEY_2 =
             HEX.parseHex("4318031c692a30b683240a94c7fea3bc3a439e64d1cbe4e1f2e9599ba2938dcc");
-    static final byte[] MEDIATOR1 =
-            hex("6e8899fea6adfe7b3965493fb60343bd44215fe4c695d02e6c8a761bd7bfa9bc");
+    static final byte[] MEDIATOR1 = hex("6e8899fea6adfe7b3965493fb60343bd44215fe4c695d02e6c8a761bd7bfa9bc");
     public static final byte[] MEDIATOR1_P256 =
             HEX.parseHex("fe282f9c0c644fb7fd24f7029187d266a60edee684c0d2ad87cd34efcf4ba678");
     public static final byte[] MEDIATOR1_DELEGATED =

@@ -4,7 +4,6 @@ package com.hedera.node.app.service.clpr.impl.verifier.canton;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.filled;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.hex;
-
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -23,41 +22,11 @@ import org.junit.jupiter.api.Test;
  * (the no-pending-LSU shape built by {@code CantonProofBuilder._anchorFor}).
  */
 class CantonAnchorTest {
+
     private static final String FULL_HEX =
             "0000000000000000000000000000000000000000000000000000000000000140000000000000000000000000000000000000000000000000ffffffffffffffff00000000000000000000000000000000000000000000000000000000ffffffff11111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222333333333333333333333333333333333333333333333333333333333333333300000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000001c00000000000000000000000000000000000000000000000000000000000000017676c6f62616c2d646f6d61696e3a3a3132323061626364000000000000000000000000000000000000000000000000000000000000000000000000000000000c737563633a3a313232306566000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000096170703a3a313232300000000000000000000000000000000000000000000000";
     private static final String MINIMAL_HEX =
             "000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001f4000000000000000000000000000000000000000000000000000000000000000011111111111111111111111111111111111111111111111111111111111111112222222222222222222222222222222222222222222222222222222222222222333333333333333333333333333333333333333333333333333333333333333300000000000000000000000000000000000000000000000000000000000001800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001a0000000000000000000000000000000000000000000000000000000000000000873796e633a3a313200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-
-    private static CantonAnchor.Anchor full() {
-        return new CantonAnchor.Anchor(
-                "global-domain::1220abcd",
-                -1L,
-                -1,
-                filled(0x11),
-                filled(0x22),
-                filled(0x33),
-                "succ::1220ef",
-                Long.MIN_VALUE,
-                Integer.MIN_VALUE,
-                "app::1220");
-    }
-
-    private static CantonAnchor.Anchor minimal() {
-        return new CantonAnchor.Anchor("sync::12", 500L, 0, filled(0x11), filled(0x22), filled(0x33), "", 0L, 0, "");
-    }
-
-    private static void assertAnchorEquals(final CantonAnchor.Anchor e, final CantonAnchor.Anchor a) {
-        assertEquals(e.synchronizerId(), a.synchronizerId());
-        assertEquals(e.lastRequestId(), a.lastRequestId());
-        assertEquals(e.mediatorGroup(), a.mediatorGroup());
-        assertArrayEquals(e.synchronizerNamespace(), a.synchronizerNamespace());
-        assertArrayEquals(e.ownersHash(), a.ownersHash());
-        assertArrayEquals(e.mediatorsHash(), a.mediatorsHash());
-        assertEquals(e.successorSynchronizerId(), a.successorSynchronizerId());
-        assertEquals(e.upgradeTime(), a.upgradeTime());
-        assertEquals(e.lsuSerial(), a.lsuSerial());
-        assertEquals(e.app(), a.app());
-    }
 
     @Test
     void decodesSolidityEncodedFull() {
@@ -157,5 +126,36 @@ class CantonAnchorTest {
 
     private static final class Anchor32 {
         final String s = "0123456789abcdef0123456789abcdef0123456789abcdef"; // 48 bytes
+    }
+
+    private static CantonAnchor.Anchor full() {
+        return new CantonAnchor.Anchor(
+                "global-domain::1220abcd",
+                -1L,
+                -1,
+                filled(0x11),
+                filled(0x22),
+                filled(0x33),
+                "succ::1220ef",
+                Long.MIN_VALUE,
+                Integer.MIN_VALUE,
+                "app::1220");
+    }
+
+    private static CantonAnchor.Anchor minimal() {
+        return new CantonAnchor.Anchor("sync::12", 500L, 0, filled(0x11), filled(0x22), filled(0x33), "", 0L, 0, "");
+    }
+
+    private static void assertAnchorEquals(final CantonAnchor.Anchor e, final CantonAnchor.Anchor a) {
+        assertEquals(e.synchronizerId(), a.synchronizerId());
+        assertEquals(e.lastRequestId(), a.lastRequestId());
+        assertEquals(e.mediatorGroup(), a.mediatorGroup());
+        assertArrayEquals(e.synchronizerNamespace(), a.synchronizerNamespace());
+        assertArrayEquals(e.ownersHash(), a.ownersHash());
+        assertArrayEquals(e.mediatorsHash(), a.mediatorsHash());
+        assertEquals(e.successorSynchronizerId(), a.successorSynchronizerId());
+        assertEquals(e.upgradeTime(), a.upgradeTime());
+        assertEquals(e.lsuSerial(), a.lsuSerial());
+        assertEquals(e.app(), a.app());
     }
 }

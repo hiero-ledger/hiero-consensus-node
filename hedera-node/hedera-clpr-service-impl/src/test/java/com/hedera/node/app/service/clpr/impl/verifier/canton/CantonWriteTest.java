@@ -4,7 +4,6 @@ package com.hedera.node.app.service.clpr.impl.verifier.canton;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonFixtures.formatHex;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -27,6 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -57,337 +57,341 @@ class CantonWriteTest {
     private static final Service SERVICE =
             new Service(CHANNEL_ID, CHANNEL_HEX, PACKAGE_HEX, OPERATOR, CantonBytes.concat(PACKAGE_ID, OPERATOR));
 
-    // ── readWrite: success ───────────────────────────────────────────────────
+    @Nested
+    class ReadWriteSuccess {
+        @Test
+        void readWriteV31ExtractsMetadataAtDocumentedPositions() {
+            final byte[] vpd = vpd(false, exercise(), false, channel().build());
+            final WriteResult r = CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP);
 
-    @Test
-    void readWriteV31ExtractsMetadataAtDocumentedPositions() {
-        final byte[] vpd = vpd(false, exercise(), false, channel().build());
-        final WriteResult r = CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP);
+            assertEquals(7, r.metadata().nextMessageId());
+            assertArrayEquals(SENT_HASH, r.metadata().sentRunningHash().toByteArray());
+            assertEquals(4, r.metadata().receivedMessageId());
+            assertArrayEquals(RECV_HASH, r.metadata().receivedRunningHash().toByteArray());
+            assertEquals(ClprChannelStatus.ACTIVE, r.metadata().status());
+            assertEquals(3, r.metadata().endpointManifestVersion());
+            assertEquals(0, r.manifestHash().length);
+        }
 
-        assertEquals(7, r.metadata().nextMessageId());
-        assertArrayEquals(SENT_HASH, r.metadata().sentRunningHash().toByteArray());
-        assertEquals(4, r.metadata().receivedMessageId());
-        assertArrayEquals(RECV_HASH, r.metadata().receivedRunningHash().toByteArray());
-        assertEquals(ClprChannelStatus.ACTIVE, r.metadata().status());
-        assertEquals(3, r.metadata().endpointManifestVersion());
-        assertEquals(0, r.manifestHash().length);
-    }
+        @Test
+        void readWriteV32AndManifestHash() {
+            final byte[] vpd = vpd(
+                    true,
+                    exercise(),
+                    false,
+                    channel().manifestHash(formatHex(MANIFEST_HASH)).build());
+            final WriteResult r = CantonProofVerifier.readWrite(vpd, true, 0, SERVICE, APP);
+            assertArrayEquals(MANIFEST_HASH, r.manifestHash());
+            assertEquals(7, r.metadata().nextMessageId());
+        }
 
-    @Test
-    void readWriteV32AndManifestHash() {
-        final byte[] vpd = vpd(
-                true,
-                exercise(),
-                false,
-                channel().manifestHash(formatHex(MANIFEST_HASH)).build());
-        final WriteResult r = CantonProofVerifier.readWrite(vpd, true, 0, SERVICE, APP);
-        assertArrayEquals(MANIFEST_HASH, r.manifestHash());
-        assertEquals(7, r.metadata().nextMessageId());
-    }
-
-    @Test
-    void readWriteSelectsCreatedIndex() {
-        final byte[] other = channel().next(99).build();
-        final byte[] vpd = vpd(false, exercise(), false, other, channel().build());
-        assertEquals(
-                99,
-                CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP)
-                        .metadata()
-                        .nextMessageId());
-        assertEquals(
-                7,
-                CantonProofVerifier.readWrite(vpd, false, 1, SERVICE, APP)
-                        .metadata()
-                        .nextMessageId());
-    }
-
-    @Test
-    void statusConstructorsMapToClprChannelStatus() {
-        final String[] names = {"Active", "Closing", "Drained", "Closed", "Paused", "Pending"};
-        final ClprChannelStatus[] expected = {
-            ClprChannelStatus.ACTIVE,
-            ClprChannelStatus.CLOSING,
-            ClprChannelStatus.DRAINED,
-            ClprChannelStatus.CLOSED,
-            ClprChannelStatus.PAUSED,
-            ClprChannelStatus.PENDING
-        };
-        for (int i = 0; i < names.length; ++i) {
-            final byte[] vpd =
-                    vpd(false, exercise(), false, channel().status(names[i]).build());
+        @Test
+        void readWriteSelectsCreatedIndex() {
+            final byte[] other = channel().next(99).build();
+            final byte[] vpd = vpd(false, exercise(), false, other, channel().build());
             assertEquals(
-                    expected[i],
+                    99,
                     CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP)
                             .metadata()
-                            .status(),
-                    names[i]);
+                            .nextMessageId());
+            assertEquals(
+                    7,
+                    CantonProofVerifier.readWrite(vpd, false, 1, SERVICE, APP)
+                            .metadata()
+                            .nextMessageId());
+        }
+
+        @Test
+        void statusConstructorsMapToClprChannelStatus() {
+            final String[] names = {"Active", "Closing", "Drained", "Closed", "Paused", "Pending"};
+            final ClprChannelStatus[] expected = {
+                ClprChannelStatus.ACTIVE,
+                ClprChannelStatus.CLOSING,
+                ClprChannelStatus.DRAINED,
+                ClprChannelStatus.CLOSED,
+                ClprChannelStatus.PAUSED,
+                ClprChannelStatus.PENDING
+            };
+            for (int i = 0; i < names.length; ++i) {
+                final byte[] vpd =
+                        vpd(false, exercise(), false, channel().status(names[i]).build());
+                assertEquals(
+                        expected[i],
+                        CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP)
+                                .metadata()
+                                .status(),
+                        names[i]);
+            }
         }
     }
 
-    // ── readWrite: rejections ────────────────────────────────────────────────
+    @Nested
+    class ReadWriteRejections {
+        @Test
+        void createActionIsWrongAction() {
+            final byte[] vpd = vpd(
+                    false, Pb.lenField(1, new byte[] {1, 2}), false, channel().build());
+            assertRejects("WrongAction", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
 
-    @Test
-    void createActionIsWrongAction() {
-        final byte[] vpd =
-                vpd(false, Pb.lenField(1, new byte[] {1, 2}), false, channel().build());
-        assertRejects("WrongAction", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        @Test
+        void rolledBackV31IsRolledBack() {
+            final byte[] vpd = vpd(false, exercise(), true, channel().build());
+            assertRejects("RolledBack", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void rolledBackV32IsRolledBack() {
+            final byte[] vpd = vpd(true, exercise(), true, channel().build());
+            assertRejects("RolledBack", () -> CantonProofVerifier.readWrite(vpd, true, 0, SERVICE, APP));
+        }
+
+        @Test
+        void createdIndexOutOfRangeIsWrongContract() {
+            final byte[] vpd = vpd(false, exercise(), false, channel().build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 1, SERVICE, APP));
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, -1, SERVICE, APP));
+        }
+
+        @Test
+        void noCreatedContractIsWrongContract() {
+            final byte[] vpd = vpd(false, exercise(), false);
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void wrongPackageIsWrongContract() {
+            final byte[] vpd = vpd(
+                    false,
+                    exercise(),
+                    false,
+                    channel().packageHex(repeat((byte) 'f', 64)).build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void wrongEntityIsWrongContract() {
+            final byte[] vpd = vpd(
+                    false, exercise(), false, channel().entity("ChannelConfig").build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void wrongOperatorIsWrongContract() {
+            final byte[] vpd = vpd(
+                    false, exercise(), false, channel().operator(OTHER_PARTY).build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void wrongChannelIdIsWrongContract() {
+            final byte[] vpd = vpd(
+                    false,
+                    exercise(),
+                    false,
+                    channel().channelHex(utf8("22".repeat(32))).build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void appFieldNotAnchorAppIsWrongContract() {
+            final byte[] vpd = vpd(
+                    false,
+                    exercise(),
+                    false,
+                    channel().app(OTHER_PARTY).signatory(OTHER_PARTY).build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void appNotASignatoryIsWrongContract() {
+            final byte[] vpd =
+                    vpd(false, exercise(), false, channel().signatory(OPERATOR).build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void tooFewFieldsIsWrongContract() {
+            final byte[] vpd =
+                    vpd(false, exercise(), false, channel().fieldCount(25).build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void unknownStatusIsWrongContract() {
+            final byte[] vpd =
+                    vpd(false, exercise(), false, channel().status("Frozen").build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void runningHashOfWrongLengthIsWrongContract() {
+            final byte[] vpd =
+                    vpd(false, exercise(), false, channel().sentHash("2222").build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+            final byte[] vpd2 =
+                    vpd(false, exercise(), false, channel().recvHash("").build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd2, false, 0, SERVICE, APP));
+        }
+
+        @Test
+        void manifestHashOfWrongLengthIsWrongContract() {
+            final byte[] vpd =
+                    vpd(false, exercise(), false, channel().manifestHash("4444").build());
+            assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+        }
     }
 
-    @Test
-    void rolledBackV31IsRolledBack() {
-        final byte[] vpd = vpd(false, exercise(), true, channel().build());
-        assertRejects("RolledBack", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
+    @Nested
+    class CheckPayload {
+        @Test
+        void dataFromAppPasses() {
+            final byte[] p = data(APP, OTHER_PARTY);
+            CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
+        }
+
+        @Test
+        void dataFromOtherSenderIsSenderMismatch() {
+            final byte[] p = data(OTHER_PARTY, APP);
+            assertRejects("SenderMismatch", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+        }
+
+        @Test
+        void dataWithShortConnectorIdIsRejected() {
+            // The reference decodeDataMessage rejects a present connector id that is not exactly 32 bytes.
+            final byte[] p = dataWithConnector(repeat((byte) 0x01, 31));
+            assertRejects(
+                    "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+        }
+
+        @Test
+        void dataWithLongConnectorIdIsRejected() {
+            final byte[] p = dataWithConnector(repeat((byte) 0x01, 33));
+            assertRejects(
+                    "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+        }
+
+        @Test
+        void dataWithEmptyPresentConnectorIdIsRejected() {
+            // PBJ drops a zero-length bytes field on encode, so build the wire bytes by hand: field 1 (message),
+            // containing connector_id (field 1) with length 0, then sender (field 3).
+            final byte[] inner = CantonBytes.concat(new byte[] {0x0a, 0x00, 0x1a, (byte) APP.length}, APP);
+            final byte[] p = CantonBytes.concat(new byte[] {0x0a, (byte) inner.length}, inner);
+            assertRejects(
+                    "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+        }
+
+        @Test
+        void dataWith32ByteConnectorIdPasses() {
+            final byte[] p = dataWithConnector(repeat((byte) 0x01, 32));
+            CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
+        }
+
+        @Test
+        void applicationErrorReplyWithoutDataSkipsTargetLookup() {
+            final byte[] p = reply(5, ClprMessageReplyStatus.APPLICATION_ERROR, new byte[0]);
+            CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
+        }
+
+        @Test
+        void replyToDataSentToAppPasses() {
+            final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1});
+            final var asked = new AtomicInteger();
+            final OutboundLookup lookup = (channelId, messageId) -> {
+                asked.incrementAndGet();
+                assertArrayEquals(CHANNEL_ID, channelId);
+                assertEquals(5, messageId);
+                return dataPayload(OTHER_PARTY, APP);
+            };
+            CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup);
+            assertEquals(1, asked.get());
+        }
+
+        @Test
+        void replyToDataSentToAnotherPartyIsReplyTargetMismatch() {
+            final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1});
+            final OutboundLookup lookup = (channelId, messageId) -> dataPayload(APP, OTHER_PARTY);
+            assertRejects("ReplyTargetMismatch", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup));
+        }
+
+        @Test
+        void applicationErrorWithDataIsStillTargetChecked() {
+            final byte[] p = reply(5, ClprMessageReplyStatus.APPLICATION_ERROR, new byte[] {9});
+            final OutboundLookup lookup = (channelId, messageId) -> dataPayload(APP, OTHER_PARTY);
+            assertRejects("ReplyTargetMismatch", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup));
+        }
+
+        @Test
+        void nonApplicationErrorWithoutDataIsTargetChecked() {
+            final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[0]);
+            final OutboundLookup lookup = (channelId, messageId) -> dataPayload(APP, OTHER_PARTY);
+            assertRejects("ReplyTargetMismatch", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup));
+        }
+
+        @Test
+        void replyWithNoLiveOutboundMessageOrNonDataPasses() {
+            final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1});
+            CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, (c, m) -> null);
+            final byte[] storedReply = ClprMessagePayload.PROTOBUF
+                    .toBytes(ClprMessagePayload.newBuilder()
+                            .messageReply(ClprMessageReply.newBuilder().messageId(5))
+                            .build())
+                    .toByteArray();
+            assertNotNull(storedReply);
+            CantonProofVerifier.checkPayload(
+                    p,
+                    CHANNEL_ID,
+                    APP,
+                    (c, m) -> ClprMessagePayload.newBuilder()
+                            .messageReply(ClprMessageReply.newBuilder().messageId(5))
+                            .build());
+        }
+
+        @Test
+        void lookupFailureSurfacesAsServiceCallFailed() {
+            final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1});
+            final OutboundLookup lookup = (c, m) -> {
+                throw CantonProofException.serviceCallFailed();
+            };
+            assertRejects("ServiceCallFailed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup));
+        }
+
+        @Test
+        void controlPayloadIsWrongMessageType() {
+            final byte[] p = ClprMessagePayload.PROTOBUF
+                    .toBytes(ClprMessagePayload.newBuilder()
+                            .control(ClprControlMessage.DEFAULT)
+                            .build())
+                    .toByteArray();
+            assertRejects(
+                    "WrongMessageType", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+        }
+
+        @Test
+        void trailingFieldAfterPayloadIsWrongMessageType() {
+            // A valid DATA from the app followed by a second oneof arm: PBJ would keep the last arm, the reference
+            // rejects anything but exactly one field spanning the whole payload.
+            final byte[] p = CantonBytes.concat(data(APP, OTHER_PARTY), data(OTHER_PARTY, APP));
+            assertRejects(
+                    "WrongMessageType", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
+        }
+
+        @Test
+        void unknownFieldNumberAndWireTypeAreWrongMessageType() {
+            final byte[] field4 = Pb.lenField(4, new byte[] {1});
+            assertRejects(
+                    "WrongMessageType", () -> CantonProofVerifier.checkPayload(field4, CHANNEL_ID, APP, neverCalled()));
+            final byte[] varint = {0x08, 0x01}; // field 1, wire type varint
+            assertRejects(
+                    "WrongMessageType", () -> CantonProofVerifier.checkPayload(varint, CHANNEL_ID, APP, neverCalled()));
+        }
+
+        @Test
+        void emptyPayloadIsRejected() {
+            assertThatThrownBy(() -> CantonProofVerifier.checkPayload(new byte[0], CHANNEL_ID, APP, neverCalled()))
+                    .isInstanceOf(CantonProofException.class);
+        }
     }
-
-    @Test
-    void rolledBackV32IsRolledBack() {
-        final byte[] vpd = vpd(true, exercise(), true, channel().build());
-        assertRejects("RolledBack", () -> CantonProofVerifier.readWrite(vpd, true, 0, SERVICE, APP));
-    }
-
-    @Test
-    void createdIndexOutOfRangeIsWrongContract() {
-        final byte[] vpd = vpd(false, exercise(), false, channel().build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 1, SERVICE, APP));
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, -1, SERVICE, APP));
-    }
-
-    @Test
-    void noCreatedContractIsWrongContract() {
-        final byte[] vpd = vpd(false, exercise(), false);
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void wrongPackageIsWrongContract() {
-        final byte[] vpd = vpd(
-                false,
-                exercise(),
-                false,
-                channel().packageHex(repeat((byte) 'f', 64)).build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void wrongEntityIsWrongContract() {
-        final byte[] vpd =
-                vpd(false, exercise(), false, channel().entity("ChannelConfig").build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void wrongOperatorIsWrongContract() {
-        final byte[] vpd =
-                vpd(false, exercise(), false, channel().operator(OTHER_PARTY).build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void wrongChannelIdIsWrongContract() {
-        final byte[] vpd = vpd(
-                false,
-                exercise(),
-                false,
-                channel().channelHex(utf8("22".repeat(32))).build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void appFieldNotAnchorAppIsWrongContract() {
-        final byte[] vpd = vpd(
-                false,
-                exercise(),
-                false,
-                channel().app(OTHER_PARTY).signatory(OTHER_PARTY).build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void appNotASignatoryIsWrongContract() {
-        final byte[] vpd =
-                vpd(false, exercise(), false, channel().signatory(OPERATOR).build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void tooFewFieldsIsWrongContract() {
-        final byte[] vpd =
-                vpd(false, exercise(), false, channel().fieldCount(25).build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void unknownStatusIsWrongContract() {
-        final byte[] vpd =
-                vpd(false, exercise(), false, channel().status("Frozen").build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void runningHashOfWrongLengthIsWrongContract() {
-        final byte[] vpd =
-                vpd(false, exercise(), false, channel().sentHash("2222").build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-        final byte[] vpd2 = vpd(false, exercise(), false, channel().recvHash("").build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd2, false, 0, SERVICE, APP));
-    }
-
-    @Test
-    void manifestHashOfWrongLengthIsWrongContract() {
-        final byte[] vpd =
-                vpd(false, exercise(), false, channel().manifestHash("4444").build());
-        assertRejects("WrongContract", () -> CantonProofVerifier.readWrite(vpd, false, 0, SERVICE, APP));
-    }
-
-    // ── checkPayload ─────────────────────────────────────────────────────────
-
-    @Test
-    void dataFromAppPasses() {
-        final byte[] p = data(APP, OTHER_PARTY);
-        CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
-    }
-
-    @Test
-    void dataFromOtherSenderIsSenderMismatch() {
-        final byte[] p = data(OTHER_PARTY, APP);
-        assertRejects("SenderMismatch", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
-    }
-
-    @Test
-    void dataWithShortConnectorIdIsRejected() {
-        // The reference decodeDataMessage rejects a present connector id that is not exactly 32 bytes.
-        final byte[] p = dataWithConnector(repeat((byte) 0x01, 31));
-        assertRejects(
-                "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
-    }
-
-    @Test
-    void dataWithLongConnectorIdIsRejected() {
-        final byte[] p = dataWithConnector(repeat((byte) 0x01, 33));
-        assertRejects(
-                "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
-    }
-
-    @Test
-    void dataWithEmptyPresentConnectorIdIsRejected() {
-        // PBJ drops a zero-length bytes field on encode, so build the wire bytes by hand: field 1 (message),
-        // containing connector_id (field 1) with length 0, then sender (field 3).
-        final byte[] inner = CantonBytes.concat(new byte[] {0x0a, 0x00, 0x1a, (byte) APP.length}, APP);
-        final byte[] p = CantonBytes.concat(new byte[] {0x0a, (byte) inner.length}, inner);
-        assertRejects(
-                "CantonProtoMalformed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
-    }
-
-    @Test
-    void dataWith32ByteConnectorIdPasses() {
-        final byte[] p = dataWithConnector(repeat((byte) 0x01, 32));
-        CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
-    }
-
-    @Test
-    void applicationErrorReplyWithoutDataSkipsTargetLookup() {
-        final byte[] p = reply(5, ClprMessageReplyStatus.APPLICATION_ERROR, new byte[0]);
-        CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled());
-    }
-
-    @Test
-    void replyToDataSentToAppPasses() {
-        final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1});
-        final var asked = new AtomicInteger();
-        final OutboundLookup lookup = (channelId, messageId) -> {
-            asked.incrementAndGet();
-            assertArrayEquals(CHANNEL_ID, channelId);
-            assertEquals(5, messageId);
-            return dataPayload(OTHER_PARTY, APP);
-        };
-        CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup);
-        assertEquals(1, asked.get());
-    }
-
-    @Test
-    void replyToDataSentToAnotherPartyIsReplyTargetMismatch() {
-        final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1});
-        final OutboundLookup lookup = (channelId, messageId) -> dataPayload(APP, OTHER_PARTY);
-        assertRejects("ReplyTargetMismatch", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup));
-    }
-
-    @Test
-    void applicationErrorWithDataIsStillTargetChecked() {
-        final byte[] p = reply(5, ClprMessageReplyStatus.APPLICATION_ERROR, new byte[] {9});
-        final OutboundLookup lookup = (channelId, messageId) -> dataPayload(APP, OTHER_PARTY);
-        assertRejects("ReplyTargetMismatch", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup));
-    }
-
-    @Test
-    void nonApplicationErrorWithoutDataIsTargetChecked() {
-        final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[0]);
-        final OutboundLookup lookup = (channelId, messageId) -> dataPayload(APP, OTHER_PARTY);
-        assertRejects("ReplyTargetMismatch", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup));
-    }
-
-    @Test
-    void replyWithNoLiveOutboundMessageOrNonDataPasses() {
-        final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1});
-        CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, (c, m) -> null);
-        final byte[] storedReply = ClprMessagePayload.PROTOBUF
-                .toBytes(ClprMessagePayload.newBuilder()
-                        .messageReply(ClprMessageReply.newBuilder().messageId(5))
-                        .build())
-                .toByteArray();
-        assertNotNull(storedReply);
-        CantonProofVerifier.checkPayload(
-                p,
-                CHANNEL_ID,
-                APP,
-                (c, m) -> ClprMessagePayload.newBuilder()
-                        .messageReply(ClprMessageReply.newBuilder().messageId(5))
-                        .build());
-    }
-
-    @Test
-    void lookupFailureSurfacesAsServiceCallFailed() {
-        final byte[] p = reply(5, ClprMessageReplyStatus.SUCCESS, new byte[] {1});
-        final OutboundLookup lookup = (c, m) -> {
-            throw CantonProofException.serviceCallFailed();
-        };
-        assertRejects("ServiceCallFailed", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, lookup));
-    }
-
-    @Test
-    void controlPayloadIsWrongMessageType() {
-        final byte[] p = ClprMessagePayload.PROTOBUF
-                .toBytes(ClprMessagePayload.newBuilder()
-                        .control(ClprControlMessage.DEFAULT)
-                        .build())
-                .toByteArray();
-        assertRejects("WrongMessageType", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
-    }
-
-    @Test
-    void trailingFieldAfterPayloadIsWrongMessageType() {
-        // A valid DATA from the app followed by a second oneof arm: PBJ would keep the last arm, the reference
-        // rejects anything but exactly one field spanning the whole payload.
-        final byte[] p = CantonBytes.concat(data(APP, OTHER_PARTY), data(OTHER_PARTY, APP));
-        assertRejects("WrongMessageType", () -> CantonProofVerifier.checkPayload(p, CHANNEL_ID, APP, neverCalled()));
-    }
-
-    @Test
-    void unknownFieldNumberAndWireTypeAreWrongMessageType() {
-        final byte[] field4 = Pb.lenField(4, new byte[] {1});
-        assertRejects(
-                "WrongMessageType", () -> CantonProofVerifier.checkPayload(field4, CHANNEL_ID, APP, neverCalled()));
-        final byte[] varint = {0x08, 0x01}; // field 1, wire type varint
-        assertRejects(
-                "WrongMessageType", () -> CantonProofVerifier.checkPayload(varint, CHANNEL_ID, APP, neverCalled()));
-    }
-
-    @Test
-    void emptyPayloadIsRejected() {
-        assertThatThrownBy(() -> CantonProofVerifier.checkPayload(new byte[0], CHANNEL_ID, APP, neverCalled()))
-                .isInstanceOf(CantonProofException.class);
-    }
-
-    // ── Builders ─────────────────────────────────────────────────────────────
 
     private static OutboundLookup neverCalled() {
         return (c, m) -> fail("outbound lookup must not be called");
@@ -590,8 +594,6 @@ class CantonWriteTest {
                 .satisfies(
                         e -> assertThat(((CantonProofException) e).errorName()).isEqualTo(errorName));
     }
-
-
 
     /** Minimal protobuf wire-format builder. */
     private static final class Pb {

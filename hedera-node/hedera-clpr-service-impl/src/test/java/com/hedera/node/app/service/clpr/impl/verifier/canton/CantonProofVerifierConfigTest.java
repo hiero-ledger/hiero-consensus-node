@@ -4,7 +4,6 @@ package com.hedera.node.app.service.clpr.impl.verifier.canton;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.repeat;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.sha256;
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.utf8;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -33,6 +32,7 @@ import java.security.interfaces.EdECPublicKey;
 import java.security.spec.NamedParameterSpec;
 import java.util.Arrays;
 import java.util.HexFormat;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -48,12 +48,11 @@ import org.junit.jupiter.api.Test;
  * byte-identical to a Solidity run.
  */
 class CantonProofVerifierConfigTest {
-    private static final HexFormat HEX = HexFormat.of();
 
+    private static final HexFormat HEX = HexFormat.of();
     private static final byte[] TYPED = CantonFixtures.verdictTypedContent();
     private static final CantonProto.Verdict VERDICT = CantonProto.parseVerdict(TYPED);
     private static final String SYNC = new String(VERDICT.synchronizerId(), StandardCharsets.UTF_8);
-
     private static final byte[] PACKAGE_ID = repeat((byte) 0x5a, 32);
     private static final byte[] OPERATOR = utf8("operator::1220" + "ab".repeat(32));
     private static final byte[] SERVICE_ADDRESS = CantonBytes.concat(PACKAGE_ID, OPERATOR);
@@ -64,15 +63,12 @@ class CantonProofVerifierConfigTest {
     private static final byte[] PARTICIPANT = sha("participant-metadata");
     private static final int GROUP = 7;
     private static final byte[] OWNER_SET = repeat((byte) 0x77, 40);
-
     private static final String PEER_CHAIN = "canton:localnet";
     private static final String LOCAL_CHAIN = "eip155:298";
     private static final long NANOS = 1_700_000_000_123_456_789L;
     private static final long[] THROTTLES = {50, 1_000_000, 5_000_000, 100, 10_000_000, 20, 30};
-
     private static final Med MEDIATOR = Med.of(9);
     private static final byte[] MEDIATOR_SET = MEDIATOR.set();
-
     private static final byte[] MANIFEST_BYTES = ClprEndpointManifest.PROTOBUF
             .toBytes(ClprEndpointManifest.newBuilder()
                     .version(2)
@@ -82,402 +78,354 @@ class CantonProofVerifierConfigTest {
             .toByteArray();
     private static final String MANIFEST_HASH = HEX.formatHex(MiscCryptoUtils.keccak256DigestOf(MANIFEST_BYTES));
 
-    // ── config proof: happy path ─────────────────────────────────────────────
+    @Nested
+    class ConfigProofHappyPath {
+        @Test
+        void configProofIsAcceptedAndReturnsTheDeclaredConfigAndAnchor() {
+            final VerifiedConfig v = verify(new Cfg());
+            final ClprLedgerConfiguration c = v.config();
+            assertThat(c.chainId()).isEqualTo(PEER_CHAIN);
+            assertThat(c.serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDRESS));
+            assertThat(c.timestamp().seconds()).isEqualTo(1_700_000_000L);
+            assertThat(c.timestamp().nanos()).isEqualTo(123_456_789);
+            assertThat(c.throttles().maxMessagesPerBundle()).isEqualTo(50);
+            assertThat(c.throttles().maxMessagePayloadBytes()).isEqualTo(1_000_000);
+            assertThat(c.throttles().maxGasPerMessage()).isEqualTo(5_000_000L);
+            assertThat(c.throttles().maxQueueDepth()).isEqualTo(100);
+            assertThat(c.throttles().maxSyncBytes()).isEqualTo(10_000_000L);
+            assertThat(c.throttles().maxLocalEndpoints()).isEqualTo(20);
+            assertThat(c.throttles().maxPeerEndpoints()).isEqualTo(30);
 
-    @Test
-    void configProofIsAcceptedAndReturnsTheDeclaredConfigAndAnchor() {
-        final VerifiedConfig v = verify(new Cfg());
-        final ClprLedgerConfiguration c = v.config();
-        assertThat(c.chainId()).isEqualTo(PEER_CHAIN);
-        assertThat(c.serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDRESS));
-        assertThat(c.timestamp().seconds()).isEqualTo(1_700_000_000L);
-        assertThat(c.timestamp().nanos()).isEqualTo(123_456_789);
-        assertThat(c.throttles().maxMessagesPerBundle()).isEqualTo(50);
-        assertThat(c.throttles().maxMessagePayloadBytes()).isEqualTo(1_000_000);
-        assertThat(c.throttles().maxGasPerMessage()).isEqualTo(5_000_000L);
-        assertThat(c.throttles().maxQueueDepth()).isEqualTo(100);
-        assertThat(c.throttles().maxSyncBytes()).isEqualTo(10_000_000L);
-        assertThat(c.throttles().maxLocalEndpoints()).isEqualTo(20);
-        assertThat(c.throttles().maxPeerEndpoints()).isEqualTo(30);
+            final CantonAnchor.Anchor a =
+                    CantonAnchor.Anchor.decode(c.initialTrustAnchor().toByteArray());
+            assertThat(a.synchronizerId()).isEqualTo(SYNC);
+            assertThat(a.lastRequestId()).isEqualTo(VERDICT.requestId());
+            assertThat(a.mediatorGroup()).isEqualTo(GROUP);
+            assertThat(a.synchronizerNamespace()).isEqualTo(namespaceOf(SYNC));
+            assertThat(a.ownersHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(OWNER_SET));
+            assertThat(a.mediatorsHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(MEDIATOR_SET));
+            assertThat(a.successorSynchronizerId()).isEmpty();
+            assertThat(a.upgradeTime()).isZero();
+            assertThat(a.lsuSerial()).isZero();
+            assertThat(a.app()).isEqualTo(APP);
+            assertThat(c.initialTrustAnchorId().toByteArray()).isEqualTo(uint64(VERDICT.requestId()));
+        }
 
-        final CantonAnchor.Anchor a =
-                CantonAnchor.Anchor.decode(c.initialTrustAnchor().toByteArray());
-        assertThat(a.synchronizerId()).isEqualTo(SYNC);
-        assertThat(a.lastRequestId()).isEqualTo(VERDICT.requestId());
-        assertThat(a.mediatorGroup()).isEqualTo(GROUP);
-        assertThat(a.synchronizerNamespace()).isEqualTo(namespaceOf(SYNC));
-        assertThat(a.ownersHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(OWNER_SET));
-        assertThat(a.mediatorsHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(MEDIATOR_SET));
-        assertThat(a.successorSynchronizerId()).isEmpty();
-        assertThat(a.upgradeTime()).isZero();
-        assertThat(a.lsuSerial()).isZero();
-        assertThat(a.app()).isEqualTo(APP);
-        assertThat(c.initialTrustAnchorId().toByteArray()).isEqualTo(uint64(VERDICT.requestId()));
-    }
+        @Test
+        void emptyManifestProofReturnsTheUninitializedManifest() {
+            final ClprEndpointManifest m = verify(new Cfg()).manifest();
+            assertThat(m.version()).isZero();
+            assertThat(m.serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDRESS));
+            assertThat(m.endpoints()).isEmpty();
+        }
 
-    @Test
-    void emptyManifestProofReturnsTheUninitializedManifest() {
-        final ClprEndpointManifest m = verify(new Cfg()).manifest();
-        assertThat(m.version()).isZero();
-        assertThat(m.serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDRESS));
-        assertThat(m.endpoints()).isEmpty();
-    }
-
-    @Test
-    void v32ParticipantDataIsAccepted() {
-        assertThat(verify(new Cfg().vpdVersion(32)).config().chainId()).isEqualTo(PEER_CHAIN);
-    }
-
-    // ── config proof: the view ───────────────────────────────────────────────
-
-    @Test
-    void rootActionMustBeOpenChannel() {
-        assertRejects("WrongAction", new Cfg().choice("SendMessage"));
-        assertRejects("WrongAction", new Cfg().entity("Channel"));
-        // UpdateEndpointManifest is only accepted in a manifest proof, never as the config.
-        assertRejects("WrongAction", new Cfg().choice("UpdateEndpointManifest").entity("Channel"));
-    }
-
-    @Test
-    void channelConfigMustNamePeerChainOfThisLedger() {
-        assertRejects("WrongPeerChain", new Cfg().contractPeerChain("canton:other"));
-    }
-
-    @Test
-    void channelConfigMustCarryTheDeclaredConfigTimeAndThrottles() {
-        assertRejects("WrongContract", new Cfg().contractNanos(NANOS + 1));
-        for (int i = 0; i < 7; ++i) {
-            final long[] t = THROTTLES.clone();
-            t[i] += 1;
-            assertRejects("WrongContract", new Cfg().contractThrottles(t));
+        @Test
+        void v32ParticipantDataIsAccepted() {
+            assertThat(verify(new Cfg().vpdVersion(32)).config().chainId()).isEqualTo(PEER_CHAIN);
         }
     }
 
-    @Test
-    void channelConfigMustBeSignedByItsApp() {
-        assertRejects("WrongContract", new Cfg().signatory(OTHER));
-    }
-
-    @Test
-    void theOperatorCannotBeTheApp() {
-        final String operator = new String(OPERATOR, StandardCharsets.UTF_8);
-        // The operator signs it too, so only the operator check can reject it.
-        assertRejects("WrongContract", new Cfg().contractApp(operator).signatory(operator));
-    }
-
-    @Test
-    void channelConfigMustBelongToThisChannelAndOperator() {
-        assertRejects("WrongContract", new Cfg().contractChannelHex("22".repeat(32)));
-        assertRejects("WrongContract", new Cfg().contractOperator(OTHER));
-    }
-
-    @Test
-    void appMustBeARequiredConfirmer() {
-        assertRejects("ApproverMissing", new Cfg().informee(OTHER));
-        // weight 1 of threshold 1 with another informee of weight 1: the app alone is not required.
-        assertRejects("ApproverMissing", new Cfg().quorum(1, 1, 1));
-    }
-
-    @Test
-    void createdIndexMustExist() {
-        assertRejects("WrongContract", new Cfg().createdIndex(new byte[] {1}));
-        assertRejects("WrongContract", new Cfg().createdIndex(repeat((byte) 0xff, 32)));
-    }
-
-    @Test
-    void rolledBackViewIsRejected() {
-        assertRejects("RolledBack", new Cfg().vpdVersion(32).rolledBack());
-    }
-
-    @Test
-    void manifestHashOfTheConfigMustBeEmptyOrThirtyTwoBytes() {
-        verify(new Cfg().contractManifestHash(MANIFEST_HASH));
-        assertRejects("WrongContract", new Cfg().contractManifestHash("abcd"));
-    }
-
-    // ── config proof: the declaration ────────────────────────────────────────
-
-    @Test
-    void descriptorItemsFourToNineMustBeEmpty() {
-        for (int i = 4; i < 10; ++i) {
-            assertRejects("AuthorizationChainNotSupported", new Cfg().descriptorItem(i, rlpString(new byte[] {1})));
+    @Nested
+    class ConfigProofView {
+        @Test
+        void rootActionMustBeOpenChannel() {
+            assertRejects("WrongAction", new Cfg().choice("SendMessage"));
+            assertRejects("WrongAction", new Cfg().entity("Channel"));
+            // UpdateEndpointManifest is only accepted in a manifest proof, never as the config.
+            assertRejects(
+                    "WrongAction", new Cfg().choice("UpdateEndpointManifest").entity("Channel"));
         }
-        // An empty list is as empty as an empty string.
-        verify(new Cfg().descriptorItem(5, rlpList()));
-    }
 
-    @Test
-    void descriptorMustHaveTenItems() {
-        assertRejects("InvalidPayloadShape", new Cfg().descriptorItems(9));
-        assertRejects("InvalidPayloadShape", new Cfg().descriptorItems(11));
-    }
-
-    @Test
-    void badServiceAddressIsInvalidServiceAddress() {
-        assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(CantonBytes.concat(PACKAGE_ID, utf8("operator"))));
-        assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(PACKAGE_ID));
-        assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(new byte[0]));
-    }
-
-    @Test
-    void badChainIdIsInvalidChainId() {
-        for (final String bad : new String[] {
-            "", "canton:", "canton", "ethereum:1", "canton:" + "a".repeat(33), "canton:a b", "canton:a.b", "Canton:x"
-        }) {
-            assertRejects("InvalidChainId", new Cfg().chainId(bad));
+        @Test
+        void channelConfigMustNamePeerChainOfThisLedger() {
+            assertRejects("WrongPeerChain", new Cfg().contractPeerChain("canton:other"));
         }
-        verify(new Cfg().chainId("canton:" + "A-z_9".repeat(6) + "ab"));
-    }
 
-    @Test
-    void badConfigIsInvalidConfig() {
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleCount(6));
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleCount(8));
-        final long[] zero = THROTTLES.clone();
-        zero[0] = 0;
-        assertRejects("InvalidConfig", new Cfg().declaredThrottles(zero).contractThrottles(zero));
-        assertRejects("InvalidConfig", new Cfg().declaredNanos(BigInteger.ONE.shiftLeft(96)));
-        assertRejects("InvalidConfig", new Cfg().declaredNanos(BigInteger.ONE.shiftLeft(63)));
-        assertRejects("InvalidConfig", new Cfg().group(BigInteger.ONE.shiftLeft(32)));
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(0, BigInteger.ONE.shiftLeft(32)));
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(1, BigInteger.ONE.shiftLeft(32)));
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(2, BigInteger.ONE.shiftLeft(64)));
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(3, BigInteger.ONE.shiftLeft(32)));
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(4, BigInteger.ONE.shiftLeft(64)));
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(5, BigInteger.ONE.shiftLeft(32)));
-        assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(6, BigInteger.ONE.shiftLeft(32)));
-    }
-
-    @Test
-    void badSynchronizerIdIsInvalidSynchronizerId() {
-        assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("global-domain"));
-        assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("global-domain::1220" + "ab".repeat(32)));
-        assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("::1220" + "ab".repeat(32) + "::35-0"));
-        assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("d::1220" + "ab".repeat(32) + "::x5-0"));
-        assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("d::1220" + "ab".repeat(32) + "::35"));
-    }
-
-    @Test
-    void verdictMustBeSignedUnderTheDeclaredMediatorSetAndSynchronizer() {
-        final byte[] otherSet = Med.of(10).set();
-        assertThatThrownBy(() -> verify(new Cfg().descriptorMediatorSet(otherSet)))
-                .isInstanceOf(CantonProofException.class);
-        // The synchronizer the descriptor declares is the one the verdict must be on.
-        assertThatThrownBy(() -> verify(new Cfg().descriptorSync(SYNC.replace("1220", "1221"))))
-                .isInstanceOf(CantonProofException.class);
-    }
-
-    @Test
-    void openingMustHashToTheVerdictsRootAndDeclaredGroup() {
-        assertRejects("MetadataMismatch", new Cfg().group(BigInteger.valueOf(GROUP + 1)));
-        assertRejects("RootHashMismatch", new Cfg().tamperVpdAfterSigning());
-    }
-
-    @Test
-    void proofMustHaveSevenItems() {
-        final var cfg = new Cfg();
-        assertThatThrownBy(() -> CantonProofVerifier.verifyConfig(
-                        rlpList(rlpString(SERVICE_ADDRESS)), CHANNEL_ID, new byte[0], utf8(LOCAL_CHAIN)))
-                .isInstanceOf(CantonProofException.class)
-                .satisfies(
-                        e -> assertThat(((CantonProofException) e).errorName()).isEqualTo("InvalidPayloadShape"));
-        assertThatThrownBy(() ->
-                        CantonProofVerifier.verifyConfig(cfg.proof(), new byte[31], new byte[0], utf8(LOCAL_CHAIN)))
-                .isInstanceOf(CantonProofException.class);
-    }
-
-    // ── manifest proof ───────────────────────────────────────────────────────
-
-    @Test
-    void manifestProofReachingThisChannelsConfigReturnsTheDecodedManifest() {
-        // A Channel.UpdateEndpointManifest transaction that created a ChannelConfig carrying the manifest's hash.
-        final var tx =
-                new Cfg().entity("Channel").choice("UpdateEndpointManifest").contractManifestHash(MANIFEST_HASH);
-        final ClprEndpointManifest m =
-                verify(new Cfg(), tx.manifestProof(MANIFEST_BYTES)).manifest();
-        assertThat(m.version()).isEqualTo(2);
-        assertThat(m.serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDRESS));
-        assertThat(m.endpoints()).hasSize(1);
-    }
-
-    @Test
-    void manifestProofMayAlsoComeFromOpenChannel() {
-        final var tx = new Cfg().contractManifestHash(MANIFEST_HASH);
-        assertThat(verify(new Cfg(), tx.manifestProof(MANIFEST_BYTES))
-                        .manifest()
-                        .version())
-                .isEqualTo(2);
-    }
-
-    @Test
-    void manifestProofRejectsOtherActions() {
-        final var cfg = new Cfg();
-        assertRejectsManifest(
-                "WrongAction",
-                cfg,
-                new Cfg().choice("SendMessage").entity("Channel").contractManifestHash(MANIFEST_HASH));
-        // OpenChannel on the Channel template is neither accepted choice of its entity.
-        assertRejectsManifest("WrongAction", cfg, new Cfg().entity("Channel").contractManifestHash(MANIFEST_HASH));
-    }
-
-    @Test
-    void manifestProofRejectsVersionZero() {
-        final byte[] zero = ClprEndpointManifest.PROTOBUF
-                .toBytes(ClprEndpointManifest.newBuilder()
-                        .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
-                        .build())
-                .toByteArray();
-        final var cfg = new Cfg();
-        final var proof = new Cfg().contractManifestHash(HEX.formatHex(MiscCryptoUtils.keccak256DigestOf(zero)));
-        assertRejectsManifest("ManifestMismatch", cfg, proof, zero);
-    }
-
-    @Test
-    void manifestProofRejectsHashAndServiceAddressMismatch() {
-        final var cfg = new Cfg();
-        final var proof = new Cfg().contractManifestHash(MANIFEST_HASH);
-        // The preimage is not the committed one.
-        assertRejectsManifest("ManifestMismatch", cfg, proof, CantonBytes.concat(MANIFEST_BYTES, new byte[] {0}));
-        // The config commits to no manifest at all.
-        assertRejectsManifest("ManifestMismatch", cfg, new Cfg(), MANIFEST_BYTES);
-        // The manifest names another service.
-        final byte[] other = ClprEndpointManifest.PROTOBUF
-                .toBytes(ClprEndpointManifest.newBuilder()
-                        .version(2)
-                        .serviceAddress(Bytes.wrap(CantonBytes.concat(PACKAGE_ID, utf8("x::1220" + "00".repeat(32)))))
-                        .build())
-                .toByteArray();
-        assertRejectsManifest(
-                "ManifestMismatch",
-                cfg,
-                new Cfg().contractManifestHash(HEX.formatHex(MiscCryptoUtils.keccak256DigestOf(other))),
-                other);
-    }
-
-    @Test
-    void manifestProofMustReachTheSameAppAndChain() {
-        final var cfg = new Cfg();
-        assertRejectsManifest(
-                "WrongContract",
-                cfg,
-                new Cfg().contractApp(OTHER).signatory(OTHER).informee(OTHER).contractManifestHash(MANIFEST_HASH));
-        assertRejectsManifest(
-                "WrongPeerChain",
-                cfg,
-                new Cfg().contractPeerChain("canton:other").contractManifestHash(MANIFEST_HASH));
-    }
-
-    @Test
-    void manifestProofMustHaveFourItems() {
-        final var cfg = new Cfg();
-        assertThatThrownBy(() -> CantonProofVerifier.verifyConfig(
-                        cfg.proof(), CHANNEL_ID, rlpList(rlpString(new byte[] {1})), utf8(LOCAL_CHAIN)))
-                .isInstanceOf(CantonProofException.class)
-                .satisfies(
-                        e -> assertThat(((CantonProofException) e).errorName()).isEqualTo("InvalidPayloadShape"));
-    }
-
-    @Test
-    void manifestProofVerdictMustBeValid() {
-        final var tx = new Cfg().contractManifestHash(MANIFEST_HASH);
-        final byte[] badlySigned = tx.manifestProofWithBadSignature(MANIFEST_BYTES);
-        assertThatThrownBy(() -> verify(new Cfg(), badlySigned)).isInstanceOf(CantonProofException.class);
-    }
-
-    // ── the ClprVerifier surface (HandleContext) ─────────────────────────────
-
-    @Test
-    void clprVerifierReadsTheLocalChainIdFromTheLedgerConfiguration() {
-        final var cfg = new Cfg();
-        final var context = contextWithChain(LOCAL_CHAIN);
-        final VerifiedConfig v = new CantonProofVerifier()
-                .verifyConfig(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), Bytes.EMPTY, context);
-        assertThat(v.config().chainId()).isEqualTo(PEER_CHAIN);
-        assertThat(v.manifest().version()).isZero();
-    }
-
-    @Test
-    void clprVerifierMapsAnyFailureToConfigFailed() {
-        final var cfg = new Cfg();
-        // Another local chain id than the one the ChannelConfig names.
-        assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), contextWithChain("eip155:1"));
-        // Not even RLP.
-        assertConfigFailed(
-                Bytes.wrap(new byte[] {(byte) 0xff, 1}), Bytes.wrap(CHANNEL_ID), contextWithChain(LOCAL_CHAIN));
-        // No ledger configuration to read.
-        assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), mock(HandleContext.class));
-        // A channel id that is not 32 bytes.
-        assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(new byte[31]), contextWithChain(LOCAL_CHAIN));
-    }
-
-    private static HandleContext contextWithChain(final String chainId) {
-        final var store = mock(ReadableLedgerConfigurationStore.class);
-        when(store.getConfiguration())
-                .thenReturn(
-                        ClprLedgerConfiguration.newBuilder().chainId(chainId).build());
-        final var storeFactory = mock(StoreFactory.class);
-        when(storeFactory.readableStore(ReadableLedgerConfigurationStore.class)).thenReturn(store);
-        final var context = mock(HandleContext.class);
-        when(context.storeFactory()).thenReturn(storeFactory);
-        return context;
-    }
-
-    private static void assertConfigFailed(final Bytes proof, final Bytes channelId, final HandleContext context) {
-        assertThatThrownBy(() -> new CantonProofVerifier().verifyConfig(proof, channelId, Bytes.EMPTY, context))
-                .isInstanceOf(HandleException.class)
-                .satisfies(e -> assertThat(((HandleException) e).getStatus())
-                        .isEqualTo(ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED));
-    }
-
-    // ── assertions ───────────────────────────────────────────────────────────
-
-    private static VerifiedConfig verify(final Cfg c) {
-        return CantonProofVerifier.verifyConfig(c.proof(), CHANNEL_ID, new byte[0], utf8(LOCAL_CHAIN));
-    }
-
-    private static VerifiedConfig verify(final Cfg c, final byte[] manifestProof) {
-        return CantonProofVerifier.verifyConfig(c.proof(), CHANNEL_ID, manifestProof, utf8(LOCAL_CHAIN));
-    }
-
-    private static void assertRejects(final String errorName, final Cfg c) {
-        assertThatThrownBy(() -> verify(c))
-                .isInstanceOf(CantonProofException.class)
-                .satisfies(
-                        e -> assertThat(((CantonProofException) e).errorName()).isEqualTo(errorName));
-    }
-
-    private static void assertRejectsManifest(final String errorName, final Cfg config, final Cfg manifestTx) {
-        assertRejectsManifest(errorName, config, manifestTx, MANIFEST_BYTES);
-    }
-
-    private static void assertRejectsManifest(
-            final String errorName, final Cfg config, final Cfg manifestTx, final byte[] preimage) {
-        final byte[] proof = manifestTx.manifestProof(preimage);
-        assertThatThrownBy(() -> verify(config, proof))
-                .isInstanceOf(CantonProofException.class)
-                .satisfies(
-                        e -> assertThat(((CantonProofException) e).errorName()).isEqualTo(errorName));
-    }
-
-    private static byte[] namespaceOf(final String syncId) {
-        final int at = syncId.indexOf("::1220") + 6;
-        return HEX.parseHex(syncId.substring(at, at + 64));
-    }
-
-    private static byte[] uint64(final long v) {
-        return java.nio.ByteBuffer.allocate(8).putLong(v).array();
-    }
-
-    private static byte[] uintBytes(final BigInteger v) {
-        final byte[] raw = v.toByteArray();
-        int i = 0;
-        while (i < raw.length && raw[i] == 0) {
-            ++i;
+        @Test
+        void channelConfigMustCarryTheDeclaredConfigTimeAndThrottles() {
+            assertRejects("WrongContract", new Cfg().contractNanos(NANOS + 1));
+            for (int i = 0; i < 7; ++i) {
+                final long[] t = THROTTLES.clone();
+                t[i] += 1;
+                assertRejects("WrongContract", new Cfg().contractThrottles(t));
+            }
         }
-        return Arrays.copyOfRange(raw, i, raw.length);
+
+        @Test
+        void channelConfigMustBeSignedByItsApp() {
+            assertRejects("WrongContract", new Cfg().signatory(OTHER));
+        }
+
+        @Test
+        void theOperatorCannotBeTheApp() {
+            final String operator = new String(OPERATOR, StandardCharsets.UTF_8);
+            // The operator signs it too, so only the operator check can reject it.
+            assertRejects("WrongContract", new Cfg().contractApp(operator).signatory(operator));
+        }
+
+        @Test
+        void channelConfigMustBelongToThisChannelAndOperator() {
+            assertRejects("WrongContract", new Cfg().contractChannelHex("22".repeat(32)));
+            assertRejects("WrongContract", new Cfg().contractOperator(OTHER));
+        }
+
+        @Test
+        void appMustBeARequiredConfirmer() {
+            assertRejects("ApproverMissing", new Cfg().informee(OTHER));
+            // weight 1 of threshold 1 with another informee of weight 1: the app alone is not required.
+            assertRejects("ApproverMissing", new Cfg().quorum(1, 1, 1));
+        }
+
+        @Test
+        void createdIndexMustExist() {
+            assertRejects("WrongContract", new Cfg().createdIndex(new byte[] {1}));
+            assertRejects("WrongContract", new Cfg().createdIndex(repeat((byte) 0xff, 32)));
+        }
+
+        @Test
+        void rolledBackViewIsRejected() {
+            assertRejects("RolledBack", new Cfg().vpdVersion(32).rolledBack());
+        }
+
+        @Test
+        void manifestHashOfTheConfigMustBeEmptyOrThirtyTwoBytes() {
+            verify(new Cfg().contractManifestHash(MANIFEST_HASH));
+            assertRejects("WrongContract", new Cfg().contractManifestHash("abcd"));
+        }
     }
 
-    // ── config proof assembly ────────────────────────────────────────────────
+    @Nested
+    class ConfigProofDeclaration {
+        @Test
+        void descriptorItemsFourToNineMustBeEmpty() {
+            for (int i = 4; i < 10; ++i) {
+                assertRejects("AuthorizationChainNotSupported", new Cfg().descriptorItem(i, rlpString(new byte[] {1})));
+            }
+            // An empty list is as empty as an empty string.
+            verify(new Cfg().descriptorItem(5, rlpList()));
+        }
+
+        @Test
+        void descriptorMustHaveTenItems() {
+            assertRejects("InvalidPayloadShape", new Cfg().descriptorItems(9));
+            assertRejects("InvalidPayloadShape", new Cfg().descriptorItems(11));
+        }
+
+        @Test
+        void badServiceAddressIsInvalidServiceAddress() {
+            assertRejects(
+                    "InvalidServiceAddress",
+                    new Cfg().serviceAddress(CantonBytes.concat(PACKAGE_ID, utf8("operator"))));
+            assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(PACKAGE_ID));
+            assertRejects("InvalidServiceAddress", new Cfg().serviceAddress(new byte[0]));
+        }
+
+        @Test
+        void badChainIdIsInvalidChainId() {
+            for (final String bad : new String[] {
+                "",
+                "canton:",
+                "canton",
+                "ethereum:1",
+                "canton:" + "a".repeat(33),
+                "canton:a b",
+                "canton:a.b",
+                "Canton:x"
+            }) {
+                assertRejects("InvalidChainId", new Cfg().chainId(bad));
+            }
+            verify(new Cfg().chainId("canton:" + "A-z_9".repeat(6) + "ab"));
+        }
+
+        @Test
+        void badConfigIsInvalidConfig() {
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleCount(6));
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleCount(8));
+            final long[] zero = THROTTLES.clone();
+            zero[0] = 0;
+            assertRejects("InvalidConfig", new Cfg().declaredThrottles(zero).contractThrottles(zero));
+            assertRejects("InvalidConfig", new Cfg().declaredNanos(BigInteger.ONE.shiftLeft(96)));
+            assertRejects("InvalidConfig", new Cfg().declaredNanos(BigInteger.ONE.shiftLeft(63)));
+            assertRejects("InvalidConfig", new Cfg().group(BigInteger.ONE.shiftLeft(32)));
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(0, BigInteger.ONE.shiftLeft(32)));
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(1, BigInteger.ONE.shiftLeft(32)));
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(2, BigInteger.ONE.shiftLeft(64)));
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(3, BigInteger.ONE.shiftLeft(32)));
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(4, BigInteger.ONE.shiftLeft(64)));
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(5, BigInteger.ONE.shiftLeft(32)));
+            assertRejects("InvalidConfig", new Cfg().declaredThrottleValue(6, BigInteger.ONE.shiftLeft(32)));
+        }
+
+        @Test
+        void badSynchronizerIdIsInvalidSynchronizerId() {
+            assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("global-domain"));
+            assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("global-domain::1220" + "ab".repeat(32)));
+            assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("::1220" + "ab".repeat(32) + "::35-0"));
+            assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("d::1220" + "ab".repeat(32) + "::x5-0"));
+            assertRejects("InvalidSynchronizerId", new Cfg().descriptorSync("d::1220" + "ab".repeat(32) + "::35"));
+        }
+
+        @Test
+        void verdictMustBeSignedUnderTheDeclaredMediatorSetAndSynchronizer() {
+            final byte[] otherSet = Med.of(10).set();
+            assertThatThrownBy(() -> verify(new Cfg().descriptorMediatorSet(otherSet)))
+                    .isInstanceOf(CantonProofException.class);
+            // The synchronizer the descriptor declares is the one the verdict must be on.
+            assertThatThrownBy(() -> verify(new Cfg().descriptorSync(SYNC.replace("1220", "1221"))))
+                    .isInstanceOf(CantonProofException.class);
+        }
+
+        @Test
+        void openingMustHashToTheVerdictsRootAndDeclaredGroup() {
+            assertRejects("MetadataMismatch", new Cfg().group(BigInteger.valueOf(GROUP + 1)));
+            assertRejects("RootHashMismatch", new Cfg().tamperVpdAfterSigning());
+        }
+
+        @Test
+        void proofMustHaveSevenItems() {
+            final var cfg = new Cfg();
+            assertThatThrownBy(() -> CantonProofVerifier.verifyConfig(
+                            rlpList(rlpString(SERVICE_ADDRESS)), CHANNEL_ID, new byte[0], utf8(LOCAL_CHAIN)))
+                    .isInstanceOf(CantonProofException.class)
+                    .satisfies(e ->
+                            assertThat(((CantonProofException) e).errorName()).isEqualTo("InvalidPayloadShape"));
+            assertThatThrownBy(() ->
+                            CantonProofVerifier.verifyConfig(cfg.proof(), new byte[31], new byte[0], utf8(LOCAL_CHAIN)))
+                    .isInstanceOf(CantonProofException.class);
+        }
+    }
+
+    @Nested
+    class ManifestProof {
+        @Test
+        void manifestProofReachingThisChannelsConfigReturnsTheDecodedManifest() {
+            // A Channel.UpdateEndpointManifest transaction that created a ChannelConfig carrying the manifest's hash.
+            final var tx =
+                    new Cfg().entity("Channel").choice("UpdateEndpointManifest").contractManifestHash(MANIFEST_HASH);
+            final ClprEndpointManifest m =
+                    verify(new Cfg(), tx.manifestProof(MANIFEST_BYTES)).manifest();
+            assertThat(m.version()).isEqualTo(2);
+            assertThat(m.serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDRESS));
+            assertThat(m.endpoints()).hasSize(1);
+        }
+
+        @Test
+        void manifestProofMayAlsoComeFromOpenChannel() {
+            final var tx = new Cfg().contractManifestHash(MANIFEST_HASH);
+            assertThat(verify(new Cfg(), tx.manifestProof(MANIFEST_BYTES))
+                            .manifest()
+                            .version())
+                    .isEqualTo(2);
+        }
+
+        @Test
+        void manifestProofRejectsOtherActions() {
+            final var cfg = new Cfg();
+            assertRejectsManifest(
+                    "WrongAction",
+                    cfg,
+                    new Cfg().choice("SendMessage").entity("Channel").contractManifestHash(MANIFEST_HASH));
+            // OpenChannel on the Channel template is neither accepted choice of its entity.
+            assertRejectsManifest(
+                    "WrongAction", cfg, new Cfg().entity("Channel").contractManifestHash(MANIFEST_HASH));
+        }
+
+        @Test
+        void manifestProofRejectsVersionZero() {
+            final byte[] zero = ClprEndpointManifest.PROTOBUF
+                    .toBytes(ClprEndpointManifest.newBuilder()
+                            .serviceAddress(Bytes.wrap(SERVICE_ADDRESS))
+                            .build())
+                    .toByteArray();
+            final var cfg = new Cfg();
+            final var proof = new Cfg().contractManifestHash(HEX.formatHex(MiscCryptoUtils.keccak256DigestOf(zero)));
+            assertRejectsManifest("ManifestMismatch", cfg, proof, zero);
+        }
+
+        @Test
+        void manifestProofRejectsHashAndServiceAddressMismatch() {
+            final var cfg = new Cfg();
+            final var proof = new Cfg().contractManifestHash(MANIFEST_HASH);
+            // The preimage is not the committed one.
+            assertRejectsManifest("ManifestMismatch", cfg, proof, CantonBytes.concat(MANIFEST_BYTES, new byte[] {0}));
+            // The config commits to no manifest at all.
+            assertRejectsManifest("ManifestMismatch", cfg, new Cfg(), MANIFEST_BYTES);
+            // The manifest names another service.
+            final byte[] other = ClprEndpointManifest.PROTOBUF
+                    .toBytes(ClprEndpointManifest.newBuilder()
+                            .version(2)
+                            .serviceAddress(
+                                    Bytes.wrap(CantonBytes.concat(PACKAGE_ID, utf8("x::1220" + "00".repeat(32)))))
+                            .build())
+                    .toByteArray();
+            assertRejectsManifest(
+                    "ManifestMismatch",
+                    cfg,
+                    new Cfg().contractManifestHash(HEX.formatHex(MiscCryptoUtils.keccak256DigestOf(other))),
+                    other);
+        }
+
+        @Test
+        void manifestProofMustReachTheSameAppAndChain() {
+            final var cfg = new Cfg();
+            assertRejectsManifest(
+                    "WrongContract",
+                    cfg,
+                    new Cfg()
+                            .contractApp(OTHER)
+                            .signatory(OTHER)
+                            .informee(OTHER)
+                            .contractManifestHash(MANIFEST_HASH));
+            assertRejectsManifest(
+                    "WrongPeerChain",
+                    cfg,
+                    new Cfg().contractPeerChain("canton:other").contractManifestHash(MANIFEST_HASH));
+        }
+
+        @Test
+        void manifestProofMustHaveFourItems() {
+            final var cfg = new Cfg();
+            assertThatThrownBy(() -> CantonProofVerifier.verifyConfig(
+                            cfg.proof(), CHANNEL_ID, rlpList(rlpString(new byte[] {1})), utf8(LOCAL_CHAIN)))
+                    .isInstanceOf(CantonProofException.class)
+                    .satisfies(e ->
+                            assertThat(((CantonProofException) e).errorName()).isEqualTo("InvalidPayloadShape"));
+        }
+
+        @Test
+        void manifestProofVerdictMustBeValid() {
+            final var tx = new Cfg().contractManifestHash(MANIFEST_HASH);
+            final byte[] badlySigned = tx.manifestProofWithBadSignature(MANIFEST_BYTES);
+            assertThatThrownBy(() -> verify(new Cfg(), badlySigned)).isInstanceOf(CantonProofException.class);
+        }
+    }
+
+    @Nested
+    class ClprVerifierSurface {
+        @Test
+        void clprVerifierReadsTheLocalChainIdFromTheLedgerConfiguration() {
+            final var cfg = new Cfg();
+            final var context = contextWithChain(LOCAL_CHAIN);
+            final VerifiedConfig v = new CantonProofVerifier()
+                    .verifyConfig(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), Bytes.EMPTY, context);
+            assertThat(v.config().chainId()).isEqualTo(PEER_CHAIN);
+            assertThat(v.manifest().version()).isZero();
+        }
+
+        @Test
+        void clprVerifierMapsAnyFailureToConfigFailed() {
+            final var cfg = new Cfg();
+            // Another local chain id than the one the ChannelConfig names.
+            assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), contextWithChain("eip155:1"));
+            // Not even RLP.
+            assertConfigFailed(
+                    Bytes.wrap(new byte[] {(byte) 0xff, 1}), Bytes.wrap(CHANNEL_ID), contextWithChain(LOCAL_CHAIN));
+            // No ledger configuration to read.
+            assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(CHANNEL_ID), mock(HandleContext.class));
+            // A channel id that is not 32 bytes.
+            assertConfigFailed(Bytes.wrap(cfg.proof()), Bytes.wrap(new byte[31]), contextWithChain(LOCAL_CHAIN));
+        }
+    }
 
     /**
      * Builds a config proof, or (with {@link #manifestProof}) a manifest proof, whose transaction creates a
@@ -659,8 +607,6 @@ class CantonProofVerifierConfigTest {
             operator = o;
             return this;
         }
-
-        // ── the transaction
 
         private byte[] vcd() {
             final Pb pb = new Pb().field(2, utf8(informee));
@@ -875,64 +821,6 @@ class CantonProofVerifierConfigTest {
         }
     }
 
-    private static byte[] replace(final byte[] in, final byte[] needle, final byte[] with) {
-        assertThat(with).hasSameSizeAs(needle);
-        int at = -1;
-        for (int i = 0; i + needle.length <= in.length; ++i) {
-            if (Arrays.equals(in, i, i + needle.length, needle, 0, needle.length)) {
-                assertThat(at).as("needle occurs once").isEqualTo(-1);
-                at = i;
-            }
-        }
-        assertThat(at).as("needle found").isNotNegative();
-        final byte[] out = in.clone();
-        System.arraycopy(with, 0, out, at, with.length);
-        return out;
-    }
-
-    private static byte[] sha(final String s) {
-        return sha256(utf8(s));
-    }
-
-    private static byte[] versioned(final byte[] data, final int version) {
-        return CantonBytes.concat(Pb.lenField(1, data), new Pb().varint(2, version).build());
-    }
-
-    private static byte[] leafHash(final int purpose, final byte[] data, final int version) {
-        return CantonMerkle.leaf(purpose, sha256(data), versioned(data, version));
-    }
-
-    private static byte[] leafRlp(final byte[] data, final int version) {
-        return rlpList(rlpString(sha256(data)), rlpString(versioned(data, version)));
-    }
-
-    private static byte[] rlpString(final byte[] b) {
-        if (b.length == 1 && (b[0] & 0xff) < 0x80) {
-            return b.clone();
-        }
-        return CantonBytes.concat(rlpHeader(0x80, b.length), b);
-    }
-
-    private static byte[] rlpList(final byte[]... items) {
-        final byte[] payload = CantonBytes.concat(items);
-        return CantonBytes.concat(rlpHeader(0xc0, payload.length), payload);
-    }
-
-    private static byte[] rlpHeader(final int base, final int len) {
-        if (len <= 55) {
-            return new byte[] {(byte) (base + len)};
-        }
-        int n = 4;
-        while (n > 1 && (len >>> (8 * (n - 1))) == 0) {
-            --n;
-        }
-        final byte[] lenBytes = new byte[n];
-        for (int i = 0; i < n; ++i) {
-            lenBytes[i] = (byte) (len >>> (8 * (n - 1 - i)));
-        }
-        return CantonBytes.concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
-    }
-
     /** Minimal protobuf wire-format builder. */
     private static final class Pb {
         private final ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -972,5 +860,129 @@ class CantonProofVerifierConfigTest {
                 }
             }
         }
+    }
+
+    private static HandleContext contextWithChain(final String chainId) {
+        final var store = mock(ReadableLedgerConfigurationStore.class);
+        when(store.getConfiguration())
+                .thenReturn(
+                        ClprLedgerConfiguration.newBuilder().chainId(chainId).build());
+        final var storeFactory = mock(StoreFactory.class);
+        when(storeFactory.readableStore(ReadableLedgerConfigurationStore.class)).thenReturn(store);
+        final var context = mock(HandleContext.class);
+        when(context.storeFactory()).thenReturn(storeFactory);
+        return context;
+    }
+
+    private static void assertConfigFailed(final Bytes proof, final Bytes channelId, final HandleContext context) {
+        assertThatThrownBy(() -> new CantonProofVerifier().verifyConfig(proof, channelId, Bytes.EMPTY, context))
+                .isInstanceOf(HandleException.class)
+                .satisfies(e -> assertThat(((HandleException) e).getStatus())
+                        .isEqualTo(ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED));
+    }
+
+    private static VerifiedConfig verify(final Cfg c) {
+        return CantonProofVerifier.verifyConfig(c.proof(), CHANNEL_ID, new byte[0], utf8(LOCAL_CHAIN));
+    }
+
+    private static VerifiedConfig verify(final Cfg c, final byte[] manifestProof) {
+        return CantonProofVerifier.verifyConfig(c.proof(), CHANNEL_ID, manifestProof, utf8(LOCAL_CHAIN));
+    }
+
+    private static void assertRejects(final String errorName, final Cfg c) {
+        assertThatThrownBy(() -> verify(c))
+                .isInstanceOf(CantonProofException.class)
+                .satisfies(
+                        e -> assertThat(((CantonProofException) e).errorName()).isEqualTo(errorName));
+    }
+
+    private static void assertRejectsManifest(final String errorName, final Cfg config, final Cfg manifestTx) {
+        assertRejectsManifest(errorName, config, manifestTx, MANIFEST_BYTES);
+    }
+
+    private static void assertRejectsManifest(
+            final String errorName, final Cfg config, final Cfg manifestTx, final byte[] preimage) {
+        final byte[] proof = manifestTx.manifestProof(preimage);
+        assertThatThrownBy(() -> verify(config, proof))
+                .isInstanceOf(CantonProofException.class)
+                .satisfies(
+                        e -> assertThat(((CantonProofException) e).errorName()).isEqualTo(errorName));
+    }
+
+    private static byte[] namespaceOf(final String syncId) {
+        final int at = syncId.indexOf("::1220") + 6;
+        return HEX.parseHex(syncId.substring(at, at + 64));
+    }
+
+    private static byte[] uint64(final long v) {
+        return java.nio.ByteBuffer.allocate(8).putLong(v).array();
+    }
+
+    private static byte[] uintBytes(final BigInteger v) {
+        final byte[] raw = v.toByteArray();
+        int i = 0;
+        while (i < raw.length && raw[i] == 0) {
+            ++i;
+        }
+        return Arrays.copyOfRange(raw, i, raw.length);
+    }
+
+    private static byte[] replace(final byte[] in, final byte[] needle, final byte[] with) {
+        assertThat(with).hasSameSizeAs(needle);
+        int at = -1;
+        for (int i = 0; i + needle.length <= in.length; ++i) {
+            if (Arrays.equals(in, i, i + needle.length, needle, 0, needle.length)) {
+                assertThat(at).as("needle occurs once").isEqualTo(-1);
+                at = i;
+            }
+        }
+        assertThat(at).as("needle found").isNotNegative();
+        final byte[] out = in.clone();
+        System.arraycopy(with, 0, out, at, with.length);
+        return out;
+    }
+
+    private static byte[] sha(final String s) {
+        return sha256(utf8(s));
+    }
+
+    private static byte[] versioned(final byte[] data, final int version) {
+        return CantonBytes.concat(
+                Pb.lenField(1, data), new Pb().varint(2, version).build());
+    }
+
+    private static byte[] leafHash(final int purpose, final byte[] data, final int version) {
+        return CantonMerkle.leaf(purpose, sha256(data), versioned(data, version));
+    }
+
+    private static byte[] leafRlp(final byte[] data, final int version) {
+        return rlpList(rlpString(sha256(data)), rlpString(versioned(data, version)));
+    }
+
+    private static byte[] rlpString(final byte[] b) {
+        if (b.length == 1 && (b[0] & 0xff) < 0x80) {
+            return b.clone();
+        }
+        return CantonBytes.concat(rlpHeader(0x80, b.length), b);
+    }
+
+    private static byte[] rlpList(final byte[]... items) {
+        final byte[] payload = CantonBytes.concat(items);
+        return CantonBytes.concat(rlpHeader(0xc0, payload.length), payload);
+    }
+
+    private static byte[] rlpHeader(final int base, final int len) {
+        if (len <= 55) {
+            return new byte[] {(byte) (base + len)};
+        }
+        int n = 4;
+        while (n > 1 && (len >>> (8 * (n - 1))) == 0) {
+            --n;
+        }
+        final byte[] lenBytes = new byte[n];
+        for (int i = 0; i < n; ++i) {
+            lenBytes[i] = (byte) (len >>> (8 * (n - 1 - i)));
+        }
+        return CantonBytes.concat(new byte[] {(byte) (base + 55 + n)}, lenBytes);
     }
 }

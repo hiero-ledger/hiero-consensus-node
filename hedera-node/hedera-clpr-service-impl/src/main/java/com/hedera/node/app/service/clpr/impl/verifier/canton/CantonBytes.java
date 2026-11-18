@@ -3,7 +3,6 @@ package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

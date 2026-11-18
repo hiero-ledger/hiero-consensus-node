@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
 import static com.hedera.node.app.service.clpr.impl.verifier.canton.CantonBytes.to32;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigInteger;
