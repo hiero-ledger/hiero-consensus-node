@@ -328,14 +328,14 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                 captureManifestProof(ledgerA, aManifestProof),
                                 // ...submitted on B via clprSubmitBundle. On a one-sided turnover the surviving A->B
                                 // link lets A auto-push its manifest first, so accept SUCCESS (this submit applied it)
-                                // or CLPR_BUNDLE_VERIFICATION_FAILED (already applied). No gRPC to any A endpoint is
+                                // or CLPR_NO_PROGRESS (already applied). No gRPC to any A endpoint is
                                 // used by this submit (spec §8.1.4).
                                 submitManifestRecoveryBundle(
                                         ledgerB,
                                         crypto.channelId,
                                         aManifestProof,
                                         ResponseCodeEnum.SUCCESS,
-                                        ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED),
+                                        ResponseCodeEnum.CLPR_NO_PROGRESS),
                                 // Deterministic outcome: B's cached peer manifest advances to A's new version.
                                 awaitManifestAppliedOnPeer(ledgerB, aVersionBaseline))));
     }
@@ -398,7 +398,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                         crypto.channelId,
                                         aManifestProof,
                                         ResponseCodeEnum.SUCCESS,
-                                        ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED),
+                                        ResponseCodeEnum.CLPR_NO_PROGRESS),
                                 awaitManifestAppliedOnPeer(ledgerB, aVersionBaseline),
                                 // ...and A recovers B.
                                 captureManifestProof(ledgerB, bManifestProof),
@@ -407,7 +407,7 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                         crypto.channelId,
                                         bManifestProof,
                                         ResponseCodeEnum.SUCCESS,
-                                        ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED),
+                                        ResponseCodeEnum.CLPR_NO_PROGRESS),
                                 awaitManifestAppliedOnPeer(ledgerA, bVersionBaseline))));
     }
 }

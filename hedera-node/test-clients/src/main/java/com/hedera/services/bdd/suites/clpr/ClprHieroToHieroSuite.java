@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
+import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static com.hedera.services.bdd.junit.TestTags.MULTINETWORK;
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
@@ -42,7 +43,6 @@ import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.bouncycastle.jcajce.provider.digest.Keccak.Digest256;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -118,8 +118,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         Arrays.fill(data, (byte) 0xff);
         payload.setMessage(message.setMessageData(ByteString.copyFrom(data)));
         assertEquals(65_536, payload.build().getSerializedSize());
-        final var expectedDigest = new Digest256();
-        final byte[] digest = expectedDigest.digest(data);
+        final byte[] digest = keccak256DigestOf(data);
         final byte[] expectedResponse = new byte[4 + 32];
         System.arraycopy("msg-".getBytes(StandardCharsets.UTF_8), 0, expectedResponse, 0, 4);
         expectedResponse[expectedResponse.length - 1] = 2;

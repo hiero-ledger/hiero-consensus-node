@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIER_CALL_OVERHEAD_BYTES;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
@@ -37,6 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -196,6 +200,38 @@ public class ClprApplicationOutcomeEmbeddedTest {
                 assertEquals(id, reply.messageId());
                 assertEquals(com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus.SUCCESS, reply.status());
             }
+        }));
+    }
+
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"clpr.enabled", "clpr.messageExecutionCost", "clpr.endpointMarginPercent"})
+    final Stream<DynamicTest> exactSenderProofBudgetFitsTheConsensusVerifierCall() {
+        return hapiTest(setup(), withOpContext((spec, log) -> {
+            final var channelId = Bytes.wrap(new ClprChannelCrypto().channelId());
+            seedChannel(spec, channelId, 1024, List.of());
+            final var messages = List.of(data(spec, new byte[96]));
+            final var proof =
+                    StateProof.PROTOBUF.parse(Bytes.wrap(toBundleProofBytes(ACTIVE, 0, 0, ZERO_HASH, messages)));
+            // Vary the opaque signature in this pass-through verifier fixture to hit the exact packing boundary.
+            final int budget = VERIFIABLE_SYNC_BYTES - VERIFIER_CALL_OVERHEAD_BYTES;
+            final var signature = TssSignedBlockProof.newBuilder().blockSignature(Bytes.wrap(new byte[budget]));
+            final int excess =
+                    proof.copyBuilder().signedBlockProof(signature).build().protobufSize() - budget;
+            final var exactProof = proof.copyBuilder()
+                    .signedBlockProof(signature.blockSignature(Bytes.wrap(new byte[budget - excess])))
+                    .build();
+            assertEquals(budget, exactProof.protobufSize());
+            allRunFor(
+                    spec,
+                    clprSubmitBundle()
+                            .channelId(channelId.toByteArray())
+                            .bundlePayload(
+                                    StateProof.PROTOBUF.toBytes(exactProof).toByteArray())
+                            .endpointNodeId(0L)
+                            .payingWith(GENESIS),
+                    snapshot(1, 0, 0, 0, 0, 0));
+            assertReceived(spec, channelId, 1, runningHashAfter(ZERO_HASH, messages));
         }));
     }
 

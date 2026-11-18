@@ -7,6 +7,7 @@ import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalcu
 import com.hedera.node.app.service.contract.impl.exec.gas.TinybarValues;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.evm.frame.BlockValues;
@@ -19,7 +20,30 @@ public record HederaEvmContext(
         @NonNull TinybarValues tinybarValues,
         @NonNull SystemContractGasCalculator systemContractGasCalculator,
         @Nullable ContractOperationStreamBuilder streamBuilder,
-        @Nullable PendingCreationMetadataRef pendingCreationRecordBuilderReference) {
+        @Nullable PendingCreationMetadataRef pendingCreationRecordBuilderReference,
+        @Nullable ContractGasUsage verifierGasUsage) {
+
+    /** Creates a context without a caller-owned gas report, including for queries. */
+    public HederaEvmContext(
+            long gasPrice,
+            boolean staticCall,
+            boolean shouldChargeGasFees,
+            @NonNull HederaEvmBlocks blocks,
+            @NonNull TinybarValues tinybarValues,
+            @NonNull SystemContractGasCalculator systemContractGasCalculator,
+            @Nullable ContractOperationStreamBuilder streamBuilder,
+            @Nullable PendingCreationMetadataRef pendingCreationRecordBuilderReference) {
+        this(
+                gasPrice,
+                staticCall,
+                shouldChargeGasFees,
+                blocks,
+                tinybarValues,
+                systemContractGasCalculator,
+                streamBuilder,
+                pendingCreationRecordBuilderReference,
+                null);
+    }
 
     public HederaEvmContext {
         requireNonNull(blocks);

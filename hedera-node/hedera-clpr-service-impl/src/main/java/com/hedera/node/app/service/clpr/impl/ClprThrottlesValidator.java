@@ -5,6 +5,8 @@ import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.MAX
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
+import com.hedera.node.config.data.JumboTransactionsConfig;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -22,6 +24,9 @@ public final class ClprThrottlesValidator {
 
     /** A Hiero sender offers prefixes that fit the native verifier even for a peer advertising a larger sync. */
     public static final int VERIFIABLE_SYNC_BYTES = 128 * 1024;
+
+    /** Covers the verifier selector, three dynamic arguments, trust anchor, channel context and word padding. */
+    public static final int VERIFIER_CALL_OVERHEAD_BYTES = 2 * 1024;
 
     /** Conservative wire framing reserve above the serialized StateProof. */
     static final long CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES = 114L;
@@ -46,6 +51,19 @@ public final class ClprThrottlesValidator {
             MIN_STATE_PROOF_OVERHEAD_BYTES + CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
 
     private ClprThrottlesValidator() {}
+
+    /** Local upper bound used when sizing both new queue entries and the proofs that carry them. */
+    public static int senderCalldataBudget(@NonNull final Configuration configuration) {
+        return Math.clamp(
+                configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize(),
+                0,
+                VERIFIABLE_SYNC_BYTES);
+    }
+
+    /** Leave room for the proof and ABI when a network configures a smaller calldata limit. */
+    public static long senderPayloadBudget(@NonNull final Configuration configuration) {
+        return Math.clamp(senderCalldataBudget(configuration) - MIN_PROOF_OVERHEAD_BYTES, 0, MAX_MESSAGE_PAYLOAD_BYTES);
+    }
 
     /** Applies the implementation ceilings before the caller restores any previously advertised floors. */
     public static ClprThrottles capDeliveryLimits(@NonNull final ClprThrottles requested, final int queueCeiling) {

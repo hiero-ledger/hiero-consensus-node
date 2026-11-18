@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -66,6 +67,7 @@ import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
@@ -173,6 +175,10 @@ class ClprBundlePrevalidatorTest {
 
     @BeforeEach
     void setUp() {
+        lenient()
+                .when(configuration.getConfigData(JumboTransactionsConfig.class))
+                .thenReturn(com.hedera.node.config.testfixtures.HederaTestConfigBuilder.createConfig()
+                        .getConfigData(JumboTransactionsConfig.class));
         when(configuration.getConfigData(ClprConfig.class)).thenReturn(config);
         lenient().when(config.enabled()).thenReturn(true);
         lenient().when(config.verifierGasLimit()).thenReturn(VERIFIER_GAS);
@@ -256,6 +262,15 @@ class ClprBundlePrevalidatorTest {
 
         verify(releaseState).run();
         verifyNoInteractions(verifierFactory, handlersSupplier);
+    }
+
+    @Test
+    void prevalidationAppliesConsensusCalldataLimitToEncodedVerifierCall() {
+        final var jumbo = mock(JumboTransactionsConfig.class);
+        when(configuration.getConfigData(JumboTransactionsConfig.class)).thenReturn(jumbo);
+        when(jumbo.ethereumMaxCallDataSize()).thenReturn(128);
+        assertRejected(PAYLOAD, CLPR_BUNDLE_VERIFICATION_FAILED);
+        verifyNoInteractions(localHandler);
     }
 
     @Test

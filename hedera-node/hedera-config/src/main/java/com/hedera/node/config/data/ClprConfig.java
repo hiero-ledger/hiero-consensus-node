@@ -73,7 +73,8 @@ public record ClprConfig(
         int connectorQueueQuotaPct,
 
         // --- Verifier contract dispatch (CLPR-5.3) ---
-        // Covers calldata for a 128 KiB Hiero proof prefix (up to 40 gas per byte) and verifier execution.
+        // Covers calldata for a 126 KiB Hiero proof plus verifier ABI arguments (up to 40 gas per byte) and verifier
+        // execution.
         @ConfigProperty(defaultValue = "8000000") @NetworkProperty
         long verifierGasLimit,
 

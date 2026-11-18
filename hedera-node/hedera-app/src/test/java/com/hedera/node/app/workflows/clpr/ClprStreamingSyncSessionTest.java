@@ -169,6 +169,7 @@ class ClprStreamingSyncSessionTest {
 
     @Test
     void streamingRequestSelectsCompactProofForTheAdvertisedAnchor() {
+        given(stateProofManager.maxBundlePayloadBytes(any())).willReturn(126 * 1024L);
         final var signature = Bytes.wrap(new byte[13_712]);
         final var snapshot = mock(BlockProvenSnapshot.class);
         final var path = MerklePath.newBuilder()

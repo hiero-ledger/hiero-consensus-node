@@ -93,6 +93,7 @@ import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -1012,13 +1013,12 @@ class TransactionProcessorTest {
         final var result =
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
-        final var expectedStatus =
-                switch (finalization) {
-                    case SUCCESS -> SUCCESS;
-                    case EXECUTION_REVERT -> CONTRACT_REVERT_EXECUTED;
-                    case MISSING_BENEFICIARY -> CONTRACT_EXECUTION_EXCEPTION;
-                    default -> MAX_CHILD_RECORDS_EXCEEDED;
-                };
+        final var expectedStatus = switch (finalization) {
+            case SUCCESS -> SUCCESS;
+            case EXECUTION_REVERT -> CONTRACT_REVERT_EXECUTED;
+            case MISSING_BENEFICIARY -> CONTRACT_EXECUTION_EXCEPTION;
+            default -> MAX_CHILD_RECORDS_EXCEEDED;
+        };
         assertEquals(expectedStatus, result.finalStatus());
         assertEquals(failsFinalization ? GAS_LIMIT : SUCCESS_RESULT.gasUsed(), result.gasUsed());
         if (failsFinalization) {
@@ -1085,15 +1085,30 @@ class TransactionProcessorTest {
         verify(worldUpdater).commit();
     }
 
-    @Test
-    void clprDispatchWithoutSenderAccountUsesTransactionSenderAndPrepaidGas() {
-        final var context = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+    @ParameterizedTest
+    @ValueSource(longs = {100L, GAS_LIMIT})
+    void clprDispatchWithoutSenderAccountUsesTransactionSenderAndPrepaidGas(final long gasLeft) {
+        final var usage = new ContractGasUsage();
+        final var base = wellKnownContextWith(blocks, tinybarValues, systemContractGasCalculator);
+        final var context = new HederaEvmContext(
+                base.gasPrice(),
+                base.staticCall(),
+                base.shouldChargeGasFees(),
+                blocks,
+                tinybarValues,
+                systemContractGasCalculator,
+                base.streamBuilder(),
+                base.pendingCreationRecordBuilderReference(),
+                usage);
+        given(initialFrame.getRemainingGas()).willReturn(gasLeft);
         final var transaction = clprDispatchCall(null);
+        given(gasCharging.gasRequirements(transaction)).willReturn(new GasCharges(21_144L, 21_360L, 0L));
         givenClprDispatchRunsToCompletion(transaction, context);
 
         final var result =
                 subject.processTransaction(transaction, worldUpdater, context, tracer, config, opsDurationCounter);
 
+        assertEquals(Math.min(gasLeft, GAS_LIMIT - 21_360L), usage.takeUnspentGas());
         assertEquals(SUCCESS_RESULT.withTxStorageUsage(new TxStorageUsage(List.of(), null)), result);
         verify(gasCharging, never()).chargeForGas(any(), any(), any(), any(), any());
         verify(gasCharging, never()).maybeRefundGiven(anyLong(), anyLong(), any(), any(), any(), any());

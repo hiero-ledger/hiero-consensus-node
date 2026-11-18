@@ -1084,7 +1084,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      *
      * <p>Accepts any of {@code acceptableStatuses}. A {@code SUCCESS} means this submit is what accepted
      * the manifest-only recovery bundle (no channel leaf) and applied the advancing manifest. A
-     * {@code CLPR_BUNDLE_VERIFICATION_FAILED} means the manifest was <em>already</em> applied — on a
+     * {@code CLPR_NO_PROGRESS} means the manifest was <em>already</em> applied — on a
      * one-sided turnover the surviving link lets the remote auto-push its manifest first, so the manual
      * submit legitimately races that automatic recovery. The <em>deterministic</em> assertion is the
      * separate {@link #awaitManifestAppliedOnPeer} step: the manifest is applied regardless of which path

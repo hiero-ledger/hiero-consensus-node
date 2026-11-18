@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -44,6 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.ToLongFunction;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -366,6 +368,14 @@ class ClprBundleProducerTest {
 
     @Nested
     class CompactPeer {
+        @BeforeEach
+        void configureProofBudget() {
+            lenient().when(stateProofManager.maxBundlePayloadBytes(any())).thenAnswer(invocation -> {
+                final ClprThrottles peer = invocation.getArgument(0);
+                return Math.min(126 * 1024L, Math.max(0, peer.maxSyncBytes() - 114));
+            });
+        }
+
         private static final int NATIVE_SIGNATURE_LENGTH = 13_712;
 
         @Test

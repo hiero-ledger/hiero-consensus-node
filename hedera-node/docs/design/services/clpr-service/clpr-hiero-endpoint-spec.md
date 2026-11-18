@@ -172,8 +172,9 @@ Account key changes (e.g., rotating the node account's Ed25519 key) do NOT affec
 
 Both directions of the Hiero gRPC stream accept serialized `ClprStreamingSyncPayload` frames
 up to 4 MiB. The ledger's advertised `max_sync_bytes` bounds delivery within that transport
-capacity. Hiero senders also limit their own proof prefixes to 128 KiB including framing,
-so a peer advertising a larger sync budget can receive the backlog over successive exchanges.
+capacity. Hiero senders reserve 114 bytes from the peer's wire limit for framing. They also reserve
+2 KiB from the smaller of 128 KiB and the local consensus calldata limit for verifier arguments.
+The default proof limit is 126 KiB. Larger backlogs drain over successive exchanges.
 Peers with a legacy advertisement above 4 MiB must keep each frame within transport capacity.
 
 ---

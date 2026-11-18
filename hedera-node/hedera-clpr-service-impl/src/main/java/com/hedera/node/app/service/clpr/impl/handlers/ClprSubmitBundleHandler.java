@@ -11,6 +11,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MIN_PROOF_OVERHEAD_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.senderPayloadBudget;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
@@ -487,7 +489,9 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         var peerConfigTimestamp = channel.peerConfigTimestamp();
         var peerThrottles = channel.peerThrottles();
         // A later control message can lower the budget used to build proofs for these replies.
-        var finalReplyPayloadLimit = maxSerializedReplyBytesAfterBundle(throttles, peerThrottles, newMessages);
+        var finalReplyPayloadLimit = Math.min(
+                senderPayloadBudget(context.configuration()),
+                maxSerializedReplyBytesAfterBundle(throttles, peerThrottles, newMessages));
         if (hasDeferredMessages) {
             finalReplyPayloadLimit = Math.min(
                     finalReplyPayloadLimit,
@@ -1248,17 +1252,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 updatedChannel.lastConfigTimestamp(),
                 updatedChannel.peerConfigTimestamp());
         channelStore.put(updatedChannel);
-
-        // Fast-path notify: drop this id from the orchestrator's in-memory
-        // registry now that the channel is terminal. This is a best-effort
-        // optimization — if the surrounding transaction rolls back, the registry
-        // entry is stranded, but the orchestrator's syncTick observes-and-drops
-        // any committed-CLOSED channel on its next pass, so the worst case
-        // is one extra state lookup per tick until that pass runs.
-        if (currentStatus == ClprChannelStatus.CLOSED) {
-            log.debug("[ClprSubmitBundle] notifying lifecycle channel closed conn={}", channelId);
-            channelLifecycle.onChannelClosed(channelId);
-        }
     }
 
     @NonNull
@@ -1402,7 +1395,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final long payloadLimit = Math.min(
                 localThrottles.maxMessagePayloadBytes(),
                 ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, localThrottles));
-        final long syncLimit = Math.max(destination.maxSyncBytes(), MIN_PROOF_OVERHEAD_BYTES);
+        final long syncLimit = Math.clamp(destination.maxSyncBytes(), MIN_PROOF_OVERHEAD_BYTES, VERIFIABLE_SYNC_BYTES);
         return Math.max(0, Math.min(payloadLimit, syncLimit - MIN_PROOF_OVERHEAD_BYTES));
     }
 

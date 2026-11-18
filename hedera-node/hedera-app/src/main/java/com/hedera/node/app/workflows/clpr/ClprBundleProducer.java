@@ -202,7 +202,7 @@ final class ClprBundleProducer {
             @NonNull final Bytes anchor,
             final boolean includeEndpointManifest) {
         final var throttles = channel.peerThrottlesOrThrow();
-        final long maxPayloadBytes = ClprStateProofManager.maxBundlePayloadBytes(throttles);
+        final long maxPayloadBytes = stateProofManager.maxBundlePayloadBytes(throttles);
         final var signature = ClprHieroProofCodec.compactSignature(snapshot.tssSignature());
         final var signingKey = signature.slice(0, VK_LENGTH);
         final var signer = new ClprHieroProofCodec.CompactStateProof(signingKey, Bytes.EMPTY);

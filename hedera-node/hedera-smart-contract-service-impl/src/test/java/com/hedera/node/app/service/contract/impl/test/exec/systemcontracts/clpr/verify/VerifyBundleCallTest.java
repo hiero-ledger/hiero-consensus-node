@@ -263,7 +263,7 @@ class VerifyBundleCallTest {
                     .build();
             // Size the transport to exactly fit the head with its channel proof.
             final var head = Objects.requireNonNull(manager.buildBundleProof(CHANNEL_ID, 1, generous, false, false));
-            final long framing = generous.maxSyncBytes() - ClprStateProofManager.maxBundlePayloadBytes(generous);
+            final long framing = generous.maxSyncBytes() - manager.maxBundlePayloadBytes(generous);
             final var limits = generous.copyBuilder()
                     .maxSyncBytes(head.payload().length() + framing)
                     .build();

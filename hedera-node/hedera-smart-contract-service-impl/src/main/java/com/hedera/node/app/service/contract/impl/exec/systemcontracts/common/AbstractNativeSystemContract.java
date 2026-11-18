@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MAX_MESSAGE_PAYLOAD_BYTES;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIER_CALL_OVERHEAD_BYTES;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
@@ -472,25 +473,25 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         return false;
     }
 
-    @NonNull
     private int maxInputBytes(final Bytes input, final MessageFrame frame) {
         if (this instanceof AbstractClprSystemContract) {
+            if (this instanceof ClprSystemContract && selectorOf(input).equals(SEND_MESSAGE_SELECTOR)) {
+                // Four argument words, two dynamic lengths and at most two words of padding.
+                return Math.max(hederaConfigOf(frame).transactionMaxBytes(), MAX_MESSAGE_PAYLOAD_BYTES + 4 + 8 * 32);
+            }
             // The verifier ABI also carries the trust anchor and channel context.
             if (isClprDispatch(frame)) {
                 return Math.max(
                         configOf(frame)
                                 .getConfigData(JumboTransactionsConfig.class)
                                 .maxTxnSize(),
-                        VERIFIABLE_SYNC_BYTES + 2048);
-            }
-            if (this instanceof ClprSystemContract && selectorOf(input).equals(SEND_MESSAGE_SELECTOR)) {
-                // Four argument words, two dynamic lengths and at most two words of padding.
-                return Math.max(hederaConfigOf(frame).transactionMaxBytes(), MAX_MESSAGE_PAYLOAD_BYTES + 4 + 8 * 32);
+                        VERIFIABLE_SYNC_BYTES + VERIFIER_CALL_OVERHEAD_BYTES);
             }
         }
         return hederaConfigOf(frame).transactionMaxBytes();
     }
 
+    @NonNull
     private static Bytes selectorOf(@NonNull final Bytes input) {
         return input.slice(0, Math.min(FUNCTION_SELECTOR_LENGTH, input.size()));
     }

@@ -260,7 +260,7 @@ class ClprBundleProofConstructionTest {
                 .singleElement()
                 .satisfies(link -> assertThat(link.nextVerificationKey()).isEqualTo(SIGNING_KEY));
         assertThat(payload.length())
-                .isLessThanOrEqualTo(ClprStateProofManager.maxBundlePayloadBytes(channel.peerThrottlesOrThrow()));
+                .isLessThanOrEqualTo(proofManager.maxBundlePayloadBytes(channel.peerThrottlesOrThrow()));
         assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID);
         assertThat(producer.next(false)).isNull();
         verify(proofSupport).verify(payload, keccak256DigestOf(PREDECESSOR_KEY));

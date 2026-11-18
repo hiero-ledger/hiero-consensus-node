@@ -20,6 +20,7 @@ import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
+import com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
@@ -76,6 +77,30 @@ class ClprStateProofManagerTest {
                 HederaTestConfigBuilder.createConfigProvider(),
                 (proof, anchor) -> false);
         binaryState = (BinaryState) provenState;
+    }
+
+    @Test
+    void proofBudgetReservesBothVerifierAbiAndPeerWireFraming() {
+        final var peer =
+                ClprThrottles.newBuilder().maxSyncBytes(4 * 1024 * 1024).build();
+        assertThat(subject.maxBundlePayloadBytes(peer)).isEqualTo(126 * 1024L);
+        assertThat(subject.maxBundlePayloadBytes(
+                        peer.copyBuilder().maxSyncBytes(8192).build()))
+                .isEqualTo(8192L - 114);
+    }
+
+    @Test
+    void smallerConfiguredCalldataLimitAppliesToProofsAndNewPayloads() {
+        final var config = new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("jumboTransactions.ethereumMaxCallDataSize", 96 * 1024)
+                        .getOrCreateConfig(),
+                0);
+        final var manager = new ClprStateProofManager(snapshotProvider, tssVerifier, () -> config, (p, a) -> false);
+        final var peer =
+                ClprThrottles.newBuilder().maxSyncBytes(4 * 1024 * 1024).build();
+        assertThat(manager.maxBundlePayloadBytes(peer)).isEqualTo(94 * 1024L);
+        assertThat(ClprThrottlesValidator.senderPayloadBudget(config)).isEqualTo(32 * 1024L);
     }
 
     @Test
@@ -271,7 +296,7 @@ class ClprStateProofManagerTest {
                 .extracting(path -> leafNames.get(path.stateItemLeaf()))
                 .containsExactly(expectedPaths.split(" "));
         assertThat(proof.protobufSize() + compactOverhead)
-                .isLessThanOrEqualTo(ClprStateProofManager.maxBundlePayloadBytes(throttles));
+                .isLessThanOrEqualTo(subject.maxBundlePayloadBytes(throttles));
         final var envelope = ClprSyncPayload.newBuilder()
                 .channelId(channelId)
                 .bundlePayload(bundle.payload())

@@ -1762,6 +1762,16 @@ class ClprSubmitBundleHandlerTest {
         }
 
         @Test
+        void legacyLedgerLimitsCannotQueueAnUnsendableReply() {
+            givenChannelWithPeerPayloadLimit(1_048_576);
+            setupHandleContext(validSingleDataBundle(), true, 100, 1_048_576, 8_388_608L);
+            putConnector();
+            given(dispatchResult.getEvmCallResult()).willReturn(abiEncodeBytes(new byte[65_536]));
+            subject.handle(handleContext);
+            assertApplicationErrorResponse();
+        }
+
+        @Test
         @DisplayName("given a reply with size of the peer's payload limit then enqueue with SUCCESS")
         void givenReplySerializedAtPeerLimit_thenEnqueuedWithSuccessAndData() {
             final var replyData = Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8});
@@ -2371,7 +2381,7 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
+        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -2440,7 +2450,7 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
+        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -2479,7 +2489,7 @@ class ClprSubmitBundleHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertNotNull(updated);
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        verify(channelLifecycle).onChannelClosed(CHANNEL_ID);
+        verify(channelLifecycle, never()).onChannelClosed(CHANNEL_ID);
     }
 
     @Test

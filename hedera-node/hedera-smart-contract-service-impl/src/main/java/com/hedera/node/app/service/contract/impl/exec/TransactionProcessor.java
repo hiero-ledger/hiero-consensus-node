@@ -214,6 +214,13 @@ public class TransactionProcessor {
         // refund first would survive in the rollback handler's gas events even after its state is reverted.
         result = safeCommit(
                 result, transaction, updater, context, accessTrackerFor(initialFrame), initialFrame.getSelfDestructs());
+        if (transaction.isClprDispatch() && context.verifierGasUsage() != null && result.isSuccess()) {
+            // Prepaid CLPR calls skip the fee charging path. Keep the calldata floor when releasing capacity.
+            final long floor = gasCharging.gasRequirements(transaction).minimumGasUsed();
+            context.verifierGasUsage()
+                    .recordUnspentGas(Math.clamp(
+                            initialFrame.getRemainingGas(), 0, Math.max(0L, transaction.gasLimit() - floor)));
+        }
         if (!gasIsPrepaid) {
             gasCharging.maybeRefundGiven(
                     transaction.unusedGas(result.gasUsed()),

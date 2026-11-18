@@ -311,11 +311,16 @@ uses `max(existing, min(requested, ceiling))` independently for each field. This
 earlier advertisements above a ceiling and permits independent changes to gas and endpoints.
 If the effective throttles are unchanged, the upgrade preserves the timestamp.
 
-Hiero senders pack each native or compact proof into the smaller of the peer's sync limit
-and 128 KiB, including the framing reserve. The next sync resumes at the first unreceived
-message. The default verifier allowance of 8,000,000 gas covers the native verifier and the
-calldata for this prefix. Operators using a custom EVM verifier or gas allowance must size it
-for their verifier's execution cost. The 4 MiB transport limit also carries frames produced
+Hiero reserves 114 bytes for sync framing and 2 KiB for the separately encoded verifier call,
+including the trust anchor, channel context and ABI padding. Each native or compact proof fits
+both the peer's wire budget and the smaller of the local consensus calldata limit and 128 KiB.
+At default settings the largest proof is 126 KiB. Sync resumes at the first unreceived message.
+Prevalidation checks the complete encoded call against the receiver's configured calldata limit.
+New DATA and replies from Hiero are limited to 64 KiB even on legacy channels. A smaller local
+calldata limit reduces this payload budget by the same amount. Peers with different calldata
+limits must coordinate the smaller bound. The default verifier allowance is 8,000,000 gas.
+Admission requires that much gas throttle headroom. Operators using a custom EVM verifier or
+gas allowance must size it for their verifier's execution cost. The 4 MiB transport limit also carries frames produced
 under the previous default. Legacy or external senders that offer larger proofs may need to
 repack them to fit the verifier. Individual DATA previously admitted above 64 KiB, or a
 channel whose proofs have exceptionally large manifests or witnesses, can still exceed a
@@ -390,11 +395,12 @@ or underfunded originating connector causes best-effort response delivery to be 
 Reverted callbacks still pay for gas consumed. Gas is reported before rollback clears stream-builder results. A pre-execution failure
 without an EVM outcome bills zero gas; a reverted execution pays its reported gas.
 
-The sum of verifier and application gas grants cannot exceed the transaction cap.
-Callbacks share the remaining allowance: each DATA or response payload receives at
-most `min(maxGasPerMessage, remainingGas / remainingCallbackPayloads)`. Skipped payloads
-release their share for later callbacks. Once granted, gas capacity is consumed in full
-regardless of billed EVM gas refunds, so repeated storage refunds cannot reopen capacity.
+Verification and callbacks share the transaction cap. After a successful verifier call, gas
+left in its root frame can fund callbacks. The reservation still covers pre-refund execution,
+the calldata floor and the verifier fee owed. A verifier without a usage report consumes its
+full grant. Each remaining callback receives at most
+`min(maxGasPerMessage, remainingGas / remainingCallbackPayloads)`. Skipped callbacks release
+their share. An issued callback grant consumes its full execution capacity.
 Application children use consensus throttling with the connector as child payer while
 retaining the CLPR service's synthetic EVM sender. When the verifier adapter does not
 report gas into the shared accounting ledger, its full configured gas allowance is

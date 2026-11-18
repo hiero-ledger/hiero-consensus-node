@@ -47,6 +47,6 @@ class ClprConfigTest {
     void verifierGasLimitCoversCalldataFloorOfHieroStateProofs() {
         final var config = HederaTestConfigBuilder.createConfig().getConfigData(ClprConfig.class);
         // EIP-7623 charges at most 40 gas per calldata byte, plus base gas and verifier execution.
-        assertThat(config.verifierGasLimit()).isGreaterThan(21_000L + 40L * (128 * 1024 + 2048));
+        assertThat(config.verifierGasLimit()).isGreaterThan(21_000L + 40L * (128 * 1024));
     }
 }

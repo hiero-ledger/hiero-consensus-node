@@ -46,6 +46,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -119,6 +120,9 @@ class ClprStreamingSynchronizerTest {
                         .enabled(true)
                         .syncPeerExclusionEnabled(true)
                         .build());
+        lenient()
+                .when(versionedConfig.getConfigData(JumboTransactionsConfig.class))
+                .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(JumboTransactionsConfig.class));
         // Simulate the configured digest type
         lenient()
                 .when(versionedConfig.getConfigData(BlockStreamConfig.class))

@@ -19,6 +19,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -41,7 +42,9 @@ import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -104,6 +107,9 @@ class ClprServiceApiImplTest {
     @BeforeEach
     void setUp() {
         given(configuration.getConfigData(ClprConfig.class)).willReturn(DEFAULT_CLPR_CONFIG);
+        org.mockito.Mockito.lenient()
+                .when(configuration.getConfigData(JumboTransactionsConfig.class))
+                .thenReturn(HederaTestConfigBuilder.createConfig().getConfigData(JumboTransactionsConfig.class));
         subject = new ClprServiceApiImpl(
                 channelReadStore, channelWriteStore, connectorStore, configStore, messageQueueStore, configuration);
     }
@@ -152,6 +158,27 @@ class ClprServiceApiImplTest {
         assertThatThrownBy(() -> subject.sendMessage(CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, MESSAGE_DATA))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_CONNECTOR_NOT_FOUND));
+    }
+
+    @Test
+    void legacyPeerCannotAdmitDataAboveTheHieroSenderLimit() {
+        final var legacy = ClprThrottles.newBuilder()
+                .maxMessagePayloadBytes(1_048_576)
+                .maxQueueDepth(100)
+                .build();
+        final var channel = createChannel(ClprChannelStatus.ACTIVE)
+                .copyBuilder()
+                .peerThrottles(legacy)
+                .build();
+        given(channelReadStore.getChannel(CHANNEL_ID)).willReturn(channel);
+        given(configStore.getConfiguration()).willReturn(createLedgerConfig(CONFIG_TIMESTAMP, 1_048_576, 100));
+        given(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_CONTRACT)))
+                .willReturn(createConnector());
+        assertThatThrownBy(() -> subject.sendMessage(
+                        CHANNEL_ID, CONNECTOR_CONTRACT, TARGET_APP, SENDER, Bytes.wrap(new byte[65_536])))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+        verifyNoInteractions(channelWriteStore, messageQueueStore);
     }
 
     @Test

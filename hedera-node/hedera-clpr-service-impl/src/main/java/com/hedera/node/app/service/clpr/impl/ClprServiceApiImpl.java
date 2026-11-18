@@ -104,8 +104,9 @@ public class ClprServiceApiImpl implements ClprServiceApi {
         // for its own max_message_payload_bytes.
         final var localThrottles = ledgerConfig.throttles();
         final var peerThrottles = channel.peerThrottles();
-        final var effectiveMaxPayload =
-                ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, requireNonNull(localThrottles));
+        final var effectiveMaxPayload = Math.min(
+                ClprThrottlesUtils.effectiveMaxPayloadBytes(peerThrottles, requireNonNull(localThrottles)),
+                ClprThrottlesValidator.senderPayloadBudget(configuration));
         final var clprMessage = ClprMessage.newBuilder()
                 .connectorId(connector.connectorId())
                 .targetApplication(targetApplication)
