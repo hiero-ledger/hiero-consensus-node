@@ -165,6 +165,39 @@ class TxPipelineTrackerTest {
     }
 
     @Nested
+    @DisplayName("decrementInFlight Tests")
+    class DecrementInFlightTests {
+        @Test
+        @DisplayName("Decrements inFlight count by one")
+        void decrementsInFlightByOne() {
+            tracker.incrementInFlight();
+            tracker.incrementInFlight();
+
+            tracker.decrementInFlight();
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not decrement inFlight count below zero")
+        void doesNotDecrementInFlightCountBelowZero() {
+            tracker.decrementInFlight();
+
+            assertEquals(0, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not touch preFlight count")
+        void doesNotTouchPreFlightCount() {
+            tracker.incrementPreFlight();
+
+            tracker.decrementInFlight();
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
+        }
+    }
+
+    @Nested
     @DisplayName("countLanded Tests")
     class CountLandedTests {
         @Test
@@ -355,6 +388,43 @@ class TxPipelineTrackerTest {
 
             // Should decrement only for the 2 relevant transactions
             assertEquals(2, tracker.estimateTxPipelineCount());
+        }
+    }
+
+    @Nested
+    @DisplayName("countDropped Tests")
+    class CountDroppedTests {
+        @Test
+        @DisplayName("Decrements inFlight count by the number dropped")
+        void decrementsInFlightCountByNumberDropped() {
+            tracker.incrementInFlight();
+            tracker.incrementInFlight();
+            tracker.incrementInFlight();
+
+            tracker.countDropped(2);
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not decrement inFlight count below zero")
+        void doesNotDecrementInFlightCountBelowZero() {
+            tracker.incrementInFlight();
+
+            tracker.countDropped(3);
+
+            assertEquals(0, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not touch preFlight count")
+        void doesNotTouchPreFlightCount() {
+            tracker.incrementPreFlight();
+            tracker.incrementInFlight();
+
+            tracker.countDropped(5);
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
         }
     }
 

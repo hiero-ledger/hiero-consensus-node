@@ -202,9 +202,8 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
                                                 ledgerA,
                                                 withOpContext((spec, opLog) -> awaitLogLine(
                                                         ledgerA,
-                                                        Pattern.compile(
-                                                                "TLS gRPC server listening on port "
-                                                                        + HAPI_TLS_PORT_A_ROTATED),
+                                                        Pattern.compile("TLS gRPC server listening on port "
+                                                                + HAPI_TLS_PORT_A_ROTATED),
                                                         Duration.ofSeconds(60))))
                                         .findFirst()
                                         .orElseThrow(),

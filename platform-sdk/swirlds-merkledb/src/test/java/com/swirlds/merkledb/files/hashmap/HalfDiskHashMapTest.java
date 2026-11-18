@@ -12,7 +12,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.collections.LongList;
-import com.swirlds.merkledb.collections.LongListHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig_;
 import com.swirlds.merkledb.files.DataFileCompactor;
@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ForkJoinPool;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -34,6 +35,14 @@ import org.junit.jupiter.params.provider.ValueSource;
 class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
 
     private static final ForkJoinPool FLUSH_POOL = new ForkJoinPool(2);
+
+    /// Key-value store indexes created by the current test, closed after it to free their off-heap memory.
+    private final List<LongList> indexes = new ArrayList<>();
+
+    @AfterEach
+    void closeIndexes() {
+        indexes.forEach(LongList::close);
+    }
 
     // =================================================================================================================
     // Helper Methods
@@ -53,7 +62,8 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
     }
 
     private MemoryIndexDiskKeyValueStore createNewTempKV(final String name, final int count) throws IOException {
-        final LongList index = new LongListHeap(count, DEFAULT_MERKLE_DB_CONFIG);
+        final LongList index = new LongListSegment(count, DEFAULT_MERKLE_DB_CONFIG);
+        indexes.add(index);
         return new MemoryIndexDiskKeyValueStore(
                 DEFAULT_MERKLE_DB_CONFIG,
                 fileSystemManager.resolve(name + "_kv"),

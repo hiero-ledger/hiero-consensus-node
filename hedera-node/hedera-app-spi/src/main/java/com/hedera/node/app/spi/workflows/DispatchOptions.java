@@ -514,7 +514,7 @@ public record DispatchOptions<T extends StreamBuilder>(
      * @param body the transaction to dispatch
      * @param streamBuilderType the type of stream builder to use for the dispatch
      * @param signedTxCustomizer the customizer for the transaction
-     * @param metadata metadata with a flag whether more than one hook is being executed in the parent tx
+     * @param metadata the metadata for the dispatch
      * @return the options for the sub-dispatch
      */
     public static <T extends StreamBuilder> DispatchOptions<T> hookDispatchForExecution(

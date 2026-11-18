@@ -25,8 +25,8 @@ import javax.inject.Singleton;
 /**
  * Handler for {@link HederaFunctionality#CLPR_UPDATE_LEDGER_CONFIGURATION} transactions.
  *
- * <p>Updates the local CLPR ledger configuration. Requires the CLPR admin key
- * (network admin / superuser). The handler preserves the immutable chain_id and
+ * <p>Updates the local CLPR ledger configuration. Requires an authorized CLPR admin payer.
+ * The handler preserves the immutable chain_id and
  * protocol_version (set at genesis) and auto-sets the timestamp. The service_address
  * must be the CLPR system contract's EVM address ({@code 0x16e}, the value this ledger's
  * endpoint manifest carries) and defaults to it when omitted.
@@ -65,8 +65,7 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
-        // Authorization enforced by PrivilegesVerifier.checkClprAdmin — only
-        // treasury and system admin accounts are permitted.
+        // PrivilegesVerifier authorizes the treasury, system admin, and configured CLPR admin.
     }
 
     @Override

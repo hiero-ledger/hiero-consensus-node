@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.aaWith;
 import static com.hedera.node.app.service.token.impl.test.handlers.transfer.AccountAmountUtils.nftTransferWith;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.EXPLICIT_WRITE_TRACING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -26,6 +27,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.EvmHookCall;
 import com.hedera.hapi.node.base.HookCall;
@@ -55,6 +57,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleContextImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -85,6 +88,12 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
         HBAR,
         FUNGIBLE,
         NFT
+    }
+
+    enum HookUse {
+        NONE,
+        PRE,
+        PRE_POST
     }
 
     @Override
@@ -652,6 +661,49 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
         verify(handleContext, times(prePost ? 2 : 1)).dispatch(any());
     }
 
+    static Stream<Arguments> hookInvocationMixes() {
+        return Stream.of(
+                Arguments.of(HookUse.PRE, HookUse.NONE, 1),
+                Arguments.of(HookUse.PRE_POST, HookUse.NONE, 2),
+                Arguments.of(HookUse.PRE, HookUse.PRE, 2),
+                Arguments.of(HookUse.PRE, HookUse.PRE_POST, 3),
+                Arguments.of(HookUse.PRE_POST, HookUse.PRE_POST, 4));
+    }
+
+    @ParameterizedTest
+    @MethodSource("hookInvocationMixes")
+    void everyHookExecutionTracesStorageWritesExplicitly(HookUse senderHook, HookUse receiverHook, int numExecutions)
+            throws PreCheckException {
+        subject = new CryptoTransferHandler(validator, new HookCallsFactory(), entityIdFactory);
+        final var op = operation(Kind.HBAR, ownerId, tokenReceiverId);
+        final var amounts = op.transfersOrThrow().accountAmounts();
+        givenTxn(
+                op.copyBuilder()
+                        .transfers(TransferList.newBuilder()
+                                .accountAmounts(
+                                        withHookUse(amounts.getFirst(), senderHook, 1),
+                                        withHookUse(amounts.getLast(), receiverHook, 2)))
+                        .build(),
+                payerId);
+        when(handleContext.configuration())
+                .thenReturn(HederaTestConfigBuilder.create()
+                        .withValue("hooks.hooksEnabled", true)
+                        .getOrCreateConfig());
+        subject.preHandle(preHandleContext());
+        final var hookResult = mock(HookDispatchStreamBuilder.class);
+        when(hookResult.status()).thenReturn(SUCCESS);
+        when(hookResult.getEvmCallResult()).thenReturn(Bytes.fromHex("00".repeat(31) + "01"));
+        final List<Boolean> explicitWritesByExecution = new ArrayList<>();
+        when(handleContext.dispatch(any())).thenAnswer(invocation -> {
+            final DispatchOptions<?> options = invocation.getArgument(0);
+            explicitWritesByExecution.add(Boolean.TRUE.equals(
+                    options.dispatchMetadata().getMetadataIfPresent(EXPLICIT_WRITE_TRACING, Boolean.class)));
+            return hookResult;
+        });
+        subject.handle(handleContext);
+        assertThat(explicitWritesByExecution).hasSize(numExecutions).containsOnly(true);
+    }
+
     @ParameterizedTest
     @CsvSource({"1", "2", "3"})
     void laterNftResolutionCannotOverwriteAnEarlierHbarResolution(int domain) throws PreCheckException {
@@ -770,6 +822,18 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
                                 .nftTransfers(nftTransferWith(sender, receiver, 1))
                                 .build())
                         .build();
+        };
+    }
+
+    private static AccountAmount withHookUse(AccountAmount amount, HookUse use, long hookId) {
+        final var hook = HookCall.newBuilder()
+                .hookId(hookId)
+                .evmHookCall(EvmHookCall.newBuilder().gasLimit(2_000).data(Bytes.EMPTY))
+                .build();
+        return switch (use) {
+            case NONE -> amount;
+            case PRE -> amount.copyBuilder().preTxAllowanceHook(hook).build();
+            case PRE_POST -> amount.copyBuilder().prePostTxAllowanceHook(hook).build();
         };
     }
 

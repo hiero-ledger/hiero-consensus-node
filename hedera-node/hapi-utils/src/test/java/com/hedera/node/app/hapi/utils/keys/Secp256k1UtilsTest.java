@@ -8,6 +8,7 @@ import java.math.BigInteger;
 import java.util.HexFormat;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.ECDSASecp256k1;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -66,7 +67,7 @@ public class Secp256k1UtilsTest {
     @ParameterizedTest
     @MethodSource("bigIntegerArguments")
     void testBigIntegers(BigInteger value, boolean isGood) {
-        testValue(value, isGood, Secp256k1Utils::asPrivateKeyByteArray32);
+        testValue(value, isGood, ECDSASecp256k1::asPrivateKeyByteArray32);
         testValue(value, isGood, Secp256k1Utils::readECKeyFrom);
     }
 

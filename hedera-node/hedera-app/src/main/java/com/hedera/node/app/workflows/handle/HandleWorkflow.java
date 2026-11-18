@@ -54,6 +54,7 @@ import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
+import com.hedera.node.app.hints.impl.HintsGenerationWeights;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
@@ -215,6 +216,7 @@ public class HandleWorkflow {
     private boolean checkedForTransplant;
 
     private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
+    private final ThrottledLogging hintsGenerationFailureLogging = new ThrottledLogging();
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -1224,22 +1226,26 @@ public class HandleWorkflow {
             @NonNull final State state, @NonNull final AtomicReference<LedgerIdContext> setLedgerIdContext) {
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled()) {
-            hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
-                // On finishing the genesis construction, use it immediately no matter what
-                if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstruction(construction, hintsStore.getCrsStateFor(construction));
-                } else if (!tssConfig.historyEnabled()) {
-                    // When not using history proofs, completing a weight rotation is also immediately actionable
-                    final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                    if (rosterStore.candidateIsWeightRotation()) {
-                        hintsService.handoff(
-                                hintsStore,
-                                requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()));
+            if (!HintsGenerationWeights.requiresHistory(tssConfig)) {
+                hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
+                    if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                        hintsService.setActiveConstruction(construction, hintsStore.getCrsStateFor(construction));
+                    } else if (!tssConfig.historyEnabled()) {
+                        final var rosters = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+                        if (rosters.candidateIsWeightRotation()) {
+                            hintsService.handoff(
+                                    hintsStore,
+                                    requireNonNull(rosters.getActiveRoster()),
+                                    requireNonNull(rosters.getCandidateRoster()),
+                                    requireNonNull(rosters.getCandidateRosterHash()));
+                        }
                     }
-                }
-            });
+                });
+            } else {
+                // A compatibility callback captures its earlier policy; discard it when strict mode takes over.
+                hintsService.onFinishedConstruction(null);
+            }
+
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction, targetNodeWeights) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
@@ -1509,18 +1515,49 @@ public class HandleWorkflow {
                                     freshGenesisRequested));
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
+                if (tssConfig.historyEnabled()) {
+                    // Recover the source generation before either signing or preprocessing votes can
+                    // require its complete denominator. The hinTS reconciliation below reads the update.
+                    doStreamingOnlyKvChanges(
+                            historyWritableStates,
+                            null,
+                            () -> historyService.recoverActiveBook(
+                                    activeRosters,
+                                    new WritableHistoryStoreImpl(historyWritableStates),
+                                    new ReadableHintsStoreImpl(hintsWritableStates, entityCounters)
+                                            .getActiveConstruction()));
+                }
+                final var activeHistory = HintsGenerationWeights.requiresHistory(tssConfig)
+                        ? readableHistoryStore.getActiveConstruction()
+                        : null;
+                try {
+                    // A restarted node installs signing at startup, so do it here before reading readiness
+                    hintsService.activateSigning(
+                            new ReadableHintsStoreImpl(hintsWritableStates, entityCounters), tssConfig, activeHistory);
+                } catch (HintsGenerationWeights.InvalidGenerationException ignore) {
+                    // Reported by the reconciliation below
+                }
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
-                doStreamingOnlyKvChanges(
-                        hintsWritableStates,
-                        null,
-                        () -> hintsService.reconcile(
+                doStreamingOnlyKvChanges(hintsWritableStates, null, () -> {
+                    try {
+                        hintsService.reconcile(
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
                                 roundTimestamp,
                                 workTime,
                                 tssConfig,
-                                isActive));
+                                isActive,
+                                activeHistory);
+                        hintsGenerationFailureLogging.reset();
+                    } catch (HintsGenerationWeights.InvalidGenerationException e) {
+                        if (hintsGenerationFailureLogging.shouldLog(e)) {
+                            logger.error(
+                                    "Cannot advance hinTS with the current generation snapshot; history reconciliation will continue",
+                                    e);
+                        }
+                    }
+                });
                 if (tssConfig.historyEnabled()) {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);

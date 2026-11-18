@@ -63,7 +63,10 @@ class ClprStateProofManagerTest {
     @BeforeEach
     void setUp() {
         subject = new ClprStateProofManager(
-                snapshotProvider, tssVerifier, HederaTestConfigBuilder.createConfigProvider());
+                snapshotProvider,
+                tssVerifier,
+                HederaTestConfigBuilder.createConfigProvider(),
+                (proof, anchor) -> false);
         binaryState = (BinaryState) provenState;
     }
 
@@ -104,7 +107,10 @@ class ClprStateProofManagerTest {
     @DisplayName("blockStream.digestType=SHA_256 -> proof still built correctly, hashing with SHA-256 end-to-end")
     void sha256ConfiguredBuildsValidProof() throws Exception {
         subject = new ClprStateProofManager(
-                snapshotProvider, tssVerifier, configProviderWithDigestType(DigestType.SHA_256));
+                snapshotProvider,
+                tssVerifier,
+                configProviderWithDigestType(DigestType.SHA_256),
+                (proof, anchor) -> false);
         final var manifest = ClprEndpointManifest.newBuilder().version(5L).build();
         givenProvableSnapshot();
         given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID))

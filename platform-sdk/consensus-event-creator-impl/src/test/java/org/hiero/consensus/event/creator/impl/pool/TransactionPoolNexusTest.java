@@ -10,6 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.hiero.base.utility.ByteUtils;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -266,5 +267,158 @@ class TransactionPoolNexusTest {
 
         assertEquals(1, nexus.drainApplicationTransactions().size());
         assertTrue(nexus.drainApplicationTransactions().isEmpty());
+    }
+
+    @Test
+    void dropsApplicationTransactionsPastTheirDropTime() {
+        final List<Integer> drops = new ArrayList<>();
+        final var pool = poolRecordingDrops(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, TX_QUEUE_SIZE, drops);
+        final Instant dropAfter = fakeTime.now().plusSeconds(10);
+        final Bytes stale1 = Bytes.wrap(new byte[] {1});
+        final Bytes stale2 = Bytes.wrap(new byte[] {2});
+        final Bytes fresh = Bytes.wrap(new byte[] {3});
+        assertTrue(pool.submitApplicationTransaction(stale1, dropAfter));
+        assertTrue(pool.submitApplicationTransaction(stale2, dropAfter));
+        assertTrue(pool.submitApplicationTransaction(fresh, dropAfter.plusSeconds(60)));
+
+        fakeTime.tick(Duration.ofSeconds(11));
+        final List<TimestampedTransaction> forEvent = pool.getTransactionsForEvent();
+
+        assertEquals(
+                List.of(fresh),
+                forEvent.stream().map(TimestampedTransaction::transaction).toList());
+        assertEquals(List.of(2), drops);
+        assertTrue(pool.getTransactionsForEvent().isEmpty());
+        assertEquals(List.of(2), drops);
+    }
+
+    @Test
+    void dropsStaleTransactionQueuedBehindFreshOne() {
+        final List<Integer> drops = new ArrayList<>();
+        final var pool = poolRecordingDrops(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, TX_QUEUE_SIZE, drops);
+        final Instant dropAfter = fakeTime.now().plusSeconds(10);
+        final Bytes fresh1 = Bytes.wrap(new byte[] {1});
+        final Bytes stale = Bytes.wrap(new byte[] {2});
+        final Bytes fresh2 = Bytes.wrap(new byte[] {3});
+        assertTrue(pool.submitApplicationTransaction(fresh1, dropAfter.plusSeconds(60)));
+        assertTrue(pool.submitApplicationTransaction(stale, dropAfter));
+        assertTrue(pool.submitApplicationTransaction(fresh2, dropAfter.plusSeconds(60)));
+
+        fakeTime.tick(Duration.ofSeconds(11));
+
+        assertEquals(
+                List.of(fresh1, fresh2),
+                pool.getTransactionsForEvent().stream()
+                        .map(TimestampedTransaction::transaction)
+                        .toList());
+        assertEquals(List.of(1), drops);
+    }
+
+    @Test
+    void keepsApplicationTransactionAtExactlyItsDropTime() {
+        final List<Integer> drops = new ArrayList<>();
+        final var pool = poolRecordingDrops(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, TX_QUEUE_SIZE, drops);
+        final Bytes tx = Bytes.wrap(new byte[] {1});
+        assertTrue(pool.submitApplicationTransaction(tx, fakeTime.now().plusSeconds(10)));
+
+        fakeTime.tick(Duration.ofSeconds(10));
+
+        assertEquals(
+                List.of(tx),
+                pool.getTransactionsForEvent().stream()
+                        .map(TimestampedTransaction::transaction)
+                        .toList());
+        assertTrue(drops.isEmpty());
+    }
+
+    @Test
+    void neverDropsTransactionsWithoutDropTime() {
+        final List<Integer> drops = new ArrayList<>();
+        final var pool = poolRecordingDrops(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, TX_QUEUE_SIZE, drops);
+        final Bytes app = Bytes.wrap(new byte[] {1});
+        final Bytes priority = Bytes.wrap(new byte[] {2});
+        assertTrue(pool.submitApplicationTransaction(app));
+        pool.submitPriorityTransaction(priority);
+
+        fakeTime.tick(Duration.ofDays(1));
+
+        assertEquals(
+                List.of(priority, app),
+                pool.getTransactionsForEvent().stream()
+                        .map(TimestampedTransaction::transaction)
+                        .toList());
+        assertTrue(drops.isEmpty());
+    }
+
+    @Test
+    void staleTransactionNeitherTakesRoomInTheEventNorBlocksIt() {
+        final List<Integer> drops = new ArrayList<>();
+        // Events hold 150 bytes
+        final var pool = poolRecordingDrops(100, 150, TX_QUEUE_SIZE, drops);
+        final Instant dropAfter = fakeTime.now().plusSeconds(10);
+        final Bytes priority = Bytes.wrap(new byte[100]);
+        final Bytes stale = Bytes.wrap(new byte[100]);
+        final Bytes fresh = Bytes.wrap(new byte[50]);
+        pool.submitPriorityTransaction(priority);
+        assertTrue(pool.submitApplicationTransaction(stale, dropAfter));
+        assertTrue(pool.submitApplicationTransaction(fresh, dropAfter.plusSeconds(60)));
+
+        fakeTime.tick(Duration.ofSeconds(11));
+        final List<TimestampedTransaction> forEvent = pool.getTransactionsForEvent();
+
+        // The stale transaction does not fit in the 50 bytes left after the priority one, yet the fresh one still goes
+        assertEquals(
+                List.of(priority, fresh),
+                forEvent.stream().map(TimestampedTransaction::transaction).toList());
+        assertEquals(List.of(1), drops);
+    }
+
+    @Test
+    void droppedTransactionsFreeQueueCapacity() {
+        final List<Integer> drops = new ArrayList<>();
+        // A queue size of 1 accepts two transactions
+        final var pool = poolRecordingDrops(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, 1, drops);
+        final Instant dropAfter = fakeTime.now().plusSeconds(10);
+        assertTrue(pool.submitApplicationTransaction(Bytes.wrap(new byte[] {1}), dropAfter));
+        assertTrue(pool.submitApplicationTransaction(Bytes.wrap(new byte[] {2}), dropAfter));
+        assertFalse(pool.submitApplicationTransaction(Bytes.wrap(new byte[] {3}), dropAfter));
+
+        fakeTime.tick(Duration.ofSeconds(11));
+        assertTrue(pool.getTransactionsForEvent().isEmpty());
+
+        assertEquals(List.of(2), drops);
+        assertTrue(pool.submitApplicationTransaction(
+                Bytes.wrap(new byte[] {3}), fakeTime.now().plusSeconds(10)));
+    }
+
+    @Test
+    void drainReturnsApplicationTransactionsEvenPastTheirDropTime() {
+        final List<Integer> drops = new ArrayList<>();
+        final var pool = poolRecordingDrops(TX_MAX_BYTES, MAX_TX_BYTES_PER_EVENT, TX_QUEUE_SIZE, drops);
+        final Bytes stale = Bytes.wrap(new byte[] {1});
+        final Bytes noDropTime = Bytes.wrap(new byte[] {2});
+        assertTrue(pool.submitApplicationTransaction(stale, fakeTime.now().plusSeconds(10)));
+        assertTrue(pool.submitApplicationTransaction(noDropTime));
+
+        fakeTime.tick(Duration.ofSeconds(11));
+
+        assertEquals(List.of(stale, noDropTime), pool.drainApplicationTransactions());
+        assertTrue(drops.isEmpty());
+    }
+
+    private TransactionPoolNexus poolRecordingDrops(
+            final int maxTransactionBytes,
+            final int maxTransactionBytesPerEvent,
+            final int queueSize,
+            final List<Integer> drops) {
+        final var pool = new TransactionPoolNexus(
+                new TransactionLimits(maxTransactionBytes, maxTransactionBytesPerEvent),
+                queueSize,
+                TransactionPoolNexus.DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION,
+                new NoOpMetrics(),
+                fakeTime,
+                dropped -> drops.add(dropped));
+        pool.updatePlatformStatus(PlatformStatus.ACTIVE);
+        return pool;
     }
 }

@@ -95,7 +95,7 @@ class CrsRosterTransitionTest {
                 .build();
         final var store = store(oldConstruction, oldCrs);
         final var signingContext = new HintsContext(library, () -> config, mock(HintsSigningMetrics.class));
-        signingContext.setConstruction(oldConstruction, oldCrs);
+        signingContext.setConstruction(oldConstruction, oldCrs, HintsGenerationTestUtils.weightsFor(oldConstruction));
         signingContext.onBlockStarted(100);
         final var oldPartial = HintsPartialSignatureTransactionBody.newBuilder()
                 .constructionId(1)
@@ -127,8 +127,9 @@ class CrsRosterTransitionTest {
         when(component.controllers()).thenReturn(controllers);
         when(component.signingContext()).thenReturn(signingContext);
         final var service = new HintsServiceImpl(component, library);
+        final var oldHistory = HintsGenerationTestUtils.historyFor(oldConstruction);
         final var growth = transition(oldRoster, OLD_HASH, newRoster, NEW_HASH);
-        service.reconcile(growth, store, NOW, tssConfig, false);
+        service.reconcile(growth, store, NOW, NOW, tssConfig, false, oldHistory);
         final var next = store.getNextConstruction();
         assertEquals(16, next.numParties());
         assertNotEquals(oldCrs.ceremonyId(), next.crsId());
@@ -157,18 +158,19 @@ class CrsRosterTransitionTest {
             assertTrue(signingContext.validate(0, oldCrsBytes, oldPartial));
             if (i == 2) {
                 controllers.stop();
-                service.reconcile(growth, store, NOW.plusSeconds(i + 1), tssConfig, false);
+                service.reconcile(
+                        growth, store, NOW.plusSeconds(i + 1), NOW.plusSeconds(i + 1), tssConfig, false, oldHistory);
                 assertEquals(3, store.getNextCrsState().contributedNodeIds().size());
             }
         }
         final var completedHead = store.getNextCrsState().crs();
         controllers.getAnyInProgress().orElseThrow().addCrsPublication(stale, NOW.plusSeconds(7), store, 0);
         assertEquals(completedHead, store.getNextCrsState().crs());
-        service.reconcile(growth, store, NOW.plusSeconds(7), tssConfig, false);
+        service.reconcile(growth, store, NOW.plusSeconds(7), NOW.plusSeconds(7), tssConfig, false, oldHistory);
         assertEquals(WAITING_FOR_ADOPTING_FINAL_CRS, store.getNextCrsState().stage());
         controllers.stop();
         final var keysStart = NOW.plusSeconds(7).plus(tssConfig.crsFinalizationDelay());
-        service.reconcile(growth, store, keysStart, tssConfig, false);
+        service.reconcile(growth, store, keysStart, keysStart, tssConfig, false, oldHistory);
         assertEquals(COMPLETED, store.getNextCrsState().stage());
         assertNotEquals(oldCrsBytes, store.getNextCrsState().crs());
         assertTrue(store.getNextConstruction().hasGracePeriodEndTime());
@@ -192,7 +194,14 @@ class CrsRosterTransitionTest {
         assertTrue(controller.addPreprocessingVote(1, vote, store));
         assertTrue(store.isReadyToAdopt(NEW_HASH));
         final var oldSigning = signingContext.newSigningForActiveConstruction(MESSAGE, () -> {});
-        assertTrue(service.handoff(store, oldRoster, newRoster, NEW_HASH));
+        assertTrue(service.handoff(
+                store,
+                oldRoster,
+                newRoster,
+                NEW_HASH,
+                HintsGenerationTestUtils.historyFor(
+                        store.getNextConstruction(),
+                        new TreeMap<>(Map.of(0L, 1L, 1L, 1L, 2L, 1L, 3L, 1L, 4L, 1L, 5L, 1L, 6L, 1L)))));
         assertEquals(16, store.getCrsState().numParties());
         assertEquals(completedHead, store.getCrsState().crs());
         assertEquals(CRSState.DEFAULT, store.getNextCrsState());
@@ -226,7 +235,16 @@ class CrsRosterTransitionTest {
                 2));
         publishedKeys.set(null);
         final var shrink = transition(newRoster, NEW_HASH, oldRoster, OLD_HASH);
-        service.reconcile(shrink, store, keysStart.plusSeconds(2), tssConfig, false);
+        service.reconcile(
+                shrink,
+                store,
+                keysStart.plusSeconds(2),
+                keysStart.plusSeconds(2),
+                tssConfig,
+                false,
+                HintsGenerationTestUtils.historyFor(
+                        store.getActiveConstruction(),
+                        new TreeMap<>(Map.of(0L, 1L, 1L, 1L, 2L, 1L, 3L, 1L, 4L, 1L, 5L, 1L, 6L, 1L))));
         final var smaller = store.getNextConstruction();
         assertEquals(16, smaller.numParties());
         assertEquals(next.crsId(), smaller.crsId());
@@ -241,8 +259,16 @@ class CrsRosterTransitionTest {
                 PreprocessingVote.newBuilder().preprocessedKeys(shrinkOutputs).build();
         assertTrue(shrinkController.addPreprocessingVote(0, shrinkVote, store));
         assertTrue(shrinkController.addPreprocessingVote(1, shrinkVote, store));
+        // Node 6 holds no party in the active scheme, but its weight still counts toward the vote threshold
+        assertFalse(store.isReadyToAdopt(OLD_HASH));
+        assertTrue(shrinkController.addPreprocessingVote(2, shrinkVote, store));
         assertTrue(store.isReadyToAdopt(OLD_HASH));
-        assertTrue(service.handoff(store, newRoster, oldRoster, OLD_HASH));
+        assertTrue(service.handoff(
+                store,
+                newRoster,
+                oldRoster,
+                OLD_HASH,
+                HintsGenerationTestUtils.historyFor(store.getNextConstruction())));
         assertEquals(16, store.getActiveConstruction().numParties());
         assertEquals(next.crsId(), store.getCrsState().ceremonyId());
         assertEquals(completedHead, store.getCrsState().crs());
