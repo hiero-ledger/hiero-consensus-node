@@ -70,6 +70,7 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.TraceData;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.node.config.types.StreamMode;
@@ -114,6 +115,10 @@ public class Hip1195StreamParityTest {
 
     private static final TupleType SET_AND_PASS_ARGS = TupleType.parse("(uint32,address)");
 
+    // Slot keys are traced with minimal bytes, so the zero key is empty
+    private static final Bytes SLOT_ZERO = Bytes.EMPTY;
+    private static final Bytes SLOT_ONE = Bytes.fromHex("01");
+
     @Contract(contract = "Multipurpose", creationGas = 500_000L)
     static SpecContract MULTIPURPOSE;
 
@@ -132,12 +137,16 @@ public class Hip1195StreamParityTest {
     @Contract(contract = "ManagedTransferCap", creationGas = 5_000_000)
     static SpecContract MANAGED_TRANSFER_CAP_HOOK;
 
+    @Contract(contract = "ReadFirstWriteSecondHook", creationGas = 1_000_000L)
+    static SpecContract READ_FIRST_WRITE_SECOND_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(MULTIPURPOSE.getInfo());
         testLifecycle.doAdhoc(CREATE_OP_HOOK.getInfo());
         testLifecycle.doAdhoc(MANAGED_TRANSFER_CAP_HOOK.getInfo());
+        testLifecycle.doAdhoc(READ_FIRST_WRITE_SECOND_HOOK.getInfo());
         testLifecycle.doAdhoc(SET_AND_PASS_HOOK.getInfo());
         testLifecycle.doAdhoc(THREE_PASSES_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
@@ -208,7 +217,7 @@ public class Hip1195StreamParityTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> isolatedExecutionWithNonHookStorageSideEffectsPassesParity() {
+    final Stream<DynamicTest> executionWithNonHookStorageSideEffectsPassesParity() {
         return hapiTest(
                 cryptoCreate("party").withHooks(accountAllowanceHook(1L, SET_AND_PASS_HOOK.name())),
                 cryptoCreate("counterparty"),
@@ -231,7 +240,7 @@ public class Hip1195StreamParityTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> isolatedExecutionsWithIdenticalHookStorageSideEffectsPassParity() {
+    final Stream<DynamicTest> executionsWithIdenticalHookStorageSideEffectsPassParity() {
         final var args = TupleType.parse("(uint32)");
         final LongFunction<HapiCryptoTransfer> attempt =
                 n -> cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
@@ -293,7 +302,9 @@ public class Hip1195StreamParityTest {
                         .signedBy(DEFAULT_PAYER)
                         .via(transfer),
                 streamMustIncludePassWithReplayFrom(
-                        spec -> hookExecutionsTraceExplicitWrites(spec, transfer, 3), Duration.ofSeconds(30)));
+                        spec -> hookExecutionsTrace(
+                                spec, transfer, writing(SLOT_ZERO), writing(SLOT_ZERO), writing(SLOT_ZERO)),
+                        Duration.ofSeconds(30)));
     }
 
     /**
@@ -310,13 +321,38 @@ public class Hip1195StreamParityTest {
                 cryptoCreate("party").withHooks(accountAllowanceHook(1L, MANAGED_TRANSFER_CAP_HOOK.name())),
                 // Slot zero is the remaining cap on credits (here 500), which the hook only reads pre-transaction,
                 // and reduces by the credit post-transaction
-                accountEvmHookStore("party", 1L).putSlot(Bytes.EMPTY, Bytes.fromHex("01f4")),
+                accountEvmHookStore("party", 1L).putSlot(SLOT_ZERO, Bytes.fromHex("01f4")),
                 cryptoTransfer(movingHbar(200L).between(DEFAULT_PAYER, "party"))
                         .withPrePostHookFor("party", 1L, 100_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .via(transfer),
                 streamMustIncludePassWithReplayFrom(
-                        spec -> hookExecutionsTraceExplicitWrites(spec, transfer, 2), Duration.ofSeconds(30)));
+                        spec -> hookExecutionsTrace(spec, transfer, reading(SLOT_ZERO), writing(SLOT_ZERO)),
+                        Duration.ofSeconds(30)));
+    }
+
+    /**
+     * A single pre-only hook invocation is one execution; here it only reads the first slot in its storage list, and
+     * inserts a second one. The implicit list of written keys includes the first slot, because its link to the new
+     * slot changed; so even a single execution must trace its writes explicitly.
+     */
+    @HapiTest
+    final Stream<DynamicTest> preOnlyHookExecutionTracesExplicitWrites() {
+        // Storage traces only go to the block stream
+        assumeFalse(targetStreamMode() == RECORDS, "No block stream to check when streamMode=RECORDS");
+        final var transfer = "preOnlyTransfer";
+        return hapiTest(
+                cryptoCreate("party").withHooks(accountAllowanceHook(1L, READ_FIRST_WRITE_SECOND_HOOK.name())),
+                // Slot zero is the first slot in the hook's storage list, until the hook inserts slot one
+                accountEvmHookStore("party", 1L).putSlot(SLOT_ZERO, Bytes.fromHex("01f4")),
+                cryptoTransfer(movingHbar(200L).between(DEFAULT_PAYER, "party"))
+                        .withPreHookFor("party", 1L, 100_000L, "")
+                        .signedBy(DEFAULT_PAYER)
+                        .via(transfer),
+                streamMustIncludePassWithReplayFrom(
+                        spec -> hookExecutionsTrace(
+                                spec, transfer, new HookStorageUse(List.of(SLOT_ZERO), List.of(SLOT_ONE))),
+                        Duration.ofSeconds(30)));
     }
 
     @HapiTest
@@ -626,11 +662,27 @@ public class Hip1195StreamParityTest {
     }
 
     /**
-     * Returns an assertion that the unit of the given transfer has the given number of hook executions, each tracing
-     * the writes to its hook storage (and any other contract's storage) with an explicit list of written keys.
+     * How a hook execution uses its own storage; given by the keys of the slots it only reads, and of the slots it
+     * writes.
      */
-    private static BlockStreamAssertion hookExecutionsTraceExplicitWrites(
-            @NonNull final HapiSpec spec, @NonNull final String transfer, final int numExecutions) {
+    private record HookStorageUse(
+            @NonNull List<Bytes> onlyReadKeys, @NonNull List<Bytes> writtenKeys) {}
+
+    private static HookStorageUse reading(@NonNull final Bytes... keys) {
+        return new HookStorageUse(List.of(keys), List.of());
+    }
+
+    private static HookStorageUse writing(@NonNull final Bytes... keys) {
+        return new HookStorageUse(List.of(), List.of(keys));
+    }
+
+    /**
+     * Returns an assertion that the unit of the given transfer has one hook execution for each given use of hook
+     * storage, in order; and that each execution traces the writes to its hook storage (and any other contract's
+     * storage) with an explicit list of written keys, reading by key just the slots it does not write.
+     */
+    private static BlockStreamAssertion hookExecutionsTrace(
+            @NonNull final HapiSpec spec, @NonNull final String transfer, @NonNull final HookStorageUse... uses) {
         final var transferId = protoToPbj(spec.registry().getTxnId(transfer), TransactionID.class);
         return block -> {
             for (final var rawUnit : new RoleFreeBlockUnitSplit().split(block)) {
@@ -640,20 +692,31 @@ public class Hip1195StreamParityTest {
                 }
                 final var executions =
                         parts.stream().filter(BlockTransactionParts::isHookCall).toList();
-                assertEquals(numExecutions, executions.size());
-                for (final var execution : executions) {
-                    final var usages = execution.tracesOrThrow().stream()
+                assertEquals(uses.length, executions.size());
+                for (int i = 0; i < uses.length; i++) {
+                    final var usages = executions.get(i).tracesOrThrow().stream()
                             .filter(TraceData::hasEvmTraceData)
                             .flatMap(trace -> trace.evmTraceDataOrThrow().contractSlotUsages().stream())
                             .toList();
                     assertTrue(
-                            usages.stream()
-                                    .anyMatch(usage ->
-                                            usage.contractIdOrThrow().contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM),
-                            "Each hook execution uses its own storage");
-                    assertTrue(
                             usages.stream().allMatch(ContractSlotUsage::hasWrittenSlotKeys),
                             "Each hook execution must trace its writes explicitly");
+                    final var hookUsages = usages.stream()
+                            .filter(usage -> usage.contractIdOrThrow().contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM)
+                            .toList();
+                    assertEquals(1, hookUsages.size(), "Each hook execution uses its own storage");
+                    final var hookUsage = hookUsages.getFirst();
+                    assertEquals(
+                            uses[i].writtenKeys(),
+                            hookUsage.writtenSlotKeysOrThrow().keys(),
+                            "Wrong hook storage slots written by execution #" + i);
+                    assertEquals(
+                            uses[i].onlyReadKeys(),
+                            hookUsage.slotReads().stream()
+                                    .filter(SlotRead::hasKey)
+                                    .map(SlotRead::keyOrThrow)
+                                    .toList(),
+                            "Wrong hook storage slots only read by execution #" + i);
                 }
                 return true;
             }

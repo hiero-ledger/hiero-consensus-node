@@ -663,17 +663,16 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
 
     static Stream<Arguments> hookInvocationMixes() {
         return Stream.of(
-                Arguments.of(HookUse.PRE, HookUse.NONE, 1, false),
-                Arguments.of(HookUse.PRE_POST, HookUse.NONE, 2, true),
-                Arguments.of(HookUse.PRE, HookUse.PRE, 2, true),
-                Arguments.of(HookUse.PRE, HookUse.PRE_POST, 3, true),
-                Arguments.of(HookUse.PRE_POST, HookUse.PRE_POST, 4, true));
+                Arguments.of(HookUse.PRE, HookUse.NONE, 1),
+                Arguments.of(HookUse.PRE_POST, HookUse.NONE, 2),
+                Arguments.of(HookUse.PRE, HookUse.PRE, 2),
+                Arguments.of(HookUse.PRE, HookUse.PRE_POST, 3),
+                Arguments.of(HookUse.PRE_POST, HookUse.PRE_POST, 4));
     }
 
     @ParameterizedTest
     @MethodSource("hookInvocationMixes")
-    void onlyASingleHookExecutionTracesStorageWritesImplicitly(
-            HookUse senderHook, HookUse receiverHook, int numExecutions, boolean explicitWrites)
+    void everyHookExecutionTracesStorageWritesExplicitly(HookUse senderHook, HookUse receiverHook, int numExecutions)
             throws PreCheckException {
         subject = new CryptoTransferHandler(validator, new HookCallsFactory(), entityIdFactory);
         final var op = operation(Kind.HBAR, ownerId, tokenReceiverId);
@@ -702,7 +701,7 @@ class CryptoTransferAccountResolutionTest extends CryptoTransferHandlerTestBase 
             return hookResult;
         });
         subject.handle(handleContext);
-        assertThat(explicitWritesByExecution).hasSize(numExecutions).containsOnly(explicitWrites);
+        assertThat(explicitWritesByExecution).hasSize(numExecutions).containsOnly(true);
     }
 
     @ParameterizedTest
