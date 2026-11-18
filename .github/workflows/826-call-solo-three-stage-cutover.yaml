@@ -27,12 +27,6 @@ on:
       failure-mode:
         description: "Failure Mode"
         value: ${{ jobs.solo-three-stage-block-stream-cutover.outputs.failure-mode }}
-    # TODO: Remove the secrets block once released to mainnet
-    # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-    secrets:
-      access-token:
-        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
-        required: true
 
 defaults:
   run:
@@ -131,33 +125,6 @@ jobs:
           go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.8.7
           grpcurl --version
 
-      # BEGIN TEMPORARY: Checkout PBJ repository and publish to local Maven repository so
-      # that the application code can compile against it.
-      #
-      # TODO: Remove these two steps before publishing to a public registry.
-      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-      - name: Checkout PBJ Repository
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
-        with:
-          token: ${{ secrets.access-token }}
-          path: ${{ github.workspace }}/pbj-releases
-          repository: hashgraph/pbj-releases
-          ref: release/0.15
-          fetch-depth: 0
-
-      - name: Publish PBJ to Local Maven Repository
-        id: publish-pbj
-        env:
-          PBJ_VERSION: 0.15.14
-        working-directory: ${{ github.workspace }}/pbj-releases/pbj-core
-        run: |
-          echo "::group::Configure PBJ Version"
-          ./gradlew clean versionAsSpecified -PnewVersion=${PBJ_VERSION}
-          echo "::endgroup::"
-          echo "::group::Publish PBJ to Local Maven Repository"
-          ./gradlew assemble publishToMavenLocal
-          echo "::endgroup::"
-      # END TEMPORARY
       - name: Build Consensus Node Local Artifacts
         # All three configuration stages upgrade the published baseline to this local build.
         run: ${GRADLE_EXEC} assemble

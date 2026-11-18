@@ -191,9 +191,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
-      # TODO: Revert back to using secrets.access-token once released to mainnet
-      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-      access-token: ${{ secrets.regression-access-token }}
+      access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -208,9 +206,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
     secrets:
-      # TODO: Revert back to using secrets.access-token once released to mainnet
-      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-      access-token: ${{ secrets.regression-access-token }}
+      access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -225,9 +221,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
     secrets:
-      # TODO: Revert back to using secrets.access-token once released to mainnet
-      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-      access-token: ${{ secrets.regression-access-token }}
+      access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -245,9 +239,7 @@ jobs:
       enable-network-log-capture: "true"
       java-version: "${{ inputs.java-version }}"
     secrets:
-      # TODO: Revert back to using secrets.access-token once released to mainnet
-      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-      access-token: ${{ secrets.regression-access-token }}
+      access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -263,9 +255,7 @@ jobs:
       enable-network-log-capture: "true"
       java-version: "${{ inputs.java-version }}"
     secrets:
-      # TODO: Revert back to using secrets.access-token once released to mainnet
-      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-      access-token: ${{ secrets.regression-access-token }}
+      access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -281,10 +271,6 @@ jobs:
       custom-job-name: "${{ inputs.custom-job-label }} Solo SHA-256 Roster Rekey"
       solo-version: "${{ inputs.solo-version }}"
       java-version: "${{ inputs.java-version }}"
-    # TODO: Remove the secrets block once released to mainnet
-    # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-    secrets:
-      access-token: ${{ secrets.regression-access-token }}
 
   xts-otter-tests:
     name: XTS Otter Tests
@@ -300,9 +286,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }}
       java-version: "${{ inputs.java-version }}"
     secrets:
-      # TODO: Revert back to using secrets.access-token once released to mainnet
-      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-      access-token: ${{ secrets.regression-access-token }}
+      access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
@@ -323,9 +307,6 @@ jobs:
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.platform-access-token }}
-      # TODO: Remove the regression-access-token line once released to mainnet
-      # TODO: SEC-FIX-PBJ-INLINE-BUILDS
-      regression-access-token: ${{ secrets.regression-access-token }}
       jrs-ssh-user-name: ${{ secrets.jrs-ssh-user-name }}
       jrs-ssh-key-file: ${{ secrets.jrs-ssh-key-file }}
       gcp-project-number: ${{ secrets.gcp-project-number }}
