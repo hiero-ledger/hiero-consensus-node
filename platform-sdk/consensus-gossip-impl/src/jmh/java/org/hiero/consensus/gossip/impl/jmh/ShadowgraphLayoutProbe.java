@@ -2,6 +2,9 @@
 package org.hiero.consensus.gossip.impl.jmh;
 
 import com.swirlds.config.api.Configuration;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -47,6 +50,8 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.IterationParams;
+import org.openjdk.jmh.runner.IterationType;
 
 /**
  * Measures the latency of the {@link Shadowgraph}, the graph of recent events that gossip keeps to find out which
@@ -118,6 +123,12 @@ import org.openjdk.jmh.annotations.Warmup;
  * test (the levels stayed): everything at once. The forks keep {@code -Xbatch} and the fixed addresses, use huge
  * pages ({@code -XX:+UseTransparentHugePages}), and add fresh copies of the events in every pass. Each of these
  * alone left the levels; if they stay now, nothing that the JVM or the layout of the process controls sets them.
+ * Eighth test (the levels stayed): the benchmark as it is again, without copies and without the flags of the earlier
+ * tests, and JFR records where the benchmark thread is every 10 ms during the measurement iterations
+ * ({@code samples-pid<process id>.jfr} in the results directory; {@code -XX:+DebugNonSafepoints} ties each sample to
+ * its line in compiled code). Comparing the lines of {@code Shadowgraph#addEvent} and its callees between fast and
+ * slow forks shows where the slow forks lose their time: in one access, or over the whole call. The measurement
+ * iterations are 30 s long, to collect more samples.
  */
 @State(Scope.Thread)
 @Fork(
@@ -126,19 +137,21 @@ import org.openjdk.jmh.annotations.Warmup;
             "-Xms10g",
             "-Xmx10g",
             "-XX:+AlwaysPreTouch",
-            "-XX:+UseTransparentHugePages",
-            "-Xbatch",
-            "-Xlog:pagesize",
             "-XX:+UnlockDiagnosticVMOptions",
-            "-XX:+LogCompilation",
-            "-XX:LogFile=build/benchmark-calibration/compile-%p.log"
+            "-XX:+DebugNonSafepoints"
         })
 @Warmup(iterations = 1, time = 10)
-@Measurement(iterations = 2, time = 5)
+@Measurement(iterations = 2, time = 30)
 public class ShadowgraphLayoutProbe {
 
     /** The seed of the recording. The same seed gives the same recording. */
     private static final long SEED = 0;
+
+    /** How often JFR records where the benchmark thread is. */
+    private static final Duration SAMPLING_PERIOD = Duration.ofMillis(10);
+
+    /** JFR's samples of the measurement iterations, started before the first of them. */
+    private jdk.jfr.Recording sampling;
 
     /**
      * The number of events each recorded node releases from its orphan buffer, its own included, before the recording
@@ -151,7 +164,7 @@ public class ShadowgraphLayoutProbe {
     public int numNodes;
 
     /** Whether every pass adds fresh copies of the recorded events instead of the recorded events themselves. */
-    @Param({"true"})
+    @Param({"false"})
     public boolean copyPerPass;
 
     /** The calls of the current pass: {@link #calls}, or calls with fresh copies of the events. */
@@ -298,6 +311,39 @@ public class ShadowgraphLayoutProbe {
     @TearDown(Level.Trial)
     public void shutdownMetricsExecutor() {
         metricsExecutor.shutdownNow();
+    }
+
+    /**
+     * Starts JFR's sampling before the first measurement iteration. It runs until the end of the trial, so it covers
+     * every measurement iteration and no warmup. This method is called once per iteration.
+     *
+     * @param params the iteration about to run
+     */
+    @Setup(Level.Iteration)
+    public void startSampling(final IterationParams params) {
+        if (params.getType() == IterationType.MEASUREMENT && sampling == null) {
+            sampling = new jdk.jfr.Recording();
+            sampling.enable("jdk.ExecutionSample").withPeriod(SAMPLING_PERIOD);
+            sampling.start();
+        }
+    }
+
+    /**
+     * Stops JFR's sampling and writes the samples to {@code samples-pid<process id>.jfr} in the results directory of the
+     * calibration workflow. The fork prints the file's name, which ties the file to the fork's results. This method is
+     * called once per trial.
+     *
+     * @throws IOException if the samples cannot be written
+     */
+    @TearDown(Level.Trial)
+    public void writeSamples() throws IOException {
+        final Path file = Path.of(
+                "build/benchmark-calibration",
+                "samples-pid%d.jfr".formatted(ProcessHandle.current().pid()));
+        sampling.stop();
+        sampling.dump(file);
+        sampling.close();
+        System.out.println("JFR samples of this fork: " + file);
     }
 
     /**
