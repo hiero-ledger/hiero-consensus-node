@@ -9,7 +9,9 @@ lowercase, and hyphenated.
 
 Format: a `## group: <name>` heading, then a one-line description, then a fenced block with one selector per line.
 The selector syntax is the same as in selection files (see the docstring of `scripts/catalog.py`):
-`category:`, `family:`, `name:`, `re:`, `desc:`, `group:`, plain text, and `-` to exclude.
+`topic:`, `category:`, `family:`, `names:`, `name:`, `re:`, `desc:`, `group:`, plain text, and `-` to exclude.
+Don't save `menu:` numbers in a group: they change when topics are edited. Convert them to `topic:`, `family:` or
+`names:` selectors first.
 
 Example (indented, so it is not read as a real group):
 

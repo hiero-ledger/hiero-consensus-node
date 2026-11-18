@@ -80,7 +80,7 @@ def main():
     title = args.title or os.path.basename(doc["root"].rstrip("/"))
     metrics = cg.load_metrics(out, ",".join(str(n.node) for n in nodes))
     selectors = cg.read_selectors(args.select) if args.select else ["all"]
-    chosen = cg.selected_metrics(selectors, metrics)
+    chosen = cg.selected_metrics(selectors, metrics, out_dir=out)
     if args.limit:
         chosen = chosen[:args.limit]
     if not chosen:
@@ -90,10 +90,10 @@ def main():
         print("key metric(s) not in these files: %s" % ", ".join(key_missing))
     key_ids = set(m.key for m in key_metrics)
     chosen_ids = set(m.key for m in chosen)
-    chosen_fams = set((m.cat, m.family) for m in chosen if m.family != m.name)
+    chosen_fams = set((m.cat, m.topic, m.family) for m in chosen if m.family != m.name)
     # key metrics also sit with their family when the selection includes that family
     regular = [m for m in metrics if m.key in chosen_ids or
-               (m.key in key_ids and (m.cat, m.family) in chosen_fams)]
+               (m.key in key_ids and (m.cat, m.topic, m.family) in chosen_fams)]
     run_start = min(np.nanmin(n.time) for n in nodes if n.time.size)
     run_end = max(np.nanmax(n.time) for n in nodes if n.time.size)
 

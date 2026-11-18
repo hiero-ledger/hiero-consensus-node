@@ -3,7 +3,7 @@
 Data layout in the file (JSON inside a <script type="application/json"> tag):
   x       base64 Float64 - union of all nodes' sample times in the window (epoch seconds)
   pos     per node, base64 Int32 - index of each of that node's samples in x
-  charts  per metric: category, name, family, description and, per node, base64 values
+  charts  per metric: category, topic, name, family, description and, per node, base64 values
           (Float32 when that is lossless for the series, Float64 otherwise; NaN = gap)
 Each node keeps its own sample times. In the browser a node's values are spread onto x with
 'undefined' at other nodes' instants (uPlot bridges those) and 'null' at real gaps.
@@ -92,7 +92,8 @@ def render(path, title, label, ws, we, nodes, node_times, plotted, key_plotted, 
             kind, data = _encode_values(np.asarray(y, dtype=np.float64))
             s.append([node_index[node], kind, data])
         index_of[met.key] = len(charts)
-        charts.append({"c": met.cat, "n": met.name, "f": met.family, "d": met.desc, "s": s, "r": regular})
+        charts.append({"c": met.cat, "t": met.topic, "n": met.name, "f": met.family, "d": met.desc, "s": s,
+                       "r": regular})
 
     for met, series in plotted:
         add(met, series, True)

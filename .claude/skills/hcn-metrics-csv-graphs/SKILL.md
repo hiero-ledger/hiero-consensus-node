@@ -8,9 +8,10 @@ description: Turn the per-node metric CSV files a consensus node writes during a
 In the commands below, `$SKILL_DIR` is this skill's directory (`.claude/skills/hcn-metrics-csv-graphs`), `$PY` is the
 Python chosen in step 1, and `$OUT` is the output folder (default `<root>/metrics-graphs`, where `<root>` is the folder
 the user points to). Everything the scripts write goes under `$OUT`: `nodes.json`, `.cache/`, `catalog.tsv`,
-`sections.json`, `sections-overview.png` and the `.html` reports.
+`menu.md`, `menu.json`, `selection.txt`, `sections.json`, `sections-overview.png` and the `.html` reports.
 
-Before starting, read [references/csv-format.md](references/csv-format.md) for the file layout and how families work.
+Before starting, read [references/csv-format.md](references/csv-format.md) for the file layout, and how categories,
+topics and families work.
 
 ## Hard rules
 
@@ -70,28 +71,45 @@ This prints the run length, the sample interval and a numbered table of **load**
 
 ## 4. Choose the metrics
 
-The user rarely knows the exact names or prefixes. Turn their request into selectors, using:
+Users rarely know the exact names or prefixes, and there are ~900 metrics. Metrics are organized as
+category → topic → family → metric. Topics come from [references/topics.md](references/topics.md), which also moves
+metrics out of the CSV's catch-all `internal` category into the categories they belong to.
 
-```bash
-$PY "$SKILL_DIR/scripts/catalog.py" $OUT                        # summary + $OUT/catalog.tsv (all metrics, plot order)
-$PY "$SKILL_DIR/scripts/catalog.py" $OUT --search latency queue  # regex search on names and descriptions
-$PY "$SKILL_DIR/scripts/catalog.py" $OUT --families --multi      # families with 2+ members
-$PY "$SKILL_DIR/scripts/catalog.py" $OUT --list-groups           # named groups
-```
+1. Build the menu:
 
-**Always show the user the list of named groups** (`--list-groups`) as one of the choices, even when it is empty.
+   ```bash
+   $PY "$SKILL_DIR/scripts/catalog.py" $OUT --menu        # add --full to print every family and metric
+   ```
 
-Write the selectors to `$OUT/selection.txt` (the syntax is in the `catalog.py` docstring: `group:`, `category:`,
-`family:`, `name:`, `re:`, `desc:`, plain text, and `-` to exclude). Then check what it picks:
+2. **Show the user the complete printed overview, word for word, in a plain text message.** It lists the named
+   groups, the key metrics, and every topic as `[n] topic (count) description`. Also give the path of `$OUT/menu.md`,
+   which has the complete numbered list (every family and metric as `n.m`). If the user asks about a topic, show its
+   `n.m` lines from `menu.md`.
+   - **Never use AskUserQuestion or any short multiple-choice prompt to choose metrics.** Those show only a few
+     options, so the user can't see what exists. Ask them to reply in their own words, e.g. "5, 9 except 9.25–9.36,
+     4.13, and issCount".
+3. Turn the reply into selectors in `$OUT/selection.txt`:
+   - Prefer `menu:` references: `menu:9`, `menu:4.13`, `-menu:9.25-9.36`.
+   - Use `names:a, b` for metrics given by name, and `group:<name>` for named groups.
+   - If the reply is in plain words ("gossip stuff"), use `catalog.py $OUT --search …` and the topics to find the
+     entries, and say which numbers you picked.
+   - The syntax is in the `catalog.py` docstring.
+4. Check the result and show it to the user:
 
-```bash
-$PY "$SKILL_DIR/scripts/catalog.py" $OUT --select $OUT/selection.txt
-```
+   ```bash
+   $PY "$SKILL_DIR/scripts/catalog.py" $OUT --select $OUT/selection.txt
+   ```
 
-Show the counts and the families to the user, and adjust until they confirm. If they want to reuse a selection,
-it can be saved as a `## group: <name>` section in [references/metric-groups.md](references/metric-groups.md) (the
-format is in that file). That edits a file in the repository, so show the user the exact section and ask before
-writing it.
+   It prints the count and the families per topic. Adjust until the user confirms.
+5. **Saving a selection:** if the user wants to reuse a selection, it can be saved as a `## group: <name>` section in
+   [references/metric-groups.md](references/metric-groups.md) (the format is in that file). That edits a file in the
+   repository, so show the user the exact section and ask before writing it.
+6. **Unplaced metrics:** if `--menu` prints a NOTE about metrics with no topic, mention it. Offer to add them to
+   `references/topics.md`, and ask before editing.
+
+Other lookups: `catalog.py $OUT --search latency queue` (regex search on names and descriptions) and
+`catalog.py $OUT --list-groups`. Plain `catalog.py $OUT` writes `$OUT/catalog.tsv`, which has category, topic, family,
+name, CSV category and description for every metric.
 
 ## 5. Render
 
@@ -119,8 +137,8 @@ nothing is loaded from the network). It holds full-resolution data, so zooming s
 - **Node selection:** click a node name in the header or in any chart legend to show only that node; click it again to
   show all. Ctrl/⌘/Shift-click adds or removes a node. With linking off, a legend click affects only that chart.
 - **Theme:** dark by default; a toggle at the far right of the controls switches to light, and the browser remembers the choice.
-- **Sidebar:** Key metrics, then category → family, with a filter box (every word must match the name, category,
-  family or description).
+- **Sidebar:** Key metrics, then category → topic → family, with a filter box (every word must match the name,
+  category, topic, family or description).
 - **Hover values:** the legend under each chart shows each node's value at the cursor.
 - **Value names:** metrics whose description lists values (`0=NO_VALUE 1=STARTING_UP …`, e.g. `PlatformStatus`) are
   drawn as steps, with the names on the axis and in the hover values.

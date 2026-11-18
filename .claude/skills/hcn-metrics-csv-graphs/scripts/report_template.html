@@ -34,6 +34,8 @@
   #side .hint { color: var(--text-2); font-size: 11px; margin-bottom: 8px; }
   #side details { margin: 2px 0; }
   #side summary { cursor: pointer; font-weight: 600; padding: 2px 0; }
+  #side details details { margin-left: 10px; }
+  #side details details summary { font-weight: 500; font-size: 12px; }
   #side a { display: block; padding: 1px 0 1px 14px; color: var(--link); text-decoration: none; font-size: 12px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #side a.top { padding-left: 0; font-weight: 600; margin: 2px 0 6px; }
@@ -207,38 +209,49 @@ function addCard(parent, i, id) {
   card.append(plot);
   parent.append(card);
   plot._idx = i;
-  const entry = { card, plot, idx: i, hay: (c.c + " " + c.n + " " + c.f + " " + c.d).toLowerCase() };
+  const entry = { card, plot, idx: i, hay: (c.c + " " + c.t + " " + c.n + " " + c.f + " " + c.d).toLowerCase() };
   cards.push(entry);
   return entry;
 }
 D.key.forEach((i, k) => addCard(document.getElementById("keygrid"), i, "k" + k));
 if (!D.key.length) { document.getElementById("keyhead").style.display = "none"; }
 const grid = document.getElementById("grid");
-const tocModel = new Map();  // category -> Map(family -> [card entries])
+const tocModel = new Map();  // category -> Map(topic -> Map(family -> [card entries]))
 D.charts.forEach((c, i) => {
   if (!c.r) return;
   const entry = addCard(grid, i, "c" + i);
   if (!tocModel.has(c.c)) tocModel.set(c.c, new Map());
-  const fams = tocModel.get(c.c);
+  const topics = tocModel.get(c.c);
+  if (!topics.has(c.t)) topics.set(c.t, new Map());
+  const fams = topics.get(c.t);
   if (!fams.has(c.f)) fams.set(c.f, []);
   fams.get(c.f).push(entry);
 });
 const toc = document.getElementById("toc");
 if (D.key.length) toc.append(el("a", { href: "#keyhead", class: "top" }, "Key metrics (" + D.key.length + ")"));
 const tocEntries = [];
-for (const [cat, fams] of tocModel) {
+for (const [cat, topics] of tocModel) {
   const det = el("details");
   det.open = true;
   const sum = el("summary");
   det.append(sum);
-  const links = [];
-  for (const [fam, entries] of fams) {
-    const a = el("a", { title: fam });
-    det.append(a);
-    links.push({ a, fam, entries });
+  const topicEntries = [];
+  for (const [topic, fams] of topics) {
+    const tdet = el("details");
+    tdet.open = true;
+    const tsum = el("summary");
+    tdet.append(tsum);
+    const links = [];
+    for (const [fam, entries] of fams) {
+      const a = el("a", { title: fam });
+      tdet.append(a);
+      links.push({ a, fam, entries });
+    }
+    det.append(tdet);
+    topicEntries.push({ det: tdet, sum: tsum, topic, links });
   }
   toc.append(det);
-  tocEntries.push({ det, sum, cat, links });
+  tocEntries.push({ det, sum, cat, topics: topicEntries });
 }
 const nc = document.getElementById("nc");
 const ncItems = [];
@@ -263,12 +276,18 @@ function applyFilter() {
   let shownCount = 0;
   for (const t of tocEntries) {
     let catCount = 0;
-    for (const l of t.links) {
-      const vis = l.entries.filter(match);
-      catCount += vis.length;
-      l.a.style.display = vis.length ? "" : "none";
-      l.a.textContent = l.fam + (l.entries.length > 1 ? " (" + vis.length + ")" : "");
-      if (vis.length) l.a.setAttribute("href", "#" + vis[0].card.id);
+    for (const tp of t.topics) {
+      let topicCount = 0;
+      for (const l of tp.links) {
+        const vis = l.entries.filter(match);
+        topicCount += vis.length;
+        l.a.style.display = vis.length ? "" : "none";
+        l.a.textContent = l.fam + (l.entries.length > 1 ? " (" + vis.length + ")" : "");
+        if (vis.length) l.a.setAttribute("href", "#" + vis[0].card.id);
+      }
+      tp.det.style.display = topicCount ? "" : "none";
+      tp.sum.textContent = tp.topic + " (" + topicCount + ")";
+      catCount += topicCount;
     }
     t.det.style.display = catCount ? "" : "none";
     t.sum.textContent = t.cat + " (" + catCount + ")";
@@ -346,8 +365,10 @@ function create(plot) {
   const text2 = css("--text-2"), gridC = css("--grid");
   const yValue = en ? (u, v) => (v == null ? "–" : v + (en.has(v) ? " " + en.get(v) : "")) : (u, v) => fmtNum(v, 6);
   const axisY = en
-    ? { values: (u, splits) => splits.map(v => (Number.isInteger(v) && en.has(v) ? en.get(v) : "")),
-        size: 150, incrs: [1, 2, 5, 10] }
+    // a tick on every named value in range: uPlot's default tick spacing would skip some (e.g. odd values)
+    ? { splits: (u, ai, lo, hi) => [...en.keys()].filter(v => v >= lo && v <= hi).sort((a, b) => a - b),
+        values: (u, splits) => splits.map(v => en.get(v) ?? ""),
+        size: 150 }
     : { values: (u, splits) => splits.map(v => fmtNum(v, 4)),
         size: (u, values) => values ? Math.min(110, 18 + 7 * Math.max(0, ...values.map(s => s.length))) : 50 };
   const axisStyle = { stroke: text2, grid: { stroke: gridC, width: 1 }, ticks: { stroke: gridC, width: 1 } };
@@ -357,7 +378,8 @@ function create(plot) {
     tzDate: ts => uPlot.tzDate(new Date(ts * 1000), "Etc/UTC"),
     cursor: { drag: { x: true, y: false },
               sync: { key: "metrics", setSeries: false, filters: { pub: () => linked, sub: () => linked } } },
-    scales: { x: { time: true } },
+    // named values: half a step of padding so the lowest and highest values aren't on the chart edge
+    scales: en ? { x: { time: true }, y: { range: (u, min, max) => (min == null ? [0, 1] : [min - 0.5, max + 0.5]) } } : { x: { time: true } },
     series: [{ value: (u, v) => fmtTime(v) }].concat(D.nodes.map((n, i) => {
       const s = { label: "Node " + n.id, stroke: nodeColor(i), dash: n.dash, width: 1, show: shown.has(i),
                   points: { show: false }, value: yValue };
