@@ -7,6 +7,8 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "google/protobuf/wrappers.proto";
+
 /**
  * Submit a bundle of cross-ledger messages received during a sync.
  *
@@ -16,7 +18,8 @@ option java_multiple_files = true;
  * A node-generated transaction may instead rely on its authenticated consensus event, provided
  * both the event creator and payer identify that endpoint node.
  *
- * Authority: any endpoint node registered in the address book.
+ * Authority: any endpoint node registered in the address book. Manifest version
+ * recovery requires an authorized CLPR admin payer.
  */
 message ClprSubmitBundleTransactionBody {
     /**
@@ -49,4 +52,14 @@ message ClprSubmitBundleTransactionBody {
      * that set it do not trigger an unknown-field parse error.
      */
     bytes endpoint_signature = 4 [deprecated = true];
+
+    /**
+     * If present, requests admin recovery from this exact cached peer manifest
+     * version. The verifier MUST return a positive, strictly lower manifest
+     * version without queue metadata or messages. The Channel's cached version
+     * MUST still equal this value when the transaction is handled. Recovery
+     * requires an authenticated source block timestamp later than any already
+     * recorded for a manifest on this channel.
+     */
+    google.protobuf.UInt64Value expected_cached_manifest_version = 5;
 }
