@@ -88,7 +88,7 @@ class ChannelStoreTest {
     @Test
     @DisplayName("an unset index reads as empty")
     void unsetIndexIsEmpty() {
-        assertThat(subject.syncableChannelIds()).isEmpty();
+        assertThat(subject.syncableChannelIds(0L)).isEmpty();
     }
 
     @Test
@@ -96,7 +96,7 @@ class ChannelStoreTest {
     void pendingChannelIsNotIndexed() {
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.PENDING));
 
-        assertThat(subject.syncableChannelIds()).isEmpty();
+        assertThat(subject.syncableChannelIds(0L)).isEmpty();
         assertThat(indexState.isModified()).isFalse();
         assertThat(indexNumOf(CHANNEL_ID_1)).isZero();
     }
@@ -108,7 +108,7 @@ class ChannelStoreTest {
         subject.put(channel(CHANNEL_ID_2, ClprChannelStatus.ACTIVE));
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
 
-        assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_2, CHANNEL_ID_1);
+        assertThat(subject.syncableChannelIds(0L)).containsExactly(CHANNEL_ID_2, CHANNEL_ID_1);
         assertThat(indexNumOf(CHANNEL_ID_2)).isEqualTo(1L);
         assertThat(indexNumOf(CHANNEL_ID_1)).isEqualTo(2L);
         indexState.commit();
@@ -129,7 +129,7 @@ class ChannelStoreTest {
         subject.put(channel(CHANNEL_ID_1, status));
 
         assertThat(indexNumOf(CHANNEL_ID_1)).isEqualTo(1L);
-        assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_1);
+        assertThat(subject.syncableChannelIds(0L)).containsExactly(CHANNEL_ID_1);
         assertThat(indexState.isModified()).isFalse();
         assertThat(indexedChannels.modifiedKeys()).isEmpty();
         assertThat(indexNums.modifiedKeys()).isEmpty();
@@ -145,13 +145,13 @@ class ChannelStoreTest {
 
         assertThat(indexedChannels.get(new ProtoLong(1L))).isNull();
         assertThat(indexNumOf(CHANNEL_ID_1)).isZero();
-        assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_2);
+        assertThat(subject.syncableChannelIds(0L)).containsExactly(CHANNEL_ID_2);
 
         // A channel id cannot actually be reused, but the store must not reuse index numbers either way
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
 
         assertThat(indexNumOf(CHANNEL_ID_1)).isEqualTo(3L);
-        assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_2, CHANNEL_ID_1);
+        assertThat(subject.syncableChannelIds(0L)).containsExactly(CHANNEL_ID_2, CHANNEL_ID_1);
     }
 
     @Test
@@ -161,7 +161,7 @@ class ChannelStoreTest {
 
         subject.remove(CHANNEL_ID_1);
 
-        assertThat(subject.syncableChannelIds()).isEmpty();
+        assertThat(subject.syncableChannelIds(0L)).isEmpty();
         assertThat(indexNumOf(CHANNEL_ID_1)).isZero();
         assertThat(subject.getChannel(CHANNEL_ID_1)).isNull();
     }
@@ -180,6 +180,17 @@ class ChannelStoreTest {
     }
 
     @Test
+    @DisplayName("only the channels indexed after the given index number are read")
+    void readsOnlyChannelsIndexedAfterTheGivenIndexNum() {
+        subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
+        subject.put(channel(CHANNEL_ID_2, ClprChannelStatus.ACTIVE));
+
+        assertThat(subject.lastIndexNum()).isEqualTo(2L);
+        assertThat(subject.syncableChannelIds(1L)).containsExactly(CHANNEL_ID_2);
+        assertThat(subject.syncableChannelIds(2L)).isEmpty();
+    }
+
+    @Test
     @DisplayName("a syncable channel that predates the index is indexed on its next write")
     void preexistingSyncableChannelIsIndexedOnNextWrite() {
         // As written before the index existed: syncable, with no index entries
@@ -188,7 +199,7 @@ class ChannelStoreTest {
         subject.put(channel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE));
 
         assertThat(indexNumOf(CHANNEL_ID_1)).isEqualTo(1L);
-        assertThat(subject.syncableChannelIds()).containsExactly(CHANNEL_ID_1);
+        assertThat(subject.syncableChannelIds(0L)).containsExactly(CHANNEL_ID_1);
     }
 
     @Test
@@ -210,7 +221,7 @@ class ChannelStoreTest {
                         .value(new ProtoLong(3L), new ProtoBytes(CHANNEL_ID_1))
                         .build());
 
-        assertThat(new ReadableChannelStoreImpl(readableStates).syncableChannelIds())
+        assertThat(new ReadableChannelStoreImpl(readableStates).syncableChannelIds(0L))
                 .containsExactly(CHANNEL_ID_2, CHANNEL_ID_1);
     }
 

@@ -57,12 +57,12 @@ public class ReadableChannelStoreImpl implements ReadableChannelStore {
 
     @Override
     @NonNull
-    public List<Bytes> syncableChannelIds() {
-        // One lookup per index number ever issued; those of Channels that stopped being syncable are gaps
+    public List<Bytes> syncableChannelIds(final long afterIndexNum) {
+        // One lookup per index number issued after afterIndexNum; Channels that stopped being syncable left gaps
         final long lastIndexNum = lastIndexNum();
         final var channelIds = new ArrayList<Bytes>();
         final ReadableKVState<ProtoLong, ProtoBytes> indexedChannels = indexedChannelsState();
-        for (long indexNum = 1; indexNum <= lastIndexNum; indexNum++) {
+        for (long indexNum = afterIndexNum + 1; indexNum <= lastIndexNum; indexNum++) {
             final var channelId = indexedChannels.get(new ProtoLong(indexNum));
             if (channelId != null) {
                 channelIds.add(channelId.value());
@@ -71,12 +71,8 @@ public class ReadableChannelStoreImpl implements ReadableChannelStore {
         return channelIds;
     }
 
-    /**
-     * Returns the last index number issued to a syncable channel, or 0 if none.
-     *
-     * @return the last index number issued
-     */
-    protected long lastIndexNum() {
+    @Override
+    public long lastIndexNum() {
         final var index = channelIndexState().get();
         return index == null ? 0L : index.lastIndexNum();
     }

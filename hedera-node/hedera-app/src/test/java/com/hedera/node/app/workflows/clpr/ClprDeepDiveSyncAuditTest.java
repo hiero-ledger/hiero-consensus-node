@@ -4,10 +4,10 @@ package com.hedera.node.app.workflows.clpr;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -132,18 +132,20 @@ class ClprDeepDiveSyncAuditTest {
             subject.start();
             assertTrue(subject.started());
             final var executor = (ScheduledThreadPoolExecutor) subject.scheduler();
-            final int scheduledAfterFirstStart = executor.getQueue().size();
-            assertEquals(1, scheduledAfterFirstStart);
+            final var tick = subject.syncTickFuture(CHANNEL_ID_1);
+            // The tick and the index polling task
+            await().atMost(Duration.ofSeconds(1))
+                    .until(() -> executor.getQueue().size() == 2);
 
             // The platform can re-reach ACTIVE with no intervening stop() (e.g. after a reconnect);
             // the guard must make the re-entry a no-op rather than leak a duplicate tick.
             subject.start();
 
             assertTrue(subject.started());
-            assertEquals(
-                    scheduledAfterFirstStart,
-                    executor.getQueue().size(),
-                    "Second start() must not schedule duplicate tasks");
+            assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
+            await().during(Duration.ofMillis(100))
+                    .atMost(Duration.ofSeconds(1))
+                    .until(() -> executor.getQueue().size() <= 2);
         }
     }
 

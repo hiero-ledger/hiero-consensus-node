@@ -16,7 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Provides write methods for modifying CLPR channels in state. Keeps the channel index (see
- * {@link #syncableChannelIds()}) in step with the channels: a channel that is neither {@code PENDING} nor
+ * {@link #syncableChannelIds(long)}) in step with the channels: a channel that is neither {@code PENDING} nor
  * {@code CLOSED} is issued the next index number; the indexed channels map that number to its id, and the channel
  * index numbers map its id back to the number. Both entries are removed when the channel becomes either or is
  * removed. A write that does not change whether a channel is syncable keeps its index number and leaves the index untouched.
