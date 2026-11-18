@@ -16,7 +16,8 @@ on:
         required: false
         default: ""
       params:
-        description: "Only the parameter sets with these values, as name=value separated by spaces, e.g. numNodes=10;
+        description:
+          "Only the parameter sets with these values, as name=value separated by spaces, e.g. numNodes=10;
           a benchmark without the parameter runs all its sets (default: all)."
         type: string
         required: false
