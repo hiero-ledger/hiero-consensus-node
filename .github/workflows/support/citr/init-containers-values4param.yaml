@@ -1,0 +1,88 @@
+# hedera node configuration
+hedera:
+  initContainers:
+    - name: init-hedera-node
+      image: busybox:stable-musl
+      command: ["sh", "-c", "cp -r /etc /data-saved"]
+      volumeMounts:
+        - name: hgcapp-data-saved
+          mountPath: /data-saved
+  nodes:
+    - name: node1
+      nodeId: 0
+      accountId: 0.0.3
+      root:
+        resources:
+          requests:
+            cpu: %HALFOFCORES%
+            memory: %RAMMINUS2%Gi
+          limits:
+            cpu: %CORES%
+            memory: %RAMMINUS1%Gi
+    - name: node2
+      nodeId: 1
+      accountId: 0.0.4
+      root:
+        resources:
+          requests:
+            cpu: %HALFOFCORES%
+            memory: %RAMMINUS2%Gi
+          limits:
+            cpu: %CORES%
+            memory: %RAMMINUS1%Gi
+    - name: node3
+      nodeId: 2
+      accountId: 0.0.5
+      root:
+        resources:
+          requests:
+            cpu: %HALFOFCORES%
+            memory: %RAMMINUS2%Gi
+          limits:
+            cpu: %CORES%
+            memory: %RAMMINUS1%Gi
+    - name: node4
+      nodeId: 3
+      accountId: 0.0.6
+      root:
+        resources:
+          requests:
+            cpu: %HALFOFCORES%
+            memory: %RAMMINUS2%Gi
+          limits:
+            cpu: %CORES%
+            memory: %RAMMINUS1%Gi
+defaults:
+  haproxy:
+    serviceType: NodePort
+  envoyProxy:
+    loadBalancerEnabled: true
+  root:
+    resources:
+      requests:
+        cpu: %HALFOFCORES%
+        memory: %RAMMINUS2%Gi
+      limits:
+        cpu: %CORES%
+        memory: %RAMMINUS1%Gi
+    extraEnv:
+      - name: JAVA_OPTS
+        value: "-XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocationSpikeTolerance=2 -XX:ConcGCThreads=%HALFOFCORES% -XX:MaxDirectMemorySize=4g -XX:MetaspaceSize=100M -XX:+ZGenerational -Xlog:gc*:gc.log --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dio.netty.tryReflectionSetAccessible=true"
+      - name: JAVA_HEAP_MIN
+        value: "%RAMMINUS6%g"
+      - name: JAVA_HEAP_MAX
+        value: "%RAMMINUS4%g"
+      - name: MALLOC_ARENA_MAX
+        value: "4"
+
+deployment:
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector:
+    chewie-group: cn
+haproxyDeployment:
+  nodeSelector:
+    chewie-group: aux
+envoyDeployment:
+  nodeSelector:
+    chewie-group: aux
