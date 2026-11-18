@@ -153,8 +153,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
 
     /**
      * Whether a partial signature that reached consensus might not have been incorporated at pre-handle, but would be
-     * if incorporated now. This is the case when there is either no signing attempt for its message, or a signing
-     * attempt for its construction that still lacks a signature from its creator.
+     * if incorporated now. This is the case when there is either no signing attempt for its message and
+     * construction, or one that still lacks a signature from its creator.
      * <p>
      * Pre-handle only incorporates partial signatures for constructions this node already knows; so when this node
      * is behind its peers, it can pre-handle their partial signatures for a block under a new construction before it
@@ -166,12 +166,8 @@ public class HintsPartialSignatureHandler implements TransactionHandler {
      * @return true if the partial signature should be validated and incorporated at handle
      */
     private boolean isStillNeeded(@NonNull final HintsPartialSignatureTransactionBody op, final long creatorId) {
-        final var existing = signings.get(op.message());
-        if (existing == null) {
-            return true;
-        }
-        final var signing = asMatchingSigning(existing, op.constructionId());
-        return signing != null && signing.needsSignatureFrom(creatorId);
+        final var existing = signings.get(new SigningAttemptId(op.message(), op.constructionId()));
+        return existing == null || existing.needsSignatureFrom(creatorId);
     }
 
     /**
