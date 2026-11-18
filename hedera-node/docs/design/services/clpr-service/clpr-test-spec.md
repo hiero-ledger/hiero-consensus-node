@@ -30,7 +30,7 @@ implementation concerns for the teams that build the harnesses.
 CLPR testing builds on three existing Hiero test paradigms and introduces a fourth:
 
 **HAPI Tests.** Black-box tests that submit transactions to an embedded Hiero network and verify state
-mutations. CLPR extends this with new transaction types (`registerChannel`, `sendMessage`, `submitBundle`,
+mutations. CLPR extends this with new transaction types (`openChannel`, `sendMessage`, `submitBundle`,
 etc.) and with multi-network support — the HAPI test framework has already been extended on a separate branch
 to stand up two Hiero networks simultaneously (the ShipOfTheseusTest demonstrates complete roster rotation
 on both sides while maintaining CLPR communication). HAPI tests cannot run block nodes, mirror nodes, or
@@ -210,29 +210,13 @@ require multi-network infrastructure.
 
 ## 3.2 Channel Lifecycle
 
-### 3.2.1 `registerChannel` (Commit Phase)
+### 3.2.1 `openChannel`
 
-- Channel ID must be exactly 32 bytes.
-- Verifier contract must be a deployed smart contract. If it does not exist, registration fails.
-- Handler calls `verifyConfig(config_proof_bytes)` on the verifier to obtain verified peer configuration.
-  If verification fails, registration fails.
-- Duplicate Channel ID is rejected.
-- Initial Channel status is **PENDING** (not ACTIVE). Queue metadata is initialized: `next_message_id = 1`,
-  `acked_message_id = 0`, both running hashes are 32 bytes of zeros.
-- Registration (commit phase) is permissionless — no special key required, no ECDSA signature.
-- The verifier is immutable after registration; its address and code fingerprint are stored on the Channel.
-- A PENDING Channel cannot be used for messaging (`sendMessage` and `submitBundle` are rejected).
-
-### 3.2.1a `completeChannel` (Reveal Phase)
-
-- Channel must exist and be in PENDING state.
-- Handler verifies `keccak256(channel_id || public_key)` matches the stored ownership commitment.
-  The channel_id is an arbitrary 32-byte value chosen by the registrant.
-  The public key encoding is platform-specific (e.g., 64-byte uncompressed x||y for ECDSA secp256k1).
-- Signature is verified over the completion data. Invalid signatures are rejected. The signature scheme
-  is platform-specific (e.g., ECDSA secp256k1 on Hiero and Ethereum).
-- Transitions the Channel from PENDING to ACTIVE.
-- Completion is permissionless — no special key required (beyond the ECDSA proof of key ownership).
+- The expected channel ID and salt are each 32 bytes.
+- The selected verifier must authenticate the peer configuration and endpoint manifest.
+- Deriving the ID on either ledger must produce the same result using the agreed salt and both endpoint identities.
+- An ID mismatch, invalid proof, or duplicate ID must leave channel state intact.
+- A successful call creates an ACTIVE channel and stores the verifier and verified peer configuration.
 
 ### 3.2.1b `closeChannel` on PENDING Channels
 
@@ -681,7 +665,7 @@ each verifier and verify accept/reject behavior.
 
 ### 4.2.3 Gas Cost Profiling
 
-Measure and record Ethereum gas costs for: `registerChannel`, `registerConnector`, `sendMessage`,
+Measure and record Ethereum gas costs for: `openChannel`, `registerConnector`, `sendMessage`,
 `submitBundle`, `closeChannel`. Verify that costs are within acceptable bounds for production deployment.
 Verify that `max_sync_bytes` is calibrated to keep bundle submission within Ethereum block gas limits.
 
@@ -721,7 +705,7 @@ Connector balances.
 
 ### 4.4.1 Hub-and-Spoke
 
-Deploy three networks: Hiero as hub, Ethereum and a second Hiero as spokes. Register Channels
+Deploy three networks: Hiero as hub, Ethereum and a second Hiero as spokes. Open channels
 Hub↔Spoke1 and Hub↔Spoke2. Send messages on both Channels simultaneously. Verify that traffic on one
 Channel does not affect the other — independent queues, independent Connectors, independent throughput.
 

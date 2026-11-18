@@ -117,7 +117,7 @@ class ClprFeeCalculatorTest {
     }
 
     @Test
-    void completeChannelRecordsBaseStoredBytesAndCappedVerifierGasExactlyOnce() {
+    void openChannelRecordsBaseStoredBytesAndCappedVerifierGasExactlyOnce() {
         final var fixture = new SettlementFixture(CLPR_OPEN_CHANNEL);
         final var accounting = ClprGasAccounting.forContext(fixture.context);
         assertThat(accounting.prepayVerifier(SettlementFixture.PAYER, SettlementFixture.VERIFIER_LIMIT))

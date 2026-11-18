@@ -113,7 +113,7 @@ service ClprService {
      * <p>
      * Public read (no admin authorization). The response carries the manifest singleton and
      * a StateProof suitable as {@code endpoint_manifest_proof_bytes} for a peer's
-     * {@code ClprCompleteChannel} (spec PR #332).<br/>
+     * {@code ClprOpenChannel} (spec PR #332).<br/>
      * The request body MUST be a
      * [ClprGetEndpointManifestQuery](#com.hedera.hapi.node.clpr.ClprGetEndpointManifestQuery)<br/>
      * The response body SHALL be a

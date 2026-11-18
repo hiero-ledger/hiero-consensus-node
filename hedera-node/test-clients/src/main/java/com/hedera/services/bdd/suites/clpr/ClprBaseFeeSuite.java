@@ -43,10 +43,6 @@ import org.junit.jupiter.api.Tag;
  *   <li>{@code openChannel} — charge the base fee when the verifier does not exist.</li>
  *   <li>{@code registerConnector} — failure path against an unknown channel, exercising the full
  *       fee charged for a handler-stage failure without channel setup.</li>
- *   <li>Reveal-phase ops ({@code completeChannel}, {@code completeConnector}) are not
- *       covered here because they require a deployed verifier/connector smart contract and
- *       a full two-phase lifecycle setup. Fee coverage for those ops should be added to
- *       {@code ClprChannelCommitRevealSuite} and {@code ClprConnectorSuite}.</li>
  * </ul>
  *
  * <p>Tests pay with a freshly-created account rather than {@code GENESIS}: the treasury is

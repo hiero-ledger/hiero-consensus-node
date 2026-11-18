@@ -395,7 +395,7 @@ id as the first argument. This is the canonical "Hiero-source" verifier and is w
 A verifier `ContractID` lives in two places:
 
 1. **Per-channel** (spec §5.1.5 — verifier immutability): the channel record
-   `ClprChannel.verifier_contract` is set at `completeChannel` time and never
+   `ClprChannel.verifier_contract` is set at `openChannel` time and never
    changes for the life of the channel.
 2. **Per-config**: the `ClprLedgerConfiguration` itself carries a config-verifier address
    that is used to authenticate `ClprConfigUpdate` control messages (lazy propagation).

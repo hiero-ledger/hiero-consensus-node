@@ -177,7 +177,7 @@ public class ClprCloseChannelSuite {
      * deployed ClprPassThroughVerifier accepts it (see {@link ClprTestProofs} for layout).
      *
      * <p>Spec refs: §3.1 (Verifier Contract Interface — verifyConfig returns the proven
-     * ClprLedgerConfiguration), §5.1.3 (completeChannel runs verifyConfig over the
+     * ClprLedgerConfiguration), §5.1.3 (openChannel runs verifyConfig over the
      * supplied config_proof_bytes); §1.1 (ClprLedgerConfiguration shape, including the
      * renamed {@code endpoints} field and the {@code initial_trust_anchor} pair).
      */

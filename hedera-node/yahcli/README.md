@@ -940,7 +940,7 @@ refused. Backups are intentionally **never pruned**, so a key can always be reco
 
 ```
 find . -name '*.bak'            # list every backup, newest epoch last when sorted by name
-ls -l channel.json.key*.bak     # backups of one key file
+ls -l connector.json.key*.bak     # backups of one key file
 ```
 
 Backups and `.key` files hold live private keys: protect them like keys, and keep them out of version control

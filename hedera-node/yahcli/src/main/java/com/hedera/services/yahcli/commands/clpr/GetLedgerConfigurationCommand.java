@@ -56,7 +56,7 @@ public class GetLedgerConfigurationCommand implements Callable<Integer> {
             paramLabel = "<path>",
             description = "If set, writes the raw serialized configuration_state_proof bytes to this file. "
                     + "The same bytes are also surfaced (base64) under configurationStateProof in the JSON output. "
-                    + "Suitable as input to complete-channel --config-proof when the peer ledger uses the "
+                    + "Suitable as input to open-channel --config-proof when the peer ledger uses the "
                     + "verifier contract that accepts a StateProof (e.g. one that delegates to "
                     + "the CLPR system contract precompile's verifyConfig operation).")
     String proofPath;
@@ -99,8 +99,7 @@ public class GetLedgerConfigurationCommand implements Callable<Integer> {
         final var configJson = printer.print(current);
 
         // Emit a top-level JSON object containing both the configuration and the proof
-        // (base64-encoded per proto3 JSON for bytes). Surfacing the proof here means a
-        // single call gives the operator everything they need for register/complete.
+        // (base64-encoded per proto3 JSON for bytes) for use when opening a channel.
         final var combinedJson = """
                 {
                   "configuration": %s,

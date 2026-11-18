@@ -73,7 +73,6 @@ Any payer can open a channel in one transaction. The selected verifier authentic
 ### `ClprRegisterConnectorHandler` / `ClprCompleteConnectorHandler`
 
 - Functionalities: `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`. Spec §6.3.
-- Same commit-reveal shape as channel registration.
 - Register requires a 32-byte `channel_id` identifying an existing channel and a 32-byte
   `commitment`. A missing channel fails with `CLPR_CHANNEL_NOT_FOUND` before storing the commitment.
   The channel ID is public metadata; the commitment preimage is verified during reveal.

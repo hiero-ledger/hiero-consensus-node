@@ -148,8 +148,6 @@ class AtomicBatchHandlerTest {
             HederaFunctionality.LEDGER_ID_PUBLICATION,
             // CLPR
             HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
-            HederaFunctionality.CLPR_REGISTER_CHANNEL,
-            HederaFunctionality.CLPR_COMPLETE_CHANNEL,
             HederaFunctionality.CLPR_OPEN_CHANNEL,
             HederaFunctionality.CLPR_CLOSE_CHANNEL,
             HederaFunctionality.CLPR_EVICT_PEER_ENDPOINT,

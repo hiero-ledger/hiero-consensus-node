@@ -191,13 +191,13 @@ public class ClprMessagesSuite {
                                 .payingWith(GENESIS))
                 .findFirst()
                 .orElseThrow();
-        // NET_A's config and finalized endpoint-manifest StateProofs, threaded into NET_B's completeChannel.
+        // NET_A's config and finalized endpoint-manifest StateProofs, threaded into NET_B's openChannel.
         final var netAConfigCapture =
                 captureConfigProof(netA, configProofForNetB, MAX_MESSAGES_PER_BUNDLE, MAX_QUEUE_DEPTH);
         final var netAManifestCapture = captureManifestProof(netA, manifestProofForNetB);
 
         // ── Step 1: Setup NET_B ───────────────────────────────────────────────────────────────────
-        // Deploy EchoApplication, complete channel/connector, capture EchoApplication address for
+        // Deploy EchoApplication, open the channel and activate the connector, capture EchoApplication address for
         // use in SourceApplication's constructor.
         final var netBSetup = networkHapiTest(
                         netB,
@@ -227,7 +227,7 @@ public class ClprMessagesSuite {
                                 .endpointManifestProofBytes(
                                         manifestProofForNetB.get().toByteArray())
                                 .payingWith(GENESIS)
-                                .via("completeChannelB")),
+                                .via("openChannelB")),
                         clprRegisterConnector()
                                 .channelId(channelId.toByteArray())
                                 .commitment(connectorCommitment.toByteArray())
@@ -249,13 +249,13 @@ public class ClprMessagesSuite {
                                 echoContractIdRef.set(spec.registry().getContractId(ECHO_APP))))
                 .findFirst()
                 .orElseThrow();
-        // NET_B's config and finalized endpoint-manifest StateProofs, threaded into NET_A's completeChannel.
+        // NET_B's config and finalized endpoint-manifest StateProofs, threaded into NET_A's openChannel.
         final var netBConfigCapture =
                 captureConfigProof(netB, configProofForNetA, MAX_MESSAGES_PER_BUNDLE, MAX_QUEUE_DEPTH);
         final var netBManifestCapture = captureManifestProof(netB, manifestProofForNetA);
 
         // ── Step 2: Setup NET_A ───────────────────────────────────────────────────────────────────
-        // Deploy SourceApplication and complete channel/connector. SourceApplication is
+        // Deploy SourceApplication and open the channel and activate the connector. SourceApplication is
         // deployed inside withOpContext so its constructor can receive EchoApplication's EVM
         // address from NET_B. SourceApplication itself serves as the connector contract on
         // NET_A — it holds HBAR for slashing and is the correct entity to vouch for outbound
@@ -292,7 +292,7 @@ public class ClprMessagesSuite {
                                 .endpointManifestProofBytes(
                                         manifestProofForNetA.get().toByteArray())
                                 .payingWith(GENESIS)
-                                .via("completeChannelA")),
+                                .via("openChannelA")),
                         clprRegisterConnector()
                                 .channelId(channelId.toByteArray())
                                 .commitment(connectorCommitment.toByteArray())

@@ -34,7 +34,7 @@ public interface ClprChannelLifecycle {
     /**
      * Seed the orchestrator's peer endpoint cache for a Channel with the
      * endpoints attested in the peer's verified ledger configuration. Used by
-     * the complete-channel handler so the first outbound sync tick has
+     * the open-channel handler so the first outbound sync tick has
      * peer endpoints to contact.
      *
      * @param channelId the 32-byte Channel ID

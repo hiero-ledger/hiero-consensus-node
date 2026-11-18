@@ -89,9 +89,7 @@ import "services/node_delete.proto";
 import "services/custom_fees.proto";
 
 import "services/clpr_update_ledger_configuration.proto";
-import "services/clpr_complete_channel.proto";
 import "services/clpr_open_channel.proto";
-import "services/clpr_register_channel.proto";
 import "services/clpr_close_channel.proto";
 import "services/clpr_register_connector.proto";
 import "services/clpr_deregister_connector.proto";
@@ -185,9 +183,10 @@ message Transaction {
  */
 message TransactionBody {
     // <<<pbj.java_package = "com.hedera.hapi.node.transaction">>> This comment is special code for setting PBJ Compiler java package
-    reserved 30, 61, 62, 63, 64;
+    reserved 30, 61, 62, 63, 64, 83, 84;
 
     reserved "tssMessage", "tssVote", "tssShareSignature", "tssEncryptionKey";
+    reserved "clprRegisterChannel", "clprCompleteChannel";
 
     /**
      * A transaction identifier.<br/>
@@ -720,16 +719,6 @@ message TransactionBody {
          * Update the local CLPR ledger configuration.
          */
         com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody clprUpdateLedgerConfiguration = 82;
-
-        /**
-         * Historical channel setup transaction. New channels use clprOpenChannel.
-         */
-        com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody clprRegisterChannel = 83;
-
-        /**
-         * Historical channel setup transaction. New channels use clprOpenChannel.
-         */
-        com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody clprCompleteChannel = 84;
 
         /**
          * Initiate graceful closure of a CLPR Channel.

@@ -552,7 +552,7 @@ Peer endpoints come from the peer ledger's **endpoint manifest**. There is no en
 its endpoints, each with a service endpoint and TLS CA certificate. The peer's manifest is proven and cached on the
 Channel record (`Channel.endpoint_manifest` / `endpoint_manifest_version`):
 
-- at `completeChannel`, from the proven manifest returned by `verifyConfig`, retaining the declared-order
+- at `openChannel`, from the proven manifest returned by `verifyConfig`, retaining the declared-order
   prefix that fits both this ledger's `max_peer_endpoints` and the 16,384-byte serialized manifest ceiling;
 - mid-life, when a `submitBundle` verifier response carries a `new_endpoint_manifest` whose version strictly
   advances the stored one, applying the same count and byte bounds.

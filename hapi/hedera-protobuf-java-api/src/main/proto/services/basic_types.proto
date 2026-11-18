@@ -1346,6 +1346,9 @@ message SignatureMap {
  * The transactions and queries supported by Hedera Hashgraph.
  */
 enum HederaFunctionality {
+    reserved 118, 119;
+    reserved "ClprRegisterChannel", "ClprCompleteChannel";
+
     // FUTURE - Uncomment when https://github.com/hashgraph/pbj/issues/339 is fixed;
     // currently the PBJ-generated unit tests fail when using reserved ordinals
     // reserved 96, 97, 98, 99;
@@ -1890,16 +1893,6 @@ enum HederaFunctionality {
      * Update the local CLPR ledger configuration.
      */
     ClprUpdateLedgerConfiguration = 117;
-
-    /**
-     * Historical CLPR channel registration. Use ClprOpenChannel for new channels.
-     */
-    ClprRegisterChannel = 118;
-
-    /**
-     * Historical CLPR channel completion. Use ClprOpenChannel for new channels.
-     */
-    ClprCompleteChannel = 119;
 
     /**
      * Initiate graceful closure of a CLPR Channel.
