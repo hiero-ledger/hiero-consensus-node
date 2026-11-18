@@ -17,33 +17,50 @@ class ArrivalTimeClampTest {
     @Test
     @DisplayName("an increasing arrival time is left alone")
     void increasingTimesAreUnchanged() {
-        assertThat(clamp.clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T);
-        assertThat(clamp.clamp(0, 1, MessageRoute.BROADCAST, T + 5 * MILLI)).isEqualTo(T + 5 * MILLI);
+        assertThat(clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T);
+        assertThat(clamp(0, 1, MessageRoute.BROADCAST, T + 5 * MILLI)).isEqualTo(T + 5 * MILLI);
     }
 
     @Test
     @DisplayName("an arrival time before the previous one of the same kind is moved just after it")
     void earlierTimeIsClampedWithinAKind() {
-        clamp.clamp(0, 1, MessageRoute.BROADCAST, T + 10 * MILLI);
+        clamp(0, 1, MessageRoute.BROADCAST, T + 10 * MILLI);
 
-        assertThat(clamp.clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T + 10 * MILLI + 1);
-        assertThat(clamp.clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T + 10 * MILLI + 2);
+        assertThat(clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T + 10 * MILLI + 1);
+        assertThat(clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T + 10 * MILLI + 2);
     }
 
     @Test
     @DisplayName("each kind of route is clamped independently")
     void kindsDoNotConstrainEachOther() {
-        clamp.clamp(0, 1, MessageRoute.SYNC, T + 100 * MILLI);
+        clamp(0, 1, MessageRoute.SYNC, T + 100 * MILLI);
 
-        assertThat(clamp.clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T);
-        assertThat(clamp.clamp(0, 1, MessageRoute.SYNC, T + MILLI)).isEqualTo(T + 100 * MILLI + 1);
+        assertThat(clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T);
+        assertThat(clamp(0, 1, MessageRoute.SYNC, T + MILLI)).isEqualTo(T + 100 * MILLI + 1);
+    }
+
+    @Test
+    @DisplayName("an arrival time that is only peeked at does not hold up the next one")
+    void peekDoesNotRecord() {
+        clamp.peek(0, 1, MessageRoute.BROADCAST, T + 10 * MILLI);
+
+        assertThat(clamp(0, 1, MessageRoute.BROADCAST, T)).isEqualTo(T);
     }
 
     @Test
     @DisplayName("each connection is clamped independently")
     void connectionsDoNotConstrainEachOther() {
-        clamp.clamp(0, 1, MessageRoute.BROADCAST, T + 100 * MILLI);
+        clamp(0, 1, MessageRoute.BROADCAST, T + 100 * MILLI);
 
-        assertThat(clamp.clamp(1, 0, MessageRoute.BROADCAST, T)).isEqualTo(T);
+        assertThat(clamp(1, 0, MessageRoute.BROADCAST, T)).isEqualTo(T);
+    }
+
+    /**
+     * Clamps an arrival time and records it, as is done for a copy that is sent.
+     */
+    private long clamp(final int sender, final int receiver, final MessageRoute kind, final long proposed) {
+        final long arrival = clamp.peek(sender, receiver, kind, proposed);
+        clamp.commit(sender, receiver, kind, arrival);
+        return arrival;
     }
 }

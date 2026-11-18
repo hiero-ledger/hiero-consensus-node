@@ -6,6 +6,8 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.BitSet;
+import java.util.Comparator;
+import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -30,6 +32,11 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * <p>This class is not safe to use from more than one thread.
  */
 final class EventRouter {
+
+    /**
+     * Orders copies in flight by the time they arrive.
+     */
+    private static final Comparator<EventInTransit> BY_ARRIVAL = Comparator.comparing(EventInTransit::arrivalTime);
 
     /**
      * The roster of the network.
@@ -124,8 +131,12 @@ final class EventRouter {
     /**
      * Sends an event again to a node that has restarted. Everything that was on its way to the node is gone, so the
      * event is sent once, by the node that has it and can deliver it soonest, see
-     * {@link #sendBestCopyBySync(TrackedEvent, int, long, boolean)}. A link that is down does not rule a node out, because
-     * what is sent is held until the link comes back.
+     * {@link #sendBestCopyBySync(TrackedEvent, int, long, boolean, boolean)}. A link that is down does not rule a node
+     * out, because what is sent is held until the link comes back.
+     *
+     * <p>The node is sent its own events too, even without {@link #echoes}: a node that has restarted syncs with its
+     * peers, which send it everything it lacks, its own events included. That is how it learns its latest self event
+     * before it creates new ones.
      *
      * @param tracked  the event, as tracked by the network
      * @param receiver the rank of the node that has restarted
@@ -133,7 +144,7 @@ final class EventRouter {
      */
     void resendTo(@NonNull final TrackedEvent tracked, final int receiver, final long now) {
         tracked.resetEarliest(receiver);
-        sendBestCopyBySync(tracked, receiver, now, false);
+        sendBestCopyBySync(tracked, receiver, now, false, true);
     }
 
     /**
@@ -155,25 +166,43 @@ final class EventRouter {
     }
 
     /**
+     * Counts what is held on a link that has come up as on its way to the node at the other end. It is delivered once
+     * the link has waited out its reconnect delay.
+     *
+     * <p>A copy the creator sent while the link was down is held on it, and not counted as on its way until now. It is
+     * counted before anything is sent over a link that came up at the same time, see
+     * {@link #catchUpOverLink(int, int, long)}, so that the event is not sent again by another route.
+     *
+     * @param first  the rank of the node of the link that comes first in roster order
+     * @param second the rank of the other node of the link
+     */
+    void countHeldOnLink(final int first, final int second) {
+        countHeldAsOnTheirWay(first, second);
+        countHeldAsOnTheirWay(second, first);
+    }
+
+    /**
      * Sends the two nodes of a link that has come up the events they have nothing on its way of, as a sync would once
      * the connection is established again.
      *
      * <p>A node can lack an event while one of its peers has it: a forwarded copy over a link that is down is not sent,
      * see {@link #sendCopy(TrackedEvent, int, int, long)}, and when the creator's own link to the node stays down for
-     * longer, nothing else would bring the event. What is held on the link itself, such as a copy the creator sent
-     * while it was down, is delivered once the link is usable again, so it is first counted as on its way, and only
-     * events with nothing on their way are sent, see {@link #sendBestCopyBySync(TrackedEvent, int, long, boolean)}.
+     * longer, nothing else would bring the event. Only events with nothing on their way are sent, see
+     * {@link #sendBestCopyBySync(TrackedEvent, int, long, boolean, boolean)}.
      *
      * <p>The event windows of both nodes must be set before this is called, see
-     * {@link #setReceiverWindow(int, EventWindow)}, and the reconnect delay of the link must have been started.
+     * {@link #setReceiverWindow(int, EventWindow)}. The reconnect delays of all links that came up together must have
+     * been started, and what is held on them counted, see {@link #countHeldOnLink(int, int)}, so that the node that can
+     * deliver an event soonest is chosen by the delays that actually apply.
+     *
+     * <p>This walks every tracked event, so it costs time in proportion to their number for every link that comes up.
+     * Links come up rarely, so that is acceptable.
      *
      * @param first  the rank of the node of the link that comes first in roster order
      * @param second the rank of the other node of the link
      * @param now    the current time
      */
-    void linkCameUp(final int first, final int second, final long now) {
-        countHeldAsOnTheirWay(first, second);
-        countHeldAsOnTheirWay(second, first);
+    void catchUpOverLink(final int first, final int second, final long now) {
         final Cursor<TrackedEvent> cursor = trackedEvents.newCursor();
         while (cursor.hasNext()) {
             final TrackedEvent tracked = cursor.next();
@@ -192,7 +221,7 @@ final class EventRouter {
     private void countHeldAsOnTheirWay(final int sender, final int receiver) {
         inFlightEvents.forEachInFlight(sender, receiver, inTransit -> {
             final TrackedEvent tracked = trackedEvents.find(inTransit.event());
-            if (tracked != null && tracked.earliestArrival(receiver) == TrackedEvent.NOT_SENT) {
+            if (tracked != null && tracked.earliestArrival(receiver) == TrackedEvent.NONE_COUNTED) {
                 final long arrival = arrivalTimes.nanosOf(inTransit.arrivalTime());
                 tracked.setEarliest(receiver, sender, Math.max(arrival, links.usableFrom(sender, receiver)));
             }
@@ -208,8 +237,8 @@ final class EventRouter {
      * @param now      the current time
      */
     private void sendIfNothingOnItsWay(final TrackedEvent tracked, final int receiver, final long now) {
-        if (!tracked.submitters().get(receiver) && tracked.earliestArrival(receiver) == TrackedEvent.NOT_SENT) {
-            sendBestCopyBySync(tracked, receiver, now, true);
+        if (!tracked.submitters().get(receiver) && tracked.earliestArrival(receiver) == TrackedEvent.NONE_COUNTED) {
+            sendBestCopyBySync(tracked, receiver, now, true, false);
         }
     }
 
@@ -221,11 +250,16 @@ final class EventRouter {
      * @param now      the current time
      */
     private void rerouteInFlight(final int sender, final int receiver, final long now) {
-        for (final EventInTransit inTransit : inFlightEvents.drain(sender, receiver)) {
+        final List<EventInTransit> drained = inFlightEvents.drain(sender, receiver);
+        // In the order they would have arrived, so that a copy sent again does not overtake the copy of a parent that
+        // is
+        // sent again by the same node: their arrival times are kept in the order they are picked in.
+        drained.sort(BY_ARRIVAL);
+        for (final EventInTransit inTransit : drained) {
             final TrackedEvent tracked = trackedEvents.find(inTransit.event());
             if (tracked != null && tracked.earliestSender(receiver) == sender) {
                 tracked.resetEarliest(receiver);
-                if (sendBestCopyBySync(tracked, receiver, now, true)) {
+                if (sendBestCopyBySync(tracked, receiver, now, true, false)) {
                     continue;
                 }
             }
@@ -246,12 +280,18 @@ final class EventRouter {
      * own, unless the link it travels on is down, and the forwarded ones sent before. Forwarded copies are sent in
      * the order the submissions are scheduled in, and the one that arrives first is the one that is kept.
      * A forwarded copy over a link that is down is not sent. Should the receiver still lack the event when the link
-     * comes back, it is sent then, see {@link #linkCameUp(int, int, long)}. A copy that the creator sends over a link
+     * comes back, it is sent then, see {@link #catchUpOverLink(int, int, long)}. A copy that the creator sends over a link
      * that is down is held, and not counted as on its way until the link comes back.
      *
      * <p>When the event arrives is decided by {@link ArrivalTimes#propose(int, int, MessageRoute, long)}, which draws
      * from the random number generator. The draw is skipped for a forwarded copy that cannot arrive first whatever it
      * draws.
+     *
+     * <p>The receiver may refuse the copy that is recorded as the earliest, because it considers the sender, or itself,
+     * to have fallen behind. The refused copy stays in flight and is offered again later, but the forwarded copies that
+     * would have arrived after it are not sent. The creator's own copy is still sent, so the receiver gets the event
+     * all the same, if later. Only the events of a refused creator do not reach it, and a node that far behind or ahead
+     * of its peer could not use them anyway.
      *
      * @param tracked  the event, as tracked by the network
      * @param sender   the rank of the node the event is sent from
@@ -275,9 +315,9 @@ final class EventRouter {
             return;
         }
 
-        // The sender and receiver may be known to each other, in which case the event is enqueued for delivery.
-        // Whether the connection is up is decided at delivery time rather than here: the creator's copy is held
-        // through a partition, so that it is delivered when the connection returns.
+        // The creator's own copy is sent whether or not the link is up: it is held through a partition and delivered
+        // when the link returns, as production would send it then. A forwarded copy over a link that is down is not
+        // sent at all.
         final boolean own = sender == creator;
         final boolean linkUp = links.isLinkUp(sender, receiver);
         final MessageRoute route = routeOf(own, sender, receiver, now);
@@ -285,7 +325,7 @@ final class EventRouter {
         if (!own) {
             if (!linkUp) {
                 // Nothing is lost by not sending it: if the receiver still lacks the event when the link comes back,
-                // the event is sent to it then, see linkCameUp.
+                // the event is sent to it then, see catchUpOverLink.
                 return;
             }
             final long earliestPossible = arrivalTimes.earliestPossible(sender, receiver, route, now);
@@ -300,7 +340,8 @@ final class EventRouter {
 
         final long arrival = arrivalTimes.propose(sender, receiver, route, now);
         // a link that has come up recently does not deliver anything before its reconnect delay has passed
-        final long deliveredAt = linkUp ? Math.max(arrival, links.usableFrom(sender, receiver)) : TrackedEvent.NOT_SENT;
+        final long deliveredAt =
+                linkUp ? Math.max(arrival, links.usableFrom(sender, receiver)) : TrackedEvent.NONE_COUNTED;
         if (!own && deliveredAt >= earliestArrival) {
             // as above, with the jitter actually drawn
             return;
@@ -328,12 +369,17 @@ final class EventRouter {
      * @param receiver the rank of the node the event is traveling to
      * @param now      the current time
      * @param onlyIfUp whether to give up if there is no node whose link to the receiver is up
+     * @param evenOwn  whether to send the receiver its own event even without {@link #echoes}
      * @return {@code true} if a copy was sent
      */
     private boolean sendBestCopyBySync(
-            final TrackedEvent tracked, final int receiver, final long now, final boolean onlyIfUp) {
+            final TrackedEvent tracked,
+            final int receiver,
+            final long now,
+            final boolean onlyIfUp,
+            final boolean evenOwn) {
         final int creator = tracked.creator();
-        if (receiver == creator && !echoes) {
+        if (receiver == creator && !echoes && !evenOwn) {
             return false;
         }
         final PlatformEvent event = tracked.event();

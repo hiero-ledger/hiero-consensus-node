@@ -39,7 +39,7 @@ import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
  * <p>This class is not safe to use from more than one thread. It is only used from the single-threaded phase of a
  * tick, after the nodes that submit events have stopped running.
  */
-public class EventDeduplicator {
+final class EventDeduplicator {
 
     /**
      * Avoid the creation of lambdas for {@link SequenceMap#computeIfAbsent} by reusing this lambda.
@@ -122,11 +122,7 @@ public class EventDeduplicator {
             tracked = newTrackedEvent(event);
             trackedEvents.add(tracked);
         }
-        if (tracked.submitters().get(submitter)) {
-            return null;
-        }
-        tracked.submitters().set(submitter);
-        return tracked;
+        return tracked.addSubmitter(submitter) ? tracked : null;
     }
 
     /**
@@ -177,7 +173,7 @@ public class EventDeduplicator {
      *
      * @param eventWindow the oldest event window in the network
      */
-    public void setOldestEventWindow(@NonNull final EventWindow eventWindow) {
+    void setOldestEventWindow(@NonNull final EventWindow eventWindow) {
         oldestEventWindow = requireNonNull(eventWindow);
 
         final long expiredThreshold = eventWindow.expiredThreshold();
@@ -185,12 +181,5 @@ public class EventDeduplicator {
             observedEvents.shiftWindow(expiredThreshold);
             shiftedThroughBirthRound = expiredThreshold;
         }
-    }
-
-    /**
-     * Forgets every event that has been observed.
-     */
-    public void clear() {
-        observedEvents.clear();
     }
 }

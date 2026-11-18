@@ -33,6 +33,12 @@ import org.hiero.consensus.gossip.config.SyncConfig;
 final class ArrivalTimes {
 
     /**
+     * How many standard deviations the jitter is truncated at, either way. The earliest possible arrival time relies on
+     * the same bound, so a copy is only ever skipped if it could not have arrived first.
+     */
+    private static final double JITTER_SIGMAS = 3.0;
+
+    /**
      * The instant the simulation starts at, which the times kept internally are measured from.
      */
     private final Instant start;
@@ -119,7 +125,7 @@ final class ArrivalTimes {
     long propose(final int sender, final int receiver, @NonNull final MessageRoute kind, final long now) {
         // Simulate network latency and jitter using truncated Gaussian distribution
         final double sigma = links.jitterSigma(sender, receiver);
-        final double jitter = Math.clamp(random.nextGaussian() * sigma, -3 * sigma, 3 * sigma);
+        final double jitter = Math.clamp(random.nextGaussian() * sigma, -JITTER_SIGMAS * sigma, JITTER_SIGMAS * sigma);
         long arrivalTime = now + links.latency(sender, receiver) + (long) jitter;
         if (kind == MessageRoute.SYNC) {
             arrivalTime += syncDelay(sender, receiver, now);
@@ -152,7 +158,7 @@ final class ArrivalTimes {
      */
     long earliestPossible(final int sender, final int receiver, @NonNull final MessageRoute kind, final long now) {
         final double sigma = links.jitterSigma(sender, receiver);
-        return expected(sender, receiver, kind, now) - (long) (3 * sigma);
+        return expected(sender, receiver, kind, now) - (long) (JITTER_SIGMAS * sigma);
     }
 
     /**

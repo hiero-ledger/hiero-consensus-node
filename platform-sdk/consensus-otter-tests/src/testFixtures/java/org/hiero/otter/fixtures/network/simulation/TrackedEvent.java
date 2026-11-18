@@ -20,9 +20,10 @@ import org.hiero.consensus.model.event.PlatformEvent;
 final class TrackedEvent {
 
     /**
-     * Stands for the arrival time of a copy that is not on its way.
+     * Stands for the arrival time when no copy is counted as on its way to a node. A copy can still be in flight then:
+     * the creator's own copy over a link that is down is held, and only counted once the link comes back.
      */
-    static final long NOT_SENT = Long.MAX_VALUE;
+    static final long NONE_COUNTED = Long.MAX_VALUE;
 
     /**
      * One of the submitted instances of the event, which copies to send are made from.
@@ -46,8 +47,9 @@ final class TrackedEvent {
     private final BitSet submitters = new BitSet();
 
     /**
-     * The time the earliest copy that is on its way to a node arrives, indexed by the rank of the node, or
-     * {@link #NOT_SENT} if there is none. It stays set once that copy has arrived.
+     * The time the earliest copy counted as on its way to a node arrives, indexed by the rank of the node, or
+     * {@link #NONE_COUNTED} if there is none. It stays set once that copy has arrived, so that later copies are not
+     * sent, and is only reset when the copy will not arrive after all.
      */
     private final long[] earliestArrivals;
 
@@ -74,7 +76,7 @@ final class TrackedEvent {
         this.creator = creator;
         earliestArrivals = new long[nodeCount];
         earliestSenders = new int[nodeCount];
-        Arrays.fill(earliestArrivals, NOT_SENT);
+        Arrays.fill(earliestArrivals, NONE_COUNTED);
         Arrays.fill(earliestSenders, -1);
     }
 
@@ -110,20 +112,21 @@ final class TrackedEvent {
     }
 
     /**
-     * Gets the time the earliest copy that is on its way to a node arrives.
+     * Gets the time the earliest copy counted as on its way to a node arrives. The time stays the same once that copy
+     * has arrived.
      *
      * @param receiver the rank of the node
-     * @return the arrival time, or {@link #NOT_SENT} if no copy is on its way
+     * @return the arrival time, which may have passed, or {@link #NONE_COUNTED} if no copy is counted
      */
     long earliestArrival(final int receiver) {
         return earliestArrivals[receiver];
     }
 
     /**
-     * Gets the node that sent the earliest copy that is on its way to a node.
+     * Gets the node that sent the earliest copy counted as on its way to a node, see {@link #earliestArrival(int)}.
      *
      * @param receiver the rank of the node
-     * @return the rank of the sender, or {@code -1} if no copy is on its way
+     * @return the rank of the sender, or {@code -1} if no copy is counted
      */
     int earliestSender(final int receiver) {
         return earliestSenders[receiver];
@@ -142,13 +145,27 @@ final class TrackedEvent {
     }
 
     /**
-     * Forgets the copies that are on their way to a node, because they will not arrive.
+     * Forgets the copies counted as on their way to a node, because they will not arrive.
      *
      * @param receiver the rank of the node
      */
     void resetEarliest(final int receiver) {
-        earliestArrivals[receiver] = NOT_SENT;
+        earliestArrivals[receiver] = NONE_COUNTED;
         earliestSenders[receiver] = -1;
+    }
+
+    /**
+     * Records that a node has submitted the event, and so has it.
+     *
+     * @param submitter the rank of the node
+     * @return {@code true} if the node had not submitted the event before
+     */
+    boolean addSubmitter(final int submitter) {
+        if (submitters.get(submitter)) {
+            return false;
+        }
+        submitters.set(submitter);
+        return true;
     }
 
     /**

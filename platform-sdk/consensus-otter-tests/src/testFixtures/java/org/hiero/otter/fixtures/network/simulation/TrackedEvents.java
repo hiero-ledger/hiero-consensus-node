@@ -15,8 +15,9 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * {@link TrackedEvent}.
  *
  * <p>The events are kept twice: by descriptor in an {@link EventDeduplicator}, which recognizes repeated submissions
- * and finds the event of an instance in flight, and in submission order in a log, which a restarted node is sent
- * again from. Both are pruned by the event window of the node that is furthest behind.
+ * and finds the event of an instance in flight, and in submission order in a log, which is walked to send a node
+ * everything again when it restarts, and to send the nodes of a link that comes up what they lack. Both are pruned by
+ * the event window of the node that is furthest behind.
  *
  * <p>This class is not safe to use from more than one thread.
  */
@@ -41,8 +42,8 @@ final class TrackedEvents {
     private final EventDeduplicator deduplicator;
 
     /**
-     * The tracked events, one entry for each event and signature, in the order they were first submitted. Kept only to
-     * send everything again to a node that restarts; nothing is read from it in normal operation.
+     * The tracked events, one entry for each event and signature, in the order they were first submitted. Nothing is
+     * read from it while every link stays up; it is walked when a node restarts and when a link comes up.
      */
     private final CursoredLog<TrackedEvent> eventLog = new CursoredLog<>(
             ConsensusConstants.ROUND_FIRST,
@@ -67,7 +68,8 @@ final class TrackedEvents {
 
     /**
      * Records the submission of an event by a node, see {@link EventDeduplicator#addIfUnique(PlatformEvent, int)}.
-     * An event that is submitted for the first time is added to the log.
+     * An event that is submitted for the first time is added to the log, unless it is too old to be tracked, in which
+     * case the log would no longer accept it.
      *
      * @param event     the submitted event
      * @param submitter the rank of the node that submitted it
@@ -76,7 +78,7 @@ final class TrackedEvents {
     @Nullable
     TrackedEvent addIfUnique(@NonNull final PlatformEvent event, final int submitter) {
         final TrackedEvent tracked = deduplicator.addIfUnique(event, submitter);
-        if (tracked != null && tracked.markLogged()) {
+        if (tracked != null && event.getBirthRound() > lastPrunedBirthRound && tracked.markLogged()) {
             eventLog.add(tracked);
         }
         return tracked;

@@ -55,11 +55,16 @@ final class LinkStates {
 
     /**
      * Is told about each link that has come up or gone down.
+     *
+     * <p>When new connection data changes several links at once, the state of all of them is settled before the
+     * listener is told about any, and it is told in three rounds: first about every link that has come up, then about
+     * every link that has gone down, and last, again, about every link that has come up, so that it can send what the
+     * nodes of the link lack. Within a round the links are taken in rank order.
      */
     interface LinkListener {
 
         /**
-         * Called for a link that has come up.
+         * Called for a link that has come up. Its reconnect delay has been started already.
          *
          * @param first  the rank of the node of the link that comes first in roster order
          * @param second the rank of the other node of the link
@@ -73,6 +78,15 @@ final class LinkStates {
          * @param second the rank of the other node of the link
          */
         void linkWentDown(int first, int second);
+
+        /**
+         * Called again for a link that has come up, once the listener has been told about every link that has come up
+         * or gone down.
+         *
+         * @param first  the rank of the node of the link that comes first in roster order
+         * @param second the rank of the other node of the link
+         */
+        void catchUpOverLink(int first, int second);
 
         /**
          * Called for a link that is up when one of its nodes restarts. The link has been up all along, but the restarted
@@ -176,10 +190,10 @@ final class LinkStates {
      * Replaces the connection data, and works out what that means for every link.
      *
      * <p>The new state is compared with the old one link by link. A link that has gone down loses any reconnect delay it
-     * was waiting out, so that nothing gets through it before a full delay has passed after it next comes up. The
-     * listener is told about every link that has come up, in rank order, so that it can start the reconnect delay of
-     * the link with {@link #startReconnectDelay(int, int, long)} and do whatever else a new link calls for. It is told
-     * about every link that has gone down too, with the new state of all links already in place.
+     * was waiting out, so that nothing gets through it before a full delay has passed after it next comes up. A link
+     * that has come up starts its reconnect delay, see {@link #startReconnectDelay(int, int, long)}, with the reconnect
+     * delays drawn in rank order. Only then is the listener told about the links that have come up or gone down, see
+     * {@link LinkListener} for the order, so that it sees the new state of all links.
      *
      * <p>The first connection data is taken to describe links that are already established, so the listener is not told
      * about any link for it.
@@ -238,15 +252,54 @@ final class LinkStates {
             return;
         }
 
+        // Every link is settled before the listener is told about any, so that what it sends over one link already
+        // sees the reconnect delays of all the links that have come up together with it. A link that was down already
+        // has no reconnect delay pending, so only the links that have just gone down lose theirs.
+        forEachLinkThatWentDown((first, second) -> setForLink(reconnectReadyAt, first, second, START));
+        forEachLinkThatCameUp((first, second) -> startReconnectDelay(first, second, now));
+        forEachLinkThatCameUp(listener::linkCameUp);
+        forEachLinkThatWentDown(listener::linkWentDown);
+        forEachLinkThatCameUp(listener::catchUpOverLink);
+    }
+
+    /**
+     * Something done to a link.
+     */
+    @FunctionalInterface
+    private interface LinkAction {
+
+        /**
+         * @param first  the rank of the node of the link that comes first in roster order
+         * @param second the rank of the other node of the link
+         */
+        void apply(int first, int second);
+    }
+
+    /**
+     * Does something to every link that has come up with the latest connection data, in rank order.
+     *
+     * @param action what to do to each of them
+     */
+    private void forEachLinkThatCameUp(@NonNull final LinkAction action) {
         for (int first = 0; first < nodeCount; first++) {
             for (int second = first + 1; second < nodeCount; second++) {
-                if (!linkUp[first][second]) {
-                    setForLink(reconnectReadyAt, first, second, START);
-                    if (wasLinkUp[first][second]) {
-                        listener.linkWentDown(first, second);
-                    }
-                } else if (!wasLinkUp[first][second]) {
-                    listener.linkCameUp(first, second);
+                if (linkUp[first][second] && !wasLinkUp[first][second]) {
+                    action.apply(first, second);
+                }
+            }
+        }
+    }
+
+    /**
+     * Does something to every link that has gone down with the latest connection data, in rank order.
+     *
+     * @param action what to do to each of them
+     */
+    private void forEachLinkThatWentDown(@NonNull final LinkAction action) {
+        for (int first = 0; first < nodeCount; first++) {
+            for (int second = first + 1; second < nodeCount; second++) {
+                if (!linkUp[first][second] && wasLinkUp[first][second]) {
+                    action.apply(first, second);
                 }
             }
         }

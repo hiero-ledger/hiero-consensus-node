@@ -444,8 +444,9 @@ class SimulatedNetworkConnectivityTest {
 
         assertThat(node2.receivedEvents).hasSize(1);
         assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
-        // node 1 is sent the copy of node 2, because the one that it forwarded itself does not count
+        // node 0 created the event and gets it back as an echo only once, from node 1: node 2's copy arrives later
         assertThat(node0.receivedEvents).hasSize(1);
+        assertThat(node0.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
     }
 
     @Test
@@ -522,6 +523,52 @@ class SimulatedNetworkConnectivityTest {
 
         assertThat(node2.receivedEvents).hasSize(1);
         assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
+    }
+
+    @Test
+    @DisplayName("a copy held on one of several links that come back together is not sent again over another")
+    void heldCopyIsCountedWhenSeveralLinksComeBack() {
+        final Map<ConnectionKey, ConnectionState> partial = connections(true);
+        cut(partial, NODE_0, NODE_2);
+        cut(partial, NODE_1, NODE_2);
+        network.setConnections(partial);
+
+        // node 1's own copy to node 2 is held, and node 0 does not forward the event to node 2 while their link is down
+        final PlatformEvent event = submit(NODE_1);
+        tickTo(1);
+        tickTo(200);
+        forward(event, NODE_0);
+        tickTo(201);
+
+        // both links of node 2 come back at once; the link of node 0 and node 2 is dealt with first
+        network.setConnections(connections(true));
+        tickTo(202);
+        tickTo(5000);
+
+        assertThat(node2.receivedEvents).hasSize(1);
+        assertThat(node2.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
+    }
+
+    @Test
+    @DisplayName("without echoes a restarted node is still sent its own events again")
+    void restartedNodeGetsOwnEventsWithoutEchoes() {
+        createNetwork(0, false);
+        network.setConnections(connections(true));
+
+        final PlatformEvent event = submit(NODE_0);
+        tickTo(1);
+        tickTo(200);
+        forward(event, NODE_1);
+        tickTo(201);
+        tickTo(2000);
+        assertThat(node0.receivedEvents).isEmpty();
+
+        network.nodeRestarted(NODE_0);
+        tickTo(2001);
+        tickTo(5000);
+
+        assertThat(node0.receivedEvents).hasSize(1);
+        assertThat(node0.receivedEvents.getFirst().getSenderId()).isEqualTo(NODE_1);
     }
 
     @Test

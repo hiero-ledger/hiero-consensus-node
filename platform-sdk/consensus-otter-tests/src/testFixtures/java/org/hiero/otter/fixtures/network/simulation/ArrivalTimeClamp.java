@@ -33,23 +33,9 @@ final class ArrivalTimeClamp {
 
     /**
      * Gets the arrival time to use for a copy: the proposed time, or one nanosecond after the previous copy of the
-     * same kind on the same connection if the proposal would be earlier than that.
-     *
-     * @param senderRank   the rank of the node at the sending end of the connection
-     * @param receiverRank the rank of the node at the receiving end of the connection
-     * @param kind         the kind of copy
-     * @param proposed     the arrival time the copy would have without clamping
-     * @return the time the copy arrives
-     */
-    long clamp(final int senderRank, final int receiverRank, @NonNull final MessageRoute kind, final long proposed) {
-        final long arrival = peek(senderRank, receiverRank, kind, proposed);
-        commit(senderRank, receiverRank, kind, arrival);
-        return arrival;
-    }
-
-    /**
-     * Gets the arrival time {@link #clamp(int, int, MessageRoute, long)} would return, without recording it as the
-     * last one handed out. For a copy that may turn out not to be sent.
+     * same kind on the same connection if the proposal would be earlier than that. The time is not recorded as the
+     * last one handed out until it is passed to {@link #commit(int, int, MessageRoute, long)}, so that a copy that
+     * turns out not to be sent does not hold up the ones after it.
      *
      * @param senderRank   the rank of the node at the sending end of the connection
      * @param receiverRank the rank of the node at the receiving end of the connection

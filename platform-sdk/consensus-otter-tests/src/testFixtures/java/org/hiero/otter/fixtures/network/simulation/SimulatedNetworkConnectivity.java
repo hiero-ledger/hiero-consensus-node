@@ -53,7 +53,7 @@ import org.hiero.otter.fixtures.util.CursoredLog.Cursor;
  * network: it is created when the network starts and discarded when the network is shut down. A network with other
  * nodes, for example after a roster change, is run by a new instance.
  */
-public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.LinkListener {
+public class SimulatedNetworkConnectivity implements GossipNetwork {
 
     /**
      * The random number generator to use for simulating network delays.
@@ -147,6 +147,32 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * Decides which copies of the submitted events are sent.
      */
     private final EventRouter router;
+
+    /**
+     * Is told by {@link #links} about the links that come up, go down or restart. A field rather than this class
+     * implementing the interface, so that the methods it calls stay private.
+     */
+    private final LinkStates.LinkListener linkListener = new LinkStates.LinkListener() {
+        @Override
+        public void linkCameUp(final int first, final int second) {
+            onLinkCameUp(first, second);
+        }
+
+        @Override
+        public void linkWentDown(final int first, final int second) {
+            onLinkWentDown(first, second);
+        }
+
+        @Override
+        public void catchUpOverLink(final int first, final int second) {
+            onCatchUpOverLink(first, second);
+        }
+
+        @Override
+        public void linkRestarted(final int first, final int second) {
+            onLinkRestarted(first, second);
+        }
+    };
 
     /**
      * Constructor using the default production broadcast and sync settings, in which a node receives copies of its own
@@ -284,28 +310,39 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      */
     public void setConnections(@NonNull final Map<ConnectionKey, ConnectionState> newConnections) {
         // links come up in rank order, so that the random numbers drawn for them are drawn in a reproducible order
-        links.update(newConnections, this::rankOf, currentTime, this);
+        links.update(newConnections, this::rankOf, currentTime, linkListener);
     }
 
     /**
-     * Called for a link that has come up.
-     * <p>
-     * Establishes the connection of a link that has just come up, see {@link #linkRestarted(int, int)}, and sends each
-     * of its ends the events it lacks, see {@link EventRouter#linkCameUp(int, int, long)}.
+     * Called for a link that has come up, whose reconnect delay has been started already. Sends each of its ends the
+     * other's latest event window, as is done when a real connection is established, and counts what is held on the
+     * link as on its way, see {@link EventRouter#countHeldOnLink(int, int)}.
      *
      * @param first  the rank of the node of the link that comes first in roster order
      * @param second the rank of the other node of the link
      */
-    public void linkCameUp(final int first, final int second) {
-        linkRestarted(first, second);
-        router.setReceiverWindow(first, eventWindows.latest(first));
-        router.setReceiverWindow(second, eventWindows.latest(second));
-        router.linkCameUp(first, second, currentTime);
+    private void onLinkCameUp(final int first, final int second) {
+        resendEventWindow(first, second);
+        resendEventWindow(second, first);
+        router.countHeldOnLink(first, second);
     }
 
     /**
-     * Establishes the connection of a link again: starts its reconnect delay and sends each of its ends the other's
-     * latest event window.
+     * Called again for a link that has come up, once every link that changed with it has been dealt with. Sends each of
+     * its ends the events it lacks, see {@link EventRouter#catchUpOverLink(int, int, long)}.
+     *
+     * @param first  the rank of the node of the link that comes first in roster order
+     * @param second the rank of the other node of the link
+     */
+    private void onCatchUpOverLink(final int first, final int second) {
+        router.setReceiverWindow(first, eventWindows.latest(first));
+        router.setReceiverWindow(second, eventWindows.latest(second));
+        router.catchUpOverLink(first, second, currentTime);
+    }
+
+    /**
+     * Called for a link that is up when one of its nodes restarts: establishes the connection of the link again, by
+     * starting its reconnect delay and sending each of its ends the other's latest event window.
      *
      * <p>This is all a link that is up needs when one of its nodes restarts. The link was up all along, so the peer
      * lacks nothing because of it, and the restarted node is sent every event again on the next tick, see
@@ -314,7 +351,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * @param first  the rank of the node of the link that comes first in roster order
      * @param second the rank of the other node of the link
      */
-    public void linkRestarted(final int first, final int second) {
+    private void onLinkRestarted(final int first, final int second) {
         links.startReconnectDelay(first, second, currentTime);
         resendEventWindow(first, second);
         resendEventWindow(second, first);
@@ -327,7 +364,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * @param sender   the rank of the node whose latest event window is sent
      * @param receiver the rank of the node it is sent to
      */
-    public void resendEventWindow(final int sender, final int receiver) {
+    private void resendEventWindow(final int sender, final int receiver) {
         final NodeId senderId = roster.nodeIdAtIndex(sender);
         final EventWindow eventWindow = eventWindows.latest(sender);
         final Instant arrivalTime =
@@ -436,8 +473,8 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      */
     public void tick(@NonNull final Instant now) {
         currentTime = InFlightQueue.nanosSince(start, now);
-        // The oldest event window is applied first, so that the window the tracked events are discarded by matches the
-        // range of birth rounds the log still accepts when the submissions are appended.
+        // Expired events are forgotten before this tick's submissions are scheduled, so that none of them is tracked or
+        // sent again.
         applyOldestEventWindow();
         // Events are delivered before new ones are scheduled, so that an event always spends at least one tick in
         // flight. Scheduling first would let a connection configured with no latency deliver an event in the same
@@ -533,14 +570,13 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
     }
 
     /**
-     * Called for a link that has gone down.
-     * <p>
-     * Sends again what was in flight on a link that has gone down, see {@link EventRouter#linkWentDown(int, int, long)}.
+     * Called for a link that has gone down. Sends again what was in flight on it, see
+     * {@link EventRouter#linkWentDown(int, int, long)}.
      *
      * @param first  the rank of the node of the link that comes first in roster order
      * @param second the rank of the other node of the link
      */
-    public void linkWentDown(final int first, final int second) {
+    private void onLinkWentDown(final int first, final int second) {
         router.setReceiverWindow(first, eventWindows.latest(first));
         router.setReceiverWindow(second, eventWindows.latest(second));
         router.linkWentDown(first, second, currentTime);
@@ -552,7 +588,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
      * {@link EventRouter#resendTo(TrackedEvent, int, long)}.
      *
      * <p>Everything in flight towards the node is discarded here. Each of the node's links that is up has to establish
-     * its connection again, see {@link #linkRestarted(int, int)}.
+     * its connection again, see {@link #onLinkRestarted(int, int)}.
      *
      * @param nodeId the id of the node that has restarted
      */
@@ -563,7 +599,7 @@ public class SimulatedNetworkConnectivity implements GossipNetwork, LinkStates.L
         for (final InFlightConnections<?> inFlight : inFlightInDeliveryOrder) {
             inFlight.clearIncoming(node);
         }
-        links.restartLinksOf(node, this);
+        links.restartLinksOf(node, linkListener);
     }
 
     /**
