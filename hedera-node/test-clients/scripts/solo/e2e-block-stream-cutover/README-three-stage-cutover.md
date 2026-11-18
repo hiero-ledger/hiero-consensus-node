@@ -14,7 +14,7 @@ All pinned versions sit together at the top of the script:
 | `CN_BASELINE_RELEASE_TAG`  | v0.78.1                             | Published CN release deployed at genesis (alias: `DEPLOY_RELEASE_TAG`) |
 | `BLOCK_NODE_TOOLS_REF`     | `block-node-version` in `.citr-env` | `hiero-block-node` tag for the offline `blocks wrap` CLI and BN protos |
 | `BLOCK_NODE_CHART_VERSION` | `block-node-version` in `.citr-env` | Block Node chart/image deployed after stage 2 and kept through cutover |
-| `MIRROR_NODE_VERSION`      | v0.165.2-rc1                        | Mirror node deployed before stage 2 and kept through cutover           |
+| `MIRROR_NODE_VERSION`      | v0.167.0                            | Mirror node deployed before stage 2 and kept through cutover           |
 
 Every stage explicitly preserves Solo's local-network settings: `contracts.chainId=298` and
 `nodes.gossipFqdnRestricted=false`. An upgrade replaces `application.properties`; omitting these
@@ -39,7 +39,7 @@ block and verifies the previous root, subtree hashes, and leaf count on every no
 (`BLOCK_NODE_CHART_VERSION`) is deployed only after the jumpstart + TSS upgrade and remains at that version through cutover
 unless `BLOCK_NODE_UPGRADE_VERSION` explicitly requests a different version.
 
-MN is deployed once at **v0.165.2-rc1** and stays at that version through all three stages.
+MN is deployed once at **v0.167.0** and stays at that version through all three stages.
 The CN's TSS library (3.19+) no longer publishes the WRAPS verification key in
 `LedgerIdPublicationTransactionBody`; the key ships inside the cryptography library. MN
 v0.165.0-rc1 (TSS 3.15) still reads the key from the publication and rejects every block-stream
@@ -140,7 +140,7 @@ processing: the importer uses a 512 MiB request and 1 GiB limit (2 CPUs); gRPC a
 use a 256 MiB request and 512 MiB limit (1 CPU). Override memory with
 `MIRROR_IMPORTER_MEMORY_REQUEST` / `MIRROR_IMPORTER_MEMORY_LIMIT`,
 `MIRROR_GRPC_MEMORY_REQUEST` / `MIRROR_GRPC_MEMORY_LIMIT`, and
-`MIRROR_WEB3_MEMORY_REQUEST` / `MIRROR_WEB3_MEMORY_LIMIT`. MN remains v0.165.2-rc1.
+`MIRROR_WEB3_MEMORY_REQUEST` / `MIRROR_WEB3_MEMORY_LIMIT`. MN remains v0.167.0.
 The REST service uses a 256 MiB / 100m request and a 512 MiB / 2 CPU limit, configurable with
 `MIRROR_REST_MEMORY_REQUEST` / `MIRROR_REST_MEMORY_LIMIT`. Failure diagnostics retain
 both current and previous REST logs and its pod description to distinguish restart causes.
