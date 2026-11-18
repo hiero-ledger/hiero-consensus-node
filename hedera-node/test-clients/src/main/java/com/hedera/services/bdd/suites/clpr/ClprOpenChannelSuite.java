@@ -197,7 +197,7 @@ public class ClprOpenChannelSuite {
                                 ContractID.newBuilder().setContractNum(366).build())
                         .configProofBytes(defaultConfigProofBytes())
                         .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_NOT_ENABLED));
+                        .hasPrecheck(CLPR_NOT_ENABLED));
     }
 
     // ── Embedded-state regression tests ─────────────────────────────────────
@@ -254,7 +254,7 @@ public class ClprOpenChannelSuite {
 
     /**
      * Synthetic config proof bytes for the passthrough verifier path; spec refs §3.1
-     * (verifyConfig contract) and §5.1.3 (completeChannel consumes the verifier output).
+     * (verifyConfig contract) and §5.1.3 (openChannel consumes the verifier output).
      */
     private static byte[] defaultConfigProofBytes() {
         return ClprTestProofs.toConfigProofBytes(ClprLedgerConfiguration.newBuilder()

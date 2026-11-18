@@ -722,12 +722,12 @@ message TransactionBody {
         com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody clprUpdateLedgerConfiguration = 82;
 
         /**
-         * Phase 1 (Commit): Claim a CLPR Channel ID. Creates in PENDING state.
+         * Historical channel setup transaction. New channels use clprOpenChannel.
          */
         com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody clprRegisterChannel = 83;
 
         /**
-         * Phase 2 (Reveal): Complete a PENDING Channel. Transitions to ACTIVE.
+         * Historical channel setup transaction. New channels use clprOpenChannel.
          */
         com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody clprCompleteChannel = 84;
 

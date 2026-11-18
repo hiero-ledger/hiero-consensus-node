@@ -22,7 +22,6 @@
 # Optional env (defaults shown):
 #   SMART_CONTRACTS_REPO  ../../../../../clpr-smart-contracts  (sibling repo)
 #   CHAIN_ID              auto-detect from $SMART_CONTRACTS_REPO/deployments/
-#   PEER_PK               0x00…00A11CE   (CreateChannel.s.sol default)
 #   CONNECTOR_PK          0x00…00C044EC  (CreateConnector.s.sol default)
 #   PEER_CHAIN_ID         read from channel.json's peerChainId
 #   NET                   localhost
@@ -46,7 +45,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Walk up 4 levels to land on the hiero repo root (so REPO_ROOT/hedera-node exists).
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 
-# yahcli launcher + gen-channel-identity helper live two levels up (the yahcli/
+# yahcli launcher lives two levels up (the yahcli/
 # directory). Override with YAHCLI_DIR=/path if running against a non-standard
 # layout.
 YAHCLI_DIR="$(cd "${YAHCLI_DIR:-${SCRIPT_DIR}/../..}" && pwd)"
@@ -89,7 +88,6 @@ CONFIG_LOCAL="${CONFIG_LOCAL:-${YAHCLI_DIR}/ledger-config.json}"
 
 # Scratch + log dirs stay next to this script — they're per-run artifacts, no
 # reason to put them inside the yahcli dir where they'd collide with other tooling.
-CHANNEL_FILE="${SCRIPT_DIR}/.bridge/channel.json"
 CONNECTOR_FILE="${SCRIPT_DIR}/.bridge/connector.json"
 QBFT_CONFIG_PAYLOAD="${SCRIPT_DIR}/.bridge/besu-config-payload.bin"
 LOG_DIR="${SCRIPT_DIR}/.run-logs-bridge"
@@ -111,13 +109,8 @@ die()    { printf "${RED}     FAIL${RESET} %s\n" "$*" >&2; exit 1; }
 
 # Identity keys come from files (never from env vars or the command line). Unset = the well-known
 # dev defaults that match the clpr-smart-contracts scripts.
-if [[ -n "${PEER_PK:-}" || -n "${CONNECTOR_PK:-}" ]]; then
-    die "PEER_PK / CONNECTOR_PK are no longer supported; put each key in a 0600 file and set PEER_PK_FILE / CONNECTOR_PK_FILE"
-fi
-if [[ -n "${PEER_PK_FILE:-}" ]]; then
-    PEER_PK_HEX="$(kf_read_key_file "${PEER_PK_FILE}")" || die "bad PEER_PK_FILE"
-else
-    PEER_PK_HEX="0x00000000000000000000000000000000000000000000000000000000000a11ce"
+if [[ -n "${CONNECTOR_PK:-}" ]]; then
+    die "Use CONNECTOR_PK_FILE to supply the connector key"
 fi
 if [[ -n "${CONNECTOR_PK_FILE:-}" ]]; then
     CONNECTOR_PK_HEX="$(kf_read_key_file "${CONNECTOR_PK_FILE}")" || die "bad CONNECTOR_PK_FILE"
@@ -181,7 +174,6 @@ header "Preflight"
 [[ -d "${YAHCLI_DIR}" ]]              || die "yahcli directory not found at ${YAHCLI_DIR}; set YAHCLI_DIR=/path/to/yahcli"
 [[ -x "${YAHCLI_DIR}/yahcli" ]]       || die "missing ${YAHCLI_DIR}/yahcli launcher"
 [[ -f "${YAHCLI_DIR}/yahcli.jar" ]]   || die "missing yahcli.jar — (cd ${REPO_ROOT} && ./gradlew :yahcli:copyYahCli)"
-[[ -x "${SCRIPT_DIR}/gen-channel-identity.sh" ]] || die "missing gen-channel-identity.sh in ${SCRIPT_DIR}"
 [[ -f "${CONFIG_LOCAL}" ]]            || die "missing local ledger-config: ${CONFIG_LOCAL}"
 [[ -f "${PASS_THROUGH_AUTH}" ]]       || die "missing PassThroughAuth.bin at ${PASS_THROUGH_AUTH}"
 [[ -n "${VERIFIER_CONTRACT:-}" ]]     || die "VERIFIER_CONTRACT env var is required (id of pre-deployed Besu-QBFT verifier on this Hiero net)"
@@ -289,7 +281,6 @@ echo "  CONNECTOR_ID   : ${CONNECTOR_ID}"
 echo "  VALIDATOR      : ${VALIDATOR}"
 echo "  CODE_HASH      : ${CODE_HASH}"
 echo "  PEER_CHAIN_ID  : ${PEER_CHAIN_ID}"
-echo "  PEER_PK        : (set; not printed)"
 echo "  CONNECTOR_PK   : (set; not printed)"
 ok "Besu state resolved"
 
@@ -392,29 +383,14 @@ CONFIG_PROOF_HEX="$(echo "${PAYLOAD_OUT}" | awk '/^qbft_ledger_configuration_pay
 note "config-proof payload: ${QBFT_CONFIG_PAYLOAD}"
 note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}…"
 
-# ─── [3/9] Generate channel identity bundle ────────────────────────────
-header "[3/9] generate channel identity (using PEER_PK from smart-contracts side)"
-kf_write_key_file "${CHANNEL_FILE}.key" "${PEER_PK_HEX}"
-"${SCRIPT_DIR}/gen-channel-identity.sh" \
-    --channel-id "${CHANNEL_ID}" \
-    --key-file   "${CHANNEL_FILE}.key" \
-    --out        "${CHANNEL_FILE}" >/dev/null
-CHANNEL_COMMIT="$(jq -r '.ownershipCommitment' "${CHANNEL_FILE}")"
-[[ -n "${CHANNEL_COMMIT}" && "${CHANNEL_COMMIT}" != "null" ]] || die "no ownershipCommitment in ${CHANNEL_FILE}"
-note "ownershipCommitment: ${CHANNEL_COMMIT}"
-
-# ─── [4/9] register-channel on Hiero ───────────────────────────────────
-header "[4/9] register-channel on ${NET}"
-yh "register-channel" "${LOG_DIR}/04-register-conn.log" \
+# Use the same salt and EVM-side verifier used when the EVM channel was opened.
+: "${CHANNEL_SALT:?Set CHANNEL_SALT to the EVM channel salt (32-byte hex)}"
+: "${EVM_VERIFIER_ADDRESS:?Set EVM_VERIFIER_ADDRESS to the verifier on the EVM ledger (20-byte hex)}"
+header "open-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
+yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "open-channel" "${LOG_DIR}/05-complete-conn.log" \
     -n "${NET}" -p "${PAYER}" \
-    clpr register-channel --commitment "${CHANNEL_COMMIT}"
-
-# ─── [5/9] complete-channel on Hiero ───────────────────────────────────
-header "[5/9] complete-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
-yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "complete-channel" "${LOG_DIR}/05-complete-conn.log" \
-    -n "${NET}" -p "${PAYER}" \
-    clpr complete-channel \
-        --identity "${CHANNEL_FILE}" \
+    clpr open-channel \
+        --channel-id "${CHANNEL_ID}" --salt "${CHANNEL_SALT}" --peer-verifier "${EVM_VERIFIER_ADDRESS}" \
         --verifier-contract "${VERIFIER_CONTRACT}" \
         --config-proof-hex "${CONFIG_PROOF_HEX}"
 
@@ -479,7 +455,6 @@ cat <<EOF
     Network            : ${NET}
     Verifier contract  : ${VERIFIER_CONTRACT}
     Connector contract : ${CONNECTOR_CONTRACT}
-    Channel bundle  : ${CHANNEL_FILE}
     Connector bundle   : ${CONNECTOR_FILE}
 
   Per-step logs        : ${LOG_DIR}/

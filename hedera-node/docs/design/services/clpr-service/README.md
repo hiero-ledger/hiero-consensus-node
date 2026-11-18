@@ -2,7 +2,7 @@
 
 ## Opening a channel
 
-Submit `ClprTransactionService.openChannel` with the expected channel ID, a 32-byte salt, the local verifier contract, the peer verifier address in its native byte encoding, and the peer configuration and endpoint-manifest proofs. The local verifier authenticates the peer chain ID and service address. The first successful open creates the channel in ACTIVE state. Both ledgers must use the same salt.
+Submit `proto.ClprService/openChannel` with the expected channel ID, a 32-byte salt, the local verifier contract, the peer verifier address in its native byte encoding, and the peer configuration and endpoint-manifest proofs. The local verifier authenticates the peer chain ID and service address. The first successful open creates the channel in ACTIVE state. Both ledgers must use the same salt.
 
 To compute the ID, hash each side's UTF-8 CAIP-2 chain ID, service address bytes, and verifier address bytes independently with Keccak-256. Concatenate the three hashes for each side in that order. Sort the two 96-byte results in unsigned lexicographic order, concatenate them, append the raw salt, and hash the resulting 224 bytes with Keccak-256. Hiero uses the 20-byte service address at 0x16e and its verifier's canonical 20-byte EVM address.
 

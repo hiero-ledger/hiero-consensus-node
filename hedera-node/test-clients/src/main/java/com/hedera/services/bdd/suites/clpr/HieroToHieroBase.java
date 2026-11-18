@@ -761,7 +761,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
             final int maxQueueDepth) {
         final AtomicReference<ByteString> proofA = new AtomicReference<>();
         final AtomicReference<ByteString> proofB = new AtomicReference<>();
-        // Manifest-only mode: completeChannel and the verifyConfig probes both require each
+        // Manifest-only mode: openChannel and the verifyConfig probes both require each
         // ledger's endpoint-manifest StateProof, so capture and thread them like the HAPI TLS overload.
         final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
         final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
@@ -810,7 +810,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto,
      * int, int)} but additionally captures each ledger's manifest {@code StateProof} via the
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
-     * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
+     * {@code ClprOpenChannel} as {@code endpoint_manifest_proof_bytes} (required, since the
      * manifest-aware verifier ABI rejects an empty manifest proof). Dial targets, including each
      * network's HAPI TLS port and certificate, come from the captured manifests.
      *
@@ -1127,7 +1127,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      *
      * <p>{@code clprGetLedgerConfiguration} proves against a SIGNED block that lags committed state, so an
      * early capture can carry an empty trust anchor (the ledger_id isn't in the proven config yet) or a
-     * PRIOR install's throttles on a shared network. Both would make the peer's completeChannel verifyConfig
+     * PRIOR install's throttles on a shared network. Both would make the peer's openChannel verifyConfig
      * revert. This is decoded in-process (see {@link ClprTestProofs#decodeLedgerConfig}) rather than via a
      * verifier-precompile call, so it is not subject to the 6 KB contract-call size limit that the
      * config+manifest proofs together would exceed.

@@ -250,7 +250,7 @@ public final class ClprTestHelpers {
      * <p>The channel state contributes the {@code ClprQueueMetadata} fields the verifier
      * reconstructs from the proven channel leaf:
      * <ul>
-     *   <li>{@code next_message_id = 1} (matches {@code ClprCompleteChannelHandler} init)</li>
+     *   <li>{@code next_message_id = 1} (matches {@code ClprOpenChannelHandler} init)</li>
      *   <li>both running hashes initialised to 32 zero bytes</li>
      *   <li>{@code status = ACTIVE}</li>
      * </ul>

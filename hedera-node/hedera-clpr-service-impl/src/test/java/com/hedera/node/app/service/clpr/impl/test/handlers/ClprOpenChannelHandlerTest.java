@@ -631,7 +631,7 @@ class ClprOpenChannelHandlerTest {
     @Test
     void handleRollsBackAllStateOnInvalidManifestProof() {
         // Invalid endpoint_manifest_proof_bytes → verifier throws → no Channel persisted
-        // (spec: "Invalid proof → completeChannel fails; no partial state written").
+        // (spec: "Invalid proof → openChannel fails; no partial state written").
         final var op = ClprOpenChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .salt(SALT)

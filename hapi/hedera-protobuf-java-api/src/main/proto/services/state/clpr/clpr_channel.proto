@@ -135,12 +135,8 @@ message ClprChannel {
     proto.Timestamp last_config_timestamp = 13;
 
     /**
-     * The ownership commitment hash used during registration (keccak256 of
-     * channel_id || public_key). The commitment stays in the pending-commitments
-     * store for as long as this Channel record exists, so re-registering it is
-     * rejected with CLPR_CHANNEL_ALREADY_EXISTS. Channel records are kept
-     * in every status, including CLOSED; only a PENDING Channel record is ever
-     * deleted (by closeChannel), and its commitment is deleted with it.
+     * Historical ownership commitment for a channel created with the two-step protocol.
+     * Channels created by openChannel leave this field empty.
      */
     bytes ownership_commitment = 14;
 
@@ -192,7 +188,7 @@ message ClprChannel {
 
     /**
      * Version of the cached peer manifest.
-     * 0 = uninitialized (PENDING); >= 1 after completeChannel.
+     * 0 = uninitialized (PENDING); >= 1 after channel activation.
      */
     uint64 endpoint_manifest_version = 20;
 

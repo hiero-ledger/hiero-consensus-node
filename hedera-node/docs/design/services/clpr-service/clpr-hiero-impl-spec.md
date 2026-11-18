@@ -1,5 +1,7 @@
 # CLPR Hiero Implementation Specification
 
+Current channel setup uses a single `openChannel` transaction. See the [channel handler](handlers.md#clpropenchannelhandler) for the active flow. References below to channel registration and completion describe the earlier design.
+
 This document maps CLPR to Hiero's native constructs. The canonical
 [CLPR Protocol Specification](https://github.com/LFDT-CLPR/clpr-spec/blob/945082d69e65dd0fd9e9bdf8d59cb8121579f6fd/clpr-service-spec.md)
 is the normative source for protocol behavior, including channel lifecycle semantics; its requirements take

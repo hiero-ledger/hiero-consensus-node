@@ -1892,12 +1892,12 @@ enum HederaFunctionality {
     ClprUpdateLedgerConfiguration = 117;
 
     /**
-     * Register a new CLPR Channel to a peer ledger.
+     * Historical CLPR channel registration. Use ClprOpenChannel for new channels.
      */
     ClprRegisterChannel = 118;
 
     /**
-     * Complete a PENDING CLPR Channel (reveal phase).
+     * Historical CLPR channel completion. Use ClprOpenChannel for new channels.
      */
     ClprCompleteChannel = 119;
 
