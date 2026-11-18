@@ -406,13 +406,15 @@ jobs:
 
           halfcores=`expr ${{ github.event.inputs.cores }} / 2`
           ramminus1=`expr ${{ github.event.inputs.ram }} - 1`
-          ramminus16=`expr ${{ github.event.inputs.ram }} - 16`
+          ramminus2=`expr ${{ github.event.inputs.ram }} - 2`
+          ramminus4=`expr ${{ github.event.inputs.ram }} - 4`
           ramminus6=`expr ${{ github.event.inputs.ram }} - 6`
 
           sed -e "s@%CORES%@${{ github.event.inputs.cores }}@g" \
           -e "s@%HALFOFCORES%@${halfcores}@g" \
           -e "s@%RAMMINUS1%@${ramminus1}@g" \
-          -e "s@%RAMMINUS16%@${ramminus16}@g" \
+          -e "s@%RAMMINUS2%@${ramminus2}@g" \
+          -e "s@%RAMMINUS4%@${ramminus4}@g" \
           -e "s@%RAMMINUS6%@${ramminus6}@g" \
           init-containers-values4param.yaml > init-containers-values.yaml
 
