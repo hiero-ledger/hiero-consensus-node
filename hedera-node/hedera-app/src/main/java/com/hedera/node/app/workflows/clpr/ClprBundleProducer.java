@@ -202,7 +202,11 @@ final class ClprBundleProducer {
             @NonNull final Bytes anchor,
             final boolean includeEndpointManifest) {
         final var throttles = channel.peerThrottlesOrThrow();
-        final long maxPayloadBytes = ClprStateProofManager.maxBundlePayloadBytes(throttles);
+        // The same limits the native proof is built to, so both proof formats share one byte budget per channel
+        final long maxPayloadBytes =
+                ClprStateProofManager.maxBundlePayloadBytes(ClprStateProofManager.bundleLimits(snapshot, throttles));
+        // A first message that fits only under the peer's limit is sent on its own
+        final long peerMaxPayloadBytes = ClprStateProofManager.maxBundlePayloadBytes(throttles);
         final var signature = ClprHieroProofCodec.compactSignature(snapshot.tssSignature());
         final var signingKey = signature.slice(0, VK_LENGTH);
         final var signer = new ClprHieroProofCodec.CompactStateProof(signingKey, Bytes.EMPTY);
@@ -244,7 +248,8 @@ final class ClprBundleProducer {
         if (bundle != null) {
             final var compact = ClprHieroProofCodec.compactStateProof(bundle.payload());
             final var encoded = ClprHieroProofCodec.encodeStateProof(compact, batch.links());
-            if (encoded.length() <= maxPayloadBytes) {
+            final long allowedPayloadBytes = bundle.messageCount() == 1 ? peerMaxPayloadBytes : maxPayloadBytes;
+            if (encoded.length() <= allowedPayloadBytes) {
                 if (!stateProofManager.verifyHieroProof(encoded, anchor)) {
                     return skipCompactProof(INVALID_PROOF);
                 }

@@ -13,6 +13,7 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -26,6 +27,7 @@ import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -154,6 +156,31 @@ public class ClprStateProofManager {
     public static long maxBundlePayloadBytes(@NonNull final ClprThrottles peerThrottles) {
         return Math.max(CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES, peerThrottles.maxSyncBytes())
                 - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
+    }
+
+    /**
+     * Returns the limits bundles from the given snapshot are built to: the peer's throttles capped at this ledger's
+     * throttles in that snapshot. A first message that fits only under the peer's {@code max_sync_bytes} is still
+     * sent on its own.
+     *
+     * @param snapshot the snapshot the bundle is proven from
+     * @param peerThrottles the peer's throttles
+     * @return the throttles to build the bundle to, or the peer's if the snapshot's ledger configuration is unreadable
+     */
+    @NonNull
+    public static ClprThrottles bundleLimits(
+            @NonNull final BlockProvenSnapshot snapshot, @NonNull final ClprThrottles peerThrottles) {
+        requireNonNull(snapshot);
+        requireNonNull(peerThrottles);
+        if (!(snapshot.state() instanceof BinaryState binaryState)) {
+            return peerThrottles;
+        }
+        try {
+            return boundedByLocalThrottles(peerThrottles, localThrottles(binaryState));
+        } catch (final ParseException e) {
+            log.warn("Failed to read the local CLPR throttles from the snapshot: {}", e.getMessage());
+            return peerThrottles;
+        }
     }
 
     /**
@@ -585,6 +612,57 @@ public class ClprStateProofManager {
                 "[CLPR-BUNDLE-BUILD] endpoint manifest leaf included conn={} manifestPath={}", channelId, manifestPath);
     }
 
+    /**
+     * Returns the limits a bundle for the peer is built to: the peer's throttles, bounded by this ledger's own.
+     *
+     * <p>The peer publishes the throttles it accepts, but nothing bounds them from above, so a bundle built to them
+     * alone could be as large as the peer asks over an outbound queue of any length. This ledger's own throttles, which
+     * bound every bundle it accepts, also bound every bundle it builds:
+     * <ul>
+     *   <li>{@code max_messages_per_bundle} is the smaller of the two; the local one is always positive, so a bundle
+     *       still carries at least one message.</li>
+     *   <li>{@code max_sync_bytes} is the smaller of the two.</li>
+     * </ul>
+     *
+     * <p>A message admitted to the outbound queue under the peer's payload limit can need more than the local
+     * {@code max_sync_bytes}. The bundle builder therefore still sends the first message on its own when it fits only
+     * under the peer's {@code max_sync_bytes}, so the channel cannot stall on it.
+     *
+     * @param peerThrottles the peer's throttles
+     * @param localThrottles this ledger's throttles, or {@code null} if it has none, which leaves the peer's in force
+     * @return the throttles to build the bundle to
+     */
+    @NonNull
+    public static ClprThrottles boundedByLocalThrottles(
+            @NonNull final ClprThrottles peerThrottles, @Nullable final ClprThrottles localThrottles) {
+        requireNonNull(peerThrottles);
+        if (localThrottles == null) {
+            return peerThrottles;
+        }
+        return peerThrottles
+                .copyBuilder()
+                .maxMessagesPerBundle(
+                        Math.min(peerThrottles.maxMessagesPerBundle(), localThrottles.maxMessagesPerBundle()))
+                .maxSyncBytes(Math.min(peerThrottles.maxSyncBytes(), localThrottles.maxSyncBytes()))
+                .build();
+    }
+
+    /**
+     * Reads this ledger's throttles from the snapshot the bundle is proven from.
+     *
+     * @param binaryState the snapshot's state
+     * @return the throttles, or {@code null} if the ledger configuration or its throttles are absent
+     */
+    @Nullable
+    private static ClprThrottles localThrottles(@NonNull final BinaryState binaryState) throws ParseException {
+        final var raw = binaryState.getSingleton(LEDGER_CONFIGURATION_STATE_ID);
+        if (raw == null) {
+            return null;
+        }
+        final var ledgerConfig = ClprLedgerConfiguration.PROTOBUF.parseStrict(raw.toReadableSequentialData());
+        return ledgerConfig.throttles();
+    }
+
     private BundleProof buildProof(
             @NonNull final BinaryState binaryState,
             @NonNull final BlockProvenSnapshot snapshot,
@@ -594,11 +672,19 @@ public class ClprStateProofManager {
             final boolean allowPureAck,
             final boolean includeEndpointManifest,
             @NonNull final ToLongFunction<StateProof> payloadSize,
-            final boolean nativeProof) {
+            final boolean nativeProof)
+            throws ParseException {
 
-        final int maxMessages = peerThrottles.maxMessagesPerBundle();
-        final long maxSyncBytes = peerThrottles.maxSyncBytes();
-        final long maxBundlePayloadBytes = maxBundlePayloadBytes(peerThrottles);
+        final var localThrottles = localThrottles(binaryState);
+        // For logs: which side's max_sync_bytes stopped a message
+        final Object localMaxSyncBytes = localThrottles == null ? "none" : localThrottles.maxSyncBytes();
+        final var limits = boundedByLocalThrottles(peerThrottles, localThrottles);
+        final int maxMessages = limits.maxMessagesPerBundle();
+        final long maxSyncBytes = limits.maxSyncBytes();
+        final long maxBundlePayloadBytes = maxBundlePayloadBytes(limits);
+        // Only a first message that does not fit the capped limit on its own may use the peer's
+        final long peerMaxBundlePayloadBytes = maxBundlePayloadBytes(peerThrottles);
+        long appliedMaxBundlePayloadBytes = maxBundlePayloadBytes;
         log.debug(
                 "[CLPR-BUNDLE-BUILD] start conn={} firstMessageId={} maxMessages={} maxSyncBytes={} "
                         + "maxBundlePayloadBytes={} allowPureAck={} snapshotTimestamp={}",
@@ -697,22 +783,40 @@ public class ClprStateProofManager {
                     .paths(allPaths)
                     .signedBlockProof(tssProof)
                     .build());
+            if (candidateSize > maxBundlePayloadBytes
+                    && id == firstMessageId
+                    && candidateSize <= peerMaxBundlePayloadBytes) {
+                // The first message fits only under the peer's limit: send it on its own, so it cannot stall the
+                // channel, without packing other messages beyond the capped limit.
+                appliedMaxBundlePayloadBytes = peerMaxBundlePayloadBytes;
+                log.debug(
+                        "buildBundleStateProof: head message {} exceeds the local cap, sending it alone under the "
+                                + "peer max_sync_bytes (channel={} candidateBytes={} maxSyncBytes={} "
+                                + "peerMaxSyncBytes={})",
+                        id,
+                        channelId,
+                        candidateSize,
+                        maxSyncBytes,
+                        peerThrottles.maxSyncBytes());
+                break;
+            }
             if (candidateSize > maxBundlePayloadBytes) {
                 // Drop the last path and stop appending — it will be re-attempted next tick.
                 allPaths.removeLast();
                 messageLeafCount--;
                 if (nativeProof && id == firstMessageId) {
-                    // Head-of-queue message can't fit even alone: the channel is wedged. It will be
-                    // re-attempted (and fail) every sync tick, the peer never acks, the queue never
-                    // drains.
+                    // Head-of-queue message can't fit even alone under the peer's limit, the larger of the two:
+                    // the channel is wedged. It will be re-attempted (and fail) every sync tick, the peer never
+                    // acks, the queue never drains.
                     log.warn(
-                            "buildBundleStateProof: head message {} alone exceeds peer max_sync_bytes "
-                                    + "(channel={} candidateBytes={} maxSyncBytes={}). Channel will "
-                                    + "deadlock — review peer max_sync_bytes vs. message sizing.",
+                            "buildBundleStateProof: head message {} alone exceeds the peer's max_sync_bytes "
+                                    + "(channel={} candidateBytes={} peerMaxSyncBytes={} localMaxSyncBytes={}). "
+                                    + "Channel will deadlock — review the peer's max_sync_bytes vs. message sizing.",
                             id,
                             channelId,
                             candidateSize,
-                            maxSyncBytes);
+                            peerThrottles.maxSyncBytes(),
+                            localMaxSyncBytes);
                 } else {
                     log.debug(
                             "buildBundleStateProof: trimmed at message {} to stay within maxSyncBytes "
@@ -776,16 +880,18 @@ public class ClprStateProofManager {
         // Channel is stuck — the peer will reject every bundle we send. Surface loudly so
         // operators can fix the misconfigured max_sync_bytes (spec §1.1 deadlock warning).
         final long finalPayloadSize = payloadSize.applyAsLong(proof);
-        if (nativeProof && finalPayloadSize > maxBundlePayloadBytes) {
+        if (nativeProof && finalPayloadSize > appliedMaxBundlePayloadBytes) {
             log.warn(
-                    "buildBundleStateProof: bundle exceeds peer max_sync_bytes even after trimming "
-                            + "(channel={} firstMessageId={} bundleBytes={} maxSyncBytes={} envelopeReserve={}). "
-                            + "Channel may deadlock — review peer's max_sync_bytes vs. message+proof sizing.",
+                    "buildBundleStateProof: bundle exceeds the applied max_sync_bytes even after trimming "
+                            + "(channel={} firstMessageId={} bundleBytes={} maxBundlePayloadBytes={} "
+                            + "peerMaxSyncBytes={} localMaxSyncBytes={}). Channel may deadlock — review the smaller "
+                            + "of the two max_sync_bytes vs. message+proof sizing.",
                     channelId,
                     firstMessageId,
                     finalPayloadSize,
-                    maxSyncBytes,
-                    maxSyncBytes - maxBundlePayloadBytes);
+                    appliedMaxBundlePayloadBytes,
+                    peerThrottles.maxSyncBytes(),
+                    localMaxSyncBytes);
         }
         log.debug(
                 "[CLPR-BUNDLE-BUILD] complete conn={} firstMessageId={} includedMessages={} pathCount={} "
