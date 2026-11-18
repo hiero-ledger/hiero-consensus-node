@@ -264,7 +264,7 @@ jobs:
       - extract-citr-vars
       - verify-citr-vars
       - acquire-kubernetes-resources
-    uses: ./.github/workflows/875-call-single-day-performance-test.yaml
+    uses: ./.github/workflows/875-call-single-day-performance-hashsphere-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       ref: "${{ inputs.ref || github.ref }}"
