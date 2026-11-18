@@ -927,12 +927,12 @@ class HandleWorkflowTest {
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(event.getTransactions()).willReturn(emptyList());
-        given(round.getConsensusEvents()).willAnswer(invocationOnMock -> List.of(event));
+        given(round.getConsensusEvents()).willAnswer(_ -> List.of(event));
 
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
 
-        subject.handleRound(state, round, txn -> {});
+        subject.handleRound(state, round, _ -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
     }

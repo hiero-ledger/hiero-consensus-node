@@ -98,7 +98,7 @@ public final class LadderGraph {
         for (final String letter : List.of("a", "b", "c", "d")) {
             weights.put(letter, 1L);
         }
-        return new NamedRoster("ladder", weights).toRosterWrapper();
+        return NamedRoster.of("ladder", weights).roster();
     }
 
     /**

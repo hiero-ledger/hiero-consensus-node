@@ -6,7 +6,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
-import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_STATE_BYTE_FEE_TINYCENTS;
+import static com.hedera.node.app.service.clpr.impl.ClprGasAccounting.MAX_BILLED_VERIFIER_GAS;
+import static com.hedera.node.app.service.clpr.impl.ClprGasAccounting.hasVerifierAccounting;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
@@ -32,6 +33,8 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  * <p>Bundle submission pays {@link Extra#PROCESSING_BYTES} for its submitted payload. Channel completion's
  * {@link Extra#STATE_BYTES} charge is calculated during handle, once the size of the persisted channel is known.
  * Both transactions settle measured verifier gas during handle, using the global {@link Extra#GAS} rate.
+ * When the shared gas ledger accounts for the verifier, native settlement only adds persistent byte fees;
+ * verifier gas is not charged a second time.
  *
  * @param functionality the CLPR functionality for fee schedule lookup
  * @param transactionType the transaction body discriminant this calculator handles
@@ -43,10 +46,7 @@ public record ClprFeeCalculator(
      * The cap on the verifier's actual gas charge and the fixed gas-equivalent fee for proof queries.
      * The native verifier execution limit remains separately configurable.
      */
-    public static final long VERIFIER_FEE_GAS = 300_000L;
-
-    /** CLPR bundle processing surcharge per byte ($0.0000001), in tinycents. */
-    private static final long BUNDLE_BYTE_FEE_TINYCENTS = 1_000L;
+    public static final long VERIFIER_FEE_GAS = MAX_BILLED_VERIFIER_GAS;
 
     @Override
     public void accumulateServiceFee(
@@ -56,7 +56,7 @@ public record ClprFeeCalculator(
             @NonNull final FeeSchedule feeSchedule) {
         final var serviceDef = lookupServiceFee(feeSchedule, functionality);
         if (serviceDef != null) {
-            addServiceFee(feeResult, serviceDef, txnBody, 0);
+            addServiceFee(feeResult, serviceDef, txnBody, 0, feeSchedule);
         }
     }
 
@@ -84,6 +84,9 @@ public record ClprFeeCalculator(
             final long gasUsed,
             final int stateBytes) {
         final var feeSchedule = context.simpleFeesSchedule();
+        if (feeSchedule == null) {
+            return;
+        }
         final var serviceDef = lookupServiceFee(feeSchedule, function);
         if (serviceDef == null
                 || serviceDef.free()
@@ -99,10 +102,11 @@ public record ClprFeeCalculator(
         }
 
         final var prepaid = new FeeResult();
-        addServiceFee(prepaid, serviceDef, body, 0);
+        addServiceFee(prepaid, serviceDef, body, 0, feeSchedule);
         final var measured = new FeeResult();
-        addServiceFee(measured, serviceDef, body, stateBytes);
-        if (gasUsed > 0) {
+        addServiceFee(measured, serviceDef, body, stateBytes, feeSchedule);
+        // The shared parent ledger already includes the verifier charge in its escrow settlement.
+        if (gasUsed > 0 && !hasVerifierAccounting(context)) {
             measured.addServiceExtraFeeTinycents(
                     Extra.GAS.name(),
                     lookupExtraFee(feeSchedule, Extra.GAS).fee(),
@@ -123,7 +127,9 @@ public record ClprFeeCalculator(
         if (delta > 0) {
             final var builder = context.savepointStack().getBaseBuilder(StreamBuilder.class);
             if (builder.isUserDispatch()) {
-                validateTrue(delta <= body.transactionFee() - builder.transactionFee(), INSUFFICIENT_TX_FEE);
+                final long offered = body.transactionFee();
+                final long charged = builder.transactionFee();
+                validateTrue(charged <= offered && delta <= offered - charged, INSUFFICIENT_TX_FEE);
             }
             validateTrue(context.tryToChargePayer(delta), INSUFFICIENT_PAYER_BALANCE);
         }
@@ -133,7 +139,8 @@ public record ClprFeeCalculator(
             @NonNull final FeeResult result,
             @NonNull final ServiceFeeDefinition serviceDef,
             @NonNull final TransactionBody body,
-            final int stateBytes) {
+            final int stateBytes,
+            @NonNull final FeeSchedule feeSchedule) {
         result.setServiceBaseFeeTinycents(serviceDef.baseFee());
         if (serviceDef.name() == CLPR_COMPLETE_CHANNEL || serviceDef.name() == CLPR_SUBMIT_BUNDLE) {
             for (final var extra : serviceDef.extras()) {
@@ -142,7 +149,8 @@ public record ClprFeeCalculator(
                         if (serviceDef.name() == CLPR_COMPLETE_CHANNEL) {
                             result.addServiceExtraFeeTinycents(
                                     Extra.STATE_BYTES.name(),
-                                    CLPR_STATE_BYTE_FEE_TINYCENTS,
+                                    lookupExtraFee(feeSchedule, Extra.STATE_BYTES)
+                                            .fee(),
                                     stateBytes,
                                     extra.includedCount());
                         }
@@ -154,7 +162,8 @@ public record ClprFeeCalculator(
                                     .length();
                             result.addServiceExtraFeeTinycents(
                                     Extra.PROCESSING_BYTES.name(),
-                                    BUNDLE_BYTE_FEE_TINYCENTS,
+                                    lookupExtraFee(feeSchedule, Extra.PROCESSING_BYTES)
+                                            .fee(),
                                     bundleBytes,
                                     extra.includedCount());
                         }

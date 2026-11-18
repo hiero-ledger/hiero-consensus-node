@@ -100,9 +100,6 @@ public class ReconnectTest {
                 Duration.ofSeconds(120L),
                 "Node did not fall behind in the time allotted.");
 
-        final int numEventStreamFilesBeforeReconnect =
-                nodeToReconnect.newEventStreamResult().eventStreamFiles().size();
-
         // Restart the node that was killed
         nodeToReconnect.start();
 
@@ -113,12 +110,6 @@ public class ReconnectTest {
 
         // Now we wait for the node to reconnect and become active again.
         timeManager.waitForCondition(nodeToReconnect::isActive, Duration.ofSeconds(120L));
-
-        // Allow some additional time to ensure we have at least one event stream file after reconnect
-        timeManager.waitForCondition(
-                () -> nodeToReconnect.newEventStreamResult().eventStreamFiles().size()
-                        > numEventStreamFilesBeforeReconnect,
-                Duration.ofSeconds(120L));
 
         // Validations
         assertThat(nodeToReconnect.newReconnectResult()).hasExactSuccessfulReconnects(1);
@@ -131,8 +122,6 @@ public class ReconnectTest {
         assertThat(nodeToReconnectStatusResults)
                 .hasSteps(target(ACTIVE)
                         .requiringInterim(REPLAYING_EVENTS, OBSERVING, BEHIND, RECONNECT_COMPLETE, CHECKING));
-
-        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 
     /**

@@ -195,11 +195,11 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
                 logger.debug("{} Request pipeline initialized (success: {})", this, isRequestClientActive());
             }
             updateConnectionState(ConnectionState.READY);
-            metrics.recordConnectionOpened();
+            metrics.recordConnectionOpened(connectionType());
         } catch (final TimeoutException e) {
             future.cancel(true);
             logger.warn("{} Pipeline creation timed out after {}ms", this, timeoutMillis);
-            metrics.recordPipelineOperationTimeout();
+            metrics.recordOperationTimeout(connectionType());
             throw new RuntimeException("Pipeline creation timed out", e);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -296,7 +296,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
             return; // ignore errors when this connection is in a terminal state
         }
 
-        metrics.recordConnectionOnError();
+        metrics.recordConnectionOnError(connectionType());
 
         if (throwable instanceof final GrpcException grpcException) {
             logger.warn("{} Error received (grpcStatus: {})", this, grpcException.status(), grpcException);
@@ -314,7 +314,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
 
     @Override
     public final void onComplete() {
-        metrics.recordConnectionOnComplete();
+        metrics.recordConnectionOnComplete(connectionType());
 
         if (currentState() == ConnectionState.CLOSED) {
             logger.debug("{} onComplete invoked but connection is already closed", this);
@@ -379,7 +379,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         shutdownClient();
         shutdownExecutor();
 
-        metrics.recordConnectionClosed(closeReason);
+        metrics.recordConnectionClosed(connectionType(), closeReason);
         updateConnectionState(ConnectionState.CLOSED);
         connectionManager.notifyConnectionClosed(this);
 
@@ -461,7 +461,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
                             "{} Timed out while attempting to shutdown request client (timeout: {}ms) - ignoring",
                             this,
                             timeoutMillis);
-                    metrics.recordPipelineOperationTimeout();
+                    metrics.recordOperationTimeout(connectionType());
                     // Connection is already closing, just log the timeout
                 } catch (final InterruptedException _) {
                     Thread.currentThread().interrupt(); // Restore interrupt status
@@ -654,7 +654,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
      */
     private SendRequestResult handleSendError(final Exception e, final SendRequestContext ctx) {
         final long durationMicros = calculateDurationMicros(ctx.startNanos, ctx.endNanos);
-        metrics.recordRequestSendFailure();
+        metrics.recordRequestSendFailure(connectionType());
         final Throwable error = e instanceof ExecutionException ? e.getCause() : e;
         final FailureType failureType = FailureType.findFailureType(error);
 
@@ -705,7 +705,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
      * @return the result of handling the interrupt
      */
     private SendRequestResult handleSendInterrupt(final InterruptedException e, final SendRequestContext ctx) {
-        metrics.recordRequestSendFailure();
+        metrics.recordRequestSendFailure(connectionType());
         final long durationMicros = calculateDurationMicros(ctx.startNanos, ctx.endNanos);
 
         if (isActive()) {
@@ -743,7 +743,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
         block. In the latter case, we must start back at the beginning of the block.
          */
 
-        metrics.recordRequestSendFailure();
+        metrics.recordRequestSendFailure(connectionType());
         final long durationMicros = calculateDurationMicros(ctx.startNanos, ctx.endNanos);
 
         if (!isActive()) {
@@ -768,7 +768,7 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
                     request.streamRequest().protobufSize());
         }
 
-        metrics.recordPipelineOperationTimeout();
+        metrics.recordOperationTimeout(connectionType());
 
         mostRecentOpTimeoutTimestamps.add(timeoutTimestamp);
         // remove any timeouts outside the current window
@@ -808,22 +808,22 @@ public abstract class BlockNodePublisherConnection extends AbstractBlockNodeConn
 
     private void updateSendMetrics(final PublisherRequest request, final SendRequestContext ctx) {
         // spotless:off
-        metrics.recordRequestLatency(ctx.durationMicros());
+        metrics.recordRequestLatency(connectionType(), ctx.durationMicros());
 
         switch (request) {
-            case final PublisherEndStreamRequest r -> metrics.recordRequestEndStreamSent(r.code());
+            case final PublisherEndStreamRequest r -> metrics.recordRequestEndStreamSent(connectionType(), r.code());
             case final PublisherBlockRequest br -> {
                 switch (br) {
-                    case final PublisherBlockEndRequest r -> metrics.recordRequestSent(r.streamRequestType());
+                    case final PublisherBlockEndRequest r -> metrics.recordRequestSent(connectionType(), r.streamRequestType());
                     case final PublisherBlockItemsRequest r -> {
-                        metrics.recordRequestSent(r.streamRequestType());
+                        metrics.recordRequestSent(connectionType(), r.streamRequestType());
                         metrics.recordBlockItemsSent(r.numItems());
                         metrics.recordRequestBlockItemCount(r.numItems());
-                        metrics.recordRequestBytes(r.streamRequest().protobufSize());
+                        metrics.recordRequestBytes(connectionType(), r.streamRequest().protobufSize());
                     }
                 }
             }
-            case final PublisherAcknowledgeOnlyRequest r -> metrics.recordRequestSent(r.streamRequestType());
+            case final PublisherAcknowledgeOnlyRequest r -> metrics.recordRequestSent(connectionType(), r.streamRequestType());
         }
         // spotless:on
     }

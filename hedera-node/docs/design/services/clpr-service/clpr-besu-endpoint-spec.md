@@ -330,7 +330,9 @@ single-threaded scheduler per Channel.
 
 Per cross-platform spec §2.1.1, Channel status determines behavior: PAUSED, CLOSING, and DRAINED Channels
 continue syncing (PAUSED rejects inbound bundles with out-of-order responses; CLOSING and DRAINED drain in-flight
-messages). Only CLOSED Channels are skipped entirely. ACTIVE Channels proceed normally. On Besu, the sync loop implementation is:
+messages). PENDING Channels do not sync. CLOSED Channels cease normal syncs but owe the peer one final
+close-notification bundle (cross-platform spec §3.4). ACTIVE Channels proceed normally. On Besu, the sync loop
+implementation is:
 
 ```
 For each Channel C where this node is a registered endpoint:

@@ -10,6 +10,7 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,6 +35,14 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
      * Reference to the worker thread, once it is initialized.
      */
     private final AtomicReference<Thread> workerThreadRef = new AtomicReference<>();
+    /**
+     * The most recent timestamp (as millis) when this connection received a block acknowledgement.
+     */
+    private final AtomicLong latestAckUpdateMillis = new AtomicLong(-1);
+    /**
+     * Local copy of the highest acknowledged block over this connection.
+     */
+    private final AtomicLong localHighestAckedBlock = new AtomicLong(-1);
 
     public BlockNodeObservingConnection(
             @NonNull final ConfigProvider configProvider,
@@ -83,19 +92,34 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
         }
     }
 
+    /**
+     * Handle a block acknowledgement received from the block node.
+     *
+     * @param ack the acknowledgement received
+     */
     private void handleAcknowledgement(@NonNull final BlockAcknowledgement ack) {
         requireNonNull(ack);
 
         final long acknowledgedBlockNumber = ack.blockNumber();
 
-        metrics().recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
+        metrics().recordResponseReceived(connectionType(), ResponseOneOfType.ACKNOWLEDGEMENT);
         logger.debug("{} Acknowledgement received for block {}", this, acknowledgedBlockNumber);
 
         bufferService.acknowledgeBlock(
                 acknowledgedBlockNumber, blockNode().configuration().streamingEndpoint());
+        final long prevAckedBlock = localHighestAckedBlock.getAndUpdate(old -> Math.max(old, acknowledgedBlockNumber));
+        if (prevAckedBlock < acknowledgedBlockNumber) {
+            latestAckUpdateMillis.updateAndGet(old -> Math.max(old, System.currentTimeMillis()));
+        }
+
         connectionStatistics().recordAcknowledgement(acknowledgedBlockNumber);
     }
 
+    /**
+     * Handle a block node end of stream response.
+     *
+     * @param eos the end stream response received
+     */
     private void handleEndStream(@NonNull final EndOfStream eos) {
         requireNonNull(eos);
 
@@ -103,7 +127,7 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
         final long approxProblematicBlock = eos.proximateBlockNumber();
         final EndOfStream.Code responseCode = eos.status();
 
-        metrics().recordResponseEndOfStreamReceived(responseCode);
+        metrics().recordResponseEndOfStreamReceived(connectionType(), responseCode);
         metrics().recordLatestBlockEndOfStream(lastVerifiedBlock);
         logger.info(
                 "{} Received EndOfStream response (lastVerifiedBlock: {}, approxProblematicBlock: {}, responseCode: {})",
@@ -145,10 +169,11 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
      */
     private class ConnectionWorkerLoopTask implements Runnable {
 
+        private long firstRequestMillis = -1;
         /**
          * The most recent time an AcknowledgeOnly request was successfully sent to the block node.
          */
-        private long observerLastRequestMillis = -1;
+        private long latestRequestMillis = -1;
 
         @Override
         public void run() {
@@ -185,8 +210,75 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
         private void doWork() {
             connectionStatistics().recordHeartbeat(System.currentTimeMillis());
 
+            if (isIdle()) {
+                return;
+            }
+
+            sendAckRequest();
+        }
+
+        /**
+         * Checks if this connection is idle. In this case, idle means not receiving block acknowledgements from the
+         * block node, and specifically acknowledgements that increase the high watermark.
+         *
+         * @return true if this connection is considered idle and closed, else false
+         */
+        private boolean isIdle() {
+            final long lastBlockAckedLocally = localHighestAckedBlock.get();
+            final long lastBlockClosed = bufferService.getLastBlockClosed();
+            final long lastBlockAckedGlobally = bufferService.getHighestAckedBlockNumber();
+
+            if (lastBlockAckedGlobally < lastBlockClosed && lastBlockAckedLocally < lastBlockClosed) {
+                // the latest block closed in the buffer doesn't match the latest block acknowledged on this connection
+                // check to see if too much time has elapsed since the last acknowledgement
+                final long nowMillis = System.currentTimeMillis();
+                final long millisSinceFirstReq = nowMillis - firstRequestMillis;
+                final long maxIdleSeconds = bncConfig().maxObserverIdleSeconds();
+                final long maxIdleMillis = maxIdleSeconds * 1_000L;
+
+                if (firstRequestMillis == -1 || millisSinceFirstReq < maxIdleMillis) {
+                    /*
+                    Allow for a grace period at the beginning of this connection. This grace period is set as the period
+                    between when the very first AcknowledgeOnly request was sent on this connection and the max idle
+                    seconds after that. During this period, we do not check for acknowledgement advancement since the
+                    block node may not yet have responded to our request. After this grace period, a lack of advancement
+                    will be considered a deviation.
+                     */
+                    logger.trace("{} Connection is still in initial grace period", BlockNodeObservingConnection.this);
+                    return false;
+                }
+
+                final long millisSinceLastAck = nowMillis - latestAckUpdateMillis.get();
+
+                if (millisSinceLastAck > maxIdleMillis) {
+                    /*
+                    This connection has sent at least one AcknowledgeOnly request thus far. However, it has not received
+                    any block acknowledgements that advanced the high watermark for this connection is sufficient time.
+                    Close this connection so hopefully a new one can be established to a more lively block node.
+                     */
+                    logger.warn(
+                            "{} Observer hasn't advanced highest block acknowledged in over {} seconds; closing connection",
+                            BlockNodeObservingConnection.this,
+                            maxIdleSeconds);
+                    close(CloseReason.IDLE_RECEIVE, true, EndStream.Code.TIMEOUT);
+                    return true;
+                } else {
+                    logger.trace(
+                            "{} Connection is behind but not idle (millisIdle: {})",
+                            BlockNodeObservingConnection.this,
+                            millisSinceLastAck);
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * Prepare and send the AcknowledgeOnly request to the block node.
+         */
+        private void sendAckRequest() {
             final long blockPeriodMillis = bsConfig().blockPeriod().toMillis();
-            final long millisSinceLastRequest = System.currentTimeMillis() - observerLastRequestMillis;
+            final long millisSinceLastRequest = System.currentTimeMillis() - latestRequestMillis;
 
             if (millisSinceLastRequest < blockPeriodMillis) {
                 // not enough time has elapsed since the last request was sent
@@ -199,6 +291,7 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
 
             if (latestBlockNumber == -1 || latestBlockNumber == latestBlockAcknowledged) {
                 // no new, unacked blocks have been produced yet
+                latestAckUpdateMillis.set(System.currentTimeMillis());
                 logger.trace(
                         "{} No new blocks produced to request acknowledgement for (latestProduced: {}, latestAcked: {}); skipping",
                         BlockNodeObservingConnection.this,
@@ -221,6 +314,10 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
             final SendRequestResult result;
 
             try {
+                logger.debug(
+                        "{} Sending AcknowledgeOnly request with block {}",
+                        BlockNodeObservingConnection.this,
+                        latestBlockNumber);
                 result = sendRequest(req);
             } catch (final RuntimeException e) {
                 logger.warn("{} Error sending AcknowledgeOnly request", BlockNodeObservingConnection.this, e);
@@ -229,7 +326,10 @@ public class BlockNodeObservingConnection extends BlockNodePublisherConnection {
             }
 
             if (SendRequestStatus.SUCCESS == result.status()) {
-                observerLastRequestMillis = System.currentTimeMillis();
+                latestRequestMillis = System.currentTimeMillis();
+                if (firstRequestMillis == -1) {
+                    firstRequestMillis = latestRequestMillis;
+                }
             } else {
                 logger.warn(
                         "{} Sending AcknowledgeOnly request failed for non-exceptional reason (crn: {}, reason: {})",

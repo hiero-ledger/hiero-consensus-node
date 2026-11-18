@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INSUFFICIENT_STAKE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_CONNECTOR_CONTRACT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
@@ -32,7 +33,6 @@ import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
@@ -42,7 +42,6 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -53,13 +52,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
-import java.time.Instant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -99,9 +95,6 @@ class ClprCompleteConnectorHandlerTest {
 
     @Mock
     private HandleContext handleContext;
-
-    @Mock
-    private ExchangeRateInfo exchangeRateInfo;
 
     @Mock
     private StoreFactory storeFactory;
@@ -402,7 +395,29 @@ class ClprCompleteConnectorHandlerTest {
     }
 
     @Test
-    @DisplayName("should register connector, transfer stake, and keep commitment registered on success")
+    @DisplayName("should reject when the payer is one tinybar short of the requested stake")
+    void rejectsWhenPayerCannotCoverStake() {
+        commitmentStore.put(ecdsaCommitment);
+        setupSmartContractMock();
+        setupHandleContext(validTxn(), true);
+        when(accountStore.getAccountById(PAYER_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ID)
+                        .tinybarBalance(VALID_STAKE - 1)
+                        .build());
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INSUFFICIENT_ACCOUNT_BALANCE));
+
+        verifyNoInteractions(tokenServiceApi);
+        assertThat(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, derivedConnectorId)))
+                .isNull();
+        assertThat(commitmentStore.contains(ecdsaCommitment)).isTrue();
+    }
+
+    @Test
+    @DisplayName("should register the connector when the payer balance exactly covers the stake")
     void registersConnectorSuccessfully() {
         commitmentStore.put(ecdsaCommitment);
         setupSmartContractMock();
@@ -468,67 +483,6 @@ class ClprCompleteConnectorHandlerTest {
         verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, MIN_LOCKED_STAKE);
     }
 
-    @ParameterizedTest
-    @CsvSource({
-        "1, 5, 6000000000000",
-        "1, 10, 3000000000000",
-        "1, 20, 1500000000000",
-        "1, 7, 4285714285715",
-        "2147483647, 2147483647, 30000000000000"
-    })
-    void acceptsUsdMinimumAtActiveRate(final int hbarEquiv, final int centEquiv, final long minimumTinybars) {
-        setupUsdStake(hbarEquiv, centEquiv, minimumTinybars);
-
-        subject.handle(handleContext);
-
-        final var connector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, derivedConnectorId));
-        assertThat(connector.lockedStake()).isEqualTo(minimumTinybars);
-        verify(tokenServiceApi).transferFromTo(PAYER_ID, STAKING_ACCOUNT_ID, minimumTinybars);
-        verify(exchangeRateInfo).activeRate(Instant.EPOCH);
-    }
-
-    @ParameterizedTest
-    @CsvSource({
-        "1, 5, 6000000000000",
-        "1, 10, 3000000000000",
-        "1, 20, 1500000000000",
-        "1, 7, 4285714285715",
-        "2147483647, 2147483647, 30000000000000"
-    })
-    void rejectsOneTinybarBelowUsdMinimum(final int hbarEquiv, final int centEquiv, final long minimumTinybars) {
-        setupUsdStake(hbarEquiv, centEquiv, minimumTinybars - 1);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_INSUFFICIENT_STAKE));
-        assertThat(connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, derivedConnectorId)))
-                .isNull();
-        verifyNoInteractions(tokenServiceApi);
-    }
-
-    @Test
-    void rejectsWhenUsdMinimumExceedsRepresentableTinybars() {
-        setupUsdStake(Integer.MAX_VALUE, 1, Long.MAX_VALUE);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_INSUFFICIENT_STAKE));
-        verifyNoInteractions(tokenServiceApi);
-    }
-
-    private void setupUsdStake(final int hbarEquiv, final int centEquiv, final long offeredTinybars) {
-        commitmentStore.put(ecdsaCommitment);
-        setupSmartContractMock();
-        setupHandleContext(
-                txnWith(validOpBuilder().lockedStake(offeredTinybars).build()),
-                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
-        when(exchangeRateInfo.activeRate(Instant.EPOCH))
-                .thenReturn(ExchangeRate.newBuilder()
-                        .hbarEquiv(hbarEquiv)
-                        .centEquiv(centEquiv)
-                        .build());
-    }
-
     // ── helpers ───────────────────────────────────────────────────────────────
 
     private ClprCompleteConnectorTransactionBody.Builder validOpBuilder() {
@@ -560,19 +514,20 @@ class ClprCompleteConnectorHandlerTest {
                 txn,
                 HederaTestConfigBuilder.create()
                         .withValue("clpr.enabled", clprEnabled)
-                        .withValue("clpr.minLockedStakeTinycents", MIN_LOCKED_STAKE)
+                        .withValue("clpr.minLockedStake", MIN_LOCKED_STAKE)
                         .withValue("clpr.stakingAccount", 803L)
                         .getOrCreateConfig());
     }
 
     private void setupHandleContext(final TransactionBody txn, final Configuration config) {
-        lenient().when(handleContext.consensusNow()).thenReturn(Instant.EPOCH);
-        lenient().when(handleContext.exchangeRateInfo()).thenReturn(exchangeRateInfo);
-        lenient()
-                .when(exchangeRateInfo.activeRate(Instant.EPOCH))
-                .thenReturn(ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(1).build());
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
+        lenient()
+                .when(accountStore.getAccountById(PAYER_ID))
+                .thenReturn(Account.newBuilder()
+                        .accountId(PAYER_ID)
+                        .tinybarBalance(VALID_STAKE)
+                        .build());
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient()

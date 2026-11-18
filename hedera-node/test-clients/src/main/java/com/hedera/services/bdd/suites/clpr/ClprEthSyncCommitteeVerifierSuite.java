@@ -60,8 +60,6 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(CLPR)
 public class ClprEthSyncCommitteeVerifierSuite {
-    /** The default {@code clpr.minLockedStakeTinycents} ($3,000). */
-    private static final long DEFAULT_MIN_LOCKED_STAKE_TINYCENTS = 30_000_000_000_000L;
 
     /** Built-in Ethereum sync-committee verifier system contract (contract num 0x171). */
     private static final ContractID ETH_VERIFIER =
@@ -428,7 +426,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
                     .channelId(crypto.channelId())
                     .connectorContract(CONNECTOR_CONTRACT)
                     .adminKeyName(GENESIS)
-                    .lockedStakeTinycents(DEFAULT_MIN_LOCKED_STAKE_TINYCENTS)
+                    .lockedStake(100_000_000L)
                     .payingWith(GENESIS)
         };
     }

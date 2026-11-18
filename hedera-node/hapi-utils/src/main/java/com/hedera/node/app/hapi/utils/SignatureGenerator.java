@@ -6,9 +6,10 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.SignatureException;
 import java.security.interfaces.ECPrivateKey;
-import net.i2p.crypto.eddsa.EdDSAEngine;
+import java.util.Arrays;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.hiero.base.crypto.ECDSASecp256k1;
+import org.hiero.base.crypto.Ed25519;
 
 public final class SignatureGenerator {
     private SignatureGenerator() {
@@ -27,10 +28,11 @@ public final class SignatureGenerator {
      */
     public static byte[] signBytes(final byte[] msg, final PrivateKey privateKey)
             throws InvalidKeyException, SignatureException, NoSuchAlgorithmException {
-        if (privateKey instanceof EdDSAPrivateKey) {
-            final var engine = new EdDSAEngine();
-            engine.initSign(privateKey);
-            return engine.signOneShot(msg);
+        if (privateKey instanceof EdDSAPrivateKey pk) {
+            // Ed25519 secretKey = seed || publicKey
+            final byte[] secretKey = Arrays.copyOf(pk.getSeed(), Ed25519.SECRET_KEY_BYTES);
+            System.arraycopy(pk.getAbyte(), 0, secretKey, Ed25519.SEED_BYTES, Ed25519.PUBLIC_KEY_BYTES);
+            return Ed25519.sign(msg, secretKey);
         } else if (privateKey instanceof ECPrivateKey) {
             return ECDSASecp256k1.signDigestWithEcdsaSecp256k1(privateKey, msg);
         } else {

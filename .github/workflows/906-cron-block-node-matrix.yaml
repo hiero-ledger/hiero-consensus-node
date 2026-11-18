@@ -11,7 +11,7 @@ on:
         description: "Comma-separated Block Node versions to test (e.g. v0.44.0,v0.45.0-alpha1)."
         type: string
         required: true
-      dry-run:
+      dry-run-enabled:
         description: "Dry run: report the result in the job summary only, do not post to Slack."
         type: boolean
         default: false
@@ -239,7 +239,7 @@ jobs:
           echo "payload=$(cat payload.json)" >> "${GITHUB_OUTPUT}"
 
       - name: Report Matrix Result to Detailed Test Reports Channel
-        if: ${{ !inputs.dry-run }}
+        if: ${{ !inputs.dry-run-enabled }}
         uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
