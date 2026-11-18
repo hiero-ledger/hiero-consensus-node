@@ -1087,7 +1087,7 @@ class ClprSubmitBundleHandlerTest {
         verify(handleContext, never()).dispatch(any(DispatchOptions.class));
         assertThat(writableMessages.size()).isEqualTo(1);
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow())
-                .isEqualTo(replyPayloadWithStatus(3, ClprMessageReplyStatus.APPLICATION_ERROR));
+                .isEqualTo(replyPayloadWithStatus(3, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND));
         assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(4);
         assertThat(channelStore.getChannel(CHANNEL_ID).peerThrottles())
                 .isEqualTo(createLedgerConfig().throttles());
@@ -1861,6 +1861,27 @@ class ClprSubmitBundleHandlerTest {
         verify(tokenServiceApi).transferFromTo(CONNECTOR_CONTRACT_ACCOUNT, PAYER_ID, WORST_CASE_CHARGE);
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void minimumReplyPreservesConnectorFault(final boolean missing) {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        channelStore.put(channelStore
+                .getChannel(CHANNEL_ID)
+                .copyBuilder()
+                .peerThrottles(defaultTestThrottles().copyBuilder().maxMessagePayloadBytes(1))
+                .build());
+        setupHandleContext(validSingleDataBundle(), true);
+        if (!missing) putConnectorWithStakeAndBalance(100_000_000L, 0, 0L);
+        subject.handle(handleContext);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1).payloadOrThrow())
+                .isEqualTo(replyPayloadWithStatus(
+                        1,
+                        missing
+                                ? ClprMessageReplyStatus.CONNECTOR_NOT_FOUND
+                                : ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED));
+        verify(handleContext, never()).dispatch(any(DispatchOptions.class));
+    }
+
     @Test
     @DisplayName("connector underfunded when balance insufficient — no dispatch, slashing triggered")
     void connectorUnderfundedWhenBalanceInsufficient() {
@@ -2103,7 +2124,7 @@ class ClprSubmitBundleHandlerTest {
         @Test
         @DisplayName("3.10.3 — dispatched gas tracks the configured throttle value (not hard-coded)")
         void dispatchGasTracksConfiguredThrottle() {
-            final long customGas = 7_777_777L;
+            final long customGas = 6_777_777L;
             setUpSingleDataDispatch();
             // An updateLedgerConfiguration change is honored on the next dispatch: throttles are
             // re-read from LEDGER_CONFIGURATION each handle.
@@ -2483,6 +2504,12 @@ class ClprSubmitBundleHandlerTest {
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(replyPayload(1)));
         setupHandleContext(bundle, true);
         putConnector();
+
+        given(handleContext.dispatch(any(DispatchOptions.class))).willAnswer(invocation -> {
+            // A send from this callback scans this same queue for peer DATA credit.
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+            return dispatchResult;
+        });
 
         subject.handle(handleContext);
 
@@ -4426,7 +4453,7 @@ class ClprSubmitBundleHandlerTest {
 
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
-                    .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+                    .has(responseCode(CLPR_NO_PROGRESS));
         }
 
         @Test

@@ -1471,7 +1471,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(maxMessagesPerBundle)
                         .setMaxMessagePayloadBytes(65536)
-                        .setMaxGasPerMessage(1_000_000L)
+                        .setMaxGasPerMessage(4_000_000L)
                         .setMaxQueueDepth(maxQueueDepth)
                         .setMaxSyncBytes(1_048_576L)
                         .build())

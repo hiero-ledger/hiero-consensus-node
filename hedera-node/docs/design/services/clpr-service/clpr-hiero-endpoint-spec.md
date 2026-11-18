@@ -170,10 +170,11 @@ Account key changes (e.g., rotating the node account's Ed25519 key) do NOT affec
 
 ## 2.4 gRPC Message Size
 
-The gRPC server and client MUST configure max message sizes to accommodate `max_sync_bytes` from the
-ledger's configuration. The max inbound message size MUST be set to `max_sync_bytes`. This value
-bounds the serialized `ClprSyncPayload` protobuf message, which IS the gRPC message — no additional padding
-is required.
+Both directions of the Hiero gRPC stream accept serialized `ClprStreamingSyncPayload` frames
+up to 4 MiB. The ledger's advertised `max_sync_bytes` bounds delivery within that transport
+capacity. Hiero senders also limit their own proof prefixes to 128 KiB including framing,
+so a peer advertising a larger sync budget can receive the backlog over successive exchanges.
+Peers with a legacy advertisement above 4 MiB must keep each frame within transport capacity.
 
 ---
 

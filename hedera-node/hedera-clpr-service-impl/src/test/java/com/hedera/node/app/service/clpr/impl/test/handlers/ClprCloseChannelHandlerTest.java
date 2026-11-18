@@ -12,11 +12,8 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.PEND
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.never;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TransactionID;
@@ -33,7 +30,6 @@ import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
@@ -79,9 +75,6 @@ class ClprCloseChannelHandlerTest {
     @Mock
     private WritableStates writableStates;
 
-    @Mock
-    private ClprChannelLifecycle channelLifecycle;
-
     private ClprCloseChannelHandler subject;
     private WritableChannelStore channelStore;
     private WritablePendingCommitmentStore commitmentStore;
@@ -91,7 +84,7 @@ class ClprCloseChannelHandlerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ClprCloseChannelHandler(channelLifecycle);
+        subject = new ClprCloseChannelHandler();
 
         writableChannels = MapWritableKVState.<ProtoBytes, ClprChannel>builder(
                         CHANNELS_STATE_ID, "ClprService:CHANNELS")
@@ -224,7 +217,6 @@ class ClprCloseChannelHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated).isNotNull();
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.DRAINED);
-        then(channelLifecycle).should(never()).onChannelClosed(any());
     }
 
     @Test
@@ -238,7 +230,6 @@ class ClprCloseChannelHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated).isNotNull();
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSING);
-        then(channelLifecycle).should(never()).onChannelClosed(any());
     }
 
     @Test
@@ -252,7 +243,6 @@ class ClprCloseChannelHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated).isNotNull();
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.DRAINED);
-        then(channelLifecycle).should(never()).onChannelClosed(any());
     }
 
     @Test
@@ -266,11 +256,10 @@ class ClprCloseChannelHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated).isNotNull();
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSING);
-        then(channelLifecycle).should(never()).onChannelClosed(any());
     }
 
     @Test
-    @DisplayName("should transition DRAINED channel to CLOSED and call onChannelClosed")
+    @DisplayName("should transition DRAINED channel to CLOSED")
     void transitionsDrainedToClosed() {
         putChannel(ClprChannelStatus.DRAINED);
         setupHandleContext(validTxn());
@@ -280,7 +269,6 @@ class ClprCloseChannelHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated).isNotNull();
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.CLOSED);
-        then(channelLifecycle).should().onChannelClosed(CHANNEL_ID);
     }
 
     @Test
@@ -294,7 +282,6 @@ class ClprCloseChannelHandlerTest {
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated).isNotNull();
         assertThat(updated.status()).isEqualTo(ClprChannelStatus.DRAINED);
-        then(channelLifecycle).should(never()).onChannelClosed(any());
     }
 
     @Test
@@ -335,7 +322,6 @@ class ClprCloseChannelHandlerTest {
 
         assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
         assertThat(commitmentStore.contains(COMMITMENT)).isFalse();
-        then(channelLifecycle).should(never()).onChannelClosed(any());
     }
 
     @Test
@@ -355,7 +341,6 @@ class ClprCloseChannelHandlerTest {
         assertThat(commitmentStore.contains(COMMITMENT)).isFalse();
         assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
         // No Channel ever existed — orchestrator was never tracking this id.
-        then(channelLifecycle).should(never()).onChannelClosed(any());
     }
 
     @Test
@@ -444,7 +429,6 @@ class ClprCloseChannelHandlerTest {
                 .isZero();
         assertThat(queueStore.getMessage(anotherChannel, 2L)).isEqualTo(queueValue(largeReply));
         assertThat(commitmentStore.contains(COMMITMENT)).isTrue();
-        then(channelLifecycle).shouldHaveNoInteractions();
     }
 
     @Test
@@ -459,7 +443,6 @@ class ClprCloseChannelHandlerTest {
         writableChannels.reset();
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.ACTIVE);
         assertThat(channelStore.getChannel(CHANNEL_ID).queuePurgeCursor()).isZero();
-        then(channelLifecycle).shouldHaveNoInteractions();
     }
 
     @Test
@@ -475,7 +458,6 @@ class ClprCloseChannelHandlerTest {
 
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.CLOSED);
         assertThat(queueStore.getMessage(CHANNEL_ID, 1L)).isNull();
-        then(channelLifecycle).shouldHaveNoInteractions();
     }
 
     @Test
@@ -511,7 +493,6 @@ class ClprCloseChannelHandlerTest {
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_INVALID_CHANNEL_STATUS));
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PENDING);
-        then(channelLifecycle).shouldHaveNoInteractions();
     }
 
     // ========== Helper methods ==========

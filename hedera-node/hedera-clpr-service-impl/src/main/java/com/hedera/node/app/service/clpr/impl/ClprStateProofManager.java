@@ -125,9 +125,12 @@ public class ClprStateProofManager {
         return snapshotProvider.latestSnapshot();
     }
 
-    /** Returns the peer's bundle payload budget after reserving room for the sync transport. */
+    /** Returns the smaller of the peer and sender budgets after reserving room for transport framing. */
     public static long maxBundlePayloadBytes(@NonNull final ClprThrottles peerThrottles) {
-        return Math.max(CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES, peerThrottles.maxSyncBytes())
+        return Math.clamp(
+                        peerThrottles.maxSyncBytes(),
+                        CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES,
+                        ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES)
                 - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
     }
 
@@ -574,8 +577,9 @@ public class ClprStateProofManager {
             @NonNull final ToLongFunction<StateProof> payloadSize,
             final boolean nativeProof) {
 
-        final int maxMessages = peerThrottles.maxMessagesPerBundle();
-        final long maxSyncBytes = peerThrottles.maxSyncBytes();
+        final int maxMessages =
+                Math.min(peerThrottles.maxMessagesPerBundle(), ClprThrottlesValidator.MAX_MESSAGES_PER_BUNDLE);
+        final long maxSyncBytes = Math.min(peerThrottles.maxSyncBytes(), ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES);
         final long maxBundlePayloadBytes = maxBundlePayloadBytes(peerThrottles);
         if (maxBundlePayloadBytes == 0) {
             log.debug(
@@ -641,17 +645,17 @@ public class ClprStateProofManager {
                     && payloadSize.applyAsLong(proofBuilder.paths(allPaths).build()) > maxBundlePayloadBytes) {
                 final var manifestOnly =
                         proofBuilder.paths(List.of(allPaths.removeLast())).build();
-                if (payloadSize.applyAsLong(manifestOnly) <= maxBundlePayloadBytes) {
+                if (nativeProof && payloadSize.applyAsLong(manifestOnly) <= maxBundlePayloadBytes) {
                     return new BundleProof(StateProof.PROTOBUF.toBytes(manifestOnly), 0, firstMessageId - 1);
                 }
                 log.warn(
-                        "Endpoint manifest proof exceeds peer max_sync_bytes; omitting it until the manifest is reduced "
+                        "Endpoint manifest cannot fit in a supported proof at peer max_sync_bytes; omitting it until the manifest is reduced "
                                 + "or the peer limit is raised (channel={} maxSyncBytes={})",
                         channelId,
                         maxSyncBytes);
             }
         }
-        final boolean hasManifestPath = allPaths.size() > 1;
+        boolean hasManifestPath = allPaths.size() > 1;
 
         // Spec §1.1 sender-side cap: the serialized ClprSyncPayload envelope MUST NOT exceed
         // the peer's max_sync_bytes. We trim the message tail as we append paths so we never
@@ -693,10 +697,18 @@ public class ClprStateProofManager {
                     .build();
             allPaths.add(candidatePath);
             messageLeafCount++;
-            final long candidateSize = payloadSize.applyAsLong(StateProof.newBuilder()
+            long candidateSize = payloadSize.applyAsLong(StateProof.newBuilder()
                     .paths(allPaths)
                     .signedBlockProof(tssProof)
                     .build());
+            // Compact Hiero verifiers require a channel leaf. If the manifest crowds out the
+            // head, send DATA first and retry the manifest with the channel on a later sync.
+            if (!nativeProof && id == firstMessageId && hasManifestPath && candidateSize > maxBundlePayloadBytes) {
+                allPaths.remove(1);
+                hasManifestPath = false;
+                candidateSize =
+                        payloadSize.applyAsLong(proofBuilder.paths(allPaths).build());
+            }
             if (candidateSize > maxBundlePayloadBytes) {
                 // Drop the last path and stop appending — it will be re-attempted next tick.
                 allPaths.removeLast();
@@ -711,18 +723,17 @@ public class ClprStateProofManager {
                             channelId);
                 } else if (id == firstMessageId) {
                     // No message can advance the queue with this proof's overhead and peer limit.
-                    // A compact responder can still emit an ACK, which is not a skipped bundle;
-                    // keep this warning independent of skip metrics. An anchor advance can reduce
-                    // compact provenance overhead on the next attempt.
+                    // A channel-only proof would claim the queue tip ahead of the receiver.
                     log.warn(
-                            "buildBundleStateProof: head message {} alone exceeds peer max_sync_bytes "
+                            "buildBundleStateProof: head message {} alone exceeds the effective proof budget "
                                     + "(channel={} candidateBytes={} maxSyncBytes={}). Outbound queue cannot "
-                                    + "advance until proof overhead or message sizing is reduced, or the peer limit "
-                                    + "is raised.",
+                                    + "advance within the sender and peer limits. Review proof overhead and "
+                                    + "message sizing.",
                             id,
                             channelId,
                             candidateSize,
                             maxSyncBytes);
+                    return null;
                 } else {
                     log.debug(
                             "buildBundleStateProof: trimmed at message {} to stay within maxSyncBytes "

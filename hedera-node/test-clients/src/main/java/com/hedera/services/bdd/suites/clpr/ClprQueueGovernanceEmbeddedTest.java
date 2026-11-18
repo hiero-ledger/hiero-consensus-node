@@ -43,7 +43,8 @@ public class ClprQueueGovernanceEmbeddedTest {
                             original.copyBuilder()
                                     .throttles(original.throttlesOrThrow()
                                             .copyBuilder()
-                                            .maxQueueDepth(4))
+                                            .maxQueueDepth(4)
+                                            .maxMessagesPerBundle(10))
                                     .build());
                     final var initial = pbjToProto(
                             readConfig(spec).throttlesOrThrow(),

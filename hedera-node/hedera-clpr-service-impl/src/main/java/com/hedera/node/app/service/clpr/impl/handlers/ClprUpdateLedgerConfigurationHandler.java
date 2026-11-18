@@ -4,6 +4,7 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.areValidThrottles;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.capDeliveryLimits;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.preserveAdvertisedLimits;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -84,9 +85,8 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
         final int queueDepthCeiling =
                 context.configuration().getConfigData(ClprConfig.class).maxQueueDepthCeiling();
         HandleException.validateTrue(
-                preserveAdvertisedLimits(requested, current).equals(requested)
-                        && (requested.maxQueueDepth() == current.maxQueueDepth()
-                                || requested.maxQueueDepth() <= queueDepthCeiling),
+                preserveAdvertisedLimits(capDeliveryLimits(requested, queueDepthCeiling), current)
+                        .equals(requested),
                 INVALID_CLPR_CONFIGURATION);
 
         // Build the updated configuration, preserving immutable fields from genesis.

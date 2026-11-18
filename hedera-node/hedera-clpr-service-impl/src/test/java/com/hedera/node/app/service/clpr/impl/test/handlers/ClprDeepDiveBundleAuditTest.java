@@ -846,7 +846,7 @@ class ClprDeepDiveBundleAuditTest {
         @Test
         @DisplayName("3.10.3 — dispatched gas tracks the configured throttle value (not hard-coded)")
         void dispatchGasTracksConfiguredThrottle() {
-            final long customGas = 7_777_777L;
+            final long customGas = 6_777_777L;
             setUpSingleDataDispatch();
             // An updateLedgerConfiguration change is honored on the next dispatch: throttles are
             // re-read from LEDGER_CONFIGURATION each handle.
@@ -2755,7 +2755,7 @@ class ClprDeepDiveBundleAuditTest {
 
             assertThatThrownBy(() -> subject.handle(handleContext))
                     .isInstanceOf(HandleException.class)
-                    .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+                    .has(responseCode(CLPR_NO_PROGRESS));
         }
 
         @Test

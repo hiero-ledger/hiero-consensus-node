@@ -187,16 +187,16 @@ class ClprStateProofManagerTest {
         "512,160,true,true,0,manifest,false",
         "512,260,false,true,0,manifest,false",
         "512,160,false,false,1,channel message,false",
-        "320,512,true,true,0,channel,false",
+        "320,512,true,true,0,none,false",
         "320,512,false,true,0,none,false",
         "160,512,true,true,0,none,false",
         "512,512,false,true,1,channel message,true",
         "2048,512,false,true,1,channel manifest message,true",
-        "512,160,false,true,0,manifest,true",
-        "512,160,true,true,0,manifest,true",
-        "512,260,false,true,0,manifest,true",
+        "512,160,false,true,1,channel message,true",
+        "512,160,true,true,1,channel message,true",
+        "512,260,false,true,1,channel message,true",
         "512,160,false,false,1,channel message,true",
-        "320,512,true,true,0,channel,true",
+        "320,512,true,true,0,none,true",
         "320,512,false,true,0,none,true"
     })
     void fitsProofWithinPeerLimitWithOptionalManifest(

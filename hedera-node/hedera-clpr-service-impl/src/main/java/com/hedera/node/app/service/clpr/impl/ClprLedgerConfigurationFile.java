@@ -81,7 +81,7 @@ public final class ClprLedgerConfigurationFile {
      * Returns the throttles to seed at genesis: from {@link ClprConfig#ledgerConfigurationFile()} if it exists
      * and is valid, otherwise from {@link #BUNDLED_RESOURCE}. An invalid file is logged and ignored rather than
      * thrown, since seeding runs on the handle thread and an exception there would leave the CLPR singletons
-     * missing on this node. Gas and queue depth are capped by their network ceilings.
+     * missing on this node. Gas, queue depth and delivery limits are capped before the first advertisement.
      *
      * @param configuration the active configuration
      * @return the throttles to seed
@@ -112,8 +112,8 @@ public final class ClprLedgerConfigurationFile {
      * Returns the configuration to dispatch in a {@code ClprUpdateLedgerConfiguration} to apply the given
      * throttles from an upgrade file, or empty if they match the existing throttles. Applying unchanged
      * throttles would still set a new timestamp, which queues a config update on every channel.
-     * Gas is capped at {@code contracts.maxGasPerTransaction}. Queue depth is capped at its growth ceiling
-     * before retaining the existing floor for each advertised payload, sync, bundle count and queue limit.
+     * Gas is capped at {@code contracts.maxGasPerTransaction}. Growth ceilings apply to payload, sync, bundle count and queue depth
+     * before retaining the existing floor for each advertisement.
      *
      * @param existing the existing ledger configuration
      * @param throttles the validated throttles from the upgrade file
@@ -160,12 +160,10 @@ public final class ClprLedgerConfigurationFile {
             @NonNull final ClprThrottles throttles, @NonNull final Configuration configuration) {
         final var maxGasPerTransaction =
                 configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction();
-        return throttles
+        return ClprThrottlesValidator.capDeliveryLimits(
+                        throttles, configuration.getConfigData(ClprConfig.class).maxQueueDepthCeiling())
                 .copyBuilder()
                 .maxGasPerMessage(Math.min(throttles.maxGasPerMessage(), maxGasPerTransaction))
-                .maxQueueDepth(Math.min(
-                        throttles.maxQueueDepth(),
-                        configuration.getConfigData(ClprConfig.class).maxQueueDepthCeiling()))
                 .build();
     }
 }

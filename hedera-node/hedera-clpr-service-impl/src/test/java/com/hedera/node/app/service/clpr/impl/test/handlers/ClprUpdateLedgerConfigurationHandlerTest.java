@@ -426,17 +426,22 @@ class ClprUpdateLedgerConfigurationHandlerTest {
 
     @ParameterizedTest
     @CsvSource({
-        "65535,1048576,100,false",
+        "65534,1048576,100,false",
         "65536,1048575,100,false",
         "65536,1048576,99,false",
         "65537,1048577,99,false",
-        "65537,1048577,101,true"
+        "65536,1048577,101,true",
+        "65537,1048577,101,false",
+        "65536,4194305,101,false",
+        "65536,1048577,1001,false"
     })
     void adminProtectsPreviouslyAdvertisedDeliveryLimits(
             final int payload, final long sync, final int count, final boolean accepted) {
         setupHandleContext(
                 HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
-        final var current = validConfigBuilder().build();
+        final var current = validConfigBuilder()
+                .throttles(validThrottlesBuilder().maxMessagePayloadBytes(65_535))
+                .build();
         given(configStore.getConfiguration()).willReturn(current);
         final var requested = current.throttlesOrThrow()
                 .copyBuilder()
@@ -459,6 +464,24 @@ class ClprUpdateLedgerConfigurationHandlerTest {
                             e -> assertThat(e.getStatus()).isEqualTo(INVALID_CLPR_CONFIGURATION));
             verify(configStore, never()).put(any());
         }
+    }
+
+    @Test
+    void adminCanRetainLegacyDeliveryLimitsAboveAllThreeCeilings() {
+        setupHandleContext(
+                HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig());
+        final var legacy = validThrottlesBuilder()
+                .maxMessagePayloadBytes(131_072)
+                .maxSyncBytes(8_388_608L)
+                .maxMessagesPerBundle(2000)
+                .build();
+        final var current = validConfigBuilder().throttles(legacy).build();
+        given(configStore.getConfiguration()).willReturn(current);
+        given(handleContext.body()).willReturn(txnBodyWith(current));
+        subject.handle(handleContext);
+        final var saved = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
+        verify(configStore).put(saved.capture());
+        assertThat(saved.getValue().throttles()).isEqualTo(legacy);
     }
 
     // --- Helpers ---

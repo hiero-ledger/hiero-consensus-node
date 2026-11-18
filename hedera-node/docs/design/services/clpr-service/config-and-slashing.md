@@ -77,7 +77,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |        Key         |   Default   | Network? |                                  Purpose                                  |
 |--------------------|-------------|----------|---------------------------------------------------------------------------|
-| `verifierGasLimit` | `2 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
+| `verifierGasLimit` | `8 000 000` | yes      | Gas for `ClprVerifier.verifyBundle` / `verifyConfig` (`EvmClprVerifier`). |
 
 > `ClprCompleteChannel` and `ClprSubmitBundle` each reserve `verifierGasLimit` from the network gas throttle
 > (`contracts.maxGasPerSec` / `maxGasPerSecBackend`), the same way a contract call reserves its gas limit, so verifier
@@ -144,11 +144,10 @@ of them is rejected:
   `INVALID_CLPR_CONFIGURATION`. Queue depth increases must also fit the positive
   `clpr.maxQueueDepthCeiling` (default 10,000). Lowering this ceiling does not shrink an existing
   larger limit, but prevents further increases. Gas and endpoint limits remain adjustable.
-- Genesis caps `max_queue_depth` at the ceiling. Upgrade files use
-  `max(existingDepth, min(fileDepth, ceiling))`, logging a warning if the requested value is lower
-  than existing credit. For payload bytes, sync bytes and messages per bundle, an upgrade file
-  retains the greater of the existing and requested values independently. Comparison for a no-op uses these
-  normalized throttles, so a file requesting only a decrease does not change the timestamp.
+- Growth ceilings are 64 KiB per DATA payload, 4 MiB per sync frame, 1,000 messages per bundle
+  and `clpr.maxQueueDepthCeiling` for queue depth. Genesis caps each field before advertising it.
+  Upgrades use `max(existing, min(requested, ceiling))` for each field, preserving legacy
+  advertisements. If the resulting throttles match the stored configuration, the timestamp stays unchanged.
 - The file is node-local. As with `throttles.json`, every node must have an identical file, or
   nodes seed different state and ISS.
 

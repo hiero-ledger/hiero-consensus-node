@@ -11,7 +11,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
-import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritableConnectorStore;
 import com.hedera.node.app.service.clpr.impl.WritableMessageQueueStore;
@@ -38,7 +37,7 @@ import org.apache.logging.log4j.Logger;
  *       transitions it to DRAINED (if fully acknowledged or nothing sent) or CLOSING (if unacked
  *       messages remain).</li>
  *   <li>A Channel record exists in DRAINED status — admin recovery path; transitions it to
- *       CLOSED and calls {@code channelLifecycle.onChannelClosed()}.</li>
+ *       CLOSED. The sync tick observes committed closures.</li>
  *   <li>No Channel record exists (PENDING state: only a {@code PENDING_COMMITMENTS} entry)
  *       and {@code ownership_commitment} is provided — deletes the pending commitment,
  *       cleaning up an abandoned registration.</li>
@@ -53,12 +52,8 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
     // A legacy slot can be several MiB. Limit how many slots a cleanup transaction reads.
     private static final int MAX_PURGE_SLOTS = 16;
 
-    private final ClprChannelLifecycle channelLifecycle;
-
     @Inject
-    public ClprCloseChannelHandler(@NonNull final ClprChannelLifecycle channelLifecycle) {
-        this.channelLifecycle = requireNonNull(channelLifecycle);
-    }
+    public ClprCloseChannelHandler() {}
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
@@ -110,9 +105,6 @@ public final class ClprCloseChannelHandler extends AbstractClprHandler {
 
             channelStore.put(existingChannel.copyBuilder().status(newStatus).build());
 
-            if (newStatus == ClprChannelStatus.CLOSED) {
-                channelLifecycle.onChannelClosed(op.channelId());
-            }
         } else {
             // No Channel record — attempt to clean up an abandoned PENDING commitment.
             final Bytes commitment = op.ownershipCommitment();

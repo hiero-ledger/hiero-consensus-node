@@ -127,6 +127,18 @@ class ClprLedgerConfigurationFileTest {
     }
 
     @Test
+    void genesisCapsAllThreeDeliveryLimitsBeforeAdvertisingThem() throws IOException {
+        final var large = BUNDLED_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(131_072)
+                .maxSyncBytes(8_388_608L)
+                .maxMessagesPerBundle(2000)
+                .build();
+        final var config = configWithFile(writeFile(jsonOf(large)), 15_000_000L);
+        assertThat(ClprLedgerConfigurationFile.initialThrottles(config)).isEqualTo(BUNDLED_THROTTLES);
+    }
+
+    @Test
     void initialThrottlesCapGasAtMaxGasPerTransaction() throws IOException {
         final var file = writeFile(jsonOf(CUSTOM_THROTTLES));
 
@@ -275,18 +287,29 @@ class ClprLedgerConfigurationFileTest {
     }
 
     @Test
-    void upgradeAppliesGrowthPerFieldWhileRetainingAnEarlierBundleSize() {
-        final var requested = BUNDLED_THROTTLES
+    void capsNewAdvertisementsButRetainsPreviouslyAdvertisedLimits() {
+        final var oversized = BUNDLED_THROTTLES
                 .copyBuilder()
                 .maxMessagePayloadBytes(131_072)
                 .maxSyncBytes(8_388_608L)
-                .maxMessagesPerBundle(2)
+                .maxMessagesPerBundle(2000)
+                .build();
+        final var config = configWithFile(tempDir, 15_000_000L);
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(existingWith(BUNDLED_THROTTLES), oversized, config))
+                .isEmpty();
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(existingWith(oversized), BUNDLED_THROTTLES, config))
+                .isEmpty();
+        final var smaller = BUNDLED_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(1024)
+                .maxSyncBytes(131_072)
                 .build();
         assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(
-                        existingWith(BUNDLED_THROTTLES), requested, configWithFile(tempDir, 15_000_000L)))
+                        existingWith(smaller),
+                        oversized.copyBuilder().maxMessagesPerBundle(2).build(),
+                        config))
                 .contains(ClprLedgerConfiguration.newBuilder()
-                        .throttles(
-                                requested.copyBuilder().maxMessagesPerBundle(BUNDLED_THROTTLES.maxMessagesPerBundle()))
+                        .throttles(BUNDLED_THROTTLES)
                         .build());
     }
 

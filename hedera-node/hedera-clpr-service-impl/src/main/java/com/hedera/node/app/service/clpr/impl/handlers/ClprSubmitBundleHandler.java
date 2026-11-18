@@ -551,29 +551,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // We must be ACTIVE, CLOSING, or DRAINED (CLOSED channels are rejected at the top of the
                     // handler, and PAUSED channels quit before reaching per-message dispatch)
                     final var dataMsg = payload.messageOrThrow();
-                    final long replyPayloadLimit =
-                            Math.min(finalReplyPayloadLimit, maxSerializedReplyBytes(throttles, peerThrottles));
-                    final var emptyError =
-                            replyPayload(receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
-                    final int minimumReplyBytes = ClprMessagePayload.PROTOBUF.measureRecord(emptyError);
-                    if (minimumReplyBytes > replyPayloadLimit) {
-                        // The proof allowance is conservative, and a peer may advertise invalid limits.
-                        // Keep the hash-chained queue moving with the minimum protocol response, without
-                        // dispatching or charging for application work. The proof builder still checks
-                        // the actual serialized bundle size before transmission.
-                        minimumReplyLogger.warn(
-                                CLPR_MARKER,
-                                "[ClprSubmitBundle] minimum error reply exceeds conservative allowance "
-                                        + "(sample across channels) conn={} "
-                                        + "receivedMsgId={} minimumReplyBytes={} maxSerializedReplyBytes={}; "
-                                        + "skipping application dispatch and enqueueing an empty application error reply",
-                                channelId,
-                                receivedMessageId,
-                                minimumReplyBytes,
-                                replyPayloadLimit);
-                        outbound.enqueueReply(receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
-                        continue;
-                    }
                     log.debug(
                             "[ClprSubmitBundle] step10 DATA conn={} receivedMsgId={} connectorId={} "
                                     + "targetApplication={} sender={} messageDataLen={} messageData={}",
@@ -661,6 +638,31 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     channelId,
                                     receivedMessageId,
                                     slashResult.penaltyAmount());
+                            continue;
+                        }
+
+                        final long replyPayloadLimit =
+                                Math.min(finalReplyPayloadLimit, maxSerializedReplyBytes(throttles, peerThrottles));
+                        final var emptyError =
+                                replyPayload(receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
+                        final int minimumReplyBytes = ClprMessagePayload.PROTOBUF.measureRecord(emptyError);
+                        if (minimumReplyBytes > replyPayloadLimit) {
+                            // The proof allowance is conservative, and a peer may advertise invalid limits.
+                            // Keep the hash-chained queue moving with the minimum protocol response, without
+                            // dispatching or charging for application work. The proof builder still checks
+                            // the actual serialized bundle size before transmission.
+                            minimumReplyLogger.warn(
+                                    CLPR_MARKER,
+                                    "[ClprSubmitBundle] minimum error reply exceeds conservative allowance "
+                                            + "(sample across channels) conn={} "
+                                            + "receivedMsgId={} minimumReplyBytes={} maxSerializedReplyBytes={}; "
+                                            + "skipping application dispatch and enqueueing an empty application error reply",
+                                    channelId,
+                                    receivedMessageId,
+                                    minimumReplyBytes,
+                                    replyPayloadLimit);
+                            outbound.enqueueReply(
+                                    receivedMessageId, ClprMessageReplyStatus.APPLICATION_ERROR, Bytes.EMPTY);
                             continue;
                         }
 

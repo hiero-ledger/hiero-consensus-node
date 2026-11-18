@@ -21,7 +21,9 @@ import static com.hedera.services.bdd.suites.interledger.ClprMessagesSuite.SOURC
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
@@ -29,14 +31,18 @@ import com.hedera.services.bdd.junit.MultiNetworkLeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
+import com.hederahashgraph.api.proto.java.ClprMessage;
+import com.hederahashgraph.api.proto.java.ClprMessagePayload;
 import com.hederahashgraph.api.proto.java.ContractID;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.bouncycastle.jcajce.provider.digest.Keccak.Digest256;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -101,10 +107,22 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
-        // SourceApplication.sendMessages(1) emits payload = abi.encodePacked("msg-", uint256(sentCount+0))
-        // = 4 bytes "msg-" + 32 zero bytes. EchoApplication.onClprMessage echoes it verbatim.
+        // Size the application data so the complete serialized DATA is exactly 64 KiB.
+        final var message = ClprMessage.newBuilder()
+                .setConnectorId(ByteString.copyFrom(crypto.connectorId))
+                .setTargetApplication(ByteString.copyFrom(new byte[20]))
+                .setSender(ByteString.copyFrom(new byte[20]))
+                .setMessageData(ByteString.copyFrom(new byte[65_536]));
+        final var payload = ClprMessagePayload.newBuilder().setMessage(message);
+        final byte[] data = new byte[2 * 65_536 - payload.build().getSerializedSize()];
+        Arrays.fill(data, (byte) 0xff);
+        payload.setMessage(message.setMessageData(ByteString.copyFrom(data)));
+        assertEquals(65_536, payload.build().getSerializedSize());
+        final var expectedDigest = new Digest256();
+        final byte[] digest = expectedDigest.digest(data);
         final byte[] expectedResponse = new byte[4 + 32];
         System.arraycopy("msg-".getBytes(StandardCharsets.UTF_8), 0, expectedResponse, 0, 4);
+        expectedResponse[expectedResponse.length - 1] = 2;
 
         // Captured at deploy-time on B; used as targetApplication for A's SourceApplication ctor.
         final byte[][] echoAddrOnB = new byte[1][];
@@ -129,11 +147,9 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                         spec.registry().getContractId(ECHO_APP))))
                                         .findFirst()
                                         .orElseThrow(),
-                                // Deploy SourceApplication on A wired to (channelId, connectorId, echoAddrOnB),
-                                // capture its ContractID for the post-ack query, then drive one round-trip via
-                                // sendMessages(1).
+                                // Queue two maximum-size messages so one prefix cannot contain both.
                                 networkHapiTest(
-                                                "Deploy SourceApplication on A + send 1 message",
+                                                "Send two maximum-size DATA messages and a small successor",
                                                 ledgerA,
                                                 cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
                                                 uploadInitCode(SOURCE_APP),
@@ -148,14 +164,27 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                     sourceAppIdOnA[0] =
                                                             spec.registry().getContractId(SOURCE_APP);
                                                 }),
-                                                // SourceApplication.sendMessages(uint256) — note the plural.
+                                                // Separate transactions keep each sender's EVM trace within its own
+                                                // limit.
+                                                contractCall(
+                                                                SOURCE_APP,
+                                                                "sendSizedMessage",
+                                                                BigInteger.valueOf(data.length))
+                                                        .gas(2_000_000L)
+                                                        .payingWith("callerA"),
+                                                contractCall(
+                                                                SOURCE_APP,
+                                                                "sendSizedMessage",
+                                                                BigInteger.valueOf(data.length))
+                                                        .gas(2_000_000L)
+                                                        .payingWith("callerA"),
                                                 contractCall(SOURCE_APP, "sendMessages", BigInteger.ONE)
                                                         .gas(GAS)
                                                         .payingWith("callerA"))
                                         .findFirst()
                                         .orElseThrow(),
-                                awaitReceivedMessage(ledgerB, crypto.channelId, 1),
-                                awaitAckedMessage(ledgerA, crypto.channelId, 1),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 3),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 3),
                                 // Ack alone doesn't prove the callback fired — the handler records ackedMessageId
                                 // BEFORE dispatching onClprResponse, and the dispatch is wrapped in a swallowed
                                 // try/catch. The assertion below reads state that ONLY SourceApplication.onClprResponse
@@ -170,18 +199,16 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                     // find it.
                                                     spec.registry().saveContractId(SOURCE_APP, sourceAppIdOnA[0]);
                                                     final var abi = getABIFor(FUNCTION, "getResponse", SOURCE_APP);
-                                                    allRunFor(
-                                                            spec,
-                                                            QueryVerbs.contractCallLocalWithFunctionAbi(
-                                                                            SOURCE_APP, abi, BigInteger.ONE)
-                                                                    .exposingTypedResultsTo(results -> {
-                                                                        final var actual = (byte[]) results[0];
-                                                                        assertArrayEquals(
-                                                                                expectedResponse,
-                                                                                actual,
-                                                                                "SourceApplication.responses[1] not populated — onClprResponse callback was never delivered. "
-                                                                                        + "Check ON_CLPR_RESPONSE_SELECTOR in ClprSubmitBundleHandler.");
-                                                                    }));
+                                                    for (int id = 1; id <= 3; id++) {
+                                                        final var expected = id <= 2 ? digest : expectedResponse;
+                                                        allRunFor(
+                                                                spec,
+                                                                QueryVerbs.contractCallLocalWithFunctionAbi(
+                                                                                SOURCE_APP, abi, BigInteger.valueOf(id))
+                                                                        .exposingTypedResultsTo(results ->
+                                                                                assertArrayEquals(expected, (byte[])
+                                                                                        results[0])));
+                                                    }
                                                 }))
                                         .findFirst()
                                         .orElseThrow())));

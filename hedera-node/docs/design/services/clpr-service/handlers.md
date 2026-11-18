@@ -83,9 +83,10 @@ side-effects.
   channel that never assigned IDs). `SUCCESS` accepts a batch, and also represents an
   unchanged no-op once cleanup is finished. Node logs expose the cursor and completion;
   no HAPI query currently exposes it.
-- **Lifecycle hook:** `onChannelClosed(channelId)` runs only when status becomes `CLOSED`
-  and unschedules the channel; the orchestrator continues syncing during `CLOSING` and
-  `DRAINED`. Implementation status: no close-notification bundle is sent after `CLOSED`
+- The endpoint observes the committed `CLOSED` status and stops scheduling the channel.
+  The administrator close handler leaves scheduling to the endpoint so a rolled-back state change
+  cannot stop sync. The node continues syncing during `CLOSING` and `DRAINED`.
+  Implementation status: no close-notification bundle is sent after `CLOSED`
   yet ([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
   Force-close is one-sided: the peer does not receive a CLOSED proof, so its
   administrator must close and clean up that side independently.

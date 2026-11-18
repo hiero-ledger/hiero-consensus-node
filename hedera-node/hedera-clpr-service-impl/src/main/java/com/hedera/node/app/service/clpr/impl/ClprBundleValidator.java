@@ -302,13 +302,15 @@ public class ClprBundleValidator {
      *
      * @param content the verifier's attested bundle content
      * @param shouldUpdateManifest whether the bundle's manifest advances the channel's cached version
-     * @throws PreCheckException with {@code CLPR_BUNDLE_VERIFICATION_FAILED} if it does not
+     * @throws PreCheckException for malformed content, or with {@code CLPR_NO_PROGRESS} for a stale manifest
      */
     private static void validateStateUpdateOnlyBundle(
             @NonNull final ClprBundleContent content, final boolean shouldUpdateManifest) throws PreCheckException {
         validateTruePreCheck(
-                content.messages().isEmpty() && (content.newTrustAnchor().length() > 0 || shouldUpdateManifest),
+                content.messages().isEmpty()
+                        && (content.newTrustAnchor().length() > 0 || content.hasNewEndpointManifest()),
                 CLPR_BUNDLE_VERIFICATION_FAILED);
+        validateTruePreCheck(content.newTrustAnchor().length() > 0 || shouldUpdateManifest, CLPR_NO_PROGRESS);
     }
 
     /**

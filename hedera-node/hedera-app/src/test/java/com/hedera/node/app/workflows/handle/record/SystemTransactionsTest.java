@@ -963,10 +963,15 @@ class SystemTransactionsTest {
     @SuppressWarnings("unchecked")
     void postUpgradeAppliesChangedClprLedgerConfigurationFile(@TempDir final Path upgradeDir) throws IOException {
         given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
-        writeClprLedgerConfigurationFile(upgradeDir, 1_500);
+        writeClprLedgerConfigurationFile(upgradeDir, 1_000);
 
-        final var systemContext =
-                doPostUpgradeSetupWithMockContext(true, CLPR_LEDGER_CONFIGURATION, upgradeDir.toString());
+        final var systemContext = doPostUpgradeSetupWithMockContext(
+                true,
+                CLPR_LEDGER_CONFIGURATION
+                        .copyBuilder()
+                        .throttles(CLPR_THROTTLES.copyBuilder().maxMessagesPerBundle(500))
+                        .build(),
+                upgradeDir.toString());
 
         final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
         verify(systemContext).dispatchAdmin(spec.capture());
@@ -975,13 +980,7 @@ class SystemTransactionsTest {
         final var update =
                 builder.build().clprUpdateLedgerConfigurationOrThrow().configurationOrThrow();
         assertEquals(
-                ClprLedgerConfiguration.newBuilder()
-                        .throttles(CLPR_THROTTLES
-                                .copyBuilder()
-                                .maxMessagesPerBundle(1_500)
-                                .build())
-                        .build(),
-                update);
+                ClprLedgerConfiguration.newBuilder().throttles(CLPR_THROTTLES).build(), update);
     }
 
     @Test

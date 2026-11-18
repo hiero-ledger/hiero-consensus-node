@@ -147,7 +147,7 @@ class ClprBundleValidatorTest {
         assertRejected(
                 CHANNEL,
                 ClprBundleContent.newBuilder().newEndpointManifest(manifest(2)).build(),
-                CLPR_BUNDLE_VERIFICATION_FAILED);
+                CLPR_NO_PROGRESS);
         assertRejected(
                 CHANNEL,
                 anchorBundle(true, true).copyBuilder().messages(dataPayload(1)).build(),

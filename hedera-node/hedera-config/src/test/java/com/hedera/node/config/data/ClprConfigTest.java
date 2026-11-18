@@ -46,8 +46,7 @@ class ClprConfigTest {
     @Test
     void verifierGasLimitCoversCalldataFloorOfHieroStateProofs() {
         final var config = HederaTestConfigBuilder.createConfig().getConfigData(ClprConfig.class);
-        // A verifyConfig call with an endpoint manifest proof carries two ~15 KB Hiero state proofs, which
-        // need ~1.2M gas to cover their EIP-7623 calldata floor
-        assertThat(config.verifierGasLimit()).isGreaterThanOrEqualTo(1_200_000L);
+        // EIP-7623 charges at most 40 gas per calldata byte, plus base gas and verifier execution.
+        assertThat(config.verifierGasLimit()).isGreaterThan(21_000L + 40L * (128 * 1024 + 2048));
     }
 }

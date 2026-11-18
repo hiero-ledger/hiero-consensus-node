@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.MAX_SYNC_BYTES;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
@@ -118,13 +119,12 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
     @NonNull
     static ManagedChannel newChannel(@NonNull final String host, final int port, final boolean useTls) {
         requireNonNull(host);
+        final var builder = NettyChannelBuilder.forAddress(host, port).maxInboundMessageSize(MAX_SYNC_BYTES);
         if (!useTls) {
-            return NettyChannelBuilder.forAddress(host, port).usePlaintext().build();
+            return builder.usePlaintext().build();
         }
         try {
-            return NettyChannelBuilder.forAddress(host, port)
-                    .sslContext(buildClientSslContext())
-                    .build();
+            return builder.sslContext(buildClientSslContext()).build();
         } catch (final SSLException e) {
             throw new ClientException(
                     "Failed to build TLS channel for CLPR peer " + host + ":" + port + ": " + e.getMessage(), e);

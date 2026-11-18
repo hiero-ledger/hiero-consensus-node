@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -110,7 +111,7 @@ class ClprBundleProofConstructionTest {
         given(snapshot.blockTimestamp()).willReturn(new Timestamp(2, 0));
         given(snapshot.path()).willReturn(MerklePath.DEFAULT);
         given(snapshot.tssSignature()).willReturn(NATIVE_SIGNATURE);
-        given(proofSupport.verify(any(), any())).willReturn(true);
+        lenient().when(proofSupport.verify(any(), any())).thenReturn(true);
     }
 
     @ParameterizedTest
@@ -150,41 +151,43 @@ class ClprBundleProofConstructionTest {
     }
 
     @Test
-    void manifestFirstBundleDoesNotReportSizeSkip() throws Exception {
-        final var channel = channel(2, 8_192);
-        givenQueue(channel, 16_384, true);
+    void repacksAQueueIntoVerifiablePrefixesForALegacyFourMiBAdvertisement() throws Exception {
+        final var channel = channel(2, 4 * 1024 * 1024);
+        givenQueue(channel, 65_520, false);
         final var producer = producer(channel, SIGNING_KEY);
-
-        final var payload = requireNonNull(producer.next(true));
-        final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
-        assertThat(proof.paths()).hasSize(1);
-        final var manifestItem =
-                StateItem.PROTOBUF.parse(proof.paths().getLast().stateItemLeafOrThrow());
-        assertThat(manifestItem.valueOrThrow().hasClprServiceIEndpointManifest())
-                .isTrue();
-        assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID);
-        assertThat(producer.next(true)).isNull();
-        verify(proofSupport, never()).reportSkip(any(), any());
-        assertThat(logCaptor.warnLogs()).isEmpty();
+        for (long id = FIRST_MESSAGE_ID; id < FIRST_MESSAGE_ID + 2; id++) {
+            final var payload = requireNonNull(producer.next(false));
+            assertThat(payload.length()).isLessThan(128 * 1024);
+            final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
+            assertThat(proof.paths()).hasSize(2);
+            final var message = StateItem.PROTOBUF.parse(proof.paths().getLast().stateItemLeafOrThrow());
+            assertThat(message.keyOrThrow().clprServiceIMessageQueueOrThrow().messageId())
+                    .isEqualTo(id);
+            assertThat(producer.nextStartingMessageId()).isEqualTo(id + 1);
+        }
     }
 
     @Test
-    void oversizedCompactHeadWarnsEvenWhenResponderEmitsAck() throws Exception {
+    void compactProofOmitsUnusableStandaloneManifestWhenHeadDoesNotFit() {
+        final var channel = channel(2, 8_192);
+        givenQueue(channel, 16_384, true);
+        assertThat(producer(channel, SIGNING_KEY).next(true)).isNull();
+        verify(proofSupport).reportSkip(CHANNEL_ID, ClprHieroProofSupport.SkipReason.SIZE_LIMIT);
+    }
+
+    @Test
+    void oversizedCompactHeadDoesNotAdvertiseAnUnreceivedQueueTip() {
         final var channel = channel(2, 8_192);
         givenQueue(channel, 16_384, false);
         final var producer = producer(channel, SIGNING_KEY, true);
 
-        final var payload = requireNonNull(producer.next(false));
-        final var proof = ClprHieroProofCodec.decodeEnvelope(payload).stateProofOrThrow();
-
-        assertThat(proof.paths()).hasSize(1);
-        assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID);
         assertThat(producer.next(false)).isNull();
-        verify(proofSupport, never()).reportSkip(any(), any());
+        assertThat(producer.nextStartingMessageId()).isEqualTo(FIRST_MESSAGE_ID);
+        verify(proofSupport).reportSkip(CHANNEL_ID, ClprHieroProofSupport.SkipReason.SIZE_LIMIT);
         assertThat(logCaptor.warnLogs())
                 .singleElement()
                 .asString()
-                .contains("head message " + FIRST_MESSAGE_ID + " alone exceeds peer max_sync_bytes")
+                .contains("head message " + FIRST_MESSAGE_ID + " alone exceeds the effective proof budget")
                 .contains("channel=" + CHANNEL_ID, "candidateBytes=", "maxSyncBytes=8192");
     }
 

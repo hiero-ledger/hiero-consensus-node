@@ -256,14 +256,14 @@ configurations require at least 15 bytes, enough for an empty error reply at any
 Application return data is bounded by the local limit, the peer's payload limit, and the peer's
 sync limit after a conservative proof allowance. Accepted and deferred config updates can lower
 this budget. If even an empty error exceeds it, Hiero skips the application call and its charges,
-queues exactly one empty `APPLICATION_ERROR`, and continues processing the bundle. ACK, anchor,
+preserves connector fault statuses, and queues an empty `APPLICATION_ERROR` for a funded connector. ACK, anchor,
 manifest and config progress are retained. This minimum response can exceed an invalid peer limit
 or the conservative allowance; the proof builder still enforces the actual serialized bundle limit.
 After dispatch, an oversized or malformed ABI return rolls back the application call and its nested
 effects before Hiero queues an empty `APPLICATION_ERROR`. Connector compensation and the network fee
 for executed gas remain charged. A fitting successful return commits and produces `SUCCESS`.
 
-An incoming reply may have been generated successfully before the local payload limit decreased.
+A legacy or external peer may return a successful reply above the current local payload limit.
 Hiero preserves its attested execution status, hash, ACK and connector-fault slashing decision.
 When its serialized payload exceeds the current local limit, the originating application instead
 receives `onClprResponseUnavailable(bytes32 channelId, uint64 messageId, uint8 status)`, with the
@@ -304,15 +304,22 @@ The local `max_queue_depth`, `max_message_payload_bytes`, `max_sync_bytes` and
 `max_messages_per_bundle` are expand-only. Peers may have queued DATA or assembled a bundle
 using an earlier advertisement. Lowering any one of these limits fails the entire administrator
 update at consensus with `INVALID_CLPR_CONFIGURATION` and preserves its timestamp.
-An increase in queue depth must not exceed the positive network
-property `clpr.maxQueueDepthCeiling` (default 10,000). If the ceiling is later configured below
-the persisted limit, that existing credit remains valid, but further increases are rejected.
+Hiero bounds new advertisements at 65,536 bytes per serialized DATA, 4 MiB per sync frame,
+1,000 messages per bundle, and the positive network property `clpr.maxQueueDepthCeiling`
+(default 10,000) for queue depth. Genesis caps each field at its ceiling. An upgrade file
+uses `max(existing, min(requested, ceiling))` independently for each field. This preserves
+earlier advertisements above a ceiling and permits independent changes to gas and endpoints.
+If the effective throttles are unchanged, the upgrade preserves the timestamp.
 
-Genesis caps queue depth at this ceiling. An upgrade file uses
-`max(existingDepth, min(fileDepth, ceiling))` for queue depth and the greater of the existing
-and requested values for each of the other three expand-only limits. The node logs retained
-limits and applies independent changes, including gas or endpoint reductions. If the effective
-throttles are unchanged, it skips the update and preserves the timestamp.
+Hiero senders pack each native or compact proof into the smaller of the peer's sync limit
+and 128 KiB, including the framing reserve. The next sync resumes at the first unreceived
+message. The default verifier allowance of 8,000,000 gas covers the native verifier and the
+calldata for this prefix. Operators using a custom EVM verifier or gas allowance must size it
+for their verifier's execution cost. The 4 MiB transport limit also carries frames produced
+under the previous default. Legacy or external senders that offer larger proofs may need to
+repack them to fit the verifier. Individual DATA previously admitted above 64 KiB, or a
+channel whose proofs have exceptionally large manifests or witnesses, can still exceed a
+single verifiable prefix. These cases require peer coordination.
 
 Because local queue credit never decreases, the current limit also covers all credit
 advertised since this rule took effect. No additional singleton, migration schema, or
