@@ -13,6 +13,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.test.fixtures.io.RealisticPingSamples;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.MiniNode;
 import org.hiero.otter.fixtures.Node;
@@ -91,6 +92,30 @@ class TopologyMiniNodeTest {
                 .isEqualTo(10);
         assertThatThrownBy(topology::addMiniNode).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> topology.addNodes(1)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("Nodes whose ping is marked as broken in the predefined ping matrix are not connected")
+    void brokenPingMeansNoConnection() {
+        final int broken = RealisticPingSamples.BROKEN;
+        final PredefinedPingTopologyImpl topology = new PredefinedPingTopologyImpl(
+                factory(Node.class),
+                () -> mockNode(InstrumentedNode.class),
+                factory(MiniNode.class),
+                new PredefinedPingTopologyConfiguration(
+                        new int[][] {{0, 10, broken}, {10, 0, 30}, {broken, 30, 0}},
+                        Percentage.withPercentage(0),
+                        BandwidthLimit.UNLIMITED_BANDWIDTH));
+        final List<MiniNode> nodes = topology.addMiniNodes(3);
+
+        assertThat(topology.getConnectionData(nodes.get(0), nodes.get(1)).connected())
+                .isTrue();
+        assertThat(topology.getConnectionData(nodes.get(0), nodes.get(2)).connected())
+                .isFalse();
+        assertThat(topology.getConnectionData(nodes.get(2), nodes.get(0)).connected())
+                .isFalse();
+        assertThat(topology.getConnectionData(nodes.get(2), nodes.get(1)).connected())
+                .isTrue();
     }
 
     @Test
