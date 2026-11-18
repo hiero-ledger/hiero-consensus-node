@@ -511,9 +511,16 @@ class ClprDeepDiveProofAuditTest {
             return ((BigInteger) metadata.get(0)).longValue();
         }
 
+        /**
+         * A channel leaf keyed, as in real state, by the channel's own id.
+         */
         private static Bytes channelLeaf(@NonNull final ClprChannel channel) {
+            final var key = StateKey.newBuilder()
+                    .clprServiceIChannels(
+                            ProtoBytes.newBuilder().value(channel.channelId()).build())
+                    .build();
             return leaf(
-                    null, StateValue.newBuilder().clprServiceIChannels(channel).build());
+                    key, StateValue.newBuilder().clprServiceIChannels(channel).build());
         }
 
         private static Bytes messageLeaf(final long messageId) {
