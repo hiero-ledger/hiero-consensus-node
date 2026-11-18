@@ -804,7 +804,11 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                         .stageFlushedTriageBlocks(
                                 app.issDetectionStagingCoordinator().currentIncidentFolder());
             }
-            case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
+            case BEHIND -> {
+                // A node that has fallen behind will never produce the blocks these signing attempts are for
+                BlockHashSigning.cancelAndRemoveAll(rsaSignings);
+                hintsService.cancelSignings();
+            }
             case FREEZING -> {
                 if (pendingTransactionsSaver != null) {
                     pendingTransactionsSaver.drain();

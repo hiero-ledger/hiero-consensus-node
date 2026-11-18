@@ -1739,8 +1739,12 @@ class HandleWorkflowTest {
         givenSingleton(historyStates, LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger")));
 
         // The real signing context, service, and block hash signer decide readiness
+        final var selfNodeInfo = mock(NodeInfo.class);
         final var context = new HintsContext(
-                mock(HintsLibrary.class), () -> configProvider.getConfiguration(), mock(HintsSigningMetrics.class));
+                mock(HintsLibrary.class),
+                () -> configProvider.getConfiguration(),
+                mock(HintsSigningMetrics.class),
+                () -> selfNodeInfo);
         hintsService = spy(HintsServiceFixtures.serviceOver(context));
         // Key provenance needs native-sized keys and has no part in readiness
         doReturn(null).when(hintsService).keyProvenanceFor(any());

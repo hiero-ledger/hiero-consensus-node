@@ -94,7 +94,9 @@ class CrsRosterTransitionTest {
                 .initialCrs(seed)
                 .build();
         final var store = store(oldConstruction, oldCrs);
-        final var signingContext = new HintsContext(library, () -> config, mock(HintsSigningMetrics.class));
+        final var self = mock(NodeInfo.class);
+        when(self.nodeId()).thenReturn(0L);
+        final var signingContext = new HintsContext(library, () -> config, mock(HintsSigningMetrics.class), () -> self);
         signingContext.setConstruction(oldConstruction, oldCrs, HintsGenerationTestUtils.weightsFor(oldConstruction));
         signingContext.onBlockStarted(100);
         final var oldPartial = HintsPartialSignatureTransactionBody.newBuilder()
@@ -112,8 +114,6 @@ class CrsRosterTransitionTest {
                 });
         final var accessor = mock(HintsKeyAccessor.class);
         when(accessor.getOrCreateBlsPrivateKey(anyLong())).thenReturn(privateKeys.getFirst());
-        final var self = mock(NodeInfo.class);
-        when(self.nodeId()).thenReturn(0L);
         final var controllers = new HintsControllers(
                 Runnable::run,
                 accessor,
