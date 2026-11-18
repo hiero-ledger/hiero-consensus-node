@@ -49,9 +49,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.MessageDigest;
-import net.i2p.crypto.eddsa.EdDSAEngine;
-import net.i2p.crypto.eddsa.EdDSAPrivateKey;
+import org.hiero.base.crypto.Ed25519;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -71,7 +69,7 @@ class ClprCommitRevealUnitScenariosTest {
         0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42,
         0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42
     });
-    private static final byte[] SECRET_KEY = {
+    private static final byte[] SECRET_KEY_SEED = {
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
         0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
         0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
@@ -188,7 +186,7 @@ class ClprCommitRevealUnitScenariosTest {
 
     @Test
     void completeRejectsWrongSignature() {
-        final var privateKey = Ed25519Utils.keyFrom(SECRET_KEY);
+        final var privateKey = Ed25519Utils.keyFrom(SECRET_KEY_SEED);
         final var publicKey = privateKey.getAbyte();
         commitmentStore.put(computeCommitment(CHANNEL_ID, Bytes.wrap(publicKey)));
 
@@ -209,15 +207,16 @@ class ClprCommitRevealUnitScenariosTest {
 
     @Test
     void completeRejectsMalformedConfigProof() {
-        final var privateKey = Ed25519Utils.keyFrom(SECRET_KEY);
-        final var publicKey = privateKey.getAbyte();
+        final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
+        Ed25519.newKeypair(publicKey, secretKey, SECRET_KEY_SEED);
         commitmentStore.put(computeCommitment(CHANNEL_ID, Bytes.wrap(publicKey)));
         setupVerifierAccount(true);
 
         final var op = ClprCompleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
                 .publicKey(Bytes.wrap(publicKey))
-                .signature(Bytes.wrap(signChannelIdEd25519(privateKey, CHANNEL_ID)))
+                .signature(Bytes.wrap(signChannelIdEd25519(secretKey, CHANNEL_ID)))
                 .signatureScheme(ClprSignatureScheme.ED25519)
                 .verifierContract(VERIFIER_CONTRACT_ID)
                 .configProofBytes(Bytes.wrap(new byte[] {(byte) 0xFF, (byte) 0xFF}))
@@ -231,7 +230,7 @@ class ClprCommitRevealUnitScenariosTest {
 
     @Test
     void completeRejectsWhenClprDisabled() {
-        final var privateKey = Ed25519Utils.keyFrom(SECRET_KEY);
+        final var privateKey = Ed25519Utils.keyFrom(SECRET_KEY_SEED);
         final var publicKey = privateKey.getAbyte();
         commitmentStore.put(computeCommitment(CHANNEL_ID, Bytes.wrap(publicKey)));
 
@@ -262,9 +261,10 @@ class ClprCommitRevealUnitScenariosTest {
     }
 
     private TransactionBody validEd25519Txn() {
-        final var privateKey = Ed25519Utils.keyFrom(SECRET_KEY);
-        final var publicKey = privateKey.getAbyte();
-        final var signature = signChannelIdEd25519(privateKey, CHANNEL_ID);
+        final byte[] publicKey = new byte[Ed25519.PUBLIC_KEY_BYTES];
+        final byte[] secretKey = new byte[Ed25519.SECRET_KEY_BYTES];
+        Ed25519.newKeypair(publicKey, secretKey, SECRET_KEY_SEED);
+        final var signature = signChannelIdEd25519(secretKey, CHANNEL_ID);
 
         final var op = ClprCompleteChannelTransactionBody.newBuilder()
                 .channelId(CHANNEL_ID)
@@ -277,13 +277,10 @@ class ClprCommitRevealUnitScenariosTest {
         return completeTxnWith(op);
     }
 
-    private static byte[] signChannelIdEd25519(final EdDSAPrivateKey privateKey, final Bytes channelId) {
+    private static byte[] signChannelIdEd25519(final byte[] secretKey, final Bytes channelId) {
         final var messageHash = MiscCryptoUtils.keccak256DigestOf(channelId.toByteArray());
         try {
-            final var engine = new EdDSAEngine(MessageDigest.getInstance("SHA-512"));
-            engine.initSign(privateKey);
-            engine.update(messageHash);
-            return engine.sign();
+            return Ed25519.sign(messageHash, secretKey);
         } catch (final Exception e) {
             throw new IllegalStateException("Failed to sign with Ed25519", e);
         }
