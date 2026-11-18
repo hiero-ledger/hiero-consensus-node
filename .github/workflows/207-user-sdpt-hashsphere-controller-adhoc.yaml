@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "201: [USER] CITR SDPT Ctrl Adhoc"
+trigger
+name: "207: [USER] CITR SDPT HashSphere Ctrl Adhoc"
 on:
   workflow_dispatch:
     inputs:
