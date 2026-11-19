@@ -192,8 +192,8 @@ wait_for_mirror_deployment_ready() {
   done
 }
 
-# Establishes the three forwards only TCK needs (CN gRPC + mirror REST are owned by
-# restart_post_upgrade_port_forwards). Step-scoped: not watchdog-managed, killed
+# Establishes the three mirror forwards only TCK needs (the CN gRPC forward is opened earlier by
+# start_tck_consensus_port_forward, mirror REST by deploy_mirror_and_explorer). Step-scoped: killed
 # unconditionally by cleanup().
 ensure_tck_port_forwards() {
   # restjava is the one mirror deployment the deploy path tolerates being down (see

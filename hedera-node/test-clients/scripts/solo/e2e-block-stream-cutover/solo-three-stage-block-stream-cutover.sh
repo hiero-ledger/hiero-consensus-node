@@ -211,6 +211,7 @@ JS_SDK_REPO_DIR=""
 TCK_STATS_SUMMARY=""
 TCK_SDK_SERVER_PID=""
 TCK_CN_PORT_FORWARD_PID=""
+TCK_CN_PORT_FORWARD_LOG=""
 MIRROR_GRPC_PORT_FORWARD_PID=""
 MIRROR_RESTJAVA_PORT_FORWARD_PID=""
 MIRROR_WEB3_PORT_FORWARD_PID=""
@@ -2069,13 +2070,27 @@ start_tck_consensus_port_forward() {
   if wait_for_tcp_open 127.0.0.1 "${CN_GRPC_LOCAL_PORT}" 1 1; then
     return 0
   fi
-  nohup kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc \
-    "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" \
-    > "${CN_PORT_FORWARD_LOG}" 2>&1 < /dev/null &
+  # kubectl port-forward exits when its single stream to the pod breaks, and the TCK runs for 15+
+  # minutes, so respawn it in a loop instead of letting one dropped tunnel abort the whole suite.
+  # The log is named port-forward-*.log so cleanup_tck_resources exports it with the TCK report.
+  TCK_CN_PORT_FORWARD_LOG="${WORK_DIR}/port-forward-cn-grpc.log"
+  (
+    child=""
+    trap '[[ -z "${child}" ]] || kill "${child}" >/dev/null 2>&1; exit 0' TERM INT
+    while true; do
+      kubectl -n "${SOLO_NAMESPACE}" port-forward svc/haproxy-node1-svc \
+        "${CN_GRPC_LOCAL_PORT}:non-tls-grpc-client-port" \
+        >> "${TCK_CN_PORT_FORWARD_LOG}" 2>&1 < /dev/null &
+      child=$!
+      wait "${child}" || true
+      echo "[$(date -u '+%H:%M:%S')] CN gRPC port-forward exited; restarting" >> "${TCK_CN_PORT_FORWARD_LOG}"
+      sleep 1
+    done
+  ) &
   TCK_CN_PORT_FORWARD_PID=$!
   disown "${TCK_CN_PORT_FORWARD_PID}" 2>/dev/null || true
   if ! wait_for_tcp_open 127.0.0.1 "${CN_GRPC_LOCAL_PORT}" 30 1; then
-    cat "${CN_PORT_FORWARD_LOG}" >&2
+    cat "${TCK_CN_PORT_FORWARD_LOG}" >&2
     return 1
   fi
 }
