@@ -176,59 +176,91 @@ The `Network` interface and its abstract implementation `AbstractNetwork` provid
 
 ## 🌐 Network Simulation
 
-### Simulated Network Delays
+### Simulated Network
 
-The `SimulatedNetwork` simulates realistic network conditions:
+`TurtleNetwork` extends `SimulatedNetwork`, which owns a `SimulatedNetworkConnectivity`. Every `TurtleNode` gossips
+through a `SimulatedGossip`, which hands the events and event windows of its node to the connectivity and receives what
+the connectivity delivers to it. Falcon uses the same connectivity.
+
+The connectivity does not run the production gossip protocol: no syncs are run and no messages are exchanged between
+peers. Instead, it reproduces when production gossip would deliver each event:
+
+- A node's own events are **broadcast** while the link is in broadcast mode, and arrive after the link latency plus
+  jitter.
+- Everything else arrives with the delay of a **sync**: the hold-back of `ancestorFilterThreshold` while broadcasting,
+  the average wait for the next sync (one round trip plus half the pause between syncs), and the link latency.
+- A link leaves broadcast mode while its round trip is above `disablePingThreshold`, and returns to it `pauseOnLag` after
+  it falls below.
+- A link that comes up waits out a **reconnect delay** of about five round trips before anything is delivered over it,
+  and its two ends are sent each other's latest event window again.
+- A copy that another node forwards is only sent if it **arrives first** at the receiver, before every copy already on
+  its way. Receivers see each event at the same time as if every copy were sent, without most of the duplicates.
+- When a link **goes down**, the events in flight on it are sent again by the node that has them and can deliver them
+  soonest. If no such node has a link that is up, they are held until the link comes back.
+- With **echoes**, a node is sent a forwarded copy of its own events once. Turtle turns echoes on, Falcon turns them off.
+
+Nodes are identified internally by their rank, their position in node id order, and all per-node and per-connection
+state is kept in arrays indexed by rank.
+
+The nodes of a `SimulatedNetworkConnectivity` are fixed when it is created. The network creates it with every node when
+it starts and discards it when it is shut down. Nodes reach it through `GossipNetwork`, which the network forwards to
+the instance that is currently running.
 
 ```mermaid
 classDiagram
-    class SimulatedNetwork {
-        -random: Random
-        -newlySubmittedEvents: Map~NodeId, List~PlatformEvent~~~
-        -sortedNodeIds: List~NodeId~
-        -eventsInTransit: Map~NodeId, PriorityQueue~EventInTransit~~~
-        -gossipInstances: Map~NodeId, SimulatedGossip~~~
-        -averageDelayNanos: long
-        -standardDeviationDelayNanos: long
-        +getGossipInstance(NodeId): SimulatedGossip
-        +submitEvent(NodeId, PlatformEvent): void
+    class SimulatedNetworkConnectivity {
+        +SimulatedNetworkConnectivity(Random, Instant, Collection~EventReceiver~, boolean)
+        +setConnections(Map~ConnectionKey, ConnectionState~): void
+        +submitEvent(PlatformEvent): void
+        +updateEventWindow(NodeId, EventWindow): void
         +tick(Instant): void
-        -deliverEvents(Instant)
-        -transmitEvents(Instant)
+        +nodeRestarted(NodeId): void
     }
-
-    class Gossip {
-        <<interface>>
-        +bind(WiringModel, ...): void*
-    }
-
     class SimulatedGossip {
-        -network: SimulatedNetwork
-        -selfId: NodeId
-        -intakeEventCounter: IntakeEventCounter
-        -eventOutput: StandardOutputWire~PlatformEvent~
-        +receiveEvent(PlatformEvent)
-        +bind(WiringModel, ...)
+        +receiveEvent(PlatformEvent): boolean
+        +receiveEventWindow(NodeId, EventWindow): boolean
     }
-    Gossip <|-- SimulatedGossip
-    SimulatedNetwork "1" --* "0..*" SimulatedGossip
+    class EventReceiver {
+        <<interface>>
+    }
+    class GossipNetwork {
+        <<interface>>
+    }
+    EventReceiver <|.. SimulatedGossip
+    GossipNetwork <|.. SimulatedNetworkConnectivity
+    SimulatedNetworkConnectivity "1" --> "0..*" EventReceiver
+    SimulatedGossip --> GossipNetwork
 
-    class EventInTransit {
-        +event: PlatformEvent
-        +sender: NodeId
-        +arrivalTime: Instant
-    }
-    EventInTransit --o "1" PlatformEvent
-    SimulatedNetwork --* "0..*" EventInTransit
+    class PendingSubmissions
+    class NodeEventWindows
+    class LinkStates
+    class ArrivalTimes
+    class TrackedEvents
+    class EventRouter
+    class InFlightEvents
+    class InFlightEventWindows
+
+    SimulatedNetworkConnectivity *-- PendingSubmissions : holds submissions until the tick
+    SimulatedNetworkConnectivity *-- NodeEventWindows : latest and newly reported windows
+    SimulatedNetworkConnectivity *-- LinkStates : state of every connection and link
+    SimulatedNetworkConnectivity *-- ArrivalTimes : picks arrival times
+    SimulatedNetworkConnectivity *-- TrackedEvents : submitted events, for dedup and replay
+    SimulatedNetworkConnectivity *-- EventRouter : decides which copies are sent
+    SimulatedNetworkConnectivity *-- InFlightEvents
+    SimulatedNetworkConnectivity *-- InFlightEventWindows
+    EventRouter --> InFlightEvents : puts copies in flight
 ```
 
 ### Default Network Configuration
 
-```java
-// Default network parameters
-static final Duration AVERAGE_NETWORK_DELAY = Duration.ofMillis(200);
-static final Duration STANDARD_DEVIATION_NETWORK_DELAY = Duration.ofMillis(10);
-```
+Unless a test sets another topology, the network is a geographic mesh (`GeoMeshTopologyConfiguration.DEFAULT`): 20% of
+the connections are within a region, 40% within a continent, and 40% intercontinental.
+
+| Connection type  |  Latency  | Jitter |
+|------------------|-----------|--------|
+| Same region      | 5–30 ms   | 7.5%   |
+| Same continent   | 30–80 ms  | 10.0%  |
+| Intercontinental | 80–300 ms | 12.5%  |
 
 ### Event Transmission Flow
 
@@ -243,7 +275,7 @@ sequenceDiagram
 
     participant TM as TimeManager
 
-    participant SN as SimulatedNetwork
+    participant SN as SimulatedNetworkConnectivity
 
     box Node Bob
         participant G2 as SimulatedGossip
@@ -251,23 +283,24 @@ sequenceDiagram
     end
 
     P1->>G1: 1: Gossip.InputWire<PlatformEvent>
-    G1->>SN: 1.1: submitEvent(submitterId, event)
-    SN->>SN: 1.2: Add to newlySubmittedEvents list
+    G1->>SN: 1.1: submitEvent(event)
+    SN->>SN: 1.2: Hold in PendingSubmissions
 
     loop Time Advancement
         TM->>SN: 2: tick(now)
+        SN->>SN: 2.1: Forget events expired for every node
 
-        SN->>SN: 2.1: deliverEvents()
         loop For each Node
-            Note over SN: Check if events in eventsInTransit<br/> are due for delivery
-            SN->>G2: 2.1.1: receiveEvent(event) [if due]
-            G2->>P2: 2.1.2: Gossip.OutputWire<PlatformEvent>
+            Note over SN: Deliver the event windows,<br/>then the events, that have arrived
+            SN->>G2: 2.2: receiveEvent(event) [if arrived and link usable]
+            G2->>P2: 2.2.1: Gossip.OutputWire<PlatformEvent>
         end
 
-        SN->>SN: 2.2: transmitEvents()
-        loop For each Node
-            Note over SN: Calculate delivery times with Gaussian delay<br/>for all events in newlySubmittedEvents
-            SN->>SN: 2.2.1: Add copied event to eventsInTransit queues
+        SN->>SN: 2.3: Schedule newly reported event windows
+        SN->>SN: 2.4: Send events again to restarted nodes
+        loop For each submission, in shuffled node order
+            Note over SN: Pick arrival times, and send only<br/>the copies that arrive first
+            SN->>SN: 2.5: Put copies in flight
         end
     end
 ```
@@ -278,23 +311,35 @@ The simulation of network communication happens in two steps:
 
 1\. When a node wants to submit an event, it is received by its `SimulatedGossip` instance via the appropriate `InputWire`.
 
-1.1 `SimulatedGossip` calls `SimulatedNetwork.submitEvent(submitterId, event)`.
+1.1 `SimulatedGossip` sets itself as the sender of the event and calls `SimulatedNetworkConnectivity.submitEvent(event)`.
 
-1.2 The `SimulatedNetwork` adds the event to the `newlySubmittedEvents` list, which is a map of submitter IDs to the lists of events.
+1.2 The event is held in `PendingSubmissions`, in the list of the submitting node. Nodes submit while they run
+concurrently, so nothing is scheduled yet: scheduling draws random numbers, which has to happen in a reproducible order.
 
 #### Delivering and transmitting events
 
-2\. When the simulated time is advanced, the `SimulatorTimeManager` calls `SimulatedNetwork.tick(now)`.
+2\. When the simulated time is advanced, `TurtleNetwork` calls `SimulatedNetworkConnectivity.tick(now)`.
 
-2.1 The `SimulatedNetwork` calls `deliverEvents(now)` to process all events that are due for delivery.
+2.1 The event window of the node that is furthest behind is applied, and the events expired for every node are
+forgotten.
 
-2.1.1 For each node, it checks if any events in the `eventsInTransit` queue are due for delivery based on their arrival time. If so, it calls `receiveEvent(event)` on the corresponding `SimulatedGossip` instance.
+2.2 For each node, the event windows and then the events that have arrived over a usable link are delivered by calling
+`receiveEventWindow` and `receiveEvent` on its `SimulatedGossip`. A node may refuse the events of a sender; they stay in
+flight and are offered again on a later tick.
 
-2.1.2 The `SimulatedGossip` instance then forwards the event to its `OutputWire` from which it is consumed by the platform wiring.
+2.2.1 The `SimulatedGossip` instance forwards each event it accepts to its `OutputWire`, from which it is consumed by the
+platform wiring.
 
-2.2 After delivering events, the `SimulatedNetwork` calls `transmitEvents(now)` to process newly submitted events.
+2.3 The event windows reported since the previous tick are put in flight to every other node.
 
-2.2.1 For each node, it calculates the delivery times for all events in the `newlySubmittedEvents` list using a Gaussian distribution. It then adds these events to the `eventsInTransit` queue for that node.
+2.4 Every event that is not expired is sent again to each node that has restarted since the previous tick, once, by the
+node that has it and can deliver it soonest.
+
+2.5 The submissions held since the previous tick are scheduled, one node at a time in a shuffled order, and within a node
+in the order it submitted them. A node submitting an event again is ignored. For every other node, the copy is put in
+flight if it is of use there: the creator's own copy always is, a forwarded copy only if it arrives first.
+
+Events are delivered before new ones are scheduled, so that an event always spends at least one tick in flight.
 
 ## ⏱️ Time Management
 
@@ -318,8 +363,8 @@ sequenceDiagram
         FakeTime->>FakeTime: Advance time by 10ms (configurable)
         TurtleTimeManager->>TurtleNetwork: tick(now)
         TurtleNetwork->>SimulatedNetwork: tick(now)
-        SimulatedNetwork->>SimulatedNetwork: Process events in transit
-        SimulatedNetwork->>TurtleNodes: Deliver events due now
+        SimulatedNetwork->>TurtleNodes: Deliver events that have arrived
+        SimulatedNetwork->>SimulatedNetwork: Schedule newly submitted events
         TurtleNetwork->>TransactionGenerator: tick(now, nodes)
         TransactionGenerator->>TurtleNodes: Generate transactions for active nodes
         TurtleNetwork->>TurtleNodes: tick(now)
@@ -368,7 +413,7 @@ void testDeterministicBehavior(@NonNull final TestEnvironment env) throws Interr
             network.newConsensusResults().results().getFirst().lastRoundNum();
 
     // This assertion will always pass with seed=42
-    assertThat(lastRound).isEqualTo(47L);
+    assertThat(lastRound).isEqualTo(67L);
 }
 ```
 
