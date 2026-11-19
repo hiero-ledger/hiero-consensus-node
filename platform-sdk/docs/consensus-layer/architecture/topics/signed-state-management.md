@@ -143,6 +143,16 @@ A signed state passes through six phases.
    files into the round directory by calling
    `pcesModule.copyPcesFilesRetryOnFailure`
    ([`SignedStateFileWriter.java#copyPcesFiles`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/SignedStateFileWriter.java#copyPcesFiles)).
+   A failed write is fatal, and so is an async snapshot that times out
+   ([`state.asyncSnapshotTimeout`](../../tunables.md) (TUN-082)):
+   - The state is not marked as saved, and older states are not deleted.
+   - `DefaultStateSnapshotManager#saveStateTask` reports the failure to its
+     `FatalErrorConsumer` with
+     [`SystemExitCode.STATE_SAVE_FAILED`](../../../../consensus-utility/src/main/java/org/hiero/consensus/system/SystemExitCode.java#STATE_SAVE_FAILED)
+     ([`DefaultStateSnapshotManager.java#saveStateTask`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/persistence/DefaultStateSnapshotManager.java#saveStateTask)).
+   - `ConsensusLayerFactory#createStateModule` wires that consumer to
+     `SystemExitUtils::handleFatalError`, which exits the JVM
+     ([`ConsensusLayerFactory.java#createStateModule`](../../../../swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerFactory.java#createStateModule)).
 6. **Reclaim.** `DefaultStateGarbageCollector#heartbeat`
    ([`DefaultStateGarbageCollector.java`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/signed/DefaultStateGarbageCollector.java))
    destroys states whose reservation count has reached zero, off the hot

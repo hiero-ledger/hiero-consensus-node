@@ -5,10 +5,10 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.io.SerializableLong;
-import org.hiero.consensus.iss.detection.FatalErrorConsumer;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.system.FatalErrorConsumer;
 import org.hiero.consensus.system.SystemExitCode;
 
 /**

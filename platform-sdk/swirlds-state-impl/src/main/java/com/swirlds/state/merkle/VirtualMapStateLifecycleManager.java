@@ -17,7 +17,10 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
@@ -199,19 +202,19 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
         state.throwIfMutable();
         state.throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
+        log.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", targetPath, state);
+        final VirtualMap virtualMap = state.getRoot();
         try {
-            log.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", targetPath, state);
-            VirtualMap virtualMap = state.getRoot();
             virtualMap.createSnapshot(targetPath);
-            log.info(
-                    STATE_TO_DISK.getMarker(),
-                    "Successfully created a snapshot on demand in {}  for {}",
-                    targetPath,
-                    state);
-        } catch (final Throwable e) {
-            log.error(
-                    EXCEPTION.getMarker(), "Unable to write a snapshot on demand for {} to {}.", state, targetPath, e);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(
+                    "Unable to write a snapshot on demand for " + state + " to " + targetPath, e);
         }
+        log.info(
+                STATE_TO_DISK.getMarker(),
+                "Successfully created a snapshot on demand in {}  for {}",
+                targetPath,
+                state);
 
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
@@ -229,7 +232,10 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
         log.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand (async) in {} for {}", targetPath, state);
 
         final VirtualMap virtualMap = state.getRoot();
-        return virtualMap.createSnapshotAsync(targetPath).whenComplete((result, error) -> {
+        final CompletableFuture<Void> mapSnapshot = virtualMap.createSnapshotAsync(targetPath);
+        // Return the whenComplete() stage, not the map's future, so a waiter only returns after the snapshot
+        // is logged and measured
+        final CompletableFuture<Void> snapshot = mapSnapshot.whenComplete((_, error) -> {
             if (error != null) {
                 log.error(
                         EXCEPTION.getMarker(),
@@ -246,6 +252,19 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
             }
             snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
         });
+        // Cancelling a dependent stage doesn't cancel its source. Forward the cancellation, the map must see it
+        // to skip the snapshot. The callback above doesn't run then, its stage is already completed by the cancel,
+        // so the cancellation is logged here
+        snapshot.whenComplete((_, error) -> {
+            if (error instanceof CancellationException && mapSnapshot.cancel(true)) {
+                log.warn(
+                        STATE_TO_DISK.getMarker(),
+                        "Snapshot on demand (async) for {} to {} was cancelled.",
+                        state,
+                        targetPath);
+            }
+        });
+        return snapshot;
     }
 
     /**

@@ -23,6 +23,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.scratchpad.Scratchpad;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.system.FatalErrorConsumer;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 import org.hiero.consensus.wiring.framework.model.WiringModel;

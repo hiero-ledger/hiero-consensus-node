@@ -15,8 +15,8 @@ import java.time.Duration;
  *                                      reducing backpressure on the VirtualPipeline. Only applies to PERIODIC_SNAPSHOT
  *                                      states; other states (e.g., freeze) use synchronous creation.
  * @param asyncSnapshotTimeout          The maximum time in seconds to wait for an asynchronous snapshot to complete.
- *                                      If the snapshot is not completed within this time, a timeout error is logged.
- *                                      Only relevant when {@code saveStateAsync} is true.
+ *                                      If the snapshot is not completed within this time, the state save fails, and
+ *                                      the node shuts down. Only relevant when {@code saveStateAsync} is true.
  * @param signedStateDisk               Keep at least this many of the old complete signed states on disk. This should
  *                                      be at least 2 so that  we don't delete an old state while a new one is in the
  *                                      process of writing to disk. set to 0 to not keep any states to disk.

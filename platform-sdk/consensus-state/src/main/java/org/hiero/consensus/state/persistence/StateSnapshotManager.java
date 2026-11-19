@@ -30,6 +30,9 @@ public interface StateSnapshotManager {
      * flush the map copy, and this method blocks until the flush-triggered snapshot completes
      * or a configurable timeout expires). In both cases, the method does not return until the
      * snapshot operation has finished or failed.
+     * <p>
+     * <b>Failures:</b> A failed write is a fatal error: it is reported to the fatal error consumer, which shuts
+     * down the node. The state is not marked as saved, and older states are not deleted.
      *
      * @param reservedSignedState the reserved state to be written to disk. Must be reserved by the caller;
      *                            this method takes ownership and will release the reservation
@@ -52,6 +55,8 @@ public interface StateSnapshotManager {
      * <b>Sync vs async snapshot:</b> Depending on configuration and the state's save reason,
      * the snapshot may be created synchronously or asynchronously. See
      * {@link #saveStateTask(ReservedSignedState)} for details on the difference.
+     * <p>
+     * <b>Failures:</b> Unlike {@link #saveStateTask(ReservedSignedState)}, a failed dump is only logged.
      *
      * @param request a request to dump a state to disk. The state inside the request must be reserved
      *                by the caller; this method takes ownership and will release the reservation

@@ -2,13 +2,18 @@
 package com.swirlds.platform.state;
 
 import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.file.FileUtils.rethrowIO;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -26,8 +31,14 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import org.hiero.base.Reservable;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.file.FileSystemManager;
@@ -172,6 +183,97 @@ class StateLifecycleManagerTests {
         manager.prepareForFreeze();
 
         verify(dataSource).stopAndDisableBackgroundCompaction(false);
+    }
+
+    @Test
+    @DisplayName("createSnapshot() propagates a snapshot failure")
+    void createSnapshotPropagatesFailure() throws IOException {
+        final VirtualMapState state = mock(VirtualMapState.class);
+        final VirtualMap virtualMap = mock(VirtualMap.class);
+        when(state.getRoot()).thenReturn(virtualMap);
+        final Path targetPath = Path.of("snapshot");
+        final IOException failure = new IOException("Test: snapshot failed");
+        doThrow(failure).when(virtualMap).createSnapshot(targetPath);
+
+        final UncheckedIOException e =
+                assertThrows(UncheckedIOException.class, () -> stateLifecycleManager.createSnapshot(state, targetPath));
+        assertSame(failure, e.getCause(), "the snapshot failure should be the cause");
+    }
+
+    @Test
+    @DisplayName("Cancelling an async snapshot cancels the map's snapshot")
+    void cancellingAsyncSnapshotReachesMap() {
+        final VirtualMapState state = mock(VirtualMapState.class);
+        final VirtualMap virtualMap = mock(VirtualMap.class);
+        when(state.getRoot()).thenReturn(virtualMap);
+        final Path targetPath = Path.of("snapshot");
+        final CompletableFuture<Void> mapSnapshot = new CompletableFuture<>();
+        when(virtualMap.createSnapshotAsync(targetPath)).thenReturn(mapSnapshot);
+
+        final Future<Void> snapshot = stateLifecycleManager.createSnapshotAsync(state, targetPath);
+        snapshot.cancel(true);
+
+        // The map checks its own future before writing the snapshot, so it must see the cancellation
+        assertTrue(mapSnapshot.isCancelled(), "the map's snapshot should be cancelled");
+    }
+
+    @Test
+    @DisplayName("createSnapshotAsync() propagates a snapshot failure")
+    void createSnapshotAsyncPropagatesFailure() {
+        final VirtualMapState state = mock(VirtualMapState.class);
+        final VirtualMap virtualMap = mock(VirtualMap.class);
+        when(state.getRoot()).thenReturn(virtualMap);
+        final Path targetPath = Path.of("snapshot");
+        final CompletableFuture<Void> mapSnapshot = new CompletableFuture<>();
+        when(virtualMap.createSnapshotAsync(targetPath)).thenReturn(mapSnapshot);
+
+        final Future<Void> snapshot = stateLifecycleManager.createSnapshotAsync(state, targetPath);
+        final IOException failure = new IOException("Test: snapshot failed");
+        mapSnapshot.completeExceptionally(failure);
+
+        final ExecutionException e = assertThrows(ExecutionException.class, snapshot::get);
+        assertSame(failure, e.getCause(), "the snapshot failure should be the cause");
+    }
+
+    @Test
+    @DisplayName("An async snapshot completes only after it's logged and measured")
+    void asyncSnapshotCompletesAfterItIsMeasured() throws InterruptedException {
+        final CountDownLatch measuring = new CountDownLatch(1);
+        final CountDownLatch mayFinishMeasuring = new CountDownLatch(1);
+        final Time time = mock(Time.class);
+        // The first call reads the start time, the second one measures the finished snapshot
+        when(time.currentTimeMillis()).thenReturn(0L).thenAnswer(_ -> {
+            measuring.countDown();
+            mayFinishMeasuring.await();
+            return 0L;
+        });
+        final StateLifecycleManager<VirtualMapState, VirtualMap> manager = new VirtualMapStateLifecycleManager(
+                new NoOpMetrics(),
+                time,
+                new TestConfigBuilder().getOrCreateConfig(),
+                new TestFileSystemManager(rethrowIO(() -> Files.createTempDirectory("testRootDir"))));
+        try {
+            final VirtualMapState state = mock(VirtualMapState.class);
+            final VirtualMap virtualMap = mock(VirtualMap.class);
+            when(state.getRoot()).thenReturn(virtualMap);
+            final Path targetPath = Path.of("snapshot");
+            final CompletableFuture<Void> mapSnapshot = new CompletableFuture<>();
+            when(virtualMap.createSnapshotAsync(targetPath)).thenReturn(mapSnapshot);
+
+            final Future<Void> snapshot = manager.createSnapshotAsync(state, targetPath);
+            // The map completes its snapshot on the pipeline thread
+            final Thread pipeline = Thread.ofPlatform().start(() -> mapSnapshot.complete(null));
+            try {
+                assertTrue(measuring.await(5, SECONDS), "the snapshot should be measured");
+                assertFalse(snapshot.isDone(), "the snapshot should not complete before it's measured");
+            } finally {
+                mayFinishMeasuring.countDown();
+                pipeline.join();
+            }
+            assertTrue(snapshot.isDone(), "the snapshot should complete after it's measured");
+        } finally {
+            destroyStateLifecycleManager(manager);
+        }
     }
 
     private static SignedState newSignedState() {

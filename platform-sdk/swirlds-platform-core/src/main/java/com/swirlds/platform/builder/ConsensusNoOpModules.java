@@ -36,7 +36,6 @@ import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.io.SimpleRecycleBin;
-import org.hiero.consensus.iss.detection.FatalErrorConsumer;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -54,6 +53,7 @@ import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.system.FatalErrorConsumer;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -348,7 +348,8 @@ public class ConsensusNoOpModules {
                 swirldName,
                 stateLifecycleManager,
                 latestCompleteStateNexus,
-                savedStateController);
+                savedStateController,
+                (_, _, _) -> {});
     }
 
     /**

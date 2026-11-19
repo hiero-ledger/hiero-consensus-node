@@ -11,10 +11,15 @@ import static org.hiero.consensus.state.snapshot.StateToDiskReason.ISS;
 import static org.hiero.consensus.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.base.time.Time;
@@ -26,6 +31,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -34,6 +40,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 import org.hiero.base.CompareTo;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -55,6 +62,8 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
+import org.hiero.consensus.system.FatalErrorConsumer;
+import org.hiero.consensus.system.SystemExitCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,6 +91,13 @@ class StateFileManagerTests {
     private FileSystemManager fileSystemManager;
     private StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
+    /**
+     * The exit codes of the fatal errors reported by the state snapshot manager
+     */
+    private List<SystemExitCode> fatalErrors;
+
+    private FatalErrorConsumer fatalErrorConsumer;
+
     @BeforeAll
     static void beforeAll() throws ConstructableRegistryException {
         ConstructableRegistration.registerAllConstructables();
@@ -96,6 +112,8 @@ class StateFileManagerTests {
         time = Time.getCurrent();
         signedStateFilePath = new SignedStateFilePath(fileSystemManager, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
         stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        fatalErrors = new ArrayList<>();
+        fatalErrorConsumer = (msg, throwable, exitCode) -> fatalErrors.add(exitCode);
     }
 
     @AfterEach
@@ -167,7 +185,8 @@ class StateFileManagerTests {
                 MAIN_CLASS_NAME,
                 SELF_ID,
                 SWIRLD_NAME,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                fatalErrorConsumer);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
         // This state is irrelevant in this test context and thus should be released
@@ -175,10 +194,59 @@ class StateFileManagerTests {
 
         if (successExpected) {
             assertNotNull(stateSavingResult, "If succeeded, should return a StateSavingResult");
+            assertTrue(fatalErrors.isEmpty(), "A successful save should not fail the node");
             validateSavingOfState(signedState);
         } else {
             assertNull(stateSavingResult, "If unsuccessful, should return null");
+            assertEquals(List.of(SystemExitCode.STATE_SAVE_FAILED), fatalErrors, "A failed save should fail the node");
+            assertFalse(signedState.hasStateBeenSavedToDisk(), "A failed save should not mark the state as saved");
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    @DisplayName("A failed snapshot fails the node and isn't saved as a state")
+    void snapshotFailureFailsNode(final boolean async) {
+        final SignedState signedState = new RandomSignedStateGenerator().build();
+        initLifecycleManagerAndMakeStateImmutable(signedState);
+
+        final StateLifecycleManager<VirtualMapState, VirtualMap> failingLifecycleManager = spy(stateLifecycleManager);
+        final UncheckedIOException failure = new UncheckedIOException(new IOException("Test: snapshot failed"));
+        if (async) {
+            // Async snapshots are only used for periodic states
+            signedState.markAsStateToSave(PERIODIC_SNAPSHOT);
+            doReturn(CompletableFuture.failedFuture(failure))
+                    .when(failingLifecycleManager)
+                    .createSnapshotAsync(any(), any());
+        } else {
+            doThrow(failure).when(failingLifecycleManager).createSnapshot(any(), any());
+        }
+        final Configuration configuration = new TestConfigBuilder()
+                .withValue(StateConfig_.SAVE_STATE_ASYNC, async)
+                .getOrCreateConfig();
+
+        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
+                MAIN_CLASS_NAME,
+                SELF_ID,
+                SWIRLD_NAME,
+                failingLifecycleManager,
+                fatalErrorConsumer);
+
+        final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
+        stateLifecycleManager.getMutableState().release();
+
+        assertNull(stateSavingResult, "A failed snapshot should not be saved");
+        assertEquals(List.of(SystemExitCode.STATE_SAVE_FAILED), fatalErrors, "A failed snapshot should fail the node");
+        assertFalse(signedState.hasStateBeenSavedToDisk(), "A failed snapshot should not mark the state as saved");
+        assertFalse(
+                exists(signedStateFilePath.getSignedStateDirectory(signedState.getRound())),
+                "A failed snapshot should not be moved into the saved states directory");
+        assertEventuallyEquals(
+                -1, signedState::getReservationCount, Duration.ofSeconds(1), "the state should be released");
     }
 
     @Test
@@ -194,7 +262,8 @@ class StateFileManagerTests {
                 MAIN_CLASS_NAME,
                 SELF_ID,
                 SWIRLD_NAME,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                fatalErrorConsumer);
         signedState.markAsStateToSave(ISS);
         initLifecycleManagerAndMakeStateImmutable(signedState);
         manager.dumpStateTask(StateDumpRequest.create(signedState.reserve("test")));
@@ -237,7 +306,8 @@ class StateFileManagerTests {
                 MAIN_CLASS_NAME,
                 SELF_ID,
                 SWIRLD_NAME,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                fatalErrorConsumer);
         final SavedStateController controller = new DefaultSavedStateController(configuration);
 
         Instant timestamp;
@@ -361,7 +431,8 @@ class StateFileManagerTests {
                 MAIN_CLASS_NAME,
                 SELF_ID,
                 SWIRLD_NAME,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                fatalErrorConsumer);
 
         final Path statesDirectory = signedStateFilePath.getSignedStatesDirectoryForSwirld();
 

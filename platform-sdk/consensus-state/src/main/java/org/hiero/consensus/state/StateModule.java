@@ -46,6 +46,7 @@ import org.hiero.consensus.state.signing.SignedStateMetrics;
 import org.hiero.consensus.state.signing.StateSignatureCollector;
 import org.hiero.consensus.state.signing.StateSigner;
 import org.hiero.consensus.state.utils.SignedStateReserver;
+import org.hiero.consensus.system.FatalErrorConsumer;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -106,6 +107,7 @@ public class StateModule {
      * @param stateLifecycleManager the state lifecycle manager
      * @param latestCompleteStateNexus the latest complete state nexus
      * @param savedStateController the saved state controller
+     * @param fatalErrorConsumer called when a state can't be saved to disk, to shut down the node
      */
     public StateModule(
             @NonNull final WiringModel model,
@@ -119,7 +121,8 @@ public class StateModule {
             @NonNull final String swirldName,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
-            @NonNull final SavedStateController savedStateController) {
+            @NonNull final SavedStateController savedStateController,
+            @NonNull final FatalErrorConsumer fatalErrorConsumer) {
 
         // Set up wiring
         this.eventWindowExtractor = new WireTransformer<>(
@@ -249,7 +252,8 @@ public class StateModule {
                 actualMainClassName,
                 selfId,
                 swirldName,
-                stateLifecycleManager);
+                stateLifecycleManager,
+                fatalErrorConsumer);
         stateSnapshotManagerWiring.bind(stateSnapshotManager);
         savedStateControllerWiring.bind(savedStateController);
         latestCompleteStateNexusWiring.bind(latestCompleteStateNexus);

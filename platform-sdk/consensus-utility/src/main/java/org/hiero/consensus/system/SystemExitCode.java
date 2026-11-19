@@ -34,6 +34,10 @@ public enum SystemExitCode {
      */
     UPGRADE_FROM_NON_FREEZE_STATE(206),
     /**
+     * The node failed to write a signed state to disk.
+     */
+    STATE_SAVE_FAILED(207),
+    /**
      * An exit was called but no code was supplied
      */
     NO_EXIT_CODE(254),
