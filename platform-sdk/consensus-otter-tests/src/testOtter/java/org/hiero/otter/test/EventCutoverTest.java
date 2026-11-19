@@ -24,10 +24,8 @@ import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.pces.config.PcesConfig_;
-import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
@@ -144,13 +142,6 @@ public class EventCutoverTest {
         // Enable the event cutover feature for this test.
         network.withConfigValue(EventConfig_.ENABLE_EVENT_CUTOVER, true);
 
-        // Initialize the EventHashFactory on the local JVM so that events sent back in consensus
-        // rounds for assertions are hashed correctly. The state this test starts from is round 32.
-        if (env.capabilities().contains(Capability.SINGLE_NODE_JVM_SHUTDOWN)) {
-            // Only required for the container environment
-            EventHashFactory.initialize(33);
-        }
-
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
         assertContinuouslyThat(network.newConsensusResults())
@@ -207,13 +198,6 @@ public class EventCutoverTest {
 
         // Enable the event cutover feature for this test.
         network.withConfigValue(EventConfig_.ENABLE_EVENT_CUTOVER, true);
-
-        // Initialize the EventHashFactory on the local JVM so that events sent back in consensus
-        // rounds for assertions are hashed correctly. The state this test starts from is round 32.
-        if (env.capabilities().contains(Capability.SINGLE_NODE_JVM_SHUTDOWN)) {
-            // Only required for the container environment
-            EventHashFactory.initialize(33);
-        }
 
         network.start();
 
@@ -289,13 +273,6 @@ public class EventCutoverTest {
 
         // Enable the event cutover feature for this test.
         network.withConfigValue(EventConfig_.ENABLE_EVENT_CUTOVER, true);
-
-        // Initialize the EventHashFactory on the local JVM so that events sent back in consensus
-        // rounds for assertions are hashed correctly. The state this test starts from is round 32.
-        if (env.capabilities().contains(Capability.SINGLE_NODE_JVM_SHUTDOWN)) {
-            // Only required for the container environment
-            EventHashFactory.initialize(33);
-        }
 
         network.start();
 
@@ -400,13 +377,6 @@ public class EventCutoverTest {
         network.withConfigValue(PcesConfig_.BOOTSTRAP_SPAN, 1);
         network.withConfigValue(ConsensusConfig_.ROUNDS_EXPIRED, ROUNDS_EXPIRED);
 
-        // Initialize the EventHashFactory on the local JVM so that events sent back in consensus
-        // rounds for assertions are hashed correctly. The state this test starts from is round 32.
-        if (env.capabilities().contains(Capability.SINGLE_NODE_JVM_SHUTDOWN)) {
-            // Only required for the container environment
-            EventHashFactory.initialize(STARTING_STATE_ROUND + 1);
-        }
-
         network.start();
 
         timeManager.waitFor(Duration.ofSeconds(60L));
@@ -417,10 +387,6 @@ public class EventCutoverTest {
 
         network.bumpConfigVersion();
         network.withConfigValue(EventConfig_.ENABLE_EVENT_CUTOVER, false);
-        if (env.capabilities().contains(Capability.SINGLE_NODE_JVM_SHUTDOWN)) {
-            // Only required for the container environment
-            EventHashFactory.initialize(0L);
-        }
 
         network.start();
 
@@ -441,9 +407,6 @@ public class EventCutoverTest {
 
     private static void assertPcesEventHashesMatchExpectedDigestType(@NonNull final Network network)
             throws IOException {
-        // The PCES files still on disk can contain events from before the cutover. Parse them with the original
-        // cutover, regardless of the value the nodes use after the cutover was cleared.
-        EventHashFactory.initialize(STARTING_STATE_ROUND + 1);
         for (final SingleNodePcesResult pcesResult : network.newPcesResults().pcesResults()) {
             try (final IOIterator<PlatformEvent> pcesEventIt = pcesResult.pcesEvents()) {
                 while (pcesEventIt.hasNext()) {
