@@ -849,7 +849,9 @@ public class ProofControllerImpl implements ProofController {
             final var quorum = new WrapsSigningQuorum(
                     sourceBook,
                     groundsChainOfTrust(construction) ? weights.targetNodeWeights() : weights.sourceNodeWeights(),
-                    keyProvenanceBinding != null);
+                    keyProvenanceBinding == null
+                            ? 0
+                            : requireNonNull(sourceSigner).verificationKeyWeight());
             return quorum.canCompleteWithout(withMissing) ? withMissing : excludedNodeIds;
         } catch (IllegalArgumentException e) {
             // The prover deterministically rejects an unavailable or malformed canonical snapshot; it cannot
