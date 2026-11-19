@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.verifier.canton;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.impl.verifier.canton.CantonRlp.Slice;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
@@ -77,47 +78,53 @@ final class CantonVerdictVerifier {
      * @param typedContent the {@code TypedSignedProtocolMessageContent} the mediators signed
      * @param signatures the RLP mediator-signature list
      * @param mediatorSet the packed mediator set the anchor commits to, before the rotations
-     * @param trustAnchor the anchor of {@link CantonAnchor}
+     * @param anchor the decoded trust anchor, which the caller decodes once for the whole bundle
      * @param rotations bundle field 4 as raw RLP bytes
-     * @throws CantonProofException on any verification failure
+     * @throws CantonProofException {@code TrustSetMismatch} if {@code mediatorSet} does not hash to the anchor's
+     *     commitment, or any other verification failure
      */
     @NonNull
     static BundleVerdictResult verifyBundleVerdict(
             @NonNull final byte[] typedContent,
             @NonNull final byte[] signatures,
             @NonNull final byte[] mediatorSet,
-            @NonNull final byte[] trustAnchor,
+            @NonNull final CantonAnchor.Anchor anchor,
             @NonNull final byte[] rotations) {
         Objects.requireNonNull(typedContent, "typedContent");
         Objects.requireNonNull(signatures, "signatures");
         Objects.requireNonNull(mediatorSet, "mediatorSet");
-        Objects.requireNonNull(trustAnchor, "trustAnchor");
+        Objects.requireNonNull(anchor, "anchor");
         Objects.requireNonNull(rotations, "rotations");
 
+        // The one check that the mediator set is the anchor's: the rotations below start from it.
+        if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(mediatorSet), anchor.mediatorsHash())) {
+            throw CantonProofException.trustSetMismatch();
+        }
+
         final boolean changed = !CantonRlp.isEmpty(new Slice(rotations, 0, rotations.length));
-        final CantonAnchor.Anchor anchor;
+        final CantonAnchor.Anchor rotated;
         final byte[] set;
         if (changed) {
             final CantonTopologyVerifier.RotationResult rr =
-                    CantonTopologyVerifier.applyRotations(trustAnchor, mediatorSet, rotations);
-            anchor = CantonAnchor.Anchor.decode(rr.newAnchor());
+                    CantonTopologyVerifier.applyRotations(anchor, mediatorSet, rotations);
+            rotated = rr.newAnchor();
             set = rr.newMediatorSet();
         } else {
-            anchor = CantonAnchor.Anchor.decode(trustAnchor);
+            rotated = anchor;
             set = mediatorSet;
         }
 
         final CantonProto.Verdict v = CantonProto.parseVerdict(typedContent);
-        final boolean upgraded = !anchor.successorSynchronizerId().isEmpty()
-                && Long.compareUnsigned(v.requestId(), anchor.upgradeTime()) > 0;
-        final CantonAnchor.Anchor effective = upgraded ? anchor.withSuccessorAsSynchronizer() : anchor;
+        final boolean upgraded = !rotated.successorSynchronizerId().isEmpty()
+                && Long.compareUnsigned(v.requestId(), rotated.upgradeTime()) > 0;
+        final CantonAnchor.Anchor effective = upgraded ? rotated.withSuccessorAsSynchronizer() : rotated;
         if (changed) {
             log.info("Canton trust anchor rotated by bundle topology rotations (request id {})", v.requestId());
         }
         if (upgraded) {
             log.info(
                     "Canton trust anchor upgraded from {} to {} (request id {})",
-                    anchor.synchronizerId(),
+                    rotated.synchronizerId(),
                     effective.synchronizerId(),
                     v.requestId());
         }

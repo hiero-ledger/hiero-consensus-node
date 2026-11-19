@@ -277,7 +277,7 @@ class CantonVerdictVerifierTest {
         @Test
         void bundleVerdictWithoutRotationsOrUpgradeLeavesTheAnchorUnchanged() {
             // REAL typed content, signature and key; CONSTRUCTED anchor naming the verdict's synchronizer.
-            final byte[] anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, "", 0L);
+            final CantonAnchor.Anchor anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, "", 0L);
             final var result =
                     CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
             assertThat(result.requestId()).isEqualTo(VERDICT.requestId());
@@ -289,7 +289,8 @@ class CantonVerdictVerifierTest {
         @Test
         void bundleVerdictBeforeTheUpgradeTimeStillNamesTheCurrentSynchronizer() {
             // CONSTRUCTED: pending upgrade whose time equals the request id (not strictly later): no upgrade yet.
-            final byte[] anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, LSU_SUCCESSOR, VERDICT.requestId());
+            final CantonAnchor.Anchor anchor =
+                    anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, LSU_SUCCESSOR, VERDICT.requestId());
             final var result =
                     CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
             assertThat(result.anchor().synchronizerId()).isEqualTo(VERDICT_SYNC);
@@ -301,7 +302,7 @@ class CantonVerdictVerifierTest {
         void bundleVerdictAfterTheUpgradeTimeCompletesTheUpgrade() {
             // CONSTRUCTED: the verdict's synchronizer is the pending successor and the request id is past the upgrade
             // time, so the verdict is checked against the successor and the new anchor completes the upgrade.
-            final byte[] anchor =
+            final CantonAnchor.Anchor anchor =
                     anchorOf(LSU_SYNCHRONIZER, new byte[] {1}, REAL_SET, VERDICT_SYNC, VERDICT.requestId() - 1);
             final var result =
                     CantonVerdictVerifier.verifyBundleVerdict(TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS);
@@ -320,7 +321,7 @@ class CantonVerdictVerifierTest {
         @Test
         void bundleVerdictAfterTheUpgradeTimeStillNeedsTheSuccessorSynchronizer() {
             // The request id is past the upgrade time, so the verdict must name the successor, not the old id.
-            final byte[] anchor =
+            final CantonAnchor.Anchor anchor =
                     anchorOf(VERDICT_SYNC, new byte[] {1}, REAL_SET, LSU_SUCCESSOR, VERDICT.requestId() - 1);
             assertError(
                     "SynchronizerMismatch",
@@ -345,7 +346,7 @@ class CantonVerdictVerifierTest {
             assertThat(VERDICT.requestId()).isLessThan(LSU_UPGRADE_TIME);
             final byte[] sigs = sigs(
                     entry(mediator.fp(), mediator.sign(CantonMerkle.verdictSigningInput(typed)), EMPTY_DELEGATION));
-            final byte[] anchor = anchorOf(LSU_SYNCHRONIZER, ownerSet, mediatorSet, "", 0L);
+            final CantonAnchor.Anchor anchor = anchorOf(LSU_SYNCHRONIZER, ownerSet, mediatorSet, "", 0L);
 
             final var result = CantonVerdictVerifier.verifyBundleVerdict(typed, sigs, mediatorSet, anchor, rotations);
 
@@ -361,11 +362,21 @@ class CantonVerdictVerifierTest {
         }
 
         @Test
+        void bundleVerdictWithoutRotationsRejectsAMediatorSetNotMatchingTheAnchor() {
+            // No rotations: the verdict verifier itself must check the set against the anchor's commitment.
+            final CantonAnchor.Anchor anchor = anchorOf(VERDICT_SYNC, new byte[] {1}, new byte[] {9}, "", 0L);
+            assertError(
+                    "TrustSetMismatch",
+                    () -> CantonVerdictVerifier.verifyBundleVerdict(
+                            TYPED, sigs(realEntry()), REAL_SET, anchor, NO_ROTATIONS));
+        }
+
+        @Test
         void bundleVerdictRotationsNotMatchingTheAnchorAreRejected() {
             // The mediator set does not hash to the anchor's commitment, so the rotations are rejected before any
             // check.
             final byte[] ownerSet = CantonFixtures.lsuOwnerSet();
-            final byte[] anchor = anchorOf(LSU_SYNCHRONIZER, ownerSet, new byte[] {9}, "", 0L);
+            final CantonAnchor.Anchor anchor = anchorOf(LSU_SYNCHRONIZER, ownerSet, new byte[] {9}, "", 0L);
             final byte[] rotations = Rlp.encodeList(List.of(Rlp.encodeBytes(ownerSet), Rlp.encodeList(List.of())));
             assertError(
                     "TrustSetMismatch",
@@ -374,24 +385,23 @@ class CantonVerdictVerifierTest {
         }
     }
 
-    private static byte[] anchorOf(
+    private static CantonAnchor.Anchor anchorOf(
             final String synchronizerId,
             final byte[] ownerSet,
             final byte[] mediatorSet,
             final String successor,
             final long upgradeTime) {
         return new CantonAnchor.Anchor(
-                        synchronizerId,
-                        0L,
-                        0,
-                        LSU_NAMESPACE,
-                        MiscCryptoUtils.keccak256DigestOf(ownerSet),
-                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
-                        successor,
-                        upgradeTime,
-                        successor.isEmpty() ? 0 : 1,
-                        APP)
-                .encode();
+                synchronizerId,
+                0L,
+                0,
+                LSU_NAMESPACE,
+                MiscCryptoUtils.keccak256DigestOf(ownerSet),
+                MiscCryptoUtils.keccak256DigestOf(mediatorSet),
+                successor,
+                upgradeTime,
+                successor.isEmpty() ? 0 : 1,
+                APP);
     }
 
     private static byte[] varint(final int v) {

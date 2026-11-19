@@ -119,7 +119,7 @@ class CantonTopologyVerifierTest {
             assertThat(sequencer.delegations().getFirst().restriction()).isEqualTo(1);
             assertThat(owner(o, OWNER_PARTICIPANT).namespace()).isEqualTo(OWNER_PARTICIPANT);
 
-            final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(r.newAnchor());
+            final CantonAnchor.Anchor out = r.newAnchor();
             assertThat(out.ownersHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(r.newOwnerSet()));
             assertThat(out.mediatorsHash()).isEqualTo(MiscCryptoUtils.keccak256DigestOf(r.newMediatorSet()));
         }
@@ -128,7 +128,7 @@ class CantonTopologyVerifierTest {
         void realRotationsMustComeInOrder() {
             final byte[] ownerSet = CantonFixtures.topologyOwnerSet();
             final byte[] mediatorSet = CantonFixtures.topologyMediatorSet();
-            final byte[] a = anchor(SYNCHRONIZER_ID, SYNCHRONIZER_NAMESPACE, ownerSet, mediatorSet);
+            final CantonAnchor.Anchor a = anchor(SYNCHRONIZER_ID, SYNCHRONIZER_NAMESPACE, ownerSet, mediatorSet);
 
             final List<byte[]> items = items(CantonFixtures.topologyRotations());
 
@@ -148,22 +148,10 @@ class CantonTopologyVerifierTest {
         }
 
         @Test
-        void mediatorSetNotHashingToAnchorRejected() {
-            final byte[] ownerSet = CantonFixtures.topologyOwnerSet();
-            final byte[] mediatorSet = CantonFixtures.topologyMediatorSet();
-            final byte[] a = anchor(SYNCHRONIZER_ID, SYNCHRONIZER_NAMESPACE, ownerSet, mediatorSet);
-            final byte[] tampered = mediatorSet.clone();
-            tampered[tampered.length - 1] ^= 1;
-            assertThat(errorOf(() ->
-                            CantonTopologyVerifier.applyRotations(a, tampered, CantonFixtures.topologyRotations())))
-                    .isEqualTo("TrustSetMismatch");
-        }
-
-        @Test
         void ownerSetNotHashingToAnchorRejected() {
             final byte[] ownerSet = CantonFixtures.topologyOwnerSet();
             final byte[] mediatorSet = CantonFixtures.topologyMediatorSet();
-            final byte[] a = anchor(SYNCHRONIZER_ID, SYNCHRONIZER_NAMESPACE, ownerSet, mediatorSet);
+            final CantonAnchor.Anchor a = anchor(SYNCHRONIZER_ID, SYNCHRONIZER_NAMESPACE, ownerSet, mediatorSet);
             // Keep the real rotation items but replace the embedded owner set with a tampered copy.
             final byte[] tampered = ownerSet.clone();
             tampered[tampered.length - 1] ^= 1;
@@ -197,8 +185,7 @@ class CantonTopologyVerifierTest {
                     .isEqualTo("TopologyUnauthorized");
             final CantonTopologyVerifier.RotationResult res =
                     run(owners(OWNER_A), mediators(), grow, lsu(ADD, 1, successor, OWNER_A, OWNER_B));
-            assertThat(CantonAnchor.Anchor.decode(res.newAnchor()).successorSynchronizerId())
-                    .isEqualTo(successor);
+            assertThat(res.newAnchor().successorSynchronizerId()).isEqualTo(successor);
         }
 
         @Test
@@ -229,8 +216,9 @@ class CantonTopologyVerifierTest {
             final byte[] ownerSet = CantonFixtures.topologyOwnerSet();
             final byte[] mediatorSet = CantonFixtures.topologyMediatorSet();
             final byte[] rotations = CantonFixtures.topologyRotations();
-            final byte[] trustAnchor = anchor(SYNCHRONIZER_ID, SYNCHRONIZER_NAMESPACE, ownerSet, mediatorSet);
-            final byte[] anchorBefore = trustAnchor.clone();
+            final CantonAnchor.Anchor trustAnchor =
+                    anchor(SYNCHRONIZER_ID, SYNCHRONIZER_NAMESPACE, ownerSet, mediatorSet);
+            final byte[] anchorBefore = trustAnchor.encode();
             final byte[] mediatorsBefore = mediatorSet.clone();
             final byte[] rotationsBefore = rotations.clone();
 
@@ -239,10 +227,10 @@ class CantonTopologyVerifierTest {
             final CantonTopologyVerifier.RotationResult second =
                     CantonTopologyVerifier.applyRotations(trustAnchor, mediatorSet, rotations);
 
-            assertThat(trustAnchor).isEqualTo(anchorBefore);
+            assertThat(trustAnchor.encode()).isEqualTo(anchorBefore);
             assertThat(mediatorSet).isEqualTo(mediatorsBefore);
             assertThat(rotations).isEqualTo(rotationsBefore);
-            assertThat(second.newAnchor()).isEqualTo(first.newAnchor());
+            assertThat(second.newAnchor().encode()).isEqualTo(first.newAnchor().encode());
             assertThat(second.newMediatorSet()).isEqualTo(first.newMediatorSet());
             assertThat(second.newOwnerSet()).isEqualTo(first.newOwnerSet());
         }
@@ -265,7 +253,7 @@ class CantonTopologyVerifierTest {
             final CantonTopologyVerifier.RotationResult r = CantonTopologyVerifier.applyRotations(
                     anchor(LSU_SYNCHRONIZER, LSU_NAMESPACE, ownerSet, mediatorSet), mediatorSet, rotations);
 
-            final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(r.newAnchor());
+            final CantonAnchor.Anchor out = r.newAnchor();
             assertThat(out.successorSynchronizerId())
                     .isEqualTo("probe::122042b2d7afca2069ab5231b4384df922987122465472121b048f886edb5f8198c0::35-1");
             assertThat(out.upgradeTime()).isEqualTo(1_893_456_000_000_000L);
@@ -283,7 +271,7 @@ class CantonTopologyVerifierTest {
                             Rlp.encodeBytes(new byte[0]),
                             Rlp.encodeBytes(new byte[0])))));
             // Same real announcement, but the anchor names a synchronizer of a different logical id: not a successor.
-            final byte[] a = anchor(
+            final CantonAnchor.Anchor a = anchor(
                     "other::12201111111111111111111111111111111111111111111111111111111111111111::35-0",
                     LSU_NAMESPACE,
                     ownerSet,
@@ -465,7 +453,7 @@ class CantonTopologyVerifierTest {
                     List.of(SYNC_LOGICAL + "::35-1", SYNC_LOGICAL + "::36-0", SYNC_LOGICAL + "::36-1")) {
                 final CantonTopologyVerifier.RotationResult res =
                         run(owners(OWNER_A), mediators(), lsu(ADD, 1, successor, OWNER_A));
-                final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(res.newAnchor());
+                final CantonAnchor.Anchor out = res.newAnchor();
                 assertThat(out.successorSynchronizerId()).isEqualTo(successor);
                 assertThat(out.upgradeTime()).isEqualTo(1_700_000_000_000_000L);
                 assertThat(out.lsuSerial()).isEqualTo(1);
@@ -498,23 +486,25 @@ class CantonTopologyVerifierTest {
 
         @Test
         void lsuAnnouncementOverAPendingOneMustHaveAGreaterSerial() {
-            final byte[] a = anchorOf(SYNC_ID, SYNC_LOGICAL + "::35-1", 1_000L, 5, owners(OWNER_A), mediators());
+            final CantonAnchor.Anchor a =
+                    anchorOf(SYNC_ID, SYNC_LOGICAL + "::35-1", 1_000L, 5, owners(OWNER_A), mediators());
             assertThat(error(a, owners(OWNER_A), mediators(), lsu(ADD, 5, SYNC_LOGICAL + "::35-2", OWNER_A)))
                     .isEqualTo("InvalidLsuAnnouncement");
 
             final CantonTopologyVerifier.RotationResult res =
                     run(a, owners(OWNER_A), mediators(), lsu(ADD, 6, SYNC_LOGICAL + "::35-2", OWNER_A));
-            final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(res.newAnchor());
+            final CantonAnchor.Anchor out = res.newAnchor();
             assertThat(out.successorSynchronizerId()).isEqualTo(SYNC_LOGICAL + "::35-2");
             assertThat(out.lsuSerial()).isEqualTo(6);
         }
 
         @Test
         void lsuAnnouncementRemovalCancelsAPendingUpgradeOnly() {
-            final byte[] pending = anchorOf(SYNC_ID, SYNC_LOGICAL + "::35-1", 1_000L, 5, owners(OWNER_A), mediators());
+            final CantonAnchor.Anchor pending =
+                    anchorOf(SYNC_ID, SYNC_LOGICAL + "::35-1", 1_000L, 5, owners(OWNER_A), mediators());
             final CantonTopologyVerifier.RotationResult res =
                     run(pending, owners(OWNER_A), mediators(), lsu(REMOVE, 6, SYNC_LOGICAL + "::35-1", OWNER_A));
-            final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(res.newAnchor());
+            final CantonAnchor.Anchor out = res.newAnchor();
             assertThat(out.successorSynchronizerId()).isEmpty();
             assertThat(out.upgradeTime()).isZero();
             assertThat(out.lsuSerial()).isZero();
@@ -552,8 +542,7 @@ class CantonTopologyVerifierTest {
             // D2 does.
             final CantonTopologyVerifier.RotationResult res =
                     run(ownerSet, mediators(), lsu(ADD, 1, SYNC_LOGICAL + "::35-1", DELEGATE_2));
-            assertThat(CantonAnchor.Anchor.decode(res.newAnchor()).successorSynchronizerId())
-                    .isEqualTo(SYNC_LOGICAL + "::35-1");
+            assertThat(res.newAnchor().successorSynchronizerId()).isEqualTo(SYNC_LOGICAL + "::35-1");
         }
 
         @Test
@@ -574,8 +563,7 @@ class CantonTopologyVerifierTest {
                         .isEqualTo("TopologyUnauthorized");
                 final CantonTopologyVerifier.RotationResult res =
                         run(ownerSet, mediators(), lsu(ADD, 1, SYNC_LOGICAL + "::35-1", DELEGATE_2));
-                assertThat(CantonAnchor.Anchor.decode(res.newAnchor()).lsuSerial())
-                        .isEqualTo(1);
+                assertThat(res.newAnchor().lsuSerial()).isEqualTo(1);
             }
         }
     }
@@ -599,7 +587,7 @@ class CantonTopologyVerifierTest {
 
         @Test
         void mediatorStateOnAMalformedSynchronizerIdRejected() {
-            final byte[] a = anchorOf("not-a-physical-id", "", 0, 0, owners(OWNER_A), mediators());
+            final CantonAnchor.Anchor a = anchorOf("not-a-physical-id", "", 0, 0, owners(OWNER_A), mediators());
             final Rot r = mediatorState(ADD, 2, utf8(SYNC_LOGICAL), 0, 1, List.of(MEDIATOR_UID));
             assertThat(error(a, owners(OWNER_A), mediators(), r)).isEqualTo("InvalidTopologyChange");
         }
@@ -776,7 +764,7 @@ class CantonTopologyVerifierTest {
         void lsuAnnouncementAtTheThresholdAccepted() {
             final CantonTopologyVerifier.RotationResult res =
                     run(twoOfTwo, mediators(), lsu(ADD, 1, SYNC_LOGICAL + "::35-1", OWNER_A, OWNER_B));
-            assertThat(CantonAnchor.Anchor.decode(res.newAnchor()).lsuSerial()).isEqualTo(1);
+            assertThat(res.newAnchor().lsuSerial()).isEqualTo(1);
         }
 
         @Test
@@ -814,9 +802,8 @@ class CantonTopologyVerifierTest {
             assertThat(error(ownerSet, mediators(), lsu(ADD, 1, successor, OWNER_A, DELEGATE_1)))
                     .isEqualTo("TopologyUnauthorized");
             // A delegate of one owner and the root of the other are two owners.
-            assertThat(CantonAnchor.Anchor.decode(
-                                    run(ownerSet, mediators(), lsu(ADD, 1, successor, DELEGATE_1, OWNER_B))
-                                            .newAnchor())
+            assertThat(run(ownerSet, mediators(), lsu(ADD, 1, successor, DELEGATE_1, OWNER_B))
+                            .newAnchor()
                             .successorSynchronizerId())
                     .isEqualTo(successor);
         }
@@ -953,9 +940,8 @@ class CantonTopologyVerifierTest {
             final String successor = SYNC_LOGICAL + "::35-1";
 
             // While it stands, the delegate announces an upgrade for the owner.
-            assertThat(CantonAnchor.Anchor.decode(
-                                    run(owners(OWNER_A), mediators(), add, lsu(ADD, 1, successor, DELEGATE_1))
-                                            .newAnchor())
+            assertThat(run(owners(OWNER_A), mediators(), add, lsu(ADD, 1, successor, DELEGATE_1))
+                            .newAnchor()
                             .successorSynchronizerId())
                     .isEqualTo(successor);
             // Once removed, it may not.
@@ -987,8 +973,7 @@ class CantonTopologyVerifierTest {
             final List<byte[]> hashes = List.of(sha256(utf8("another transaction")), own);
             final Rot r = rot(multiTx(ADD, 1, CantonTopology.MAPPING_LSU_ANNOUNCEMENT, body, hashes, OWNER_A));
 
-            final CantonAnchor.Anchor out = CantonAnchor.Anchor.decode(
-                    run(owners(OWNER_A), mediators(), r).newAnchor());
+            final CantonAnchor.Anchor out = run(owners(OWNER_A), mediators(), r).newAnchor();
             assertThat(out.successorSynchronizerId()).isEqualTo(SYNC_LOGICAL + "::35-1");
         }
 
@@ -1030,20 +1015,19 @@ class CantonTopologyVerifierTest {
         return Rlp.encodeList(List.of(Rlp.encodeBytes(ownerSet), Rlp.encodeList(encodedItems)));
     }
 
-    private static byte[] anchor(
+    private static CantonAnchor.Anchor anchor(
             final String synchronizerId, final byte[] namespace, final byte[] ownerSet, final byte[] mediatorSet) {
         return new CantonAnchor.Anchor(
-                        synchronizerId,
-                        1L,
-                        0,
-                        namespace,
-                        MiscCryptoUtils.keccak256DigestOf(ownerSet),
-                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
-                        "",
-                        0L,
-                        0,
-                        APP)
-                .encode();
+                synchronizerId,
+                1L,
+                0,
+                namespace,
+                MiscCryptoUtils.keccak256DigestOf(ownerSet),
+                MiscCryptoUtils.keccak256DigestOf(mediatorSet),
+                "",
+                0L,
+                0,
+                APP);
     }
 
     private static byte[] bytesOf(final CantonRlp.Slice s) {
@@ -1198,7 +1182,7 @@ class CantonTopologyVerifierTest {
                 .encode();
     }
 
-    private static byte[] anchorOf(
+    private static CantonAnchor.Anchor anchorOf(
             final String id,
             final String successor,
             final long upgradeTime,
@@ -1206,17 +1190,16 @@ class CantonTopologyVerifierTest {
             final byte[] ownerSet,
             final byte[] mediatorSet) {
         return new CantonAnchor.Anchor(
-                        id,
-                        1L,
-                        0,
-                        SYNC_NAMESPACE,
-                        MiscCryptoUtils.keccak256DigestOf(ownerSet),
-                        MiscCryptoUtils.keccak256DigestOf(mediatorSet),
-                        successor,
-                        upgradeTime,
-                        lsuSerial,
-                        APP)
-                .encode();
+                id,
+                1L,
+                0,
+                SYNC_NAMESPACE,
+                MiscCryptoUtils.keccak256DigestOf(ownerSet),
+                MiscCryptoUtils.keccak256DigestOf(mediatorSet),
+                successor,
+                upgradeTime,
+                lsuSerial,
+                APP);
     }
 
     private static CantonTopologyVerifier.RotationResult run(
@@ -1225,7 +1208,7 @@ class CantonTopologyVerifierTest {
     }
 
     private static CantonTopologyVerifier.RotationResult run(
-            final byte[] anchor, final byte[] ownerSet, final byte[] mediatorSet, final Rot... rots) {
+            final CantonAnchor.Anchor anchor, final byte[] ownerSet, final byte[] mediatorSet, final Rot... rots) {
         final List<byte[]> items = new ArrayList<>();
         for (final Rot r : rots) {
             items.add(encode(r));
@@ -1239,7 +1222,7 @@ class CantonTopologyVerifierTest {
     }
 
     private static String error(
-            final byte[] anchor, final byte[] ownerSet, final byte[] mediatorSet, final Rot... rots) {
+            final CantonAnchor.Anchor anchor, final byte[] ownerSet, final byte[] mediatorSet, final Rot... rots) {
         final Throwable t = catchThrowable(() -> run(anchor, ownerSet, mediatorSet, rots));
         assertThat(t).isInstanceOf(CantonProofException.class);
         return ((CantonProofException) t).errorName();

@@ -33,7 +33,7 @@ final class CantonTopologyVerifier {
 
     /** The anchor, mediator set and owner set after the rotations. */
     record RotationResult(
-            @NonNull byte[] newAnchor,
+            @NonNull CantonAnchor.Anchor newAnchor,
             @NonNull byte[] newMediatorSet,
             @NonNull byte[] newOwnerSet) {}
 
@@ -72,25 +72,24 @@ final class CantonTopologyVerifier {
     // ── applyRotations ───────────────────────────────────────────────────────
 
     /**
-     * Apply {@code rotations} to {@code trustAnchor} and its sets. Mirrors the reference {@code applyRotations}.
+     * Apply {@code rotations} to {@code anchor} and its sets. Mirrors the reference {@code applyRotations}.
      *
-     * @param trustAnchor the anchor of {@link CantonAnchor}
-     * @param mediatorSet the packed mediator set that the anchor commits to
+     * @param anchor the decoded trust anchor
+     * @param mediatorSet the packed mediator set that the anchor commits to; the caller has already checked that it
+     *     hashes to {@code anchor.mediatorsHash()} (see {@link CantonVerdictVerifier#verifyBundleVerdict})
      * @param rotations bundle field 4, not empty
      * @return the anchor, mediator set and owner set after the rotations; {@code lastRequestId} unchanged
      * @throws CantonProofException on any verification failure
      */
     @NonNull
     static RotationResult applyRotations(
-            @NonNull final byte[] trustAnchor, @NonNull final byte[] mediatorSet, @NonNull final byte[] rotations) {
-        Objects.requireNonNull(trustAnchor, "trustAnchor");
+            @NonNull final CantonAnchor.Anchor anchor,
+            @NonNull final byte[] mediatorSet,
+            @NonNull final byte[] rotations) {
+        Objects.requireNonNull(anchor, "anchor");
         Objects.requireNonNull(mediatorSet, "mediatorSet");
         Objects.requireNonNull(rotations, "rotations");
 
-        final CantonAnchor.Anchor anchor = CantonAnchor.Anchor.decode(trustAnchor);
-        if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(mediatorSet), anchor.mediatorsHash())) {
-            throw CantonProofException.trustSetMismatch();
-        }
         final List<Slice> r = CantonRlp.readList(CantonRlp.of(rotations));
         if (r.size() != 2) {
             throw CantonProofException.invalidPayloadShape("rotations has " + r.size() + " items");
@@ -119,7 +118,7 @@ final class CantonTopologyVerifier {
                 lsu.successor(),
                 lsu.upgradeTime(),
                 lsu.serial());
-        return new RotationResult(next.encode(), newMediatorSet, newOwnerSet);
+        return new RotationResult(next, newMediatorSet, newOwnerSet);
     }
 
     /** The state after one rotation, which is authorized against the state before it. */

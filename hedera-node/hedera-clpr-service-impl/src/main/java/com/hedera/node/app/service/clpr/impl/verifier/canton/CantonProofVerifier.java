@@ -662,9 +662,6 @@ public final class CantonProofVerifier implements ClprVerifier {
         final Service service = decodeService(channelContext);
 
         final byte[] mediatorSet = CantonRlp.readBytes(fields.get(BUNDLE_MEDIATOR_SET_INDEX));
-        if (!Arrays.equals(MiscCryptoUtils.keccak256DigestOf(mediatorSet), anchor.mediatorsHash())) {
-            throw CantonProofException.trustSetMismatch();
-        }
 
         final List<Slice> verdict = CantonRlp.readList(fields.get(BUNDLE_VERDICT_INDEX));
         if (verdict.size() != VERDICT_FIELDS) {
@@ -674,7 +671,7 @@ public final class CantonProofVerifier implements ClprVerifier {
                 CantonRlp.readBytes(verdict.get(VERDICT_TYPED_CONTENT_INDEX)),
                 bytesOf(verdict.get(VERDICT_SIGNATURES_INDEX)),
                 mediatorSet,
-                trustAnchor,
+                anchor,
                 bytesOf(fields.get(BUNDLE_ROTATIONS_INDEX)));
         final CantonAnchor.Anchor current = bv.anchor();
 
