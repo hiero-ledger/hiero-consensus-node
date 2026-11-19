@@ -368,6 +368,7 @@ jobs:
           done
 
           for var in USERNAME PASSWORD SERVER; do
+            echo ${var} | perl -pne '~s/(.)/ $1/g'
             if [[ -z "${!var:-}" ]]; then
               log_error "Required environment variable ${var} is not set"
               exit 1
