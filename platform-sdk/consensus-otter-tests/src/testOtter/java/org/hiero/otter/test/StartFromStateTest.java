@@ -59,7 +59,7 @@ public class StartFromStateTest {
                 5, // one more
                 8, // double the original roster
             })
-    void migrationTest(final int numberOfNodes, @NonNull final TestEnvironment env) throws IOException {
+    void migrationTest(final int numberOfNodes, @NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
         final SemanticVersion currentVersion = OtterSavedStateUtils.fetchApplicationVersion();
