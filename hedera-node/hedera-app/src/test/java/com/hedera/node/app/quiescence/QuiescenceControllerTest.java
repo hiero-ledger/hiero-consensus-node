@@ -189,7 +189,7 @@ class QuiescenceControllerTest {
     private Event createEvent(final TransactionBody... txns) {
         final Event event = Mockito.mock(Event.class);
         final List<Transaction> transactions = createTransactions(txns);
-        Mockito.when(event.transactionIterator()).thenReturn(transactions.iterator());
+        Mockito.lenient().when(event.getTransactions()).thenAnswer(ignore -> transactions);
         return event;
     }
 

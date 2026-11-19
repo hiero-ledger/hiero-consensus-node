@@ -276,6 +276,40 @@ class HintsControllerImplTest {
     }
 
     @Test
+    void doesNotStartPreprocessingEarlyBeforeCurrentRosterNodeOutsideSourcePublishes() {
+        // Node 2 is in the current roster but not a party in the source scheme, e.g. it was added at the last upgrade
+        setupWithCurrentRosterNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
+        given(weights.numTargetNodesInSource()).willReturn(1);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        runScheduledTasks();
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        verify(store, never()).setPreprocessingStartTime(anyLong(), any());
+    }
+
+    @Test
+    void startsPreprocessingEarlyOnceCurrentRosterNodeOutsideSourcePublishes() {
+        setupWithCurrentRosterNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
+        given(weights.numTargetNodesInSource()).willReturn(1);
+        given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
+        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
+                .willReturn(CONSTRUCTION_WITH_START_TIME);
+
+        subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
+        subject.addHintsKeyPublication(TARDY_NODE_TWO_PUBLICATION, INITIAL_CRS);
+        given(library.validateHintsKey(any(), any(), anyInt(), anyInt())).willReturn(true);
+        runScheduledTasks();
+
+        subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
+
+        verify(store).setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME);
+    }
+
+    @Test
     void publishesHintsKeyIfNotDoneBeforeGracePeriodOver() {
         setupWith(UNFINISHED_CONSTRUCTION);
         // remove crs publication task
@@ -562,6 +596,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, node0CongruentVote),
@@ -765,6 +800,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, PreprocessingVote.newBuilder().congruentNodeId(1L).build()),
@@ -817,6 +853,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 CONSTRUCTION_WITH_START_TIME,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(0L, PreprocessingVote.newBuilder().congruentNodeId(2L).build()),
@@ -871,6 +908,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 construction,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 votes,
@@ -938,6 +976,31 @@ class HintsControllerImplTest {
                 CRSState.newBuilder().stage(CRSStage.COMPLETED).crs(INITIAL_CRS).build());
     }
 
+    private void setupWithCurrentRosterNodesOutsideSource(
+            @NonNull final HintsConstruction construction, @NonNull final Set<Long> currentRosterNodesOutsideSource) {
+        lenient()
+                .when(store.getCrsStateFor(any()))
+                .thenReturn(CRSState.newBuilder()
+                        .stage(CRSStage.COMPLETED)
+                        .crs(INITIAL_CRS)
+                        .build());
+        subject = new HintsControllerImpl(
+                SELF_ID,
+                BLS_KEY_PAIR.privateKey(),
+                construction,
+                weights,
+                currentRosterNodesOutsideSource,
+                scheduledTasks::offer,
+                library,
+                Map.of(),
+                List.of(),
+                submissions,
+                context,
+                HederaTestConfigBuilder::createConfig,
+                store,
+                onHintsFinished);
+    }
+
     private void setupWithFinalCrs(@NonNull final HintsConstruction construction) {
         setupWith(
                 construction,
@@ -956,6 +1019,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 construction,
                 weights,
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(),

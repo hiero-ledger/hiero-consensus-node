@@ -22,6 +22,12 @@ message ClprGetEndpointManifestQuery {
      * Standard query header.
      */
     proto.QueryHeader header = 1;
+
+    /**
+     * Request a manifest-only bundle proof that also authenticates the source block timestamp,
+     * for use in ClprSubmitBundle. Defaults to the manifest proof used by ClprCompleteChannel.
+     */
+    bool for_manifest_recovery = 2;
 }
 
 /**
@@ -45,6 +51,7 @@ message ClprGetEndpointManifestResponse {
      * Suitable verbatim as endpoint_manifest_proof_bytes for a peer's
      * ClprCompleteChannel transaction when that peer's verifier is the
      * native HieroTssVerifier (or any verifier that accepts a StateProof).
+     * When for_manifest_recovery is set, the proof is instead shaped for ClprSubmitBundle.
      *
      * Empty when no signed block snapshot is available yet (e.g. during node
      * bring-up before the first block is signed); clients should retry.

@@ -6,6 +6,7 @@ import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.GENE
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_INITIALIZATION;
 import static com.hedera.hapi.services.auxiliary.clpr.ClprMaintenanceReason.UPGRADE_ROSTER_RECONCILIATION;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
@@ -25,7 +26,6 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
@@ -72,7 +72,6 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
@@ -216,7 +215,6 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.BeforeEach;
@@ -414,8 +412,8 @@ class HandleWorkflowTest {
         given(eventFromMissingCreator.getCreatorId()).willReturn(missingCreatorId);
         given(networkInfo.nodeInfo(presentCreatorId.id())).willReturn(mock(NodeInfo.class));
         given(networkInfo.nodeInfo(missingCreatorId.id())).willReturn(null);
-        given(eventFromPresentCreator.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(eventFromMissingCreator.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(eventFromPresentCreator.getTransactions()).willReturn(emptyList());
+        given(eventFromMissingCreator.getTransactions()).willReturn(emptyList());
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
@@ -424,8 +422,8 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
-        verify(eventFromPresentCreator).consensusTransactionIterator();
-        verify(eventFromMissingCreator).consensusTransactionIterator();
+        verify(eventFromPresentCreator).getTransactions();
+        verify(eventFromMissingCreator).getTransactions();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
                 .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
@@ -436,7 +434,7 @@ class HandleWorkflowTest {
         given(round.iterator())
                 .willReturn(List.of(event).iterator())
                 .willReturn(List.of(event).iterator());
-        given(event.allParentsIterator()).willReturn(List.of(wrapper).iterator());
+        given(event.getAllParents()).willReturn(List.of(wrapper));
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
         final var firstBuilder = StateChanges.newBuilder().stateChanges(List.of(StateChange.DEFAULT));
@@ -508,16 +506,14 @@ class HandleWorkflowTest {
         final var txn = new TransactionWrapper(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
         txn.setConsensusTimestamp(NOW);
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(round.iterator()).willAnswer(invocation -> List.of(event).iterator());
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willAnswer(invocation -> List.<ConsensusTransaction>of(txn).iterator());
+        given(event.getTransactions()).willAnswer(invocation -> List.of(txn));
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
         subject.handleRound(state, round, txns -> {});
@@ -579,16 +575,14 @@ class HandleWorkflowTest {
         final var txn = new TransactionWrapper(com.hedera.pbj.runtime.io.buffer.Bytes.EMPTY);
         txn.setConsensusTimestamp(NOW);
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(round.iterator()).willAnswer(invocation -> List.of(event).iterator());
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willAnswer(invocation -> List.<ConsensusTransaction>of(txn).iterator());
+        given(event.getTransactions()).willAnswer(invocation -> List.of(txn));
 
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
 
@@ -604,8 +598,7 @@ class HandleWorkflowTest {
     void writeEventHeaderWithNoParentEvents() {
         // Setup event with no parents
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
@@ -616,8 +609,7 @@ class HandleWorkflowTest {
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willReturn(List.<ConsensusTransaction>of().iterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -657,14 +649,14 @@ class HandleWorkflowTest {
         given(parent.hash()).willReturn(parentHash);
 
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
+        given(event.getAllParents()).willReturn(List.of(parent));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
         given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
@@ -714,14 +706,14 @@ class HandleWorkflowTest {
         given(parent.toPbj()).willReturn(parentDescriptor);
 
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator()).willReturn(List.of(parent).iterator());
+        given(event.getAllParents()).willReturn(List.of(parent));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
         given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
@@ -779,15 +771,14 @@ class HandleWorkflowTest {
 
         // Setup event with two parents
         given(event.getHash()).willReturn(eventHash);
-        given(event.allParentsIterator())
-                .willReturn(List.of(parentInBlock, parentNotInBlock).iterator());
+        given(event.getAllParents()).willReturn(List.of(parentInBlock, parentNotInBlock));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
 
         // Set up the round
         given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
@@ -935,11 +926,10 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(eventHash);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(event.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
 
         // Create subject with streamToBlockNodes enabled
@@ -1216,8 +1206,8 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.getCreatorId()).willReturn(NodeId.of(0));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.allParentsIterator()).willAnswer(ignore -> emptyIterator());
-        given(event.consensusTransactionIterator()).willAnswer(ignore -> emptyIterator());
+        given(event.getAllParents()).willAnswer(ignore -> emptyList());
+        given(event.getTransactions()).willAnswer(ignore -> emptyList());
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
         given(networkInfo.nodeInfo(0)).willReturn(mock(NodeInfo.class));
         lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
@@ -1437,10 +1427,7 @@ class HandleWorkflowTest {
                                                 .accountId(AccountID.newBuilder()
                                                         .accountNum(3)
                                                         .build())
-                                                .serviceEndpoint(ServiceEndpoint.newBuilder()
-                                                        .domainName("node0")
-                                                        .port(50211)
-                                                        .build())
+                                                .serviceEndpoint(endpointFor("10.0.0.1", 50211))
                                                 .build())
                                 .build())
                         .build());
@@ -1451,8 +1438,8 @@ class HandleWorkflowTest {
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.getCreatorId()).willReturn(NodeId.of(0));
         given(event.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(event.allParentsIterator()).willAnswer(ignore -> emptyIterator());
-        given(event.consensusTransactionIterator()).willAnswer(ignore -> emptyIterator());
+        given(event.getAllParents()).willAnswer(ignore -> emptyList());
+        given(event.getTransactions()).willAnswer(ignore -> emptyList());
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
         final var firstEventTime = NOW.minusNanos(1000);
         given(event.getConsensusTimestamp()).willReturn(firstEventTime);
@@ -1752,8 +1739,12 @@ class HandleWorkflowTest {
         givenSingleton(historyStates, LEDGER_ID_STATE_ID, new ProtoBytes(Bytes.wrap("ledger")));
 
         // The real signing context, service, and block hash signer decide readiness
+        final var selfNodeInfo = mock(NodeInfo.class);
         final var context = new HintsContext(
-                mock(HintsLibrary.class), () -> configProvider.getConfiguration(), mock(HintsSigningMetrics.class));
+                mock(HintsLibrary.class),
+                () -> configProvider.getConfiguration(),
+                mock(HintsSigningMetrics.class),
+                () -> selfNodeInfo);
         hintsService = spy(HintsServiceFixtures.serviceOver(context));
         // Key provenance needs native-sized keys and has no part in readiness
         doReturn(null).when(hintsService).keyProvenanceFor(any());
@@ -1827,10 +1818,9 @@ class HandleWorkflowTest {
         given(freezeEvent.getCreatorId()).willReturn(creatorId);
         given(freezeEvent.getConsensusTimestamp()).willReturn(NOW);
         given(freezeEvent.getHash()).willReturn(CryptoRandomUtils.randomHash());
-        given(freezeEvent.allParentsIterator())
-                .willReturn(List.<EventDescriptorWrapper>of().iterator());
+        given(freezeEvent.getAllParents()).willReturn(List.<EventDescriptorWrapper>of());
         given(freezeEvent.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(freezeEvent.getTransactions()).willReturn(emptyList());
         givenFreezeRoundPlatformState();
         givenSubjectWith(
                 BLOCKS,
@@ -2147,7 +2137,7 @@ class HandleWorkflowTest {
     void scheduledTxnNextTimeUsesTxnOffsetNanos() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
 
@@ -2199,7 +2189,7 @@ class HandleWorkflowTest {
     void lastUsableTimePreventsScheduledDispatchWhenOffsetTooLarge() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
 
@@ -2238,7 +2228,7 @@ class HandleWorkflowTest {
     void scheduledTxnWhoseDispatchCannotBeCreatedDoesNotDropTheNextOne() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
@@ -2425,9 +2415,9 @@ class HandleWorkflowTest {
         final var creatorId = NodeId.of(0L);
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
         lenient().when(event.getConsensusTimestamp()).thenReturn(NOW);
-        lenient().when(event.allParentsIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(event.getAllParents()).thenAnswer(ignore -> emptyList());
         lenient().when(event.getCreatorId()).thenReturn(creatorId);
-        lenient().when(event.consensusTransactionIterator()).thenAnswer(ignore -> emptyIterator());
+        lenient().when(event.getTransactions()).thenAnswer(ignore -> emptyList());
         lenient().when(networkInfo.nodeInfo(creatorId.id())).thenReturn(mock(NodeInfo.class));
         lenient().when(blockStreamManager.lastIntervalProcessTime()).thenReturn(NOW);
         givenSubjectWith(
@@ -2477,13 +2467,13 @@ class HandleWorkflowTest {
         final var creatorId = NodeId.of(0L);
         given(round.iterator()).willAnswer(_ -> List.of(event).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(event.allParentsIterator()).willReturn(emptyIterator());
+        given(event.getAllParents()).willReturn(emptyList());
         given(event.getCreatorId()).willReturn(creatorId);
         final var lastUsedConsTime = new AtomicReference<>(beforeEvents);
         // Stands in for handling the round's transactions, which advances the last-used consensus time
-        given(event.consensusTransactionIterator()).willAnswer(invocation -> {
+        given(event.getTransactions()).willAnswer(invocation -> {
             lastUsedConsTime.set(afterEvents);
-            return emptyIterator();
+            return emptyList();
         });
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(blockHashSigner.isReady()).willReturn(true);
@@ -2570,7 +2560,7 @@ class HandleWorkflowTest {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
@@ -2590,7 +2580,7 @@ class HandleWorkflowTest {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(event.getConsensusTimestamp()).willReturn(NOW);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(emptyList());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
         given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);

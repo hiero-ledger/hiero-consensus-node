@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -69,12 +69,11 @@ public class TxPipelineTracker {
      * <p>
      * Note that every user transaction submitted via ingest will certainly be relevant to quiescence, but the
      * iterator might include other self-created transactions that are not relevant to quiescence.
-     * @param iter iterator of self-created transactions that landed
+     * @param transactionList the list of self-created transactions that landed
      */
-    public void countLanded(@NonNull final Iterator<Transaction> iter) {
-        requireNonNull(iter);
-        while (iter.hasNext()) {
-            final var tx = iter.next();
+    public void countLanded(@NonNull final List<Transaction> transactionList) {
+        requireNonNull(transactionList);
+        for (final Transaction tx : transactionList) {
             if (tx.getMetadata() instanceof PreHandleResult preHandleResult) {
                 final var txInfo = preHandleResult.txInfo();
                 if (txInfo != null && isRelevantTransaction(txInfo.txBody())) {

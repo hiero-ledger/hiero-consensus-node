@@ -17,6 +17,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -120,7 +121,9 @@ class HintsRecoveredGenerationActivationTest {
 
         private Fixture() {
             final var library = mock(HintsLibrary.class);
-            context = new HintsContext(library, HederaTestConfigBuilder::createConfig, mock(HintsSigningMetrics.class));
+            final var self = mock(NodeInfo.class);
+            context = new HintsContext(
+                    library, HederaTestConfigBuilder::createConfig, mock(HintsSigningMetrics.class), () -> self);
             final var component = mock(HintsServiceComponent.class);
             when(component.signingContext()).thenReturn(context);
             when(component.controllers()).thenReturn(mock(HintsControllers.class));

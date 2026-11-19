@@ -242,6 +242,13 @@ public interface HintsService extends Service {
             @Nullable HistoryProofConstruction activeHistoryConstruction);
 
     /**
+     * Cancels and discards all in-progress block hash signing attempts, including any opened early from other nodes'
+     * partial signatures for blocks this node has not yet produced. Used when this node falls behind, since it will
+     * never produce those blocks itself; any later partial signature for a block it does produce is still incorporated.
+     */
+    void cancelSignings();
+
+    /**
      * Stops the hinTS service, causing it to abandon any in-progress work.
      */
     void stop();

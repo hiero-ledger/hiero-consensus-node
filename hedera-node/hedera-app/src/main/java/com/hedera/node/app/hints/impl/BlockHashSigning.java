@@ -16,10 +16,10 @@ public sealed interface BlockHashSigning permits HintsContext.Signing, RsaContex
      *
      * @param signings the signing attempts to cancel and remove
      */
-    static void cancelAndRemoveAll(@NonNull final ConcurrentMap<Bytes, BlockHashSigning> signings) {
+    static <K, S extends BlockHashSigning> void cancelAndRemoveAll(@NonNull final ConcurrentMap<K, S> signings) {
         requireNonNull(signings);
-        signings.forEach((blockHash, signing) -> {
-            if (signings.remove(blockHash, signing)) {
+        signings.forEach((key, signing) -> {
+            if (signings.remove(key, signing)) {
                 signing.cancel();
             }
         });

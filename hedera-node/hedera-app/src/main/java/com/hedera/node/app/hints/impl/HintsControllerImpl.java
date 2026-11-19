@@ -71,6 +71,12 @@ public class HintsControllerImpl implements HintsController {
     private final Map<Integer, Long> partyNodeIds = new HashMap<>();
     private final RosterTransitionWeights weights;
     /**
+     * The target nodes that are in the current roster but not in the source scheme, e.g. nodes added at the last
+     * upgrade. Preprocessing waits for their hinTS keys too, as a node only becomes a party by publishing while a
+     * construction still accepts keys.
+     */
+    private final Set<Long> currentRosterNodesOutsideSource;
+    /**
      * The effective tally of resolved preprocessing votes. Every entry's value is the actual
      * {@link PreprocessedKeys} that the corresponding node contributed. Congruent votes are
      * resolved to the referent's keys at insertion time so that downstream code can call
@@ -129,6 +135,7 @@ public class HintsControllerImpl implements HintsController {
             @NonNull final Bytes blsPrivateKey,
             @NonNull final HintsConstruction construction,
             @NonNull final RosterTransitionWeights weights,
+            @NonNull final Set<Long> currentRosterNodesOutsideSource,
             @NonNull final Executor executor,
             @NonNull final HintsLibrary library,
             @NonNull final Map<Long, PreprocessingVote> votes,
@@ -141,6 +148,7 @@ public class HintsControllerImpl implements HintsController {
         this.selfId = selfId;
         this.blsPrivateKey = requireNonNull(blsPrivateKey);
         this.weights = requireNonNull(weights);
+        this.currentRosterNodesOutsideSource = Set.copyOf(currentRosterNodesOutsideSource);
         this.numParties = construction.numParties();
         if (!isSupportedPartySize(numParties) || weights.targetNodeIds().size() > numParties - 2) {
             throw new IllegalArgumentException("Construction exceeds supported hinTS party capacity");
@@ -532,9 +540,10 @@ public class HintsControllerImpl implements HintsController {
      * @return the choice of preprocessing behavior
      */
     private boolean shouldStartPreprocessing(@NonNull final Instant now) {
-        // If every active node in the target roster has published a hinTS key,
-        // start preprocessing now; there is nothing else to wait for
-        if (validationFutures.size() == weights.numTargetNodesInSource()) {
+        // If every target node in the source scheme has published a hinTS key, and so has every target node in the
+        // current roster outside it, start preprocessing now; there is nothing else to wait for. A target node not
+        // yet in the current roster (e.g. one added by the upgrade this construction is for) cannot publish yet
+        if (validationFutures.size() == weights.numTargetNodesInSource() + currentRosterNodesOutsideSource.size()) {
             log.info("All nodes have published hinTS keys. Starting preprocessing.");
             return true;
         }
