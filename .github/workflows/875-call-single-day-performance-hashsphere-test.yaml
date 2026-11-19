@@ -403,13 +403,13 @@ jobs:
           # Generate the init-containers-values.yaml inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/init-containers-values4param.yaml init-containers-values4param.yaml
 
-          halfcores=`expr ${{ github.event.inputs.cores }} / 2`
-          ramminus1=`expr ${{ github.event.inputs.ram }} - 1`
-          ramminus2=`expr ${{ github.event.inputs.ram }} - 2`
-          ramminus4=`expr ${{ github.event.inputs.ram }} - 4`
-          ramminus6=`expr ${{ github.event.inputs.ram }} - 6`
+          halfcores=`expr ${{ inputs.cores }} / 2`
+          ramminus1=`expr ${{ inputs.ram }} - 1`
+          ramminus2=`expr ${{ inputs.ram }} - 2`
+          ramminus4=`expr ${{ inputs.ram }} - 4`
+          ramminus6=`expr ${{ inputs.ram }} - 6`
 
-          sed -e "s@%CORES%@${{ github.event.inputs.cores }}@g" \
+          sed -e "s@%CORES%@${{ inputs.cores }}@g" \
           -e "s@%HALFOFCORES%@${halfcores}@g" \
           -e "s@%RAMMINUS1%@${ramminus1}@g" \
           -e "s@%RAMMINUS2%@${ramminus2}@g" \
