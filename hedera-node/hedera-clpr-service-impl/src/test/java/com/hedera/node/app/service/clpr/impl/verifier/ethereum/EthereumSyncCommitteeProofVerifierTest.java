@@ -429,6 +429,19 @@ class EthereumSyncCommitteeProofVerifierTest {
         }
 
         @Test
+        @DisplayName("given a header attested two periods before its signature, then verifyBundle rejects it")
+        void givenHeaderAttestedTwoPeriodsBeforeSignature_thenThrowsProofException() {
+            final DeliveryBuilder builder = new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE);
+            builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 1);
+            builder.attestedSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD) - 1;
+            builder.finalizedSlot = builder.attestedSlot - 10;
+            assertRejected(
+                    bundle(builder.build()),
+                    "signature slot " + builder.signatureSlot + " is in period 1001, more than one period after the"
+                            + " attested header slot " + builder.attestedSlot + " in period 999");
+        }
+
+        @Test
         @DisplayName("given a header signed in the next period by the next committee, then verifyBundle verifies it"
                 + " without a rotation")
         void givenHeaderSignedInNextPeriodByNextCommittee_thenVerifiesWithoutRotation() {
@@ -1349,6 +1362,35 @@ class EthereumSyncCommitteeProofVerifierTest {
 
                 assertThat(verified.endpointManifest()).isEqualTo(manifest);
                 assertThat(bls.lastAggregatePubkey).isEqualTo(NEXT_COMMITTEE.uncompressedAggregate);
+            }
+
+            @Test
+            @DisplayName("given a header attested in the previous period and signed in the config's, then accepts it")
+            void givenHeaderAttestedInPreviousPeriod_thenReturnsProvenManifest() {
+                final ClprEndpointManifest manifest = manifest(1L, 1, SERVICE_ADDRESS);
+                final DeliveryBuilder builder = manifestDelivery(manifest);
+                builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD);
+                builder.attestedSlot = builder.signatureSlot - 1;
+                builder.finalizedSlot = builder.attestedSlot - 10;
+
+                final VerifiedConfig verified = verifyWithProof(builder.buildConfigManifestProof());
+
+                assertThat(verified.endpointManifest()).isEqualTo(manifest);
+            }
+
+            @Test
+            @DisplayName("given a header attested two periods before its signature, then rejects the proof")
+            void givenHeaderAttestedTwoPeriodsBeforeSignature_thenThrowsProofException() {
+                final DeliveryBuilder builder = withCommitted(
+                        new DeliveryBuilder(MAINNET, ANCHOR_PERIOD + 1, NEXT_COMMITTEE),
+                        manifest(1L, 1, SERVICE_ADDRESS));
+                builder.signatureSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD + 1);
+                builder.attestedSlot = firstSlotOf(MAINNET, ANCHOR_PERIOD) - 1;
+                builder.finalizedSlot = builder.attestedSlot - 10;
+                assertProofRejected(
+                        builder.buildConfigManifestProof(),
+                        "signature slot " + builder.signatureSlot + " is in period 1001, more than one period after"
+                                + " the attested header slot " + builder.attestedSlot + " in period 999");
             }
 
             @Test

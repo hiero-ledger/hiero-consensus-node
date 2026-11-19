@@ -429,11 +429,12 @@ public final class EthereumSyncCommitteeProofVerifier {
     }
 
     /**
-     * Verifies the delivery's signature slot and returns the committee that signed: the slot follows the attested
-     * slot, and its period is one of the two the anchor trusts. The attested header may lie in an earlier period: a
-     * header attested in the last slot of a period is signed in the first slot of the next.
+     * Verifies a signature slot and returns the committee that signed: the slot follows the attested slot, its period
+     * is one of the two the anchor trusts, and it is at most one period after the attested header's. The attested
+     * header may lie in the previous period: a header attested in the last slot of a period is signed in the first
+     * slot of the next.
      *
-     * @throws ProofException if either check fails
+     * @throws ProofException if any check fails
      */
     @NonNull
     private static SyncCommittee verifySignatureSlot(
@@ -444,6 +445,14 @@ public final class EthereumSyncCommitteeProofVerifier {
         }
         final long signingPeriod = anchor.preset().periodOf(signatureSlot);
         final SyncCommittee signer = anchor.committeeFor(signingPeriod);
+        // The relay picks the signature slot, which is not signed. Honest committees sign the current head, so a
+        // header is signed at most one period after its own.
+        final long attestedPeriod = anchor.preset().periodOf(attestedHeader.slot());
+        if (signingPeriod > attestedPeriod + 1) {
+            throw EthProofs.fail("signature slot " + Long.toUnsignedString(signatureSlot) + " is in period "
+                    + signingPeriod + ", more than one period after the attested header slot "
+                    + Long.toUnsignedString(attestedHeader.slot()) + " in period " + attestedPeriod);
+        }
         log.debug(
                 "EthSyncCommitteeProofVerifier: signature slot {} is in period {}; signer is the anchor's {} committee"
                         + " (anchor periods {}-{})",

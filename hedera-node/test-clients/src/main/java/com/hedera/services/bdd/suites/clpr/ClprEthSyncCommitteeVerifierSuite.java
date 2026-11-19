@@ -124,8 +124,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
     final Stream<DynamicTest> rejectsConfigWithBadServiceAddress() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
-                // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs
-                // more than the 300k default verifier gas.
+                // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the
+                // 2M default verifier gas (#28392).
                 overriding("clpr.verifierGasLimit", "5000000"),
                 clprUpdateLedgerConfiguration()
                         .configuration(localLedgerConfig())
@@ -272,8 +272,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
     final Stream<DynamicTest> completeChannelInstallsConfigManifest() {
         final int[] endpointCounts = {0, 1, 3};
         final List<SpecOperation> ops = new ArrayList<>();
-        // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs more than
-        // the 300k default verifier gas.
+        // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the 2M
+        // default verifier gas (#28392).
         ops.add(overriding("clpr.verifierGasLimit", "5000000"));
         ops.add(clprUpdateLedgerConfiguration()
                 .configuration(localLedgerConfig())
@@ -393,8 +393,8 @@ public class ClprEthSyncCommitteeVerifierSuite {
     private static SpecOperation[] setupChannelWithEthereumVerifier(
             ClprChannelCrypto crypto, byte[] ledgerConfigPayload) {
         return new SpecOperation[] {
-            // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs
-            // more than the 300k default verifier gas.
+            // Two 512-key committees make the verifier calldata ~50 KB, whose EIP-7623 floor exceeds the
+            // 2M default verifier gas (#28392).
             overriding("clpr.verifierGasLimit", "5000000"),
             clprUpdateLedgerConfiguration().configuration(localLedgerConfig()).payingWith(GENESIS),
             uploadInitCode(CONNECTOR_CONTRACT),
