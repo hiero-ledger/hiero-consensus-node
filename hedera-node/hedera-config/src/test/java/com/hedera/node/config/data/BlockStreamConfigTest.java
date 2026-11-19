@@ -90,7 +90,6 @@ class BlockStreamConfigTest {
                 0,
                 false,
                 8192,
-                Duration.ofMillis(10),
                 100,
                 Duration.ofSeconds(1),
                 512,

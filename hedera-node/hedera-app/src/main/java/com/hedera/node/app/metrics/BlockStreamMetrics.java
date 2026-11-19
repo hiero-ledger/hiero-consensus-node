@@ -47,9 +47,10 @@ public class BlockStreamMetrics {
     private RunningAverageMetric buffer_blockItemBytes;
     private RunningAverageMetric buffer_blockBytes;
     private RunningAverageMetric connSend_requestBlockItemCount;
-    private final Map<ConnectionType, Map<RequestOneOfType, Counter>> connSend_counters =
+    private Counter service_connSend_counter;
+    private final Map<ConnectionType, Map<RequestOneOfType, Counter>> publisher_connSend_counters =
             new EnumMap<>(ConnectionType.class);
-    private final Map<ConnectionType, Map<EndStream.Code, Counter>> connSend_endStreamCounters =
+    private final Map<ConnectionType, Map<EndStream.Code, Counter>> publisher_connSend_endStreamCounters =
             new EnumMap<>(ConnectionType.class);
     private final Map<ConnectionType, RunningAverageMetric> connSend_RequestBytesMetrics =
             new EnumMap<>(ConnectionType.class);
@@ -57,9 +58,10 @@ public class BlockStreamMetrics {
             new EnumMap<>(ConnectionType.class);
 
     // connection receive metrics
-    private final Map<ConnectionType, Map<EndOfStream.Code, Counter>> connRecv_endOfStreamCounters =
+    private Counter service_connRecv_counter;
+    private final Map<ConnectionType, Map<EndOfStream.Code, Counter>> publisher_connRecv_endOfStreamCounters =
             new EnumMap<>(ConnectionType.class);
-    private final Map<ConnectionType, Map<ResponseOneOfType, Counter>> connRecv_counters =
+    private final Map<ConnectionType, Map<ResponseOneOfType, Counter>> publisher_connRecv_counters =
             new EnumMap<>(ConnectionType.class);
     private final Map<ConnectionType, Counter> connRecv_unknownCounters = new EnumMap<>(ConnectionType.class);
     private LongGauge connRecv_latestBlockEndOfStreamGauge;
@@ -109,6 +111,7 @@ public class BlockStreamMetrics {
     private DoubleGauge buffer_unackedBlocksSaturationGauge;
     private DoubleGauge buffer_unackedBytesSaturationGauge;
     private DoubleGauge buffer_inProgressBlocksSaturationGauge;
+    private LongGauge buffer_minAcksRequiredGauge;
 
     // wrapped record hashes (record stream) metrics
     // (FUTURE) Remove after cutover
@@ -216,6 +219,11 @@ public class BlockStreamMetrics {
         final DoubleGauge.Config inProgressBlocksSaturation = newDoubleGauge(GROUP_BUFFER, "inProgressBlocksSaturation")
                 .withDescription("The percent (0.0 to 100.0) of blocks that have been opened but not yet closed");
         buffer_inProgressBlocksSaturationGauge = metrics.getOrCreate(inProgressBlocksSaturation);
+
+        final LongGauge.Config minAcksRequiredCfg = newLongGauge(GROUP_BUFFER, "minAcksRequired")
+                .withDescription(
+                        "The minimum number of acknowledgements required to consider a block truly acknowledged");
+        buffer_minAcksRequiredGauge = metrics.getOrCreate(minAcksRequiredCfg);
     }
 
     private void registerWrappedRecordHashesMetrics() {
@@ -397,6 +405,15 @@ public class BlockStreamMetrics {
      */
     public void recordBackPressureDisabled() {
         buffer_backPressureStateGauge.set(BACK_PRESSURE_DISABLED);
+    }
+
+    /**
+     * Record the minimum number of acknowledgements current configured.
+     *
+     * @param minAcksRequired the minimum number of acknowledgements required per block
+     */
+    public void recordMinimumAcknowledgementsRequired(final long minAcksRequired) {
+        buffer_minAcksRequiredGauge.set(minAcksRequired);
     }
 
     // Connectivity metrics --------------------------------------------------------------------------------------------
@@ -655,35 +672,11 @@ public class BlockStreamMetrics {
                             + connectionType.shortName() + " connections");
             connRecv_unknownCounters.put(connectionType, metrics.getOrCreate(recvUnknownCfg));
 
-            final Map<ResponseOneOfType, Counter> responseCounters = new EnumMap<>(ResponseOneOfType.class);
-            connRecv_counters.put(connectionType, responseCounters);
-            final Map<EndOfStream.Code, Counter> eosCounters = new EnumMap<>(EndOfStream.Code.class);
-            connRecv_endOfStreamCounters.put(connectionType, eosCounters);
-
-            for (final ResponseOneOfType responseType : ResponseOneOfType.values()) {
-                final String respName = toCamelCase(responseType.protoName());
-
-                switch (responseType) {
-                    case UNSET -> {
-                        /* ignore */
-                    }
-                    case END_STREAM -> {
-                        for (final EndOfStream.Code eosCode : EndOfStream.Code.values()) {
-                            final String name = respName + "_" + toCamelCase(eosCode.protoName());
-                            final Counter.Config cfg = newCounter(groupName, name)
-                                    .withDescription("Number of 'EndOfStream." + eosCode.protoName()
-                                            + "' responses received on block node " + connectionTypeName
-                                            + " connections");
-                            eosCounters.put(eosCode, metrics.getOrCreate(cfg));
-                        }
-                    }
-                    default -> {
-                        final Counter.Config cfg = newCounter(groupName, respName)
-                                .withDescription("Number of '" + toPascalCase(responseType.name())
-                                        + "' responses received on block node " + connectionTypeName + " connections");
-                        responseCounters.put(responseType, metrics.getOrCreate(cfg));
-                    }
-                }
+            switch (connectionType) {
+                case ACK_OBSERVING, BLOCK_STREAMING ->
+                    registerPublisherConnectionReceiveMetrics(groupName, connectionType, connectionTypeName);
+                case SERVER_STATUS -> registerServiceConnectionReceiveMetrics(groupName, connectionTypeName);
+                default -> throw new IllegalArgumentException("Unexpected connection type: " + connectionType);
             }
         }
 
@@ -708,6 +701,47 @@ public class BlockStreamMetrics {
         this.connRecv_observerIgnored = metrics.getOrCreate(observerIgnoredCfg);
     }
 
+    private void registerServiceConnectionReceiveMetrics(final String groupName, final String connectionTypeName) {
+        final Counter.Config recvCfg = newCounter(groupName, "serverStatus")
+                .withDescription("Number of ServerStatus responses received on block node " + connectionTypeName
+                        + " connections");
+        service_connRecv_counter = metrics.getOrCreate(recvCfg);
+    }
+
+    private void registerPublisherConnectionReceiveMetrics(
+            final String groupName, final ConnectionType connectionType, final String connectionTypeName) {
+        final Map<ResponseOneOfType, Counter> responseCounters = new EnumMap<>(ResponseOneOfType.class);
+        publisher_connRecv_counters.put(connectionType, responseCounters);
+        final Map<EndOfStream.Code, Counter> eosCounters = new EnumMap<>(EndOfStream.Code.class);
+        publisher_connRecv_endOfStreamCounters.put(connectionType, eosCounters);
+
+        for (final ResponseOneOfType responseType : ResponseOneOfType.values()) {
+            final String respName = toCamelCase(responseType.protoName());
+
+            switch (responseType) {
+                case UNSET -> {
+                    /* ignore */
+                }
+                case END_STREAM -> {
+                    for (final EndOfStream.Code eosCode : EndOfStream.Code.values()) {
+                        final String name = respName + "_" + toCamelCase(eosCode.protoName());
+                        final Counter.Config cfg = newCounter(groupName, name)
+                                .withDescription("Number of 'EndOfStream." + eosCode.protoName()
+                                        + "' responses received on block node " + connectionTypeName
+                                        + " connections");
+                        eosCounters.put(eosCode, metrics.getOrCreate(cfg));
+                    }
+                }
+                default -> {
+                    final Counter.Config cfg = newCounter(groupName, respName)
+                            .withDescription("Number of '" + toPascalCase(responseType.name())
+                                    + "' responses received on block node " + connectionTypeName + " connections");
+                    responseCounters.put(responseType, metrics.getOrCreate(cfg));
+                }
+            }
+        }
+    }
+
     /**
      * Record that an unknown response was received from a block node.
      * @param connectionType the type of connection that received the response
@@ -718,15 +752,22 @@ public class BlockStreamMetrics {
     }
 
     /**
-     * Record that a response was received from a block node.
+     * Record that a publisher API response was received from a block node.
      * @param connectionType the type of connection that received the response
      * @param responseType the type of response received
      */
-    public void recordResponseReceived(
+    public void recordPublisherResponseReceived(
             @NonNull final ConnectionType connectionType, @NonNull final ResponseOneOfType responseType) {
         requireNonNull(connectionType, "Connection type is required");
         requireNonNull(responseType, "Response type is required");
-        connRecv_counters.get(connectionType).get(responseType).increment();
+        publisher_connRecv_counters.get(connectionType).get(responseType).increment();
+    }
+
+    /**
+     * Record that a service API response was received from a block node.
+     */
+    public void recordServiceResponseReceived() {
+        service_connRecv_counter.increment();
     }
 
     /**
@@ -746,7 +787,10 @@ public class BlockStreamMetrics {
             @NonNull final ConnectionType connectionType, @NonNull final EndOfStream.Code responseType) {
         requireNonNull(connectionType, "Connection type is required");
         requireNonNull(responseType, "Response type is required");
-        connRecv_endOfStreamCounters.get(connectionType).get(responseType).increment();
+        publisher_connRecv_endOfStreamCounters
+                .get(connectionType)
+                .get(responseType)
+                .increment();
     }
 
     /**
@@ -809,34 +853,11 @@ public class BlockStreamMetrics {
                             + " connections");
             connSend_RequestBytesMetrics.put(connectionType, metrics.getOrCreate(reqBytesCfg));
 
-            final Map<RequestOneOfType, Counter> requestCounters = new EnumMap<>(RequestOneOfType.class);
-            connSend_counters.put(connectionType, requestCounters);
-            final Map<EndStream.Code, Counter> esCounters = new EnumMap<>(EndStream.Code.class);
-            connSend_endStreamCounters.put(connectionType, esCounters);
-
-            for (final RequestOneOfType requestType : RequestOneOfType.values()) {
-                final String reqName = toCamelCase(requestType.protoName());
-
-                switch (requestType) {
-                    case UNSET -> {
-                        /* ignore */
-                    }
-                    case END_STREAM -> {
-                        for (final EndStream.Code esCode : EndStream.Code.values()) {
-                            final String name = reqName + "_" + toCamelCase(esCode.protoName());
-                            final Counter.Config cfg = newCounter(groupName, name)
-                                    .withDescription("Number of 'EndStream." + esCode.protoName()
-                                            + "' requests sent on block node " + connectionTypeName + " connections");
-                            esCounters.put(esCode, metrics.getOrCreate(cfg));
-                        }
-                    }
-                    default -> {
-                        final Counter.Config cfg = newCounter(groupName, reqName)
-                                .withDescription("Number of '" + toPascalCase(requestType.name())
-                                        + "' requests sent on block node " + connectionTypeName + " connections");
-                        requestCounters.put(requestType, metrics.getOrCreate(cfg));
-                    }
-                }
+            switch (connectionType) {
+                case ACK_OBSERVING, BLOCK_STREAMING ->
+                    registerPublisherConnectionSendMetrics(groupName, connectionType, connectionTypeName);
+                case SERVER_STATUS -> registerServiceConnectionSendMetrics(groupName, connectionTypeName);
+                default -> throw new IllegalArgumentException("Unexpected connection type: " + connectionType);
             }
         }
 
@@ -869,16 +890,63 @@ public class BlockStreamMetrics {
         connSend_requestBlockItemCount = metrics.getOrCreate(requestBlockItemCountCfg);
     }
 
+    private void registerServiceConnectionSendMetrics(final String groupName, final String connectionTypeName) {
+        final Counter.Config sendCfg = newCounter(groupName, "serverStatus")
+                .withDescription(
+                        "Number of ServerStatus requests sent on block node " + connectionTypeName + " connections");
+        service_connSend_counter = metrics.getOrCreate(sendCfg);
+    }
+
+    private void registerPublisherConnectionSendMetrics(
+            final String groupName, final ConnectionType connectionType, final String connectionTypeName) {
+        final Map<RequestOneOfType, Counter> requestCounters = new EnumMap<>(RequestOneOfType.class);
+        publisher_connSend_counters.put(connectionType, requestCounters);
+        final Map<EndStream.Code, Counter> esCounters = new EnumMap<>(EndStream.Code.class);
+        publisher_connSend_endStreamCounters.put(connectionType, esCounters);
+
+        for (final RequestOneOfType requestType : RequestOneOfType.values()) {
+            final String reqName = toCamelCase(requestType.protoName());
+
+            switch (requestType) {
+                case UNSET -> {
+                    /* ignore */
+                }
+                case END_STREAM -> {
+                    for (final EndStream.Code esCode : EndStream.Code.values()) {
+                        final String name = reqName + "_" + toCamelCase(esCode.protoName());
+                        final Counter.Config cfg = newCounter(groupName, name)
+                                .withDescription("Number of 'EndStream." + esCode.protoName()
+                                        + "' requests sent on block node " + connectionTypeName + " connections");
+                        esCounters.put(esCode, metrics.getOrCreate(cfg));
+                    }
+                }
+                default -> {
+                    final Counter.Config cfg = newCounter(groupName, reqName)
+                            .withDescription("Number of '" + toPascalCase(requestType.name())
+                                    + "' requests sent on block node " + connectionTypeName + " connections");
+                    requestCounters.put(requestType, metrics.getOrCreate(cfg));
+                }
+            }
+        }
+    }
+
     /**
-     * Record that a request was sent to a block node.
+     * Record that a publisher API request was sent to a block node.
      * @param connectionType the type of connection sending the request
      * @param requestType the type of request sent
      */
-    public void recordRequestSent(
+    public void recordPublisherRequestSent(
             @NonNull final ConnectionType connectionType, @NonNull final RequestOneOfType requestType) {
         requireNonNull(connectionType, "Connection type is required");
         requireNonNull(requestType, "Request type is required");
-        connSend_counters.get(connectionType).get(requestType).increment();
+        publisher_connSend_counters.get(connectionType).get(requestType).increment();
+    }
+
+    /**
+     * Record that a service API request was sent to a block node.
+     */
+    public void recordServiceRequestSent() {
+        service_connSend_counter.increment();
     }
 
     /**
@@ -896,11 +964,14 @@ public class BlockStreamMetrics {
      * @param connectionType the type of connection sending the EndStream request
      * @param endStreamCode the type of end stream request sent
      */
-    public void recordRequestEndStreamSent(
+    public void recordPublisherRequestEndStreamSent(
             @NonNull final ConnectionType connectionType, @NonNull final EndStream.Code endStreamCode) {
         requireNonNull(connectionType, "Connection type is required");
         requireNonNull(endStreamCode, "End stream code is required");
-        connSend_endStreamCounters.get(connectionType).get(endStreamCode).increment();
+        publisher_connSend_endStreamCounters
+                .get(connectionType)
+                .get(endStreamCode)
+                .increment();
     }
 
     /**

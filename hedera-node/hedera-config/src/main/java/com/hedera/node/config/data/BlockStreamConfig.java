@@ -65,9 +65,6 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty
         int receiptEntriesBatchSize,
 
-        @ConfigProperty(defaultValue = "10ms") @Min(1) @NodeProperty
-        Duration workerLoopSleepDuration,
-
         @ConfigProperty(defaultValue = "100") @Min(1) @NodeProperty
         int maxConsecutiveScheduleSecondsToProbe,
 
