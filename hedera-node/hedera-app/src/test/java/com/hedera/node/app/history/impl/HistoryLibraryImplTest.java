@@ -557,7 +557,7 @@ class HistoryLibraryImplTest {
         assertArrayEquals(subject.hashAddressBook(canonicalBook), subject.hashAddressBook(historicalBook));
 
         final var sourceAuthority = new TreeMap<>(Map.of(0L, 1L, 1L, 1L, 2L, 1L, 3L, 1_000L));
-        final var quorum = new WrapsSigningQuorum(historicalBook, sourceAuthority, false);
+        final var quorum = new WrapsSigningQuorum(historicalBook, sourceAuthority, 0L);
         final var signers = Set.of(0L, 1L);
         assertTrue(quorum.isSatisfiedBy(signers));
         assertFalse(quorum.isEligibleSigner(3L));
@@ -692,7 +692,7 @@ class HistoryLibraryImplTest {
         assertFalse(verifiesAgainst(message, halfSignature, book));
         assertTrue(verifiesAgainst(message, network.sign(message, Set.of(0L, 1L, 2L)), book));
         // The Java quorum draws the same line
-        final var quorum = new WrapsSigningQuorum(book, Map.of(0L, 10L, 1L, 10L, 2L, 10L, 3L, 10L), false);
+        final var quorum = new WrapsSigningQuorum(book, Map.of(0L, 10L, 1L, 10L, 2L, 10L, 3L, 10L), 0L);
         assertFalse(quorum.isSatisfiedBy(Set.of(0L, 1L)));
         assertTrue(quorum.isSatisfiedBy(Set.of(0L, 1L, 2L)));
     }

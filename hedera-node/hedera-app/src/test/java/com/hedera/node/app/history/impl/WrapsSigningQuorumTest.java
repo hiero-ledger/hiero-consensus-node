@@ -15,7 +15,7 @@ class WrapsSigningQuorumTest {
     void sparseHintsMajorityCannotFreezeBeforeCanonicalNativeMajority() {
         final var canonicalWeights = equalWeights(7);
         final var hintsWeights = equalWeights(5);
-        final var subject = new WrapsSigningQuorum(realKeysBook(canonicalWeights), hintsWeights, true);
+        final var subject = new WrapsSigningQuorum(realKeysBook(canonicalWeights), hintsWeights, 5L);
 
         assertFalse(subject.isSatisfiedBy(Set.of(0L, 1L, 2L)));
         assertTrue(subject.isSatisfiedBy(Set.of(0L, 1L, 2L, 3L)));
@@ -32,7 +32,7 @@ class WrapsSigningQuorumTest {
                 weights, nodeId -> nodeId == 3L || nodeId == 4L ? MISSING_SCHNORR_KEY.toByteArray() : new byte[] {1});
         final var originalWeights = book.weights().clone();
         final var originalNodeIds = book.nodeIds().clone();
-        final var subject = new WrapsSigningQuorum(book, weights, false);
+        final var subject = new WrapsSigningQuorum(book, weights, 0L);
 
         assertTrue(subject.isSatisfiedBy(Set.of(0L, 1L, 5L)));
         assertFalse(subject.isSatisfiedBy(Set.of(0L, 1L)));
@@ -50,7 +50,7 @@ class WrapsSigningQuorumTest {
         identityKey[identityKey.length - 1] = 1;
         final var weights = new TreeMap<>(Map.of(0L, 1L, 1L, 1L, 2L, 1L, 3L, 1_000L));
         final var book = AddressBook.from(weights, nodeId -> nodeId == 3L ? identityKey : new byte[] {1});
-        final var subject = new WrapsSigningQuorum(book, weights, false);
+        final var subject = new WrapsSigningQuorum(book, weights, 0L);
 
         assertFalse(subject.isEligibleSigner(3L));
         assertTrue(subject.isSatisfiedBy(Set.of(0L, 1L)));
@@ -64,8 +64,8 @@ class WrapsSigningQuorumTest {
     void provenanceUsesItsOwnSourceWeightsAndStrictThirdThreshold() {
         final var nativeWeights = new TreeMap<>(Map.of(10L, 10L, 20L, 1L, 30L, 1L));
         final var hintsWeights = Map.of(10L, 4L, 20L, 4L, 30L, 4L);
-        final var withProvenance = new WrapsSigningQuorum(realKeysBook(nativeWeights), hintsWeights, true);
-        final var withoutProvenance = new WrapsSigningQuorum(realKeysBook(nativeWeights), hintsWeights, false);
+        final var withProvenance = new WrapsSigningQuorum(realKeysBook(nativeWeights), hintsWeights, 12L);
+        final var withoutProvenance = new WrapsSigningQuorum(realKeysBook(nativeWeights), hintsWeights, 0L);
 
         // Node 10 has a native majority, but exactly one third of hinTS weight is insufficient.
         assertFalse(withProvenance.isSatisfiedBy(Set.of(10L)));
@@ -89,7 +89,7 @@ class WrapsSigningQuorumTest {
 
     @Test
     void exclusionsDoNotReduceEitherQuorumDenominator() {
-        final var subject = new WrapsSigningQuorum(realKeysBook(equalWeights(7)), equalWeights(5), true);
+        final var subject = new WrapsSigningQuorum(realKeysBook(equalWeights(7)), equalWeights(5), 5L);
 
         assertTrue(subject.canCompleteWithout(Set.of(0L)));
         assertFalse(subject.canCompleteWithout(Set.of(0L, 1L)));
@@ -97,7 +97,7 @@ class WrapsSigningQuorumTest {
 
         final var nativeWeights = new TreeMap<>(Map.of(10L, 10L, 20L, 1L, 30L, 1L));
         final var separateProvenance =
-                new WrapsSigningQuorum(realKeysBook(nativeWeights), Map.of(10L, 4L, 20L, 4L, 30L, 4L), true);
+                new WrapsSigningQuorum(realKeysBook(nativeWeights), Map.of(10L, 4L, 20L, 4L, 30L, 4L), 12L);
         assertFalse(separateProvenance.canCompleteWithout(Set.of(20L, 30L)));
     }
 
@@ -105,7 +105,7 @@ class WrapsSigningQuorumTest {
     void quorumSnapshotDoesNotFollowMutableBookOrAuthority() {
         final var weights = equalWeights(3);
         final var book = realKeysBook(weights);
-        final var subject = new WrapsSigningQuorum(book, weights, true);
+        final var subject = new WrapsSigningQuorum(book, weights, 3L);
 
         weights.put(0L, 10_000L);
         book.weights()[0] = 10_000L;
@@ -124,7 +124,7 @@ class WrapsSigningQuorumTest {
     @Test
     void strictNativeMajorityDoesNotOverflowWhenWeightTotalExceedsSignedLong() {
         final var weights = new TreeMap<>(Map.of(10L, Long.MAX_VALUE, 30L, Long.MAX_VALUE));
-        final var subject = new WrapsSigningQuorum(realKeysBook(weights), weights, false);
+        final var subject = new WrapsSigningQuorum(realKeysBook(weights), weights, 0L);
 
         assertFalse(subject.isSatisfiedBy(Set.of(10L)));
         assertTrue(subject.isSatisfiedBy(Set.of(10L, 30L)));
@@ -132,13 +132,13 @@ class WrapsSigningQuorumTest {
 
     @Test
     void emptyAndIdentityOnlyBooksHaveNoSigningQuorum() {
-        final var empty = new WrapsSigningQuorum(realKeysBook(new TreeMap<>()), Map.of(), false);
+        final var empty = new WrapsSigningQuorum(realKeysBook(new TreeMap<>()), Map.of(), 0L);
         assertFalse(empty.isSatisfiedBy(Set.of()));
         assertFalse(empty.canCompleteWithout(Set.of()));
 
         final var weights = equalWeights(1);
         final var sentinelOnly = new WrapsSigningQuorum(
-                AddressBook.from(weights, nodeId -> MISSING_SCHNORR_KEY.toByteArray()), weights, false);
+                AddressBook.from(weights, nodeId -> MISSING_SCHNORR_KEY.toByteArray()), weights, 0L);
         assertFalse(sentinelOnly.canCompleteWithout(Set.of()));
         assertFalse(sentinelOnly.isEligibleSigner(0L));
     }

@@ -115,7 +115,7 @@ class ProofKeyIdentityPublicationTest {
         // hinTS 0..4 and real Schnorr 3..6 intersect only at 3 and 4.
         assertEquals(Set.of(3L, 4L, 5L, 6L), selectedKeys.get().keySet());
         final var incompleteBook = book(weights, selectedKeys.get());
-        assertFalse(new WrapsSigningQuorum(incompleteBook, hintsAuthority, true).canCompleteWithout(Set.of()));
+        assertFalse(new WrapsSigningQuorum(incompleteBook, hintsAuthority, 5L).canCompleteWithout(Set.of()));
         controller.advanceConstruction(START.plusSeconds(2), METADATA, store, false, CONFIG);
         verify(store, never()).setAssemblyTime(anyLong(), any());
         assertFalse(persisted.get().hasAssemblyStartTime());
@@ -127,7 +127,7 @@ class ProofKeyIdentityPublicationTest {
 
         verify(store).setAssemblyTime(CONSTRUCTION_ID, START.plusSeconds(4));
         assertEquals(Set.of(0L, 3L, 4L, 5L, 6L), selectedKeys.get().keySet());
-        final var repairedQuorum = new WrapsSigningQuorum(book(weights, selectedKeys.get()), hintsAuthority, true);
+        final var repairedQuorum = new WrapsSigningQuorum(book(weights, selectedKeys.get()), hintsAuthority, 5L);
         assertTrue(repairedQuorum.canCompleteWithout(Set.of()));
         assertTrue(repairedQuorum.isSatisfiedBy(Set.of(0L, 3L, 4L)));
     }

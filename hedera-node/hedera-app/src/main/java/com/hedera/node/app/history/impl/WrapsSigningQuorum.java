@@ -26,14 +26,6 @@ public final class WrapsSigningQuorum {
     private final BigInteger nativeHalfWeight;
     private final BigInteger hintsThirdWeight;
 
-    /** Creates a quorum for a participant-weight source key, or for a book without key provenance. */
-    public WrapsSigningQuorum(
-            @NonNull final AddressBook canonicalBook,
-            @NonNull final Map<Long, Long> sourceHintsWeights,
-            final boolean requiresProvenance) {
-        this(canonicalBook, sourceHintsWeights, requiresProvenance ? totalOf(sourceHintsWeights) : BigInteger.ZERO);
-    }
-
     /**
      * Captures the immutable requirements for this signing generation.
      *
@@ -46,13 +38,6 @@ public final class WrapsSigningQuorum {
             @NonNull final AddressBook canonicalBook,
             @NonNull final Map<Long, Long> sourceHintsWeights,
             final long provenanceKeyWeight) {
-        this(canonicalBook, sourceHintsWeights, BigInteger.valueOf(provenanceKeyWeight));
-    }
-
-    private WrapsSigningQuorum(
-            final AddressBook canonicalBook,
-            final Map<Long, Long> sourceHintsWeights,
-            final BigInteger provenanceKeyWeight) {
         requireNonNull(canonicalBook);
         requireNonNull(sourceHintsWeights);
         if (canonicalBook.nodeIds().length != canonicalBook.weights().length
@@ -76,14 +61,14 @@ public final class WrapsSigningQuorum {
                 throw new IllegalArgumentException("Source hinTS authority requires nonnegative node IDs and weights");
             }
         }
-        if (provenanceKeyWeight.signum() < 0) {
+        if (provenanceKeyWeight < 0) {
             throw new IllegalArgumentException("Negative hinTS provenance weight");
         }
         this.nativeWeights = Map.copyOf(effectiveWeights);
         this.sourceHintsWeights = Map.copyOf(sourceHintsWeights);
 
         this.nativeHalfWeight = totalOf(this.nativeWeights).divide(BigInteger.TWO);
-        this.hintsThirdWeight = provenanceKeyWeight.divide(BigInteger.valueOf(3));
+        this.hintsThirdWeight = BigInteger.valueOf(provenanceKeyWeight / 3);
         this.eligibleNodeIds = this.nativeWeights.entrySet().stream()
                 .filter(entry -> entry.getValue() > 0 && this.sourceHintsWeights.getOrDefault(entry.getKey(), 0L) > 0)
                 .map(Map.Entry::getKey)
