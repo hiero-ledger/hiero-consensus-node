@@ -48,6 +48,20 @@ public class WritableRegisteredNodeStore extends ReadableRegisteredNodeStoreImpl
     }
 
     /**
+     * Persists a new {@link RegisteredNode} whose ID was chosen explicitly, as by a system-dispatched creation.
+     * Increments the {@link EntityType#REGISTERED_NODE} entity type count, and raises the highest node ID to
+     * the node's ID if it is larger, so the shared consensus and registered node ID space never reuses it.
+     *
+     * @param node the registered node to store
+     */
+    public void putWithExplicitId(@NonNull final RegisteredNode node) {
+        requireNonNull(node);
+        put(node);
+        writableEntityIdStore.incrementEntityTypeCount(EntityType.REGISTERED_NODE);
+        writableEntityIdStore.updateHighestNodeIdIfLarger(node.registeredNodeId());
+    }
+
+    /**
      * Removes a registered node from state and decrements the registered node entity count.
      *
      * @param registeredNodeId the ID of the registered node to remove

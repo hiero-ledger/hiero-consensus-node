@@ -170,6 +170,7 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
     /**
      * Take work off of the queue and handle it.
      */
+    @SuppressWarnings("ForLoopReplaceableByForEach")
     private void run() {
         final List<SequentialThreadTask> buffer = new ArrayList<>(BUFFER_SIZE);
 
@@ -185,7 +186,8 @@ public class SequentialThreadTaskScheduler<OUT> extends TaskScheduler<OUT> imple
             }
 
             busyTimer.activate();
-            for (final SequentialThreadTask task : buffer) {
+            for (int i = 0, bufferSize = buffer.size(); i < bufferSize; i++) {
+                final SequentialThreadTask task = buffer.get(i);
                 if (!alive) {
                     break;
                 }

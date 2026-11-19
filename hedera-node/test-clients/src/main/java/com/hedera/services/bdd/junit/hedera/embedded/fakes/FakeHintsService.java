@@ -96,6 +96,11 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void cancelSignings() {
+        delegate.cancelSignings();
+    }
+
+    @Override
     public void stop() {
         delegate.stop();
     }

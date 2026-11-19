@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.EVM_ADDRESS_LENGTH_AS_INT;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -19,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -56,8 +58,17 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
         // Create the transaction-scoped component
         final var component = getTransactionComponent(context, CONTRACT_CALL);
 
+        final var metadata = context.dispatchMetadata();
+        final var gasUsage =
+                metadata == null ? null : metadata.getMetadataIfPresent(CONTRACT_GAS_USAGE, ContractGasUsage.class);
+
         // Run its in-scope transaction and get the outcome
         final var outcome = component.contextTransactionProcessor().call();
+
+        // Keep billed gas outside stream builders, whose side effects may be cleared on rollback.
+        if (gasUsage != null) {
+            gasUsage.recordGasUsed(outcome.txResult().gasUsed());
+        }
 
         // Assemble the appropriate top-level record for the result
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);

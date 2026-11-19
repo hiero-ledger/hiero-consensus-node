@@ -1144,6 +1144,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         }
                     })
                     .exceptionally(t -> {
+                        if (t instanceof CancellationException || t.getCause() instanceof CancellationException) {
+                            // Expected when the node falls BEHIND and cancels in-flight hinTS signings
+                            log.info("Signing cancelled for block #{} ({})", signedBlockNumber, finalBlockRootHash);
+                            return null;
+                        }
                         if (t.getCause() instanceof IllegalStateException illegalStateException) {
                             if (HintsContext.INVALID_AGGREGATE_SIGNATURE_MESSAGE.equals(
                                     illegalStateException.getMessage())) {

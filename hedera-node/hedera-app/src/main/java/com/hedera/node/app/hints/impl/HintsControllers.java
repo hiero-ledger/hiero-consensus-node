@@ -6,6 +6,7 @@ import static java.util.stream.Collectors.joining;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
@@ -18,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -240,6 +242,7 @@ public class HintsControllers {
                     blsKeyPair,
                     construction,
                     weights,
+                    currentRosterNodesOutsideSource(activeRosters.currentRoster(), weights),
                     executor,
                     library,
                     votes,
@@ -250,6 +253,28 @@ public class HintsControllers {
                     hintsStore,
                     onHintsFinished);
         }
+    }
+
+    /**
+     * Returns the target nodes in the current roster that are not hinTS parties of the source scheme, e.g. nodes
+     * added at the last upgrade, if the construction targets exactly the current roster's members; and otherwise
+     * none. A controller waits for these nodes' keys before it starts preprocessing early. Constructions that
+     * target the current members are weight rotations, or upgrades that keep the members and only update nodes;
+     * an upgrade that changes the members does not wait, as its candidate roster must be ready before its freeze.
+     *
+     * @param currentRoster the current roster
+     * @param weights the construction's transition weights
+     * @return the target nodes in the current roster outside the source scheme
+     */
+    static Set<Long> currentRosterNodesOutsideSource(
+            @NonNull final Roster currentRoster, @NonNull final RosterTransitionWeights weights) {
+        final var nodeIds = new TreeSet<Long>();
+        currentRoster.rosterEntries().forEach(entry -> nodeIds.add(entry.nodeId()));
+        if (!nodeIds.equals(weights.targetNodeIds())) {
+            return Set.of();
+        }
+        nodeIds.removeAll(weights.sourceNodeIds());
+        return nodeIds;
     }
 
     /**

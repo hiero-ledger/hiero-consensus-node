@@ -51,7 +51,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
     private static final VarHandle blockNodesHandle;
 
     private static final MethodHandle updateConnectionIfNeededHandle;
-    private static final MethodHandle checkActiveConnectionStalledHandle;
+    private static final MethodHandle checkActiveStreamingConnectionStalledHandle;
 
     static {
         try {
@@ -66,10 +66,10 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
             updateConnectionIfNeeded.setAccessible(true);
             updateConnectionIfNeededHandle = lookup.unreflect(updateConnectionIfNeeded);
 
-            final Method checkActiveConnectionStalled = cls.getDeclaredMethod(
-                    "checkActiveConnectionStalled", Instant.class, BlockNodeStreamingConnection.class);
-            checkActiveConnectionStalled.setAccessible(true);
-            checkActiveConnectionStalledHandle = lookup.unreflect(checkActiveConnectionStalled);
+            final Method checkActiveStreamingConnectionStalled = cls.getDeclaredMethod(
+                    "checkActiveStreamingConnectionStalled", Instant.class, BlockNodeStreamingConnection.class);
+            checkActiveStreamingConnectionStalled.setAccessible(true);
+            checkActiveStreamingConnectionStalledHandle = lookup.unreflect(checkActiveStreamingConnectionStalled);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -218,7 +218,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
                 "Streaming connection update requested (reason: missing-active-connection buffer-unhealthy)",
                 1);
         assertLogOccurrence(infoLogs, "No block node candidates found for selection criteria: AnyCriteria[]", 2);
-        assertLogOccurrence(infoLogs, "[localhost:1234] Block node is available for streaming", 1);
+        assertLogOccurrence(infoLogs, "[localhost:1234] Block node is within range of this consensus node", 1);
         assertLogOccurrence(infoLogs, "Selected new block node for streaming: localhost:1234", 1);
 
         // invoke the update again... the buffer should still be unhealthy and it should trigger logging
@@ -233,7 +233,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
                 "Streaming connection update requested (reason: missing-active-connection buffer-unhealthy)",
                 1);
         assertLogOccurrence(infoLogs, "No block node candidates found for selection criteria: AnyCriteria[]", 2);
-        assertLogOccurrence(infoLogs, "[localhost:1234] Block node is available for streaming", 1);
+        assertLogOccurrence(infoLogs, "[localhost:1234] Block node is within range of this consensus node", 1);
         assertLogOccurrence(infoLogs, "Selected new block node for streaming: localhost:1234", 1);
         assertLogOccurrence(infoLogs, "Streaming connection update requested (reason: buffer-unhealthy)", 1);
         assertLogOccurrence(infoLogs, "Selecting a new block node is deferred due to global cool down until", 1);
@@ -249,7 +249,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
         when(activeConnection.connectionStatistics()).thenReturn(stats);
         when(stats.lastHeartbeatMillis()).thenReturn(lastHeartbeat);
 
-        invoke_checkActiveConnectionStalled(now, activeConnection);
+        invoke_checkActiveStreamingConnectionStalled(now, activeConnection);
 
         final List<String> warnLogs = logCaptor.warnLogs();
         assertThat(warnLogs).hasSize(1);
@@ -271,7 +271,7 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
         when(activeConnection.connectionStatistics()).thenReturn(stats);
         when(stats.lastHeartbeatMillis()).thenReturn(lastHeartbeat);
 
-        invoke_checkActiveConnectionStalled(now, activeConnection);
+        invoke_checkActiveStreamingConnectionStalled(now, activeConnection);
 
         final List<String> warnLogs = logCaptor.warnLogs();
         assertThat(warnLogs).isEmpty();
@@ -298,9 +298,9 @@ class BlockNodeConnectionManagerLoggingTest extends BlockNodeCommunicationTestBa
         updateConnectionIfNeededHandle.invoke(connectionManager);
     }
 
-    void invoke_checkActiveConnectionStalled(final Instant now, final BlockNodeStreamingConnection activeConnection)
-            throws Throwable {
-        checkActiveConnectionStalledHandle.invoke(connectionManager, now, activeConnection);
+    void invoke_checkActiveStreamingConnectionStalled(
+            final Instant now, final BlockNodeStreamingConnection activeConnection) throws Throwable {
+        checkActiveStreamingConnectionStalledHandle.invoke(connectionManager, now, activeConnection);
     }
 
     @SuppressWarnings("unchecked")
