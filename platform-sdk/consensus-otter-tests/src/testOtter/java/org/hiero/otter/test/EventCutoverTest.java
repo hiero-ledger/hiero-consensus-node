@@ -50,7 +50,7 @@ public class EventCutoverTest {
     private static final long ROUNDS_EXPIRED = 100L;
 
     /** The round of the initial state used by several tests in this class. */
-    private static final long STARTING_STATE_ROUND = 32L;
+    private static final long STARTING_STATE_ROUND = 0L;
 
     /**
      * Tests that the event cutover feature works correctly when starting from a genesis state.
