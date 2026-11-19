@@ -84,7 +84,8 @@ public class LearningSynchronizer {
      * @param threadManager responsible for managing thread lifecycles
      * @param config the configuration
      * @param metrics the metrics system for recording synchronization metrics
-     * @param hashPrefixLength the number of leading hash bytes to send in requests. If it isn't less than the hash
+     * @param hashPrefixLength the number of leading hash bytes to send in requests, at least
+     *     {@link VirtualMapLearnerSyncConfig#MIN_HASH_PREFIX_LENGTH}. If it isn't less than the hash
      *     length, full hashes are sent
      */
     public LearningSynchronizer(
@@ -97,8 +98,9 @@ public class LearningSynchronizer {
         this.syncConfig = Objects.requireNonNull(config, "config cannot be null")
                 .getConfigData(VirtualMapLearnerSyncConfig.class);
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
-        if (hashPrefixLength <= 0) {
-            throw new IllegalArgumentException("hashPrefixLength must be positive: " + hashPrefixLength);
+        if (hashPrefixLength < VirtualMapLearnerSyncConfig.MIN_HASH_PREFIX_LENGTH) {
+            throw new IllegalArgumentException("hashPrefixLength must be at least "
+                    + VirtualMapLearnerSyncConfig.MIN_HASH_PREFIX_LENGTH + ": " + hashPrefixLength);
         }
         this.hashPrefixLength = hashPrefixLength;
     }

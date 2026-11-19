@@ -33,7 +33,7 @@ import org.hiero.base.crypto.Hash;
  * is. The learner chooses the length: a configured prefix length normally, and full hashes when an earlier
  * reconnect from the same state wasn't accepted. If a prefix ever matched for different hashes, the learner
  * would keep a stale subtree, and the reconnected state would fail validation against the teacher's signed
- * root hash, so a wrong state is never accepted.
+ * root hash, so a wrong state is never accepted. Parsing accepts a prefix of 1 byte up to a full hash.
  *
  * <p>Protobuf schema:
  *
@@ -55,6 +55,9 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashBytes, int ha
     static final FieldDefinition FIELD_PULLREQUEST_PATH = new FieldDefinition("path", FieldType.FIXED64, false, 1);
     static final FieldDefinition FIELD_PULLREQUEST_HASH_PREFIX =
             new FieldDefinition("hashPrefix", FieldType.BYTES, false, 2);
+
+    /** The longest hash prefix accepted from the learner, which is a full hash. */
+    static final int MAX_HASH_PREFIX_LENGTH = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
 
     /**
      * Creates a request.
@@ -96,10 +99,7 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashBytes, int ha
         if (other.length() < hashPrefixLength) {
             return false;
         }
-        for (int i = 0; i < hashPrefixLength; i++) {
-            if (other.getByte(i) != hashBytes.getByte(i)) {
-                return false;
-            }
+        // Compare 8 bytes at a time, then the rest byte by byte
         int i = 0;
         for (; i + Long.BYTES <= hashPrefixLength; i += Long.BYTES) {
             if (other.getLong(i) != hashBytes.getLong(i)) {
@@ -168,6 +168,10 @@ public record PullVirtualTreeRequest(long path, @NonNull Bytes hashBytes, int ha
                     throw new IllegalArgumentException("Wrong wire type for hash prefix field: " + field);
                 }
                 hashPrefix = readBytes(in);
+                // Our learner never sends an empty prefix, which would match every hash, or one longer than a hash
+                if ((hashPrefix.length() == 0) || (hashPrefix.length() > MAX_HASH_PREFIX_LENGTH)) {
+                    throw new IllegalArgumentException("Wrong hash prefix length: " + hashPrefix.length());
+                }
             } else {
                 throw new IllegalArgumentException("Unknown field: " + field);
             }

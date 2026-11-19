@@ -76,8 +76,11 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
         @ConfigProperty(defaultValue = "2000000") @Positive int flushInterval,
         @ConfigProperty(defaultValue = "4000000") @Positive @ConstraintMethod("validateLeafBacklogThrottleThreshold") int leafBacklogThrottleThreshold,
-        @ConfigProperty(defaultValue = "16") @Min(8) int hashPrefixLength) {
+        @ConfigProperty(defaultValue = "16") @Min(MIN_HASH_PREFIX_LENGTH) int hashPrefixLength) {
 // spotless:on
+
+    /// The shortest hash prefix a learner sends. Shorter prefixes match by chance too often in a large state.
+    public static final int MIN_HASH_PREFIX_LENGTH = 8;
 
     private static final String LEAF_BACKLOG_THROTTLE_THRESHOLD = "reconnect.learner.leafBacklogThrottleThreshold";
 

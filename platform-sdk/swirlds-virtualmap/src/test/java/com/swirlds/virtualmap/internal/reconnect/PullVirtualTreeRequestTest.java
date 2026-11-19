@@ -14,6 +14,8 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.virtualmap.MerklePathUtils;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Random;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -114,6 +116,23 @@ class PullVirtualTreeRequestTest {
     }
 
     @Test
+    @DisplayName("Every byte of the prefix is compared, in 8-byte steps and in the remaining bytes")
+    void everyPrefixByteCompared() {
+        final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
+        for (final int length : new int[] {8, 12, 16, 20, FULL_HASH_LENGTH}) {
+            final PullVirtualTreeRequest request = new PullVirtualTreeRequest(1, hash, length);
+            for (int i = 0; i < FULL_HASH_LENGTH; i++) {
+                final byte[] changed = hash.copyToByteArray();
+                changed[i] ^= 1;
+                assertEquals(
+                        i >= length,
+                        request.matches(new Hash(changed, Cryptography.DEFAULT_DIGEST_TYPE)),
+                        "length=" + length + ", changed byte=" + i);
+            }
+        }
+    }
+
+    @Test
     @DisplayName("A null hash on the learner matches only a null hash on the teacher")
     void nullHashMatches() {
         final PullVirtualTreeRequest request = new PullVirtualTreeRequest(7, Cryptography.NULL_HASH, PREFIX_LENGTH);
@@ -133,25 +152,54 @@ class PullVirtualTreeRequestTest {
     }
 
     @Test
-    @DisplayName("A prefix of any length is parsed and compared with the beginning of the hash")
-    void anyPrefixLength() throws Exception {
+    @DisplayName("A prefix from 1 byte to a full hash is parsed and compared with the beginning of the hash")
+    void anyPrefixLength() {
+        final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
+        for (final int length : new int[] {1, 20, FULL_HASH_LENGTH}) {
+            final Bytes prefix = hash.getBytes().slice(0, length);
+            final PullVirtualTreeRequest request = PullVirtualTreeRequest.parseFrom(requestBytes(prefix));
+            assertEquals(prefix, request.hashBytes());
+            assertEquals(length, request.hashPrefixLength());
+            assertTrue(request.matches(hash));
+        }
+    }
+
+    @Test
+    @DisplayName("Parsing rejects an empty prefix and one longer than a hash")
+    void wrongPrefixLength() {
         final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
         final byte[] longerThanHash = new byte[FULL_HASH_LENGTH + 1];
         hash.getBytes().writeTo(longerThanHash, 0);
-        for (final Bytes prefix :
-                new Bytes[] {hash.getBytes().slice(0, 1), hash.getBytes().slice(0, 20), Bytes.wrap(longerThanHash)}) {
-            final byte[] bytes = new byte[64];
-            final BufferedData out = BufferedData.wrap(bytes);
-            ProtoWriterTools.writeLong(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_PATH, 3);
-            ProtoWriterTools.writeBytes(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_HASH_PREFIX, prefix);
-            final BufferedData in = BufferedData.wrap(bytes, 0, (int) out.position());
-
-            final PullVirtualTreeRequest request = PullVirtualTreeRequest.parseFrom(in);
-            assertEquals(prefix, request.hashBytes());
-            assertEquals(prefix.length(), request.hashPrefixLength());
-            // A prefix longer than the hash never matches
-            assertEquals(prefix.length() <= FULL_HASH_LENGTH, request.matches(hash));
+        for (final Bytes prefix : new Bytes[] {Bytes.EMPTY, Bytes.wrap(longerThanHash)}) {
+            final BufferedData in = requestBytes(prefix);
+            assertThrows(IllegalArgumentException.class, () -> PullVirtualTreeRequest.parseFrom(in));
         }
+    }
+
+    @Test
+    @DisplayName("A prefix longer than the hash never matches")
+    void longerPrefixDoesNotMatch() {
+        final Hash hash = randomHash(new Random(), Cryptography.DEFAULT_DIGEST_TYPE);
+        final byte[] longerThanHash = new byte[FULL_HASH_LENGTH + 1];
+        hash.getBytes().writeTo(longerThanHash, 0);
+        final PullVirtualTreeRequest request =
+                new PullVirtualTreeRequest(3, Bytes.wrap(longerThanHash), longerThanHash.length);
+        assertFalse(request.matches(hash));
+    }
+
+    /**
+     * Writes a request with path 3 and the given hash prefix.
+     */
+    private static BufferedData requestBytes(final Bytes prefix) {
+        final byte[] bytes = new byte[64];
+        final BufferedData out = BufferedData.wrap(bytes);
+        ProtoWriterTools.writeLong(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_PATH, 3);
+        try {
+            ProtoWriterTools.writeBytes(out, PullVirtualTreeRequest.FIELD_PULLREQUEST_HASH_PREFIX, prefix, false);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return BufferedData.wrap(bytes, 0, (int) out.position());
     }
 
     @Test

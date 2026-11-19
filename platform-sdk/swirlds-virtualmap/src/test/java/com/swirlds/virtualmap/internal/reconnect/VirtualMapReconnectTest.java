@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -26,10 +27,14 @@ import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.sync.ReconnectTestUtils;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -330,7 +335,21 @@ class VirtualMapReconnectTest extends VirtualMapReconnectTestBase {
         teacherMap.reserve();
         learnerMap.reserve();
 
-        final VirtualMap afterMap = ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, prefixConfig);
+        final ByteArrayOutputStream teacherInput = new ByteArrayOutputStream();
+        final VirtualMap afterMap =
+                ReconnectTestUtils.testSynchronization(learnerMap, teacherMap, prefixConfig, teacherInput);
+
+        // Every request the teacher received carries the configured prefix length, or the full hash if it's longer
+        final int expectedLength = Math.min(hashPrefixLength, Cryptography.DEFAULT_DIGEST_TYPE.digestLength());
+        final DataInputStream in = new DataInputStream(new ByteArrayInputStream(teacherInput.toByteArray()));
+        int requests = 0;
+        for (int len = in.readInt(); len >= 0; len = in.readInt()) {
+            final byte[] message = in.readNBytes(len);
+            final PullVirtualTreeRequest request = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(message));
+            assertEquals(expectedLength, request.hashPrefixLength(), "path=" + request.path());
+            requests++;
+        }
+        assertTrue(requests > 1, "the teacher should receive the root request and more");
 
         assertEquals(
                 "changed20",
