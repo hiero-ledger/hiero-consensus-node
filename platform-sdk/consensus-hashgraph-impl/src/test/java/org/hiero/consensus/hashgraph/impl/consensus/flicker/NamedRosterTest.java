@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedRoster;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -52,5 +53,20 @@ class NamedRosterTest {
         }
         assertThatThrownBy(() -> NamedRoster.nodeIdFor("A")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> NamedRoster.nodeIdFor("ab")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("letterFor inverts nodeIdFor, and rejects ids that no letter has")
+    void letterForInvertsNodeIdFor() {
+        for (char letter = 'a'; letter <= 'z'; letter++) {
+            final String expected = String.valueOf(letter);
+            assertThat(NamedRoster.letterFor(NamedRoster.nodeIdFor(expected))).isEqualTo(expected);
+        }
+        // 0 is below a's id, 3 and 4 fall in the gap between b (2) and c (5), and 51 is above z's id (50)
+        for (final long id : new long[] {0, 3, 4, 51}) {
+            assertThatThrownBy(() -> NamedRoster.letterFor(NodeId.of(id)))
+                    .as("node id %d belongs to no letter", id)
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 }

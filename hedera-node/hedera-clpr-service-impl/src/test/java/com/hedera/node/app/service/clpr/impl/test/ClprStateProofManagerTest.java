@@ -9,7 +9,9 @@ import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
+import com.hedera.node.app.service.clpr.impl.ClprProofTimestamp;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
@@ -60,7 +62,10 @@ class ClprStateProofManagerTest {
     @BeforeEach
     void setUp() {
         subject = new ClprStateProofManager(
-                snapshotProvider, tssVerifier, HederaTestConfigBuilder.createConfigProvider());
+                snapshotProvider,
+                tssVerifier,
+                HederaTestConfigBuilder.createConfigProvider(),
+                (proof, anchor) -> false);
         binaryState = (BinaryState) provenState;
     }
 
@@ -98,10 +103,28 @@ class ClprStateProofManagerTest {
     }
 
     @Test
+    void recoveryProofAuthenticatesTheSnapshotTimestamp() throws Exception {
+        givenProvableSnapshot();
+        given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID)).willReturn(null);
+
+        final var result = subject.buildManifestStateProofWithValue(true);
+        assertThat(result).isNotNull();
+        final var proof = StateProof.PROTOBUF.parseStrict(result.proof());
+        assertThat(proof.paths()).hasSize(2);
+        final var digest = StateProofVerifier.inferDigestType(proof).buildDigest();
+        final var root =
+                StateProofVerifier.computeBlockRootHashFromPath(proof.paths().getFirst(), digest);
+        assertThat(ClprProofTimestamp.verifiedTimestamp(proof, root, digest)).isEqualTo(new Timestamp(1L, 0));
+    }
+
+    @Test
     @DisplayName("blockStream.digestType=SHA_256 -> proof still built correctly, hashing with SHA-256 end-to-end")
     void sha256ConfiguredBuildsValidProof() throws Exception {
         subject = new ClprStateProofManager(
-                snapshotProvider, tssVerifier, configProviderWithDigestType(DigestType.SHA_256));
+                snapshotProvider,
+                tssVerifier,
+                configProviderWithDigestType(DigestType.SHA_256),
+                (proof, anchor) -> false);
         final var manifest = ClprEndpointManifest.newBuilder().version(5L).build();
         givenProvableSnapshot();
         given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID))

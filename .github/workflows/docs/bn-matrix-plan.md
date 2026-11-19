@@ -19,11 +19,11 @@ not only the single version pinned in `.citr-env`.
 - BN versions are validated by `support/scripts/resolve-bn-versions.sh` (`vX.Y.Z[-suffix]`, a missing leading `v` is added) because they reach `run:` scripts and artifact names. Tag-only
   alpha/rc builds work too, since no GitHub release is looked up.
 - `resolve-versions` fails early if any CN ref pins Solo below 0.44.0 (same gate as 815's `solo-ge-0440`).
-- The HAPI BN Comms suite (`844-call-execute-hapi-bn-communication.yaml`) also runs per CN ref x BN version
+- The HAPI BN Comms suite (`874-call-execute-hapi-suite.yaml` with `hapiTestBlockNodeCommunication`) also runs per CN ref x BN version
   (`max-parallel: 1`). It selects the BN image through the `BLOCK_NODE_VERSION` env var read by `BlockNodeContainer`.
   Refs whose `BlockNodeContainer` lacks that override would silently run the pinned image, so
   `resolve-cn-configs.sh` flags each ref (`bn-version-override`) and 906 runs BN Comms only for flagged refs, with a
-  warning for the rest (the 821 legs still run for every ref). As a second guard, 844 fails the leg unless
+  warning for the rest (the 821 legs still run for every ref). As a second guard, 874 fails the leg unless
   `block-node/<requested version>/` data was created during the run.
 - BN Comms downloads the plugin jars for the requested version from Maven Central, so `resolve-versions` checks that
   the `health` and `roster-bootstrap-tss` jars exist for every BN version and fails early otherwise. The plugin list
@@ -38,7 +38,7 @@ not only the single version pinned in `.citr-env`.
 | `906-cron-block-node-matrix.yaml` | New dispatch-only workflow described above |
 | `support/scripts/resolve-cn-configs.sh` | Per-CN-ref config lookup (replaces the 854/855 calls in 906); fails on Solo < 0.44.0 or missing keys; emits `bn-version-override` |
 | `support/tests/test-resolve-cn-configs.sh` | Unit tests against a throw-away git repo; wired into 857 |
-| `844-call-execute-hapi-bn-communication.yaml` | `bn-release-version` (exported as `BLOCK_NODE_VERSION`) and `artifact-suffix` inputs; step verifying the requested BN version was used |
+| `844-call-execute-hapi-bn-communication.yaml` (now `874-call-execute-hapi-suite.yaml`) | `bn-release-version` (exported as `BLOCK_NODE_VERSION`) and `artifact-suffix` inputs; step verifying the requested BN version was used |
 | `BlockNodeContainer.java` | Image/plugin version overridable via `BLOCK_NODE_VERSION` (default stays the pinned version) |
 | `821-call-block-node-regression.yaml` | BN version (and the optional `cn-label` input) added to uploaded artifact names and to the Slack panel label |
 | `support/scripts/resolve-bn-versions.sh`, `support/tests/test-resolve-bn-versions.sh` | BN version parsing and validation for 906; tests wired into 857 |

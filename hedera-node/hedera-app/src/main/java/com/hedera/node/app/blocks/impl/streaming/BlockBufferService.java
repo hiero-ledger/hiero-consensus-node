@@ -75,7 +75,10 @@ public class BlockBufferService extends BlockStreamingBase {
      * This tracks the earliest block number in the buffer.
      */
     private final AtomicLong earliestBlockNumber = new AtomicLong(Long.MIN_VALUE);
-
+    /**
+     * This tracks the latest (highest) block that has been closed.
+     */
+    private final AtomicLong lastBlockClosed = new AtomicLong(Long.MIN_VALUE);
     /**
      * This tracks the highest block number that has been acknowledged by the connected block node. This is kept
      * separately instead of individual acknowledgement tracking on a per-block basis because it is possible that after
@@ -211,7 +214,12 @@ public class BlockBufferService extends BlockStreamingBase {
         }
 
         // Initialize buffer and start worker thread if streaming is enabled
-        loadBufferFromDisk();
+        try {
+            loadBufferFromDisk();
+        } catch (final RuntimeException e) {
+            // Restoring the buffer is best-effort; a failure must not stop the worker from being scheduled
+            logger.error("Failed to restore block buffer from disk; continuing startup", e);
+        }
 
         execSvc = Executors.newSingleThreadScheduledExecutor();
         scheduleNextWorkerTask();
@@ -253,6 +261,7 @@ public class BlockBufferService extends BlockStreamingBase {
         highestAckedBlockNumber.set(Long.MIN_VALUE);
         highestAcknowledgementByBlockNode.clear();
         lastProducedBlockNumber.set(-1);
+        lastBlockClosed.set(Long.MIN_VALUE);
         earliestBlockNumber.set(Long.MIN_VALUE);
         lastPruningResultRef.set(PruneResult.NIL);
         bufferSizeInBytes.reset();
@@ -442,6 +451,7 @@ public class BlockBufferService extends BlockStreamingBase {
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
         blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
         blockState.closeBlock();
+        lastBlockClosed.updateAndGet(old -> Math.max(old, blockNumber));
     }
 
     /**
@@ -605,7 +615,7 @@ public class BlockBufferService extends BlockStreamingBase {
 
         if (orderedBlockAcks.size() < minAcknowledgementsRequired) {
             logger.warn(
-                    "Not enough block nodes available ({}) to reach block acknowledgement threshold ({})",
+                    "Not enough unique acknowledgements received to reach block acknowledgement threshold (received: {}, threshold: {})",
                     orderedBlockAcks.size(),
                     minAcknowledgementsRequired);
             return getHighestAckedBlockNumber();
@@ -718,6 +728,15 @@ public class BlockBufferService extends BlockStreamingBase {
     }
 
     /**
+     * Retrieves the latest (highest) block number that was closed.
+     * @return the latest block closed or -1 if no blocks have been closed yet
+     */
+    public long getLastBlockClosed() {
+        final long latest = lastBlockClosed.get();
+        return latest == Long.MIN_VALUE ? -1 : latest;
+    }
+
+    /**
      * Ensures that there is enough capacity in the block buffer to permit a new block being created. If there is not
      * enough capacity - i.e. the buffer is saturated - then this method will block until there is enough capacity.
      */
@@ -775,22 +794,17 @@ public class BlockBufferService extends BlockStreamingBase {
 
         for (final BufferedBlock bufferedBlock : blocks) {
             final long blockNumber = bufferedBlock.blockNumber();
-            final long blockPeriodMillis = bufferedBlock.blockPeriodMillisOrElse(-1L);
-            final BlockState block = new BlockState(blockNumber, blockPeriodMillis);
-            long blockItemTotalSize = 0L;
-            for (final Bytes itemBytes : bufferedBlock.block().items()) {
-                block.addSerializedItem(itemBytes);
-                blockItemTotalSize += itemBytes.length();
-                ++totalItemsLoaded;
+            final BlockState block;
+            try {
+                block = restoreBlock(bufferedBlock);
+            } catch (final RuntimeException e) {
+                // The file parsed, but the block in it is invalid (e.g. an item with a malformed tag). Skip the block,
+                // just as BlockBufferIO skips block files that fail to parse.
+                logger.error("Failed to restore block {} from disk; ignoring block", blockNumber, e);
+                continue;
             }
-
-            final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
-            final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
-            final Timestamp openedTimestamp = bufferedBlock.openedTimestamp();
-            final Instant openedInstant = Instant.ofEpochSecond(openedTimestamp.seconds(), openedTimestamp.nanos());
-            logger.debug("Reconstructed block {} from disk and closed at {}", blockNumber, closedInstant);
-            block.closeBlock(closedInstant);
-            block.setOpenedTimestamp(openedInstant);
+            final long blockItemTotalSize = block.sizeBytes();
+            totalItemsLoaded += block.itemCount();
 
             if (bufferedBlock.isAcknowledged()) {
                 acknowledgeBlock(blockNumber);
@@ -804,6 +818,8 @@ public class BlockBufferService extends BlockStreamingBase {
                 ++numBlocksLoaded;
                 bufferSizeInBytes.add(blockItemTotalSize);
                 totalBlockSizeLoaded = totalBlockSizeLoaded.add(BigInteger.valueOf(blockItemTotalSize));
+                lastProducedBlockNumber.updateAndGet(old -> Math.max(old, block.blockNumber()));
+                lastBlockClosed.updateAndGet(old -> Math.max(old, block.blockNumber()));
             }
         }
 
@@ -812,6 +828,31 @@ public class BlockBufferService extends BlockStreamingBase {
                 numBlocksLoaded,
                 totalItemsLoaded,
                 totalBlockSizeLoaded);
+    }
+
+    /**
+     * Rebuilds a block that was read from disk. This only builds the block; it does not modify the buffer.
+     *
+     * @param bufferedBlock the block read from disk
+     * @return the rebuilt block, closed with its persisted timestamps
+     * @throws RuntimeException if the block's contents are invalid, e.g. an item with a malformed tag or a missing
+     * timestamp
+     */
+    private static BlockState restoreBlock(@NonNull final BufferedBlock bufferedBlock) {
+        final long blockNumber = bufferedBlock.blockNumber();
+        final BlockState block = new BlockState(blockNumber, bufferedBlock.blockPeriodMillisOrElse(-1L));
+        for (final Bytes itemBytes : bufferedBlock.block().items()) {
+            block.addSerializedItem(itemBytes);
+        }
+
+        final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
+        final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
+        final Timestamp openedTimestamp = bufferedBlock.openedTimestamp();
+        final Instant openedInstant = Instant.ofEpochSecond(openedTimestamp.seconds(), openedTimestamp.nanos());
+        logger.debug("Reconstructed block {} from disk and closed at {}", blockNumber, closedInstant);
+        block.closeBlock(closedInstant);
+        block.setOpenedTimestamp(openedInstant);
+        return block;
     }
 
     /**

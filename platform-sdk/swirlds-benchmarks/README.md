@@ -1,9 +1,9 @@
 # swirlds-benchmarks
 
-This module contains JMH benchmarks for platform SDK virtual map and reconnect
-workloads. They cover crypto-transfer-like operations over virtual maps, virtual
-map read and edit cycles, and reconnect synchronization between learner and
-teacher map states.
+This module contains JMH benchmarks for platform SDK virtual map, snapshot,
+and reconnect workloads. They cover crypto-transfer-like operations over virtual
+maps, virtual map read and edit cycles, MerkleDB snapshots, and reconnect
+synchronization between learner and teacher map states.
 
 If you need to explore metrics during test run, use `hiero-observability/local-stack`
 to scrape the Prometheus endpoint during test run and explore metrics/logs in local Grafana.
@@ -43,6 +43,14 @@ Benchmarks:
 - `VirtualMapEditBench.create`: creates or replaces records.
 - `VirtualMapEditBench.delete`: updates records while removing expired entries.
 
+### MerkleDbSnapshotBenchmark
+
+Measures complete MerkleDB snapshots of a pre-created state.
+
+Benchmarks:
+
+- `MerkleDbSnapshotBenchmark.snapshot`: snapshots the prepared data source.
+
 ### ReconnectBench
 
 Builds learner and teacher virtual map states with configurable differences,
@@ -78,6 +86,7 @@ Available benchmark tasks:
 ./gradlew :swirlds-benchmarks:jmhCrypto
 ./gradlew :swirlds-benchmarks:jmhVirtualMapRead
 ./gradlew :swirlds-benchmarks:jmhVirtualMapEdit
+./gradlew :swirlds-benchmarks:jmhMerkleDbSnapshot
 ./gradlew :swirlds-benchmarks:jmhReconnect
 ```
 
@@ -132,6 +141,7 @@ cd platform-sdk/swirlds-benchmarks
 java -jar build/libs/*-jmh.jar CryptoBench.transferSerial
 java -jar build/libs/*-jmh.jar CryptoBench.transferParallel
 java -jar build/libs/*-jmh.jar VirtualMapReadBench.read
+java -jar build/libs/*-jmh.jar MerkleDbSnapshotBenchmark.snapshot
 java -jar build/libs/*-jmh.jar ReconnectBench
 ```
 

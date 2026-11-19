@@ -487,7 +487,6 @@ public class TransferExecutor extends BaseTokenHandler {
             @NonNull final HandleContext handleContext,
             @NonNull final Function function,
             @NonNull final Counter numAttemptedHookCalls) {
-        final boolean isolated = hookInvocations.size() == 1;
         for (final var hookInvocation : hookInvocations) {
             byte[] calldata;
             try {
@@ -509,7 +508,7 @@ public class TransferExecutor extends BaseTokenHandler {
                             .build())
                     .build();
             numAttemptedHookCalls.increment();
-            dispatchExecution(handleContext, execution, function, entityIdFactory, isolated);
+            dispatchExecution(handleContext, execution, function, entityIdFactory);
         }
     }
 

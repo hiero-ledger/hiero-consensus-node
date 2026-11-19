@@ -4,6 +4,7 @@
     "maxMessagePayloadBytes": 65536,
     "maxGasPerMessage": 15000000,
     "maxQueueDepth": 10000,
-    "maxSyncBytes": 4194304
+    "maxSyncBytes": 4194304,
+    "maxPeerEndpoints": 100
   }
 }

@@ -127,7 +127,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.junit.jupiter.api.BeforeEach;
@@ -300,18 +299,19 @@ class BlockStreamManagerImplTest {
     /**
      * [PR 27696 comment, P1 — PRE-EXISTING cutover defect] For the first post-cutover block, {@code init()}
      * deliberately uses two different values for the parent: the wrapped record block root becomes
-     * {@code lastBlockHash} and drives the block-root/footer, while the original 48-byte record hash is appended
-     * to the trailing window (the EVM BLOCKHASH contract requires the record-era hash there).
-     * {@code reconstructLastBlockHash} must recover the <b>wrapped</b> parent — persisted in
-     * {@code first_post_cutover_parent_root_hash} — rather than the record hash from the trailing window, or
-     * restart/reconnect/snapshot reconstruction yields a different block root than the live producer.
+     * {@code lastBlockHash} and drives the block-root/footer, while the original 48-byte record hash is appended to the
+     * trailing window (the EVM BLOCKHASH contract requires the record-era hash there). {@code reconstructLastBlockHash}
+     * must recover the <b>wrapped</b> parent — persisted in {@code first_post_cutover_parent_root_hash} — rather than
+     * the record hash from the trailing window, or restart/reconnect/snapshot reconstruction yields a different block
+     * root than the live producer.
      *
-     * <p>This is verified on a single post-cutover-block (N=100, SHA-256) {@code BlockStreamInfo}. We cannot compare two
-     * <i>different</i> BSIs (e.g. one with the record hash in the window and one with the wrapped parent in the window):
-     * {@code reconstructLastBlockHash} folds the <i>entire</i> BSI — including {@code trailingBlockHashes} and
-     * {@code trailingBlockHashesCompacted} — into the final state-change leaf's self-hash, so two BSIs that differ in the
-     * window can never reconstruct to the same root regardless of parent. The assertions below therefore keep the BSI
-     * identity fixed and vary only the parent source.
+     * <p>This is verified on a single post-cutover-block (N=100, SHA-256) {@code BlockStreamInfo}. We cannot compare
+     * two
+     * <i>different</i> BSIs (e.g. one with the record hash in the window and one with the wrapped parent in the
+     * window): {@code reconstructLastBlockHash} folds the <i>entire</i> BSI — including {@code trailingBlockHashes} and
+     * {@code trailingBlockHashesCompacted} — into the final state-change leaf's self-hash, so two BSIs that differ in
+     * the window can never reconstruct to the same root regardless of parent. The assertions below therefore keep the
+     * BSI identity fixed and vary only the parent source.
      */
     @Test
     void reconstructFirstPostCutoverBlockUsesWrappedParentNotRecordHash() {
@@ -3793,9 +3793,7 @@ class BlockStreamManagerImplTest {
 
         final var txn = new TransactionWrapper(Bytes.fromHex("abcdefABCDEF"));
         txn.setConsensusTimestamp(timestamp);
-        lenient()
-                .when(mockEvent.consensusTransactionIterator())
-                .thenReturn(List.<ConsensusTransaction>of(txn).iterator());
+        lenient().when(mockEvent.getTransactions()).thenAnswer(inv -> List.of(txn));
     }
 
     @Test

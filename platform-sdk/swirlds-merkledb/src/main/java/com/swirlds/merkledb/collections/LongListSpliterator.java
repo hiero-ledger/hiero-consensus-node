@@ -23,7 +23,7 @@ final class LongListSpliterator implements Spliterator.OfLong {
     private long index;
 
     /**
-     * Creates a spliterator covering the given OffHeapLongList
+     * Creates a spliterator covering the given long list
      *
      * @param longList
      * 		the long list
@@ -33,7 +33,7 @@ final class LongListSpliterator implements Spliterator.OfLong {
     }
 
     /**
-     * Creates a spliterator covering the given OffHeapLongList and range
+     * Creates a spliterator covering the given long list and range
      *
      * @param longList
      * 		the long list

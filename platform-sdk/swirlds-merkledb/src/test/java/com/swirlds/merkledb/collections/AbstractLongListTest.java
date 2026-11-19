@@ -197,14 +197,9 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
         if (longList != null) {
             longList.close();
         }
-        // Check all memory is freed after DB is closed, but skip for LongListDisk
-        // as LongListDisk use file-based operations (FileChannel#write in LongListDisk#closeChunk)
-        // that don't immediately free memory due to OS-level caching.
-        // Also skip for LongListSegment — FFM arena allocations are not tracked by the
-        // direct memory BufferPoolMXBean; they are verified separately below.
-        if (!(longList instanceof LongListDisk) && !(longList instanceof LongListSegment)) {
-            checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
-        }
+        // Check all direct memory is freed after the list is closed. LongListSegment's arenas aren't
+        // tracked by the direct memory pool, so they are checked separately below.
+        checkDirectMemoryIsCleanedUpToLessThanBaseUsage(directMemoryUsedAtStart);
         // For LongListSegment: Arena.close() is deterministic — no GC dependency. If
         // AbstractLongList.close() called closeChunk for every chunk (which it does via
         // getAndSet), all arenas are freed and getOffHeapConsumption() must return 0.
@@ -372,8 +367,9 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
             }
             file = writeLongListToFileAndVerify(longList, "testLoadDecreasedCapacity.ll", tempDir);
         }
-        assertThrows(IllegalArgumentException.class, () -> createLongList(file, 100, CAPACITY - 100, 0)
-                .close());
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> createLongList(file, 100, CAPACITY - 100, 0).close());
     }
 
     // SAMPLE_SIZE should be 10K for this test
@@ -664,14 +660,10 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
      * Factories (named suppliers) for creating different {@link AbstractLongList} implementations
      * with test configuration.
      */
-    static final LongListWriterFactory heapWriterFactory = new LongListWriterFactory(
-            LongListHeap.class.getSimpleName(), () -> new LongListHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
-
-    static final LongListWriterFactory offHeapWriterFactory = new LongListWriterFactory(
-            LongListOffHeap.class.getSimpleName(), () -> new LongListOffHeap(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
     static final LongListWriterFactory diskWriterFactory = new LongListWriterFactory(
             LongListDisk.class.getSimpleName(),
             () -> new LongListDisk(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0, fileSystemManager));
+
     static final LongListWriterFactory segmentWriterFactory = new LongListWriterFactory(
             LongListSegment.class.getSimpleName(), () -> new LongListSegment(NUM_LONGS_PER_CHUNK, MAX_LONGS, 0));
 
@@ -679,23 +671,6 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
      * Factories (named BiFunctions) for reconstructing different {@link AbstractLongList}
      * implementations from files.
      */
-    static final LongListReaderFactory heapReaderFactory =
-            new LongListReaderFactory(LongListHeap.class.getSimpleName(), (file, a) -> {
-                try {
-                    return new LongListHeap(file, (int) a.get(0).longValue(), a.get(1), a.get(2));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-
-    static final LongListReaderFactory offHeapReaderFactory =
-            new LongListReaderFactory(LongListOffHeap.class.getSimpleName(), (file, a) -> {
-                try {
-                    return new LongListOffHeap(file, (int) a.get(0).longValue(), a.get(1), a.get(2));
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
     static final LongListReaderFactory diskReaderFactory =
             new LongListReaderFactory(LongListDisk.class.getSimpleName(), (file, a) -> {
                 try {
@@ -704,6 +679,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
                     throw new RuntimeException(e);
                 }
             });
+
     static final LongListReaderFactory segmentReaderFactory =
             new LongListReaderFactory(LongListSegment.class.getSimpleName(), (file, a) -> {
                 try {
@@ -712,20 +688,11 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
                     throw new RuntimeException(e);
                 }
             });
-    static final LongListReaderFactory diskSegmentReaderFactory =
-            new LongListReaderFactory(LongListDiskSegment.class.getSimpleName(), (file, a) -> {
-                try {
-                    return new LongListDiskSegment(
-                            file, (int) a.get(0).longValue(), a.get(1), a.get(2), fileSystemManager);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
 
     /**
      * Generates a stream of writer-reader argument pairs for testing cross-compatibility
      * of different long list implementations. The writer implementation is supplied as
-     * a parameter, and the method pairs it with three readers (heap, off-heap, and disk-based)
+     * a parameter, and the method pairs it with two readers (disk-based and segment-based)
      * to test whether data written by one implementation can be correctly read by another.
      * <p>
      * This method is used internally to support the creation of specific writer-reader pairs
@@ -736,11 +703,7 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
      */
     protected static Stream<Arguments> longListWriterBasedPairsProvider(final LongListWriterFactory writerFactory) {
         return Stream.of(
-                Arguments.of(writerFactory, heapReaderFactory),
-                Arguments.of(writerFactory, offHeapReaderFactory),
-                Arguments.of(writerFactory, diskReaderFactory),
-                Arguments.of(writerFactory, segmentReaderFactory),
-                Arguments.of(writerFactory, diskSegmentReaderFactory));
+                Arguments.of(writerFactory, diskReaderFactory), Arguments.of(writerFactory, segmentReaderFactory));
     }
 
     @ParameterizedTest(name = "[{index}] Writer={0}, Reader={1}")
@@ -980,11 +943,8 @@ abstract class AbstractLongListTest<T extends AbstractLongList<?>> extends Abstr
 
             // Now, produce multiple outputs, each with a different secondReader:
             return Stream.of(
-                    Arguments.of(writerFactory, readerFactory, heapReaderFactory),
-                    Arguments.of(writerFactory, readerFactory, offHeapReaderFactory),
                     Arguments.of(writerFactory, readerFactory, diskReaderFactory),
-                    Arguments.of(writerFactory, readerFactory, segmentReaderFactory),
-                    Arguments.of(writerFactory, readerFactory, diskSegmentReaderFactory));
+                    Arguments.of(writerFactory, readerFactory, segmentReaderFactory));
         });
     }
 

@@ -165,6 +165,39 @@ class TxPipelineTrackerTest {
     }
 
     @Nested
+    @DisplayName("decrementInFlight Tests")
+    class DecrementInFlightTests {
+        @Test
+        @DisplayName("Decrements inFlight count by one")
+        void decrementsInFlightByOne() {
+            tracker.incrementInFlight();
+            tracker.incrementInFlight();
+
+            tracker.decrementInFlight();
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not decrement inFlight count below zero")
+        void doesNotDecrementInFlightCountBelowZero() {
+            tracker.decrementInFlight();
+
+            assertEquals(0, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not touch preFlight count")
+        void doesNotTouchPreFlightCount() {
+            tracker.incrementPreFlight();
+
+            tracker.decrementInFlight();
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
+        }
+    }
+
+    @Nested
     @DisplayName("countLanded Tests")
     class CountLandedTests {
         @Test
@@ -179,7 +212,7 @@ class TxPipelineTrackerTest {
             tracker.incrementInFlight();
             tracker.incrementInFlight();
             final List<Transaction> transactions = new ArrayList<>();
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
             assertEquals(2, tracker.estimateTxPipelineCount());
         }
 
@@ -196,7 +229,7 @@ class TxPipelineTrackerTest {
             final var transaction = createTransaction(preHandleResult);
 
             final List<Transaction> transactions = List.of(transaction);
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
 
             assertEquals(2, tracker.estimateTxPipelineCount());
         }
@@ -220,7 +253,7 @@ class TxPipelineTrackerTest {
             final var transaction2 = createTransaction(preHandleResult2);
 
             final List<Transaction> transactions = List.of(transaction1, transaction2);
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
 
             assertEquals(2, tracker.estimateTxPipelineCount());
         }
@@ -235,7 +268,7 @@ class TxPipelineTrackerTest {
             final var transaction = createTransaction(preHandleResult);
 
             final List<Transaction> transactions = List.of(transaction);
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
 
             // Should stay at 0, not go negative
             assertEquals(0, tracker.estimateTxPipelineCount());
@@ -258,7 +291,7 @@ class TxPipelineTrackerTest {
             final var transaction = createTransaction(preHandleResult);
 
             final List<Transaction> transactions = List.of(transaction);
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
 
             // Should not decrement for irrelevant transaction
             assertEquals(2, tracker.estimateTxPipelineCount());
@@ -281,7 +314,7 @@ class TxPipelineTrackerTest {
             final var transaction = createTransaction(preHandleResult);
 
             final List<Transaction> transactions = List.of(transaction);
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
 
             // Should not decrement for irrelevant transaction
             assertEquals(2, tracker.estimateTxPipelineCount());
@@ -297,7 +330,7 @@ class TxPipelineTrackerTest {
             transaction.setMetadata("not a PreHandleResult");
 
             final List<Transaction> transactions = List.of(transaction);
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
 
             // Should not decrement for transaction with wrong metadata type
             assertEquals(2, tracker.estimateTxPipelineCount());
@@ -313,7 +346,7 @@ class TxPipelineTrackerTest {
             final var transaction = createTransaction(preHandleResult);
 
             final List<Transaction> transactions = List.of(transaction);
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
 
             // Should not decrement for transaction with null txInfo
             assertEquals(2, tracker.estimateTxPipelineCount());
@@ -351,10 +384,47 @@ class TxPipelineTrackerTest {
             final var transaction3 = createTransaction(preHandleResult3);
 
             final List<Transaction> transactions = List.of(transaction1, transaction2, transaction3);
-            tracker.countLanded(transactions.iterator());
+            tracker.countLanded(transactions);
 
             // Should decrement only for the 2 relevant transactions
             assertEquals(2, tracker.estimateTxPipelineCount());
+        }
+    }
+
+    @Nested
+    @DisplayName("countDropped Tests")
+    class CountDroppedTests {
+        @Test
+        @DisplayName("Decrements inFlight count by the number dropped")
+        void decrementsInFlightCountByNumberDropped() {
+            tracker.incrementInFlight();
+            tracker.incrementInFlight();
+            tracker.incrementInFlight();
+
+            tracker.countDropped(2);
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not decrement inFlight count below zero")
+        void doesNotDecrementInFlightCountBelowZero() {
+            tracker.incrementInFlight();
+
+            tracker.countDropped(3);
+
+            assertEquals(0, tracker.estimateTxPipelineCount());
+        }
+
+        @Test
+        @DisplayName("Does not touch preFlight count")
+        void doesNotTouchPreFlightCount() {
+            tracker.incrementPreFlight();
+            tracker.incrementInFlight();
+
+            tracker.countDropped(5);
+
+            assertEquals(1, tracker.estimateTxPipelineCount());
         }
     }
 

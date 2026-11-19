@@ -19,13 +19,17 @@ import com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.impl.ClprGasAccounting;
+import com.hedera.node.app.service.clpr.impl.ClprPeerManifestPolicy;
 import com.hedera.node.app.service.clpr.impl.WritableChannelStore;
 import com.hedera.node.app.service.clpr.impl.WritablePendingCommitmentStore;
+import com.hedera.node.app.service.clpr.impl.calculator.ClprFeeCalculator;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierFactory;
 import com.hedera.node.app.service.clpr.impl.verifier.VerifiedConfig;
@@ -66,26 +70,21 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
      * <ul>
      *   <li>{@code 0x16e} (366) — CLPR system contract precompile.</li>
      *   <li>{@code 0x16f} (367) — Besu QBFT verifier system contract.</li>
-     *   <li>{@code 0x170} (368) — Sei (CometBFT) verifier system contract.</li>
      *   <li>{@code 0x171} (369) — Ethereum (sync-committee) verifier system contract.</li>
      * </ul>
-     * Mirrors {@code BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS},
-     * {@code SeiVerifierSystemContract.SEI_VERIFIER_EVM_ADDRESS} and
+     * Mirrors {@code BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS} and
      * {@code EthereumVerifierSystemContract.ETHEREUM_VERIFIER_EVM_ADDRESS} in the
      * smart-contract-service-impl module for the verifier addresses.
+     *
+     * <p>The Sei (CometBFT) verifier system contract at {@code 0x170} is not supported
+     * ({@code SeiVerifierSystemContract}), so it is not a built-in verifier: like any other address without a
+     * smart-contract account, it is rejected as a verifier with {@code CLPR_INVALID_VERIFIER_CONTRACT}.
      */
     private static final long BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM = 0x16fL;
 
     /** EVM-address form of {@link #BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM}. */
     private static final Bytes BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
             Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x6f});
-
-    /** Sei (CometBFT) verifier system contract; mirrors {@code SEI_VERIFIER_EVM_ADDRESS} (0x170). */
-    private static final long SEI_VERIFIER_SYSTEM_CONTRACT_NUM = 0x170L;
-
-    /** EVM-address form of {@link #SEI_VERIFIER_SYSTEM_CONTRACT_NUM}. */
-    private static final Bytes SEI_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
-            Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x70});
 
     /** Ethereum (sync-committee) verifier system contract; mirrors {@code ETHEREUM_VERIFIER_EVM_ADDRESS} (0x171). */
     private static final long ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM = 0x171L;
@@ -102,21 +101,17 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
             new BuiltInVerifier("Hiero TSS (0x16e)", builtInFingerprint("hiero-tss"));
     private static final BuiltInVerifier BESU_QBFT_VERIFIER =
             new BuiltInVerifier("Besu QBFT (0x16f)", builtInFingerprint("besu-qbft"));
-    private static final BuiltInVerifier SEI_VERIFIER =
-            new BuiltInVerifier("Sei CometBFT (0x170)", builtInFingerprint("sei-cometbft"));
     private static final BuiltInVerifier ETHEREUM_VERIFIER =
             new BuiltInVerifier("Ethereum sync committee (0x171)", builtInFingerprint("ethereum-sync-committee"));
 
     private static final Map<Long, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_NUM = Map.of(
             CLPR_SERVICE_ACCOUNT_NUM, HIERO_TSS_VERIFIER,
             BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM, BESU_QBFT_VERIFIER,
-            SEI_VERIFIER_SYSTEM_CONTRACT_NUM, SEI_VERIFIER,
             ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM, ETHEREUM_VERIFIER);
 
     private static final Map<Bytes, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_ADDRESS = Map.of(
             CLPR_EVM_ADDRESS_BYTES, HIERO_TSS_VERIFIER,
             BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, BESU_QBFT_VERIFIER,
-            SEI_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, SEI_VERIFIER,
             ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, ETHEREUM_VERIFIER);
 
     private final ClprVerifierFactory verifierFactory;
@@ -137,12 +132,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         validateTruePreCheck(op.hasVerifierContract(), INVALID_TRANSACTION_BODY);
         validateTruePreCheck(op.configProofBytes().length() > 0, INVALID_TRANSACTION_BODY);
 
-        final var expectedKeyLength =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
-                    case ED25519 -> ED25519_KEY_LENGTH;
-                    default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
-                };
+        final var expectedKeyLength = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> ECDSA_UNCOMPRESSED_KEY_LENGTH;
+            case ED25519 -> ED25519_KEY_LENGTH;
+            default -> throw new PreCheckException(INVALID_TRANSACTION_BODY);
+        };
         validateTruePreCheck(op.publicKey().length() == expectedKeyLength, INVALID_TRANSACTION_BODY);
     }
 
@@ -153,6 +147,16 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
+        try {
+            completeChannel(context);
+        } catch (final HandleException failure) {
+            throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
+        } catch (final RuntimeException failure) {
+            throw ClprGasAccounting.preservingChargesOnRollback(context, failure);
+        }
+    }
+
+    private void completeChannel(@NonNull final HandleContext context) {
         final var op = context.body().clprCompleteChannelOrThrow();
         log.debug(
                 "[ClprCompleteChannel] ENTER channelId={} verifierContract={} signatureScheme={} "
@@ -193,12 +197,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // 3. Verify signature over keccak256(channel_id)
         // FUTURE: We may be able to move this to pre-handle to avoid the crypto work on the handle thread
         final var messageHash = MiscCryptoUtils.keccak256DigestOf(op.channelId().toByteArray());
-        final var signatureType =
-                switch (op.signatureScheme()) {
-                    case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
-                    case ED25519 -> SignatureType.ED25519;
-                    default -> throw new HandleException(INVALID_TRANSACTION_BODY);
-                };
+        final var signatureType = switch (op.signatureScheme()) {
+            case ECDSA_SECP256K1 -> SignatureType.ECDSA_SECP256K1;
+            case ED25519 -> SignatureType.ED25519;
+            default -> throw new HandleException(INVALID_TRANSACTION_BODY);
+        };
         log.debug(
                 "[ClprCompleteChannel] signature verification START channelId={} signatureScheme={} "
                         + "messageHash={} publicKeyBytes={} signatureBytes={}",
@@ -229,7 +232,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 shortHex(Bytes.wrap(messageHash)));
 
         // 4. Verify verifier contract exists and is a smart contract.
-        //    Built-in system contracts (0x16e..0x171) are valid verifiers but have no on-ledger
+        //    Built-in system contracts (0x16e, 0x16f, 0x171) are valid verifiers but have no on-ledger
         //    account record, so skip the account-store lookup for those. See ClprVerifierFactory
         //    (TODO CLPR-5.3) for the planned built-in verifier registry that will subsume this.
         if (!isBuiltInVerifier(op.verifierContractOrThrow())) {
@@ -327,17 +330,17 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 op.verifierContractOrThrow(),
                 shortHex(verifierFingerprint));
 
-        // 7. Truncate the peer endpoint list to this ledger's max_peer_endpoints (spec §3.10.5).
-        //    The receiving ledger imposes its own bound on how many peer endpoints it stores on
-        //    chain per Channel; entries beyond the limit are silently discarded in declared
-        //    order. Zero means no limit. Read from the LOCAL ledger config — the peer's
-        //    declaration of its own list doesn't override our storage policy.
+        // 7. Apply local count and byte limits before storing any peer-controlled manifest data.
         final var localConfigStore = context.storeFactory().readableStore(ReadableLedgerConfigurationStore.class);
         final var localThrottles = localConfigStore.getConfiguration().throttlesOrElse(ClprThrottles.DEFAULT);
         final int rawPeerLimit = localThrottles.maxPeerEndpoints();
-        final List<ClprEndpoint> truncatedPeerEndpoints = rawPeerLimit > 0 && peerEndpoints.size() > rawPeerLimit
-                ? peerEndpoints.subList(0, rawPeerLimit)
-                : peerEndpoints;
+        final ClprEndpointManifest storedManifest;
+        try {
+            storedManifest = ClprPeerManifestPolicy.boundedManifest(peerManifest, rawPeerLimit);
+        } catch (final IllegalArgumentException e) {
+            throw new HandleException(CLPR_VERIFIER_CONFIG_FAILED);
+        }
+        final List<ClprEndpoint> truncatedPeerEndpoints = storedManifest.endpoints();
         log.debug(
                 "[ClprCompleteChannel] endpoint policy channelId={} peerEndpoints={} localMaxPeerEndpoints={} "
                         + "storedEndpoints={}",
@@ -381,10 +384,10 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // Store the manifest carrying the LOCALLY TRUNCATED endpoint list (this ledger's
         // max_peer_endpoints policy), not the peer's full list — the stored manifest IS what the
         // orchestrator dials, so it must honor the same bound applied to the seeded cache below.
-        final var storedManifest =
-                peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
         channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
+        ClprFeeCalculator.settleCompleteChannelFee(
+                context, 0L, Math.toIntExact(ClprChannel.PROTOBUF.measureRecord(channel)));
         channelStore.put(channel);
         log.debug(
                 "[ClprCompleteChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "
@@ -397,6 +400,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 shortHex(peerConfig.initialTrustAnchorId()),
                 peerManifest.version(),
                 truncatedPeerEndpoints.size());
+        ClprGasAccounting.refundUnusedGas(context);
         // Notify the runtime sync orchestrator. If the surrounding transaction
         // rolls back, the orchestrator will self-correct on its next tick by
         // detecting the missing state record.
