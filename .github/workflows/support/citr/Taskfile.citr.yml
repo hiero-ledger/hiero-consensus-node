@@ -538,7 +538,7 @@ tasks:
           if [[ "{{ .solo_ge_0440 }}" == "true" ]]; then
             SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer node add --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           else
-            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF}--mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
+            SOLO_HOME_DIR=${SOLO_HOME_DIR} solo explorer deploy --deployment "${SOLO_DEPLOYMENT}" --cluster-ref ${CLUSTER_REF} --mirrorNamespace ${SOLO_NAMESPACE} ${SOLO_CHARTS_DIR_FLAG} ${EXPLORER_DEPLOY_EXTRA_FLAGS} ${ENABLE_EXPLORER_TLS_FLAG} ${TLS_CLUSTER_ISSUER_TYPE_FLAG} ${ENABLE_EXPLORER_INGRESS} -q --dev
           fi
           export EXPLORER_DEPLOYED_NAME_SPACE=${SOLO_NAMESPACE}
         fi

@@ -636,6 +636,14 @@ jobs:
           export RELAY_VERSION="${{ inputs.relayref }}"
           task solo:relay
 
+      - name: Add Explorer
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          export EXPLORER_VERSION="${{ inputs.explorerref }}"
+          task solo:explorer
+
       - name: Solo logs
         if: ${{ !cancelled() && always() }}
         env:
