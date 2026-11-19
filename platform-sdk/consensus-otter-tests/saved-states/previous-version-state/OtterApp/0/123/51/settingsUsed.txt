@@ -7,7 +7,9 @@ jvmPauseDetectorSleepMs, 0
 merkleDb.initialCapacity, 10000
 merkleDb.maxNumOfKeys, 100000
 metrics.disableMetricsOutput, true
+modules.gossip, org.hiero.otter.fixtures
 paths.keysDirPath, build/turtle/unknownClass/unknownTest/node-0/data/keys
 paths.savedStateDir, build/turtle/unknownClass/unknownTest/node-0/data/saved
 paths.settingsUsedDir, build/turtle/unknownClass/unknownTest/node-0
+reconnect.active, false
 state.saveStateAsync, false
