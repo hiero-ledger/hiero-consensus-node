@@ -9,7 +9,7 @@ on:
         default: ""
       cores:
         required: true
-        default: '4'
+        default: '8'
         description: 'N of CPU cores, per node (AdHoc6)'
         type: choice
         options:
@@ -29,7 +29,7 @@ on:
           - 64
       nlg-accounts: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "100000"
+        default: "10000"
         description: "Number of Accounts and NFT tokens"
         type: choice
         options:
@@ -39,7 +39,7 @@ on:
           - "20000000"
       nlg-time: #'-R -c 32 -a 100000000 -T 1000 -n 100000 -S hot -p 50 -tt 1m
         required: true
-        default: "3"
+        default: "120"
         description: "Test execution time options"
         type: choice
         options:

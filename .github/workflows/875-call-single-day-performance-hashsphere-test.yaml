@@ -1393,9 +1393,9 @@ jobs:
       - name: Extract benchmark score of CryptoBenchMerkleDb test
         id: CryptoBenchMerkleDbLogs
         run: |
-          #result=$(grep 'Total transactions:' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $NF}')
-          #echo "value=${result}" >> "${GITHUB_OUTPUT}"
-          echo "value=0"
+          result=0 #$(grep 'Total transactions:' "${{ github.workspace }}"/report/swirlds-benchmarks.log | tail -n 1 | awk '{print $NF}')
+          echo "value=${result}" >> "${GITHUB_OUTPUT}"
+          echo "value=${result}"
 
       - name: Authenticate to Google Cloud
         if: ${{ !cancelled() && always() }}
