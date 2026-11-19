@@ -26,7 +26,7 @@ public final class SigningFactory {
      * The default implementations to use for each schema.
      */
     private static final Map<SigningSchema, SigningImplementation> defaultImplementations = new EnumMap<>(
-            Map.of(SigningSchema.RSA, SigningImplementation.RSA_BC, SigningSchema.ED25519, ED25519_SODIUM));
+            Map.of(SigningSchema.RSA, SigningImplementation.RSA_JDK, SigningSchema.ED25519, ED25519_SODIUM));
 
     /**
      * Generates a new key pair for the specified signing schema.

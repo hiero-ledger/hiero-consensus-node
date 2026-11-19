@@ -318,7 +318,7 @@ public class HandleWorkflow {
         logStartRound(round);
         blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
-        final var firstEvent = round.iterator().next();
+        final var firstEvent = round.getConsensusEvents().getFirst();
         if (streamMode != RECORDS) {
             blockStreamManager.startRound(round, state);
             blockStreamManager.writeItem(BlockItem.newBuilder()
@@ -329,8 +329,8 @@ public class HandleWorkflow {
             writeEventHeader(firstEvent);
             eventHeaderAlreadyWritten = true;
             if (!migrationStateChanges.isEmpty()) {
-                final var startupConsTime = systemTransactions.firstReservedSystemTimeFor(
-                        round.iterator().next().getConsensusTimestamp());
+                final var startupConsTime =
+                        systemTransactions.firstReservedSystemTimeFor(firstEvent.getConsensusTimestamp());
                 migrationStateChanges.forEach(builder -> blockStreamManager.writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(asTimestamp(startupConsTime))
                                 .build())
@@ -383,9 +383,8 @@ public class HandleWorkflow {
         if (migrationStateChanges.isEmpty() && !checkedForTransplant) {
             boolean dispatchedTransplantUpdates = false;
             try {
-                final var now = streamMode == RECORDS
-                        ? round.getConsensusTimestamp()
-                        : round.iterator().next().getConsensusTimestamp();
+                final var now =
+                        streamMode == RECORDS ? round.getConsensusTimestamp() : firstEvent.getConsensusTimestamp();
                 dispatchedTransplantUpdates =
                         systemTransactions.dispatchTransplantUpdates(state, now, round.getRoundNum());
                 transactionsDispatched |= dispatchedTransplantUpdates;
@@ -503,9 +502,10 @@ public class HandleWorkflow {
             final int receiptEntriesBatchSize,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
-        final var iter = round.iterator();
-        while (iter.hasNext()) {
-            final var event = iter.next();
+        final var events = round.getConsensusEvents();
+        for (int i = 0; i < events.size(); i++) {
+            final ConsensusEvent event = events.get(i);
+            final boolean isLastEvent = i == events.size() - 1;
             if (streamMode != RECORDS && !eventHeaderAlreadyWritten) {
                 writeEventHeader(event);
             }
@@ -539,8 +539,9 @@ public class HandleWorkflow {
                 // Clear tx metadata now that we won't use it again
                 platformTxn.setMetadata(null);
             }
-            if (!transactionsDispatched && !iter.hasNext()) {
-                // If the entire round was empty, use the round consensus time as exec time for scheduled transactions
+            if (!transactionsDispatched && isLastEvent) {
+                // If there are no transactions in the round, use the round consensus time as exec time for scheduled
+                // transactions
                 transactionsDispatched = executeScheduledTransactions(state, round.getConsensusTimestamp(), creator);
             }
             recordCache.maybeCommitReceiptsBatch(
