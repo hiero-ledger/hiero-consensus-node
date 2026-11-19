@@ -20,7 +20,7 @@ val junit5 = "6.1.3"
 val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
-val protobuf = "4.34.1"
+val protobuf = "4.36.2"
 val prometheusSimpleclient = "0.16.0"
 // The one Block Node pin is block-node-version in .citr-env; Maven versions lack its v
 val blockNodeProtobufSources =
