@@ -12,21 +12,23 @@ import java.util.Objects;
  * The trust anchor of a Canton channel.
  *
  * <p>Wire format is Solidity's {@code abi.encode(string, uint64, uint32, bytes32, bytes32, bytes32, string,
- * uint64, uint32, string)}: a 10-word head (static values inline, each {@code string} a word holding its
+ * uint64, uint32, string, string)}: an 11-word head (static values inline, each {@code string} a word holding its
  * offset into the tail) followed by the string tails (32-byte length, then data right-padded to 32 bytes).
  * {@code uint64}/{@code uint32} fields are held in {@code long}/{@code int} with unsigned semantics.
  */
 public final class CantonAnchor {
     private static final int WORD = 32;
-    private static final int HEAD_WORDS = 10;
-    /** Head (10 words) + three string lengths + one word of synchronizerId; mirrors {@code MIN_LENGTH}. */
-    static final int MIN_LENGTH = 13 * WORD;
+    private static final int HEAD_WORDS = 11;
+    /** Head (11 words) + four string lengths + one word of synchronizerId; mirrors {@code MIN_LENGTH}. */
+    static final int MIN_LENGTH = 16 * WORD;
 
     private CantonAnchor() {}
 
     /**
      * Decoded anchor. {@code lastRequestId}/{@code upgradeTime} are unsigned 64-bit, {@code mediatorGroup}/
      * {@code lsuSerial} unsigned 32-bit (use {@code Long/Integer.toUnsignedString} / {@code compareUnsigned}).
+     * {@code app} and {@code endpoints} are the party ids of the channel's app and of its CLPR endpoint party,
+     * both from its {@code ChannelConfig}.
      */
     public record Anchor(
             @NonNull String synchronizerId,
@@ -38,11 +40,12 @@ public final class CantonAnchor {
             @NonNull String successorSynchronizerId,
             long upgradeTime,
             int lsuSerial,
-            @NonNull String app) {
+            @NonNull String app,
+            @NonNull String endpoints) {
 
         /**
-         * The anchor a config descriptor declares: no request seen yet, no pending upgrade, and no app (the
-         * config opening supplies it).
+         * The anchor a config descriptor declares: no request seen yet, no pending upgrade, and neither app nor
+         * endpoint party (the config opening supplies them).
          */
         @NonNull
         static Anchor initial(
@@ -52,12 +55,22 @@ public final class CantonAnchor {
                 @NonNull final byte[] ownersHash,
                 @NonNull final byte[] mediatorsHash) {
             return new Anchor(
-                    synchronizerId, 0, mediatorGroup, synchronizerNamespace, ownersHash, mediatorsHash, "", 0, 0, "");
+                    synchronizerId,
+                    0,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    ownersHash,
+                    mediatorsHash,
+                    "",
+                    0,
+                    0,
+                    "",
+                    "");
         }
 
-        /** This anchor with {@code app} as its app. */
+        /** This anchor with {@code newApp} as its app and {@code newEndpoints} as its CLPR endpoint party. */
         @NonNull
-        Anchor withApp(@NonNull final String newApp) {
+        Anchor withAppAndEndpoints(@NonNull final String newApp, @NonNull final String newEndpoints) {
             return new Anchor(
                     synchronizerId,
                     lastRequestId,
@@ -68,7 +81,8 @@ public final class CantonAnchor {
                     successorSynchronizerId,
                     upgradeTime,
                     lsuSerial,
-                    newApp);
+                    newApp,
+                    newEndpoints);
         }
 
         /** This anchor with {@code requestId} as the last request id. */
@@ -84,7 +98,8 @@ public final class CantonAnchor {
                     successorSynchronizerId,
                     upgradeTime,
                     lsuSerial,
-                    app);
+                    app,
+                    endpoints);
         }
 
         /** This anchor with a rotated owner set, mediator set, and logical-synchronizer-upgrade announcement. */
@@ -105,7 +120,8 @@ public final class CantonAnchor {
                     newSuccessorSynchronizerId,
                     newUpgradeTime,
                     newLsuSerial,
-                    app);
+                    app,
+                    endpoints);
         }
 
         /** This anchor once its announced successor synchronizer has taken over: no pending upgrade remains. */
@@ -121,12 +137,13 @@ public final class CantonAnchor {
                     "",
                     0L,
                     0,
-                    app);
+                    app,
+                    endpoints);
         }
 
         /**
          * Decodes {@code abi.decode(trustAnchor, (string, uint64, uint32, bytes32, bytes32, bytes32, string, uint64,
-         * uint32, string))}.
+         * uint32, string, string))}.
          */
         @NonNull
         static Anchor decode(@NonNull final byte[] trustAnchor) {
@@ -144,21 +161,23 @@ public final class CantonAnchor {
                     string(trustAnchor, 6),
                     uint(trustAnchor, 7, 64).longValue(),
                     uint(trustAnchor, 8, 32).intValue(),
-                    string(trustAnchor, 9));
+                    string(trustAnchor, 9),
+                    string(trustAnchor, 10));
         }
 
-        /** Encodes as Solidity {@code abi.encode} of the ten fields. */
+        /** Encodes as Solidity {@code abi.encode} of the needed fields. */
         @NonNull
         byte[] encode() {
             final byte[][] strings = {
                 synchronizerId.getBytes(StandardCharsets.UTF_8),
                 successorSynchronizerId.getBytes(StandardCharsets.UTF_8),
-                app.getBytes(StandardCharsets.UTF_8)
+                app.getBytes(StandardCharsets.UTF_8),
+                endpoints.getBytes(StandardCharsets.UTF_8)
             };
             final var out = new ByteArrayOutputStream();
             long tailOffset = (long) HEAD_WORDS * WORD;
-            final long[] offsets = new long[3];
-            for (int i = 0; i < 3; i++) {
+            final long[] offsets = new long[4];
+            for (int i = 0; i < 4; i++) {
                 offsets[i] = tailOffset;
                 tailOffset += WORD + padded(strings[i].length);
             }
@@ -172,6 +191,7 @@ public final class CantonAnchor {
             writeWord(out, Long.toUnsignedString(upgradeTime));
             writeWord(out, Integer.toUnsignedLong(lsuSerial));
             writeWord(out, offsets[2]);
+            writeWord(out, offsets[3]);
             for (final byte[] s : strings) {
                 writeWord(out, s.length);
                 out.writeBytes(s);
