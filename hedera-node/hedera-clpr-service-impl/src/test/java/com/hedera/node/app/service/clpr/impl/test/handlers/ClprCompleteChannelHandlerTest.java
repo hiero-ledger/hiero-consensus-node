@@ -481,7 +481,8 @@ class ClprCompleteChannelHandlerTest {
         return Map.of(
                         0x16eL, "9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e",
                         0x16fL, "9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909",
-                        0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c")
+                        0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c",
+                        0x172L, "8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9")
                 .entrySet()
                 .stream()
                 .flatMap(entry -> Stream.of(
@@ -973,6 +974,28 @@ class ClprCompleteChannelHandlerTest {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
+    }
+
+    @Test
+    void completeChannelAcceptsCantonBuiltInVerifier() {
+        final var cantonCid = ContractID.newBuilder().contractNum(0x172L).build();
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var op = validEcdsaTxn()
+                .clprCompleteChannelOrThrow()
+                .copyBuilder()
+                .verifierContract(cantonCid)
+                .build();
+        setupHandleContext(txnWith(op));
+
+        subject.handle(handleContext);
+
+        final var stored = channelStore.getChannel(CHANNEL_ID);
+        assertThat(stored).isNotNull();
+        assertThat(stored.verifierContract()).isEqualTo(cantonCid);
+        assertThat(stored.verifierFingerprint())
+                .isEqualTo(Bytes.fromHex("8779a561b39aa363dda50c36f7df7e7e11262d62a1c3114752f5691271d984a9"));
+        then(accountStore).shouldHaveNoInteractions();
+        then(smartContractServiceApi).shouldHaveNoInteractions();
     }
 
     private void setupHandleContext(final TransactionBody txn) {

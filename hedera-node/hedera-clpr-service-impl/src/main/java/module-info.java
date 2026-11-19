@@ -37,6 +37,7 @@ module com.hedera.node.app.service.clpr.impl {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.roster;
+    requires com.google.common;
     requires com.sun.jna;
     requires org.apache.logging.log4j;
     requires org.hyperledger.besu.internal.crypto;
