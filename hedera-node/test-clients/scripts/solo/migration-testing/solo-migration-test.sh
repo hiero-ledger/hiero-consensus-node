@@ -7,9 +7,9 @@
 #
 #   Step 1 — Version detection
 #     Read version.txt, derive MAJOR.MINOR, compute the previous minor series,
-#     pick the latest matching v<MAJOR>.<MINOR-1>.* tag as the baseline
-#     (source) version. The upgrade target is always the local build; its
-#     version is read from HederaNode.jar's manifest.
+#     pick the latest v<MAJOR>.<MINOR-1>.* tag by semantic-version precedence
+#     as the baseline (source) version. The upgrade target is always the
+#     local build; its version is read from HederaNode.jar's manifest.
 #
 #   Step 2 — Solo 3-node + Mirror Node deployment at the previous-minor tag
 #     kind cluster + solo {init, cluster-ref, deployment, cluster-ref-setup,
@@ -218,9 +218,10 @@ run_command_with_timeout() {
 
 # === Step 1 ====================================================================
 # Read version.txt -> extract MAJOR.MINOR -> previous minor -> latest matching
-# released/RC tag; that tag is the BASELINE (source) version the network is
-# first deployed at. The upgrade TARGET is always the local build staged via
-# --local-build-path; its real version comes from HederaNode.jar's manifest.
+# tag by semver precedence (release or RC); that tag is the BASELINE (source)
+# version the network is first deployed at. The upgrade TARGET is always the
+# local build staged via --local-build-path; its real version comes from
+# HederaNode.jar's manifest.
 compute_versions() {
   local raw major_minor major minor prev_series prev_tag
   raw="$(cat "${REPO_ROOT}/version.txt")"
@@ -236,7 +237,13 @@ compute_versions() {
   log "Fetching tags to resolve latest v${prev_series}.* release/rc"
   git -C "${REPO_ROOT}" fetch --tags --quiet
 
-  prev_tag="$(git -C "${REPO_ROOT}" tag -l "v${prev_series}.*" | sort -V | tail -n 1)"
+  # Pick the newest tag by semantic-version precedence. Plain `sort -V` ranks a
+  # pre-release above its own release (v0.79.2-rc.2 > v0.79.2); semver ranks it
+  # below (v0.79.2-rc.2 < v0.79.2 < v0.79.3-rc.1). Turning the pre-release '-'
+  # into '~' gives semver order, because `sort -V` sorts '~' before everything,
+  # even the end of the string.
+  prev_tag="$(git -C "${REPO_ROOT}" tag -l "v${prev_series}.*" \
+    | sed 's/-/~/' | sort -V | tail -n 1 | sed 's/~/-/')"
 
   TARGET_VERSION="$(local_build_implementation_version)"
   [[ -n "${TARGET_VERSION}" ]] || {
