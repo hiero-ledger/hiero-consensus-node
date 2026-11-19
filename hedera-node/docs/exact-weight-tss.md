@@ -28,15 +28,12 @@ the network roster at the time of adoption, the TSS implementation is naturally 
 `RosterService`. This lifecycle has three phases:
 1. **Bootstrap**: Only a genesis roster exists, and although the nodes have secure communication channels,
 there is no consensus state with the Schnorr or hinTS public keys of the nodes. In this phase, the TSS system must
-derive this state from gossip; finish preprocessing for the hinTS scheme; and prove the initial hinTS verification
-key and weight threshold are embedded as metadata at the start of the chain of rosters blessed by Schnorr signatures
-from nodes in the previous roster with at least 1/3 of the weight. (Since bootstrap begins the chain, verifiers must
-trust the genesis roster's members for prior reasons.)
-2. **Transition**: The current roster is fully active; the TSS state includes a consensus proof that the roster,
-its hinTS verification key, and minimum weight threshold were all blessed by a previous roster. There is also a
-candidate roster that reflects the latest dynamic address book changes and HBAR stake adjustments. In this phase, the
-TSS system must repeat hinTS preprocessing for the candidate roster; and collect enough Schnorr signatures from the
-current roster to (recursively) prove _that_ roster's hinTS construction and minimum weight threshold.
+derive this state from gossip, finish hinTS preprocessing, and establish the ledger id from the genesis WRAPS
+address book and the initial hinTS verification key. Verifiers obtain this ledger id from a trusted source.
+2. **Transition**: The current roster is fully active. Its WRAPS proof authenticates the current address book
+and hinTS verification key. There is also a candidate roster that reflects the latest dynamic address book
+changes and HBAR stake adjustments. The TSS system repeats hinTS preprocessing for the candidate roster and
+uses the current roster's Schnorr signatures to extend the proof to the candidate address book and verification key.
 3. **Handoff**: The current roster is fully active, but there is no candidate roster because the network has just
 replaced its current roster with the candidate roster. In this phase, the TSS system may, for example, purge any
 obsolete state accumulated during its previous transition phases; but it has no urgent responsibilities besides, of
@@ -48,17 +45,14 @@ We structure the TSS system as two services with distinct responsibilities:
 1. The `HintsService`, which implements the six main hinTS algorithms that function given the **common reference
 string (CRS)** grounding the protocol; that is, preprocessing, key generation, hint generation, partial signing,
 partial verification, and signature aggregation.
-2. The `HistoryService`, which is unaware of its role in specifically TSS, and implements a more general function of
-proving via recursive SNARK that a set of node ids, weights, Schnorr keys; and some arbitrary metadata, were derived
-from the ledger id with each transition in the derivation having valid Schnorr signatures from nodes with at least 1/3
-of the weight in the source roster.
+2. The `HistoryService` uses a recursive SNARK to prove that an address book (node ids, weights, and Schnorr keys)
+and its metadata derive from the ledger id. Each transition requires signatures from a strict majority of the
+source book's effective Schnorr weight.
 
-The node software combines these services to achieve TSS by setting the metadata in the `HistoryService` proof
-for each roster to the concatenation of two items:
-1. The verification key computed by the `HintsService` for that roster.
-2. The minimum threshold weight that a verifier should accept for a signature by this
-verification key; in particular, 1/3 of the total weight in the roster, which is _not_ necessarily 1/3 of
-50B HBAR---unless all HBAR were staked to nodes in the roster.
+For each roster, the WRAPS proof authenticates the serialized hinTS verification key as its metadata.
+The standard block-proof verifier requires signer weight strictly greater than half the total encoded in that key.
+History-backed keys preprocessed with TSS 3.29.1 include the full generation's listed roster weight.
+Older sparse keys encode the participating parties' weight.
 
 (Note the full message that nodes sign with their Schnorr keys in each `HistoryService` proof is the concatenation of
 the hash of a canonical serialization of the list of `(node id, weight, Schnorr key)` triples defining the next roster
@@ -154,9 +148,9 @@ algorithm.
 The `HintsService` is **ready** when it has completed a hinTS construction for the current roster.
 
 The **roster-scoped work** of the `HintsService` is to accept a message (generally a block hash) and return a
-future that resolves to the hinTS signature on the message. This will require gossiping partial signatures via
-a `HintsPartialSignature` node transaction so the node can run the hinTS aggregation algorithm to produce a succinct
-signature for a set of partial signatures whose parties are nodes with at least 1/3 weight in the current roster.
+future that resolves to the hinTS signature on the message. Nodes gossip partial signatures via
+`HintsPartialSignature` transactions. For production block signing, the node aggregates them once the signers
+hold strictly more than half of the signing generation's full roster weight.
 
 ### The `HistoryService` as a `RosterCompanionService`
 
@@ -178,9 +172,8 @@ The **secondary state** of the `HistoryService` is everything needed to facilita
 construction; in particular, for nodes that reconnect during the construction. This includes items such as,
 1. _Per node id `i`_ : The node's Schnorr key; the node's consensus time for the Schnorr key; and, if applicable, a
 revised Schnorr key the same node wishes to use in subsequent constructions.
-2. _Per construction id `c`_ : For a subset of node ids $\{ i_1, \ldots, i_n \}$ in the source roster of construction
-$c$ accounting for at least 1/3 of its weight, their signatures on a particular metadata and roster derivation for
-construction $c$.
+2. _Per construction id `c`_ : The source signers' contributions to the WRAPS signature on the target address
+book and metadata. The signing requirements are described under [Canonical WRAPS books](#canonical-wraps-books).
 3. _Per construction id `c`_ : For a subset of node ids $\{ i_1, \ldots, i_n \}$ in the source roster of construction
 $c$ accounting for at least 1/3 of its weight, their consensus vote for a particular proof output for construction $c$.
 
@@ -318,23 +311,11 @@ to external verifiers for as long as they accept that key.
 
 ### Integration with protocol components
 
-The TSS system is then just the combination of the `HintsService` and `HistoryService` with the `RosterService`; with
-the `HistoryService` metadata always set to the verification key of the `HintsService` for the current roster,
-concatenated to the weight threshold $T$ required for signatures with that key. The complete ledger signature
-$S_L$ on a message $\textrm{msg}$ thus combines a hinTS signature $S_h$ with proven threshold $\mathcal{T_S}$ at
-least a claimed minimum threshold $\mathcal{T}$ on $\textrm{msg}$ with a proof $P_{\textrm{vk},\mathcal{T}}$ that
-the pair $(\textrm{vk}, \mathcal{T})$ is exactly the metadata in a chain of trusted `(roster, metadata)` pairs
-extending from a well-known ledger id `I`. That is,
-
-$$ S_L[\textrm{msg}] = (S_h[\textrm{msg}], P_{\textrm{vk},\mathcal{T}})$$
-
-An verifier of the signatures of a Hiero network will then,
-- Validate out-of-band through some means that `I` is, in fact, the ledger id of the Hiero network in question.
-- Deploy a generic hinTS verifier, *extended with* the ability to verify proofs asserting a chain-of-trust from `I`.
-- Given a signature $S_L$ on $\textrm{msg}$ message $\textrm{msg}$, first check that $P_{\textrm{vk},\mathcal{T}}$ is
-valid, and hence the hinTS scheme producing $S_h$ was in fact produced by nodes inheriting a chain of trust starting
-from the nodes that established the trusted ledger id. Second, verify that $S_h$ is a valid hinTS signature on
-$\textrm{msg}$.
+A composite block signature contains the serialized hinTS verification key, the aggregate hinTS signature on
+the block hash, and the compressed WRAPS proof, in that order. A verifier obtains the network's ledger id from
+a trusted source and passes it, the composite signature, and the block hash to `TSS.verifyTSS`. The verifier
+checks the WRAPS proof against the ledger id and the supplied key. It then verifies the aggregate signature on
+the block hash under that key, requiring strictly more than half the weight encoded in the key.
 
 There are only a few other details; namely,
 - The `HandleWorkflow` is responsible for driving the reconciliation loops of both companion services.
@@ -344,18 +325,20 @@ must be possible to tell the platform not to use any of these rounds for state s
 
 #### Implied limitations on the transition phase
 
-Consider a transition from roster $A$ with nodes $\{A_1, \ldots, A_n\}$ and hinTS aggregation key $\textrm{ak}_A$ to
-a candidate roster $B$ with nodes $\{B_1, \ldots, B_m\}$ and hinTS aggregation key $\textrm{ak}_B$.
+The original availability argument below assumes one-third signing thresholds. For production block signing
+and WRAPS rotation, see [Implemented full-generation thresholds](#implemented-full-generation-thresholds).
+Consider a transition from roster $A$ with nodes $\{A_1, \ldots, A_n\}$ to a candidate roster $B$ with nodes
+$\{B_1, \ldots, B_m\}$ and hinTS verification key $\textrm{vk}_B$.
 
 Furthermore, let
 $$w_A = \sum_{i=1}^n w(A_i)$$
 be the total weight of roster $A$, and similarly for $B$. Also,
 - Let $SA \subset A$ be the set of nodes in $A$ that have a Schnorr signature on the
-pair $(B, \textrm{ak}_B)$.
+pair $(B, \textrm{vk}_B)$.
 - Let $SB \subset B$ be the set of nodes in $B$ that have a Schnorr key in $B$.
-- Let $HB \subset B$ be the set of nodes in $B$ that have a hinTS key in $\textrm{ak}_B$.
+- Let $HB \subset B$ be the set of nodes in $B$ that contributed a valid hinTS key for this generation.
 
-Now, to preserve aBFT security, we must have Schnorr signatures on the pair $(B, \textrm{ak}\_B)$ from at least 1/3 of
+Under this assumption, we need Schnorr signatures on the pair $(B, \textrm{vk}_B)$ from at least 1/3 of
 the weight in $A$. That is,
 $$w\_{SA} = \sum\_{A\_i \in {SA}} w(A\_i) \geq \frac{1}{3} w\_A$$
 

@@ -325,7 +325,7 @@ class WrapsMpcStateMachineTest {
                 }
             }
             quorum = new WrapsSigningQuorum(
-                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), hintsWeights, true);
+                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), hintsWeights, 5L);
 
             for (long nodeId = 0; nodeId < 3; nodeId++) {
                 final var transition = subject.onNext(
@@ -348,7 +348,7 @@ class WrapsMpcStateMachineTest {
                             canonicalWeights,
                             nodeId -> nodeId == NODE_3 ? MISSING_SCHNORR_KEY.toByteArray() : new byte[] {1}),
                     canonicalWeights,
-                    false);
+                    0L);
 
             final var invalid =
                     subject.onNext(createPublication(NODE_3, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages);
@@ -368,7 +368,7 @@ class WrapsMpcStateMachineTest {
         void doesNotFreezeOnNativeMajorityWithoutSourceProvenanceWeight() {
             final var canonicalWeights = new TreeMap<>(Map.of(1L, 10L, 2L, 1L, 3L, 1L));
             quorum = new WrapsSigningQuorum(
-                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), Map.of(1L, 4L, 2L, 4L, 3L, 4L), true);
+                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), Map.of(1L, 4L, 2L, 4L, 3L, 4L), 12L);
 
             assertEquals(
                     R1,
@@ -384,7 +384,7 @@ class WrapsMpcStateMachineTest {
         void rejectsRealKeyPublisherOutsideCapturedSourceHintsAuthority() {
             final var canonicalWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L, 3L, 1L));
             quorum = new WrapsSigningQuorum(
-                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), Map.of(1L, 1L, 2L, 1L), true);
+                    AddressBook.from(canonicalWeights, nodeId -> new byte[] {1}), Map.of(1L, 1L, 2L, 1L), 2L);
 
             final var transition =
                     subject.onNext(createPublication(NODE_3, R1, BASE_TIME), R1, quorum, GRACE_PERIOD, phaseMessages);
@@ -439,16 +439,14 @@ class WrapsMpcStateMachineTest {
     private void setupTwoNodeWeights() {
         sourceWeights.put(NODE_1, 1L);
         sourceWeights.put(NODE_2, 1L);
-        quorum =
-                new WrapsSigningQuorum(AddressBook.from(sourceWeights, nodeId -> new byte[] {1}), sourceWeights, false);
+        quorum = new WrapsSigningQuorum(AddressBook.from(sourceWeights, nodeId -> new byte[] {1}), sourceWeights, 0L);
     }
 
     private void setupThreeNodeWeightsWithMajorityRequired() {
         sourceWeights.put(NODE_1, 1L);
         sourceWeights.put(NODE_2, 1L);
         sourceWeights.put(NODE_3, 1L);
-        quorum =
-                new WrapsSigningQuorum(AddressBook.from(sourceWeights, nodeId -> new byte[] {1}), sourceWeights, false);
+        quorum = new WrapsSigningQuorum(AddressBook.from(sourceWeights, nodeId -> new byte[] {1}), sourceWeights, 0L);
     }
 
     private WrapsMessagePublication createPublication(long nodeId, WrapsPhase phase, Instant receiptTime) {

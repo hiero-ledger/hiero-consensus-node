@@ -150,7 +150,7 @@ class WrapsCanonicalBookIntegrationTest {
         // A different frozen set must be available for the successor: only 0, 3 and 4 have both authorities.
         final var restored = roundTrip(genesis);
         final var successorSigners = Set.of(0L, 3L, 4L);
-        assertTrue(new WrapsSigningQuorum(HistoryProofAddressBooks.targetBook(restored), hintsAuthority, true)
+        assertTrue(new WrapsSigningQuorum(HistoryProofAddressBooks.targetBook(restored), hintsAuthority, 5L)
                 .isSatisfiedBy(successorSigners));
         final var successorKey = verificationKey();
         final var successor = prove(
