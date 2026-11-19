@@ -697,6 +697,26 @@ public class BlockStreamBuilderTest {
         assertThat(record.contractCallResult().createdContractIDs()).isEmpty();
     }
 
+    /**
+     * {@link BlockItemsTranslator} casts the translation context to a type chosen by its functionality, so for every
+     * functionality the builder must create the context type the translator expects.
+     */
+    @ParameterizedTest
+    @EnumSource(HederaFunctionality.class)
+    void translatesRecordAndReceiptForEveryFunctionality(final HederaFunctionality functionality) {
+        final var output = createEmptyBuilder()
+                .functionality(functionality)
+                .status(SUCCESS)
+                .consensusTimestamp(CONSENSUS_TIME)
+                .transactionID(TransactionID.DEFAULT)
+                .build(false, null);
+
+        final var record = output.toRecord(BLOCK_ITEMS_TRANSLATOR);
+
+        assertThat(output.translationContext().functionality()).isEqualTo(functionality);
+        assertThat(record.receiptOrThrow().status()).isEqualTo(SUCCESS);
+    }
+
     @Test
     void keepsSubmittedBytesWhenNotCustomized() throws Exception {
         final var bodyBytes = signedTx.bodyBytes();
