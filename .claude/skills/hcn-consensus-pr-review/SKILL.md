@@ -29,11 +29,11 @@ Read these before reviewing. Each decides what is a finding, a question, or neit
 | [design-first.md](references/design-first.md) | changes the team should agree on before code is written |
 | [pr-size.md](references/pr-size.md) | how large a PR is, and whether it should be split |
 | [clarity-and-naming.md](references/clarity-and-naming.md) | the two readers, javadoc, comments, names, terminology, PR description, Markdown docs |
-| [structure.md](references/structure.md) | ownership, config, reuse, API surface, generality, layering, leftovers, records |
-| [correctness.md](references/correctness.md) | error paths, resources, concurrency, behaviour changes, tests, release risk |
+| [structure.md](references/structure.md) | ownership, config, reuse, API surface, generality, layering, leftovers, records, code a reader has to simulate |
+| [correctness.md](references/correctness.md) | impact and severity, error paths, resources, concurrency, behaviour changes, tests, release risk |
 | [consensus.md](references/consensus.md) | KB invariants, rules, ADRs, scenarios, determinism, KB drift |
 | [not-findings.md](references/not-findings.md) | what the build catches, scope, unverified claims, preference |
-| [output.md](references/output.md) | severity, questions, report layout, follow-up block |
+| [output.md](references/output.md) | severity, questions, report layout, approval and follow-up blocks |
 
 ## Steps
 
@@ -112,6 +112,11 @@ inline. The two readers always run as subagents, so they stay without context.
 
 Check every candidate against the code before keeping it. Drop it if it fails any test in
 [not-findings.md](references/not-findings.md#unverified-claims). Merge duplicates that two lenses found.
+
+For each correctness candidate that survives, answer the impact questions in
+[correctness.md](references/correctness.md#impact): scope, bound, reach and baseline. Check the callers and tests
+that reach it. Only a candidate that meets the blocking bar goes in **Blocks merge**; the rest go in the non-blocking
+**Correctness** group. "It's a real bug" is not enough to block.
 
 Compare each reader's guess at the purpose with step 2, as in
 [clarity-and-naming.md](references/clarity-and-naming.md#checking-the-readers-guess). Drop any candidate, from any

@@ -10,7 +10,9 @@ it drafts carries AI attribution.
 
 - Numbered, so the user can ask for more detail on any one ("expand 3").
 - Starts with `file:line`.
-- At most two lines: the problem and its consequence.
+- At most two lines: the problem and its consequence. A correctness finding states the consequence with its bound,
+  from [correctness.md](correctness.md#impact): "held copies arrive up to one reconnect delay late, once per heal",
+  not "recorded arrival 400 ms too early".
 - No fix unless the user asks to expand it. Exception: a plain-language finding quotes the sentence and gives its
   rewrite ([clarity-and-naming.md](clarity-and-naming.md), topic 3), because the rewrite shows the problem better than a
   description of it.
@@ -32,7 +34,8 @@ are, and the user can ask for them.
 | Group | Contains | Blocks merge |
 |---|---|---|
 | **PR size** | Splits and moves from [pr-size.md](pr-size.md) | No |
-| **Blocks merge** | Correctness, module dependency rules, and consensus findings except the KB group | Yes |
+| **Blocks merge** | Correctness findings that meet the blocking bar in [correctness.md](correctness.md#impact), module dependency rules, and consensus findings except the KB group | Yes |
+| **Correctness** | Correctness findings below that bar | No |
 | **Clarity and naming** | Findings from [clarity-and-naming.md](clarity-and-naming.md) | No |
 | **Structure** | Findings from [structure.md](structure.md) | No |
 | **KB** | KB statements the PR makes false, and KB edits that break the KB's authoring rules ([consensus.md](consensus.md)) | No |
@@ -41,6 +44,9 @@ are, and the user can ask for them.
 Findings that don't block merge can be fixed in this PR, or in a follow-up PR or ticket if another push isn't worth a
 CI cycle. They are never dropped. PR size findings are the exception: a split can't be done in a follow-up, so they are
 reported first, and the author decides before review starts.
+
+Every finding lands in exactly one of the two closing lists: the [approval block](#approval-block) or the
+[follow-up block](#follow-up-block). The reader never has to sort the findings themselves.
 
 ## Questions
 
@@ -65,14 +71,16 @@ In this order:
    [pr-size.md](pr-size.md) goes under it.
 2. **PR size**
 3. **Blocks merge**
-4. **Clarity and naming**
-5. **Structure**
-6. **KB**
-7. **PR description**
-8. **Questions**
-9. **Optional suggestions:** structure suggestions with no named cost
-   ([structure.md](structure.md), topic 11), and data classes that could be records (topic 9).
-10. **Follow-up block**
+4. **Correctness** (non-blocking)
+5. **Clarity and naming**
+6. **Structure**
+7. **KB**
+8. **PR description**
+9. **Questions**
+10. **Optional suggestions:** structure suggestions with no named cost
+    ([structure.md](structure.md), topic 12), and data classes that could be records (topic 9).
+11. **Approval block**
+12. **Follow-up block**
 
 Leave out empty groups.
 
@@ -87,11 +95,13 @@ In this order:
    - if the PR is large with no sensible split, the size line from [pr-size.md](pr-size.md)
 2. **PR size**
 3. **Blocks merge**
-4. **Clarity and naming**
-5. **Structure**
-6. **KB**
-7. **Questions**
-8. **Follow-up block**
+4. **Correctness** (non-blocking)
+5. **Clarity and naming**
+6. **Structure**
+7. **KB**
+8. **Questions**
+9. **Approval block**
+10. **Follow-up block**
 
 Phrase each finding as something the reviewer could ask the author. The reviewer decides what to raise and writes
 their own comments. No optional suggestions in reviewer mode.
@@ -113,7 +123,7 @@ These are the questions #28195 needed ([SKILL.md](../SKILL.md), step 2). Ask for
 for the first or the full list of users.
 
 One to three questions, each about where the change fits or what goes wrong without it. Questions about how it works
-belong in the review, not here. No findings, no orientation and no follow-up block.
+belong in the review, not here. No findings, no orientation, no approval block and no follow-up block.
 
 ## Design not agreed
 
@@ -134,8 +144,33 @@ Question for the author: where were these discussed? The linked issue #28190 onl
 NetworkSimulationTest to Falcon.
 ```
 
-Each decision names its files, its effect, and the choice the team should make. No findings, no orientation and no
-follow-up block. If the author says the design was discussed, the review continues.
+Each decision names its files, its effect, and the choice the team should make. No findings, no orientation, no
+approval block and no follow-up block. If the author says the design was discussed, the review continues.
+
+## Approval block
+
+What must be done before the PR can be approved, as a Markdown task list. It always appears, so the reader never has
+to work out what is critical from the findings. It contains, in this order:
+
+1. **PR size:** each split or move, as a decision for the author.
+2. **Blocks merge:** every finding in that group.
+3. **PR description:** author mode only. They are cheap to fix and don't trigger CI.
+
+Each item says the file and what must change, and ends with its finding number, so the user can ask to expand it.
+Nothing from the non-blocking groups goes here.
+
+Questions are in neither list, because they are judgment calls. If any are open, the last line of the block names
+them: settling one may add an item to either list.
+
+If nothing blocks, the block is one line: `Nothing blocks approval.`
+
+```
+Before approval
+- [ ] `HashLeafFlusher.cancel()`: must not wait for a running flush to finish. (1)
+- [ ] `ReconnectStateLearner`: restore the socket timeout if `createLearnerAsync()` throws. (2)
+- [ ] PR description: say why the event order in .graph files is reversed. (6)
+Settle question 7 before approving.
+```
 
 ## Follow-up block
 
@@ -176,6 +211,12 @@ PR description
 Questions
 7. InFlightConnections.java:91: callers must pass node IDs sorted, which the signature
    doesn't show. Could the method sort them itself?
+
+Before approval
+- [ ] `HashLeafFlusher.cancel()`: must not wait for a running flush to finish. (1)
+- [ ] `ReconnectStateLearner`: restore the socket timeout if `createLearnerAsync()` throws. (2)
+- [ ] PR description: say why the event order in .graph files is reversed. (6)
+Settle question 7 before approving.
 
 Follow-up
 - [ ] `GraphDefaults.java`: replace the "D1" reference with what the default is for.

@@ -51,4 +51,4 @@ If the concern is real but can't be verified, raise it as a question that says w
 ## Preference
 
 "I would have done it differently" isn't a finding unless it names a concrete cost. See [structure.md](structure.md),
-topic 11. Author mode shows these as optional suggestions; reviewer mode drops them.
+topic 12. Author mode shows these as optional suggestions; reviewer mode drops them.

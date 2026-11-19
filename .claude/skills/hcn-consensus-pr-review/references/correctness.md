@@ -1,10 +1,41 @@
 # Correctness
 
-Bugs: code that does the wrong thing under some input, timing or failure. Correctness findings block merge.
+Bugs: code that does the wrong thing under some input, timing or failure. Whether a correctness finding blocks merge
+depends on its impact, not its category.
 
 **Every finding names a concrete failure scenario:** the input, state or timing, and the wrong outcome it leads to. If
 the skill can't name one, it isn't a finding. If the risk is real but the scenario depends on something the skill can't
 check, raise a question instead.
+
+## Impact
+
+The failure scenario says how the bug happens. The impact says how much it costs. Answer these before deciding the
+severity:
+
+- **Scope:** a one-off transient, or a lasting effect? Which inputs or states reach it?
+- **Bound:** the worst case, in units the reader cares about: time, events, bytes, rounds.
+- **Reach:** which callers or tests actually reach it? Check them; don't assume.
+- **Baseline:** is it worse than the code before the PR? If the old code behaved the same or worse, it isn't a
+  regression.
+
+**Blocks merge only when** the worst case is at least one of:
+
+- data lost or corrupted, or a duplicate the receiver keeps
+- a consensus, determinism or safety property broken: nodes disagree, or a seeded run is no longer reproducible
+- a crash, hang, deadlock or resource leak
+- a regression in behaviour that callers or tests rely on
+
+**Test fixtures** (`testFixtures`, `src/test`, Otter, Turtle, Falcon): a bug blocks merge only when it can make a test
+pass when it should fail, fail when it should pass, or report a misleading result. A timing or ordering skew in a
+simulator that no test's conclusion depends on doesn't block merge.
+
+Otherwise it's a **non-blocking correctness finding**: real, reported, and put in the follow-up block.
+
+**Example:** #28053 (commit `3c60ed28`), `LinkStates.java` and `EventRouter.java` in the Turtle simulated network. When
+a partition healed, links came up one pair at a time, so a held copy could be routed through a link whose reconnect
+delay wasn't set yet. The review marked it blocking. It wasn't: it affected only events already waiting at the heal,
+it delayed them by at most one reconnect delay, nothing was lost, runs stayed deterministic, the receiver dropped the
+extra duplicates, no test measures recovery speed, and the old code had the same delay.
 
 ## 1. Error paths and cleanup
 

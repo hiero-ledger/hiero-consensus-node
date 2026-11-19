@@ -106,3 +106,26 @@ supporting, functional-api, functional-impl, or self-contained functional module
 - `consensus-event-creator-instrumented` — test-fixture event creator for Otter instrumented nodes; wraps `consensus-event-creator-impl`.
 - `consensus-fakes` — Transitional: also reached from production paths in
 `swirlds-platform-core` (`PlatformContext.create`, `DefaultSwirldMain`, `ConsensusNoOpModules`).
+
+## Writing code a reader can verify
+
+A reader checks code by playing interpreter: simulating the statements and keeping their side effects in mind. Write
+code that needs as little of that as possible. Its correctness should follow from reading the statements in order, not
+from tracing state across several loop iterations, several cases, or facts other code guarantees. Aim for code that
+obviously contains no bugs, not code that contains no obvious bugs (C. A. R. Hoare).
+
+- Restructure when correctness depends on the next or previous loop iteration, on the order of the input, on state set
+  far away, or on walking through several cases. State the property where it's needed (an explicit step, a guard, a
+  name), even at the cost of one extra cheap call.
+- A method that must be called before another is a hidden requirement. Prefer a design where the order can't be gotten
+  wrong: pass the value in, let the callee look it up, or merge the steps.
+- A name says what a method does, side effects included. `countX` promises a number; a `void` method that changes state
+  is named for the change.
+- Don't pass boolean flags that change what a method does. A call like `send(event, receiver, now, true, false)` can't
+  be read. Use separate methods or an enum.
+- A loop body or lambda does one thing. A callback that looks something up, filters it and writes to another object is
+  three steps; make them visible.
+- A comment that argues why code is correct ("X never happens, so …", "done first so that …") is a sign to change the
+  code, not to keep the comment.
+- Before finishing, reread each block you wrote and ask: can a reader see this is correct without simulating anything
+  else?

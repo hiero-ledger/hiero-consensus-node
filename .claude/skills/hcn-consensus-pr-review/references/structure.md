@@ -199,7 +199,40 @@ loading class's own module, so the loader may have to move too.
 `testFixtures` "so that any module depending on these fixtures can load them", but only `Scn001Test` read the file. The
 module's other test data (`roster.json`, PCES files) is in `src/test/resources`.
 
-### 11. What isn't a finding
+### 11. Code a reader has to simulate
+
+**Rule:** [Writing code a reader can verify](/platform-sdk/CLAUDE.md#writing-code-a-reader-can-verify) in
+`platform-sdk/CLAUDE.md`. Don't copy it here; this topic says only when breaking it is a finding.
+
+**Finding when** code is correct only because of a fact set somewhere else, and nothing where the code relies on it
+enforces it (no guard, type, name, assertion or explicit step):
+
+- a call order between methods or classes that only javadoc states
+- state set by an earlier loop iteration, or by another class
+- a boolean flag argument that changes what a method does
+- a name that hides a side effect, or promises a return value the method doesn't give
+- a comment that argues the code is correct
+
+The cost to name is a state that can be gotten wrong: a later change to the code that guarantees the fact breaks this
+code, with no error to show it. When several instances share one cause, report them as one finding that lists them.
+
+**Not a finding:** code that is long or complex, but can be checked within the method by reading it in order.
+
+**Example:** #28053, `EventRouter`. The reviewer called it "completely incomprehensible". The first review reported
+only `countHeldOnLink` as a naming nit. The pattern behind it:
+
+- `catchUpOverLink` is correct only if `countHeldOnLink` ran first for every link that came up. `LinkStates` sets that
+  order with three listener rounds, in another class.
+- Every router call is correct only if `setReceiverWindow` was called first, at four call sites.
+- `sendBestCopyBySync(tracked, receiver, now, true, false)` takes two flags. One of them, `evenOwn`, hid a node with
+  echoes off being sent its own events.
+- `countHeldAsOnTheirWay` is one callback that looks up the event, filters on a sentinel value and writes to a third
+  object.
+- "counted before anything is sent … so that the event is not sent again by another route" argues the order is right
+  instead of enforcing it.
+- `countHeldOnLink` is `void`, but named like a count.
+
+### 12. What isn't a finding
 
 **Reviewer mode:** every structure finding names a concrete cost:
 
