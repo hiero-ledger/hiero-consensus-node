@@ -14,7 +14,6 @@ relay:
     OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: 1000
     MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
     MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
-    MIRROR_NODE_URL: http://mirror-ingress-controller-%SOLO_NAMESPACE%
   readinessProbe:
     initialDelaySeconds: 0
     periodSeconds: 1
@@ -52,6 +51,5 @@ ws:
     OPERATOR_BALANCE_STARTUP_RETRY_DELAY_MS: 1000
     MIRROR_NODE_STARTUP_MAX_ATTEMPTS: 600
     MIRROR_NODE_STARTUP_RETRY_DELAY_MS: 1000
-    MIRROR_NODE_URL: http://mirror-ingress-controller-%SOLO_NAMESPACE%
   startupProbe:
     failureThreshold: 660 # other probe timing fields inherit chart defaults
