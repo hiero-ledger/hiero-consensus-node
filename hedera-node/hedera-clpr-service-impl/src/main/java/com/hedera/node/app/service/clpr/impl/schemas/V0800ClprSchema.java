@@ -18,12 +18,12 @@ import java.util.Set;
  * Adds the CLPR channel index: every Channel that is neither {@code PENDING} nor {@code CLOSED} gets an index
  * number, mapped to its id in the indexed channels and back from its id in the channel index numbers; and the
  * channel index singleton holds the last index number issued. The {@code CHANNELS} key/value state cannot be
- * enumerated, so a node reads the indexed channels up to that index number to know which Channels to sync, and
- * later reads only the channels indexed since.
+ * enumerated, so a node reads the indexed channels up to that index number when it starts to know which Channels to
+ * sync.
  *
  * <p>The singleton is left unset until the first Channel becomes syncable, and readers treat an unset singleton as
- * no index number issued. For the same reason, the Channels that were already syncable before this schema cannot be
- * found to index them here; each one is indexed on its next write, after which nodes find it on their next read.
+ * no index number issued. Channels that became syncable before this schema are not indexed until their next write;
+ * CLPR is enabled in the same release that adds this schema, so no network is expected to have any.
  */
 public class V0800ClprSchema extends Schema<SemanticVersion> {
 

@@ -29,23 +29,13 @@ public interface ReadableChannelStore {
     long sizeOfState();
 
     /**
-     * Returns the last index number issued to a syncable channel, or 0 if none. Index numbers are issued in increasing
-     * order and never reused, so a reader that remembers it can later read only the channels indexed since.
+     * Gets the ids of every channel that is neither {@code PENDING} nor {@code CLOSED}, in the order they became
+     * syncable. Unlike the channels themselves, which can only be looked up by id, this list can be read in full;
+     * e.g., by a node that starts and must find the channels to sync. Reading it takes one lookup per index number
+     * ever issued, including those of channels that are no longer syncable.
      *
-     * @return the last index number issued
-     */
-    long lastIndexNum();
-
-    /**
-     * Gets the ids of the channels that are neither {@code PENDING} nor {@code CLOSED} and were given an index number
-     * greater than {@code afterIndexNum}, in the order they became syncable. Unlike the channels themselves, which
-     * can only be looked up by id, these can be read in full; e.g., by a node that starts and must find the channels
-     * to sync. Reading them takes one lookup per index number issued after {@code afterIndexNum}, including those of
-     * channels that are no longer syncable.
-     *
-     * @param afterIndexNum the index number to read after; 0 to read every syncable channel
      * @return the syncable channel ids
      */
     @NonNull
-    List<Bytes> syncableChannelIds(long afterIndexNum);
+    List<Bytes> syncableChannelIds();
 }

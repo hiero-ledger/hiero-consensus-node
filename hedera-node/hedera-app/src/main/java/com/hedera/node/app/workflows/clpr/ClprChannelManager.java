@@ -19,7 +19,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
@@ -31,6 +30,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -50,23 +50,22 @@ import org.hiero.base.concurrent.throttle.RateLimitedLogger;
  * <p>State is read from the latest immutable state via the state accessor.
  * All writes happen through standard consensus (submitBundle HAPI transaction).
  *
- * <p>The registry of Channels to sync is in-memory. The {@code CHANNELS} state cannot be enumerated, so once
- * {@link #start()} is called, an index polling task registers the Channels in the channel index in state
- * ({@link ReadableChannelStore#syncableChannelIds(long)}), and then every Channel indexed later; handlers also report
- * Channels that activate or close.
+ * <p>The registry of Channels to sync is in-memory. The {@code CHANNELS} state cannot be enumerated, so
+ * {@link #start()} rebuilds the registry from the channel index in state
+ * ({@link ReadableChannelStore#syncableChannelIds()}); after that, handlers report Channels that activate or close.
  */
 @Singleton
 public class ClprChannelManager implements ClprChannelLifecycle {
     private static final Logger logger = LogManager.getLogger(ClprChannelManager.class);
 
-    /** Logs failed index reads at most once a minute, as index polling retries every second. */
-    private static final RateLimitedLogger indexPollingFailureLogger =
+    /** Logs failed channel index reads at most once a minute, as a failed read is retried every second. */
+    private static final RateLimitedLogger indexReadFailureLogger =
             new RateLimitedLogger(logger, Time.getCurrent(), Duration.ofMinutes(1));
 
     static final long DEFAULT_SYNC_INTERVAL_MS = 1000L;
 
-    /** How often index polling reads the Channels indexed since its previous read. */
-    static final long INDEX_POLL_INTERVAL_MS = 1000L;
+    /** How long to wait before retrying a channel index read that failed. */
+    static final long INDEX_READ_RETRY_DELAY_MS = 1000L;
 
     private final ConfigProvider configProvider;
     private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
@@ -78,12 +77,8 @@ public class ClprChannelManager implements ClprChannelLifecycle {
 
     private volatile boolean started = false;
 
-    /** The index polling task, registering indexed Channels, scheduled by the first {@link #start()}. */
-    @Nullable
-    private ScheduledFuture<?> indexPollingFuture;
-
-    /** The last index number index polling has read up to. */
-    private volatile long lastPolledIndexNum = 0L;
+    /** Whether a channel index read is scheduled and has not started yet; at most one is pending at a time. */
+    private final AtomicBoolean indexReadPending = new AtomicBoolean();
 
     /** Per-channel outbound sync timers, used to cancel ticks on channel close or re-activation. */
     private final Map<Bytes, ScheduledFuture<?>> channelSyncFutures = new ConcurrentHashMap<>();
@@ -142,12 +137,9 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         final boolean firstStart = !started;
         started = true;
         scheduleKnownChannelTicks();
-        if (indexPollingFuture == null) {
-            // Read the channel index on the sync scheduler, not on the platform status thread that calls start();
-            // repeatedly, as a Channel that predates the index is only indexed on its next write, and to retry a
-            // read that failed
-            indexPollingFuture = scheduler.scheduleWithFixedDelay(
-                    this::pollChannelIndex, 0L, INDEX_POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        // Read the channel index on the sync scheduler, not on the platform status thread that calls start()
+        if (indexReadPending.compareAndSet(false, true)) {
+            scheduler.execute(this::registerIndexedChannels);
         }
         if (firstStart) {
             logger.info("CLPR sync orchestrator started (maxConcurrentSyncs={})", clprConfig.maxConcurrentSyncs());
@@ -168,43 +160,38 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     }
 
     /**
-     * Registers the Channels indexed in the latest state since the previous call, and schedules their ticks. Leaves
-     * the registry as it is if the state is unavailable or cannot be read, so the next call retries.
+     * Registers every Channel in the channel index of the latest state, and schedules their ticks. If the state is
+     * unavailable or cannot be read, leaves the registry as it is and retries after
+     * {@link #INDEX_READ_RETRY_DELAY_MS}, until a read succeeds or the manager stops.
      */
-    void pollChannelIndex() {
+    void registerIndexedChannels() {
+        // A start() from now on schedules another read, of the then latest state
+        indexReadPending.set(false);
         if (!started) {
             return;
         }
         try (final var wrappedState = stateAccessor.get()) {
             final var state = wrappedState == null ? null : wrappedState.get();
-            if (state == null) {
-                return;
-            }
-            final var channelStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableChannelStore.class);
-            final long lastIndexNum = channelStore.lastIndexNum();
-            if (lastIndexNum <= lastPolledIndexNum) {
-                return;
-            }
-            final var channelIds = channelStore.syncableChannelIds(lastPolledIndexNum);
-            int registered = 0;
-            for (final var channelId : channelIds) {
-                if (knownChannelIds.add(channelId)) {
-                    registered++;
+            if (state != null) {
+                final var channelIds = new ReadableStoreFactoryImpl(state)
+                        .readableStore(ReadableChannelStore.class)
+                        .syncableChannelIds();
+                int registered = 0;
+                for (final var channelId : channelIds) {
+                    if (knownChannelIds.add(channelId)) {
+                        registered++;
+                    }
                 }
-            }
-            lastPolledIndexNum = lastIndexNum;
-            // Channels already known, e.g. ones that just activated, already have their ticks
-            if (registered > 0) {
-                logger.info(
-                        "CLPR registered {} of {} channel(s) indexed up to #{}",
-                        registered,
-                        channelIds.size(),
-                        lastIndexNum);
+                logger.info("CLPR registered {} of {} indexed channel(s)", registered, channelIds.size());
                 scheduleKnownChannelTicks();
+                return;
             }
         } catch (final Exception e) {
-            indexPollingFailureLogger.warn(
+            indexReadFailureLogger.warn(
                     MarkerManager.getMarker("CLPR"), "Failed to read the CLPR channel index; will retry", e);
+        }
+        if (started && !scheduler.isShutdown() && indexReadPending.compareAndSet(false, true)) {
+            scheduler.schedule(this::registerIndexedChannels, INDEX_READ_RETRY_DELAY_MS, TimeUnit.MILLISECONDS);
         }
     }
 

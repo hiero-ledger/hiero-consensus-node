@@ -139,6 +139,7 @@ class ClprChannelManagerTest {
         @Test
         @DisplayName("is idempotent — a second call schedules no additional tasks")
         void startIsIdempotent() {
+            givenLatestStates(clprStatesIndexing());
             // A channel tracked before start() gets its sync tick scheduled by start()
             subject.onChannelActivated(CHANNEL_ID_1);
             subject.start();
@@ -146,9 +147,8 @@ class ClprChannelManagerTest {
             final var executor = (ScheduledThreadPoolExecutor) subject.scheduler();
             final var tick = subject.syncTickFuture(CHANNEL_ID_1);
             assertNotNull(tick);
-            // The tick and the index polling task
             await().atMost(Duration.ofSeconds(1))
-                    .until(() -> executor.getQueue().size() == 2);
+                    .until(() -> executor.getQueue().size() == 1);
 
             // The platform can re-reach ACTIVE with no intervening stop() (e.g. after a reconnect);
             // the guard must make the re-entry a no-op rather than leak a duplicate tick.
@@ -158,7 +158,7 @@ class ClprChannelManagerTest {
             assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
             await().during(Duration.ofMillis(100))
                     .atMost(Duration.ofSeconds(1))
-                    .until(() -> executor.getQueue().size() <= 2);
+                    .until(() -> executor.getQueue().size() == 1);
         }
     }
 
@@ -482,17 +482,18 @@ class ClprChannelManagerTest {
         }
 
         @Test
-        @DisplayName("index polling registers channels indexed after start(), and existing ticks are kept")
-        void indexPollingRegistersChannelsIndexedAfterStart() {
+        @DisplayName("a repeated start() picks up newly indexed channels and keeps existing ticks")
+        void repeatedStartPicksUpNewlyIndexedChannels() {
             final var state = givenLatestStates(clprStatesIndexing(CHANNEL_ID_1));
             subject.start();
             await().atMost(Duration.ofSeconds(1)).until(() -> subject.syncTickFuture(CHANNEL_ID_1) != null);
             final var tick = subject.syncTickFuture(CHANNEL_ID_1);
 
-            // E.g. a channel that predates the index, indexed on its next write
+            // E.g. the platform becomes active again after a reconnect, with no stop() in between
             given(state.getReadableStates(ClprService.NAME)).willReturn(clprStatesIndexing(CHANNEL_ID_1, CHANNEL_ID_2));
+            subject.start();
 
-            await().atMost(Duration.ofSeconds(3)).until(() -> subject.syncTickFuture(CHANNEL_ID_2) != null);
+            await().atMost(Duration.ofSeconds(1)).until(() -> subject.syncTickFuture(CHANNEL_ID_2) != null);
             assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
             assertFalse(tick.isCancelled());
         }
@@ -513,8 +514,8 @@ class ClprChannelManagerTest {
         }
 
         @Test
-        @DisplayName("index polling retries after the channel index could not be read")
-        void indexPollingRetriesAfterAnUnreadableIndex() {
+        @DisplayName("a failed channel index read is retried until it succeeds")
+        void failedIndexReadIsRetriedUntilItSucceeds() {
             final var state = givenLatestStates(clprStatesIndexing());
             given(state.getReadableStates(ClprService.NAME))
                     .willThrow(new IllegalStateException("unreadable"))

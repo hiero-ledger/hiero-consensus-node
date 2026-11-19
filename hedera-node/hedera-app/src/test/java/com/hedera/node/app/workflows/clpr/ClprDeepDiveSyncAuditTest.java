@@ -133,9 +133,7 @@ class ClprDeepDiveSyncAuditTest {
             assertTrue(subject.started());
             final var executor = (ScheduledThreadPoolExecutor) subject.scheduler();
             final var tick = subject.syncTickFuture(CHANNEL_ID_1);
-            // The tick and the index polling task
-            await().atMost(Duration.ofSeconds(1))
-                    .until(() -> executor.getQueue().size() == 2);
+            assertNotNull(tick);
 
             // The platform can re-reach ACTIVE with no intervening stop() (e.g. after a reconnect);
             // the guard must make the re-entry a no-op rather than leak a duplicate tick.
@@ -143,6 +141,7 @@ class ClprDeepDiveSyncAuditTest {
 
             assertTrue(subject.started());
             assertSame(tick, subject.syncTickFuture(CHANNEL_ID_1));
+            // At most the tick and a retry of the channel index read, which finds no state here
             await().during(Duration.ofMillis(100))
                     .atMost(Duration.ofSeconds(1))
                     .until(() -> executor.getQueue().size() <= 2);
