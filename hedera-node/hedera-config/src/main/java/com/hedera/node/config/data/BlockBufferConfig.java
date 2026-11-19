@@ -59,6 +59,6 @@ public record BlockBufferConfig(
         @ConfigProperty(defaultValue = "/opt/hgcapp/blockStreams/buffer") @NodeProperty String bufferDirectory,
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty int ackedBlocksToRetain,
         @ConfigProperty(defaultValue = "5") @Min(2) @NetworkProperty int maxInProgressBlocks,
-        @ConfigProperty(defaultValue = "1") @Min(1) @NetworkProperty int minAcksRequiredPerBlock,
+        @ConfigProperty(defaultValue = "3") @Min(1) @NetworkProperty int minAcksRequiredPerBlock,
         @ConfigProperty(defaultValue = "60") @Min(0) @NetworkProperty int disconnectedBlockNodeAckExpirationSeconds) {}
 // spotless:on
