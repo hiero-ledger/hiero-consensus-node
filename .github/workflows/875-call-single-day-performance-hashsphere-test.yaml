@@ -1533,7 +1533,6 @@ jobs:
       - performance-CryptoTransferLoadTest
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
-      - performance-post-test-validation
       - single-day-performance-test-result
 
     if: ${{ (needs.performance-tests-start.result != 'success' ||
@@ -1594,7 +1593,6 @@ jobs:
       - performance-CryptoTransferLoadTest
       - performance-HeliSwapLoadTest
       - performance-SmartContractLoadTest
-      - performance-post-test-validation
       - single-day-performance-test-result
     steps:
       - name: Harden the runner (Audit all outbound calls)
