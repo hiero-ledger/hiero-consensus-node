@@ -115,8 +115,7 @@ class PinnedCertificateTrustManagerTest {
     }
 
     private static X509Certificate generateCertificate(final String commonName) throws Exception {
-        final KeyPairGenerator keyGen =
-                KeyPairGenerator.getInstance(CryptoConstants.SIG_TYPE1, CryptoConstants.SIG_PROVIDER);
+        final KeyPairGenerator keyGen = KeyPairGenerator.getInstance(CryptoConstants.SIG_TYPE1);
         keyGen.initialize(CryptoConstants.SIG_KEY_SIZE_BITS);
         final KeyPair keyPair = keyGen.generateKeyPair();
         final String distinguishedName = CertificateUtils.distinguishedName(commonName);

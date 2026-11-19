@@ -4,10 +4,12 @@ package com.hedera.services.bdd.junit.hedera.embedded.fakes;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 
@@ -20,13 +22,7 @@ public class FakeRound implements Round {
             final long roundNum, @NonNull final Roster roster, @NonNull final List<ConsensusEvent> consensusEvents) {
         this.roundNum = roundNum;
         this.roster = requireNonNull(roster);
-        this.consensusEvents = requireNonNull(consensusEvents);
-    }
-
-    @NonNull
-    @Override
-    public Iterator<ConsensusEvent> iterator() {
-        return consensusEvents.iterator();
+        this.consensusEvents = Collections.unmodifiableList(requireNonNull(consensusEvents));
     }
 
     @Override
@@ -39,9 +35,10 @@ public class FakeRound implements Round {
         return consensusEvents.isEmpty();
     }
 
+    @NonNull
     @Override
-    public int getEventCount() {
-        return consensusEvents.size();
+    public List<ConsensusEvent> getConsensusEvents() {
+        return consensusEvents;
     }
 
     @NonNull
@@ -54,5 +51,28 @@ public class FakeRound implements Round {
     @Override
     public Instant getConsensusTimestamp() {
         return consensusEvents.getLast().getConsensusTimestamp();
+    }
+
+    @NonNull
+    @Override
+    public ConsensusSnapshot getConsensusSnapshot() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isPcesRound() {
+        return false;
+    }
+
+    @NonNull
+    @Override
+    public Instant getReachedConsTimestamp() {
+        throw new UnsupportedOperationException();
+    }
+
+    @NonNull
+    @Override
+    public RunningHash getLastEventRunningHash() {
+        throw new UnsupportedOperationException();
     }
 }

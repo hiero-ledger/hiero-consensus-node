@@ -35,7 +35,7 @@ class ConsensusRoundTests {
                 mock(RosterWrapper.class), events, mock(EventWindow.class), snapshot, false, Instant.now());
 
         assertEquals(events, round.getConsensusEvents(), "consensus event list does not match the provided list.");
-        assertEquals(events.size(), round.getNumEvents(), "numEvents does not match the events provided.");
+        assertEquals(events.size(), round.getConsensusEvents().size(), "numEvents does not match the events provided.");
         assertEquals(1, round.getRoundNum(), "roundNum does not match the events provided.");
     }
 
