@@ -447,6 +447,9 @@ jobs:
             init-containers-values7.yaml block-node-values.yaml mirror-node.yaml explorer-node.yaml \
             relay-node.yaml ingress-controller-values.yaml || exit 1
 
+          # Update relay-node.yaml values
+          sed -i -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" relay-node.yaml
+
           BN_tag=$(echo "${{ inputs.bnref }}" | sed -e 's/^v\(.*\)/\1/g')
           sed -i -e "s@%BN_IMAGE_TAG%@${BN_tag}@g" block-node-values.yaml
 
@@ -823,8 +826,12 @@ jobs:
           n=$(expr ${{ inputs.nlg-accounts }} / 1000)
           NLG_c=32
 
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get svc
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods
+
           test=HeliSwapRpcLoadTest
-          relayIP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get svc | grep 'relay-1' | grep 7546 | awk '{print $3}'`
+          relayIP=`sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get svc | grep 'relay-1' | grep -v ws | grep 7546 | awk '{print $3}'`
           relayUrl=http://${relayIP}:7546
 
           NLGargs=" -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }} -relay $relayUrl"
