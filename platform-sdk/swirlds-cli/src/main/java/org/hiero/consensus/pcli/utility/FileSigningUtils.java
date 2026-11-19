@@ -6,19 +6,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
-import java.security.Signature;
-import java.security.SignatureException;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.CertificateException;
 import java.util.Objects;
-import org.hiero.base.crypto.SignatureType;
 
 /**
  * Class containing utilities for creating signature files
@@ -62,34 +57,6 @@ public final class FileSigningUtils {
         }
 
         return destinationDirectory.resolve(sourceFile.getFileName() + SIGNATURE_FILE_NAME_SUFFIX);
-    }
-
-    /**
-     * Sign a byte array with a private key
-     *
-     * @param data    the data to be signed
-     * @param keyPair the keyPair used for signing
-     * @return the signature
-     * @throws NoSuchAlgorithmException if an implementation of the required algorithm cannot be located or loaded
-     * @throws NoSuchProviderException  thrown if the specified provider is not registered in the security provider
-     *                                  list
-     * @throws InvalidKeyException      thrown if the key is invalid
-     * @throws SignatureException       thrown if this signature object is not initialized properly
-     */
-    @NonNull
-    public static byte[] signData(@NonNull final byte[] data, @NonNull final KeyPair keyPair)
-            throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeyException, SignatureException {
-
-        Objects.requireNonNull(data, "data must not be null");
-        Objects.requireNonNull(keyPair, "keyPair must not be null");
-
-        final Signature signature =
-                Signature.getInstance(SignatureType.RSA.signingAlgorithm(), SignatureType.RSA.provider());
-
-        signature.initSign(keyPair.getPrivate());
-        signature.update(data);
-
-        return signature.sign();
     }
 
     /**

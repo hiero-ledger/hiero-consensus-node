@@ -112,9 +112,19 @@ public final class ECDSASecp256k1 {
      * @return the raw signature of the given digest
      */
     public static byte[] signDigestWithEcdsaSecp256k1(final PrivateKey privateKey, final byte[] digest) {
-        // try {
         final byte[] secretKey = asPrivateKeyByteArray32((ECPrivateKey) privateKey);
+        return signDigestWithEcdsaSecp256k1(secretKey, digest);
+    }
 
+    /**
+     * Signs the given digest with the given native ECDSA(secp256k1) secret key and returns the
+     * raw signature; that is, the 64-byte concatenation of the signature's {@code r} value
+     * followed by its {@code s} value in unsigned big-endian form.
+     *
+     * @param secretKey a native 32-bytes ECDSA secp256k1 secret key
+     * @return the raw signature of the given digest
+     */
+    public static byte[] signDigestWithEcdsaSecp256k1(final byte[] secretKey, final byte[] digest) {
         final byte[] recSignature = new byte[Libsecp256k1.RECOVERABLE_SIGNATURE_BYTES];
         final MemorySegment recSignatureSeg = MemorySegment.ofArray(recSignature);
         int ret = LIBSECP256K1.secp256k1EcdsaSignRecoverable(
