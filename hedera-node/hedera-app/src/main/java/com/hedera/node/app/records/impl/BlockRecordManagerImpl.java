@@ -145,7 +145,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private final Supplier<BlockItemWriter> wrbWriterSupplier;
     /**
      * Cached value of {@code blockStream.streamWrappedRecordBlocks} read at construction time. When true,
-     * each completed record block has its WRB items forwarded through {@link #wrbWriterSupplier}.
+     * each completed record block has its WRB items forwarded through {@link #wrbWriterSupplier}, except for
+     * blocks closed while migration root hash voting is still in progress.
      */
     private final boolean streamWrbEnabled;
     /**
@@ -687,8 +688,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             // For blocks that started WRB RSA signing, signAndCloseWrbAsync() creates this future before
             // closeCurrentRecordFileIfOpen() observes the writer close result. A missing future means no WRB signing
             // pipeline was
-            // started for this block (e.g. empty records, restart boundary, disabled/gated wrapping, or writer setup
-            // failure), so there is nothing to complete.
+            // started for this block (e.g. empty records, restart boundary, disabled/gated wrapping, migration root
+            // hash voting still in progress, or writer setup failure), so there is nothing to complete.
             return;
         }
         recordFileHashFuture.whenComplete((recordFileHash, t) -> {
@@ -820,11 +821,24 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * Computes the wrapped record block hashes for a just-finished block synchronously,
      * and updates the running {@link #prevWrappedRecordBlockHashes} hasher and
      * {@link #previousWrappedRecordBlockRootHash}.
+     *
+     * <p>If WRB streaming is enabled, the block is forwarded to the block buffer only when migration root hash
+     * voting is complete. While voting is in progress the live hasher is seeded from this node's local migration
+     * result, which the network may not agree on; the vote handler replaces it with the agreed chain via
+     * {@link #syncFinalizedMigrationHashes}. Blocks closed before then are not streamed, so every WRB in the
+     * buffer chains from the agreed values.
+     *
+     * @param justFinishedBlockNumber the number of the block that just closed
+     * @param justFinishedBlockCreationTime the consensus time of the first transaction in that block
+     * @param endRunningHash the record stream running hash at the end of that block
+     * @param votingComplete whether migration root hash voting has completed
+     * @return the wrapped record file block hashes of the block, or null if it had no records
      */
     private @Nullable WrappedRecordFileBlockHashes updateWrappedBlockHashes(
             final long justFinishedBlockNumber,
             @NonNull final Timestamp justFinishedBlockCreationTime,
-            @NonNull final Bytes endRunningHash) {
+            @NonNull final Bytes endRunningHash,
+            final boolean votingComplete) {
         if (currentBlockRecordStreamItems.isEmpty()) {
             logger.info(
                     "Skipping live wrapped record block hash computation for block {} because recordStreamItems is empty",
@@ -851,8 +865,13 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         // If enabled, forward the WRB items to a GrpcBlockItemWriter so they reach the BlockBufferService
         // and onward to block nodes. The block is left open until the RSA signature-list future can complete
-        // it with a BlockFooter and BlockProof.
-        if (streamWrbEnabled) {
+        // it with a BlockFooter and BlockProof. Skipped while migration root hash voting is in progress, since
+        // the footer would carry this node's local chain values rather than the ones the network agrees on.
+        if (streamWrbEnabled && !votingComplete) {
+            logger.info(
+                    "Not streaming WRB for block {} because migration root hash voting is in progress",
+                    justFinishedBlockNumber);
+        } else if (streamWrbEnabled) {
             try {
                 final var writer = wrbWriterSupplier.get();
                 writer.openBlock(justFinishedBlockNumber);
@@ -1025,8 +1044,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         if (currentBlockStartRunningHash != null) {
             if ((votingBlockNumInitialized() || votingComplete) && liveWritePrevWrappedRecordHashes()) {
-                final var wrappedRecordFileBlockHashes =
-                        updateWrappedBlockHashes(closedBlockNo, justFinishedBlockCreationTime, hashOfJustFinishedBlock);
+                final var wrappedRecordFileBlockHashes = updateWrappedBlockHashes(
+                        closedBlockNo, justFinishedBlockCreationTime, hashOfJustFinishedBlock, votingComplete);
                 if (wrappedRecordFileBlockHashes != null && queueingEnabled) {
                     appendMigrationWrappedHashes(state, closedBlockNo, wrappedRecordFileBlockHashes);
                 }
