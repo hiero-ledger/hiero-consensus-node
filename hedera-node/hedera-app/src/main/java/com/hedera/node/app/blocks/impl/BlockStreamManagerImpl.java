@@ -1699,7 +1699,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             Bytes serialized = null;
             byte[] leafHash = null;
             try {
-                serialized = BlockItem.PROTOBUF.toBytes(item);
+                // Write straight into an exactly-sized array via the codec's byte-array path; Codec.toBytes() goes
+                // through the slower streaming (WritableSequentialData) path
+                final var codec = BlockItem.PROTOBUF;
+                final byte[] bytes = new byte[codec.measureRecord(item)];
+                codec.write(item, bytes, 0);
+                serialized = Bytes.wrap(bytes);
                 // The leaf hash has no data dependency on any other item, so it's computed here (in parallel across
                 // items) rather than in SequentialTask; only the O(1) Merkle fold-up actually needs item order.
                 // BlockFooter/BlockProof are metadata, never part of a hashed tree, so skip hashing them.
