@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -571,7 +572,7 @@ public class ContractCallSuite {
                                     .payingWith(ACCOUNT)
                                     .logged());
                 }),
-                getAccountBalance(RECEIVER).hasTinyBars(10_000L),
+                getAccountInfo(RECEIVER).has(accountWith().balance(10_000L)),
                 sourcing(() -> getContractInfo(NESTED_TRANSFER_CONTRACT + "1")
                         .has(contractWith().balance(10_000L))),
                 sourcing(() -> getContractInfo(NESTED_TRANSFER_CONTRACT + "2")
@@ -1363,7 +1364,7 @@ public class ContractCallSuite {
                         .via(PAY_TXN)
                         .sending(DEPOSIT_AMOUNT),
                 // The contract requires msg.value == amount, so this pins that msg.value is in tinybars
-                getAccountBalance(PAY_RECEIVABLE_CONTRACT).hasTinyBars(DEPOSIT_AMOUNT),
+                getContractInfo(PAY_RECEIVABLE_CONTRACT).has(contractWith().balance(DEPOSIT_AMOUNT)),
                 // address(this).balance (BALANCE/SELFBALANCE) must report the same tinybar amount as the ledger
                 contractCall(PAY_RECEIVABLE_CONTRACT, GET_BALANCE).via(GET_BALANCE),
                 getTxnRecord(GET_BALANCE)
@@ -1413,7 +1414,7 @@ public class ContractCallSuite {
                         .via(PAY_TXN)
                         .sending(DEPOSIT_AMOUNT),
                 contractDelete(PAY_RECEIVABLE_CONTRACT).transferAccount(BENEFICIARY),
-                getAccountBalance(BENEFICIARY).hasTinyBars(initBalance + DEPOSIT_AMOUNT));
+                getAccountInfo(BENEFICIARY).has(accountWith().balance(initBalance + DEPOSIT_AMOUNT)));
     }
 
     @HapiTest
@@ -1657,7 +1658,7 @@ public class ContractCallSuite {
                                         .resultViaFunctionName(GET_BALANCE, contract, isLiteralResult(new Object[] {
                                             BigInteger.valueOf(1_000L)
                                         })))),
-                getAccountBalance(RECEIVER).hasTinyBars(2_000L));
+                getAccountInfo(RECEIVER).has(accountWith().balance(2_000L)));
     }
 
     @HapiTest
@@ -1726,7 +1727,7 @@ public class ContractCallSuite {
                             .logged();
                     allRunFor(spec, transferCall);
                 }),
-                getAccountBalance(RECEIVER).hasTinyBars(10_000L + 10));
+                getAccountInfo(RECEIVER).has(accountWith().balance(10_000L + 10)));
     }
 
     @HapiTest
@@ -1749,16 +1750,16 @@ public class ContractCallSuite {
                         // Adding refusingEthConversion() due to fee differences
                         .refusingEthConversion(),
                 contractCall(topLevelContract).sending(10).payingWith(ACCOUNT),
-                getAccountBalance(topLevelContract).hasTinyBars(INITIAL_CONTRACT_BALANCE + 10L),
+                getContractInfo(topLevelContract).has(contractWith().balance(INITIAL_CONTRACT_BALANCE + 10L)),
                 contractCall(topLevelContract, "topLevelTransferCall")
                         .sending(10)
                         .payingWith(ACCOUNT),
-                getAccountBalance(topLevelContract).hasTinyBars(INITIAL_CONTRACT_BALANCE + 20L),
+                getContractInfo(topLevelContract).has(contractWith().balance(INITIAL_CONTRACT_BALANCE + 20L)),
                 contractCall(topLevelContract, "topLevelNonPayableCall")
                         .sending(10)
                         .payingWith(ACCOUNT)
                         .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED),
-                getAccountBalance(topLevelContract).hasTinyBars(INITIAL_CONTRACT_BALANCE + 20L),
+                getContractInfo(topLevelContract).has(contractWith().balance(INITIAL_CONTRACT_BALANCE + 20L)),
                 getContractInfo(topLevelContract).saveToRegistry("tcinfo"),
                 getContractInfo(subLevelContract).saveToRegistry(SCINFO),
 
@@ -1774,8 +1775,8 @@ public class ContractCallSuite {
                             .hasKnownStatus(ResponseCodeEnum.CONTRACT_REVERT_EXECUTED);
                     allRunFor(spec, cc);
                 }),
-                getAccountBalance(topLevelContract).hasTinyBars(20L + INITIAL_CONTRACT_BALANCE),
-                getAccountBalance(subLevelContract).hasTinyBars(INITIAL_CONTRACT_BALANCE),
+                getContractInfo(topLevelContract).has(contractWith().balance(20L + INITIAL_CONTRACT_BALANCE)),
+                getContractInfo(subLevelContract).has(contractWith().balance(INITIAL_CONTRACT_BALANCE)),
 
                 /* sub-level payable contract call */
                 assertionsHold((spec, log) -> {
@@ -1788,8 +1789,8 @@ public class ContractCallSuite {
                             BigInteger.valueOf(20L));
                     allRunFor(spec, cc);
                 }),
-                getAccountBalance(topLevelContract).hasTinyBars(INITIAL_CONTRACT_BALANCE),
-                getAccountBalance(subLevelContract).hasTinyBars(20L + INITIAL_CONTRACT_BALANCE));
+                getContractInfo(topLevelContract).has(contractWith().balance(INITIAL_CONTRACT_BALANCE)),
+                getContractInfo(subLevelContract).has(contractWith().balance(20L + INITIAL_CONTRACT_BALANCE)));
     }
 
     @HapiTest
@@ -1821,8 +1822,8 @@ public class ContractCallSuite {
                             .logged();
                     allRunFor(spec, transferCall);
                 }),
-                getAccountBalance(TRANSFERRING_CONTRACT).hasTinyBars(10_000 - 10L),
-                getAccountBalance(TRANSFERRING_CONTRACT + to).hasTinyBars(10_000 + 10L));
+                getContractInfo(TRANSFERRING_CONTRACT).has(contractWith().balance(10_000 - 10L)),
+                getContractInfo(TRANSFERRING_CONTRACT + to).has(contractWith().balance(10_000 + 10L)));
     }
 
     @HapiTest
@@ -1940,7 +1941,7 @@ public class ContractCallSuite {
                     var getRec = getTxnRecord("lalala").andAllChildRecords().logged();
                     allRunFor(spec, transferCall, getRec);
                 }),
-                getAccountBalance(RECEIVER).hasTinyBars(10_000L + 127L),
+                getAccountInfo(RECEIVER).has(accountWith().balance(10_000L + 127L)),
                 sourcing(() -> getContractInfo(TRANSFERRING_CONTRACT)
                         .has(contractWith().balance(10_000L - 127L))));
     }
@@ -1976,9 +1977,9 @@ public class ContractCallSuite {
                             .logged();
                     allRunFor(spec, transferCall);
                 }),
-                getAccountBalance(RECEIVER_1).hasTinyBars(10_000L + 20L),
-                getAccountBalance(RECEIVER_2).hasTinyBars(10_000L + 10L),
-                getAccountBalance(RECEIVER_3).hasTinyBars(10_000L + 5L),
+                getAccountInfo(RECEIVER_1).has(accountWith().balance(10_000L + 20L)),
+                getAccountInfo(RECEIVER_2).has(accountWith().balance(10_000L + 10L)),
+                getAccountInfo(RECEIVER_3).has(accountWith().balance(10_000L + 5L)),
                 sourcing(() -> getContractInfo(TRANSFERRING_CONTRACT)
                         .has(contractWith().balance(10_000L - 35L))));
     }
@@ -2018,7 +2019,7 @@ public class ContractCallSuite {
                                     .payingWith(ACCOUNT)
                                     .logged());
                 }),
-                getAccountBalance(RECEIVER).hasTinyBars(10_000L + 80L),
+                getAccountInfo(RECEIVER).has(accountWith().balance(10_000L + 80L)),
                 sourcing(() -> getContractInfo(NESTED_TRANSFER_CONTRACT + "1")
                         .has(contractWith().balance(10_000L - 20L))),
                 sourcing(() -> getContractInfo(NESTED_TRANSFER_CONTRACT + "2")
@@ -2200,9 +2201,9 @@ public class ContractCallSuite {
                                     .gas(1_000_000L)
                                     .logged());
                 }),
-                getAccountBalance(RECEIVER_1).hasTinyBars(10_000 + 80L),
-                getAccountBalance(RECEIVER_2).hasTinyBars(10_000 + 80L),
-                getAccountBalance(RECEIVER_3).hasTinyBars(10_000 + 80L),
+                getAccountInfo(RECEIVER_1).has(accountWith().balance(10_000 + 80L)),
+                getAccountInfo(RECEIVER_2).has(accountWith().balance(10_000 + 80L)),
+                getAccountInfo(RECEIVER_3).has(accountWith().balance(10_000 + 80L)),
                 sourcing(() -> getContractInfo(NESTED_TRANSFER_CONTRACT + "1")
                         .has(contractWith().balance(10_000 - 60L))),
                 sourcing(() -> getContractInfo(NESTED_TRANSFER_CONTRACT + "2")
@@ -2241,7 +2242,7 @@ public class ContractCallSuite {
 
                     allRunFor(spec, transferCall, transferCallZeroHbars);
                 }),
-                getAccountBalance(RECEIVER).hasTinyBars(10_000L),
+                getAccountInfo(RECEIVER).has(accountWith().balance(10_000L)),
                 sourcing(() -> getContractInfo(TRANSFERRING_CONTRACT)
                         .has(contractWith().balance(10_000L))));
     }
@@ -2279,7 +2280,7 @@ public class ContractCallSuite {
 
                     assertEquals(10_000L, contractBalanceAfterCall);
                 }),
-                getAccountBalance(RECEIVER).hasTinyBars(10_000L));
+                getAccountInfo(RECEIVER).has(accountWith().balance(10_000L)));
     }
 
     @HapiTest
