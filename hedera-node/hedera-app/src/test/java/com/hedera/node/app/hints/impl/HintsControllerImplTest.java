@@ -276,6 +276,7 @@ class HintsControllerImplTest {
                 BLS_KEY_PAIR.privateKey(),
                 construction,
                 new RosterTransitionWeights(roster, roster),
+                Set.of(),
                 scheduledTasks::offer,
                 library,
                 Map.of(),
@@ -355,7 +356,7 @@ class HintsControllerImplTest {
 
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
 
-        verify(store, never()).setPreprocessingStartTime(anyLong(), any());
+        verify(store, never()).setPreprocessingStartTime(anyLong(), any(), any());
     }
 
     @Test
@@ -363,7 +364,7 @@ class HintsControllerImplTest {
         setupWithCurrentRosterNodesOutsideSource(UNFINISHED_CONSTRUCTION, Set.of(2L));
         given(weights.numTargetNodesInSource()).willReturn(1);
         given(weights.targetNodeWeights()).willReturn(TARGET_NODE_WEIGHTS);
-        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME))
+        given(store.setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME, 10L))
                 .willReturn(CONSTRUCTION_WITH_START_TIME);
 
         subject.addHintsKeyPublication(EXPECTED_NODE_ONE_PUBLICATION, INITIAL_CRS);
@@ -373,7 +374,8 @@ class HintsControllerImplTest {
 
         subject.advanceConstruction(PREPROCESSING_START_TIME, store, true);
 
-        verify(store).setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME);
+        verify(store)
+                .setPreprocessingStartTime(UNFINISHED_CONSTRUCTION.constructionId(), PREPROCESSING_START_TIME, 10L);
     }
 
     @Test
