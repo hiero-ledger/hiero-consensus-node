@@ -189,12 +189,14 @@ are pre-serialised `ClprStreamingSyncPayload` bytes — so the client does not n
 generated. `sync(timeout)` returns a `ClprStreamingSyncCall`; the deadline covers the whole multi-bundle exchange,
 not a single message.
 
-Peer destinations must be numeric IPv4 or IPv6 literals with a port in `1..65535`; DNS names and scoped IPv6
-addresses are not accepted. The client validates the address before creating a channel and dials the resulting
-socket address directly. By default, outbound sync uses ordinary public unicast addresses. The default IPv6 range
+Peer destinations use numeric IPv4 or IPv6 by default, with a port in `1..65535`. For Solo, set
+`clpr.requireNumericPeerEndpoints=false` on every node of each CLPR network using Kubernetes service names.
+The client resolves the name locally, applies the same address policy to the selected IP, and dials that IP
+directly. A changed DNS answer replaces the cached transport on the next lookup. Scoped IPv6 is unsupported. By default, outbound sync uses ordinary public unicast addresses. The default IPv6 range
 is `2000::/3`, excluding IETF special-purpose `2001::/23`, documentation `2001:db8::/32` and `3fff::/20`, and
 6to4 `2002::/16`. A node that intentionally syncs over other unicast ranges, including local or private networks,
-lists those ranges in the node-local `clpr.additionalPeerEndpointCidrs` setting. For example:
+lists those ranges in the node-local `clpr.additionalPeerEndpointCidrs` setting. In Solo, use the Service or Pod
+CIDR containing the IPs returned for the peer's DNS name. Example values follow.
 
 ```properties
 clpr.additionalPeerEndpointCidrs=127.0.0.1/32,10.0.0.0/24
@@ -203,7 +205,7 @@ clpr.additionalPeerEndpointCidrs=127.0.0.1/32,10.0.0.0/24
 The setting is empty by default and does not alter the peer's stored manifest. Choose ranges that match the
 deployment; unspecified and multicast destinations remain invalid. Endpoint validation applies to both TLS and
 plaintext clients, independently of `clpr.syncPeerExclusionEnabled`.
-On the next client lookup after this setting changes, the cache retires all existing transports before validating
+On the next client lookup after either endpoint policy setting changes, the cache retires all existing transports before validating
 the requested destination and creating a client under the new setting.
 
 ## Wiring (Dagger)

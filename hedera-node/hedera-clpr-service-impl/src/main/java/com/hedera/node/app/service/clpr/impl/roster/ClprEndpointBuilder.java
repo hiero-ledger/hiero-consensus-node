@@ -30,8 +30,8 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>CLPR {@code sync} is served on the HAPI ports. Fields:
  * <ul>
- *   <li>{@code service_endpoint.ip_address} comes from the node's first IPv4 HAPI service endpoint
- *       in address-book order.</li>
+ *   <li>{@code service_endpoint.ip_address} comes from the first eligible HAPI endpoint in address-book order.
+ *       A domain name is eligible when the network permits DNS endpoints.</li>
  *   <li>{@code service_endpoint.port} — when the node has a HAPI TLS certificate, {@code grpc.tlsPort}
  *       (the HAPI TLS listener); otherwise the node falls back to its address-book HAPI gRPC port, on
  *       which plaintext {@code sync} runs.</li>
@@ -46,9 +46,19 @@ public final class ClprEndpointBuilder {
 
     private ClprEndpointBuilder() {}
 
+    /** Builds a self-publication using the default numeric-only policy. */
+    @Nullable
+    public static ClprEndpoint buildFor(
+            final long nodeId,
+            @NonNull final ReadableNodeStore nodeStore,
+            final int tlsPort,
+            @NonNull final Bytes tlsCertificateDer) {
+        return buildFor(nodeId, nodeStore, tlsPort, tlsCertificateDer, true);
+    }
+
     /**
      * Build the {@link ClprEndpoint} for the given (self) node, or return {@code null} if the
-     * node is missing / deleted / lacks an IPv4 HAPI service endpoint. A {@code null} result
+     * node is missing / deleted / lacks an eligible HAPI service endpoint. A {@code null} result
      * means the reconciler should not attempt to publish for this node.
      *
      * @param nodeId the node whose endpoint to build (expected to be the running node)
@@ -57,20 +67,22 @@ public final class ClprEndpointBuilder {
      *     {@code tlsCertificateDer} is non-empty
      * @param tlsCertificateDer the DER-encoded HAPI TLS certificate to advertise, or empty when this
      *     node has none; the endpoint then falls back to plaintext on the address-book HAPI gRPC port
+     * @param requireNumericPeerEndpoints whether to skip domain-name endpoints
      */
     @Nullable
     public static ClprEndpoint buildFor(
             final long nodeId,
             @NonNull final ReadableNodeStore nodeStore,
             final int tlsPort,
-            @NonNull final Bytes tlsCertificateDer) {
+            @NonNull final Bytes tlsCertificateDer,
+            final boolean requireNumericPeerEndpoints) {
         requireNonNull(nodeStore);
         requireNonNull(tlsCertificateDer);
         final var node = nodeStore.get(nodeId);
         if (node == null || node.deleted()) {
             return null;
         }
-        final var hapiEndpoint = firstIpv4Endpoint(node);
+        final var hapiEndpoint = firstEndpoint(node, requireNumericPeerEndpoints);
         if (hapiEndpoint == null) {
             return null;
         }
@@ -79,7 +91,7 @@ public final class ClprEndpointBuilder {
         final int port = tlsCertificateDer.length() > 0 ? tlsPort : hapiEndpoint.port();
         return ClprEndpoint.newBuilder()
                 .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                        .ipAddress(asReadableIp(hapiEndpoint.ipAddressV4()))
+                        .ipAddress(hostOf(hapiEndpoint))
                         .port(port)
                         .build())
                 .tlsCertificate(tlsCertificateDer)
@@ -87,32 +99,44 @@ public final class ClprEndpointBuilder {
                 .build();
     }
 
+    /** Returns the advertised host under the default numeric-only policy. */
+    @Nullable
+    public static String ipAddressOf(final long nodeId, @NonNull final ReadableNodeStore nodeStore) {
+        return hostOf(nodeId, nodeStore, true);
+    }
+
     /**
-     * The IP address string this builder would advertise for {@code nodeId}, derived from the
+     * The host string this builder would advertise for {@code nodeId}, derived from the
      * address book exactly as {@link #buildFor} does, or {@code null} if the node is missing /
-     * deleted / has no IPv4 HAPI service endpoint. This is the only part of a peer's endpoint that is
+     * deleted / has no eligible HAPI service endpoint. This is the only part of a peer's endpoint that is
      * derivable from the shared address book (the HAPI TLS port and certificate are node-local), so the
      * reconciler uses it as the address-book-derivable identity for its open-construction trigger.
      */
     @Nullable
-    public static String ipAddressOf(final long nodeId, @NonNull final ReadableNodeStore nodeStore) {
+    public static String hostOf(
+            final long nodeId, @NonNull final ReadableNodeStore nodeStore, final boolean requireNumericPeerEndpoints) {
         requireNonNull(nodeStore);
         final var node = nodeStore.get(nodeId);
         if (node == null || node.deleted()) {
             return null;
         }
-        final var hapiEndpoint = firstIpv4Endpoint(node);
-        return hapiEndpoint == null ? null : asReadableIp(hapiEndpoint.ipAddressV4());
+        final var hapiEndpoint = firstEndpoint(node, requireNumericPeerEndpoints);
+        return hapiEndpoint == null ? null : hostOf(hapiEndpoint);
     }
 
     @Nullable
-    private static ServiceEndpoint firstIpv4Endpoint(@NonNull final Node node) {
+    private static ServiceEndpoint firstEndpoint(@NonNull final Node node, final boolean requireNumericPeerEndpoints) {
         for (final var endpoint : node.serviceEndpoint()) {
-            if (endpoint.ipAddressV4().length() == 4) {
+            if (endpoint.ipAddressV4().length() == 4
+                    || (!requireNumericPeerEndpoints && !endpoint.domainName().isBlank())) {
                 return endpoint;
             }
         }
         return null;
+    }
+
+    private static String hostOf(final ServiceEndpoint endpoint) {
+        return endpoint.ipAddressV4().length() == 4 ? asReadableIp(endpoint.ipAddressV4()) : endpoint.domainName();
     }
 
     /**

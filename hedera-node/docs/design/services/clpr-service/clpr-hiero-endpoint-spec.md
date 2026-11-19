@@ -237,16 +237,17 @@ When initiating a sync for a Channel, the endpoint must select a peer endpoint f
 on node restart. Entries decay over time (exponential decay with a half-life of `clpr.reputationDecaySeconds`,
 default: 300 seconds).
 
-**Outbound destinations.** CLPR endpoint addresses MUST be numeric IPv4 or IPv6 literals, without DNS names or
-IPv6 scope identifiers, and ports MUST be in `1..65535`. Before creating a client, the node validates the destination
-and passes the parsed socket address directly to the transport. Ordinary public unicast destinations are accepted
+**Outbound destinations.** By default, CLPR requires numeric IPv4 or IPv6 literals. Networks using DNS service
+discovery, including Solo, can set `clpr.requireNumericPeerEndpoints=false` on all nodes. The dialing node
+resolves the hostname and validates the selected IP before passing that numeric socket address to gRPC.
+Ports MUST be in `1..65535`, and IPv6 scope identifiers are unsupported. Ordinary public unicast destinations are accepted
 by default. For IPv6, this means `2000::/3`, excluding the IETF special-purpose range `2001::/23`, documentation
 ranges `2001:db8::/32` and `3fff::/20`, and the 6to4 range `2002::/16`.
 Deployments using other unicast ranges, including local or private networks, MUST explicitly list them in the node-local
 `clpr.additionalPeerEndpointCidrs` setting, for example `127.0.0.1/32,10.0.0.0/24`. The default is an empty set.
 Unspecified and multicast destinations remain invalid. These checks apply independently of
 `clpr.syncPeerExclusionEnabled` and do not change the peer manifest stored in consensus state.
-When the client cache observes a changed CIDR setting on its next lookup, it retires existing transports before
+When the client cache observes a changed CIDR or numeric-endpoint setting, it retires existing transports before
 validating the requested destination and creating a client under the new setting.
 
 ## 3.3 Concurrency Model
@@ -554,12 +555,14 @@ roster change events. Each node's CLPR endpoint identity is derived from:
 | `ecdsa_signing_key` | Node's ECDSA secp256k1 public key (33 bytes compressed, or 64 bytes uncompressed) |
 | `account_id`        | Node's account ID (serialized as bytes, 20 bytes for Hiero)                       |
 
-For CLPR self-publication, configure a reachable IPv4 address in the `ipAddressV4` field of a HAPI service
+For CLPR self-publication with the default settings, configure a reachable IPv4 address in the `ipAddressV4` field of a HAPI service
 endpoint in the node's address book. The publisher selects the first such entry in address-book order. It uses
 that entry's port for plaintext or `grpc.tlsPort` when the node has a HAPI TLS certificate. A node with only
-domain-name entries skips self-publication until a numeric endpoint is available.
+domain-name entries skips self-publication until a numeric endpoint is available. With
+`clpr.requireNumericPeerEndpoints=false`, the first HAPI entry with an IPv4 address or a domain name is used.
+The manifest stores the configured name verbatim. DNS resolution takes place only on the dialing node.
 
-**Migrating existing hostname publications.** Before upgrading peers that dial this ledger, put the reachable
+**Migrating existing hostname publications to numeric-only mode.** Before upgrading peers that dial this ledger, put the reachable
 IPv4 entry first so older publishers also select it. Restart with the updated address book. The reconciler
 publishes the numeric endpoint and the next finalized manifest replaces the hostname entry. Check the address
 and port with `yahcli clpr get-endpoint-manifest` and confirm existing peer channels have received the new
@@ -681,6 +684,7 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 | `clpr.reputationSuccessBonus`      | `double`      | `1.0`   | Reputation score added for a successful sync.                                                    |
 | `clpr.reputationFailurePenalty`    | `double`      | `5.0`   | Reputation score subtracted for a failed sync.                                                   |
 | `clpr.recentPeerPenaltyFactor`     | `double`      | `0.5`   | Weight multiplier for a peer selected on the previous tick.                                      |
+| `clpr.requireNumericPeerEndpoints` | `boolean` | `true` | Network-wide. Set to `false` to publish and dial DNS endpoints. |
 | `clpr.additionalPeerEndpointCidrs` | `Set<String>` | empty   | Node-local IPv4/IPv6 CIDRs for additional peer destinations, such as a local or private network. |
 
 ## 9.4 Retry Parameters

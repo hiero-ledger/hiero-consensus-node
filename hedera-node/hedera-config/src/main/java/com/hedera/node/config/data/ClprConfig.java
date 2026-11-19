@@ -60,6 +60,10 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "30000") long retryMaxDelayMs,
         @ConfigProperty(defaultValue = "5") @NetworkProperty int retryMaxAttempts,
         @ConfigProperty(defaultValue = "120") int circuitBreakerCooldownSeconds,
+        // Shared because endpoint selection also drives deterministic roster reconciliation.
+        // Disable on networks that publish service DNS names, such as Solo.
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean requireNumericPeerEndpoints,
         // Additional numeric IP ranges this node may dial for CLPR sync, such as a local test network.
         // Ordinary public unicast addresses need no entry; other unicast ranges require an IPv4 or IPv6 CIDR.
         @ConfigProperty(defaultValue = "") @NodeProperty Set<String> additionalPeerEndpointCidrs,

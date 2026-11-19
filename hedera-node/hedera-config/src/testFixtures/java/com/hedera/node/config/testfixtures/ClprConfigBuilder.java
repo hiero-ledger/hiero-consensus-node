@@ -31,6 +31,7 @@ public final class ClprConfigBuilder {
     private long retryMaxDelayMs = 30_000L;
     private int retryMaxAttempts = 5;
     private int circuitBreakerCooldownSeconds = 120;
+    private boolean requireNumericPeerEndpoints = true;
     private Set<String> additionalPeerEndpointCidrs = Set.of();
     private boolean syncPeerExclusionEnabled = false;
     private int connectorQueueQuotaPct = 50;
@@ -151,6 +152,11 @@ public final class ClprConfigBuilder {
         return this;
     }
 
+    public ClprConfigBuilder requireNumericPeerEndpoints(final boolean requireNumericPeerEndpoints) {
+        this.requireNumericPeerEndpoints = requireNumericPeerEndpoints;
+        return this;
+    }
+
     public ClprConfigBuilder additionalPeerEndpointCidrs(final Set<String> additionalPeerEndpointCidrs) {
         this.additionalPeerEndpointCidrs = Set.copyOf(additionalPeerEndpointCidrs);
         return this;
@@ -238,6 +244,7 @@ public final class ClprConfigBuilder {
                 retryMaxDelayMs,
                 retryMaxAttempts,
                 circuitBreakerCooldownSeconds,
+                requireNumericPeerEndpoints,
                 additionalPeerEndpointCidrs,
                 syncPeerExclusionEnabled,
                 connectorQueueQuotaPct,

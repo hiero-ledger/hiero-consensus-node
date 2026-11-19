@@ -135,6 +135,15 @@ class ClprPeerSelectorTest {
         }
 
         @Test
+        void dnsNameCaseVariantsShareRetryState() {
+            final var selected =
+                    requireNonNull(subject.selectEndpoint(channel(), List.of(endpoint("Peer.svc.cluster.local"))));
+            subject.recordFailure(selected.peerId());
+            assertThat(subject.selectEndpoint(channel(), List.of(endpoint("PEER.svc.cluster.local"))))
+                    .isNull();
+        }
+
+        @Test
         @DisplayName("given an endpoint without a service endpoint, then it is skipped")
         void givenEndpointWithoutServiceEndpoint_thenItIsSkipped() {
             final var malformed = PEER_1.copyBuilder()

@@ -11,6 +11,8 @@ import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.workflows.clpr.ClprEndpointClient.ClprSyncException;
 import com.hedera.node.app.workflows.clpr.ClprEndpointClientImpl.ClientException;
+import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -96,6 +98,24 @@ class ClprEndpointClientTest {
 
     @Nested
     class StreamingSync {
+
+        @Test
+        void dnsEnabledCacheSyncsWithLocalhostOverTls() throws Exception {
+            final var config = HederaTestConfigBuilder.create()
+                    .withValue("clpr.requireNumericPeerEndpoints", "false")
+                    .withValue("clpr.additionalPeerEndpointCidrs", "127.0.0.1/32,::1/128")
+                    .getOrCreateConfig();
+            final var cache = new ClprEndpointClientCache(() -> new VersionedConfigImpl(config, 1));
+            final var reply = buildStreamingSyncPayload(null, null);
+            final int port = startStreamingServer(new ClprStreamingSyncPayload[] {reply}, new CopyOnWriteArrayList<>());
+            try (final var call = cache.clientFor("localhost", port, true).sync(TIMEOUT)) {
+                call.write(buildStreamingSyncPayload(8, null));
+                call.halfClose();
+                assertThat(call.read()).isEqualTo(reply);
+            } finally {
+                cache.shutdownAll();
+            }
+        }
 
         @Test
         void rejectsResponseWithUnknownFields() throws Exception {

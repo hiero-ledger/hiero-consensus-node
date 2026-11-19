@@ -102,6 +102,36 @@ class ClprEndpointManifestReconcilerTest {
         assertThat(captor.getValue().targetNodeIds()).containsExactly(1L);
     }
 
+    @Test
+    void dnsModePublishesAndReconcilesTheAddressBookHostnameWithoutResolvingIt() {
+        final var host = "network-node1.test.svc.cluster.local";
+        stubNode(1L, endpointFor(host, 50211));
+        final var dnsConfig = ClprConfigBuilder.newBuilder()
+                .requireNumericPeerEndpoints(false)
+                .build();
+        final var endpoint = selfEndpoint(1L, host, 50211);
+        subject.openConstructionIfSelfChanged(1L, manifest(1L, List.of()), null, nodeStore, dnsConfig, NOW);
+        verify(submissions).submitEndpointPublication(endpoint);
+
+        given(manifestStore.get()).willReturn(manifest(2L, List.of(endpoint)));
+        subject.openConstructionOnRosterChange(
+                NOW, rosterOf(1L), manifestStore, constructionStore, nodeStore, dnsConfig);
+        verify(constructionStore, never()).put(any());
+    }
+
+    @Test
+    void changingDnsModeRechecksAlreadySettledPublicationInAddressBookOrder() {
+        final var host = "network-node1.test.svc.cluster.local";
+        stubNode(1L, endpointFor(host, 50000), NODE_1_HAPI);
+        final var manifest = manifest(1L, List.of(selfEndpoint(1L, "10.0.0.1", 50211)));
+        subject.openConstructionIfSelfChangedUntilSettled(1L, manifest, null, nodeStore, config, NOW);
+        final var dnsConfig = ClprConfigBuilder.newBuilder()
+                .requireNumericPeerEndpoints(false)
+                .build();
+        subject.openConstructionIfSelfChangedUntilSettled(1L, manifest, null, nodeStore, dnsConfig, NOW);
+        verify(submissions).submitEndpointPublication(selfEndpoint(1L, host, 50000));
+    }
+
     @Nested
     @DisplayName("openConstructionIfSelfChanged (startup-gated self-publication)")
     class PublishSelfIfChanged {
@@ -537,7 +567,7 @@ class ClprEndpointManifestReconcilerTest {
         return captor.getValue();
     }
 
-    /** Stub a full address-book node so {@code ClprEndpointBuilder.buildFor}/{@code ipAddressOf} work. */
+    /** Stub a full address-book node so {@code ClprEndpointBuilder.buildFor}/{@code hostOf} work. */
     private void stubNode(final long nodeId, final ServiceEndpoint... endpoints) {
         org.mockito.Mockito.lenient()
                 .when(nodeStore.get(nodeId))

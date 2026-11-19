@@ -11,14 +11,17 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.common.net.InetAddresses;
 import com.hedera.node.app.workflows.clpr.ClprEndpointClientImpl.ClientException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.ClprConfig;
 import io.grpc.ManagedChannel;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,13 +37,16 @@ class ClprEndpointClientCacheTest {
     private final ConfigProvider configProvider = mock(ConfigProvider.class);
     private final VersionedConfiguration configuration = mock(VersionedConfiguration.class);
     private final ClprConfig clprConfig = mock(ClprConfig.class);
-    private final ClprEndpointClientCache cache = new ClprEndpointClientCache(configProvider);
+    private static final String SOLO_HOST = "network-node1.test.svc.cluster.local";
+    private final ClprEndpointClientCache.HostResolver resolver = mock(ClprEndpointClientCache.HostResolver.class);
+    private final ClprEndpointClientCache cache = new ClprEndpointClientCache(configProvider, resolver);
 
     @BeforeEach
     void setUp() {
         when(configProvider.getConfiguration()).thenReturn(configuration);
         when(configuration.getConfigData(ClprConfig.class)).thenReturn(clprConfig);
         when(clprConfig.additionalPeerEndpointCidrs()).thenReturn(Set.of());
+        when(clprConfig.requireNumericPeerEndpoints()).thenReturn(true);
     }
 
     @Test
@@ -109,6 +115,46 @@ class ClprEndpointClientCacheTest {
     void rejectsUnpermittedEndpointBeforeCreatingChannel(final String host) {
         try (final var mocked = mockStatic(ClprEndpointClientImpl.class)) {
             assertThatThrownBy(() -> cache.clientFor(host, PORT, false)).isInstanceOf(ClientException.class);
+            mocked.verifyNoInteractions();
+            verifyNoInteractions(resolver);
+        }
+    }
+
+    @Test
+    void dnsPeersUseValidatedNumericAddressesAndReplaceChannelsWhenTheAddressChanges() throws Exception {
+        when(clprConfig.requireNumericPeerEndpoints()).thenReturn(false);
+        final var cidrs = Set.of("10.0.0.0/24");
+        when(clprConfig.additionalPeerEndpointCidrs()).thenReturn(cidrs);
+        final var first = ClprEndpointAddressPolicy.addressFor("10.0.0.1", PORT, cidrs);
+        final var second = ClprEndpointAddressPolicy.addressFor("10.0.0.2", PORT, cidrs);
+        when(resolver.resolve(SOLO_HOST)).thenReturn(first.getAddress(), first.getAddress(), second.getAddress());
+        final var firstChannel = mock(ManagedChannel.class);
+        final var secondChannel = mock(ManagedChannel.class);
+        try (final var mocked = mockStatic(ClprEndpointClientImpl.class)) {
+            mocked.when(() -> ClprEndpointClientImpl.newChannel(first, true)).thenReturn(firstChannel);
+            mocked.when(() -> ClprEndpointClientImpl.newChannel(second, true)).thenReturn(secondChannel);
+            final var firstClient = cache.clientFor(SOLO_HOST, PORT, true);
+            assertThat(cache.clientFor(SOLO_HOST, PORT, true)).isSameAs(firstClient);
+            assertThat(cache.clientFor(SOLO_HOST, PORT, true)).isNotSameAs(firstClient);
+            verify(firstChannel).shutdown();
+            when(clprConfig.requireNumericPeerEndpoints()).thenReturn(true);
+            assertThatThrownBy(() -> cache.clientFor(SOLO_HOST, PORT, true)).isInstanceOf(ClientException.class);
+            verify(secondChannel).shutdown();
+            verify(resolver, times(3)).resolve(SOLO_HOST);
+        }
+    }
+
+    @Test
+    void dnsFailureOrDisallowedAnswerNeverCreatesAChannel() throws Exception {
+        when(clprConfig.requireNumericPeerEndpoints()).thenReturn(false);
+        when(resolver.resolve(SOLO_HOST))
+                .thenThrow(new UnknownHostException(SOLO_HOST))
+                .thenReturn(InetAddresses.forString("10.0.0.1"));
+        try (final var mocked = mockStatic(ClprEndpointClientImpl.class)) {
+            assertThatThrownBy(() -> cache.clientFor(SOLO_HOST, PORT, false))
+                    .isInstanceOf(ClientException.class)
+                    .hasCauseInstanceOf(UnknownHostException.class);
+            assertThatThrownBy(() -> cache.clientFor(SOLO_HOST, PORT, false)).isInstanceOf(ClientException.class);
             mocked.verifyNoInteractions();
         }
     }

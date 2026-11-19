@@ -16,6 +16,19 @@ class ClprConfigTest {
     }
 
     @Test
+    void numericPeerEndpointsAreRequiredUnlessExplicitlyDisabled() {
+        assertThat(HederaTestConfigBuilder.createConfig()
+                        .getConfigData(ClprConfig.class)
+                        .requireNumericPeerEndpoints())
+                .isTrue();
+        final var solo = HederaTestConfigBuilder.create()
+                .withValue("clpr.requireNumericPeerEndpoints", "false")
+                .getOrCreateConfig()
+                .getConfigData(ClprConfig.class);
+        assertThat(solo.requireNumericPeerEndpoints()).isFalse();
+    }
+
+    @Test
     void additionalPeerEndpointCidrsAreEmptyByDefault() {
         final var config = HederaTestConfigBuilder.createConfig().getConfigData(ClprConfig.class);
 

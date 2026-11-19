@@ -123,6 +123,8 @@ public class ClprEndpointManifestReconciler {
     @Nullable
     private ClprEndpointManifest startupSettledManifest;
 
+    private boolean startupSettledRequireNumeric;
+
     @Inject
     public ClprEndpointManifestReconciler(
             @NonNull final Provider<ClprSubmissions> submissions,
@@ -203,7 +205,7 @@ public class ClprEndpointManifestReconciler {
         requireNonNull(nodeStore);
         requireNonNull(config);
         requireNonNull(now);
-        final var selfEndpoint = selfEndpoint(selfNodeId, nodeStore);
+        final var selfEndpoint = selfEndpoint(selfNodeId, nodeStore, config);
         if (selfEndpoint == null) {
             return SelfPublishOutcome.PENDING; // no address-book service endpoint yet — retry next round
         }
@@ -238,9 +240,11 @@ public class ClprEndpointManifestReconciler {
             @NonNull final ReadableNodeStore nodeStore,
             @NonNull final ClprConfig config,
             @NonNull final Instant now) {
-        if (manifest.equals(startupSettledManifest)) {
+        if (manifest.equals(startupSettledManifest)
+                && config.requireNumericPeerEndpoints() == startupSettledRequireNumeric) {
             return;
         }
+        startupSettledRequireNumeric = config.requireNumericPeerEndpoints();
         startupSettledManifest =
                 openConstructionIfSelfChanged(selfNodeId, manifest, construction, nodeStore, config, now)
                                 == SelfPublishOutcome.SETTLED
@@ -290,7 +294,7 @@ public class ClprEndpointManifestReconciler {
         if (now.isBefore(nextContributingPublicationAttempt)) {
             return; // submitted recently; wait out the retry backoff before re-attempting
         }
-        final var selfEndpoint = selfEndpoint(selfNodeId, nodeStore);
+        final var selfEndpoint = selfEndpoint(selfNodeId, nodeStore, config);
         if (selfEndpoint == null) {
             return; // no derivable service endpoint yet — retry next round (no attempt recorded)
         }
@@ -339,7 +343,7 @@ public class ClprEndpointManifestReconciler {
         requireNonNull(nodeStore);
         requireNonNull(config);
         final var manifest = manifestStore.get();
-        if (!compositionDiffers(manifest, activeRoster, nodeStore)) {
+        if (!compositionDiffers(manifest, activeRoster, nodeStore, config.requireNumericPeerEndpoints())) {
             // Roster composition unchanged — nothing to prune or add. Any in-flight construction already targets
             // the current roster, so leave it alone.
             return;
@@ -371,38 +375,45 @@ public class ClprEndpointManifestReconciler {
     }
 
     /**
-     * True when the active roster's IP <em>multiset</em> differs from the manifest's — a node was added or
-     * removed. Uses per-IP counts rather than a set so adding or removing one of several nodes that share an IP
+     * True when the active roster's advertised host <em>multiset</em> differs from the manifest's — a node was added or
+     * removed. Uses per-host counts rather than a set so adding or removing one of several nodes that share an IP
      * (e.g. subprocess nodes on {@code 127.0.0.1}) is still detected; a set would collapse them and let a stale
      * endpoint survive. Content-only changes (cert/port, same IP) do not diff here; those are covered by
-     * self-publication. IP is the only endpoint field derivable from the shared address book for every node, so it
+     * self-publication. The host is the only endpoint field derivable from the shared address book for every node, so it
      * is the composition key (account-id-free).
      */
     private static boolean compositionDiffers(
             @NonNull final ClprEndpointManifest manifest,
             @NonNull final Roster activeRoster,
-            @NonNull final ReadableNodeStore nodeStore) {
-        final Map<String, Integer> manifestIpCounts = new HashMap<>();
+            @NonNull final ReadableNodeStore nodeStore,
+            final boolean requireNumericPeerEndpoints) {
+        final Map<String, Integer> manifestHostCounts = new HashMap<>();
         for (final var endpoint : manifest.endpoints()) {
             final var svc = endpoint.serviceEndpoint();
             if (svc != null && svc.ipAddress() != null && !svc.ipAddress().isEmpty()) {
-                manifestIpCounts.merge(svc.ipAddress(), 1, Integer::sum);
+                manifestHostCounts.merge(svc.ipAddress(), 1, Integer::sum);
             }
         }
-        final Map<String, Integer> rosterIpCounts = new HashMap<>();
+        final Map<String, Integer> rosterHostCounts = new HashMap<>();
         for (final var entry : activeRoster.rosterEntries()) {
-            final String ip = ClprEndpointBuilder.ipAddressOf(entry.nodeId(), nodeStore);
-            if (ip != null) {
-                rosterIpCounts.merge(ip, 1, Integer::sum);
+            final String host = ClprEndpointBuilder.hostOf(entry.nodeId(), nodeStore, requireNumericPeerEndpoints);
+            if (host != null) {
+                rosterHostCounts.merge(host, 1, Integer::sum);
             }
         }
-        return !manifestIpCounts.equals(rosterIpCounts);
+        return !manifestHostCounts.equals(rosterHostCounts);
     }
 
     @Nullable
-    private ClprEndpoint selfEndpoint(final long selfNodeId, @NonNull final ReadableNodeStore nodeStore) {
+    private ClprEndpoint selfEndpoint(
+            final long selfNodeId, @NonNull final ReadableNodeStore nodeStore, @NonNull final ClprConfig config) {
         final var tlsEndpoint = hapiTlsEndpoint.get();
-        return ClprEndpointBuilder.buildFor(selfNodeId, nodeStore, tlsEndpoint.port(), tlsEndpoint.certificateDer());
+        return ClprEndpointBuilder.buildFor(
+                selfNodeId,
+                nodeStore,
+                tlsEndpoint.port(),
+                tlsEndpoint.certificateDer(),
+                config.requireNumericPeerEndpoints());
     }
 
     /**

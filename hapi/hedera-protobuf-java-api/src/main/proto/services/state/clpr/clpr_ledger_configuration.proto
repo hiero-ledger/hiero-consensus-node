@@ -155,7 +155,7 @@ message ClprEndpoint {
  */
 message ClprServiceEndpoint {
     /**
-     * IPv4 or IPv6 numeric address (no DNS hostnames).
+     * IPv4 or IPv6 numeric address, or a DNS hostname on networks that permit DNS endpoints.
      */
     string ip_address = 1;
 
