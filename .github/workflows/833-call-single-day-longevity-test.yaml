@@ -637,6 +637,7 @@ jobs:
           task solo:relay
 
       - name: Add Explorer
+        if: false
         run: |
           set +x
           set +e
