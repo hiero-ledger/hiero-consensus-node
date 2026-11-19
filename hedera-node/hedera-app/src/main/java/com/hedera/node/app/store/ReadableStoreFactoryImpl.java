@@ -174,9 +174,7 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
                 ReadableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states)));
         // CLPR service
-        newMap.put(
-                ReadableChannelStore.class,
-                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new ReadableChannelStoreImpl(states)));
+        newMap.put(ReadableChannelStore.class, new StoreEntry(ClprService.NAME, ReadableChannelStoreImpl::new));
         newMap.put(
                 ReadableLedgerConfigurationStore.class,
                 new StoreEntry(
@@ -190,9 +188,7 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
                 ReadableMessageQueueStore.class,
                 new StoreEntry(
                         ClprService.NAME, (states, entityCounters) -> new ReadableMessageQueueStoreImpl(states)));
-        newMap.put(
-                ReadableConnectorStore.class,
-                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new ReadableConnectorStoreImpl(states)));
+        newMap.put(ReadableConnectorStore.class, new StoreEntry(ClprService.NAME, ReadableConnectorStoreImpl::new));
         return Collections.unmodifiableMap(newMap);
     }
 

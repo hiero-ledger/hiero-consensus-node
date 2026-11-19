@@ -83,6 +83,8 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
             case EVM_HOOK_STORAGE ->
                 newEntityCounts.numEvmHookStorageSlots(entityCounts.numEvmHookStorageSlots() + delta);
             case REGISTERED_NODE -> newEntityCounts.numRegisteredNodes(entityCounts.numRegisteredNodes() + delta);
+            case CLPR_CHANNEL -> newEntityCounts.numClprChannels(entityCounts.numClprChannels() + delta);
+            case CLPR_CONNECTOR -> newEntityCounts.numClprConnectors(entityCounts.numClprConnectors() + delta);
         }
         entityCountsState.put(newEntityCounts.build());
     }

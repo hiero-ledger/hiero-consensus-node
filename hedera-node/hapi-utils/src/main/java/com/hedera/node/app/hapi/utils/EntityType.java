@@ -21,4 +21,6 @@ public enum EntityType {
     HOOK,
     EVM_HOOK_STORAGE,
     REGISTERED_NODE,
+    CLPR_CHANNEL,
+    CLPR_CONNECTOR,
 }

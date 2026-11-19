@@ -83,4 +83,12 @@ message EntityCounts {
    * The number of registered nodes in the network.
    */
   uint64 num_registered_nodes = 16;
+  /**
+   * The number of CLPR channels in the network.
+   */
+  uint64 num_clpr_channels = 17;
+  /**
+   * The number of CLPR connectors in the network.
+   */
+  uint64 num_clpr_connectors = 18;
 }
