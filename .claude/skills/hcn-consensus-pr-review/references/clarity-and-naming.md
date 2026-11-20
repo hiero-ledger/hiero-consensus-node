@@ -162,7 +162,11 @@ javadoc lint excludes missing comments.
 - null handling
 - the reason for a choice that isn't obvious
 
-**Not a finding:** malformed javadoc (broken `@param`, links or HTML). The build already fails on it.
+**Not a finding:**
+
+- malformed javadoc (broken `@param`, links or HTML). The build already fails on it.
+- an override with no javadoc, or with `{@inheritDoc}` alone, when it does what the interface says. Whether to repeat
+  the interface's javadoc is a preference (#11969).
 
 ### 6. Javadoc style
 
@@ -220,6 +224,8 @@ and `last` for the latencies of the first and last quarters (#28195).
 
 - a literal with a specific meaning has no named constant or explanation (#27834, #27959)
 - a single-letter name is used outside a short loop (#27789)
+- a name would be clearer in full, but the team already uses the short form. Example: #22720, `Pcli` rather than
+  `PlatformCli`: "everybody refers to the tool as pcli". Check how the team refers to it before suggesting a rename.
 
 ### 10. PR description
 
@@ -251,6 +257,13 @@ If there is no description yet, ask the author for a draft and check that.
 
 **Human docs** get topics 1–4 and 8. This includes the consensus-layer KB (`platform-sdk/docs/consensus-layer/`).
 Exception: the KB's `CLAUDE.md` and `FORMAT.md` files are agent instructions.
+
+**Also a finding in human docs:**
+
+- words AI tools use in senses engineers don't, such as "shape", "surface", "canonical" or "manual-first". Examples:
+  #25747 ("Weird use of the word 'shape'"), #25749 ("There it is again").
+- an issue number wrapped to the start of a line. Spotless turns `#NNNN` there into `# NNNN`, which Markdown renders
+  as a heading. Example: #26444, "Is this from Spotless or Claude?"
 
 **AI docs** are exempt from this file. They are:
 

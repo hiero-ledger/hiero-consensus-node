@@ -16,6 +16,17 @@ The build enforces only part of them:
 - **Not enforced:** the rules about which module categories may depend on which (rules 1–4, 6, 7). No build check or
   architecture test covers them. Report every violation.
 
+There is no exception for a module being extracted or split. Reviewers deferred these violations while the rules were
+new (#22965); that no longer applies.
+
+## Code conventions
+
+Check new and changed code against the [code conventions](/platform-sdk/CLAUDE.md#code-conventions) in
+`platform-sdk/CLAUDE.md`. Don't copy them here. A break is a structure finding. Missing nullity annotations are a
+finding only in production code (`src/main`).
+
+**Example:** #19055. "We try to avoid `var` in the consensus code." Fixed.
+
 ## Topics
 
 Each topic gives the rule, when it is a finding, and when it isn't. The examples come from past reviews.
@@ -65,6 +76,14 @@ whether it should be extended to cover the new use.
 
 **Not a finding:** a suspicion of duplication with no existing code to point to.
 
+**Check before reporting.** Authors rejected reuse findings in these cases, and were right:
+
+- Sharing the code would move logic that belongs to one module into a common place. Example: #23247, a constant used
+  only by the benchmark service and its log parser.
+- The original brings a dependency the new code can't take. Example: #15562, `TestConfigBuilder` depends on
+  `ConfigurationHolder`.
+- The original can't be reached from the new code's module or source set without breaking the module rules.
+
 **Examples:**
 
 - #27936: a separate list of nodes, when `topology().allNodes()` already returns them.
@@ -101,6 +120,13 @@ The first part is a judgment call. Use the cold reader from
 **Rule:** no configuration, modes, methods or abstractions without a current use. Add them when something needs them.
 
 **Finding when:** the PR adds one of these and nothing in the codebase or the PR uses it.
+
+**Not a finding:**
+
+- The PR description, the linked issue or a later PR in the stack names the use, or the class exists to offer a
+  complete set of operations. Example: #12556, unused methods on `PlatformComponentBuilder`, kept on purpose.
+- A flag that turns a new production behaviour off, kept for release safety ([correctness.md](correctness.md), topic
+  9). Example: #21967, "a release delay safety precaution, just in case this causes any overhead".
 
 **Examples:**
 
@@ -171,7 +197,8 @@ test certificate authority.
 - A new record has an array component.
 
 **Strong preference, not a rule:** new passive data types are records rather than classes with getters. A new class
-that only holds data gets a suggestion to make it a record, not a finding.
+that only holds data gets a suggestion to make it a record, not a finding. Suggest it only when every field is final and
+the class hides nothing a record would expose. Authors declined it otherwise (#10236, #20323).
 
 **Not a finding:** a record that holds a collection without copying it. Existing code doesn't copy either.
 
@@ -232,7 +259,23 @@ only `countHeldOnLink` as a naming nit. The pattern behind it:
   instead of enforcing it.
 - `countHeldOnLink` is `void`, but named like a count.
 
-### 12. What isn't a finding
+### 12. Changes the purpose doesn't explain
+
+**Rule:** every hunk in the diff serves the purpose from step 2 of the skill, or the description mentions it.
+
+**Finding when** a hunk does neither, including:
+
+- debug leftovers: a pinned seed, a test size or iteration count lowered, a log level raised, a print statement,
+  commented-out code, a TODO with no ticket
+- a change the author probably didn't mean to make, such as a merge that reverts a recent change on `main`
+- an unrelated refactor or reformat mixed into a behaviour change
+
+Say what the hunk changes and that nothing in the PR explains it. Authors fix these almost every time.
+
+**Example:** #18506, a test's event count lowered to 10. "I changed the values during debugging and forgot to change
+them back."
+
+### 13. What isn't a finding
 
 **Reviewer mode:** every structure finding names a concrete cost:
 

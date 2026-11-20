@@ -72,13 +72,46 @@ related invariants, show which code that is.
 
 **Blocking finding when** that code gains a possible source of nondeterminism:
 
-- iteration over a `HashMap`, `HashSet` or other collection with no defined order, where the order affects the result
+- iteration over a `HashMap`, `HashSet` or other collection with no defined order, where the order affects the result.
+  This includes serialization and hashing. Example: #10428, where serializing the entries of a map "is not guaranteed
+  to produce a deterministic byte ordering", so the hash wasn't either.
 - the wall clock, or anything else local to the node
+- a value each node computes for itself, such as an event's sequence number or `nGen`, used where nodes must agree.
+  Example: #18882, "ngen is not deterministic, this would cause an ISS."
 - unseeded or node-local randomness
 - floating-point arithmetic in a computed result
 - a result that depends on thread timing
 
 Name the source and the result it can affect.
+
+### Simulated runs
+
+Turtle and Falcon runs must be reproducible from their seed. A change that breaks this is a correctness finding in a
+test fixture ([correctness.md](correctness.md#impact)): it can make a test fail in a way no one can replay.
+
+**Finding when** code that runs in a simulated environment:
+
+- uses `SecureRandom`, an unseeded `Random`, or a seed that isn't derived from the test's seed. Example: #21830, "this
+  will make the test non-deterministic, even when executed on Turtle."
+- gives nodes their seeds in an order that isn't defined. Example: #13354, nodes built from a set in iteration order,
+  so "they will get different starting seeds".
+- reads the wall clock (`Instant.now()`, `System.currentTimeMillis()`, `System.nanoTime()`) instead of the injected
+  `Time`. Example: #21967, where pipeline metrics mixed `System.nanoTime()`, `Instant.now()` and platform time.
+
+## Data from peers
+
+Events, sync messages, states and signatures received from another node can be wrong or hostile.
+
+**Blocking finding when** the change uses data from a peer before it is validated, or removes or weakens a validation
+step, and the PR doesn't explain why the check is no longer needed. Name the data, the check, and what a faulty peer
+could do with it.
+
+**Examples:**
+
+- #22327: a state received during reconnect was handed to the state lifecycle manager before its signatures were
+  verified. A malicious teacher could have made the node use a wrong state. The author restored the order.
+- #22064: a PR removed the signature length check from the internal event validator. The reviewer asked for a bound on
+  the length instead.
 
 ## The KB going out of date
 
@@ -107,7 +140,10 @@ Read them first; don't restate them here:
 - a fact copied into a second place instead of linked
 - a new entry without its `README.md` index row, or a row without its entry
 - a behavioural claim with no anchor to code, or an anchor that points at a line number instead of a symbol
-- `last_reviewed` changed by hand. Only the freshness checker writes it.
+- `last_reviewed` changed by hand, or by an AI tool while editing. Only the freshness checker writes it. Example:
+  #26444, where Claude updated it "even after I told it to strictly adhere to the rules".
+- a property called an invariant, or a claim called proved, with no source that establishes it. Example: #25966, "I
+  thought this was not yet proved and is still a theorem."
 - a `status` change not made in the entry, its index row, and related fields together
 - future-state design written as current behaviour
 - a structural change (new catalog, new ID prefix) without the matching `LAYOUT.md` update

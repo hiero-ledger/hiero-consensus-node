@@ -62,6 +62,14 @@ says what to decide.
 | Should a glossary concept use its glossary name? (topic 8) | Yes | Yes |
 | Should a literal be named, or a single-letter name expanded? (topic 9) | Yes | Yes |
 | Would a shorter PR description help? (topic 10) | No: a finding | Yes |
+| Should a short name the team already uses be expanded? (topic 9) | Yes | Yes |
+| Should a risky change go behind a flag? ([correctness.md](correctness.md), topic 9) | Yes | Yes |
+| How was a runtime change verified beyond unit tests? (topic 9) | Yes | Yes |
+| Who outside the code depends on a renamed or removed marker, metric, config key or file? (topic 9) | Yes | Yes |
+| Does the fix treat the symptom rather than the cause? (topic 9) | Yes | Yes |
+| Does a bug fix or new branch need a test? (topic 8) | Yes | Yes |
+| Should the wiring diagram before and after be shown? (topic 6) | Yes | Yes |
+| Is the cost of per-event or per-round code worth reducing? (topic 10) | Yes | Yes |
 
 ## Author mode
 
@@ -78,7 +86,7 @@ In this order:
 8. **PR description**
 9. **Questions**
 10. **Optional suggestions:** structure suggestions with no named cost
-    ([structure.md](structure.md), topic 12), and data classes that could be records (topic 9).
+    ([structure.md](structure.md), topic 13), and data classes that could be records (topic 9).
 11. **Approval block**
 12. **Follow-up block**
 

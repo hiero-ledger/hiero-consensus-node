@@ -23,7 +23,8 @@ they can depend on. Adding a module, a dependency or an export isn't significant
 
 - changes behaviour that a KB invariant, rule or ADR describes
 - changes a wire format, serialization or state
-- changes a config default
+- changes a production config default that affects consensus or safety. Defaults that only tune performance, and
+  defaults of test tooling, don't count.
 - removes a feature
 - changes the behaviour of shared test infrastructure (Turtle, Otter, Falcon, the simulated network) that other tests
   rely on

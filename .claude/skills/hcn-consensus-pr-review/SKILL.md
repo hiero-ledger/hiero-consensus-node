@@ -29,9 +29,9 @@ Read these before reviewing. Each decides what is a finding, a question, or neit
 | [design-first.md](references/design-first.md) | changes the team should agree on before code is written |
 | [pr-size.md](references/pr-size.md) | how large a PR is, and whether it should be split |
 | [clarity-and-naming.md](references/clarity-and-naming.md) | the two readers, javadoc, comments, names, terminology, PR description, Markdown docs |
-| [structure.md](references/structure.md) | ownership, config, reuse, API surface, generality, layering, leftovers, records, code a reader has to simulate |
-| [correctness.md](references/correctness.md) | impact and severity, error paths, resources, concurrency, behaviour changes, tests, release risk |
-| [consensus.md](references/consensus.md) | KB invariants, rules, ADRs, scenarios, determinism, KB drift |
+| [structure.md](references/structure.md) | module rules, code conventions, ownership, config, reuse, API surface, generality, layering, leftovers, records, code a reader has to simulate, unexplained changes |
+| [correctness.md](references/correctness.md) | impact and severity, error paths, hidden failures, resources, concurrency, behaviour changes, wiring, logging, tests, release risk and verification, performance |
+| [consensus.md](references/consensus.md) | KB invariants, rules, ADRs, scenarios, determinism, data from peers, KB drift and KB edits |
 | [not-findings.md](references/not-findings.md) | what the build catches, scope, unverified claims, preference |
 | [output.md](references/output.md) | severity, questions, report layout, approval and follow-up blocks |
 

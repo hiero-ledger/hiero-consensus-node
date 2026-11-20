@@ -50,7 +50,22 @@ extra duplicates, no test measures recovery speed, and the old code had the same
 - a `catch` is narrower than what the javadoc promises. Example: #27835 caught `RuntimeException` where the javadoc
   promised cleanup on any failure, so an `Error` leaked the copy.
 
-## 2. Resource ownership and lifetime
+## 2. Hidden failures
+
+**Rule:** a failure is visible where it happens. A state that "can't happen" throws.
+
+**Finding when:**
+
+- an exception is caught and dropped, or rethrown without its cause. Example: #12366, "This may be extremely difficult
+  to debug."
+- a null check or an early `return` skips a state the code assumes can't happen, instead of throwing
+- a test fixture logs, or returns null or a default, where it should fail the test. Examples: #20250, #21422 ("This
+  should fail the test IMO").
+- a no-op implementation hides a misconfiguration: a call that should have an effect is silently ignored (#11398)
+- an exception is turned into a log message at a lower level than the failure deserves. Example: #14694, "Why was this
+  downgraded from an exception to a warning?"
+
+## 3. Resource ownership and lifetime
 
 **Rule:** whoever creates a resource closes it, unless ownership is explicitly handed over and the javadoc says so.
 
@@ -61,8 +76,17 @@ extra duplicates, no test measures recovery speed, and the old code had the same
 - a reserved or reference-counted object can still be used after release, or is never released. For signed states, see
   [RUL-001](/platform-sdk/docs/consensus-layer/rules/RUL-001-signed-state-reservations.md); that rule is checked through
   [consensus.md](consensus.md).
+- a reservation that used try-with-resources is changed to an explicit `release()`, and the PR doesn't say why. Example:
+  #22882: "Before the try-with-resources method, we had a lot of very difficult to find state reference leaks."
+- an explicit `release()` has no comment saying where the matching reservation was taken
 
-## 3. Concurrency
+## 4. Concurrency
+
+**First, check how the code is run.** A component driven by the wiring framework runs on the thread its scheduler gives
+it. A sequential or direct scheduler never runs it on two threads at once, so its fields need no synchronization. Read
+the component's scheduler type before reporting a race. About 85% of the race findings on wiring components were
+rejected for this reason. Examples: #13457 (a direct scheduler called from a sequential one), #18937 ("Generally our
+components don't have to worry about concurrency, this is by design").
 
 **Finding when:**
 
@@ -72,7 +96,8 @@ extra duplicates, no test measures recovery speed, and the old code had the same
 - an operation that must always be able to run, such as `cancel()` or `close()`, waits on a lock held during long work
 - after `close()`, a method can still accept work or spin forever. Examples: #28095, where `supply()` could be accepted
   after `close()`, and `hasNext()` could spin and ignore interrupts.
-- an interrupt is swallowed without restoring the interrupt flag or ending the work
+- an interrupt is swallowed without restoring the interrupt flag or ending the work. Catching `InterruptedException`
+  clears the flag; it doesn't survive the `catch`. In #18051 the author believed it did.
 - one field is guarded in two different ways, such as `synchronized` plus `volatile` (#27736), with no comment saying
   why
 
@@ -80,7 +105,7 @@ extra duplicates, no test measures recovery speed, and the old code had the same
 waiting threads are served (#28081). Missing javadoc in general is covered by
 [clarity-and-naming.md](clarity-and-naming.md).
 
-## 4. Behaviour changes
+## 5. Behaviour changes
 
 **Finding when:**
 
@@ -91,7 +116,60 @@ waiting threads are served (#28081). Missing javadoc in general is covered by
 - a config value allowed by its validation annotation turns off a safety mechanism. Example: #28042, where
   `flushInterval=0` passed `@Min(0)` and removed all backpressure.
 
-## 5. Tests that can pass for the wrong reason
+**Behaviour lost in a refactor, move or rewrite.** When a PR moves, splits or rewrites code, compare the new code with
+the old, statement by statement. These are real bugs, and reviewers found them by reading the old code next to the new.
+
+**Finding when** the old code did something the new code no longer does, and the PR doesn't say so:
+
+- a `synchronized`, lock or `volatile` dropped. Example: #12502, "Did you intentionally remove `synchronized` here?" —
+  "This was an oversight."
+- a lifecycle call no longer made. Example: #11950, where the `recycleBin` was no longer started.
+- a default, constant or offset changed. Examples: #22297 and #21668, where the `+ 1` on the round a roster applies
+  from was dropped or misplaced.
+- a rewrite of consensus logic that doesn't match the old code expression by expression. Example: #22877, "The original
+  code called `firstSee` on the other parent, not the `candidate`" — "GREAT CATCH".
+
+**Other paths not updated.** When a PR changes one path, look for its siblings: other branches of the same `switch` or
+`if`, builders, copy constructors, serialization, test generators, and the other implementations of an interface.
+
+**Finding when:**
+
+- a sibling path needs the same change and didn't get it. Examples: #11825, a class-ID check applied in one branch
+  only; #12744, a running hash not set in the recovery path.
+- copied code still names what it was copied from. Example: #25292, a message naming a `tag` that doesn't exist.
+
+## 6. Wiring
+
+Applies to code that builds or changes the wiring between components.
+
+**Finding when:**
+
+- a component is created twice, so one copy never gets the inputs the other gets. Example: #26134, "the one
+  instantiated in the module never is informed about reconnect states or states loaded from disk." — "Wow, impressive!"
+- a component, or an input or output, is created but never wired. Example: #23455, "I don't see any code wiring this
+  to the nexus."
+- a wire is bound to the wrong method or input, or a component is given the wrong scheduler type, so the wiring diagram
+  shows something that isn't true (#22591)
+- a component calls another directly instead of through a wire, so the wiring model no longer shows the data flow
+
+**Question when** a PR changes the wiring and doesn't show the diagram before and after. The change can't be checked
+from the diff alone.
+
+## 7. Logging
+
+Applies to production code. Log levels and messages in test fixtures and tooling are the author's call: questions
+about them were rejected every time (#20228).
+
+**Finding when:**
+
+- a message is logged with a marker or level that is off in production, so it is never seen. Examples: #12265 ("logs
+  unfortunately won't make it to the file without markers"), #21617.
+- placeholder arguments are in the wrong order (#10057)
+- a message is false on some path. Example: #16025 logged "completed migration" when the migration had failed.
+- an exception message about a mismatch doesn't give the expected and the found values (#16917)
+- a message on a path that can repeat quickly, such as an error loop, has no rate limit (#12635)
+
+## 8. Tests
 
 **Finding when a test:**
 
@@ -104,11 +182,43 @@ waiting threads are served (#28081). Missing javadoc in general is covered by
 - claims an environment it doesn't require. Example: #27790, a test named for Turtle that also ran in the container
   environment, where its assertions failed. Otter tests state what they need with `Capability`.
 
-**Not a finding:** missing tests in general. Test coverage is the reviewer's call.
+**Finding when** a test is deleted, or is left behind when the code it tests moves, and nothing replaces it. Authors
+restored the test every time. Examples: #26042 ("I am uncomfortable deleting this test without a replacement"),
+#11811, #25726.
 
-## 6. Release risk
+**Question when:**
 
-**Question when** a change to production behaviour is risky and can't easily be turned off. Ask whether it should go
-behind a feature flag until it has passed performance and longevity testing. Example: #27835, where reconnect's early
-state copy went behind `reconnect.copyLearnerStateEarly`, off by default, so the release team could reduce the risk of
-the release.
+- a bug fix has no test that fails without the fix. Example: #19287, "there should be a new test that … should fail with
+  the previous" code.
+- a new public class, or a new branch in existing logic, has no test. Examples: #22369, #15519.
+
+Authors added the test about 80% of the time.
+
+**Not a finding:** test coverage in general. It is the reviewer's call.
+
+## 9. Release risk and verification
+
+Questions for the author. None of them is a finding.
+
+**Ask whether a change should go behind a flag** when a change to production behaviour is risky and can't easily be
+turned off, until it has passed performance and longevity testing. Example: #27835, where reconnect's early state copy
+went behind `reconnect.copyLearnerStateEarly`, off by default, so the release team could reduce the risk of the release.
+
+**Ask how a runtime change was verified** when unit tests can't show it works: startup, upgrade, loading a state saved
+by the previous version, performance, or behaviour over a long run. Ask which Otter test, performance run or manual run
+showed it. Upgrade with real tooling is covered by the one remaining JRS test; everything else by Otter tests.
+
+**Ask who outside the code depends on what changed** when the PR renames or removes a log marker or message, a metric
+name, a config key, or a file written to disk. Operators, dashboards and devops pipelines may read them. First check
+whether the item is meant for anyone outside the code: in #26134 the author pushed back, because those config keys
+"should never be overridden by users".
+
+**Ask whether the fix treats the symptom** when a fix makes a failure stop without explaining what caused it. Ask for
+the cause, or a ticket to find it, and that the PR doesn't close the original issue. Example: #22297, where a reviewer
+asked how a test still passed after an incorrect change; the author reverted it and opened #22318 to find out.
+
+## 10. Performance
+
+**Question, never a finding,** and only for code that runs per event, per transaction or per round. Name the cost: an
+allocation, a copy, a lookup, a lock. Elsewhere, performance suggestions were rejected as premature optimization
+(#13231).

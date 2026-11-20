@@ -129,3 +129,15 @@ obviously contains no bugs, not code that contains no obvious bugs (C. A. R. Hoa
   code, not to keep the comment.
 - Before finishing, reread each block you wrote and ask: can a reader see this is correct without simulating anything
   else?
+
+## Code conventions
+
+Team conventions that no build check enforces.
+
+- **Nullity:** annotate every parameter, return value and field of a reference type with `@NonNull` or `@Nullable`
+  from `edu.umd.cs.findbugs.annotations`. Tests and test fixtures may be less strict.
+- **`var`:** don't use it in consensus-layer code. Write the type.
+- **No execution-layer names:** platform code doesn't name Hedera or HAPI concepts. The consensus layer doesn't know
+  about the execution layer.
+- **Tests:** new tests use AssertJ. Otter tests use timeouts of at least 2 minutes, because CI machines vary in speed.
+- **JMH benchmarks:** pass every result to a `Blackhole`, so the JIT can't remove the work being measured.

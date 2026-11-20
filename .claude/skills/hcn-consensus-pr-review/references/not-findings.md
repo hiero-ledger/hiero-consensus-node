@@ -36,6 +36,15 @@ Problems in code the PR doesn't change are not findings. Exceptions, where the s
 - existing javadoc on code whose body the PR changed ([clarity-and-naming.md](clarity-and-naming.md), topic 4)
 - KB statements and references the PR makes false ([consensus.md](consensus.md))
 
+## Scope of the PR
+
+- **Code due to be deleted:** improvements to code that the PR, the linked issue or the KB says will be removed.
+  Example: #25794, "If the code were not slated to be deleted, I would agree."
+- **A pure move:** logic changes in a PR that only moves or renames code. Suggest a follow-up issue instead. Example:
+  #26112, "I'd rather avoid changing the logic in this PR", with an issue opened.
+- **Boxed parameters on wiring inputs:** a `@NonNull Long` or other boxed type on a method bound to a wire. The wiring
+  framework doesn't support primitive parameters (#23484).
+
 ## Unverified claims
 
 Drop a finding when:
@@ -51,4 +60,4 @@ If the concern is real but can't be verified, raise it as a question that says w
 ## Preference
 
 "I would have done it differently" isn't a finding unless it names a concrete cost. See [structure.md](structure.md),
-topic 12. Author mode shows these as optional suggestions; reviewer mode drops them.
+topic 13. Author mode shows these as optional suggestions; reviewer mode drops them.
