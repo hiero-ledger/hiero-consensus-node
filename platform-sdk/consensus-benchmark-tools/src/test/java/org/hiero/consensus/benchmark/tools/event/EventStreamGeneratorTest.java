@@ -20,12 +20,12 @@ import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
@@ -78,8 +78,9 @@ class EventStreamGeneratorTest {
             assertThat(event.getBirthRound()).isEqualTo(EventStreamGenerator.BIRTH_ROUND);
             assertThat(event.getAllParents())
                     .allSatisfy(parent -> assertThat(parent.birthRound()).isLessThanOrEqualTo(event.getBirthRound()));
-            assertThat(event.getTransactions()).hasSize(3).allSatisfy(transaction -> assertThat(transaction.getSize())
-                    .isEqualTo(445));
+            assertThat(event.getTransactions())
+                    .hasSize(3)
+                    .allSatisfy(transaction -> assertThat(transaction.getSize()).isEqualTo(445));
             assertThat(event.getHash()).isNotNull();
             assertThat(event.getOrigin()).isEqualTo(EventOrigin.RUNTIME);
         }
@@ -192,8 +193,9 @@ class EventStreamGeneratorTest {
     void unsignedEventsHaveRandomSignaturesOfRsaLength() {
         final List<PlatformEvent> events = EventStreamGenerator.generateUnsignedEvents(MIXED, ROSTER, COUNT, SEED);
 
-        assertThat(events).allSatisfy(event -> assertThat(event.getSignature().length())
-                .isEqualTo(SignatureType.RSA.signatureLength()));
+        assertThat(events)
+                .allSatisfy(event ->
+                        assertThat(event.getSignature().length()).isEqualTo(SignatureType.RSA.signatureLength()));
         assertThat(events.stream().map(PlatformEvent::getSignature).distinct()).hasSize(COUNT);
     }
 

@@ -13,7 +13,7 @@ import java.util.List;
 import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.roster.ServiceEndpointWrapper;

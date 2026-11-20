@@ -6,6 +6,7 @@ module org.hiero.consensus.gui {
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
     requires com.swirlds.base;

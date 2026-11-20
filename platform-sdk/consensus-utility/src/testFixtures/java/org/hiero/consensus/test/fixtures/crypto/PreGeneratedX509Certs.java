@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import org.hiero.base.io.ResourceNotFoundException;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A utility class for generating and retrieving pre-generated X.509 certificates for testing purposes.

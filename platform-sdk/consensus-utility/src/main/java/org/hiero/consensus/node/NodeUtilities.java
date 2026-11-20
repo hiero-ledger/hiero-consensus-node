@@ -2,7 +2,7 @@
 package org.hiero.consensus.node;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A utility class to help with node-related operations.

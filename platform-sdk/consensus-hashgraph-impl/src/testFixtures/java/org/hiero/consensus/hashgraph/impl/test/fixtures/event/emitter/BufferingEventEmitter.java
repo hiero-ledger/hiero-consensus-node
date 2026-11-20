@@ -8,9 +8,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**

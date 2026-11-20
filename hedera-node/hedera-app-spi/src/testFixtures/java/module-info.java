@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.node.app.spi.test.fixtures {
-    exports com.hedera.node.app.spi.fixtures;
     exports com.hedera.node.app.spi.fixtures.fees;
     exports com.hedera.node.app.spi.fixtures.ids;
     exports com.hedera.node.app.spi.fixtures.info;
     exports com.hedera.node.app.spi.fixtures.util;
     exports com.hedera.node.app.spi.fixtures.workflows;
+    exports com.hedera.node.app.spi.fixtures;
 
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.token; // TMP until FakePreHandleContext can be removed
@@ -21,6 +21,7 @@ module com.hedera.node.app.spi.test.fixtures {
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.token.impl;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.main.model;
     requires org.hiero.consensus.model;
     requires com.google.common;
     requires org.apache.logging.log4j.core;

@@ -5,6 +5,7 @@ module org.hiero.consensus.fakes {
 
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;

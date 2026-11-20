@@ -17,7 +17,7 @@ import org.hiero.base.crypto.RunningHash;
 import org.hiero.base.crypto.RunningHashable;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.stream.StreamAligned;
 import org.hiero.consensus.model.stream.Timestamped;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;

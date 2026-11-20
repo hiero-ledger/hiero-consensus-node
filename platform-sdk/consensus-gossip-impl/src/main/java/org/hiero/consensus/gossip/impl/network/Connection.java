@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.net.SocketException;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStream;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStream;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * A connection between two nodes for the purposes of syncing.

@@ -31,9 +31,9 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 
