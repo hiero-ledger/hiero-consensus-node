@@ -66,6 +66,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.hiero.consensus.benchmark.tools;
     requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
+    requires transitive org.hiero.consensus.main.model;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.status.monitor;
     requires transitive org.hiero.consensus.utility.test.fixtures;

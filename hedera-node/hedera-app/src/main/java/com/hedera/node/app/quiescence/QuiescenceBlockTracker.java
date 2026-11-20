@@ -4,7 +4,7 @@ package com.hedera.node.app.quiescence;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.base.CompareTo;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 
 /**
  * Tracks all the information needed for quiescence for a specific block. This class is NOT thread-safe, it is expected

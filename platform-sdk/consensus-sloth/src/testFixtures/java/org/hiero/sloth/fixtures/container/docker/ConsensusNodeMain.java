@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.sloth.fixtures.container.docker.logging.DockerLogConfigBuilder;
 import org.hiero.sloth.fixtures.container.docker.platform.NodeCommunicationService;
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.hashgraph;
+package org.hiero.consensus.main.model;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -8,7 +8,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.crypto.RunningHash;
-import org.hiero.consensus.model.event.ConsensusEvent;
 
 /**
  * A collection of unique events that reached consensus at the same time. The consensus data for every event in the

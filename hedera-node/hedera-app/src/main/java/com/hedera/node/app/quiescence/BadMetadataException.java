@@ -2,7 +2,7 @@
 package com.hedera.node.app.quiescence;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.transaction.Transaction;
+import org.hiero.consensus.main.model.Transaction;
 
 public class BadMetadataException extends Exception {
     public BadMetadataException(@NonNull final Transaction txn) {

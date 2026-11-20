@@ -32,7 +32,7 @@ import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.gossip.impl.gossip.Utilities;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 
 /**
  * used to create and receive TLS connections, based on the given trustStore

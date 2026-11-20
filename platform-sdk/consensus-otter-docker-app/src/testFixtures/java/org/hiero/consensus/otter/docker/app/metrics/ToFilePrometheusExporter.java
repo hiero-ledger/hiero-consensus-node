@@ -19,9 +19,9 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Snapshot processor that writes the snapshot to a file using Prometheus format.

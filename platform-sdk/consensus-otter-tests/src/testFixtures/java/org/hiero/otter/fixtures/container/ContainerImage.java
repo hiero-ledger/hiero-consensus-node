@@ -9,7 +9,7 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.getNod
 import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.main.model.NodeId;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.wait.strategy.Wait;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.transaction;
+package org.hiero.consensus.main.model;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -10,7 +10,7 @@ import java.util.concurrent.locks.ReadWriteLock;
  * with a thread-safe and atomic implementation. The transaction internally uses a {@link ReadWriteLock} to provide
  * atomic reads and writes to the underlying list of signatures.
  */
-public sealed interface Transaction permits ConsensusTransaction {
+public interface Transaction {
 
     /**
      * A convenience method for retrieving the application transaction {@link Bytes} object.
