@@ -6,7 +6,6 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -41,7 +40,7 @@ import org.junit.jupiter.api.Tag;
 // TODO(#129): add an end-to-end gas-exhaustion BDD test for the max_gas_per_message ceiling
 // (test plan §3.10.3 / §5.6.2). The handler now dispatches application callbacks with
 // throttles.maxGasPerMessage(); a faithful BDD test must deploy a gas-burning IClprApplication
-// contract, set a low maxGasPerMessage, do the full connector commit-reveal (clprCompleteConnector)
+// contract, set a low maxGasPerMessage, register the connector (clprRegisterConnector)
 // with a funded connector contract, build a bundle whose data message targets the gas-burner's
 // resolved EVM address, and verify submitBundle is handled gracefully (no crash, receivedMessageId
 // advances). NOTE: single-network mode cannot observe the APPLICATION_ERROR reply status
@@ -179,16 +178,10 @@ public class ClprSubmitBundleSuite {
                         .verifierContract(VERIFIER_CONTRACT)
                         .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                         .payingWith(GENESIS),
-                // §6.3 connector commit-reveal
+                // §6.3 connector registration
                 clprRegisterConnector()
-                        .channelId(crypto.channelId())
-                        .commitment(crypto.connectorCommitment())
-                        .payingWith(GENESIS),
-                clprCompleteConnector()
                         .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .ed25519Identity(crypto.seed())
                         .salt(crypto.connectorSalt())
                         .channelId(crypto.channelId())
                         .connectorContract(VERIFIER_CONTRACT)
@@ -313,14 +306,8 @@ public class ClprSubmitBundleSuite {
                         .configProofBytes(toConfigProofBytes(defaultLedgerConfig()))
                         .payingWith(GENESIS),
                 clprRegisterConnector()
-                        .channelId(crypto.channelId())
-                        .commitment(crypto.connectorCommitment())
-                        .payingWith(GENESIS),
-                clprCompleteConnector()
                         .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
+                        .ed25519Identity(crypto.seed())
                         .salt(crypto.connectorSalt())
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)

@@ -38,7 +38,7 @@ derived from the network's HIP-26 EVM chain ID, `contracts.chainId`, as `eip155:
 
 |            Key            |            Default            | Network? |                                  Purpose                                   |
 |---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
-| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
+| `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `registerConnector`; transferred to `stakingAccount`.   |
 | `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.  |
 | `slashBasePenalty`        | `10 000 000` tinybars         | yes      | Base slash on first offence.                                               |
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |

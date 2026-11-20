@@ -1927,11 +1927,6 @@ enum HederaFunctionality {
     ClprDeregisterConnector = 125;
 
     /**
-     * Complete a Connector registration (reveal phase).
-     */
-    ClprCompleteConnector = 126;
-
-    /**
      * Self-publish a node's CLPR endpoint into a manifest construction (spec §2.4.1 /
      * `dev-context/clpr-endpoint-self-publication-design.md`).
      */

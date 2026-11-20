@@ -191,9 +191,9 @@ for tool in jq cast python3; do
 done
 
 CONFIG_PAYLOAD_PY="${TOOLS_DIR}/build-besu-qbft-config-payload.py"
-SIGN_CONNECTOR_PY="${TOOLS_DIR}/sign-clpr-connector-identity.py"
+DERIVE_CONNECTOR_PY="${TOOLS_DIR}/derive-clpr-connector-identity.py"
 [[ -f "${CONFIG_PAYLOAD_PY}" ]]  || die "missing ${CONFIG_PAYLOAD_PY}"
-[[ -f "${SIGN_CONNECTOR_PY}" ]]  || die "missing ${SIGN_CONNECTOR_PY}"
+[[ -f "${DERIVE_CONNECTOR_PY}" ]]  || die "missing ${DERIVE_CONNECTOR_PY}"
 
 echo "  JAVA_HOME            : ${JAVA_HOME:-(system default)}"
 echo "  SMART_CONTRACTS_REPO : ${SMART_CONTRACTS_REPO}"
@@ -293,14 +293,14 @@ echo "  PEER_PK        : (set; not printed)"
 echo "  CONNECTOR_PK   : (set; not printed)"
 ok "Besu state resolved"
 
-# ─── [1/9] Push local Hiero ledger configuration ──────────────────────────
-header "[1/9] update-ledger-configuration on ${NET}"
+# ─── [1/8] Push local Hiero ledger configuration ──────────────────────────
+header "[1/8] update-ledger-configuration on ${NET}"
 yh "update-ledger-configuration on ${NET}" "${LOG_DIR}/01-update-cfg.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_LOCAL}"
 
-# ─── [2/9] Build Besu QBFT config payload → config-proof hex ──────────────
-header "[2/9] build Besu QBFT config proof (with throttles from on-chain)"
+# ─── [2/8] Build Besu QBFT config payload → config-proof hex ──────────────
+header "[2/8] build Besu QBFT config proof (with throttles from on-chain)"
 
 # Fetch the live LedgerConfiguration from Besu. cast renders it as a nested
 # tuple, including the throttles 7-tuple. The
@@ -392,8 +392,8 @@ CONFIG_PROOF_HEX="$(echo "${PAYLOAD_OUT}" | awk '/^qbft_ledger_configuration_pay
 note "config-proof payload: ${QBFT_CONFIG_PAYLOAD}"
 note "config-proof hex (${#CONFIG_PROOF_HEX} chars): ${CONFIG_PROOF_HEX:0:60}…"
 
-# ─── [3/9] Generate channel identity bundle ────────────────────────────
-header "[3/9] generate channel identity (using PEER_PK from smart-contracts side)"
+# ─── [3/8] Generate channel identity bundle ────────────────────────────
+header "[3/8] generate channel identity (using PEER_PK from smart-contracts side)"
 kf_write_key_file "${CHANNEL_FILE}.key" "${PEER_PK_HEX}"
 "${SCRIPT_DIR}/gen-channel-identity.sh" \
     --channel-id "${CHANNEL_ID}" \
@@ -403,14 +403,14 @@ CHANNEL_COMMIT="$(jq -r '.ownershipCommitment' "${CHANNEL_FILE}")"
 [[ -n "${CHANNEL_COMMIT}" && "${CHANNEL_COMMIT}" != "null" ]] || die "no ownershipCommitment in ${CHANNEL_FILE}"
 note "ownershipCommitment: ${CHANNEL_COMMIT}"
 
-# ─── [4/9] register-channel on Hiero ───────────────────────────────────
-header "[4/9] register-channel on ${NET}"
+# ─── [4/8] register-channel on Hiero ───────────────────────────────────
+header "[4/8] register-channel on ${NET}"
 yh "register-channel" "${LOG_DIR}/04-register-conn.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr register-channel --commitment "${CHANNEL_COMMIT}"
 
-# ─── [5/9] complete-channel on Hiero ───────────────────────────────────
-header "[5/9] complete-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
+# ─── [5/8] complete-channel on Hiero ───────────────────────────────────
+header "[5/8] complete-channel on ${NET} via verifier ${VERIFIER_CONTRACT}"
 yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "complete-channel" "${LOG_DIR}/05-complete-conn.log" \
     -n "${NET}" -p "${PAYER}" \
     clpr complete-channel \
@@ -418,39 +418,28 @@ yh_allow_status "CLPR_CHANNEL_ALREADY_EXISTS" "complete-channel" "${LOG_DIR}/05-
         --verifier-contract "${VERIFIER_CONTRACT}" \
         --config-proof-hex "${CONFIG_PROOF_HEX}"
 
-# ─── [6/9] Build connector identity bundle (using CONNECTOR_PK + salt=0) ─
-header "[6/9] generate connector identity (using CONNECTOR_PK from smart-contracts side)"
+# ─── [6/8] Build connector identity bundle (using CONNECTOR_PK + salt=0) ─
+header "[6/8] generate connector identity (using CONNECTOR_PK from smart-contracts side)"
 # Public-only stub (no key material); the private key goes to ${CONNECTOR_FILE}.key (0600).
 CONNECTOR_STUB="$(mktemp)"
 cat > "${CONNECTOR_STUB}" <<JSON
 {
-  "channelId":   "${CHANNEL_ID}",
   "signatureScheme":"ECDSA_SECP256K1",
   "salt":           "0x0000000000000000000000000000000000000000000000000000000000000000"
 }
 JSON
 kf_write_key_file "${CONNECTOR_FILE}.key" "${CONNECTOR_PK_HEX}"
-python3 "${SIGN_CONNECTOR_PY}" "${CONNECTOR_STUB}" --key-file "${CONNECTOR_FILE}.key" --out "${CONNECTOR_FILE}" \
-    | tee "${LOG_DIR}/06-sign-connector.log" >/dev/null
+python3 "${DERIVE_CONNECTOR_PY}" "${CONNECTOR_STUB}" --key-file "${CONNECTOR_FILE}.key" --out "${CONNECTOR_FILE}" \
+    | tee "${LOG_DIR}/06-derive-connector.log" >/dev/null
 rm -f "${CONNECTOR_STUB}"
-CONNECTOR_COMMIT="$(jq -r '.commitment'  "${CONNECTOR_FILE}")"
 CONNECTOR_ID_HIERO="$(jq -r '.connectorId' "${CONNECTOR_FILE}")"
-[[ -n "${CONNECTOR_COMMIT}" && "${CONNECTOR_COMMIT}" != "null" ]] || die "no commitment in ${CONNECTOR_FILE}"
 note "connectorId (hiero): ${CONNECTOR_ID_HIERO}"
-note "commitment:          ${CONNECTOR_COMMIT}"
 if [[ "${CONNECTOR_ID_HIERO}" != "${CONNECTOR_ID}" ]]; then
-    note "${YELLOW}warn:${RESET} connectorId derived here ≠ value in smart-contracts/connector.json"
-    note "       Hiero will accept this, but it diverges from Besu's view."
+    die "Peer connector ID differs from keccak256(publicKey || salt). Check the peer deployment, key and salt."
 fi
 
-# ─── [7/9] register-connector on Hiero ────────────────────────────────────
-header "[7/9] register-connector on ${NET}"
-yh "register-connector" "${LOG_DIR}/07-register-connector.log" \
-    -n "${NET}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
-
-# ─── [8/9] deploy PassThroughAuth ─────────────────────────────────────────
-header "[8/9] deploy PassThroughAuth on ${NET}"
+# ─── [7/8] deploy PassThroughAuth ─────────────────────────────────────────
+header "[7/8] deploy PassThroughAuth on ${NET}"
 yh "contracts create PassThroughAuth" "${LOG_DIR}/08-create-pta.log" \
     -n "${NET}" -p "${PAYER}" contracts create \
         --init-code-file "${PASS_THROUGH_AUTH}" \
@@ -458,11 +447,11 @@ yh "contracts create PassThroughAuth" "${LOG_DIR}/08-create-pta.log" \
 CONNECTOR_CONTRACT="$(capture_contract_id "${LOG_DIR}/08-create-pta.log")"
 [[ -n "${CONNECTOR_CONTRACT}" ]] || die "could not capture PassThroughAuth contract id"
 
-# ─── [9/9] complete-connector on Hiero ────────────────────────────────────
-header "[9/9] complete-connector on ${NET}"
-yh "complete-connector" "${LOG_DIR}/09-complete-connector.log" \
+# ─── [8/8] register-connector on Hiero ────────────────────────────────────
+header "[8/8] register-connector on ${NET}"
+yh "register-connector" "${LOG_DIR}/09-register-connector.log" \
     -n "${NET}" -p "${PAYER}" \
-    clpr complete-connector \
+    clpr register-connector --channel-id "${CHANNEL_ID}" \
         --identity "${CONNECTOR_FILE}" \
         --connector-contract "${CONNECTOR_CONTRACT}" \
         --locked-stake "${LOCKED_STAKE}"

@@ -18,7 +18,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfi
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
@@ -477,13 +476,9 @@ public class ClprDisabledSuite {
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(
                 "registerConnector",
-                clprRegisterConnector().channelId(crypto.channelId()).commitment(crypto.connectorCommitment()));
-        txns.put(
-                "completeConnector",
-                clprCompleteConnector()
+                clprRegisterConnector()
                         .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
+                        .ed25519Identity(crypto.seed())
                         .salt(crypto.connectorSalt())
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)

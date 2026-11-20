@@ -29,7 +29,6 @@
             "ClprCloseChannel",
             "ClprEvictPeerEndpoint",
             "ClprRegisterConnector",
-            "ClprCompleteConnector",
             "ClprDeregisterConnector"
           ]
         }
@@ -103,7 +102,6 @@
             "ClprCloseChannel",
             "ClprEvictPeerEndpoint",
             "ClprRegisterConnector",
-            "ClprCompleteConnector",
             "ClprDeregisterConnector",
             "ClprGetLedgerConfiguration",
             "ClprGetEndpointManifest"

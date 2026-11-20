@@ -309,8 +309,8 @@ message StateKey {
     com.hedera.hapi.node.state.clpr.ClprConnectorKey ClprService_I_CONNECTORS = 63;
 
     /**
-     * A state identifier for CLPR pending connector commitments.
-     * Key is the commitment hash bytes.
+     * CLPR connector registration history, keyed by channel ID followed by connector ID.
+     * Legacy entries use a 32-byte commitment hash.
      */
     proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
 
@@ -715,7 +715,7 @@ message StateValue {
     com.hedera.hapi.node.state.clpr.ClprConnector ClprService_I_CONNECTORS = 63;
 
     /**
-     * CLPR pending connector commitment value (mirrors key — acts as a set).
+     * CLPR connector registration marker. Legacy commitment values mirror their keys.
      */
     proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
 

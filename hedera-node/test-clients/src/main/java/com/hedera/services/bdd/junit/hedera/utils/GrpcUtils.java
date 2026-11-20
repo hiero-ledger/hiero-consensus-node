@@ -232,8 +232,6 @@ public class GrpcUtils {
                 clients.getClprSvcStub(nodeAccountId, false, false).submitBundle(transaction);
             case ClprRegisterConnector ->
                 clients.getClprSvcStub(nodeAccountId, false, false).registerConnector(transaction);
-            case ClprCompleteConnector ->
-                clients.getClprSvcStub(nodeAccountId, false, false).completeConnector(transaction);
             case ClprDeregisterConnector ->
                 clients.getClprSvcStub(nodeAccountId, false, false).deregisterConnector(transaction);
             case ClprUpdateLedgerConfiguration ->

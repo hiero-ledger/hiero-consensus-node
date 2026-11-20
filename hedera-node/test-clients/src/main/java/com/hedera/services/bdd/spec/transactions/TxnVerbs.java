@@ -38,7 +38,6 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.crypto.ReferenceType;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCloseChannel;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteChannel;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteConnector;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprDeregisterConnector;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprEvictPeerEndpoint;
 import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
@@ -258,10 +257,6 @@ public class TxnVerbs {
 
     public static HapiClprRegisterConnector clprRegisterConnector() {
         return new HapiClprRegisterConnector();
-    }
-
-    public static HapiClprCompleteConnector clprCompleteConnector() {
-        return new HapiClprCompleteConnector();
     }
 
     public static HapiClprDeregisterConnector clprDeregisterConnector() {

@@ -1021,16 +1021,19 @@ the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
 
 ### Connector lifecycle
 
-|   Phase    |           Command           |                Description                 |
-|------------|-----------------------------|--------------------------------------------|
-| Commit     | `clpr register-connector`   | Submits `ClprRegisterConnector` (Phase 1). |
-| Reveal     | `clpr complete-connector`   | Submits `ClprCompleteConnector` (Phase 2). |
-| Deregister | `clpr deregister-connector` | Removes the connector and unlocks stake.   |
+Generate an identity once, then register it on each existing channel it serves.
+The connector ID is `keccak256(publicKey || salt)`. The identity key and the
+payer sign each registration, binding the channel, local contract, admin key,
+and stake. The admin key defaults to the identity key.
 
-`generate-connector-identity` produces the matching JSON bundle for `complete-connector`.
+```bash
+./yahcli clpr generate-connector-identity --out connector.json
+./yahcli clpr register-connector --identity connector.json --channel-id "$CHANNEL_ID" \
+  --connector-contract "$CONTRACT_ID" --locked-stake 100000000
+```
 
-`register-connector` requires `--channel-id <hex>` and `--commitment <hex>`, both 32 bytes.
-The channel must already exist. The connector identity remains hidden until `complete-connector`.
+The signer reads `connector.json.key` by default. Use `--key-file` to select another location.
+Use `clpr deregister-connector` to unlock the stake. Each channel accepts a given connector ID once.
 
 ### Bundles and messages
 

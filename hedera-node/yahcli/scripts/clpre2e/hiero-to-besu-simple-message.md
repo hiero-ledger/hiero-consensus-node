@@ -159,13 +159,12 @@ to emit the RLP trust-anchor envelope wrapped in a protobuf
 using `PEER_PK=0xa11ce` (matches `CreateChannel.s.sol`'s default).
 4. `register-channel` — commit phase.
 5. `complete-channel` — reveal phase with the trust-anchor bytes from step 2.
-6. Connector identity bundle via `sign-clpr-connector-identity.py` using
+6. Connector identity bundle via `derive-clpr-connector-identity.py` using
 `CONNECTOR_PK=0xc044ec` + `salt=0` (matches `CreateConnector.s.sol`).
-7. `register-connector`.
-8. `contracts create` for `PassThroughAuth` (the connector contract).
-9. `complete-connector`.
+7. `contracts create` for `PassThroughAuth` (the connector contract).
+8. `register-connector` signs the binding with the connector identity key.
 
-If everything passes you'll see `ok: complete-connector` and a summary block:
+If everything passes you'll see `ok: register-connector` and a summary block:
 
 ```
 Besu side (from clpr-smart-contracts/deployments/<chainId>/):

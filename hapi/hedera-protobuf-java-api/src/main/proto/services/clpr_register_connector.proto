@@ -7,29 +7,32 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "services/basic_types.proto";
+
 /**
- * Phase 1 (Commit): Register a Connector commitment.
- *
- * Permissionless. Stores
- * keccak256(connectorId || pubKey) on-ledger so the reveal phase can verify it.
- * Anyone may call; only the holder of the matching private key can complete.
- * The referenced Channel must already exist.
- *
- * Fails with CLPR_CONNECTOR_ALREADY_EXISTS if the commitment is
- * already pending reveal or was already used to create a Connector, even one
- * that has since been deregistered.
+ * Register a connector on an existing channel. Both the payer and identity_key
+ * must sign the transaction. A connector ID can be registered once per channel,
+ * including after deregistration or a ban.
  */
 message ClprRegisterConnectorTransactionBody {
-    /**
-     * keccak256(connectorId || pubKey) where
-     * connectorId = keccak256(channelId || pubKey || salt).
-     * Must be exactly 32 bytes.
-     */
-    bytes commitment = 1;
-
-    /**
-     * The 32-byte ID of the existing Channel this Connector is intended for.
-     * The commitment preimage is verified during completeConnector.
-     */
+    /** The existing channel's 32-byte ID. */
     bytes channel_id = 2;
+
+    /** Expected keccak256(publicKey || salt), using raw Ed25519 or secp256k1 X||Y bytes. */
+    bytes connector_id = 3;
+
+    /** The Ed25519 or ECDSA_secp256k1 key authorizing this registration. */
+    proto.Key identity_key = 4;
+
+    /** A 32-byte salt chosen by the identity owner. */
+    bytes salt = 5;
+
+    /** Deployed local contract authorizing connector messages. */
+    proto.ContractID connector_contract = 6;
+
+    /** Key authorizing administrative operations on this channel's connector. */
+    proto.Key admin_key = 7;
+
+    /** Slashable bond in tinybars, transferred from the payer at registration. */
+    uint64 locked_stake = 8;
 }

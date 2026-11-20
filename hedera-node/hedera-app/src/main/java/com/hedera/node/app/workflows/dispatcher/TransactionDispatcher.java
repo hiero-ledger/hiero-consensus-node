@@ -277,7 +277,6 @@ public class TransactionDispatcher {
             case CLPR_CLOSE_CHANNEL -> handlers.clprCloseChannelHandler();
             case CLPR_SUBMIT_BUNDLE -> handlers.clprSubmitBundleHandler();
             case CLPR_REGISTER_CONNECTOR -> handlers.clprRegisterConnectorHandler();
-            case CLPR_COMPLETE_CONNECTOR -> handlers.clprCompleteConnectorHandler();
             case CLPR_DEREGISTER_CONNECTOR -> handlers.clprDeregisterConnectorHandler();
             case CLPR_ENDPOINT_PUBLICATION -> handlers.clprEndpointPublicationHandler();
             case CLPR_EVICT_PEER_ENDPOINT -> handlers.clprEvictPeerEndpointHandler();

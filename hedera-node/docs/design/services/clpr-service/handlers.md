@@ -90,34 +90,20 @@ side-effects.
   `CLPR_PEER_ENDPOINT_NOT_FOUND`.
 - The manifest version is unchanged, so a later manifest-advancing bundle can list the endpoint again.
 
-### `ClprRegisterConnectorHandler` / `ClprCompleteConnectorHandler`
+### `ClprRegisterConnectorHandler`
 
-- Functionalities: `CLPR_REGISTER_CONNECTOR`, `CLPR_COMPLETE_CONNECTOR`. Spec §6.3.
-- Same commit-reveal shape as channel registration.
-- Register requires a 32-byte `channel_id` identifying an existing channel and a 32-byte
-  `commitment`. A missing channel fails with `CLPR_CHANNEL_NOT_FOUND` before storing the commitment.
-  The channel ID is public metadata; the commitment preimage is verified during reveal.
-- Reveal verifies signature `ECDSA(keccak256(connector_id ‖ 0x…16e))` (Hiero-specific
-  binding from spec §6.3 callout).
-- Stake: `complete` requires the connector's `min_locked_stake` (`ClprConfig.minLockedStake`)
-  to be transferred from payer to `ClprConfig.stakingAccount` via the transaction's
-  crypto-transfer list.
-- Register rejects a commitment already in `PENDING_CONNECTOR_COMMITMENTS` with
-  `CLPR_CONNECTOR_ALREADY_EXISTS`.
-- Writes: `CONNECTORS[ClprConnectorKey] = ClprConnector{...}`. The commitment stays in
-  `PENDING_CONNECTOR_COMMITMENTS` permanently, so the same Connector can never be created again.
+The payer and the identity key sign a single `CLPR_REGISTER_CONNECTOR` transaction.
+The expected connector ID must equal `keccak256(publicKey ‖ salt)`, using the raw
+32-byte Ed25519 key or the 64-byte secp256k1 coordinates and a 32-byte salt.
+The handler checks the channel, local contract, minimum stake, and payer balance,
+then transfers the stake and records the connector under `(channel_id, connector_id)`.
+An existing or previously used pair returns `CLPR_CONNECTOR_ALREADY_EXISTS`.
 
 ### `ClprDeregisterConnectorHandler`
 
-- Functionality: `CLPR_DEREGISTER_CONNECTOR`. Spec §6.3.
-- Removes connector record; releases locked stake back to the connector owner via system
-  transfer. The `PENDING_CONNECTOR_COMMITMENTS` entry is kept, so the same connector ID cannot
-  be registered again (a new salt yields a new connector ID). The same holds for a connector
-  removed by a slashing ban.
-- **Known gap (see [drift-from-spec.md §2.5](drift-from-spec.md)):** spec §6.3 requires
-  "MUST NOT deregister if the Connector has unresolved in-flight messages." Hiero does
-  not currently enforce this — deregister succeeds even with messages still queued for
-  the connector.
+Deregistration requires the admin and stake recipient signatures and zero in-flight
+messages. It removes the active binding and returns the remaining stake to the
+recipient. The channel and connector ID pair stays recorded after deregistration or a ban.
 
 ### `ClprSubmitBundleHandler`
 

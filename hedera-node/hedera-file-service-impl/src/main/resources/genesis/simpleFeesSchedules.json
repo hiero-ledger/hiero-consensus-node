@@ -828,11 +828,6 @@
           "extras": []
         },
         {
-          "name": "ClprCompleteConnector",
-          "baseFee": 10000000,
-          "extras": []
-        },
-        {
           "name": "ClprDeregisterConnector",
           "baseFee": 10000000,
           "extras": []

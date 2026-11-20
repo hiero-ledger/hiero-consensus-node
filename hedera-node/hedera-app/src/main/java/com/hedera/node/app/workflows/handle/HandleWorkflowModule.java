@@ -213,7 +213,6 @@ public interface HandleWorkflowModule {
                 clprHandlers.clprCloseChannelHandler(),
                 clprHandlers.clprSubmitBundleHandler(),
                 clprHandlers.clprRegisterConnectorHandler(),
-                clprHandlers.clprCompleteConnectorHandler(),
                 clprHandlers.clprDeregisterConnectorHandler(),
                 clprHandlers.clprEndpointPublicationHandler(),
                 clprHandlers.clprEvictPeerEndpointHandler());

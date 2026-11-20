@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
@@ -24,6 +23,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_COMMITMEN
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -37,6 +37,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterConnector;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
@@ -126,8 +127,8 @@ public class ClprChannelCommitRevealSuite {
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    @DisplayName("Connector commitment cannot be re-registered while pending, active, or after deregistration")
-    final Stream<DynamicTest> connectorCommitmentCannotBeReRegistered() {
+    @DisplayName("A connector ID cannot be registered twice on a channel, including after deregistration")
+    final Stream<DynamicTest> connectorCannotBeReRegisteredOnSameChannel() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
                 overriding("clpr.enabled", "true"),
@@ -144,35 +145,10 @@ public class ClprChannelCommitRevealSuite {
                         .configProofBytes(defaultConfigProofBytes())
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
-                clprRegisterConnector()
-                        .channelId(crypto.channelId())
-                        .commitment(crypto.connectorCommitment())
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(SUCCESS),
-                // Pending reveal
-                clprRegisterConnector()
-                        .channelId(crypto.channelId())
-                        .commitment(crypto.connectorCommitment())
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
-                clprCompleteConnector()
-                        .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
-                        .signatureScheme(ClprSignatureScheme.ED25519)
-                        .salt(crypto.connectorSalt())
-                        .channelId(crypto.channelId())
-                        .connectorContract(CONNECTOR_CONTRACT)
-                        .adminKeyName(GENESIS)
-                        .lockedStake(LOCKED_STAKE)
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(SUCCESS),
+                registerConnector(crypto).payingWith(GENESIS).signedBy(GENESIS).hasKnownStatus(INVALID_SIGNATURE),
+                registerConnector(crypto).payingWith(GENESIS).hasKnownStatus(SUCCESS),
                 // Connector exists
-                clprRegisterConnector()
-                        .channelId(crypto.channelId())
-                        .commitment(crypto.connectorCommitment())
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
+                registerConnector(crypto).payingWith(GENESIS).hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS),
                 clprDeregisterConnector()
                         .channelId(crypto.channelId())
                         .connectorId(crypto.connectorId())
@@ -180,12 +156,8 @@ public class ClprChannelCommitRevealSuite {
                         .stakeRecipient(GENESIS)
                         .payingWith(GENESIS)
                         .hasKnownStatus(SUCCESS),
-                // Connector deregistered: the commitment is never released
-                clprRegisterConnector()
-                        .channelId(crypto.channelId())
-                        .commitment(crypto.connectorCommitment())
-                        .payingWith(GENESIS)
-                        .hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS));
+                // Deregistering preserves this channel and connector ID pair
+                registerConnector(crypto).payingWith(GENESIS).hasKnownStatus(CLPR_CONNECTOR_ALREADY_EXISTS));
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
@@ -421,6 +393,17 @@ public class ClprChannelCommitRevealSuite {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static HapiClprRegisterConnector registerConnector(final ClprChannelCrypto crypto) {
+        return clprRegisterConnector()
+                .connectorId(crypto.connectorId())
+                .ed25519Identity(crypto.seed())
+                .salt(crypto.connectorSalt())
+                .channelId(crypto.channelId())
+                .connectorContract(CONNECTOR_CONTRACT)
+                .adminKeyName(GENESIS)
+                .lockedStake(LOCKED_STAKE);
+    }
 
     /**
      * Synthetic config proof bytes for the passthrough verifier path; spec refs §3.1

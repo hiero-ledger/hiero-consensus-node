@@ -18,7 +18,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprEvictPeerEndpoint;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
@@ -211,12 +210,8 @@ public class ClprEnabledSuite {
         final var crypto = new ClprChannelCrypto();
         final var operations = contractSetup();
         final var txns = clprTxns(crypto);
-        for (final var name : List.of(
-                "updateLedgerConfiguration",
-                "registerChannel",
-                "completeChannel",
-                "registerConnector",
-                "completeConnector")) {
+        for (final var name :
+                List.of("updateLedgerConfiguration", "registerChannel", "completeChannel", "registerConnector")) {
             operations.add(dispatch(txns.get(name), false, false));
         }
         operations.add(sendMessage(crypto).via("sentMessage"));
@@ -259,12 +254,8 @@ public class ClprEnabledSuite {
         operations.add(uploadInitCode(application));
         operations.add(contractCreate(application).refusingEthConversion());
         final var txns = clprTxns(crypto);
-        for (final var name : List.of(
-                "updateLedgerConfiguration",
-                "registerChannel",
-                "completeChannel",
-                "registerConnector",
-                "completeConnector")) {
+        for (final var name :
+                List.of("updateLedgerConfiguration", "registerChannel", "completeChannel", "registerConnector")) {
             operations.add(dispatch(txns.get(name), false, false));
         }
         operations.add(cryptoTransfer(tinyBarsFromTo(GENESIS, CONNECTOR_CONTRACT, ONE_HUNDRED_HBARS)));
@@ -533,13 +524,9 @@ public class ClprEnabledSuite {
                         .configProofBytes(toConfigProofBytes(ledgerConfig())));
         txns.put(
                 "registerConnector",
-                clprRegisterConnector().channelId(crypto.channelId()).commitment(crypto.connectorCommitment()));
-        txns.put(
-                "completeConnector",
-                clprCompleteConnector()
+                clprRegisterConnector()
                         .connectorId(crypto.connectorId())
-                        .publicKey(crypto.publicKey())
-                        .signature(crypto.connectorSignature())
+                        .ed25519Identity(crypto.seed())
                         .salt(crypto.connectorSalt())
                         .channelId(crypto.channelId())
                         .connectorContract(CONNECTOR_CONTRACT)

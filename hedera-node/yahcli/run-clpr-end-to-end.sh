@@ -140,8 +140,8 @@ echo "  NET_B        : ${NET_B}   LEDGER_ID_B=${LEDGER_ID_B}"
 echo "  per-step logs: ${LOG_DIR}/"
 ok "All prerequisites present"
 
-# === [1/13] prime 0.0.3 with hbar on both networks =========================
-header "[1/13] accounts send — prime ${PRIME_RECIPIENT} with ${PRIME_AMOUNT} hbar on both networks"
+# === [1/12] prime 0.0.3 with hbar on both networks =========================
+header "[1/12] accounts send — prime ${PRIME_RECIPIENT} with ${PRIME_AMOUNT} hbar on both networks"
 yh "accounts send ${PRIME_AMOUNT} hbar -> ${PRIME_RECIPIENT} on ${NET_A}" \
     "${LOG_DIR}/00a-prime-send.log" \
     -n "${NET_A}" -p "${PAYER}" \
@@ -151,8 +151,8 @@ yh "accounts send ${PRIME_AMOUNT} hbar -> ${PRIME_RECIPIENT} on ${NET_B}" \
     -n "${NET_B}" -p "${PAYER}" \
     accounts send --to "${PRIME_RECIPIENT}" "${PRIME_AMOUNT}" -d hbar
 
-# === [2/13] channel identity ============================================
-header "[2/13] generate-channel-identity (one bundle, shared by both networks)"
+# === [2/12] channel identity ============================================
+header "[2/12] generate-channel-identity (one bundle, shared by both networks)"
 yh "generate-channel-identity" "${LOG_DIR}/01-gen-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr generate-channel-identity --out "${CHANNEL_FILE}"
@@ -160,8 +160,8 @@ CHANNEL_COMMIT=$(read_json_field "${CHANNEL_FILE}" "ownershipCommitment")
 [[ -n "${CHANNEL_COMMIT}" && "${CHANNEL_COMMIT}" != "null" ]] || die "no ownershipCommitment in ${CHANNEL_FILE}"
 echo "  ownershipCommitment: ${CHANNEL_COMMIT}"
 
-# === [3/13] push ledger configurations =====================================
-header "[3/13] update-ledger-configuration on both networks"
+# === [3/12] push ledger configurations =====================================
+header "[3/12] update-ledger-configuration on both networks"
 yh "update-ledger-configuration on ${NET_B}" "${LOG_DIR}/02b-update-cfg.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_B}"
@@ -169,8 +169,8 @@ yh "update-ledger-configuration on ${NET_A}" "${LOG_DIR}/02a-update-cfg.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_A}"
 
-# === [4/13] pull each network's state proof ================================
-header "[4/13] get-ledger-configuration + state proof bytes"
+# === [4/12] pull each network's state proof ================================
+header "[4/12] get-ledger-configuration + state proof bytes"
 yh "get-ledger-configuration on ${NET_B}" "${LOG_DIR}/03b-get-cfg.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr get-ledger-configuration --out "${PEER_CONFIG_B}" --proof-path "${PROOF_B}"
@@ -180,8 +180,8 @@ yh "get-ledger-configuration on ${NET_A}" "${LOG_DIR}/03a-get-cfg.log" \
 [[ -s "${PROOF_A}" ]] || die "${PROOF_A} is empty — wait for the next signed snapshot and retry"
 [[ -s "${PROOF_B}" ]] || die "${PROOF_B} is empty — wait for the next signed snapshot and retry"
 
-# === [5/13] deploy ClprLedgerVerifier on each side (pins the peer's ledger id)
-header "[5/13] deploy-clpr-verifier (each network pins the OTHER's ledger id)"
+# === [5/12] deploy ClprLedgerVerifier on each side (pins the peer's ledger id)
+header "[5/12] deploy-clpr-verifier (each network pins the OTHER's ledger id)"
 yh "deploy-clpr-verifier on ${NET_A} pinning ${NET_B}" "${LOG_DIR}/04a-verifier.log" \
     -n "${NET_A}" -p "${PAYER}" contracts deploy-clpr-verifier \
         --ledger-id "${LEDGER_ID_B}" --gas 500000 --memo "demo verifier" --immutable
@@ -195,8 +195,8 @@ VERIFIER_B=$(capture_contract_id "${LOG_DIR}/04b-verifier.log")
 [[ -n "${VERIFIER_B}" ]] || die "could not capture verifier contract id on ${NET_B}"
 echo "  VERIFIER_A=${VERIFIER_A}  VERIFIER_B=${VERIFIER_B}"
 
-# === [6/13] register-channel (commit phase) =============================
-header "[6/13] register-channel on both networks"
+# === [6/12] register-channel (commit phase) =============================
+header "[6/12] register-channel on both networks"
 yh "register-channel on ${NET_A}" "${LOG_DIR}/05a-register-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr register-channel --commitment "${CHANNEL_COMMIT}"
@@ -204,8 +204,8 @@ yh "register-channel on ${NET_B}" "${LOG_DIR}/05b-register-conn.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr register-channel --commitment "${CHANNEL_COMMIT}"
 
-# === [7/13] complete-channel (reveal phase) =============================
-header "[7/13] complete-channel — each side verifies the peer's proof"
+# === [7/12] complete-channel (reveal phase) =============================
+header "[7/12] complete-channel — each side verifies the peer's proof"
 yh "complete-channel on ${NET_A} via verifier ${VERIFIER_A}" \
     "${LOG_DIR}/06a-complete-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
@@ -222,31 +222,18 @@ CHANNEL_ID=$(read_json_field "${CHANNEL_FILE}" "channelId")
 [[ -n "${CHANNEL_ID}" && "${CHANNEL_ID}" != "null" ]] || die "no channelId in ${CHANNEL_FILE}"
 echo "  CHANNEL_ID: ${CHANNEL_ID}"
 
-# === [8/13] generate connector identity ====================================
-header "[8/13] generate-connector-identity"
+# === [8/12] generate connector identity ====================================
+header "[8/12] generate-connector-identity"
 yh "generate-connector-identity" "${LOG_DIR}/07-gen-connector.log" \
     clpr generate-connector-identity \
-        --channel-id "${CHANNEL_ID}" --out "${CONNECTOR_FILE}"
-CONNECTOR_COMMIT=$(read_json_field "${CONNECTOR_FILE}" "commitment")
+        --out "${CONNECTOR_FILE}"
 CONNECTOR_ID=$(read_json_field "${CONNECTOR_FILE}" "connectorId")
-[[ -n "${CONNECTOR_COMMIT}" && "${CONNECTOR_COMMIT}" != "null" ]] \
-    || die "no commitment in ${CONNECTOR_FILE}"
 [[ -n "${CONNECTOR_ID}" && "${CONNECTOR_ID}" != "null" ]] \
     || die "no connectorId in ${CONNECTOR_FILE}"
-echo "  connector commitment: ${CONNECTOR_COMMIT}"
 echo "  CONNECTOR_ID:         ${CONNECTOR_ID}"
 
-# === [9/13] register-connector =============================================
-header "[9/13] register-connector on both networks"
-yh "register-connector on ${NET_A}" "${LOG_DIR}/08a-register-connector.log" \
-    -n "${NET_A}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
-yh "register-connector on ${NET_B}" "${LOG_DIR}/08b-register-connector.log" \
-    -n "${NET_B}" -p "${PAYER}" \
-    clpr register-connector --channel-id "${CHANNEL_ID}" --commitment "${CONNECTOR_COMMIT}"
-
-# === [10/13] deploy PassThroughAuth (becomes the connector contract) =======
-header "[10/13] contracts create — PassThroughAuth on both networks"
+# === [9/12] deploy PassThroughAuth (becomes the connector contract) =======
+header "[9/12] contracts create — PassThroughAuth on both networks"
 yh "contracts create PassThroughAuth on ${NET_A}" "${LOG_DIR}/09a-create-pta.log" \
     -n "${NET_A}" -p "${PAYER}" contracts create \
         --init-code-file "${PASS_THROUGH_AUTH}" \
@@ -262,21 +249,21 @@ CONNECTOR_CONTRACT_B=$(capture_contract_id "${LOG_DIR}/09b-create-pta.log")
 [[ -n "${CONNECTOR_CONTRACT_B}" ]] || die "could not capture connector-contract id on ${NET_B}"
 echo "  CONNECTOR_CONTRACT_A=${CONNECTOR_CONTRACT_A}  CONNECTOR_CONTRACT_B=${CONNECTOR_CONTRACT_B}"
 
-# === [11/13] complete-connector ============================================
-header "[11/13] complete-connector on both networks"
-yh "complete-connector on ${NET_A}" "${LOG_DIR}/10a-complete-connector.log" \
+# === [10/12] register-connector ============================================
+header "[10/12] register-connector on both networks"
+yh "register-connector on ${NET_A}" "${LOG_DIR}/10a-register-connector.log" \
     -n "${NET_A}" -p "${PAYER}" \
-    clpr complete-connector --identity "${CONNECTOR_FILE}" \
+    clpr register-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
         --connector-contract "${CONNECTOR_CONTRACT_A}" \
         --locked-stake "${LOCKED_STAKE}"
-yh "complete-connector on ${NET_B}" "${LOG_DIR}/10b-complete-connector.log" \
+yh "register-connector on ${NET_B}" "${LOG_DIR}/10b-register-connector.log" \
     -n "${NET_B}" -p "${PAYER}" \
-    clpr complete-connector --identity "${CONNECTOR_FILE}" \
+    clpr register-connector --channel-id "${CHANNEL_ID}" --identity "${CONNECTOR_FILE}" \
         --connector-contract "${CONNECTOR_CONTRACT_B}" \
         --locked-stake "${LOCKED_STAKE}"
 
-# === [12/13] deploy ClprSendMessage wrapper on the sender ==================
-header "[12/13] contracts create — ClprSendMessage wrapper on ${NET_A}"
+# === [11/12] deploy ClprSendMessage wrapper on the sender ==================
+header "[11/12] contracts create — ClprSendMessage wrapper on ${NET_A}"
 yh "contracts create ClprSendMessage on ${NET_A}" "${LOG_DIR}/11-create-send.log" \
     -n "${NET_A}" -p "${PAYER}" contracts create \
         --init-code-file "${SEND_MESSAGE_BIN}" \
@@ -285,8 +272,8 @@ SEND_CONTRACT=$(capture_contract_id "${LOG_DIR}/11-create-send.log")
 [[ -n "${SEND_CONTRACT}" ]] || die "could not capture send-message contract id"
 echo "  SEND_CONTRACT=${SEND_CONTRACT}"
 
-# === [13/13] send the cross-ledger message =================================
-header "[13/13] send-message"
+# === [12/12] send the cross-ledger message =================================
+header "[12/12] send-message"
 yh "send-message via ${SEND_CONTRACT} on ${NET_A}" "${LOG_DIR}/12-send-message.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr send-message \

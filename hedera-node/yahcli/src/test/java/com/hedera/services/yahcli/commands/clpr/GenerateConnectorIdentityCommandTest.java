@@ -6,7 +6,6 @@ import static com.hedera.services.yahcli.commands.clpr.IdentityTestSupport.backu
 import static com.hedera.services.yahcli.commands.clpr.IdentityTestSupport.concat;
 import static com.hedera.services.yahcli.commands.clpr.IdentityTestSupport.derivePublicKey;
 import static com.hedera.services.yahcli.commands.clpr.IdentityTestSupport.readKeyFile;
-import static com.hedera.services.yahcli.commands.clpr.IdentityTestSupport.verifies;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -22,7 +21,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class GenerateConnectorIdentityCommandTest {
-    private static final String CHANNEL_ID_HEX = "42".repeat(32);
 
     @ParameterizedTest
     @EnumSource(
@@ -50,8 +48,7 @@ class GenerateConnectorIdentityCommandTest {
     }
 
     /**
-     * Round trip: the {@code .key} file alone must be enough to re-derive every public field in the bundle,
-     * and the bundle's reveal signature must verify under that derived key.
+     * Round trip: the {@code .key} file alone must be enough to re-derive every public field in the bundle.
      */
     @ParameterizedTest
     @EnumSource(
@@ -63,19 +60,13 @@ class GenerateConnectorIdentityCommandTest {
 
         final var bundle = ClprArgs.readFlatJsonStringFields(bundlePath);
         final var derivedPublicKey = derivePublicKey(scheme.name(), readKeyFile(dir.resolve("connector.json.key")));
-        final var channelId = ClprArgs.parseHex(bundle.get("channelId"));
         final var salt = ClprArgs.parseHex(bundle.get("salt"));
-        final var serviceAddress = ClprArgs.parseHex(bundle.get("serviceAddress"));
 
         assertThat(bundle.get("signatureScheme")).isEqualTo(scheme.name());
         assertThat(ClprArgs.parseHex(bundle.get("publicKey"))).isEqualTo(derivedPublicKey);
-        final var connectorId = MiscCryptoUtils.keccak256DigestOf(concat(channelId, derivedPublicKey, salt));
+        final var connectorId = MiscCryptoUtils.keccak256DigestOf(concat(derivedPublicKey, salt));
         assertThat(ClprArgs.parseHex(bundle.get("connectorId"))).isEqualTo(connectorId);
-        assertThat(ClprArgs.parseHex(bundle.get("commitment")))
-                .isEqualTo(MiscCryptoUtils.keccak256DigestOf(concat(connectorId, derivedPublicKey)));
-        final var digest = MiscCryptoUtils.keccak256DigestOf(concat(connectorId, serviceAddress));
-        final var signature = ClprArgs.parseHex(bundle.get("signature"));
-        assertThat(verifies(scheme.name(), digest, signature, derivedPublicKey)).isTrue();
+        assertThat(bundle).doesNotContainKeys("commitment", "signature", "channelId");
     }
 
     @ParameterizedTest
@@ -174,7 +165,6 @@ class GenerateConnectorIdentityCommandTest {
 
     private static GenerateConnectorIdentityCommand newGenerator(final String scheme, final String outFile) {
         final var g = new GenerateConnectorIdentityCommand();
-        g.channelIdHex = CHANNEL_ID_HEX;
         g.signatureScheme = scheme;
         g.outFile = outFile;
         return g;

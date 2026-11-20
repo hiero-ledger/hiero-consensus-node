@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.interledger;
 
 import static com.hedera.services.bdd.spec.HapiSpec.networkHapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprUpdateLedgerConfiguration;
@@ -32,7 +31,6 @@ import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.compute
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveConnectorId;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.deriveEcdsaPublicKey;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signChannelId;
-import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.signConnectorMessage;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -146,9 +144,7 @@ public class ClprMessagesSuite {
         // ── Connector keypair ─────────────────────────────────────────────────────────────────────
         final var connectorPubKey64 = deriveEcdsaPublicKey(CONNECTOR_SECRET_KEY);
         final var connectorPubKeyBytes = Bytes.wrap(connectorPubKey64);
-        final var connectorId = deriveConnectorId(CHANNEL_ID, connectorPubKeyBytes, CONNECTOR_SALT);
-        final var connectorCommitment = computeCommitment(connectorId, connectorPubKeyBytes);
-        final var connectorSig = signConnectorMessage(CONNECTOR_SECRET_KEY, connectorId);
+        final var connectorId = deriveConnectorId(connectorPubKeyBytes, CONNECTOR_SALT);
 
         // ── CLPR system contract (precompile) ContractID — used as both networks' verifier
         final var clprSystemContract =
@@ -230,22 +226,15 @@ public class ClprMessagesSuite {
                                 .payingWith(GENESIS)
                                 .via("completeChannelB")),
                         clprRegisterConnector()
-                                .channelId(CHANNEL_ID.toByteArray())
-                                .commitment(connectorCommitment.toByteArray())
-                                .payingWith(GENESIS)
-                                .via("registerConnectorB"),
-                        clprCompleteConnector()
                                 .connectorId(connectorId.toByteArray())
-                                .publicKey(connectorPubKey64)
-                                .signature(connectorSig)
-                                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                                .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
                                 .channelId(CHANNEL_ID.toByteArray())
                                 .connectorContract(ECHO_APP)
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
                                 .payingWith(GENESIS)
-                                .via("completeConnectorB"),
+                                .via("registerConnectorB"),
                         withOpContext((spec, opLog) ->
                                 echoContractIdRef.set(spec.registry().getContractId(ECHO_APP))))
                 .findFirst()
@@ -300,22 +289,15 @@ public class ClprMessagesSuite {
                                 .payingWith(GENESIS)
                                 .via("completeChannelA")),
                         clprRegisterConnector()
-                                .channelId(CHANNEL_ID.toByteArray())
-                                .commitment(connectorCommitment.toByteArray())
-                                .payingWith(GENESIS)
-                                .via("registerConnectorA"),
-                        clprCompleteConnector()
                                 .connectorId(connectorId.toByteArray())
-                                .publicKey(connectorPubKey64)
-                                .signature(connectorSig)
-                                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                                .secp256k1Identity(CONNECTOR_SECRET_KEY)
                                 .salt(CONNECTOR_SALT.toByteArray())
                                 .channelId(CHANNEL_ID.toByteArray())
                                 .connectorContract(CONNECTOR_AUTH)
                                 .adminKeyName(GENESIS)
                                 .lockedStake(MIN_STAKE)
                                 .payingWith(GENESIS)
-                                .via("completeConnectorA"),
+                                .via("registerConnectorA"),
                         withOpContext((spec, opLog) ->
                                 sourceAppIdRef.set(spec.registry().getContractId(SOURCE_APP))))
                 .findFirst()

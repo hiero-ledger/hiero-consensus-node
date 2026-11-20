@@ -76,11 +76,7 @@ service ClprService {
     rpc submitBundle (Transaction) returns (TransactionResponse);
 
     /**
-     * Register a Connector commitment on the CLPR Service (Phase 1: Commit).
-     * <p>
-     * Permissionless. Stores a commitment hash on-ledger so the reveal
-     * phase can verify key ownership. Rejects a commitment that is already
-     * registered.<br/>
+     * Register a connector on an existing channel. The identity key signs the transaction.<br/>
      * The request body MUST be a
      * [ClprRegisterConnectorTransactionBody](#com.hedera.hapi.node.clpr.ClprRegisterConnectorTransactionBody)
      */
@@ -94,15 +90,6 @@ service ClprService {
      * [ClprDeregisterConnectorTransactionBody](#com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody)
      */
     rpc deregisterConnector (Transaction) returns (TransactionResponse);
-
-    /**
-     * Complete a connector commitment (Phase 2: Reveal).
-     * <p>
-     * Reveals the preimage and proves key ownership to register the connector.<br/>
-     * The request body MUST be a
-     * [ClprCompleteConnectorTransactionBody](#com.hedera.hapi.node.clpr.ClprCompleteConnectorTransactionBody)
-     */
-    rpc completeConnector (Transaction) returns (TransactionResponse);
 
     /**
      * Update the ledger configuration for CLPR.
