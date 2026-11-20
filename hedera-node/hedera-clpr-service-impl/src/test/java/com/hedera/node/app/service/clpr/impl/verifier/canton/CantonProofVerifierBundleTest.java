@@ -150,8 +150,7 @@ class CantonProofVerifierBundleTest {
     /**
      * Only {@code Channel.WriteReplies}, whose controller is the CLPR endpoint party, writes genuine REPLYs: the
      * app's key alone can create a channel version that folds in a forged one. A bundle that carries a REPLY is
-     * therefore accepted only as the messages of one write that the endpoint party also confirmed. Ports the
-     * Solidity {@code test_verifyBundle_*Repl*} cases.
+     * therefore accepted only as the messages of one write that the endpoint party also confirmed.
      */
     @Nested
     class ReplyBundles {
@@ -884,7 +883,7 @@ class CantonProofVerifierBundleTest {
         }
     }
 
-    /** The {@code Channel} contract of {@link CantonWriteTest}: ten read fields at their positions, rest filler. */
+    /** The {@code Channel} contract of {@link CantonWriteTest}: read fields in their positions, the rest filler. */
     private static final class Chan {
         static byte[] channel(final String manifestHash, final long writeFirst) {
             final byte[] packageHex = formatHex(PACKAGE_ID).getBytes(StandardCharsets.UTF_8);
