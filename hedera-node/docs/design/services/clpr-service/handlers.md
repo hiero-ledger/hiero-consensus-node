@@ -66,19 +66,30 @@ side-effects.
 
 - Functionality: `CLPR_CLOSE_CHANNEL`. Spec §6.2 (`closeChannel`).
 - Admin-gated.
-- From `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED` directly if the whole
-  outbound queue is already acknowledged. From `DRAINED`, status becomes `CLOSED`.
-  `CLOSING` and `CLOSED` are rejected; a `PENDING` Channel is deleted.
+- Without `force_close`: from `ACTIVE`/`PAUSED`, status becomes `CLOSING`, or `DRAINED`
+  directly if the whole outbound queue is already acknowledged. From `DRAINED`, status
+  becomes `CLOSED`. `CLOSING` and `CLOSED` are rejected; a `PENDING` Channel is deleted.
 - New local `sendMessage` calls are blocked during `CLOSING` and `DRAINED`. Inbound Data
   Messages still dispatch normally, charge the connector, and generate responses.
 - `DRAINED` means the peer has acknowledged this side's outbound Data Messages; responses
   may still be generated and drain before `CLOSED`. Admin may close a stuck `DRAINED`
   Channel through the recovery path (canonical spec §3.4); the handler does not check
   acknowledgements for this transition.
-- **Lifecycle hook:** `onChannelClosed(channelId)` runs only when status becomes `CLOSED`
-  and unschedules the channel; the orchestrator continues syncing during `CLOSING` and
-  `DRAINED`. Implementation status: no close-notification bundle is sent after `CLOSED`
+- `force_close=true` immediately marks an established channel CLOSED and examines at
+  most 16 consecutive outbound message IDs per transaction, including absent slots.
+  Existing slots of every payload type are removed without application callbacks;
+  DATA removal decrements its connector's in-flight count without going below zero.
+- Repeat force-close to advance `queue_purge_cursor` to `next_message_id` (or 1 for a
+  channel that never assigned IDs). `SUCCESS` accepts a batch, and also represents an
+  unchanged no-op once cleanup is finished. Node logs expose the cursor and completion;
+  no HAPI query currently exposes it.
+- The endpoint observes the committed `CLOSED` status and stops scheduling the channel.
+  The administrator close handler leaves scheduling to the endpoint so a rolled-back state change
+  cannot stop sync. The node continues syncing during `CLOSING` and `DRAINED`.
+  Implementation status: no close-notification bundle is sent after `CLOSED`
   yet ([#28315](https://github.com/hiero-ledger/hiero-consensus-node/issues/28315)).
+  Force-close is one-sided: the peer does not receive a CLOSED proof, so its
+  administrator must close and clean up that side independently.
 
 ### `ClprEvictPeerEndpointHandler` — admin endpoint eviction
 
@@ -169,6 +180,8 @@ side-effects.
 
 - Functionality: `CLPR_UPDATE_LEDGER_CONFIGURATION`. Spec §6.1.
 - Admin-gated.
+- Rejects a lower local `max_queue_depth` or growth above `clpr.maxQueueDepthCeiling` with
+  `INVALID_CLPR_CONFIGURATION` at consensus. Unchanged existing credit is allowed.
 - Writes the singleton `LEDGER_CONFIGURATION`. Bumps `timestamp`. Only path to add/edit
   `endpoints`. Throttle changes propagate to existing channels **lazily** via the
   next `sendMessage` (see `ClprServiceApiImpl` / [`evm-integration.md`](evm-integration.md)).

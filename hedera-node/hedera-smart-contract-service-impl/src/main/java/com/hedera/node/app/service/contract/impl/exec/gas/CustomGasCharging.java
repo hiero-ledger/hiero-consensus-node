@@ -47,6 +47,17 @@ public class CustomGasCharging {
         this.gasCalculator = gasCalculator;
     }
 
+    /** Computes intrinsic gas and the calldata floor independently of who prepays the dispatch. */
+    public GasCharges gasRequirements(@NonNull final HederaEvmTransaction transaction) {
+        final var payload = transaction.payload();
+        return gasCalculator.transactionGasRequirements(
+                (int) payload.length(),
+                HederaGasCalculator.payloadZeroBytes(payload),
+                transaction.isCreate(),
+                transaction.accessLists(),
+                transaction.codeDelegations());
+    }
+
     /**
      * If the actual gas used by a transaction merits a refund, then do the refund using
      * relayer-aware logic. The relayer gets refund priority, so any charged allowance
@@ -116,13 +127,7 @@ public class CustomGasCharging {
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
 
-        final var payload = transaction.payload();
-        final var gasCharges = gasCalculator.transactionGasRequirements(
-                (int) payload.length(),
-                HederaGasCalculator.payloadZeroBytes(payload),
-                transaction.isCreate(),
-                transaction.accessLists(),
-                transaction.codeDelegations());
+        final var gasCharges = gasRequirements(transaction);
         if (context.isStaticCall()) {
             return new GasCharges(gasCharges.intrinsicGas(), 0L, 0L);
         }
@@ -167,13 +172,7 @@ public class CustomGasCharging {
         requireNonNull(context);
         requireNonNull(worldUpdater);
         requireNonNull(transaction);
-        final var payload = transaction.payload();
-        final var gasRequirements = gasCalculator.transactionGasRequirements(
-                (int) payload.length(),
-                HederaGasCalculator.payloadZeroBytes(payload),
-                transaction.isCreate(),
-                transaction.accessLists(),
-                transaction.codeDelegations());
+        final var gasRequirements = gasRequirements(transaction);
 
         if (!context.shouldChargeGasFees()) {
             return;

@@ -20,8 +20,10 @@ import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.res
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -65,6 +67,7 @@ import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
@@ -172,6 +175,10 @@ class ClprBundlePrevalidatorTest {
 
     @BeforeEach
     void setUp() {
+        lenient()
+                .when(configuration.getConfigData(JumboTransactionsConfig.class))
+                .thenReturn(com.hedera.node.config.testfixtures.HederaTestConfigBuilder.createConfig()
+                        .getConfigData(JumboTransactionsConfig.class));
         when(configuration.getConfigData(ClprConfig.class)).thenReturn(config);
         lenient().when(config.enabled()).thenReturn(true);
         lenient().when(config.verifierGasLimit()).thenReturn(VERIFIER_GAS);
@@ -258,7 +265,21 @@ class ClprBundlePrevalidatorTest {
     }
 
     @Test
+    void prevalidationAppliesConsensusCalldataLimitToEncodedVerifierCall() {
+        final var jumbo = mock(JumboTransactionsConfig.class);
+        when(configuration.getConfigData(JumboTransactionsConfig.class)).thenReturn(jumbo);
+        when(jumbo.ethereumMaxCallDataSize())
+                .thenReturn(Math.toIntExact(encodedVerifierCall().length()) - 1);
+        assertRejected(PAYLOAD, CLPR_BUNDLE_VERIFICATION_FAILED);
+        verifyNoInteractions(localHandler);
+    }
+
+    @Test
     void verifiesProofLocallyAndChecksAttestedContentAgainstTheSameReadOnlyState() throws PreCheckException {
+        final var expectedCall = encodedVerifierCall();
+        final var jumbo = mock(JumboTransactionsConfig.class);
+        when(configuration.getConfigData(JumboTransactionsConfig.class)).thenReturn(jumbo);
+        when(jumbo.ethereumMaxCallDataSize()).thenReturn(Math.toIntExact(expectedCall.length()));
         final var content = bundle(List.of(dataPayload()));
         givenLocalReturn(content);
 
@@ -267,7 +288,7 @@ class ClprBundlePrevalidatorTest {
         verify(validator).prevalidate(CHANNEL, content, LEDGER_CONFIG);
         // Checks that depend on the latest state, including the replies, are left to consensus
         verify(validator, never()).validate(any(), any(), any());
-        verify(validator, never()).validateReplies(any(), any(), any());
+        verify(validator, never()).validateReplies(any(), any(), any(), anyInt());
         verifyNoInteractions(queue);
         verify(channelLifecycle).recordPeerObservedManifestVersion(CHANNEL_ID, 9L);
         verify(releaseState).run();
@@ -275,18 +296,21 @@ class ClprBundlePrevalidatorTest {
         verify(localHandler).findResponse(contextCaptor.capture(), any());
         final var context = contextCaptor.getValue();
         final var query = context.query().contractCallLocalOrThrow();
-        final var expectedCall = Bytes.wrap(new Function("verifyBundle(bytes,bytes,bytes)", "()")
-                .encodeCall(Tuple.of(
-                        PROOF.toByteArray(),
-                        CHANNEL.trustAnchor().toByteArray(),
-                        CHANNEL.channelContext().toByteArray()))
-                .array());
         assertThat(query.contractID()).isEqualTo(VERIFIER);
         assertThat(query.gas()).isEqualTo(VERIFIER_GAS);
         assertThat(query.functionParameters()).isEqualTo(expectedCall);
         assertThat(context.payer()).isEqualTo(CLPR_SERVICE_ACCOUNT_ID);
         assertThat(context.clprDispatchMetadata().senderId()).isEqualTo(CLPR_SERVICE_ACCOUNT_ID);
         assertThat(context.clprDispatchMetadata().senderAddress()).isEqualTo(CLPR_EVM_ADDRESS_BYTES);
+    }
+
+    private static Bytes encodedVerifierCall() {
+        return Bytes.wrap(new Function("verifyBundle(bytes,bytes,bytes)", "()")
+                .encodeCall(Tuple.of(
+                        PROOF.toByteArray(),
+                        CHANNEL.trustAnchor().toByteArray(),
+                        CHANNEL.channelContext().toByteArray()))
+                .array());
     }
 
     @ParameterizedTest

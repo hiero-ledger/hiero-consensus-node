@@ -34,6 +34,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.query.QueryContextImpl;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
@@ -200,6 +201,10 @@ public class ClprBundlePrevalidator {
             @NonNull final Configuration configuration,
             final long gasLimit,
             @NonNull final Bytes callData) {
+        if (callData.length()
+                > configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize()) {
+            throw new HandleException(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
         final var query = Query.newBuilder()
                 .contractCallLocal(ContractCallLocalQuery.newBuilder()
                         .contractID(channel.verifierContractOrThrow())

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.netty;
 
+import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.parseSyncPayload;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,7 +14,6 @@ import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -52,7 +52,7 @@ import org.junit.jupiter.api.Timeout;
  * <ul>
  *     <li>NettyGrpcServerManager (Endpoint registration)</li>
  *     <li>ClprStreamingSyncMethod (the RPC method handler)</li>
- *     <li>DataBufferMarshaller (every message round-trips through it, at production size limits)</li>
+ *     <li>CLPR framing in both directions, at production size limits</li>
  * </ul>
  */
 class ClprStreamingSyncServerTest {
@@ -60,7 +60,6 @@ class ClprStreamingSyncServerTest {
     private static final Bytes CHANNEL_ID =
             Bytes.fromHex("01000000000000000000000000000000000000000000000000000000000000ab");
     private static final long DEADLINE_SECONDS = 10;
-    private static final ThreadLocal<BufferedData> BUFFER_THREAD_LOCAL = new ThreadLocal<>();
 
     private static final MethodDescriptor.Marshaller<byte[]> BYTE_MARSHALLER = new MethodDescriptor.Marshaller<>() {
         @Override
@@ -115,8 +114,7 @@ class ClprStreamingSyncServerTest {
                 .addMethod(otherUnary, ServerCalls.asyncUnaryCall((ignoredRequest, ignoredObserver) -> {}))
                 .build();
 
-        final var withStreaming = NettyGrpcServerManager.addClprStreamingSync(
-                base, noopWorkflow(), new DataBufferMarshaller(BUFFER_THREAD_LOCAL, 256, 128));
+        final var withStreaming = NettyGrpcServerManager.addClprStreamingSync(base, noopWorkflow());
 
         final var method = withStreaming.getMethod(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME);
         assertThat(method).isNotNull();
@@ -218,6 +216,22 @@ class ClprStreamingSyncServerTest {
                 .hasMessageContaining("CLPR is not enabled");
     }
 
+    @Test
+    @Timeout(30)
+    void roundTripsPreviouslyAdvertisedFourMiBSyncInBothDirections() throws Exception {
+        final var frame = payload(request(0), Bytes.wrap(new byte[4 * 1024 * 1024 - 114]));
+        final var session = mock(ClprStreamingSyncSession.class);
+        given(session.onMessage(any())).willAnswer(invocation -> {
+            final Bytes received = invocation.getArgument(0);
+            return parseSyncPayload(received);
+        });
+        final var call = startServerAndCall(session);
+        assertThat(call.write(bytes(frame))).isTrue();
+        assertThat(read(call)).isEqualTo(frame);
+        call.halfClose();
+        assertThat(read(call)).isNull();
+    }
+
     /** Starts a plaintext server carrying the streaming method as registered in production, and opens a call. */
     private BlockingClientCall<byte[], byte[]> startServerAndCall(final ClprStreamingSyncSession session)
             throws Exception {
@@ -227,13 +241,7 @@ class ClprStreamingSyncServerTest {
     private BlockingClientCall<byte[], byte[]> startServerAndCall(final ClprSyncWorkflow workflow) throws Exception {
         final var base = ServerServiceDefinition.builder(ClprEndpointServiceDefinition.SERVICE_NAME)
                 .build();
-        final var service = NettyGrpcServerManager.addClprStreamingSync(
-                base,
-                workflow,
-                new DataBufferMarshaller(
-                        BUFFER_THREAD_LOCAL,
-                        NettyGrpcServerManager.MAX_TRANSACTION_SIZE + 1,
-                        NettyGrpcServerManager.MAX_TRANSACTION_SIZE));
+        final var service = NettyGrpcServerManager.addClprStreamingSync(base, workflow);
 
         server = NettyServerBuilder.forPort(0).addService(service).build().start();
         channel = NettyChannelBuilder.forAddress("localhost", server.getPort())
@@ -246,7 +254,7 @@ class ClprStreamingSyncServerTest {
     @Nullable
     private static ClprStreamingSyncPayload read(final BlockingClientCall<byte[], byte[]> call) throws Exception {
         final var response = call.read();
-        return response == null ? null : ClprStreamingSyncPayload.PROTOBUF.parse(Bytes.wrap(response));
+        return response == null ? null : parseSyncPayload(Bytes.wrap(response));
     }
 
     private static byte[] bytes(final ClprStreamingSyncPayload payload) {

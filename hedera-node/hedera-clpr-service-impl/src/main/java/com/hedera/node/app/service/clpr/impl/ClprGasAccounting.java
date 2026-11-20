@@ -197,11 +197,13 @@ public final class ClprGasAccounting {
             @NonNull final AccountID payer, final long gasLimit, @NonNull final ContractGasUsage usage) {
         final long billedGas = Math.min(Math.clamp(usage.gasUsed(), 0, gasLimit), remainingVerifierBillingGas);
         remainingVerifierBillingGas -= billedGas;
+        // Retain capacity for both executed work and fees already owed from the shared escrow.
+        remainingGas += Math.min(usage.takeUnspentGas(), gasLimit - billedGas);
         return settleGas(billedGas);
     }
 
     private long settleGas(final long gasUsed) {
-        // Consume every granted gas unit for capacity, independently of billed EVM refunds.
+        // Billing is independent of how much execution capacity remains.
         final long actualFee = costForGas(gasUsed);
         spentFee = Math.addExact(spentFee, actualFee);
         return actualFee;

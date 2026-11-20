@@ -15,6 +15,7 @@ public final class ClprConfigBuilder {
     private int protocolVersion = 1;
     private String ledgerConfigurationFile = "data/config/clprLedgerConfiguration.json";
     private String upgradeLedgerConfigurationFile = "clprLedgerConfiguration.json";
+    private int maxQueueDepthCeiling = 10_000;
     private long minLockedStake = 100_000_000L;
     private long stakingAccount = 803L;
     private long slashBasePenalty = 10_000_000L;
@@ -73,6 +74,11 @@ public final class ClprConfigBuilder {
 
     public ClprConfigBuilder minLockedStake(final long minLockedStake) {
         this.minLockedStake = minLockedStake;
+        return this;
+    }
+
+    public ClprConfigBuilder maxQueueDepthCeiling(final int maxQueueDepthCeiling) {
+        this.maxQueueDepthCeiling = maxQueueDepthCeiling;
         return this;
     }
 
@@ -222,6 +228,7 @@ public final class ClprConfigBuilder {
                 protocolVersion,
                 ledgerConfigurationFile,
                 upgradeLedgerConfigurationFile,
+                maxQueueDepthCeiling,
                 minLockedStake,
                 stakingAccount,
                 slashBasePenalty,

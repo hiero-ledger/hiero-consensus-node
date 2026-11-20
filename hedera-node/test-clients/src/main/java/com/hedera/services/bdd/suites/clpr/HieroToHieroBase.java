@@ -156,7 +156,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     /** Matches the {@link #buildLedgerConfig} default — used by overloads that only need to tune sync rate. */
     static final int DEFAULT_MAX_MESSAGES_PER_BUNDLE = 100;
     /** Matches the {@link #buildLedgerConfig} default — used by overloads that only need to tune sync rate. */
-    static final int DEFAULT_MAX_QUEUE_DEPTH = 1000;
+    static final int DEFAULT_MAX_QUEUE_DEPTH = 10_000;
 
     /**
      * How long {@link #awaitWrapsExtensible} waits for the first WRAPS-extensible recursive proof.
@@ -1507,7 +1507,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      *
      * <p>Accepts any of {@code acceptableStatuses}. A {@code SUCCESS} means this submit is what accepted
      * the manifest-only recovery bundle (no channel leaf) and applied the advancing manifest. A
-     * {@code CLPR_BUNDLE_VERIFICATION_FAILED} means the manifest was <em>already</em> applied — on a
+     * {@code CLPR_NO_PROGRESS} means the manifest was <em>already</em> applied — on a
      * one-sided turnover the surviving link lets the remote auto-push its manifest first, so the manual
      * submit legitimately races that automatic recovery. The <em>deterministic</em> assertion is the
      * separate {@link #awaitManifestAppliedOnPeer} step: the manifest is applied regardless of which path
@@ -1894,7 +1894,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(maxMessagesPerBundle)
                         .setMaxMessagePayloadBytes(65536)
-                        .setMaxGasPerMessage(1_000_000L)
+                        .setMaxGasPerMessage(4_000_000L)
                         .setMaxQueueDepth(maxQueueDepth)
                         .setMaxSyncBytes(1_048_576L)
                         .build())

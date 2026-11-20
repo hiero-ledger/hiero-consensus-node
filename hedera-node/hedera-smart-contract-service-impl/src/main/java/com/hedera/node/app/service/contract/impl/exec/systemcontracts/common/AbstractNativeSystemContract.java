@@ -5,9 +5,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.MAX_MESSAGE_PAYLOAD_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIABLE_SYNC_BYTES;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.VERIFIER_CALL_OVERHEAD_BYTES;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage.SendMessageTranslator.SEND_MESSAGE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.UNQUALIFIED_DELEGATE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
@@ -30,6 +34,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.AbstractFullContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.ClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
@@ -63,6 +68,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
      */
     public static final int FUNCTION_SELECTOR_LENGTH = 4;
 
+    private static final Bytes SEND_MESSAGE_SELECTOR = Bytes.wrap(SEND_MESSAGE.selector());
     private static final long CLPR_ROUTER_SYSTEM_CONTRACT_NUM = 0x16eL;
     private static final long BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM = 0x16fL;
     private static final long SEI_VERIFIER_SYSTEM_CONTRACT_NUM = 0x170L;
@@ -135,14 +141,8 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         AbstractCallAttempt<?> attempt = null;
         FullResult earlyResult = null;
         try {
-            // Input boundary size validation.
-            // With "input <= transactionMaxBytes()" we ensure nobody can send a huge input for parsing or execution,
-            // because parsing or execution can happen before any rejection, e.g. by gas or function param length.
-            final var maxInputBytes = this instanceof AbstractClprSystemContract && isClprDispatch(frame)
-                    ? configOf(frame)
-                            .getConfigData(JumboTransactionsConfig.class)
-                            .maxTxnSize()
-                    : hederaConfigOf(frame).transactionMaxBytes();
+            // Bound the input before ABI decoding or executing the call.
+            final var maxInputBytes = maxInputBytes(input, frame);
             validateTrue(
                     input.size() >= FUNCTION_SELECTOR_LENGTH && input.size() <= maxInputBytes,
                     INVALID_TRANSACTION_BODY);
@@ -471,6 +471,24 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                     || Arrays.equals(evmAddress, ETHEREUM_VERIFIER_EVM_ADDRESS);
         }
         return false;
+    }
+
+    private int maxInputBytes(final Bytes input, final MessageFrame frame) {
+        if (this instanceof AbstractClprSystemContract) {
+            if (this instanceof ClprSystemContract && selectorOf(input).equals(SEND_MESSAGE_SELECTOR)) {
+                // Four argument words, two dynamic lengths and at most two words of padding.
+                return Math.max(hederaConfigOf(frame).transactionMaxBytes(), MAX_MESSAGE_PAYLOAD_BYTES + 4 + 8 * 32);
+            }
+            // The verifier ABI also carries the trust anchor and channel context.
+            if (isClprDispatch(frame)) {
+                return Math.max(
+                        configOf(frame)
+                                .getConfigData(JumboTransactionsConfig.class)
+                                .maxTxnSize(),
+                        VERIFIABLE_SYNC_BYTES + VERIFIER_CALL_OVERHEAD_BYTES);
+            }
+        }
+        return hederaConfigOf(frame).transactionMaxBytes();
     }
 
     @NonNull

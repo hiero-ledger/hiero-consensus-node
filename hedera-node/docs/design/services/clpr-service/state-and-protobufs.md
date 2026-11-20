@@ -55,9 +55,12 @@ orders the schema independently of the software version.
 | `CHANNELS_KEY`                      | KV        | `ProtoBytes` (32B channel ID)                            | `ClprChannel`             | `MAX_CHANNELS = 10 000`                                                          |
 | `PENDING_COMMITMENTS_KEY`           | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent)                                 |
 | `PENDING_CONNECTOR_COMMITMENTS_KEY` | KV        | `ProtoBytes`                                             | `ProtoBytes`              | `MAX_PENDING_COMMITMENTS = 10 000` (independent — same constant, separate state) |
-| `MESSAGE_QUEUE_KEY`                 | KV        | `ClprMessageKey` (channelId + messageId)                 | `ClprMessageValue`        | unbounded (queue depth gated by `ClprThrottles.max_queue_depth`)                 |
+| `MESSAGE_QUEUE_KEY`                 | KV        | `ClprMessageKey` (channelId + messageId)                 | `ClprMessageValue`        | per channel: at most `2 * max_queue_depth`; the local limit is expand-only       |
 | `CONNECTORS_KEY`                    | KV        | `ClprConnectorKey` (channel_id + connector_id, both 32B) | `ClprConnector`           | `MAX_CONNECTORS = 100 000`                                                       |
 | `LEDGER_CONFIGURATION_KEY`          | Singleton | —                                                        | `ClprLedgerConfiguration` | 1                                                                                |
+
+Queue capacity comes directly from the non-decreasing `max_queue_depth` in
+`LEDGER_CONFIGURATION`. No separate reserve singleton or block-stream value type is needed.
 
 State IDs are `StateKey.KeyOneOfType.CLPRSERVICE_I_*.protoOrdinal()` (or
 `SingletonType.CLPRSERVICE_I_LEDGER_CONFIGURATION.protoOrdinal()` for the singleton). Treat
@@ -68,7 +71,9 @@ those constants as the canonical identity — the string keys are labels.
 `ClprServiceImpl.doGenesisSetup()` initializes missing singletons in the first round. The handle
 workflow also initializes them during post-upgrade setup. Both delegate to
 `V0780ClprSchema.initializeSingletons()` using the active network configuration and preserve existing
-values; schema startup only registers the state definitions.
+values; schema startup only registers the state definitions. Administrator transactions reject a
+lower queue limit. Upgrade-file updates retain existing credit when a lower limit is requested,
+and cap new growth at `clpr.maxQueueDepthCeiling`; see [configuration rules](config-and-slashing.md).
 
 Seeds `LEDGER_CONFIGURATION` with:
 

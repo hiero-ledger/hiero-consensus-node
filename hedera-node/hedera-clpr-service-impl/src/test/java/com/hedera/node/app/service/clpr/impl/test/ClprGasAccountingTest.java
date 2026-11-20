@@ -152,6 +152,32 @@ class ClprGasAccountingTest {
     }
 
     @Test
+    void onlyUnusedVerifierCapacityIsAvailableToSubsequentCallbacks() {
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
+        final var usage = gasResult(40);
+        usage.recordUnspentGas(54); // 46 consumed before EVM refunds, 40 billed
+        subject.settleVerifierWithGasUsage(PARENT, 100, usage);
+        assertThat(subject.availableApplicationGas(TOTAL_GAS)).isEqualTo(954);
+        assertThat(subject.prepay(CONNECTOR_A, 955)).isFalse();
+        assertThat(usage.takeUnspentGas()).isZero();
+    }
+
+    @Test
+    void releasingVerifierCapacityLeavesEnoughInEscrowForBilledGas() {
+        final var subject = ClprGasAccounting.forContext(context);
+        assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();
+        final var usage = gasResult(80);
+        usage.recordUnspentGas(54);
+        assertThat(subject.settleVerifierWithGasUsage(PARENT, 100, usage)).isEqualTo(80 * GAS_PRICE);
+        assertThat(subject.availableApplicationGas(TOTAL_GAS)).isEqualTo(920);
+        assertThat(subject.prepay(CONNECTOR_A, 920)).isTrue();
+        subject.settleWithGasUsage(CONNECTOR_A, 920, gasResult(920));
+        subject.refundUnusedGas();
+        assertThat(balances.get(PARENT)).isEqualTo(INITIAL_BALANCE - TOTAL_GAS * GAS_PRICE);
+    }
+
+    @Test
     void billingRefundsDoNotReopenTheDeclaredExecutionBudget() {
         final var subject = ClprGasAccounting.forContext(context);
         assertThat(subject.prepayVerifier(PARENT, 100)).isTrue();

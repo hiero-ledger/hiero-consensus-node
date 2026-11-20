@@ -132,7 +132,7 @@ class V0780ClprSchemaTest {
                             .maxMessagePayloadBytes(65_536)
                             // Capped at contracts.maxGasPerTransaction
                             .maxGasPerMessage(15_000_000L)
-                            .maxQueueDepth(20_000)
+                            .maxQueueDepth(10_000)
                             .maxSyncBytes(4_194_304L)
                             .build());
         }));

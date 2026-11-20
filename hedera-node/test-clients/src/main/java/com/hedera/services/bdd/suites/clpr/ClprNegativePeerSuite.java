@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.ACTIVE;
 import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.PAUSED;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -17,6 +18,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration.defaultThrottles;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -45,7 +48,6 @@ import com.hederahashgraph.api.proto.java.ClprMessageReply;
 import com.hederahashgraph.api.proto.java.ClprMessageReplyStatus;
 import com.hederahashgraph.api.proto.java.ClprQueueMetadata;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
-import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.swirlds.state.spi.WritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.charset.StandardCharsets;
@@ -156,25 +158,43 @@ public class ClprNegativePeerSuite {
         final var aSentRunningHash = new AtomicReference<byte[]>();
         // 2 sends fit under cap=4; the bundle's 2 reply enqueues push next_message_id to 5.
         final int tightQueueDepth = 4;
-        return hapiTest(concat(
-                new SpecOperation[] {
-                    // 100% disables the per-connector quota so the depth cap isn't masked by §8.11.
-                    overriding("clpr.connectorQueueQuotaPct", "100"),
-                },
-                setupChannelWithTwoSends(crypto, defaultLedgerConfig(tightQueueDepth), aSentRunningHash),
-                sourcing(() -> clprSubmitBundle()
-                        .channelId(crypto.channelId())
-                        .bundlePayload(bundleWithTwoDataMessagesUnknownConnector(aSentRunningHash.get()))
-                        .endpointNodeId(0L)
-                        .payingWith(GENESIS)),
-                withOpContext((spec, opLog) -> {
-                    final var conn = readChannel(spec, crypto);
-                    if (conn.nextMessageId() <= tightQueueDepth) {
-                        throw new AssertionError("Expected next_message_id > " + tightQueueDepth
-                                + " after reply enqueues; was " + conn.nextMessageId());
-                    }
-                }),
-                sendMessageOp(crypto, "msg-blocked").hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+        return hapiTest(withOpContext((spec, log) -> {
+            final var original = readLedgerConfig(spec);
+            // This embedded fixture represents a ledger that began with a small queue limit.
+            // Admin reductions are rejected; only fixture setup may seed this starting state.
+            writeLedgerConfig(
+                    spec,
+                    original.copyBuilder()
+                            .throttles(original.throttlesOrThrow().copyBuilder().maxQueueDepth(tightQueueDepth))
+                            .build());
+            try {
+                allRunFor(
+                        spec,
+                        concat(
+                                new SpecOperation[] {
+                                    // 100% disables the per-connector quota so the depth cap isn't masked by §8.11.
+                                    overriding("clpr.connectorQueueQuotaPct", "100"),
+                                },
+                                setupChannelWithTwoSends(
+                                        crypto, defaultLedgerConfig(tightQueueDepth), aSentRunningHash),
+                                sourcing(() -> clprSubmitBundle()
+                                        .channelId(crypto.channelId())
+                                        .bundlePayload(
+                                                bundleWithTwoDataMessagesUnknownConnector(aSentRunningHash.get()))
+                                        .endpointNodeId(0L)
+                                        .payingWith(GENESIS)),
+                                withOpContext((checkSpec, opLog) -> {
+                                    final var conn = readChannel(checkSpec, crypto);
+                                    if (conn.nextMessageId() <= tightQueueDepth) {
+                                        throw new AssertionError("Expected next_message_id > " + tightQueueDepth
+                                                + " after reply enqueues; was " + conn.nextMessageId());
+                                    }
+                                }),
+                                sendMessageOp(crypto, "msg-blocked").hasKnownStatus(CONTRACT_REVERT_EXECUTED)));
+            } finally {
+                writeLedgerConfig(spec, original);
+            }
+        }));
     }
 
     /** Step 8's non-resetting {@code responseIndex} must skip the Data slot between two replies. */
@@ -305,20 +325,30 @@ public class ClprNegativePeerSuite {
         return out;
     }
 
+    private static com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration readLedgerConfig(final HapiSpec spec) {
+        return spec.embeddedStateOrThrow()
+                .getReadableStates(ClprService.NAME)
+                .<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
+                .get();
+    }
+
+    private static void writeLedgerConfig(
+            final HapiSpec spec, final com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration config) {
+        spec.mutateEmbeddedState(state -> state.getWritableStates(ClprService.NAME)
+                .<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID)
+                .put(config));
+    }
+
     private static ClprLedgerConfiguration defaultLedgerConfig() {
-        return defaultLedgerConfig(1000);
+        return defaultLedgerConfig(10_000);
     }
 
     private static ClprLedgerConfiguration defaultLedgerConfig(final int maxQueueDepth) {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
                 .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
-                .setThrottles(ClprThrottles.newBuilder()
-                        .setMaxMessagesPerBundle(100)
-                        .setMaxMessagePayloadBytes(65536)
-                        .setMaxGasPerMessage(1_000_000L)
+                .setThrottles(defaultThrottles().toBuilder()
                         .setMaxQueueDepth(maxQueueDepth)
-                        .setMaxSyncBytes(1_048_576L)
                         .build())
                 .build();
     }

@@ -4,6 +4,8 @@ package com.hedera.node.app.service.clpr.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.areValidThrottles;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.capDeliveryLimits;
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.preserveAdvertisedLimits;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -17,6 +19,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
@@ -76,6 +79,15 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
         final var storeFactory = context.storeFactory();
         final var configStore = storeFactory.writableStore(WritableLedgerConfigurationStore.class);
         final var existing = configStore.getConfiguration();
+
+        final var current = existing.throttlesOrElse(ClprThrottles.DEFAULT);
+        final var requested = supplied.throttlesOrThrow();
+        final int queueDepthCeiling =
+                context.configuration().getConfigData(ClprConfig.class).maxQueueDepthCeiling();
+        HandleException.validateTrue(
+                preserveAdvertisedLimits(capDeliveryLimits(requested, queueDepthCeiling), current)
+                        .equals(requested),
+                INVALID_CLPR_CONFIGURATION);
 
         // Build the updated configuration, preserving immutable fields from genesis.
         // Source the trust anchor from this transaction's consensus state. Signed snapshot

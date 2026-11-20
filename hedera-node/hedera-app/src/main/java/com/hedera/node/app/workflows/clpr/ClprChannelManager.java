@@ -360,17 +360,11 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             final var channelStore = storeFactory.readableStore(ReadableChannelStore.class);
             final var channel = channelStore.getChannel(channelId);
             if (channel == null) {
-                // Channel not (yet) in committed state. May be a freshly registered id
-                // whose round has not committed, or a rolled-back registration. Skip this
-                // tick without unscheduling — cleanup is driven by an observed CLOSED status
-                // or an explicit onChannelClosed() call only.
+                // Registration can precede round commit. Check the next committed state on the next tick.
                 return;
             }
             if (channel.status() == ClprChannelStatus.CLOSED) {
-                // Self-healing drop: the handler's onChannelClosed callback may have been
-                // lost to a transaction rollback, or this id may have transitioned to CLOSED
-                // before the orchestrator observed it. Either way, an observed-CLOSED channel
-                // has no future sync work, so cancel its timer and drop it now.
+                // Cancel the timer once closure is visible in committed state.
                 logger.info("CLPR sync: removing CLOSED channel {}", channelId.toHex());
                 unscheduleChannel(channelId);
                 return;

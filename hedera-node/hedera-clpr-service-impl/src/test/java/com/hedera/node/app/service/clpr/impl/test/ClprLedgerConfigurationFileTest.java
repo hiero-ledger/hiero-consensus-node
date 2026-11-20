@@ -18,6 +18,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ClprLedgerConfigurationFileTest {
@@ -126,6 +127,18 @@ class ClprLedgerConfigurationFileTest {
     }
 
     @Test
+    void genesisCapsAllThreeDeliveryLimitsBeforeAdvertisingThem() throws IOException {
+        final var large = BUNDLED_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(131_072)
+                .maxSyncBytes(8_388_608L)
+                .maxMessagesPerBundle(2000)
+                .build();
+        final var config = configWithFile(writeFile(jsonOf(large)), 15_000_000L);
+        assertThat(ClprLedgerConfigurationFile.initialThrottles(config)).isEqualTo(BUNDLED_THROTTLES);
+    }
+
+    @Test
     void initialThrottlesCapGasAtMaxGasPerTransaction() throws IOException {
         final var file = writeFile(jsonOf(CUSTOM_THROTTLES));
 
@@ -184,7 +197,119 @@ class ClprLedgerConfigurationFileTest {
         assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(
                         existing, CUSTOM_THROTTLES, configWithFile(tempDir, 15_000_000L)))
                 .contains(ClprLedgerConfiguration.newBuilder()
-                        .throttles(CUSTOM_THROTTLES)
+                        .throttles(CUSTOM_THROTTLES
+                                .copyBuilder()
+                                .maxMessagesPerBundle(BUNDLED_THROTTLES.maxMessagesPerBundle()))
+                        .build());
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,1", "9999,9999", "10000,10000", "20000,10000"})
+    void genesisCapsBundledQueueCredit(final int ceiling, final int expected) {
+        final var configuration = configWithFile(tempDir.resolve("missing.json"), 15_000_000L, ceiling);
+        assertThat(ClprLedgerConfigurationFile.initialThrottles(configuration).maxQueueDepth())
+                .isEqualTo(expected);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"1,1", "10000,10000", "20000,20000", "30000,20000"})
+    void genesisCapsFileQueueCredit(final int ceiling, final int expected) throws IOException {
+        final var file = writeFile(jsonOf(CUSTOM_THROTTLES));
+        assertThat(ClprLedgerConfigurationFile.initialThrottles(configWithFile(file, 15_000_000L, ceiling))
+                        .maxQueueDepth())
+                .isEqualTo(expected);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "5,2,10,5",
+        "5,5,10,5",
+        "5,6,10,6",
+        "5,10,10,10",
+        "5,11,10,10",
+        "5,5,3,5",
+        "5,6,3,5",
+        "5,3,3,5",
+        "1,1,1,1",
+        "10000,2147483647,10000,10000",
+        "2147483647,1,10000,2147483647"
+    })
+    void upgradeRetainsCreditAndCapsGrowthWithoutWritingNoOps(
+            final int current, final int requested, final int ceiling, final int expected) {
+        final var existing = existingWith(
+                BUNDLED_THROTTLES.copyBuilder().maxQueueDepth(current).build());
+        final var requestedThrottles =
+                BUNDLED_THROTTLES.copyBuilder().maxQueueDepth(requested).build();
+        final var result = ClprLedgerConfigurationFile.upgradeConfiguration(
+                existing, requestedThrottles, configWithFile(tempDir, 15_000_000L, ceiling));
+
+        if (expected == current) {
+            assertThat(result).isEmpty();
+        } else {
+            assertThat(result)
+                    .contains(ClprLedgerConfiguration.newBuilder()
+                            .throttles(BUNDLED_THROTTLES.copyBuilder().maxQueueDepth(expected))
+                            .build());
+        }
+    }
+
+    @Test
+    void upgradeRetainsAdvertisedLimitsWhileApplyingIndependentChanges() {
+        final var requested = CUSTOM_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(1024)
+                .maxSyncBytes(1_048_576L)
+                .maxQueueDepth(5)
+                .maxGasPerMessage(3_000_000L)
+                .build();
+        final var result = ClprLedgerConfigurationFile.upgradeConfiguration(
+                existingWith(BUNDLED_THROTTLES), requested, configWithFile(tempDir, 15_000_000L, 100));
+        assertThat(result)
+                .contains(ClprLedgerConfiguration.newBuilder()
+                        .throttles(BUNDLED_THROTTLES
+                                .copyBuilder()
+                                .maxGasPerMessage(requested.maxGasPerMessage())
+                                .maxPeerEndpoints(requested.maxPeerEndpoints()))
+                        .build());
+    }
+
+    @Test
+    void upgradeWithOnlyReductionsDoesNotPublishANewConfiguration() {
+        final var smaller = BUNDLED_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(1024)
+                .maxSyncBytes(1_048_576L)
+                .maxMessagesPerBundle(2)
+                .build();
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(
+                        existingWith(BUNDLED_THROTTLES), smaller, configWithFile(tempDir, 15_000_000L)))
+                .isEmpty();
+    }
+
+    @Test
+    void capsNewAdvertisementsButRetainsPreviouslyAdvertisedLimits() {
+        final var oversized = BUNDLED_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(131_072)
+                .maxSyncBytes(8_388_608L)
+                .maxMessagesPerBundle(2000)
+                .build();
+        final var config = configWithFile(tempDir, 15_000_000L);
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(existingWith(BUNDLED_THROTTLES), oversized, config))
+                .isEmpty();
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(existingWith(oversized), BUNDLED_THROTTLES, config))
+                .isEmpty();
+        final var smaller = BUNDLED_THROTTLES
+                .copyBuilder()
+                .maxMessagePayloadBytes(1024)
+                .maxSyncBytes(131_072)
+                .build();
+        assertThat(ClprLedgerConfigurationFile.upgradeConfiguration(
+                        existingWith(smaller),
+                        oversized.copyBuilder().maxMessagesPerBundle(2).build(),
+                        config))
+                .contains(ClprLedgerConfiguration.newBuilder()
+                        .throttles(BUNDLED_THROTTLES)
                         .build());
     }
 
@@ -198,7 +323,13 @@ class ClprLedgerConfigurationFileTest {
     }
 
     private static Configuration configWithFile(final Path file, final long maxGasPerTransaction) {
+        return configWithFile(file, maxGasPerTransaction, 30_000);
+    }
+
+    private static Configuration configWithFile(
+            final Path file, final long maxGasPerTransaction, final int queueDepthCeiling) {
         return HederaTestConfigBuilder.create()
+                .withValue("clpr.maxQueueDepthCeiling", queueDepthCeiling)
                 .withValue("clpr.ledgerConfigurationFile", file.toString())
                 .withValue("contracts.maxGasPerTransaction", maxGasPerTransaction)
                 .getOrCreateConfig();

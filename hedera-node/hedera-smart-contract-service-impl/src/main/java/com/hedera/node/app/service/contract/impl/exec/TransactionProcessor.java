@@ -214,6 +214,16 @@ public class TransactionProcessor {
         // refund first would survive in the rollback handler's gas events even after its state is reverted.
         result = safeCommit(
                 result, transaction, updater, context, accessTrackerFor(initialFrame), initialFrame.getSelfDestructs());
+        if (transaction.isClprDispatch() && context.verifierGasUsage() != null && result.isSuccess()) {
+            // Prepaid frames start with the full grant. Retain intrinsic gas in addition to executed
+            // gas, and respect the calldata floor before releasing capacity for callbacks.
+            final var requirements = gasCharging.gasRequirements(transaction);
+            context.verifierGasUsage()
+                    .recordUnspentGas(Math.clamp(
+                            initialFrame.getRemainingGas() - requirements.intrinsicGas(),
+                            0,
+                            Math.max(0L, transaction.gasLimit() - requirements.minimumGasUsed())));
+        }
         if (!gasIsPrepaid) {
             gasCharging.maybeRefundGiven(
                     transaction.unusedGas(result.gasUsed()),

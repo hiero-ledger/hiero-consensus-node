@@ -684,7 +684,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         // forcing every test annotation to repeat this override.
         overrides.put("clpr.minLockedStake", "100");
         overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
-        overrides.put("clpr.verifierGasLimit", "5000000");
         // Task defaults apply at genesis and fixture restart, while per-test setup overrides win.
         overrides.putAll(prCheckOverrides());
         return overrides;

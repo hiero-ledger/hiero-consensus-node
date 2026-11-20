@@ -16,6 +16,8 @@ contract EchoApplication is IClprApplication {
         return messageData;
     }
 
+    function onClprResponseUnavailable(bytes32, uint64, uint8) external pure override {}
+
     function onClprResponse(
         bytes32,
         uint64,

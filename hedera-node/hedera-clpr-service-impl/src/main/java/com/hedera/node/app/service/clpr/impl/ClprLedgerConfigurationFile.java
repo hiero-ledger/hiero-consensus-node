@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.preserveAdvertisedLimits;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
@@ -80,7 +81,7 @@ public final class ClprLedgerConfigurationFile {
      * Returns the throttles to seed at genesis: from {@link ClprConfig#ledgerConfigurationFile()} if it exists
      * and is valid, otherwise from {@link #BUNDLED_RESOURCE}. An invalid file is logged and ignored rather than
      * thrown, since seeding runs on the handle thread and an exception there would leave the CLPR singletons
-     * missing on this node. {@code max_gas_per_message} is capped at {@code contracts.maxGasPerTransaction}.
+     * missing on this node. Gas, queue depth and delivery limits are capped before the first advertisement.
      *
      * @param configuration the active configuration
      * @return the throttles to seed
@@ -111,7 +112,8 @@ public final class ClprLedgerConfigurationFile {
      * Returns the configuration to dispatch in a {@code ClprUpdateLedgerConfiguration} to apply the given
      * throttles from an upgrade file, or empty if they match the existing throttles. Applying unchanged
      * throttles would still set a new timestamp, which queues a config update on every channel.
-     * {@code max_gas_per_message} is capped at {@code contracts.maxGasPerTransaction}.
+     * Gas is capped at {@code contracts.maxGasPerTransaction}. Growth ceilings apply to payload, sync, bundle count and queue depth
+     * before retaining the existing floor for each advertisement.
      *
      * @param existing the existing ledger configuration
      * @param throttles the validated throttles from the upgrade file
@@ -125,12 +127,20 @@ public final class ClprLedgerConfigurationFile {
         requireNonNull(existing);
         requireNonNull(throttles);
         requireNonNull(configuration);
-        final var cappedThrottles = capped(throttles, configuration);
-        if (cappedThrottles.equals(existing.throttles())) {
+        final var current = existing.throttlesOrElse(ClprThrottles.DEFAULT);
+        final var bounded = capped(throttles, configuration);
+        final var effective = preserveAdvertisedLimits(bounded, current);
+        if (!effective.equals(bounded)) {
+            log.warn(
+                    "Retaining previously advertised CLPR limits for upgrade file: requested={}, effective={}",
+                    throttles,
+                    effective);
+        }
+        if (effective.equals(current)) {
             return Optional.empty();
         }
         return Optional.of(
-                ClprLedgerConfiguration.newBuilder().throttles(cappedThrottles).build());
+                ClprLedgerConfiguration.newBuilder().throttles(effective).build());
     }
 
     private static ClprThrottles bundledThrottles() {
@@ -150,7 +160,8 @@ public final class ClprLedgerConfigurationFile {
             @NonNull final ClprThrottles throttles, @NonNull final Configuration configuration) {
         final var maxGasPerTransaction =
                 configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction();
-        return throttles
+        return ClprThrottlesValidator.capDeliveryLimits(
+                        throttles, configuration.getConfigData(ClprConfig.class).maxQueueDepthCeiling())
                 .copyBuilder()
                 .maxGasPerMessage(Math.min(throttles.maxGasPerMessage(), maxGasPerTransaction))
                 .build();

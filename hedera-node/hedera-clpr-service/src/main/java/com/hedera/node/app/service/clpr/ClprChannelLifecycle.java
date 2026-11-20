@@ -24,8 +24,8 @@ public interface ClprChannelLifecycle {
     void onChannelActivated(@NonNull Bytes channelId);
 
     /**
-     * Notify the orchestrator that a Channel has been closed and should
-     * be removed from the outbound sync loop.
+     * Remove a Channel whose closure is already committed from the outbound sync loop.
+     * The regular sync tick observes committed closures independently.
      *
      * @param channelId the 32-byte Channel ID
      */

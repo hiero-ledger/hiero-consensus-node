@@ -787,20 +787,52 @@ the target application is a smart contract.
 2. The call is dispatched via `HandleContext.dispatchChildTransaction()`.
 3. **Gas limit:** The call is executed with a gas limit of `max_gas_per_message` (from the ledger configuration).
 4. **Return handling:**
-   - If the call succeeds, a `SUCCESS` Response Message is generated with the returned `responseData`.
+   - If the call succeeds and its ABI-decoded response fits the serialized reply budget, its effects
+     commit and a `SUCCESS` Response Message is generated with the returned `responseData`.
    - If the call reverts, an `APPLICATION_ERROR` Response Message is generated with empty response data.
-5. **State isolation:** The application call runs in a child transaction context. If the application reverts,
-   all its state changes are rolled back, but the CLPR service's state changes (Connector charge, response
-   generation) are retained.
+   - If a return is malformed or exceeds the reply budget, Hiero rolls back the application dispatch
+     before generating an empty `APPLICATION_ERROR`. This includes contract storage, transfers and
+     nested sends; no committed destination effect is reported as execution failure.
+5. **State isolation:** The application call runs inside a parent savepoint that is committed only after
+   return validation. On rollback, the CLPR service's Connector compensation and response generation
+   are retained, and executed gas is still billed. If the minimum reply cannot fit the peer budget,
+   execution is skipped before charging the Connector and an empty `APPLICATION_ERROR` preserves
+   protocol progress, as described in the Hiero binding's reply-size rules.
 
 ## 7.2 Response Delivery
 
 When a Response Message arrives on the source ledger:
 
 1. The CLPR service looks up the original `ClprSendMessage` transaction's `sender` address (the transaction payer).
-2. If the sender is a smart contract implementing `IClprReceiver`, the service dispatches `onClprResponse` to it.
+2. For a fitting serialized reply, the service dispatches the existing
+   `onClprResponse(bytes32,uint64,uint8,bytes)` callback to the sender contract, including for a valid
+   empty response. The status is the attested destination execution outcome.
 3. If the sender is an EOA (externally owned account), the response is recorded in the transaction record but
    no callback is made. The sender polls via mirror node or subscribes to transaction records.
+
+If a legacy or external peer returns a reply above the source's payload limit, the source may accept an
+authenticated reply that no longer fits that limit. Its destination effects cannot be undone.
+Hiero preserves the attested status and instead calls this application hook without copying the
+oversized data into EVM calldata:
+
+```solidity
+interface IClprResponseUnavailable {
+    /// The destination outcome is known, but its response bytes cannot be delivered locally.
+    /// SUCCESS (0) still means committed destination execution, not permission to refund or retry.
+    function onClprResponseUnavailable(
+        bytes32 channelId,
+        uint64 messageId,
+        uint8 status
+    ) external;
+}
+```
+
+This hook distinguishes unavailable response bytes from a valid empty response without adding a
+wire field, changing status values, or changing the ordinary callback selector. Applications must
+implement it to receive unavailable-data notifications. Like ordinary response delivery, it is
+best-effort and uses the Connector-funded callback gas allowance. An absent or reverting hook does
+not cause a fallback call to `onClprResponse`; the application must reconcile from the attested reply.
+In all cases the attested hash, terminal DATA removal, ACK and status-based slashing are preserved.
 
 ## 7.3 Gas/Ops Limits
 

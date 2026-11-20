@@ -138,7 +138,7 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
      * network properties such as {@code contracts.chainId} are in effect; schema startup only sees node-local
      * configuration.
      *
-     * <p>All three singletons are initialized even when {@code clpr.enabled} is false. CLPR handlers need
+     * <p>All singletons are initialized even when {@code clpr.enabled} is false. CLPR handlers need
      * them as soon as the flag is set, and since the flag is a network property that a later file
      * update can change, no setup would run then to initialize them. The writes are
      * deterministic and only touch CLPR's own states.
@@ -155,7 +155,8 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
         var initialized = false;
         final var ledgerConfigurationState =
                 writableStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID);
-        if (ledgerConfigurationState.get() == null) {
+        final var ledgerConfiguration = ledgerConfigurationState.get();
+        if (ledgerConfiguration == null) {
             final var clprConfig = configuration.getConfigData(ClprConfig.class);
             // The CAIP-2 chain id is the network's HIP-26 EVM chain id in the eip155 namespace
             final var chainId = "eip155:"
@@ -167,12 +168,13 @@ public class V0780ClprSchema extends Schema<SemanticVersion> {
                     Timestamp.newBuilder().seconds(1L).build();
             // The trust anchor fields remain unset until the history ledger ID is established.
             // The first configuration update after that point populates them from consensus state.
+            final var initialThrottles = ClprLedgerConfigurationFile.initialThrottles(configuration);
             final var initialConfig = ClprLedgerConfiguration.newBuilder()
                     .chainId(chainId)
                     .protocolVersion(clprConfig.protocolVersion())
                     .serviceAddress(CLPR_SERVICE_ADDRESS)
                     .timestamp(initializationTimestamp)
-                    .throttles(ClprLedgerConfigurationFile.initialThrottles(configuration))
+                    .throttles(initialThrottles)
                     .build();
             ledgerConfigurationState.put(initialConfig);
             initialized = true;

@@ -24,6 +24,7 @@ module com.hedera.node.app.service.clpr.impl {
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.state.api;
     requires transitive com.esaulpaugh.headlong;
@@ -33,7 +34,6 @@ module com.hedera.node.app.service.clpr.impl {
     requires com.hedera.cryptography.hints;
     requires com.hedera.cryptography.libsodium;
     requires com.hedera.node.app.service.contract;
-    requires com.swirlds.base;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.roster;

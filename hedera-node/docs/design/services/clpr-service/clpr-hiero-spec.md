@@ -250,34 +250,114 @@ written for Hiero must return this format.
 
 See [`verifier.md`](verifier.md) for the full verifier dispatch flow.
 
+**Reply size and minimum protocol progress:** `max_message_payload_bytes` bounds the complete
+serialized `ClprMessagePayload`, including the reply id, status and protobuf framing. Local
+configurations require at least 15 bytes, enough for an empty error reply at any message id.
+Application return data is bounded by the local limit, the peer's payload limit, and the peer's
+sync limit after a conservative proof allowance. Accepted and deferred config updates can lower
+this budget. If even an empty error exceeds it, Hiero skips the application call and its charges,
+preserves connector fault statuses, and queues an empty `APPLICATION_ERROR` for a funded connector. ACK, anchor,
+manifest and config progress are retained. This minimum response can exceed an invalid peer limit
+or the conservative allowance; the proof builder still enforces the actual serialized bundle limit.
+After dispatch, an oversized or malformed ABI return rolls back the application call and its nested
+effects before Hiero queues an empty `APPLICATION_ERROR`. Connector compensation and the network fee
+for executed gas remain charged. A fitting successful return commits and produces `SUCCESS`.
+
+A legacy or external peer may return a successful reply above the current local payload limit.
+Hiero preserves its attested execution status, hash, ACK and connector-fault slashing decision.
+When its serialized payload exceeds the current local limit, the originating application instead
+receives `onClprResponseUnavailable(bytes32 channelId, uint64 messageId, uint8 status)`, with the
+original status and no response data. `SUCCESS` still means the destination committed; unavailable
+data must not trigger compensation for failed execution. A fitting reply, including a legitimate
+empty response, uses the existing four-argument `onClprResponse` callback.
+
+The unavailable-data callback is a local application interface extension; reply wire fields and
+status values are unchanged. Applications must implement the new hook to receive this notification.
+Delivery remains best-effort: if the hook is absent or reverts, the reply is still accepted and ACKed,
+and Hiero does not fall back to an ordinary callback with misleading status or ambiguous empty data.
+Such applications must reconcile from the attested reply. See application dispatch details in
+[`clpr-hiero-impl-spec.md` §7](clpr-hiero-impl-spec.md#7-application-dispatch).
+
 ---
 
 ## E-9. Lazy `ConfigUpdate` prepended at send
 
 Hiero implements lazy config propagation per spec §1.3 / §4.3 step 1a.
 
-**Mechanism (in `ClprServiceApiImpl.sendMessage`, lines 124–141):**
+**On a local send:** compare the channel's `lastConfigTimestamp` with the local
+`ClprLedgerConfiguration.timestamp`. When stale, prepend a `ClprControlMessage.configUpdate`
+before DATA. Existing slots plus the new DATA may use up to `max_queue_depth - 1` slots.
+A configuration update prepended by the same send can use the last ordinary slot.
+Separately, outstanding DATA plus the new DATA must fit the peer's most recently advertised
+DATA credit; controls and replies do not consume that credit. The existing bounded connector
+quota scan also counts total DATA, so this needs no additional persistent counter or queue scan.
+A terminal reply removes its original DATA before its callback, making that credit available to
+nested sends even before the handler publishes its final ACK frontier.
 
-1. Read the channel's `lastConfigTimestamp`.
-2. Read the singleton `ClprLedgerConfiguration.timestamp`.
-3. If the channel's timestamp is older than the singleton's, **prepend a
-   `ClprControlMessage.configUpdate` to the queue** at `nextMessageId` before the
-   caller's data message.
-4. To guarantee the prepend fits, `sendMessage` reserves an extra slot: the
-   `max_queue_depth` check treats current depth + 2 as the threshold (one for the
-   config update, one for the data message) when a config prepend is needed.
+**On an inbound bundle:** after selecting the accepted prefix and its acknowledgement,
+enqueue a stale configuration if the outstanding queue uses less than the current
+ordinary budget `Q = throttles.max_queue_depth`. Another `Q` slots remain reserved for
+application replies, bounding total outbound depth by `2 * Q`. A full ordinary budget can
+defer the update until traffic drains; it cannot revoke the reply credit needed for progress.
 
-**Mirrored on inbound:** `ClprSubmitBundleHandler` (lines 280–293) applies any
-`ConfigUpdate` control messages before processing data messages in the same bundle,
-updating `peerConfigTimestamp` mid-iteration. See drift review C?-9 for discussion of
-ordering semantics within a bundle.
+The local `max_queue_depth`, `max_message_payload_bytes`, `max_sync_bytes` and
+`max_messages_per_bundle` are expand-only. Peers may have queued DATA or assembled a bundle
+using an earlier advertisement. Lowering any one of these limits fails the entire administrator
+update at consensus with `INVALID_CLPR_CONFIGURATION` and preserves its timestamp.
+Hiero bounds new advertisements at 65,536 bytes per serialized DATA, 4 MiB per sync frame,
+1,000 messages per bundle, and the positive network property `clpr.maxQueueDepthCeiling`
+(default 10,000) for queue depth. Genesis caps each field at its ceiling. An upgrade file
+uses `max(existing, min(requested, ceiling))` independently for each field. This preserves
+earlier advertisements above a ceiling and permits independent changes to gas and endpoints.
+If the effective throttles are unchanged, the upgrade preserves the timestamp.
 
-**Why lazy rather than eager:** sending a config update on every ledger configuration
-change would require enqueuing one control message per active channel — O(channels)
-writes in `updateLedgerConfiguration`. Lazy propagation defers that cost to the next
-actual send, which may never happen on an idle channel.
+Hiero reserves 114 bytes for sync framing and 2 KiB for the separately encoded verifier call,
+including the trust anchor, channel context and ABI padding. Each native or compact proof fits
+both the peer's wire budget and the smaller of the local consensus calldata limit and 128 KiB.
+At default settings the largest proof is 126 KiB. Sync resumes at the first unreceived message.
+Prevalidation checks the complete encoded call against the receiver's configured calldata limit.
+Hiero caps new DATA and replies at 64 KiB. Within the local proof budget it reserves 40 KiB
+for one message's proof overhead, including the 16 KiB cached peer manifest, the native TSS
+signature, both Merkle paths, channel fields and framing. A 64 KiB calldata limit therefore
+allows a 22 KiB serialized payload. At or below 42 KiB there is no room for new DATA or an
+application result. Inbound DATA then receives the minimum error reply without dispatching the application.
+Allow at least 42 KiB plus 15 bytes to budget for an empty error reply at every message ID.
+The advertised sync limit retains its separate 64 KiB wire headroom requirement. Peers with different calldata
+limits must coordinate the smaller bound. The default verifier allowance is 8,000,000 gas.
+Admission requires that much gas throttle headroom. Operators using a custom EVM verifier or
+gas allowance must size it for their verifier's execution cost. The 4 MiB transport limit also carries frames produced
+under the previous default. Legacy or external senders that offer larger proofs may need to
+repack them to fit the verifier. Individual DATA previously admitted above 64 KiB, or a
+channel whose proofs have exceptionally large manifests or witnesses, can still exceed a
+single verifiable prefix. These cases require peer coordination.
 
----
+Because local queue credit never decreases, the current limit also covers all credit
+advertised since this rule took effect. No additional singleton, migration schema, or
+block-stream field is required. Peer configuration proofs and `ConfigUpdate` encodings
+remain unchanged. Acknowledging a configuration alone does not prove that previously
+admitted DATA has drained; supporting decreases would require an additional protocol or
+capacity mechanism in a future change.
+
+Peers must not enqueue new DATA beyond the latest advertised outstanding-DATA credit.
+Incoming peer configuration updates still govern new sends to that peer; an external peer's
+lower credit does not discard already outstanding DATA. A peer that disregards advertised
+credit has no liveness guarantee; force-close provides administrative recovery. Limits
+lowered before this expand-only rule cannot be reconstructed from the current configuration;
+force-close remains available for legacy channels that cannot drain.
+
+An inbound bundle accepts the longest prefix whose generated replies fit the reserve.
+Its received ID/hash and outbound DATA acknowledgement advance only through that prefix.
+One-way acknowledgements and independently proved anchor/manifest/status progress can
+advance even when no DATA fits. These queue-dependent decisions remain consensus-only,
+preserving the stale-state-safe admission checks from #27988: a relay can still pay a
+transaction fee when its bundle is rejected as full/no-progress at consensus.
+
+Accepted inbound `ConfigUpdate` messages update both local loop variables and the channel
+store before later callbacks, so nested `sendMessage` calls see the new peer limits.
+The pre-existing completion-time config propagation behavior is unchanged; the non-decreasing
+local limit also covers a peer using an older configuration proved before channel completion.
+
+Lazy publication avoids an O(channels) rewrite on each configuration change.
 
 ## E-10. Application execution gas and endpoint compensation
 
@@ -320,11 +400,12 @@ or underfunded originating connector causes best-effort response delivery to be 
 Reverted callbacks still pay for gas consumed. Gas is reported before rollback clears stream-builder results. A pre-execution failure
 without an EVM outcome bills zero gas; a reverted execution pays its reported gas.
 
-The sum of verifier and application gas grants cannot exceed the transaction cap.
-Callbacks share the remaining allowance: each DATA or response payload receives at
-most `min(maxGasPerMessage, remainingGas / remainingCallbackPayloads)`. Skipped payloads
-release their share for later callbacks. Once granted, gas capacity is consumed in full
-regardless of billed EVM gas refunds, so repeated storage refunds cannot reopen capacity.
+Verification and callbacks share the transaction cap. After a successful verifier call, gas
+left in its root frame can fund callbacks. The reservation covers intrinsic gas plus pre-refund execution,
+subject to the calldata floor, and the verifier fee owed. A verifier without a usage report consumes its
+full grant. Each remaining callback receives at most
+`min(maxGasPerMessage, remainingGas / remainingCallbackPayloads)`. Skipped callbacks release
+their share. An issued callback grant consumes its full execution capacity.
 Application children use consensus throttling with the connector as child payer while
 retaining the CLPR service's synthetic EVM sender. When the verifier adapter does not
 report gas into the shared accounting ledger, its full configured gas allowance is

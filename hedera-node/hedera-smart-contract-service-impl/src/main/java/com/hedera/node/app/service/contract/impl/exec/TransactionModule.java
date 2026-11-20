@@ -2,6 +2,8 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion.EVM_VERSIONS;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_VERIFIER;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CONTRACT_GAS_USAGE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -41,6 +43,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
+import com.hedera.node.app.spi.workflows.ContractGasUsage;
 import com.hedera.node.app.spi.workflows.FunctionalityResourcePrices;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.config.data.ContractsConfig;
@@ -101,7 +104,9 @@ public interface TransactionModule {
             @NonNull final CanonicalDispatchPrices canonicalDispatchPrices,
             @NonNull final TinybarValues tinybarValues) {
         return new SystemContractGasCalculator(
-                tinybarValues, canonicalDispatchPrices, (body, payerId, signatureMap) -> context.dispatchComputeFees(
+                tinybarValues,
+                canonicalDispatchPrices,
+                (body, payerId, signatureMap) -> context.dispatchComputeFees(
                                 body, payerId, ComputeDispatchFeesAsTopLevel.NO, signatureMap)
                         .totalFee());
     }
@@ -186,6 +191,10 @@ public interface TransactionModule {
             @NonNull final HederaOperations hederaOperations,
             @NonNull final HederaEvmBlocks hederaEvmBlocks,
             @NonNull final PendingCreationMetadataRef pendingCreationMetadataRef) {
+        final var metadata = context.dispatchMetadata();
+        final var verifierGasUsage = Boolean.TRUE.equals(metadata.getMetadataIfPresent(CLPR_VERIFIER, Boolean.class))
+                ? metadata.getMetadataIfPresent(CONTRACT_GAS_USAGE, ContractGasUsage.class)
+                : null;
         return new HederaEvmContext(
                 hederaOperations.gasPriceInTinybars(),
                 false,
@@ -194,7 +203,8 @@ public interface TransactionModule {
                 tinybarValues,
                 systemContractGasCalculator,
                 context.savepointStack().getBaseBuilder(ContractOperationStreamBuilder.class),
-                pendingCreationMetadataRef);
+                pendingCreationMetadataRef,
+                verifierGasUsage);
     }
 
     private static boolean shouldChargeSimpleFees(HandleContext context, HederaFunctionality functionality) {

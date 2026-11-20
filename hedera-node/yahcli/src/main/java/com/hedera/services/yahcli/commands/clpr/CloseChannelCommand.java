@@ -12,9 +12,8 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
 /**
- * Submits a {@code ClprCloseChannel} HAPI transaction to terminate an active
- * cross-ledger channel. Required input is the hex-encoded {@code --channel-id}; the
- * channel moves to {@code CLOSED} and stops accepting further bundles or messages.
+ * Submits a {@code ClprCloseChannel} HAPI transaction to initiate graceful closure
+ * or explicitly force-close a cross-ledger channel.
  */
 @Command(
         name = "close-channel",
@@ -32,12 +31,26 @@ public class CloseChannelCommand implements Callable<Integer> {
             description = "Hex-encoded channel id (32 bytes)")
     String channelIdHex;
 
+    @Option(
+            names = {"--force-close"},
+            description = "Close this side immediately and examine up to 16 queued message IDs per call. "
+                    + "Repeat for remaining batches; SUCCESS also covers an already-complete no-op. "
+                    + "The peer administrator must separately close and clean up its side.")
+    boolean forceClose;
+
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
-        final var op = clprCloseChannel().channelId(ClprArgs.requiredBytes("channel-id", channelIdHex));
+        final var op = clprCloseChannel()
+                .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
+                .forceClose(forceClose);
         final var delegate = new ClprTxnSuite(config, "ClprCloseChannel", op);
         delegate.runSuiteSync();
-        return ClprOutcome.reportTxn(config, delegate, op, "closed CLPR channel", "could not close CLPR channel");
+        final var successAction = forceClose
+                ? "force-close cleanup request accepted; SUCCESS does not confirm cleanup is complete. "
+                        + "Check node cleanup logs for complete=true; repeat if more batches remain. "
+                        + "The peer administrator must separately close and clean up its side"
+                : "requested graceful CLPR channel closure";
+        return ClprOutcome.reportTxn(config, delegate, op, successAction, "could not close CLPR channel");
     }
 }

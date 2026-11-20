@@ -5,6 +5,7 @@ import com.hedera.node.config.NetworkProperty;
 import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 import java.util.Set;
 
@@ -28,6 +29,10 @@ public record ClprConfig(
         // with a synthetic ClprUpdateLedgerConfiguration, when they differ from the current ones.
         @ConfigProperty(defaultValue = "clprLedgerConfiguration.json")
         String upgradeLedgerConfigurationFile,
+
+        // Upper bound for new queue credit. Lowering this ceiling does not revoke existing credit.
+        @ConfigProperty(defaultValue = "10000") @Min(1) @NetworkProperty
+        int maxQueueDepthCeiling,
 
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty
         long minLockedStake,
@@ -72,9 +77,9 @@ public record ClprConfig(
         int connectorQueueQuotaPct,
 
         // --- Verifier contract dispatch (CLPR-5.3) ---
-        // The dispatched call's gas must cover the EIP-7623 calldata floor (~40 gas per proof byte); a Hiero
-        // state proof carrying a WRAPS proof is ~15 KB, so even a single-message bundle needs ~640K gas
-        @ConfigProperty(defaultValue = "2000000") @NetworkProperty
+        // Covers calldata for a 126 KiB Hiero proof plus verifier ABI arguments (up to 40 gas per byte) and verifier
+        // execution.
+        @ConfigProperty(defaultValue = "8000000") @NetworkProperty
         long verifierGasLimit,
 
         // --- Node-submitted ClprSubmitBundle fee cap (tinybars) ---

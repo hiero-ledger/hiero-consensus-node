@@ -21,6 +21,8 @@ contract SourceApplication is IClprApplication {
 
     uint256 public sentCount;
     uint256 public responseCount;
+    uint256 public unavailableCount;
+    mapping(uint64 => bool) private digestResponse;
     mapping(uint64 => bytes) public responses;
 
     constructor(bytes32 _channelId, bytes32 _connectorId, bytes memory _targetApplication) {
@@ -43,6 +45,22 @@ contract SourceApplication is IClprApplication {
         sentCount += count;
     }
 
+    // Build full-size messages in the EVM so the HAPI transaction itself stays small.
+    function sendSizedMessage(uint256 length) external {
+        bytes memory data = new bytes(length);
+        assembly {
+            let end := add(add(data, 32), length)
+            for { let ptr := add(data, 32) } lt(ptr, end) { ptr := add(ptr, 32) } { mstore(ptr, not(0)) }
+        }
+        uint64 id = IClprSystemContract(CLPR_PRECOMPILE).sendMessage(channelId, connectorId, targetApplication, data);
+        digestResponse[id] = true;
+        sentCount++;
+    }
+
+    function onClprResponseUnavailable(bytes32, uint64, uint8) external override {
+        unavailableCount++;
+    }
+
     function onClprMessage(
         bytes32,
         bytes calldata,
@@ -58,7 +76,11 @@ contract SourceApplication is IClprApplication {
         uint8,
         bytes calldata responseData
     ) external override {
-        responses[messageId] = responseData;
+        if (digestResponse[messageId]) {
+            responses[messageId] = abi.encodePacked(keccak256(responseData));
+        } else {
+            responses[messageId] = responseData;
+        }
         responseCount++;
     }
 

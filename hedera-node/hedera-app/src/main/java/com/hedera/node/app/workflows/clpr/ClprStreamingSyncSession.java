@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.clpr;
 
+import static com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition.parseSyncPayload;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -333,7 +334,7 @@ public class ClprStreamingSyncSession {
     private ClprStreamingSyncPayload parseAndValidate(@NonNull final Bytes requestBytes) {
         final ClprStreamingSyncPayload message;
         try {
-            message = ClprStreamingSyncPayload.PROTOBUF.parseStrict(requestBytes);
+            message = parseSyncPayload(requestBytes);
         } catch (final Exception e) {
             logger.warn("{}Failed to parse ClprStreamingSyncPayload", tag, e);
             // The parser's message stays in this node's log; the caller learns only that the payload is invalid

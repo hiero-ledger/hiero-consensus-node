@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
+import static com.hedera.node.app.service.clpr.impl.ClprThrottlesValidator.CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
@@ -52,32 +53,6 @@ import org.hiero.base.crypto.DigestType;
 @Singleton
 public class ClprStateProofManager {
     private static final Logger log = LogManager.getLogger(ClprStateProofManager.class);
-
-    private static final int MAX_DER_ECDSA_SIGNATURE_LENGTH_BYTES = 72;
-
-    private static final int CHANNEL_ID_LENGTH_BYTES = 32;
-
-    /**
-     * Conservative size of the {@code ClprSyncPayload} fields wrapping the bundle payload:
-     * {@code channel_id} (fixed 32 bytes per spec §6.2), {@code endpoint_signature} (ECDSA
-     * secp256k1, max 72-byte DER), {@code bundle_payload} (tag + 5-byte varint length prefix —
-     * no value bytes since that's the {@code StateProof} content we size against). Subtracted
-     * from {@code peerThrottles.maxSyncBytes()} to get the byte budget available to the
-     * {@code StateProof} itself, so the wire-level envelope stays under the cap.
-     *
-     * <p>Each {@code bytes} field on the wire is encoded as {@code [tag][length][raw bytes]}:
-     * <ul>
-     *   <li><b>tag</b> — a varint packing the field number ({@code .proto} ID) with the wire
-     *       type. All {@code ClprSyncPayload} fields are numbered 1–3, so each tag fits in 1
-     *       byte. (Field numbers ≥ 16 would need 2 bytes.)</li>
-     *   <li><b>varint(len)</b> — the data length, varint-encoded: 1 byte for values ≤ 127,
-     *       2 bytes for ≤ 16,383, up to 5 bytes for any uint32. {@code channel_id} (32 B) and
-     *       {@code endpoint_signature} (≤ 72 B) both fit in 1; {@code bundle_payload} can be
-     *       megabytes, so we budget the full 5.</li>
-     * </ul>
-     */
-    private static final long CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES =
-            (1 + 1 + CHANNEL_ID_LENGTH_BYTES) + (1 + 1 + MAX_DER_ECDSA_SIGNATURE_LENGTH_BYTES) + (1 + 5);
 
     private final BlockProvenSnapshotProvider snapshotProvider;
     private final TssVerifier tssVerifier;
@@ -150,10 +125,11 @@ public class ClprStateProofManager {
         return snapshotProvider.latestSnapshot();
     }
 
-    /** Returns the peer's bundle payload budget after reserving room for the sync transport. */
-    public static long maxBundlePayloadBytes(@NonNull final ClprThrottles peerThrottles) {
-        return Math.max(CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES, peerThrottles.maxSyncBytes())
+    /** Wire framing and the verifier ABI wrap the same proof independently. Both envelopes must fit. */
+    public long maxBundlePayloadBytes(@NonNull final ClprThrottles peerThrottles) {
+        final long wireBudget = Math.max(CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES, peerThrottles.maxSyncBytes())
                 - CLPR_SYNC_ENVELOPE_OVERHEAD_BYTES;
+        return Math.min(wireBudget, ClprThrottlesValidator.senderProofBudget(configProvider.getConfiguration()));
     }
 
     /**
@@ -341,10 +317,13 @@ public class ClprStateProofManager {
      * channel and up to {@code peerThrottles.maxMessagesPerBundle()} queued messages starting
      * from {@code firstMessageId} exist in the latest sealed state.
      *
-     * <p>Trims the message tail so the resulting {@code ClprSyncPayload} envelope never exceeds
-     * {@code peerThrottles.maxSyncBytes()} (spec §1.1 sender-side cap). Messages that don't fit
+     * <p>Trims the message tail to fit both the peer's framed sync limit and the local
+     * verifier calldata budget after reserving its ABI arguments. Messages that don't fit
      * stay in the outbound queue and are picked up by the next sync tick — no bookkeeping needed
-     * since the queue is keyed by {@code messageId}.
+     * since the queue is keyed by {@code messageId}. If the peer needs the endpoint manifest and
+     * it fits on its own but cannot fit alongside the first message, prove just the manifest
+     * without queue metadata. When the peer reports that version, send the queued head.
+     * Omit a manifest that exceeds the limit even on its own.
      *
      * <p>When the local outbound queue has no message at {@code firstMessageId} the behaviour
      * depends on {@code allowPureAck}: responder paths pass {@code true} so the channel-only
@@ -365,8 +344,8 @@ public class ClprStateProofManager {
      *                       (spec §4.5, ADR "Propagating updates"). Callers pass {@code true} only
      *                       when the peer's cached {@code endpoint_manifest_version} is stale
      *                       (see #335).
-     * @return serialised {@code StateProof} bytes, or {@code null} when no snapshot is available
-     *         or when there are no message leaves, {@code allowPureAck} is false, and no manifest is included
+     * @return serialised {@code StateProof} bytes, or {@code null} when no snapshot is available, the proof cannot fit,
+     *         or there are no message leaves, {@code allowPureAck} is false, and no manifest is included
      */
     @Nullable
     public Bytes buildSerializedBundleProof(
@@ -606,9 +585,17 @@ public class ClprStateProofManager {
             @NonNull final ToLongFunction<StateProof> payloadSize,
             final boolean nativeProof) {
 
-        final int maxMessages = peerThrottles.maxMessagesPerBundle();
+        final int maxMessages =
+                Math.min(peerThrottles.maxMessagesPerBundle(), ClprThrottlesValidator.MAX_MESSAGES_PER_BUNDLE);
         final long maxSyncBytes = peerThrottles.maxSyncBytes();
         final long maxBundlePayloadBytes = maxBundlePayloadBytes(peerThrottles);
+        if (maxBundlePayloadBytes == 0) {
+            log.debug(
+                    "No room for a proof after sync framing and verifier arguments (channel={} maxSyncBytes={})",
+                    channelId,
+                    maxSyncBytes);
+            return null;
+        }
         log.debug(
                 "[CLPR-BUNDLE-BUILD] start conn={} firstMessageId={} maxMessages={} maxSyncBytes={} "
                         + "maxBundlePayloadBytes={} allowPureAck={} snapshotTimestamp={}",
@@ -654,17 +641,36 @@ public class ClprStateProofManager {
         // can distinguish "no messages" from "channel + manifest but no messages".
         int messageLeafCount = 0;
 
+        final var tssProof = TssSignedBlockProof.newBuilder()
+                .blockSignature(snapshot.tssSignature())
+                .build();
+        final var proofBuilder = StateProof.newBuilder().signedBlockProof(tssProof);
+
         // ── Endpoint manifest singleton leaf (spec §4.9) ──────────────────────────
         if (includeEndpointManifest) {
             addEndpointManifest(allPaths, binaryState, channelId, extendedSibs, digest);
             if (nativeProof && allPaths.size() > 1) {
-                allPaths.add(ClprProofTimestamp.pathFor(allPaths.getFirst(), tsBytes, digest));
+                allPaths.add(ClprProofTimestamp.pathFor(allPaths.getLast(), tsBytes, digest));
+            }
+            if (allPaths.size() > 1
+                    && payloadSize.applyAsLong(proofBuilder.paths(allPaths).build()) > maxBundlePayloadBytes) {
+                // A native manifest and its timestamp travel together, including in a standalone proof.
+                final var manifestPaths = allPaths.subList(1, allPaths.size());
+                if (nativeProof) {
+                    final var manifestOnly = proofBuilder.paths(manifestPaths).build();
+                    if (payloadSize.applyAsLong(manifestOnly) <= maxBundlePayloadBytes) {
+                        return new BundleProof(StateProof.PROTOBUF.toBytes(manifestOnly), 0, firstMessageId - 1);
+                    }
+                }
+                manifestPaths.clear();
+                log.warn(
+                        "Endpoint manifest cannot fit in a supported proof (channel={} maxSyncBytes={} maxBundlePayloadBytes={})",
+                        channelId,
+                        maxSyncBytes,
+                        maxBundlePayloadBytes);
             }
         }
-
-        final var tssProof = TssSignedBlockProof.newBuilder()
-                .blockSignature(snapshot.tssSignature())
-                .build();
+        boolean hasManifestPath = allPaths.size() > 1;
 
         // Spec §1.1 sender-side cap: the serialized ClprSyncPayload envelope MUST NOT exceed
         // the peer's max_sync_bytes. We trim the message tail as we append paths so we never
@@ -706,34 +712,53 @@ public class ClprStateProofManager {
                     .build();
             allPaths.add(candidatePath);
             messageLeafCount++;
-            final long candidateSize = payloadSize.applyAsLong(StateProof.newBuilder()
+            long candidateSize = payloadSize.applyAsLong(StateProof.newBuilder()
                     .paths(allPaths)
                     .signedBlockProof(tssProof)
                     .build());
+            // Compact Hiero verifiers require a channel leaf. If the manifest crowds out the
+            // head, send DATA first and retry the manifest with the channel on a later sync.
+            if (!nativeProof && id == firstMessageId && hasManifestPath && candidateSize > maxBundlePayloadBytes) {
+                log.debug("Deferring endpoint manifest to fit queued head (channel={} messageId={})", channelId, id);
+                allPaths.remove(1);
+                hasManifestPath = false;
+                candidateSize =
+                        payloadSize.applyAsLong(proofBuilder.paths(allPaths).build());
+            }
             if (candidateSize > maxBundlePayloadBytes) {
                 // Drop the last path and stop appending — it will be re-attempted next tick.
                 allPaths.removeLast();
                 messageLeafCount--;
-                if (nativeProof && id == firstMessageId) {
-                    // Head-of-queue message can't fit even alone: the channel is wedged. It will be
-                    // re-attempted (and fail) every sync tick, the peer never acks, the queue never
-                    // drains.
+                if (id == firstMessageId && hasManifestPath) {
+                    // Without a message leaf the channel would attest its queue tip, ahead of the
+                    // receiver. Send only the manifest so the receiver can accept it at its current ID.
+                    allPaths.removeFirst();
+                    log.debug(
+                            "[CLPR-BUNDLE-BUILD] sending endpoint manifest before head message {} conn={}",
+                            id,
+                            channelId);
+                } else if (id == firstMessageId) {
+                    // No message can advance the queue with this proof's overhead and peer limit.
+                    // A channel-only proof would claim the queue tip ahead of the receiver.
                     log.warn(
-                            "buildBundleStateProof: head message {} alone exceeds peer max_sync_bytes "
-                                    + "(channel={} candidateBytes={} maxSyncBytes={}). Channel will "
-                                    + "deadlock — review peer max_sync_bytes vs. message sizing.",
+                            "buildBundleStateProof: head message {} alone exceeds the effective proof budget "
+                                    + "(channel={} candidateBytes={} maxSyncBytes={} maxBundlePayloadBytes={}). Outbound queue cannot "
+                                    + "advance within the sender and peer limits. Review proof overhead and "
+                                    + "message sizing.",
                             id,
                             channelId,
                             candidateSize,
-                            maxSyncBytes);
+                            maxSyncBytes,
+                            maxBundlePayloadBytes);
+                    return null;
                 } else {
                     log.debug(
-                            "buildBundleStateProof: trimmed at message {} to stay within maxSyncBytes "
-                                    + "(channel={} included={} maxSyncBytes={})",
+                            "buildBundleStateProof: trimmed at message {} to stay within the proof budget "
+                                    + "(channel={} included={} maxBundlePayloadBytes={})",
                             id,
                             channelId,
                             messageLeafCount,
-                            maxSyncBytes);
+                            maxBundlePayloadBytes);
                 }
                 break;
             }
@@ -748,7 +773,7 @@ public class ClprStateProofManager {
                     firstMessageId);
         }
 
-        // A proof with no message leaves carries the channel's status and current ack frontier
+        // A channel proof with no message leaves carries the channel's status and current ack frontier
         // (channel.receivedMessageId / receivedRunningHash), plus any requested endpoint
         // manifest. Responder paths (`allowPureAck=true`) need this so they can acknowledge
         // an inbound message even when the local outbound queue is empty — without it, the
@@ -758,11 +783,10 @@ public class ClprStateProofManager {
         // An initiator (`allowPureAck=false`) with an empty queue still has meaningful work when
         // it must push a manifest advance the peer has not observed — a moved endpoint has to
         // propagate or peers stay stuck dialing the stale address. So permit a manifest-only
-        // bundle when the manifest will actually be carried (includeEndpointManifest).
+        // bundle when the manifest will actually be carried.
         // Skip only when there are no messages, no permitted channel-only proof, and no manifest to send.
-        final boolean manifestOnlyPayload = includeEndpointManifest;
         if (messageLeafCount == 0) {
-            if (!allowPureAck && !manifestOnlyPayload) {
+            if (!allowPureAck && !hasManifestPath) {
                 log.debug(
                         "[CLPR-BUNDLE-BUILD] no queued messages and no manifest to push; skipping initiator "
                                 + "bundle conn={} firstMessageId={}",
@@ -779,27 +803,22 @@ public class ClprStateProofManager {
 
         // ── Assemble final StateProof ──────────────────────────────────────────────
 
-        final var proof = StateProof.newBuilder()
-                .paths(allPaths)
-                .signedBlockProof(tssProof)
-                .build();
-        final var proofBytes = StateProof.PROTOBUF.toBytes(proof);
+        final var proof = proofBuilder.paths(allPaths).build();
 
-        // Final safety check: if even the channel-only (pure-ACK) proof exceeds the cap, the
-        // Channel is stuck — the peer will reject every bundle we send. Surface loudly so
-        // operators can fix the misconfigured max_sync_bytes (spec §1.1 deadlock warning).
+        // A channel-only ACK can itself exceed the proof budget.
         final long finalPayloadSize = payloadSize.applyAsLong(proof);
         if (nativeProof && finalPayloadSize > maxBundlePayloadBytes) {
             log.warn(
-                    "buildBundleStateProof: bundle exceeds peer max_sync_bytes even after trimming "
-                            + "(channel={} firstMessageId={} bundleBytes={} maxSyncBytes={} envelopeReserve={}). "
-                            + "Channel may deadlock — review peer's max_sync_bytes vs. message+proof sizing.",
+                    "buildBundleStateProof: bundle exceeds the proof budget after trimming "
+                            + "(channel={} firstMessageId={} bundleBytes={} maxSyncBytes={} maxBundlePayloadBytes={})",
                     channelId,
                     firstMessageId,
                     finalPayloadSize,
                     maxSyncBytes,
-                    maxSyncBytes - maxBundlePayloadBytes);
+                    maxBundlePayloadBytes);
+            return null;
         }
+        final var proofBytes = StateProof.PROTOBUF.toBytes(proof);
         log.debug(
                 "[CLPR-BUNDLE-BUILD] complete conn={} firstMessageId={} includedMessages={} pathCount={} "
                         + "proofBytes={} maxSyncBytes={} allowPureAck={}",
