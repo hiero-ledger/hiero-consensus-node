@@ -38,60 +38,147 @@ public final class CantonAnchor {
             @NonNull String successorSynchronizerId,
             long upgradeTime,
             int lsuSerial,
-            @NonNull String app) {}
+            @NonNull String app) {
 
-    /** Decodes {@code abi.decode(trustAnchor, (string, uint64, uint32, bytes32, bytes32, bytes32, string, uint64, uint32, string))}. */
-    @NonNull
-    public static Anchor decode(@NonNull final byte[] trustAnchor) {
-        Objects.requireNonNull(trustAnchor, "trustAnchor");
-        if (trustAnchor.length < MIN_LENGTH) {
-            throw CantonProofException.invalidTrustAnchor();
+        /**
+         * The anchor a config descriptor declares: no request seen yet, no pending upgrade, and no app (the
+         * config opening supplies it).
+         */
+        @NonNull
+        static Anchor initial(
+                @NonNull final String synchronizerId,
+                final int mediatorGroup,
+                @NonNull final byte[] synchronizerNamespace,
+                @NonNull final byte[] ownersHash,
+                @NonNull final byte[] mediatorsHash) {
+            return new Anchor(
+                    synchronizerId, 0, mediatorGroup, synchronizerNamespace, ownersHash, mediatorsHash, "", 0, 0, "");
         }
-        return new Anchor(
-                string(trustAnchor, 0),
-                uint(trustAnchor, 1, 64).longValue(),
-                uint(trustAnchor, 2, 32).intValue(),
-                word(trustAnchor, 3),
-                word(trustAnchor, 4),
-                word(trustAnchor, 5),
-                string(trustAnchor, 6),
-                uint(trustAnchor, 7, 64).longValue(),
-                uint(trustAnchor, 8, 32).intValue(),
-                string(trustAnchor, 9));
-    }
 
-    /** Encodes as Solidity {@code abi.encode} of the ten fields. */
-    @NonNull
-    public static byte[] encode(@NonNull final Anchor a) {
-        Objects.requireNonNull(a, "anchor");
-        final byte[][] strings = {
-            a.synchronizerId().getBytes(StandardCharsets.UTF_8),
-            a.successorSynchronizerId().getBytes(StandardCharsets.UTF_8),
-            a.app().getBytes(StandardCharsets.UTF_8)
-        };
-        final var out = new ByteArrayOutputStream();
-        long tailOffset = (long) HEAD_WORDS * WORD;
-        final long[] offsets = new long[3];
-        for (int i = 0; i < 3; i++) {
-            offsets[i] = tailOffset;
-            tailOffset += WORD + padded(strings[i].length);
+        /** This anchor with {@code app} as its app. */
+        @NonNull
+        Anchor withApp(@NonNull final String newApp) {
+            return new Anchor(
+                    synchronizerId,
+                    lastRequestId,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    ownersHash,
+                    mediatorsHash,
+                    successorSynchronizerId,
+                    upgradeTime,
+                    lsuSerial,
+                    newApp);
         }
-        writeWord(out, offsets[0]);
-        writeWord(out, Long.toUnsignedString(a.lastRequestId()));
-        writeWord(out, Integer.toUnsignedLong(a.mediatorGroup()));
-        out.writeBytes(fixed32(a.synchronizerNamespace()));
-        out.writeBytes(fixed32(a.ownersHash()));
-        out.writeBytes(fixed32(a.mediatorsHash()));
-        writeWord(out, offsets[1]);
-        writeWord(out, Long.toUnsignedString(a.upgradeTime()));
-        writeWord(out, Integer.toUnsignedLong(a.lsuSerial()));
-        writeWord(out, offsets[2]);
-        for (final byte[] s : strings) {
-            writeWord(out, s.length);
-            out.writeBytes(s);
-            out.writeBytes(new byte[padded(s.length) - s.length]);
+
+        /** This anchor with {@code requestId} as the last request id. */
+        @NonNull
+        Anchor withLastRequestId(final long requestId) {
+            return new Anchor(
+                    synchronizerId,
+                    requestId,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    ownersHash,
+                    mediatorsHash,
+                    successorSynchronizerId,
+                    upgradeTime,
+                    lsuSerial,
+                    app);
         }
-        return out.toByteArray();
+
+        /** This anchor with a rotated owner set, mediator set, and logical-synchronizer-upgrade announcement. */
+        @NonNull
+        Anchor withRotation(
+                @NonNull final byte[] newOwnersHash,
+                @NonNull final byte[] newMediatorsHash,
+                @NonNull final String newSuccessorSynchronizerId,
+                final long newUpgradeTime,
+                final int newLsuSerial) {
+            return new Anchor(
+                    synchronizerId,
+                    lastRequestId,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    newOwnersHash,
+                    newMediatorsHash,
+                    newSuccessorSynchronizerId,
+                    newUpgradeTime,
+                    newLsuSerial,
+                    app);
+        }
+
+        /** This anchor once its announced successor synchronizer has taken over: no pending upgrade remains. */
+        @NonNull
+        Anchor withSuccessorAsSynchronizer() {
+            return new Anchor(
+                    successorSynchronizerId,
+                    lastRequestId,
+                    mediatorGroup,
+                    synchronizerNamespace,
+                    ownersHash,
+                    mediatorsHash,
+                    "",
+                    0L,
+                    0,
+                    app);
+        }
+
+        /**
+         * Decodes {@code abi.decode(trustAnchor, (string, uint64, uint32, bytes32, bytes32, bytes32, string, uint64,
+         * uint32, string))}.
+         */
+        @NonNull
+        static Anchor decode(@NonNull final byte[] trustAnchor) {
+            Objects.requireNonNull(trustAnchor, "trustAnchor");
+            if (trustAnchor.length < MIN_LENGTH) {
+                throw CantonProofException.invalidTrustAnchor();
+            }
+            return new Anchor(
+                    string(trustAnchor, 0),
+                    uint(trustAnchor, 1, 64).longValue(),
+                    uint(trustAnchor, 2, 32).intValue(),
+                    word(trustAnchor, 3),
+                    word(trustAnchor, 4),
+                    word(trustAnchor, 5),
+                    string(trustAnchor, 6),
+                    uint(trustAnchor, 7, 64).longValue(),
+                    uint(trustAnchor, 8, 32).intValue(),
+                    string(trustAnchor, 9));
+        }
+
+        /** Encodes as Solidity {@code abi.encode} of the ten fields. */
+        @NonNull
+        byte[] encode() {
+            final byte[][] strings = {
+                synchronizerId.getBytes(StandardCharsets.UTF_8),
+                successorSynchronizerId.getBytes(StandardCharsets.UTF_8),
+                app.getBytes(StandardCharsets.UTF_8)
+            };
+            final var out = new ByteArrayOutputStream();
+            long tailOffset = (long) HEAD_WORDS * WORD;
+            final long[] offsets = new long[3];
+            for (int i = 0; i < 3; i++) {
+                offsets[i] = tailOffset;
+                tailOffset += WORD + padded(strings[i].length);
+            }
+            writeWord(out, offsets[0]);
+            writeWord(out, Long.toUnsignedString(lastRequestId));
+            writeWord(out, Integer.toUnsignedLong(mediatorGroup));
+            out.writeBytes(fixed32(synchronizerNamespace));
+            out.writeBytes(fixed32(ownersHash));
+            out.writeBytes(fixed32(mediatorsHash));
+            writeWord(out, offsets[1]);
+            writeWord(out, Long.toUnsignedString(upgradeTime));
+            writeWord(out, Integer.toUnsignedLong(lsuSerial));
+            writeWord(out, offsets[2]);
+            for (final byte[] s : strings) {
+                writeWord(out, s.length);
+                out.writeBytes(s);
+                out.writeBytes(new byte[padded(s.length) - s.length]);
+            }
+            return out.toByteArray();
+        }
     }
 
     private static int padded(final int len) {

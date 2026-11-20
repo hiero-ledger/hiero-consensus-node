@@ -7,6 +7,7 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "services/timestamp.proto";
 import "services/state/clpr/clpr_endpoint_manifest.proto";
 import "services/state/clpr/clpr_message.proto";
 
@@ -57,4 +58,10 @@ message ClprBundleContent {
      * the bundle. Applied before the trust anchor update (§4.2 Step 1c).
      */
     ClprEndpointManifest new_endpoint_manifest = 5;
+
+    /**
+     * Timestamp of the authenticated source block containing the manifest.
+     * Set only when the verifier establishes its value against that block's signed root.
+     */
+    proto.Timestamp manifest_proof_timestamp = 7;
 }

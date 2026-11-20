@@ -50,13 +50,11 @@ target verification key. The companion is persisted with the WRAPS message so
 restart and reconnect reconstruct the same accepted R1 set. Duplicate, malformed,
 wrong-generation, or wrong-key companions do not add signing weight.
 
-The WRAPS implementation freezes its R1 participants after their source weight
-is **strictly greater than one half**, then requires R2 and R3 messages from that
-same set. Its source weights come from the persisted active hinTS scheme. Because
-every admitted R1 participant supplies a valid companion, the frozen set also
-exceeds the provenance signature's **strictly greater than one third** threshold.
-The provenance check uses the fixed fraction `1/3`, independent of the configurable
-block-signature threshold. Exactly one third is insufficient.
+WRAPS freezes R1 once the participants hold a strict majority of the canonical book's effective Schnorr weight
+and strictly more than one third of the weight committed in the source hinTS key. R2 and R3 require messages
+from that same set. A history-backed source key from preprocessing started with TSS 3.29.1 commits the full listed
+roster weight. Older keys commit participant weight. The fixed provenance fraction is independent of the
+configurable block-signature threshold.
 
 This requirement also prevents a Byzantine participant from supplying its WRAPS
 message while withholding the companion needed to authorize the next key. A node

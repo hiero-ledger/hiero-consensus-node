@@ -16,7 +16,6 @@ import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
-import java.util.Iterator;
 import java.util.Objects;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.metrics.RunningAverageMetric;
@@ -178,9 +177,7 @@ public class ConsensusEngineMetrics {
         long appSize = 0;
         int numAppTrans = 0;
 
-        final Iterator<Transaction> iterator = event.getBaseEvent().transactionIterator();
-        while (iterator.hasNext()) {
-            final Transaction transaction = iterator.next();
+        for (final Transaction transaction : event.getBaseEvent().getTransactions()) {
             numAppTrans++;
             appSize += transaction.getSize();
             avgBytesPerTransaction.update(transaction.getSize());

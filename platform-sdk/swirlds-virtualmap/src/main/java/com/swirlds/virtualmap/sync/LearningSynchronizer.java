@@ -56,8 +56,12 @@ public class LearningSynchronizer {
     private final VirtualMapLearnerSyncConfig syncConfig;
     private final Metrics metrics;
 
+    /** The number of leading hash bytes to send in requests, see {@link PullVirtualTreeRequest}. */
+    private final int hashPrefixLength;
+
     /**
-     * Constructs a new learning synchronizer.
+     * Constructs a new learning synchronizer, which sends hash prefixes of the configured length, see
+     * {@link VirtualMapLearnerSyncConfig#hashPrefixLength()}.
      *
      * @param threadManager responsible for managing thread lifecycles
      * @param config the configuration
@@ -67,11 +71,38 @@ public class LearningSynchronizer {
             @NonNull final ThreadManager threadManager,
             @NonNull final Configuration config,
             @NonNull final Metrics metrics) {
+        this(
+                threadManager,
+                config,
+                metrics,
+                config.getConfigData(VirtualMapLearnerSyncConfig.class).hashPrefixLength());
+    }
+
+    /**
+     * Constructs a new learning synchronizer.
+     *
+     * @param threadManager responsible for managing thread lifecycles
+     * @param config the configuration
+     * @param metrics the metrics system for recording synchronization metrics
+     * @param hashPrefixLength the number of leading hash bytes to send in requests, at least
+     *     {@link VirtualMapLearnerSyncConfig#MIN_HASH_PREFIX_LENGTH}. If it isn't less than the hash
+     *     length, full hashes are sent
+     */
+    public LearningSynchronizer(
+            @NonNull final ThreadManager threadManager,
+            @NonNull final Configuration config,
+            @NonNull final Metrics metrics,
+            final int hashPrefixLength) {
 
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager cannot be null");
         this.syncConfig = Objects.requireNonNull(config, "config cannot be null")
                 .getConfigData(VirtualMapLearnerSyncConfig.class);
         this.metrics = Objects.requireNonNull(metrics, "metrics cannot be null");
+        if (hashPrefixLength < VirtualMapLearnerSyncConfig.MIN_HASH_PREFIX_LENGTH) {
+            throw new IllegalArgumentException("hashPrefixLength must be at least "
+                    + VirtualMapLearnerSyncConfig.MIN_HASH_PREFIX_LENGTH + ": " + hashPrefixLength);
+        }
+        this.hashPrefixLength = hashPrefixLength;
     }
 
     /**
@@ -204,7 +235,7 @@ public class LearningSynchronizer {
         }
 
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
-            logger.info(RECONNECT.getMarker(), "learner start synchronizing");
+            logger.info(RECONNECT.getMarker(), "learner start synchronizing, hashPrefixLength={}", hashPrefixLength);
 
             final AsyncInputStream input = new AsyncInputStream(
                     in,
@@ -242,7 +273,7 @@ public class LearningSynchronizer {
             for (int i = 0; i < learnerSendTasks; i++) {
                 workGroup.fork(
                         "reconnect-learner-sender",
-                        new LearnerPullVirtualTreeSendTask(output, exchanger, sendTasksDone));
+                        new LearnerPullVirtualTreeSendTask(output, exchanger, hashPrefixLength, sendTasksDone));
             }
 
             // when all send tasks done, output can be closed, which signals the teacher that no more requests will be
@@ -330,8 +361,8 @@ public class LearningSynchronizer {
     private void exchangeRootNode(
             LearnerTreeExchanger exchanger, final AsyncInputStream in, final AsyncOutputStream out) {
         logger.info(RECONNECT.getMarker(), "Learner sending root node request to teacher");
-        final PullVirtualTreeRequest rootRequest =
-                new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, new Hash(Cryptography.DEFAULT_DIGEST_TYPE));
+        final PullVirtualTreeRequest rootRequest = new PullVirtualTreeRequest(
+                MerklePathUtils.ROOT_PATH, new Hash(Cryptography.DEFAULT_DIGEST_TYPE), hashPrefixLength);
         final byte[] rootRequestBytes = new byte[rootRequest.getSizeInBytes()];
         rootRequest.writeTo(BufferedData.wrap(rootRequestBytes));
         try {

@@ -17,7 +17,8 @@ import java.util.TreeMap;
  *
  * @param id stable identity of the group: its distinct network names, sorted and comma-joined
  * @param networkNames the distinct network names in the group
- * @param weight the total number of nodes the group boots (the sum of its distinct networks' sizes)
+ * @param weight the most nodes the group runs at once (the sum over its distinct networks of the larger of
+ *     {@code size} and {@code maxLiveNodes})
  */
 public record NetworkGroup(@NonNull String id, @NonNull Set<String> networkNames, int weight) {
     public NetworkGroup {
@@ -30,7 +31,7 @@ public record NetworkGroup(@NonNull String id, @NonNull Set<String> networkNames
     public static NetworkGroup of(@NonNull final Network[] configs) {
         final Map<String, Integer> sizeByName = new TreeMap<>();
         for (final var cfg : configs) {
-            sizeByName.putIfAbsent(MultiNetworkExtension.resolveName(cfg), cfg.size());
+            sizeByName.putIfAbsent(MultiNetworkExtension.resolveName(cfg), Math.max(cfg.size(), cfg.maxLiveNodes()));
         }
         return of(sizeByName);
     }

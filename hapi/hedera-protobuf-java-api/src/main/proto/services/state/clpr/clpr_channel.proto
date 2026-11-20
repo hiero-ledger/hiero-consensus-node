@@ -192,6 +192,18 @@ message ClprChannel {
      */
     uint64 endpoint_manifest_version = 20;
 
+    /**
+     * Greatest authenticated source block timestamp of an installed peer manifest.
+     * Optional for channels whose verifier does not supply a timestamp.
+     */
+    proto.Timestamp endpoint_manifest_proof_timestamp = 21;
+
+    /**
+     * Once a downgrade has been applied, manifest updates require proof from a
+     * strictly later source block.
+     */
+    bool peer_manifest_recovered = 22;
+
     /** The 32-byte salt used to derive a channel opened with ClprOpenChannel. */
-    bytes salt = 21;
+    bytes salt = 23;
 }

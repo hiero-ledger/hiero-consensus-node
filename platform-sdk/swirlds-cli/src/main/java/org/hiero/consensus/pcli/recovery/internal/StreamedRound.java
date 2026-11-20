@@ -2,14 +2,14 @@
 package org.hiero.consensus.pcli.recovery.internal;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.base.iterator.TypedIterator;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.model.event.CesEvent;
-import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 
 /**
@@ -27,25 +27,16 @@ public class StreamedRound implements Round {
             @NonNull final List<CesEvent> events,
             final long roundNumber,
             final long transactionOffsetNanos) {
-        this.events = events;
+        this.events = Collections.unmodifiableList(events);
         this.roundNumber = roundNumber;
         events.stream()
                 .map(CesEvent::getPlatformEvent)
                 .forEach(e -> e.setConsensusTimestampsOnTransactions(transactionOffsetNanos));
-        consensusTimestamp = events.get(events.size() - 1).getPlatformEvent().getConsensusTimestamp();
+        consensusTimestamp = events.getLast().getPlatformEvent().getConsensusTimestamp();
         this.consensusRoster = Objects.requireNonNull(consensusRoster);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public Iterator<ConsensusEvent> iterator() {
-        return new TypedIterator<>(events.iterator());
-    }
-
-    public @NonNull List<CesEvent> getEvents() {
+    public @NonNull List<CesEvent> getConsensusEvents() {
         return events;
     }
 
@@ -68,14 +59,6 @@ public class StreamedRound implements Round {
     /**
      * {@inheritDoc}
      */
-    @Override
-    public int getEventCount() {
-        return events.size();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @NonNull
     @Override
     public Roster getConsensusRoster() {
@@ -89,5 +72,40 @@ public class StreamedRound implements Round {
     @Override
     public Instant getConsensusTimestamp() {
         return consensusTimestamp;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public ConsensusSnapshot getConsensusSnapshot() {
+        throw new UnsupportedOperationException("Not currently supported");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isPcesRound() {
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public Instant getReachedConsTimestamp() {
+        throw new UnsupportedOperationException("Not currently supported");
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public RunningHash getLastEventRunningHash() {
+        return events.getLast().getRunningHash();
     }
 }

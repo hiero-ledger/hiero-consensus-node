@@ -421,9 +421,17 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void returnsBalanceIfPresent() {
+        // The Wei type is only a carrier, the amount is the account's balance in tinybars
         final var value = Wei.of(1234);
         givenWellKnownAccount(contractWith(A_ACCOUNT_ID).tinybarBalance(1234));
         assertEquals(value, subject.getBalance(A_ACCOUNT_ID));
+    }
+
+    @Test
+    void returnsBalanceInTinybarsWithoutWeibarScaling() {
+        final long tinybarBalance = 50_000_000_000L * 100_000_000L;
+        givenWellKnownAccount(contractWith(A_ACCOUNT_ID).tinybarBalance(tinybarBalance));
+        assertEquals(tinybarBalance, subject.getBalance(A_ACCOUNT_ID).toLong());
     }
 
     @Test

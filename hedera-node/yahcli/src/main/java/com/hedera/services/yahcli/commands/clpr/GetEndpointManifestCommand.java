@@ -71,6 +71,11 @@ public class GetEndpointManifestCommand implements Callable<Integer> {
                     + "Hiero TSS verifier (0.0.366) requires.")
     String proofPath;
 
+    @Option(
+            names = "--for-manifest-recovery",
+            description = "Request the timestamped proof for submit-bundle manifest recovery.")
+    boolean forManifestRecovery;
+
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
@@ -78,6 +83,9 @@ public class GetEndpointManifestCommand implements Callable<Integer> {
         final var capturedProof = new AtomicReference<ByteString>(ByteString.EMPTY);
         final var op =
                 clprGetEndpointManifest().exposingManifestTo(captured::set).exposingProofTo(capturedProof::set);
+        if (forManifestRecovery) {
+            op.forManifestRecovery();
+        }
         final var delegate = new ClprQuerySuite(config, "ClprGetEndpointManifest", op);
         delegate.runSuiteSync();
 

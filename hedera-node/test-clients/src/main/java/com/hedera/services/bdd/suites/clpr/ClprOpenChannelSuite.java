@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CHANNEL_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_CONNECTOR_ALREADY_EXISTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_INVALID_VERIFIER_CONTRACT;
@@ -31,9 +32,11 @@ import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
@@ -180,6 +183,27 @@ public class ClprOpenChannelSuite {
                     .payingWith(GENESIS)
                     .hasKnownStatus(CLPR_INVALID_VERIFIER_CONTRACT));
         }));
+    }
+
+    @HapiTest
+    @DisplayName("Opening with the unsupported Sei verifier returns CLPR_INVALID_VERIFIER_CONTRACT")
+    final Stream<DynamicTest> seiVerifierFails() {
+        final var seiByNumber = ContractID.newBuilder().setContractNum(0x170L).build();
+        final var seiAddress = asSolidityAddress(seiByNumber);
+        final var seiByAddress = ContractID.newBuilder()
+                .setEvmAddress(ByteString.copyFrom(seiAddress))
+                .build();
+        final var crypto = new ClprChannelCrypto("eip155:298", seiAddress, "hiero:testing", new byte[] {0, 0, 1});
+        return hapiTest(Stream.of(seiByNumber, seiByAddress)
+                .map(verifier -> clprOpenChannel()
+                        .channelId(crypto.channelId())
+                        .salt(crypto.salt())
+                        .peerVerifier(crypto.peerVerifier())
+                        .verifierContractId(verifier)
+                        .configProofBytes(defaultConfigProofBytes())
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(CLPR_INVALID_VERIFIER_CONTRACT))
+                .toArray(SpecOperation[]::new));
     }
 
     @LeakyHapiTest(

@@ -4,6 +4,7 @@ package com.hedera.node.app.hints.impl;
 import static com.hedera.node.app.hints.HintsLibrary.isSupportedPartySize;
 import static com.hedera.node.app.hints.HintsLibrary.isValidPartyId;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
 
@@ -13,6 +14,7 @@ import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
 import com.hedera.node.app.hints.HintsLibrary;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -22,6 +24,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -54,12 +57,15 @@ public class HintsContext {
     private static final long NO_CONSTRUCTION_ID = Long.MIN_VALUE;
     private static final long NO_BLOCK_STARTED = -1L;
     private static final long MIXED_MODE_BLOCKS = 3L;
+    // Sentinel for a System.nanoTime() timestamp that has not been recorded yet
+    private static final long UNSET_NANOS = Long.MIN_VALUE;
 
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     private final HintsLibrary library;
     private final Supplier<Configuration> configProvider;
     private final HintsSigningMetrics signingMetrics;
+    private final Supplier<NodeInfo> selfNodeInfoSupplier;
 
     private final ReentrantReadWriteLock constructionLock = new ReentrantReadWriteLock(true);
 
@@ -108,6 +114,8 @@ public class HintsContext {
         private boolean hasSameSigningMaterial(final ConstructionSnapshot other) {
             return construction.crsId() == other.construction.crsId()
                     && construction.numParties() == other.construction.numParties()
+                    && Objects.equals(
+                            construction.preprocessingRosterWeight(), other.construction.preprocessingRosterWeight())
                     && construction.hintsSchemeOrThrow().equals(other.construction.hintsSchemeOrThrow())
                     && crsState.crs().equals(other.crsState.crs())
                     && (requiresHistory != other.requiresHistory
@@ -119,10 +127,12 @@ public class HintsContext {
     public HintsContext(
             @NonNull final HintsLibrary library,
             @NonNull final Supplier<Configuration> configProvider,
-            @NonNull final HintsSigningMetrics signingMetrics) {
+            @NonNull final HintsSigningMetrics signingMetrics,
+            @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier) {
         this.library = requireNonNull(library);
         this.configProvider = requireNonNull(configProvider);
         this.signingMetrics = requireNonNull(signingMetrics);
+        this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
     }
 
     /** Whether this context requires the complete history generation for its signing denominator. */
@@ -130,7 +140,7 @@ public class HintsContext {
         return HintsGenerationWeights.requiresHistory(configProvider.get().getConfigData(TssConfig.class));
     }
 
-    /** Restores scheme-only signing when history is disabled or signatures are mocked. */
+    /** Restores signing from the hinTS construction when the configuration permits a history-free snapshot. */
     public void setConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
         final var weights = requiresHistory()
                 ? HintsGenerationWeights.from(construction, null)
@@ -141,7 +151,7 @@ public class HintsContext {
     /**
      * Activates a completed scheme bound to its CRS. Real history-backed signing requires the complete
      * canonical generation supplied by startup recovery or a completed history handoff. History-disabled
-     * and mock-signature modes retain scheme-relative weights, regardless of an optional history snapshot.
+     * and mock-signature modes can use the weight frozen in the construction itself.
      * Existing signing attempts keep the weights and verification fraction captured when they opened.
      *
      * @param construction the completed construction to use for signing
@@ -436,13 +446,16 @@ public class HintsContext {
                 snapshot.crsState(),
                 blockHash,
                 threshold,
-                snapshot.generationWeights().verificationFraction(divisor),
+                snapshot.construction().hasPreprocessingRosterWeight()
+                        ? new HintsGenerationWeights.ThresholdFraction(1, divisor)
+                        : snapshot.generationWeights().verificationFraction(divisor),
                 snapshot.aggregationKey(),
                 snapshot.nodePartyIds(),
                 snapshot.nodeWeights(),
                 snapshot.verificationKey(),
                 onCompletion,
-                tssConfig.validateBlockSignatures());
+                tssConfig.validateBlockSignatures(),
+                selfNodeInfoSupplier.get().nodeId());
     }
 
     private @NonNull ConstructionSnapshot snapshotOf(
@@ -454,7 +467,10 @@ public class HintsContext {
         final var preprocessedKeys = scheme.preprocessedKeysOrThrow();
         final var schemeWeights =
                 scheme.nodePartyIds().stream().collect(toMap(NodePartyId::nodeId, NodePartyId::partyWeight));
-        if (!generationWeights.matches(construction) || !schemeWeights.equals(generationWeights.schemeWeights())) {
+        final long signingWeight = construction.preprocessingRosterWeightOrElse(generationWeights.totalWeight());
+        if (!generationWeights.matches(construction)
+                || !schemeWeights.equals(generationWeights.schemeWeights())
+                || (requiresHistory && signingWeight != generationWeights.totalWeight())) {
             throw new IllegalArgumentException("Generation weights do not match the hinTS scheme");
         }
         return new ConstructionSnapshot(
@@ -465,7 +481,7 @@ public class HintsContext {
                 preprocessedKeys.verificationKey(),
                 Map.copyOf(asNodePartyIds(scheme.nodePartyIds())),
                 generationWeights.schemeWeights(),
-                generationWeights.totalWeight(),
+                signingWeight,
                 generationWeights,
                 requiresHistory);
     }
@@ -536,6 +552,7 @@ public class HintsContext {
      */
     public non-sealed class Signing implements BlockHashSigning {
         private final long startNanos;
+        private final long selfNodeId;
         private final long constructionId;
         private final CRSState crsState;
         private final long thresholdWeight;
@@ -551,6 +568,14 @@ public class HintsContext {
         private final AtomicLong weightOfSignatures = new AtomicLong();
         private final AtomicBoolean completed = new AtomicBoolean();
         private final ScheduledFuture<?> timeoutFuture;
+        // Timestamps for latency metrics relative to this node's own partial signature submission; because a slow node
+        // can receive (even enough) peer partial signatures before it has produced the block and submitted its own,
+        // these may be set in any order, and each metric is recorded exactly once, when both of its timestamps are set
+        private final AtomicLong localSubmissionNanos = new AtomicLong(UNSET_NANOS);
+        private final AtomicLong firstPeerSignatureNanos = new AtomicLong(UNSET_NANOS);
+        private final AtomicLong signatureReadyNanos = new AtomicLong(UNSET_NANOS);
+        private final AtomicBoolean firstPeerLatencyRecorded = new AtomicBoolean();
+        private final AtomicBoolean signatureReadyLatencyRecorded = new AtomicBoolean();
 
         public Signing(
                 final long constructionId,
@@ -563,8 +588,10 @@ public class HintsContext {
                 @NonNull final Map<Long, Long> nodeWeights,
                 @NonNull final Bytes verificationKey,
                 @NonNull final Runnable onCompletion,
-                final boolean validateSignature) {
+                final boolean validateSignature,
+                final long selfNodeId) {
             this.startNanos = System.nanoTime();
+            this.selfNodeId = selfNodeId;
             this.constructionId = constructionId;
             this.crsState = requireNonNull(crsState);
             this.thresholdWeight = thresholdWeight;
@@ -644,6 +671,29 @@ public class HintsContext {
         }
 
         /**
+         * Whether this signing attempt can still use a partial signature from the given node; that is, the attempt
+         * is not complete, the node is a party to its scheme, and no signature from the node has been incorporated.
+         *
+         * @param nodeId the node ID
+         * @return true if a valid partial signature from the node would still be incorporated
+         */
+        public boolean needsSignatureFrom(final long nodeId) {
+            final var partyId = partyIds.get(nodeId);
+            return partyId != null && !completed.get() && !signatures.containsKey(partyId);
+        }
+
+        /**
+         * Records that this node has submitted its own partial signature for this attempt's block hash. Only the
+         * first call has any effect.
+         */
+        public void markLocalSubmission() {
+            if (localSubmissionNanos.compareAndSet(UNSET_NANOS, System.nanoTime())) {
+                maybeRecordFirstPeerLatency();
+                maybeRecordSignatureReadyLatency();
+            }
+        }
+
+        /**
          * Cancels this signing process.
          */
         @Override
@@ -678,6 +728,9 @@ public class HintsContext {
                 // Each valid signature should only accumulate weight once, so abort on duplicates
                 return;
             }
+            if (nodeId != selfNodeId && firstPeerSignatureNanos.compareAndSet(UNSET_NANOS, System.nanoTime())) {
+                maybeRecordFirstPeerLatency();
+            }
             final var weight = nodeWeights.getOrDefault(nodeId, 0L);
             final var totalWeight = weightOfSignatures.addAndGet(weight);
             // For block hash signing, always require strictly greater than threshold
@@ -694,12 +747,54 @@ public class HintsContext {
                                         verificationFraction.numerator(),
                                         verificationFraction.denominator()));
                 if (valid) {
+                    final long nowNanos = System.nanoTime();
                     future.complete(aggregatedSignature);
-                    final long elapsedNanos = System.nanoTime() - startNanos;
-                    signingMetrics.recordSignatureProduced(elapsedNanos / 1_000_000L);
+                    signingMetrics.recordSignatureProduced(NANOSECONDS.toMillis(nowNanos - startNanos));
+                    signatureReadyNanos.set(nowNanos);
+                    maybeRecordSignatureReadyLatency();
                 } else {
                     future.completeExceptionally(new IllegalStateException(INVALID_AGGREGATE_SIGNATURE_MESSAGE));
                 }
+            }
+        }
+
+        /**
+         * Once both this node's submission and the first peer partial signature are known, records either the
+         * latency between them or, if the peer signature arrived first, by how much it led this node.
+         */
+        private void maybeRecordFirstPeerLatency() {
+            final long submittedAt = localSubmissionNanos.get();
+            final long firstPeerAt = firstPeerSignatureNanos.get();
+            if (submittedAt == UNSET_NANOS
+                    || firstPeerAt == UNSET_NANOS
+                    || !firstPeerLatencyRecorded.compareAndSet(false, true)) {
+                return;
+            }
+            final long deltaNanos = firstPeerAt - submittedAt;
+            if (deltaNanos >= 0) {
+                signingMetrics.recordSubmitToFirstPeerSignature(deltaNanos);
+            } else {
+                signingMetrics.recordPeerSignatureBeforeSubmit(-deltaNanos);
+            }
+        }
+
+        /**
+         * Once both this node's submission and the aggregated signature are known, records either the latency
+         * between them or, if the signature was aggregated from peer signatures first, by how much it led this node.
+         */
+        private void maybeRecordSignatureReadyLatency() {
+            final long submittedAt = localSubmissionNanos.get();
+            final long readyAt = signatureReadyNanos.get();
+            if (submittedAt == UNSET_NANOS
+                    || readyAt == UNSET_NANOS
+                    || !signatureReadyLatencyRecorded.compareAndSet(false, true)) {
+                return;
+            }
+            final long deltaNanos = readyAt - submittedAt;
+            if (deltaNanos >= 0) {
+                signingMetrics.recordSubmitToProofReady(deltaNanos);
+            } else {
+                signingMetrics.recordThresholdBeforeSubmit(-deltaNanos);
             }
         }
     }
