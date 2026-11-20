@@ -72,7 +72,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
      *   <li>{@code 0x16e} (366) — CLPR system contract precompile.</li>
      *   <li>{@code 0x16f} (367) — Besu QBFT verifier system contract.</li>
      *   <li>{@code 0x171} (369) — Ethereum (sync-committee) verifier system contract.</li>
-     *   <li>{@code 0x173} (370) — Canton (non-EVM, native verifier).</li>
+     *   <li>{@code 0x173} (371) — Canton (non-EVM, native verifier).</li>
      * </ul>
      * Mirrors {@code BesuQBFTVerifierSystemContract.BESU_QBFT_VERIFIER_EVM_ADDRESS} and
      * {@code EthereumVerifierSystemContract.ETHEREUM_VERIFIER_EVM_ADDRESS} in the
