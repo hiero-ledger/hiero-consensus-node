@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.state;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STORAGE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -192,7 +193,7 @@ class WritableEvmHookStoreTest {
     }
 
     @Test
-    void persistingZeroIntoUnlistedSlotChangesNothing() {
+    void persistingZeroIntoUnlistedSlotOnlyRemovesThatEntry() {
         givenHookInCurrentStateOnly(
                 B,
                 1,
@@ -205,6 +206,8 @@ class WritableEvmHookStoreTest {
         assertEquals(0, delta);
         assertEquals(B, currentHookStates.get(HOOK_ID).firstContractStorageKey());
         assertEquals(1L, currentHookStates.get(HOOK_ID).numStorageSlots());
+        assertFalse(currentStorage.containsKey(slotKey(A)));
+        assertEquals(slot(VALUE_2, Bytes.EMPTY, Bytes.EMPTY), currentStorage.get(slotKey(B)));
         verifyNoInteractions(entityCounters);
     }
 
