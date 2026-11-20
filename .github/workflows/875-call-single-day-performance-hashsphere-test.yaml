@@ -68,6 +68,9 @@ on:
       github-token:
         required: true
         description: "GitHub Authorization Token for the workflow"
+      github-token2:
+        required: true
+        description: "GitHub Authorization Token for the workflow"
       chewie-host:
         required: true
         description: "Chewie Host"
@@ -185,7 +188,9 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           path: target_consensus_node
+          repository: "hashgraph/private-hedera-services"
           ref: ${{ inputs.ref }}
+          token: ${{ secrets.github-token2 }}
 
       - name: Checkout target BN Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
