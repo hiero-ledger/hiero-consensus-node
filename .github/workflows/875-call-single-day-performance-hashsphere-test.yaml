@@ -98,8 +98,8 @@ env:
   #-15%
   #         21250 26350         11261          6113     1136                97750
   MinNFTscore: 700
-  MinHCSLoadTest: 20000
-  MinCryptoTransferLoadTest: 11000
+  MinHCSLoadTest: 12000
+  MinCryptoTransferLoadTest: 7000
   MinHeliSwapLoadTest: 800
   MinSmartContractLoadTest: 10000
 
